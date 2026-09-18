@@ -1,0 +1,257 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+    ArrayNotEmpty,
+    IsArray,
+    IsBoolean,
+    IsIn,
+    IsInt,
+    IsNotEmpty,
+    IsNumber,
+    IsOptional,
+    IsString,
+    IsUUID,
+    Max,
+    Min,
+    ValidateNested,
+} from 'class-validator';
+
+export const EXAM_TYPES = ['daily', 'pas', 'pat', 'lainnya', 'assignment'] as const;
+export const CLASS_TYPES = ['reguler', 'tambahan'] as const;
+
+/** Bidang ujian yang dipakai baik saat membuat maupun mengubah. */
+class ExamFieldsDto {
+    @ApiProperty()
+    @IsString()
+    @IsNotEmpty({ message: 'Judul ujian wajib diisi.' })
+    title!: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @ApiPropertyOptional({ enum: EXAM_TYPES })
+    @IsOptional()
+    @IsIn(EXAM_TYPES, { message: 'Jenis ujian tidak dikenal' })
+    examType?: (typeof EXAM_TYPES)[number];
+
+    @ApiProperty({ description: 'Dalam menit. Diabaikan untuk ujian bertipe assignment.' })
+    @IsNumber()
+    duration!: number;
+
+    @ApiPropertyOptional({
+        example: '2026-06-01T07:30',
+        description: 'Waktu lokal WIB; dikonversi ke UTC di server.',
+    })
+    @IsOptional()
+    @IsString()
+    startTime?: string;
+
+    @ApiPropertyOptional({ example: '2026-06-01T09:30' })
+    @IsOptional()
+    @IsString()
+    endTime?: string;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    randomizeQuestions?: boolean;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    randomizeOptions?: boolean;
+
+    @ApiPropertyOptional({ default: false })
+    @IsOptional()
+    @IsBoolean()
+    showResults?: boolean;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    isSafeMode?: boolean;
+
+    @ApiPropertyOptional({ default: 'classical' })
+    @IsOptional()
+    @IsString()
+    scoringType?: string;
+
+    @ApiPropertyOptional({ default: false })
+    @IsOptional()
+    @IsBoolean()
+    isPublic?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    documentUrl?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    videoUrl?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    assignmentDescription?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    allowFileUpload?: boolean;
+
+    @ApiPropertyOptional({ type: [String], default: ['pdf'] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    allowedFileTypes?: string[];
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    requireBank?: boolean;
+}
+
+export class CreateExamDto extends ExamFieldsDto {
+    @ApiProperty({ description: "Boleh 'all' pada dasbor admin platform." })
+    @IsString()
+    @IsNotEmpty({ message: 'organizationId wajib diisi' })
+    organizationId!: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('4', { message: 'subjectId tidak valid' })
+    subjectId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('4', { message: 'questionBankId tidak valid' })
+    questionBankId?: string;
+}
+
+export class UpdateExamDto extends ExamFieldsDto {}
+
+export class PublishExamDto {
+    @ApiProperty()
+    @IsBoolean()
+    publish!: boolean;
+}
+
+export class AssignExamDto {
+    @ApiProperty({ type: [String], description: 'Kelas reguler maupun tambahan.' })
+    @IsArray()
+    @IsUUID('4', { each: true, message: 'classIds memuat id yang tidak valid' })
+    classIds!: string[];
+
+    @ApiProperty({ type: [String], description: 'Peserta perorangan di luar kelas.' })
+    @IsArray()
+    @IsUUID('4', { each: true, message: 'userIds memuat id yang tidak valid' })
+    userIds!: string[];
+
+    @ApiPropertyOptional({ default: true, description: 'Sekaligus mengaktifkan ujiannya.' })
+    @IsOptional()
+    @IsBoolean()
+    activate?: boolean;
+}
+
+export class ExamIdsDto {
+    @ApiProperty({ type: [String] })
+    @IsArray()
+    @IsUUID('4', { each: true, message: 'examIds memuat id yang tidak valid' })
+    examIds!: string[];
+}
+
+export class ClassIdsDto {
+    @ApiProperty({ type: [String] })
+    @IsArray()
+    @IsUUID('4', { each: true, message: 'classIds memuat id yang tidak valid' })
+    classIds!: string[];
+}
+
+export class GradeAssignmentDto {
+    @ApiProperty({ minimum: 0, maximum: 100 })
+    @IsNumber()
+    @Min(0, { message: 'Nilai minimal 0' })
+    @Max(100, { message: 'Nilai maksimal 100' })
+    score!: number;
+
+    @ApiPropertyOptional({ default: '' })
+    @IsOptional()
+    @IsString()
+    feedback?: string;
+}
+
+// ── Kelas ────────────────────────────────────────────────────────────────────
+
+export class ClassFieldsDto {
+    @ApiProperty()
+    @IsString()
+    @IsNotEmpty({ message: 'Nama kelas wajib diisi.' })
+    name!: string;
+
+    @ApiProperty({ enum: CLASS_TYPES })
+    @IsIn(CLASS_TYPES, { message: 'Jenis kelas harus reguler atau tambahan' })
+    type!: (typeof CLASS_TYPES)[number];
+
+    @ApiPropertyOptional({ example: '2025/2026' })
+    @IsOptional()
+    @IsString()
+    schoolYear?: string;
+}
+
+export class CreateClassDto extends ClassFieldsDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'organizationId tidak valid' })
+    organizationId!: string;
+}
+
+export class UpdateClassDto extends ClassFieldsDto {}
+
+export class ImportClassesDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'organizationId tidak valid' })
+    organizationId!: string;
+
+    @ApiProperty({ type: [ClassFieldsDto] })
+    @IsArray()
+    @ArrayNotEmpty({ message: 'Tidak ada kelas untuk diimpor.' })
+    @ValidateNested({ each: true })
+    @Type(() => ClassFieldsDto)
+    classes!: ClassFieldsDto[];
+}
+
+// ── Tahun ajaran ─────────────────────────────────────────────────────────────
+
+export class CreateSchoolYearDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'organizationId tidak valid' })
+    organizationId!: string;
+
+    @ApiProperty({ example: '2025/2026' })
+    @IsString()
+    @IsNotEmpty({ message: 'Tahun ajaran wajib diisi.' })
+    year!: string;
+
+    @ApiPropertyOptional({ example: '2025-07-01' })
+    @IsOptional()
+    @IsString()
+    startDate?: string;
+
+    @ApiPropertyOptional({ example: '2026-06-30' })
+    @IsOptional()
+    @IsString()
+    endDate?: string;
+}
+
+export class RecentLoginsQueryDto {
+    @ApiPropertyOptional({ default: 10 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    @Max(200)
+    limit?: number;
+}

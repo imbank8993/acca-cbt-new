@@ -1,0 +1,16 @@
+# Dependensi yang BENAR-BENAR dipakai kode saat ini.
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+numpy==2.3.3
+
+# Diimpor secara malas di app/services/ai.py, hanya saat endpoint AI dipanggil.
+# Layanan tetap bisa dijalankan tanpa ini bila fitur AI tidak dipakai.
+openai==1.109.1
+
+# ── Belum ditambahkan dengan sengaja ─────────────────────────────────────────
+# scipy, python-docx, openpyxl, dan python-multipart sempat dicantumkan, tetapi
+# tidak ada satu pun yang diimpor. scipy sendiri butuh waktu unduh dan
+# kompilasi yang lama. Ketiganya ditambahkan saat parsing dokumen benar-benar
+# dikerjakan (lihat docs/MIGRASI_BACKEND.md), bukan sebelumnya.

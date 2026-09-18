@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    // Buildinfo disimpan DI DALAM dist dengan sengaja.
+    //
+    // nest-cli.json memakai deleteOutDir, yang menghapus dist tetapi tidak
+    // menyentuh buildinfo di root. TypeScript lalu membaca catatan itu,
+    // menyimpulkan keluaran JS-nya masih ada, dan hanya meng-emit ulang berkas
+    // .d.ts — sehingga dist/main.js tidak pernah terbentuk dan `nest start`
+    // gagal dengan "Cannot find module dist/main". Menaruhnya di dalam dist
+    // membuat keduanya terhapus bersamaan.
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    // rootDir dikunci ke src/ dengan sengaja.
+    //
+    // Tanpa ini, @acca-cbt/shared yang diimpor sebagai NILAI (bukan sekadar
+    // tipe) ikut ditarik ke dalam kompilasi, TypeScript melebarkan root
+    // bersamanya, dan keluarannya menjadi dist/apps/api/src/main.js — bukan
+    // dist/main.js seperti yang dicari `node dist/main`.
+    //
+    // Karena itu shared TIDAK dipetakan lewat `paths` di sini: ia diselesaikan
+    // sebagai paket node biasa lewat symlink workspace ke hasil build-nya.
+    // Jalankan `npm run build:shared` sebelum membangun apps/api.
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*.ts"]
+}

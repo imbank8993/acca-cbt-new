@@ -1,0 +1,31 @@
+{
+  "name": "acca-cbt-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "dev:frontend": "npm run dev --workspace=apps/web",
+    "dev:backend": "npm run build:shared && npm run start:dev --workspace=apps/api",
+    "dev:scoring": "cd apps/scoring && uvicorn app.main:app --reload --port 8000",
+    "dev:all": "npx concurrently -k -p \"[{name}]\" -n \"web,api,scoring\" -c \"cyan,magenta,yellow\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:scoring\"",
+    "build": "npm run build:shared && npm run build --workspace=apps/web && npm run build --workspace=apps/api",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:frontend": "npm run build --workspace=apps/web",
+    "build:backend": "npm run build:shared && npm run build --workspace=apps/api",
+    "lint": "npm run lint --workspace=apps/web && npm run lint --workspace=apps/api",
+    "typecheck": "npx tsc --noEmit -p apps/web/tsconfig.json",
+    "prisma:pull": "npm run prisma:pull --workspace=apps/api",
+    "prisma:generate": "npm run prisma:generate --workspace=apps/api",
+    "check:adapter": "node tools/check-adapter-coverage.js",
+    "check:storage": "node tools/check-storage.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "pg": "^8.18.0"
+  }
+}

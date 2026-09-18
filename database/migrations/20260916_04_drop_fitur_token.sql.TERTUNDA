@@ -1,0 +1,53 @@
+-- =============================================================================
+-- Hapus fitur token & ujian berbayar — TERTUNDA, BUTUH KEPUTUSAN
+-- =============================================================================
+--
+-- Berkas ini sengaja berakhiran `.TERTUNDA` supaya TIDAK ikut terjalankan oleh
+-- tools/validate-migrations.js maupun check-adapter-coverage.js, yang hanya
+-- membaca berkas berpola `YYYYMMDD_NN_*.sql`. Ganti namanya menjadi
+-- `20260916_04_drop_fitur_token.sql` bila keputusannya sudah diambil.
+--
+-- ── KENAPA TERTUNDA ──────────────────────────────────────────────────────────
+--
+-- `acca_db` dipakai bersama acca-new, dan di sana fitur token MASIH DIRUJUK
+-- KODE — bukan sekadar ada di skema:
+--
+--   apps/web/app/actions/cbt-siswa.ts
+--     prisma.cbt_unlocked_exams.findMany(...)
+--     prisma.cbt_token_transactions.create(...)
+--     prisma.cbt_profiles.update({ data: { token_balance: ... } })
+--     ex.is_paid
+--
+--   token_balance  : 5 rujukan
+--   is_paid        : 4 rujukan
+--   token_price    : 3 rujukan
+--
+-- Modul `cbt-*.ts` di acca-new saat ini tidak punya pemanggil — halaman
+-- CBT-nya masih memakai komponen placeholder. Jadi kodenya kemungkinan besar
+-- mati juga di sana. TETAPI kode mati yang merujuk tabel tetap ranjau: begitu
+-- halaman itu disambungkan, tabelnya harus ada. Dan itu keputusan yang ada di
+-- repositori lain, bukan di sini.
+--
+-- ── SEBELUM MENJALANKAN ──────────────────────────────────────────────────────
+--
+-- 1. Pastikan acca-new memang tidak akan memakai fitur token CBT.
+-- 2. Hapus modul yang merujuknya di acca-new (minimal bagian token di
+--    apps/web/app/actions/cbt-siswa.ts).
+-- 3. Jalankan ulang `prisma db pull` di acca-new agar skemanya tidak basi.
+-- 4. Baru jalankan berkas ini.
+--
+-- Bila acca-new TETAP memerlukan fitur token, jangan jalankan berkas ini sama
+-- sekali — biarkan tabel dan kolomnya ada. Tidak ada ruginya bagi acca-cbt-new:
+-- kodenya sudah tidak merujuknya.
+-- =============================================================================
+
+BEGIN;
+
+DROP TABLE IF EXISTS public.cbt_token_transactions;
+DROP TABLE IF EXISTS public.cbt_unlocked_exams;
+
+ALTER TABLE public.cbt_profiles DROP COLUMN IF EXISTS token_balance;
+ALTER TABLE public.cbt_exams    DROP COLUMN IF EXISTS is_paid;
+ALTER TABLE public.cbt_exams    DROP COLUMN IF EXISTS token_price;
+
+COMMIT;

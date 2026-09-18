@@ -1,0 +1,2680 @@
+[
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-0",
+   "type": "mcq",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-1",
+   "type": "mcq",
+   "score_default": 2,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": ""
+ },
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-2",
+   "type": "mcq",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-1"
+ },
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-3",
+   "type": "mcq",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-4",
+   "type": "mcq",
+   "score_default": 5,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-1"
+ },
+ {
+  "label": "mcq",
+  "question": {
+   "id": "q-5",
+   "type": "mcq",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\",\"opt-2\"]"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\"]"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0,opt-2"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": ""
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "[]"
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "\"opt-0\""
+ },
+ {
+  "label": "mcq_complex",
+  "question": {
+   "id": "qc",
+   "type": "mcq_complex",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    },
+    {
+     "id": "opt-3",
+     "option_text": "Opsi 3",
+     "is_correct": false,
+     "weight": null,
+     "order": 3,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "bukan-json"
+ },
+ {
+  "label": "true_false",
+  "question": {
+   "id": "qtf",
+   "type": "true_false",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":true,\"opt-1\":false,\"opt-2\":true}"
+ },
+ {
+  "label": "true_false",
+  "question": {
+   "id": "qtf",
+   "type": "true_false",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":\"true\",\"opt-1\":\"salah\"}"
+ },
+ {
+  "label": "true_false",
+  "question": {
+   "id": "qtf",
+   "type": "true_false",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "{}"
+ },
+ {
+  "label": "true_false",
+  "question": {
+   "id": "qtf",
+   "type": "true_false",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "true_false",
+  "question": {
+   "id": "qtf",
+   "type": "true_false",
+   "score_default": 6,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "rusak"
+ },
+ {
+  "label": "categorization",
+  "question": {
+   "id": "qcat",
+   "type": "categorization",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "category_names": [
+       "A"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "category_name": "B"
+     }
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":[\"A\"],\"opt-1\":[\"B\"]}"
+ },
+ {
+  "label": "categorization",
+  "question": {
+   "id": "qcat",
+   "type": "categorization",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "category_names": [
+       "A"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "category_name": "B"
+     }
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":[\"A\",\"B\"]}"
+ },
+ {
+  "label": "categorization",
+  "question": {
+   "id": "qcat",
+   "type": "categorization",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "category_names": [
+       "A"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "category_name": "B"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "categorization",
+  "question": {
+   "id": "qcat",
+   "type": "categorization",
+   "score_default": 4,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "category_names": [
+       "A"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "category_name": "B"
+     }
+    }
+   ]
+  },
+  "raw_answer": "{}"
+ },
+ {
+  "label": "matching",
+  "question": {
+   "id": "qm",
+   "type": "matching",
+   "score_default": 2,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "match_texts": [
+       "X"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "match_text": "Y"
+     }
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":[\"X\"],\"opt-1\":[\"Y\"]}"
+ },
+ {
+  "label": "matching",
+  "question": {
+   "id": "qm",
+   "type": "matching",
+   "score_default": 2,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "match_texts": [
+       "X"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "match_text": "Y"
+     }
+    }
+   ]
+  },
+  "raw_answer": "{\"opt-0\":[\"Z\"]}"
+ },
+ {
+  "label": "matching",
+  "question": {
+   "id": "qm",
+   "type": "matching",
+   "score_default": 2,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "match_texts": [
+       "X"
+      ]
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "match_text": "Y"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "[\"Jakarta\",\"Sumatera\"]"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "[\"jakarta \",\"sumatera\"]"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "[\"DKI Jakarta\",\"Sumat\"]"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "[\"\",\"\"]"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "[\"Jakarta\"]"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": "Jakarta"
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "short_answer",
+  "question": {
+   "id": "qsa",
+   "type": "short_answer",
+   "score_default": 10,
+   "metadata": {
+    "blanks": [
+     {
+      "answer": "Jakarta",
+      "variations": [
+       "DKI Jakarta"
+      ]
+     },
+     {
+      "answer": "Sumatera",
+      "variations": []
+     }
+    ]
+   },
+   "bank_question_options": []
+  },
+  "raw_answer": ""
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "1"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "3"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "5"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "0"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "6"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "abc"
+ },
+ {
+  "label": "likert",
+  "question": {
+   "id": "ql",
+   "type": "likert",
+   "score_default": 1,
+   "dimension_id": "dim-1",
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "checklist",
+  "question": {
+   "id": "qcl",
+   "type": "checklist",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": 4,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": 3,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": 0,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\",\"opt-1\"]"
+ },
+ {
+  "label": "checklist",
+  "question": {
+   "id": "qcl",
+   "type": "checklist",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": 1,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 3,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 3,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\"]"
+ },
+ {
+  "label": "checklist",
+  "question": {
+   "id": "qcl",
+   "type": "checklist",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 4,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 0,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[]"
+ },
+ {
+  "label": "checklist",
+  "question": {
+   "id": "qcl",
+   "type": "checklist",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 0,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 1,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 0,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "checklist",
+  "question": {
+   "id": "qcl",
+   "type": "checklist",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 1,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 4,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-0"
+     }
+    }
+   ]
+  },
+  "raw_answer": "rusak"
+ },
+ {
+  "label": "sjt",
+  "question": {
+   "id": "qs",
+   "type": "sjt",
+   "score_default": 1,
+   "dimension_id": "dim-s",
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 0,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 5,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "sjt",
+  "question": {
+   "id": "qs",
+   "type": "sjt",
+   "score_default": 1,
+   "dimension_id": "dim-s",
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 0,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": 5,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-1"
+ },
+ {
+  "label": "sjt",
+  "question": {
+   "id": "qs",
+   "type": "sjt",
+   "score_default": 1,
+   "dimension_id": "dim-s",
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 0,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": 5,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": " opt-2 "
+ },
+ {
+  "label": "sjt",
+  "question": {
+   "id": "qs",
+   "type": "sjt",
+   "score_default": 1,
+   "dimension_id": "dim-s",
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 3,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 0,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": 5,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "sjt",
+  "question": {
+   "id": "qs",
+   "type": "sjt",
+   "score_default": 1,
+   "dimension_id": "dim-s",
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": 3,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": 0,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": 5,
+     "order": 2,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "tidak-ada"
+ },
+ {
+  "label": "forced_choice",
+  "question": {
+   "id": "qf",
+   "type": "forced_choice",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "forced_choice",
+  "question": {
+   "id": "qf",
+   "type": "forced_choice",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-1"
+ },
+ {
+  "label": "forced_choice",
+  "question": {
+   "id": "qf",
+   "type": "forced_choice",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "paired_comparison",
+  "question": {
+   "id": "qf",
+   "type": "paired_comparison",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "paired_comparison",
+  "question": {
+   "id": "qf",
+   "type": "paired_comparison",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-1"
+ },
+ {
+  "label": "paired_comparison",
+  "question": {
+   "id": "qf",
+   "type": "paired_comparison",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": 2,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-f0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-f1"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "ordering",
+  "question": {
+   "id": "qo",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\",\"opt-1\",\"opt-2\"]"
+ },
+ {
+  "label": "ordering-explicit",
+  "question": {
+   "id": "qo2",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {
+    "correct_order": [
+     "opt-2",
+     "opt-0",
+     "opt-1"
+    ]
+   },
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\",\"opt-1\",\"opt-2\"]"
+ },
+ {
+  "label": "ranking",
+  "question": {
+   "id": "qr",
+   "type": "ranking",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\",\"opt-1\",\"opt-2\"]"
+ },
+ {
+  "label": "ordering",
+  "question": {
+   "id": "qo",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-2\",\"opt-1\",\"opt-0\"]"
+ },
+ {
+  "label": "ordering-explicit",
+  "question": {
+   "id": "qo2",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {
+    "correct_order": [
+     "opt-2",
+     "opt-0",
+     "opt-1"
+    ]
+   },
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-2\",\"opt-1\",\"opt-0\"]"
+ },
+ {
+  "label": "ranking",
+  "question": {
+   "id": "qr",
+   "type": "ranking",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-2\",\"opt-1\",\"opt-0\"]"
+ },
+ {
+  "label": "ordering",
+  "question": {
+   "id": "qo",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\"]"
+ },
+ {
+  "label": "ordering-explicit",
+  "question": {
+   "id": "qo2",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {
+    "correct_order": [
+     "opt-2",
+     "opt-0",
+     "opt-1"
+    ]
+   },
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\"]"
+ },
+ {
+  "label": "ranking",
+  "question": {
+   "id": "qr",
+   "type": "ranking",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": true,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": true,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "[\"opt-0\"]"
+ },
+ {
+  "label": "ordering",
+  "question": {
+   "id": "qo",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "ordering-explicit",
+  "question": {
+   "id": "qo2",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {
+    "correct_order": [
+     "opt-2",
+     "opt-0",
+     "opt-1"
+    ]
+   },
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "ranking",
+  "question": {
+   "id": "qr",
+   "type": "ranking",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": false,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": null
+ },
+ {
+  "label": "ordering",
+  "question": {
+   "id": "qo",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "ordering-explicit",
+  "question": {
+   "id": "qo2",
+   "type": "ordering",
+   "score_default": 3,
+   "metadata": {
+    "correct_order": [
+     "opt-2",
+     "opt-0",
+     "opt-1"
+    ]
+   },
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "ranking",
+  "question": {
+   "id": "qr",
+   "type": "ranking",
+   "score_default": 3,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {
+      "dimension_id": "dim-r0"
+     }
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {
+      "dimension_id": "dim-r1"
+     }
+    },
+    {
+     "id": "opt-2",
+     "option_text": "Opsi 2",
+     "is_correct": false,
+     "weight": null,
+     "order": 2,
+     "metadata": {
+      "dimension_id": "dim-r2"
+     }
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ },
+ {
+  "label": "essay",
+  "question": {
+   "id": "qe",
+   "type": "essay",
+   "score_default": 10,
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "jawaban panjang"
+ },
+ {
+  "label": "esay",
+  "question": {
+   "id": "qe",
+   "type": "esay",
+   "score_default": 10,
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "jawaban panjang"
+ },
+ {
+  "label": "uraian",
+  "question": {
+   "id": "qe",
+   "type": "uraian",
+   "score_default": 10,
+   "metadata": {},
+   "bank_question_options": []
+  },
+  "raw_answer": "jawaban panjang"
+ },
+ {
+  "label": "mcq-duplikat",
+  "question": {
+   "id": "qd",
+   "type": "mcq",
+   "score_default": 1,
+   "metadata": {},
+   "bank_question_options": [
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    },
+    {
+     "id": "opt-0",
+     "option_text": "Opsi 0",
+     "is_correct": true,
+     "weight": null,
+     "order": 0,
+     "metadata": {}
+    },
+    {
+     "id": "opt-1",
+     "option_text": "Opsi 1",
+     "is_correct": false,
+     "weight": null,
+     "order": 1,
+     "metadata": {}
+    }
+   ]
+  },
+  "raw_answer": "opt-0"
+ }
+]

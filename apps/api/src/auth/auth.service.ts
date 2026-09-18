@@ -1,0 +1,353 @@
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { jwtVerify } from 'jose';
+import { ROLE_NAME_CANON, type AuthUser, type DashboardRole, type LoginResponse } from '@acca-cbt/shared';
+import { DbService } from '../prisma/prisma-db-adapter';
+import { AuthUsersRepository } from './auth-users.repository';
+import { CbtRolesService } from './cbt-roles.service';
+
+/** Peran yang disamakan persis dengan isi tiket SSO; 'ADMIN' sengaja tidak. */
+const SSO_SYNCED_ROLES = ['PROKTOR', 'GURU', 'PENGAWAS', 'SISWA'] as const;
+
+@Injectable()
+export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
+  constructor(
+    private readonly authUsers: AuthUsersRepository,
+    private readonly roles: CbtRolesService,
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+    private readonly db: DbService,
+  ) {}
+
+  async login(email: string, password: string): Promise<LoginResponse> {
+    const identifier = (email || '').trim().toLowerCase();
+    const user = await this.authUsers.findByEmail(identifier);
+
+    // Pesan yang sama untuk email tidak dikenal maupun password salah, supaya
+    // endpoint ini tidak bisa dipakai memeriksa email mana yang terdaftar.
+    if (!user) {
+      this.logger.warn(`Login gagal: email '${identifier}' tidak ditemukan`);
+      throw new UnauthorizedException('Email atau password salah.');
+    }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      throw new UnauthorizedException('Akun sedang dinonaktifkan.');
+    }
+
+    const valid = await this.authUsers.verifyPassword(password, user.encrypted_password);
+    if (!valid) {
+      this.logger.warn(`Login gagal: password salah untuk '${identifier}'`);
+      throw new UnauthorizedException('Email atau password salah.');
+    }
+
+    await this.authUsers.touchLastSignIn(user.id);
+    return this.issueSession(user.id, user.email || identifier, user.raw_user_meta_data);
+  }
+
+  /**
+   * Tukar tiket SSO acca-app dengan sesi CBT.
+   *
+   * Alur lama menukar tiket ini dengan magic link Supabase, lalu menyerahkan
+   * access+refresh token lewat fragment URL. Rangkaian itu rapuh: kedua aplikasi
+   * menggerakkan satu keluarga refresh token, Supabase merotasinya tiap
+   * pemakaian, dan aplikasi yang menyegarkan belakangan kehilangan sesinya —
+   * tepat di tengah ujian, sehingga autosave jawaban ikut ditolak.
+   *
+   * Karena kedua aplikasi kini memakai JWT_SECRET yang sama, seluruh rangkaian
+   * itu tidak diperlukan lagi: tiket diverifikasi, peran disinkronkan, lalu CBT
+   * menerbitkan tokennya sendiri.
+   */
+  async exchangeSsoTicket(token: string): Promise<LoginResponse> {
+    const secret = this.config.get<string>('CBT_SSO_SECRET');
+    if (!secret) {
+      throw new UnauthorizedException('CBT_SSO_SECRET belum diset di server.');
+    }
+
+    let payload: Record<string, unknown>;
+    try {
+      const verified = await jwtVerify(token, new TextEncoder().encode(secret));
+      payload = verified.payload as Record<string, unknown>;
+    } catch (error) {
+      this.logger.warn(`Tiket SSO ditolak: ${(error as Error).message}`);
+      throw new UnauthorizedException('Tiket SSO tidak valid atau sudah kedaluwarsa.');
+    }
+
+    const userId = String(payload.sub || '');
+    const fullName = String(payload.name || '');
+    const roleClaim = String(payload.role || '');
+
+    if (!userId) {
+      throw new UnauthorizedException('Tiket SSO tidak menyertakan identitas pengguna.');
+    }
+
+    const user = await this.authUsers.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Akun pada tiket SSO tidak ditemukan di CBT.');
+    }
+
+    await this.syncSsoMembership(userId, fullName, roleClaim);
+    await this.authUsers.touchLastSignIn(userId);
+
+    return this.issueSession(userId, user.email || String(payload.email || ''), user.raw_user_meta_data);
+  }
+
+  /**
+   * Samakan keanggotaan dan peran dengan isi tiket.
+   *
+   * Peran Proktor/Guru/Pengawas/Siswa disamakan PERSIS: yang hilang dari tiket
+   * ikut dicabut, supaya bekas Proktor yang kini Guru tidak selamanya terbaca
+   * Proktor di CBT. 'Admin' tidak pernah dicabut otomatis — peran itu bisa
+   * diberikan dari dalam CBT dan tidak selalu tercermin di tiket.
+   */
+  private async syncSsoMembership(
+    userId: string,
+    fullName: string,
+    roleClaim: string,
+  ): Promise<void> {
+    const orgName =
+      this.config.get<string>('CBT_ORGANIZATION_NAME') || 'Sekolah';
+
+    // Slug dibuat otomatis dari nama bila CBT_ORGANIZATION_SLUG tidak diset:
+    // huruf kecil, spasi → tanda hubung, buang karakter non-alfanumerik.
+    const orgSlug =
+      this.config.get<string>('CBT_ORGANIZATION_SLUG') ||
+      orgName
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+
+    let { data: org } = await this.db
+      .from('cbt_organizations')
+      .select('id')
+      .eq('name', orgName)
+      .limit(1)
+      .maybeSingle();
+
+    if (!org) {
+      const created = await this.db
+        .from('cbt_organizations')
+        .insert({ name: orgName, status: 'active', slug: orgSlug })
+        .select('id')
+        .single();
+      org = created.data;
+    }
+    if (!org) return;
+
+    if (fullName) {
+      await this.db
+        .from('cbt_profiles')
+        .upsert({ id: userId, full_name: fullName }, { onConflict: 'id' });
+    }
+
+    const { data: member } = await this.db
+      .from('cbt_organization_members')
+      .upsert(
+        { organization_id: org.id, user_id: userId },
+        { onConflict: 'organization_id,user_id' },
+      )
+      .select()
+      .single();
+
+    // Dulu `if (!member) return;` tanpa suara. Upsert ini SELALU mengembalikan
+    // null selama adapter memakai DO NOTHING untuk payload yang seluruh
+    // kolomnya kolom konflik, sehingga penyamaan peran di bawah tidak pernah
+    // sekali pun dijalankan — dan tidak ada jejaknya di log.
+    if (!member) {
+      this.logger.error(
+        `Keanggotaan organisasi untuk ${userId} tidak terbaca; peran SSO tidak disinkronkan.`,
+      );
+      return;
+    }
+
+    const ticketRoles = new Set(
+      roleClaim
+        .split(',')
+        .map((r) => r.trim().toUpperCase())
+        .filter(Boolean),
+    );
+
+    const { data: allRoles } = await this.db.from('cbt_roles').select('id, name');
+    const roleIdByName = new Map<string, string>(
+      ((allRoles as Array<{ id: string; name: string }>) || []).map((r) => [
+        String(r.name).toUpperCase(),
+        r.id,
+      ]),
+    );
+
+    const desired = new Set<string>();
+    for (const name of [...SSO_SYNCED_ROLES, 'ADMIN']) {
+      const id = roleIdByName.get(name);
+      if (id && ticketRoles.has(name)) desired.add(id);
+    }
+
+    const { data: currentRows } = await this.db
+      .from('cbt_member_roles')
+      .select('role_id')
+      .eq('organization_member_id', member.id);
+
+    const syncedIds = new Set(
+      SSO_SYNCED_ROLES.map((n) => roleIdByName.get(n)).filter(Boolean) as string[],
+    );
+    const current = ((currentRows as Array<{ role_id: string }>) || []).map((r) => r.role_id);
+
+    const toRemove = current.filter((id) => syncedIds.has(id) && !desired.has(id));
+    if (toRemove.length > 0) {
+      await this.db
+        .from('cbt_member_roles')
+        .delete()
+        .eq('organization_member_id', member.id)
+        .in('role_id', toRemove);
+    }
+
+    const currentSet = new Set(current);
+    const toAdd = [...desired].filter((id) => !currentSet.has(id));
+    if (toAdd.length > 0) {
+      await this.db.from('cbt_member_roles').upsert(
+        toAdd.map((roleId) => ({
+          organization_member_id: member.id,
+          role_id: roleId,
+        })),
+        { onConflict: 'organization_member_id,role_id' },
+      );
+    }
+  }
+
+  private async issueSession(
+    userId: string,
+    email: string,
+    metadata: Record<string, unknown> | null,
+  ): Promise<LoginResponse> {
+    const context = await this.roles.resolve(userId, email, metadata);
+
+    const user: AuthUser = {
+      id: userId,
+      email,
+      fullName: (metadata?.full_name as string) ?? null,
+      roles: context.roleNames,
+      resolved: context.resolved,
+      bestRole: context.bestRole,
+      organizationIds: context.organizationIds,
+      isPlatformAdmin: context.isPlatformAdmin,
+    };
+
+    // Klaim dibuat sebentuk dengan token acca-new agar satu token berlaku di
+    // kedua aplikasi. Peran ikut disertakan HANYA sebagai petunjuk untuk
+    // middleware; otorisasi tetap membaca ulang peran dari database.
+    const accessToken = this.jwt.sign({
+      sub: userId,
+      authId: userId,
+      email,
+      role: context.roleNames.join(','),
+    });
+
+    return { access_token: accessToken, token_type: 'Bearer', user };
+  }
+
+  /**
+   * Profil pemanggil beserta organisasi yang ditampilkan bilah sisi.
+   *
+   * Pemasangan ini satu sekolah, jadi "organisasi utama" cukup diambil dari
+   * keanggotaan pertama yang aktif. Versi lama di sisi browser menyusun urutan
+   * prioritas peran untuk memilih di antara beberapa sekolah — sesuatu yang
+   * tidak pernah terjadi di sini.
+   */
+  async getProfileWithOrganization(user: AuthUser) {
+    const { data: profile } = await this.db
+      .from('cbt_profiles')
+      .select('id, full_name, identity_number, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const { data: membership } = await this.db
+      .from('cbt_organization_members')
+      .select('organization_id, organizations:cbt_organizations(id, name, logo_url)')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    const related = (membership as { organizations?: unknown } | null)?.organizations;
+    const organization = Array.isArray(related) ? related[0] : related;
+
+    return { profile: profile ?? null, organization: organization ?? null };
+  }
+
+  /**
+   * Daftar peran pemanggil beserta sekolah tempat peran itu berlaku, untuk
+   * pemilih peran di bilah sisi.
+   *
+   * Dipindahkan dari `getUserRolesWithOrg` di `apps/web/lib/rbac.ts` — fungsi
+   * TERAKHIR yang menahan modul rbac tetap bergantung pada Supabase. Ia menunggu
+   * endpoint tersendiri karena butuh NAMA organisasi, satu-satunya keterangan
+   * yang tidak dibawa `AuthUser`.
+   *
+   * Perbedaan dengan versi lama: peran diambil untuk PEMILIK TOKEN. Versi lama
+   * menerima `userId` dari browser, jadi daftar peran dan sekolah orang lain
+   * bisa dibaca hanya dengan menukar UUID.
+   */
+  async listRoleContexts(user: AuthUser): Promise<RoleContext[]> {
+    const contexts: RoleContext[] = [];
+
+    // Admin platform muncul sebagai satu entri semu tanpa sekolah: ia bertindak
+    // lintas organisasi, jadi tidak ada satu organisasi yang bisa disebut.
+    if (user.resolved?.superadmin === true) {
+      contexts.push({ role: 'Superadmin', orgId: 'platform-admin', orgName: 'Admin Utama' });
+    } else if (user.isPlatformAdmin) {
+      contexts.push({ role: 'Admin', orgId: 'platform-admin', orgName: 'Admin Utama' });
+    }
+
+    if (user.organizationIds.length === 0) return contexts;
+
+    const { data } = await this.db
+      .from('cbt_organization_members')
+      .select(
+        `organization_id,
+         organizations:cbt_organizations(name),
+         member_roles:cbt_member_roles(roles:cbt_roles(name))`,
+      )
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    const byOrg = new Map<string, { name: string; roles: Set<DashboardRole> }>();
+
+    for (const membership of (data as any[]) || []) {
+      const orgId = membership.organization_id as string;
+      const related = Array.isArray(membership.organizations)
+        ? membership.organizations[0]
+        : membership.organizations;
+
+      const entry = byOrg.get(orgId) ?? { name: related?.name || 'Sekolah', roles: new Set() };
+
+      for (const memberRole of membership.member_roles || []) {
+        const name = memberRole?.roles?.name;
+        if (!name) continue;
+        // Nama peran di basis data tidak konsisten kapitalisasinya; dikanonkan
+        // supaya cocok dengan DashboardRole.
+        const canonical = ROLE_NAME_CANON[String(name).toUpperCase()];
+        if (canonical) entry.roles.add(canonical);
+      }
+
+      byOrg.set(orgId, entry);
+    }
+
+    // Urutan tetap, dari yang paling berwenang, supaya pemilih peran tidak
+    // berubah-ubah susunannya antar pemuatan.
+    const ORDER: DashboardRole[] = ['Proktor', 'Admin', 'Guru', 'Pengawas', 'Siswa'];
+
+    for (const [orgId, { name, roles }] of byOrg) {
+      for (const role of ORDER) {
+        if (roles.has(role)) contexts.push({ role, orgId, orgName: name });
+      }
+    }
+
+    return contexts;
+  }
+}
+
+export interface RoleContext {
+  role: DashboardRole;
+  orgId: string;
+  orgName: string;
+}

@@ -1,0 +1,208 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CBT PROFESSIONAL EDITOR — CORE STYLES
+ * Latin Modern / STIX Two Text + KaTeX Integration
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Google Fonts: Professional Typography ────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,700&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * PART 2: MATH NODE STYLES
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+html body .math-node {
+  display: inline-block !important;
+  cursor: pointer;
+  color: #2563eb;
+  padding: 2px 4px;
+}
+
+html body .math-node:hover {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-radius: 4px;
+}
+
+/* ── 3. CKEditor 5 — Professional CBT Styling ────────────────────────────── */
+
+/* 3a. Font family — matches KaTeX's Latin Modern */
+html body .ck-editor__editable,
+html body .ck-editor__editable p {
+  font-family: 'Merriweather', 'Source Serif 4', Georgia, 'Times New Roman', serif !important;
+}
+
+/* 3b. Heading hierarchy */
+html body .ck-editor__editable h1 {
+  font-family: 'Merriweather', Georgia, serif !important;
+  font-size: 1.75em;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.3;
+  margin: 1.5rem 0 0.75rem;
+}
+html body .ck-editor__editable h2 {
+  font-family: 'Source Serif 4', Georgia, serif !important;
+  font-size: 1.4em;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  margin: 1.5rem 0 0.75rem;
+}
+html body .ck-editor__editable h3 {
+  font-family: 'Source Serif 4', Georgia, serif !important;
+  font-size: 1.15em;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+  margin: 1.25rem 0 0.5rem;
+}
+html body .ck-editor__editable h1:first-child,
+html body .ck-editor__editable h2:first-child,
+html body .ck-editor__editable h3:first-child { margin-top: 0; }
+
+/* 3c. Body text */
+html body .ck-editor__editable {
+  min-height: 200px;
+  padding: 1.25rem 1.5rem;
+  font-size: 15px;
+  line-height: 1.85;
+  color: #1a1a2e;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: 0.01em;
+}
+html body .ck-editor__editable p {
+  margin: 0 0 1em;
+  line-height: 1.85;
+}
+html body .ck-editor__editable p:last-child { margin-bottom: 0; }
+
+/* 3d. Lists */
+html body .ck-editor__editable ul,
+html body .ck-editor__editable ol {
+  padding-left: 1.75rem;
+  margin: 0.75rem 0;
+  font-size: 15px;
+  line-height: 1.7;
+}
+html body .ck-editor__editable li { margin: 0.3rem 0; }
+
+/* 3e. Images */
+html body .ck-editor__editable img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+/* 3f. Tables */
+html body .ck-editor__editable table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+html body .ck-editor__editable th,
+html body .ck-editor__editable td {
+  border: 1px solid #e2e8f0;
+  padding: 0.6rem 0.8rem;
+  font-family: 'Source Serif 4', Georgia, serif;
+}
+html body .ck-editor__editable th {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+}
+html body .ck-editor__editable td { color: #1a1a2e; }
+
+/* 3g. Blockquote */
+html body .ck-editor__editable blockquote {
+  border-left: 3px solid #030C4D;
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: #475569;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* 3h. Inline code */
+html body .ck-editor__editable code {
+  background: #f1f5f9;
+  padding: 0.125rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.875em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* 3i. CKEditor toolbar clean-up */
+html body .ck-toolbar {
+  border-radius: 0 !important;
+  border-color: #e2e8f0 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+html body .ck-toolbar .ck-icon { width: 16px !important; height: 16px !important; }
+html body .ck-button { border-radius: 4px !important; }
+html body .ck-button.ck-on { background: #e0e7ff !important; }
+
+/* ── 4. LatexRenderer content wrapper ────────────────────────────────────── */
+html body .latex-renderer,
+html body .latex-renderer p {
+  font-family: 'Merriweather', 'Source Serif 4', Georgia, serif !important;
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+/* ── 5. Math Toolbar buttons ──────────────────────────────────────────────── */
+html body .math-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.625rem;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 500;
+  color: #334155;
+  background: white;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+html body .math-toolbar-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+html body .math-toolbar-btn:active {
+  background: #e2e8f0;
+  transform: scale(0.97);
+}
+html body .math-toolbar-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+/* ── 6. Responsive consistency ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  html body .ck-editor__editable { padding: 1rem !important; font-size: 14px !important; }
+  html body .latex-renderer,
+  html body .latex-renderer p { font-size: 14px !important; }
+  html body .katex-block .katex,
+  html body .katex-display > .katex { font-size: 1em !important; }
+}

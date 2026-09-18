@@ -1,0 +1,2470 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================
+   GLOBAL MATHJAX / LATEX RENDERING
+   ============================================ */
+
+/* Inline math wrapper - flows with text, doesn't clip SVG */
+.mathjax-inline {
+  display: inline !important;
+  vertical-align: baseline !important;
+  line-height: normal !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* SVG inside mathjax-inline */
+.mathjax-inline svg {
+  display: inline !important;
+  vertical-align: baseline !important;
+  line-height: normal !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Force SVGs to be inline regardless of inline styles */
+svg[style*="display: block"],
+svg[style*="display:block"],
+svg[style*="width:"] {
+  display: inline !important;
+}
+
+/* mjx-container elements */
+mjx-container {
+  display: inline !important;
+  line-height: normal !important;
+  overflow: visible !important;
+}
+
+mjx-container svg {
+  display: inline !important;
+  vertical-align: baseline !important;
+  line-height: normal !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Math content should not overflow */
+.latex-renderer {
+  overflow: visible !important;
+  line-height: 1.75 !important;
+}
+
+.acca-hero-gradient {
+  background: linear-gradient(135deg, #0038A8 0%, #c2185b 100%) !important;
+}
+
+/* ============================================
+   ACCA CBT DESIGN SYSTEM
+   Clean, Elegant, Modern
+   ============================================ */
+
+:root {
+  /* Base Colors */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  /* Brand Colors - Navy Blue */
+  --primary: #030C4D;
+  --primary-foreground: #ffffff;
+  --primary-light: #0a1a5c;
+  --primary-hover: #020510;
+
+  /* Brand Colors - Magenta Accent (ACCA-inspired) */
+  --accent: #0038A8;
+  --accent-light: #1e56d3;
+  --accent-hover: #00287a;
+  --accent-foreground: #ffffff;
+
+  /* Neutral Colors */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #475569;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  /* Border & Input */
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --input: #e2e8f0;
+  --ring: #030C4D;
+
+  /* Status Colors */
+  --success: #10b981;
+  --success-light: #d1fae5;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --error: #ef4444;
+  --error-light: #fee2e2;
+  --info: #3b82f6;
+  --info-light: #dbeafe;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --radius-full: 9999px;
+}
+
+/* Theme Variables */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
+  /* Brand Colors */
+  --color-acca-navy: #030C4D;
+  --color-acca-orange: #0038A8;          /* Brand accent (kept name for compat) — now magenta */
+  --color-acca-orange-light: #1e56d3;    /* Light magenta (kept name for compat) */
+  --color-acca-magenta: #0038A8;
+  --color-acca-magenta-light: #1e56d3;
+  --color-acca-navy-light: #0a1a5c;
+
+  /* Fonts */
+  --font-sans: var(--font-open-sans), system-ui, -apple-system, sans-serif;
+  --font-heading: var(--font-cinzel), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-cinzel), system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* Base Styles */
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Font utility classes */
+.font-heading {
+  font-family: var(--font-heading) !important;
+  letter-spacing: 0.05em;
+}
+
+.font-display {
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.02em;
+}
+
+.font-mono {
+  font-family: var(--font-mono) !important;
+}
+
+/* Body scroll lock — applied by modals when open */
+body.scroll-locked {
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none;
+  z-index: 9999;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+/* Hide webkit scrollbar on body when locked */
+body::-webkit-scrollbar {
+  display: none !important;
+}
+body.scroll-locked::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Lock html element too */
+html.scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  height: 100vh !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+html::-webkit-scrollbar {
+  display: none !important;
+}
+html.scroll-locked::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ============================================
+   DESIGN TOKENS & UTILITIES
+   ============================================ */
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Glass Effects */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-dark {
+  background: rgba(3, 12, 77, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(200, 20, 124, 0.2);
+}
+
+/* Premium Shadows */
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+.shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+.shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+.shadow-glow { box-shadow: 0 0 40px -10px rgba(3, 12, 77, 0.3); }
+.shadow-glow-orange { box-shadow: 0 0 40px -10px rgba(200, 20, 124, 0.3); }
+.shadow-glow-magenta { box-shadow: 0 0 40px -10px rgba(200, 20, 124, 0.3); }
+
+/* Border Radius */
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+.rounded-2xl { border-radius: var(--radius-2xl); }
+.rounded-full { border-radius: var(--radius-full); }
+
+/* Gradient Backgrounds */
+.bg-gradient-navy {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+}
+
+.bg-gradient-orange,
+.bg-gradient-magenta {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+}
+
+.bg-gradient-subtle {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/* ============================================
+   MOBILE CARD DESIGN SYSTEM
+   Balance & Easy to Apply
+   ============================================ */
+
+/* Mobile card - full width on small screens, rounded-xl desktop */
+.mobile-card {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-card {
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+  }
+}
+
+/* Mobile card with hover effect */
+.mobile-card-hover {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.mobile-card-hover:hover {
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 768px) {
+  .mobile-card-hover {
+    border-radius: 0.5rem;
+  }
+}
+
+/* Mobile list item card */
+.mobile-list-card {
+  background: white;
+  border-radius: 1rem;
+  border: 1px solid var(--border-light);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-list-card {
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Mobile card row - horizontal layout on desktop */
+.mobile-card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-card-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/* Mobile card info section */
+.mobile-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Mobile card actions section */
+.mobile-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-card-actions {
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+}
+
+/* Mobile badge inline */
+.mobile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Mobile avatar circle */
+.mobile-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .mobile-avatar {
+    border-radius: 0.5rem;
+  }
+}
+
+/* Mobile section title */
+.mobile-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .mobile-section-title {
+    display: none;
+  }
+}
+
+/* Mobile stats row */
+.mobile-stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .mobile-stats {
+    margin-top: 0;
+  }
+}
+
+/* ============================================
+   COMPONENT BASE STYLES
+   ============================================ */
+
+/* Hero Background - responsive sizing */
+.hero-bg {
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+@media (min-width: 1024px) {
+  .hero-bg {
+    background-size: 100% 100% !important;
+  }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: var(--radius-lg);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(3, 12, 77, 0.3);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(200, 20, 124, 0.3);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--foreground);
+}
+
+.btn-outline:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(3, 12, 77, 0.02);
+}
+
+/* Cards */
+.card {
+  background: white;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+/* Thin rounded for desktop - 6px radius */
+@media (min-width: 768px) {
+  .card, .card-hover, .card-hover:hover {
+    border-radius: 0.375rem;
+  }
+  .card:hover {
+    box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* Mobile cards get more rounded corners */
+@media (max-width: 767px) {
+  .card, .card-hover {
+    border-radius: 1rem;
+  }
+}
+
+.card-hover:hover {
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+  border-color: rgba(3, 12, 77, 0.1);
+}
+
+/* Inputs */
+.input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  color: var(--foreground);
+  transition: all 0.2s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(3, 12, 77, 0.1);
+}
+
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+}
+
+.badge-primary {
+  background: rgba(3, 12, 77, 0.1);
+  color: var(--primary);
+}
+
+.badge-accent {
+  background: rgba(200, 20, 124, 0.12);
+  color: #c27806;
+}
+
+.badge-success {
+  background: var(--success-light);
+  color: #047857;
+}
+
+.badge-warning {
+  background: var(--warning-light);
+  color: #b45309;
+}
+
+.badge-error {
+  background: var(--error-light);
+  color: #b91c1c;
+}
+
+/* Custom Scrollbar */
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Rich Content Styles (Modern Document Layout) */
+.rich-content,
+.force-wrap {
+  word-wrap: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  -webkit-hyphens: none !important;
+  -ms-hyphens: none !important;
+  hyphens: none !important;
+  text-justify: inter-word !important;
+}
+
+/* Critical: .ql-editor used as preview wrapper — ensure overflow visible
+   so list markers are not clipped, and reset Quill's pre-wrap white-space */
+.ql-editor.rich-content {
+  overflow: visible !important;
+  overflow-y: visible !important;
+  white-space: normal !important;
+  /* Reset Quill's counter for ordered lists */
+  counter-reset: list-0 list-1 list-2 list-3 list-4 list-5;
+}
+
+/* Quill data-list ordered — add counter support without needing .ql-snow parent */
+.ql-editor.rich-content li[data-list="ordered"] {
+  counter-increment: list-0;
+}
+.ql-editor.rich-content li[data-list="ordered"]::before {
+  content: counter(list-0, decimal) ". ";
+  font-weight: 500;
+}
+.ql-editor.rich-content li[data-list="bullet"]::before {
+  content: "•  ";
+  font-weight: 700;
+}
+
+/* Base text elements - use pre-wrap for proper line wrapping */
+.rich-content p,
+.rich-content div,
+.rich-content li,
+.rich-content blockquote,
+.rich-content span {
+  white-space: pre-wrap !important;
+  margin-bottom: 1.25rem;
+  line-height: 1.75;
+  width: 100%;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  -webkit-hyphens: none !important;
+  -ms-hyphens: none !important;
+  hyphens: none !important;
+}
+
+/* TipTap alignment - preserve alignment while preventing word breaking */
+.rich-content .text-left,
+.rich-content p.text-left,
+.rich-content [style*="text-align: left"] {
+  text-align: left !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  hyphens: none !important;
+}
+
+.rich-content .text-center,
+.rich-content p.text-center,
+.rich-content [style*="text-align: center"] {
+  text-align: center !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  hyphens: none !important;
+}
+
+.rich-content .text-right,
+.rich-content p.text-right,
+.rich-content [style*="text-align: right"] {
+  text-align: right !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  hyphens: none !important;
+}
+
+.rich-content .text-justify,
+.rich-content p.text-justify,
+.rich-content [style*="text-align: justify"] {
+  text-align: justify !important;
+  text-align-last: left !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  hyphens: none !important;
+}
+
+/* Quill alignment compatibility */
+.rich-content .ql-align-left,
+.rich-content .ql-align-center,
+.rich-content .ql-align-right,
+.rich-content .ql-align-justify {
+  text-align: inherit !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Quill alignment classes */
+.rich-content .ql-align-center,
+.rich-content p.ql-align-center,
+.rich-content div.ql-align-center,
+.rich-content [class*="ql-align-center"] {
+  text-align: center !important;
+  word-break: normal !important;
+}
+
+.rich-content .ql-align-right,
+.rich-content p.ql-align-right,
+.rich-content div.ql-align-right,
+.rich-content [class*="ql-align-right"] {
+  text-align: right !important;
+  word-break: normal !important;
+}
+
+/* Preserve ALL alignment - just ensure no word breaking */
+.rich-content .ql-align-left,
+.rich-content .ql-align-center,
+.rich-content .ql-align-right,
+.rich-content .ql-align-justify,
+.rich-content p.ql-align-left,
+.rich-content p.ql-align-center,
+.rich-content p.ql-align-right,
+.rich-content p.ql-align-justify,
+.rich-content div.ql-align-left,
+.rich-content div.ql-align-center,
+.rich-content div.ql-align-right,
+.rich-content div.ql-align-justify,
+.rich-content [class*="ql-align-"],
+.rich-content [style*="text-align:"],
+.rich-content p[style*="text-align"],
+div[style*="text-align"],
+span[style*="text-align"],
+li[style*="text-align"] {
+  /* Prevent splitting of normal words while allowing breaking of very long unbreakable strings */
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  -webkit-hyphens: none !important;
+  hyphens: none !important;
+  -ms-hyphens: none !important;
+}
+
+/* Key fix for justify: use inter-word to only add space between words */
+.rich-content .ql-align-justify,
+.rich-content p.ql-align-justify,
+.rich-content div.ql-align-justify,
+.rich-content [class*="ql-align-justify"],
+.rich-content [style*="text-align: justify"],
+.rich-content [style*="text-align:justify"],
+.rich-content p[style*="justify"],
+div.rich-content[style*="justify"],
+.rich-content div p[style*="justify"] {
+  /* Key: text-justify: inter-word means browser adds space ONLY between words, not break words */
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+  -webkit-hyphens: none !important;
+  hyphens: none !important;
+  -ms-hyphens: none !important;
+}
+
+/* Force word-break normal on all text elements, allowing breaking for long unbreakable sequences */
+.rich-content * {
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.rich-content p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-content p:empty {
+  display: none;
+}
+
+/* Paragraph spacing helper */
+.rich-content br {
+  display: block;
+  content: "";
+  margin-top: 0.5rem;
+}
+
+/* Heading Typography */
+.rich-content h1,
+.rich-content h2,
+.rich-content h3,
+.rich-content h4 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  line-height: 1.3;
+  display: block;
+  width: 100%;
+}
+
+.rich-content h1 {
+  font-size: 1.75em;
+}
+.rich-content h2 {
+  font-size: 1.5em;
+}
+.rich-content h3 {
+  font-size: 1.25em;
+}
+.rich-content h4 {
+  font-size: 1.1em;
+}
+
+/* Text Formatting */
+.rich-content strong,
+.rich-content b {
+  font-weight: 700;
+}
+
+.rich-content em,
+.rich-content i {
+  font-style: italic;
+}
+
+.rich-content u {
+  text-decoration: underline;
+}
+
+/* Alignment Classes (Quill compatible) */
+.rich-content .ql-align-center,
+.rich-content [style*="text-align: center"],
+.rich-content [style*="text-align:center"] {
+  text-align: center !important;
+}
+
+.rich-content .ql-align-right,
+.rich-content [style*="text-align: right"],
+.rich-content [style*="text-align:right"] {
+  text-align: right !important;
+}
+
+/* Override justify alignment - convert to left-aligned for readability */
+.rich-content .ql-align-justify,
+.rich-content [style*="text-align: justify"],
+.rich-content [style*="text-align:justify"] {
+  text-align: left !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  -webkit-hyphens: none !important;
+  -ms-hyphens: none !important;
+  hyphens: none !important;
+}
+
+/* Indentation support */
+.rich-content .ql-indent-1 { padding-left: 2rem; }
+.rich-content .ql-indent-2 { padding-left: 4rem; }
+.rich-content .ql-indent-3 { padding-left: 6rem; }
+.rich-content .ql-indent-4 { padding-left: 8rem; }
+
+/* ── List Styling ──────────────────────────────────────────────────── */
+/* Critical: overflow must be visible so markers show outside padding box */
+.rich-content ul,
+.rich-content ol,
+.latex-renderer ul,
+.latex-renderer ol {
+  list-style: revert !important;
+  padding-left: 2rem !important;        /* enough space for markers */
+  margin-bottom: 1.25rem;
+  display: block;
+  width: 100%;
+  overflow: visible !important;
+}
+
+.rich-content ul,
+.latex-renderer ul {
+  list-style-type: disc !important;
+}
+
+.rich-content ol,
+.latex-renderer ol {
+  list-style-type: decimal !important;
+}
+
+.rich-content li,
+.latex-renderer li {
+  margin-bottom: 0.4rem;
+  white-space: normal;
+  display: list-item !important;
+  overflow: visible;
+}
+
+/* Nested lists */
+.rich-content ul ul,
+.latex-renderer ul ul { list-style-type: circle !important; }
+.rich-content ul ul ul,
+.latex-renderer ul ul ul { list-style-type: square !important; }
+.rich-content ol ol,
+.latex-renderer ol ol { list-style-type: lower-alpha !important; }
+
+/* Quill's data-list attribute format (react-quill-new) */
+.rich-content [data-list="bullet"],
+.latex-renderer [data-list="bullet"],
+.ql-editor [data-list="bullet"] {
+  list-style-type: disc !important;
+  display: list-item !important;
+  padding-left: 0.5rem;
+}
+
+.rich-content [data-list="ordered"],
+.latex-renderer [data-list="ordered"],
+.ql-editor [data-list="ordered"] {
+  list-style-type: decimal !important;
+  display: list-item !important;
+  padding-left: 0.5rem;
+}
+
+/* Quill indent levels */
+.rich-content li.ql-indent-1, .latex-renderer li.ql-indent-1 { padding-left: 4rem; }
+.rich-content li.ql-indent-2, .latex-renderer li.ql-indent-2 { padding-left: 6rem; }
+.rich-content li.ql-indent-3, .latex-renderer li.ql-indent-3 { padding-left: 8rem; }
+
+
+/* Multimedia */
+.rich-content img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  border-radius: var(--radius-lg);
+  margin: 1rem 0;
+}
+
+.rich-content .ql-align-center img {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+
+/* Professional Table Styles */
+.rich-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  background: white;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.rich-content table th,
+.rich-content table td {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.rich-content table th {
+  background: var(--secondary);
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* FIX: KaTeX math elements inside rich-content MUST NOT wrap */
+.rich-content .katex,
+.rich-content .katex-inline,
+.rich-content .katex-display,
+.rich-content .katex * {
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  white-space: nowrap !important;
+  word-break: normal !important;
+}
+
+/* MathJax inline math in rich-content */
+.rich-content .mathjax-inline {
+  display: inline !important;
+  vertical-align: baseline !important;
+  overflow: visible !important;
+  line-height: normal !important;
+  white-space: nowrap !important;
+}
+
+.rich-content .mathjax-inline svg {
+  display: inline !important;
+  vertical-align: baseline !important;
+  overflow: visible !important;
+  line-height: normal !important;
+  white-space: nowrap !important;
+}
+
+/* ============================================
+   KATEX MATH RENDERING STYLES
+   Unified rendering for inline and block math
+   Key fix: forceInlineLayout() strips inline display
+   styles from KaTeX's internal HTML, then these CSS
+   rules (with sufficient specificity) control layout.
+   ============================================ */
+
+/* ---- Base KaTeX styles ---- */
+/*
+ * KaTeX alignment consolidated in app/styles/cbt-editor.css
+ * Only color inheritance overrides remain here — no font-size/line-height conflicts.
+ */
+html body .katex,
+html body .katex-inline,
+html body .katex-block,
+html body .katex-display {
+  font-family: 'KaTeX_Main', 'Times New Roman', serif;
+  font-weight: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: auto;
+  font-size: 1em;   /* Let cbt-editor.css control final size */
+  line-height: 1;  /* Let cbt-editor.css control final line-height */
+}
+
+/* ---- Color inheritance — override KaTeX's hardcoded colors ---- */
+html body .katex,
+html body .katex-html,
+html body .katex .katex-html,
+html body .katex svg,
+html body .katex-mathml,
+html body .katex-display > .katex,
+html body .katex-display > .katex-html,
+html body span.katex,
+html body .katex span {
+  color: inherit !important;
+}
+
+html body .katex .mord,
+html body .katex .mbin,
+html body .katex .mrel,
+html body .katex .mopen,
+html body .katex .mclose,
+html body .katex .mpunct,
+html body .katex .mord.numcr,
+html body .katex .mop,
+html body .katex .mover,
+html body .katex .munder,
+html body .katex .munderover,
+html body .katex .mfrac,
+html body .katex .msqrt,
+html body .katex .mroot,
+html body .katex .mi,
+html body .katex .mn,
+html body .katex svg,
+html body .katex svg * {
+  color: inherit !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+html body .katex svg text {
+  fill: currentColor !important;
+}
+
+/* ---- INLINE MATH: CLEAN & SAFE ---- */
+html body .katex-inline {
+  display: inline-block !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+  font-size: 1.15em !important;
+  margin: 0 0.1em !important;
+}
+
+html body .katex-inline .mfrac {
+  font-size: 1.25em !important;
+}
+
+/* ---- Block math ($$...$$) ---- */
+html body .katex-block,
+html body .katex-display {
+  display: block !important;
+  text-align: left;
+  margin: 1rem 0;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+html body .katex-block {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+html body .katex-display {
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem 0.5rem;
+  max-width: 100%;
+}
+
+html body .katex-block .katex,
+html body .katex-display .katex {
+  font-size: 1.15em;
+}
+
+html body .katex-block::-webkit-scrollbar,
+html body .katex-display::-webkit-scrollbar {
+  height: 4px;
+}
+
+html body .katex-block::-webkit-scrollbar-thumb,
+html body .katex-display::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+/* Override katex-display when used as inline (class replaced by katex-inline) */
+html body .katex-inline .katex-display,
+html body .katex-inline > .katex-display {
+  display: inline !important;
+  text-align: left !important;
+  margin: 0 0.1em !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+/* ---- Vertical alignment in context ---- */
+html body .rich-content .katex-inline {
+  vertical-align: baseline !important;
+  position: relative;
+  top: -0.05em;
+}
+
+/* ---- Operator spacing ---- */
+html body .katex .mbin {
+  margin-left: 0.15em;
+  margin-right: 0.15em;
+}
+
+html body .katex .mrel {
+  margin-left: 0.2em;
+  margin-right: 0.2em;
+}
+
+html body .katex .mopen,
+html body .katex .mclose {
+  padding: 0 0.1em;
+}
+
+html body .katex .mord.numcr {
+  font-size: 0.85em;
+}
+
+/* ---- Mobile responsiveness ---- */
+@media (max-width: 768px) {
+  html body .katex-block .katex,
+  html body .katex-display .katex {
+    font-size: 1.1em;
+  }
+
+  html body .katex-inline {
+    font-size: 1.05em;
+  }
+
+  html body .katex-block,
+  html body .katex-display {
+    margin: 1rem 0;
+    padding: 0.75rem 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  html body .katex-block .katex,
+  html body .katex-display .katex {
+    font-size: 1.05em;
+  }
+}
+
+/* ---- Question / option context ---- */
+html body .question-text .katex-inline {
+  font-size: 1.1em;
+}
+
+html body .question-text .katex-block,
+html body .question-text .katex-display {
+  margin: 1.5rem 0;
+}
+
+html body .option-text .katex-inline {
+  font-size: 1.05em;
+}
+
+html body .option-text .katex-block,
+html body .option-text .katex-display {
+  font-size: 1.1em;
+  margin: 0.75rem 0;
+}
+
+/* ============================================
+   PRODUCTION-READY MATH RENDERER
+   ============================================ */
+
+/* Math Renderer Container */
+.math-renderer {
+  position: relative;
+  display: inline;
+}
+
+/* Editable math hover effect */
+.math-renderer.editable {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: 0 -2px;
+}
+
+.math-renderer.editable:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.math-renderer.editable:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Error state */
+.math-renderer .katex-error {
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: Monaco, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+/* Copy button */
+.math-renderer .copy-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-left: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.math-renderer:hover .copy-button {
+  opacity: 1;
+}
+
+/* Math Editor (edit mode) */
+.math-editor {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+}
+
+.math-editor.display-mode {
+  display: block;
+  margin: 1rem 0;
+}
+
+.math-editor .editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 200px;
+}
+
+.math-editor.inline-mode .editor-container {
+  flex-direction: row;
+  align-items: flex-start;
+  min-width: 250px;
+}
+
+.math-editor textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  font-family: Monaco, Menlo, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  outline: none;
+  resize: vertical;
+}
+
+.math-editor textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Math preview in editor */
+.math-editor .math-preview {
+  padding: 8px 12px;
+  background-color: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  max-width: 100%;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.math-editor .math-preview.error {
+  border-color: #fca5a5;
+  background-color: #fef2f2;
+}
+
+/* Editor actions */
+.math-editor .editor-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.math-editor .editor-actions button {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.math-editor .editor-actions .save-btn {
+  background-color: #3b82f6;
+  color: #fff;
+}
+
+.math-editor .editor-actions .save-btn:hover {
+  background-color: #2563eb;
+}
+
+.math-editor .editor-actions .cancel-btn {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.math-editor .editor-actions .cancel-btn:hover {
+  background-color: #e5e7eb;
+}
+
+/* Loading placeholder */
+.math-renderer .loading-placeholder {
+  display: inline-block;
+  width: 30px;
+  height: 20px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 3px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   MATH TOOLBAR
+   ============================================ */
+
+.math-toolbar {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background-color: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-size: 13px;
+}
+
+.math-toolbar .toolbar-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.math-toolbar .toolbar-tab {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.math-toolbar .toolbar-tab:hover {
+  background-color: #f3f4f6;
+}
+
+.math-toolbar .toolbar-tab.active {
+  background-color: #3b82f6;
+  color: #fff;
+}
+
+.math-toolbar .toolbar-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.math-toolbar .toolbar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 48px;
+}
+
+.math-toolbar .toolbar-btn:hover {
+  background-color: #e5e7eb;
+  border-color: #3b82f6;
+}
+
+.math-toolbar .toolbar-btn .btn-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.math-toolbar .toolbar-btn .btn-label {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.math-toolbar .toolbar-hint {
+  font-size: 10px;
+  color: #9ca3af;
+  text-align: center;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Responsive toolbar */
+@media (max-width: 480px) {
+  .math-toolbar {
+    max-width: 100%;
+  }
+
+  .math-toolbar .toolbar-buttons {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ============================================
+   RESPONSIVE MATH
+   ============================================ */
+
+/* Mobile math rendering */
+@media (max-width: 640px) {
+  .math-renderer {
+    font-size: 0.95em;
+  }
+
+  .katex-block {
+    margin: 0.75rem 0;
+    padding: 0.5rem;
+    overflow-x: auto;
+  }
+
+  .math-editor .editor-container {
+    min-width: 150px;
+  }
+}
+
+/* Prevent overflow for long equations */
+.latex-content,
+.katex-block,
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+.latex-content {
+  word-wrap: normal;
+  white-space: nowrap;
+}
+
+/* Print styles */
+@media print {
+  .math-renderer.editable,
+  .math-toolbar,
+  .copy-button {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   LATEX RENDERER - Professional Styling
+   ============================================ */
+
+/* Main renderer container */
+.latex-renderer,
+.latex-renderer-content {
+  line-height: 1.75;
+  color: inherit;
+}
+
+/* Inline variant — use when inside table cells / tight contexts */
+.latex-renderer-inline {
+  display: inline !important;
+}
+
+/* Rich content text */
+.latex-renderer .rich-content {
+  line-height: 1.8;
+}
+
+.latex-renderer .latex-renderer-content {
+  display: block;
+}
+
+.latex-renderer p {
+  margin-bottom: 0.25em;
+  display: block;
+}
+
+.latex-renderer p:last-child {
+  margin-bottom: 0;
+}
+
+.latex-renderer br {
+  display: block;
+  content: "";
+  margin-top: 0.125em;
+}
+
+/* Block math (display mode) */
+.katex-display-block {
+  display: block;
+  text-align: center;
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  line-height: 1.5;
+}
+
+/* Compact block math — follows a line break in text */
+.katex-compact-block {
+  display: block;
+  margin: 0.125rem 0;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* Ensure block math is properly contained */
+.katex-display-block .katex,
+.katex-compact-block .katex {
+  display: block !important;
+  margin: 0 auto !important;
+}
+
+/* Compact: smaller font */
+.katex-compact-block .katex {
+  font-size: 1em !important;
+}
+
+/* Inline math wrapper */
+.latex-renderer .katex-inline-wrapper {
+  display: inline;
+  vertical-align: middle;
+}
+
+/* Better spacing for lists */
+.latex-renderer ul,
+.latex-renderer ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.latex-renderer li {
+  margin-bottom: 0.25em;
+}
+
+/* Image styling */
+.latex-renderer img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Table styling in questions */
+.latex-renderer table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+
+.latex-renderer th,
+.latex-renderer td {
+  border: 1px solid #e5e7eb;
+  padding: 8px 12px;
+}
+
+.latex-renderer th {
+  background-color: #f9fafb;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .katex {
+    color: #e2e8f0;
+  }
+
+  .katex .mord {
+    color: #e2e8f0;
+  }
+
+  .katex .mbin {
+    color: #94a3b8;
+  }
+
+  .katex .mrel {
+    color: #94a3b8;
+  }
+
+  .katex .mopen,
+  .katex .mclose {
+    color: #94a3b8;
+  }
+}
+
+/* Animation for math rendering (fade in) */
+@keyframes katexFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.katex-inline,
+.katex-block,
+.katex-display {
+  animation: katexFadeIn 0.2s ease-out;
+}
+
+/* Loading placeholder for math */
+.math-loading {
+  display: inline-block;
+  min-width: 20px;
+  min-height: 1.2em;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 2px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Quill Toolbar — custom buttons (fx, Tbl) */
+.ql-toolbar button.ql-formula,
+.ql-toolbar button.ql-table {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 0 6px !important;
+  min-width: 32px !important;
+  border-radius: 4px !important;
+}
+
+.ql-toolbar button.ql-formula {
+  background: #dbeafe !important;
+  color: #2563eb !important;
+  border: 1px solid #bfdbfe !important;
+}
+
+.ql-toolbar button.ql-formula:hover {
+  background: #bfdbfe !important;
+}
+
+.ql-toolbar button.ql-table {
+  background: #dcfce7 !important;
+  color: #16a34a !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.ql-toolbar button.ql-table:hover {
+  background: #bbf7d0 !important;
+}
+
+/* Ensure toggle buttons (bold, italic, etc.) work properly */
+.ql-toolbar button.ql-active {
+  background: #e5e7eb !important;
+  color: #111827 !important;
+}
+
+/* Quill — hide the default toolbar since we use custom one */
+.ql-toolbar.ql-snow {
+  display: none !important;
+}
+
+/* ── Quill editor: match rich-content styling ── */
+/* Override Quill's default serif font with system font */
+.ql-editor {
+  font-family: var(--font-sans) !important;
+  font-size: 14px !important;
+  line-height: 1.75 !important;
+  color: #111827 !important;
+}
+
+/* Paragraphs in editor: same as preview */
+.ql-editor p {
+  margin-bottom: 0.5rem !important;
+  line-height: 1.75 !important;
+}
+
+/* Strong/bold in editor */
+.ql-editor strong,
+.ql-editor b {
+  font-weight: 700 !important;
+}
+
+/* Emphasis in editor */
+.ql-editor em,
+.ql-editor i {
+  font-style: italic !important;
+}
+
+/* White-space preservation for newlines */
+.ql-editor {
+  white-space: normal !important;
+  word-wrap: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Headers in editor */
+.ql-editor h1 {
+  font-size: 1.5em !important;
+  font-weight: 700 !important;
+  margin-bottom: 0.5rem !important;
+}
+.ql-editor h2 {
+  font-size: 1.25em !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+}
+.ql-editor h3 {
+  font-size: 1.1em !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* Editor Rumus modal — elegant styles */
+.modal-overlay {
+  backdrop-filter: blur(4px);
+}
+
+/* Latex preview in editor */
+.latex-preview-inline {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Table dialog grid preview */
+.table-preview-cell {
+  transition: all 0.15s;
+}
+.table-preview-cell:hover {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+}
+
+/* ============================================
+   DARK MODE SYSTEM STYLES
+   ============================================ */
+.dark {
+  --background: #0d1221;
+  --foreground: #e8edf5;
+  --card: #161d30;
+  --card-foreground: #e8edf5;
+  
+  --primary: #4f8ef7;
+  --primary-foreground: #ffffff;
+  --primary-light: #7aabf9;
+  --primary-hover: #4f8ef7;
+
+  --secondary: #161d30;
+  --secondary-foreground: #7d8da8;
+  
+  --muted: #1c2439;
+  --muted-foreground: #7d8da8;
+
+  --border: rgba(255, 255, 255, 0.12);
+  --border-light: rgba(255, 255, 255, 0.08);
+  --input: #1c2439;
+  --ring: #4f8ef7;
+
+  --success-light: #064e3b;
+  --warning-light: #78350f;
+  --error-light: #7f1d1d;
+  --info-light: #172554;
+
+  /* Redefine Tailwind v4 theme variables in dark mode for seamless integration */
+  --color-slate-55: #0d1221;
+  --color-slate-50: #0d1221;
+  --color-slate-100: #1c2439;
+  --color-slate-200: #243049;
+  --color-slate-300: #2d3748;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-800: #f1f5f9;
+  --color-slate-900: #f8fafc;
+  --color-slate-950: #ffffff;
+
+  --color-gray-50: #0d1221;
+  --color-gray-100: #1c2439;
+  --color-gray-200: #243049;
+  --color-gray-300: #2d3748;
+  --color-gray-400: #64748b;
+  --color-gray-500: #94a3b8;
+  --color-gray-600: #cbd5e1;
+  --color-gray-700: #e2e8f0;
+  --color-gray-800: #f1f5f9;
+  --color-gray-900: #f8fafc;
+
+  --color-zinc-50: #0d1221;
+  --color-zinc-100: #1c2439;
+  --color-zinc-200: #243049;
+  --color-zinc-300: #2d3748;
+  --color-zinc-400: #64748b;
+  --color-zinc-500: #94a3b8;
+  --color-zinc-600: #cbd5e1;
+  --color-zinc-700: #e2e8f0;
+  --color-zinc-800: #f1f5f9;
+
+}
+
+/* Automatic global dark mode skinning for common layouts (Flat selectors) */
+.dark body,
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-zinc-50 {
+  background-color: #0d1221 !important;
+  color: #e8edf5 !important;
+}
+
+.dark .bg-white,
+.dark .bg-card,
+.dark [class*="bg-white"] {
+  background-color: #161d30 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-gray-100,
+.dark .bg-zinc-100 {
+  background-color: #1c2439 !important;
+}
+
+.dark .bg-slate-200,
+.dark .bg-gray-200,
+.dark .bg-zinc-200 {
+  background-color: #1e2a42 !important;
+}
+
+/* Dark slate surfaces (bg-slate-800/900) are always used as DARK
+   button/badge/avatar surfaces with white content. The slate variable
+   remap flips them to near-white, hiding the white text/icons on top —
+   so pin these back to a visible dark surface. */
+.dark .bg-slate-800,
+.dark .bg-slate-900,
+.dark .bg-gray-800,
+.dark .bg-gray-900,
+.dark .bg-zinc-800,
+.dark .bg-zinc-900 {
+  background-color: #1e293b !important;
+}
+
+
+/* Hardcoded hex brand colors overrides */
+.dark [class*="text-[#030C4D]"],
+.dark [class*="text-[#0038A8]"] {
+  color: #f1f5f9 !important;
+}
+.dark [class*="bg-[#030C4D]/"],
+.dark [class*="bg-[#0038A8]/"] {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+}
+.dark [class*="border-[#030C4D]"],
+.dark [class*="border-[#0038A8]"] {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Redefine text hierarchies explicitly as backup fallback */
+.dark .text-slate-900,
+.dark .text-slate-850,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-zinc-900,
+.dark .text-zinc-800,
+.dark .text-zinc-700,
+.dark .text-black,
+.dark .text-primary {
+  color: #f1f5f9 !important;
+}
+
+.dark .text-slate-600,
+.dark .text-gray-600,
+.dark .text-zinc-600 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-zinc-500,
+.dark .text-slate-450,
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-zinc-400 {
+  color: #94a3b8 !important;
+}
+
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  color: #ffffff !important;
+}
+
+.dark p,
+.dark label {
+  color: #cbd5e1 !important;
+}
+
+/* Light background status pills / icon background */
+.dark .bg-indigo-50,
+.dark .bg-indigo-100 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+.dark .bg-blue-50,
+.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+.dark .bg-rose-50,
+.dark .bg-rose-100 {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+}
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+.dark .bg-purple-50,
+.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+}
+.dark .bg-pink-50,
+.dark .bg-pink-100 {
+  background-color: rgba(236, 72, 153, 0.12) !important;
+}
+.dark .bg-cyan-50,
+.dark .bg-cyan-100 {
+  background-color: rgba(6, 182, 212, 0.12) !important;
+}
+.dark .bg-teal-50,
+.dark .bg-teal-100 {
+  background-color: rgba(20, 184, 166, 0.12) !important;
+}
+.dark .bg-fuchsia-50,
+.dark .bg-fuchsia-100 {
+  background-color: rgba(217, 70, 239, 0.12) !important;
+}
+.dark .bg-sky-50,
+.dark .bg-sky-100 {
+  background-color: rgba(14, 165, 233, 0.12) !important;
+}
+.dark .bg-lime-50,
+.dark .bg-lime-100 {
+  background-color: rgba(132, 204, 22, 0.12) !important;
+}
+
+/* Low-opacity status background overrides for zebra-striping & alerts */
+.dark [class*="bg-red-50/"],
+.dark [class*="bg-red-100/"] {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+.dark [class*="bg-pink-50/"],
+.dark [class*="bg-pink-100/"] {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+}
+.dark [class*="bg-rose-50/"],
+.dark [class*="bg-rose-100/"] {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+}
+.dark [class*="bg-emerald-50/"],
+.dark [class*="bg-emerald-100/"] {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+.dark [class*="bg-blue-50/"],
+.dark [class*="bg-blue-100/"] {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+.dark [class*="bg-amber-50/"],
+.dark [class*="bg-amber-100/"] {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+.dark [class*="bg-indigo-50/"],
+.dark [class*="bg-indigo-100/"] {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+.dark [class*="bg-purple-50/"],
+.dark [class*="bg-purple-100/"] {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+}
+.dark [class*="bg-violet-50/"],
+.dark [class*="bg-violet-100/"] {
+  background-color: rgba(139, 92, 246, 0.12) !important;
+}
+.dark [class*="bg-cyan-50/"],
+.dark [class*="bg-cyan-100/"] {
+  background-color: rgba(6, 182, 212, 0.12) !important;
+}
+.dark [class*="bg-teal-50/"],
+.dark [class*="bg-teal-100/"] {
+  background-color: rgba(20, 184, 166, 0.12) !important;
+}
+.dark [class*="bg-fuchsia-50/"],
+.dark [class*="bg-fuchsia-100/"] {
+  background-color: rgba(217, 70, 239, 0.12) !important;
+}
+.dark [class*="bg-sky-50/"],
+.dark [class*="bg-sky-100/"] {
+  background-color: rgba(14, 165, 233, 0.12) !important;
+}
+.dark [class*="bg-lime-50/"],
+.dark [class*="bg-lime-100/"] {
+  background-color: rgba(132, 204, 22, 0.12) !important;
+}
+
+/* Status Text Color Overrides */
+.dark .text-red-500,
+.dark .text-red-600,
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: #f87171 !important;
+}
+.dark .text-rose-500,
+.dark .text-rose-600,
+.dark .text-rose-700,
+.dark .text-rose-800 {
+  color: #fb7185 !important;
+}
+.dark .text-emerald-500,
+.dark .text-emerald-600,
+.dark .text-emerald-700,
+.dark .text-emerald-800 {
+  color: #34d399 !important;
+}
+.dark .text-amber-500,
+.dark .text-amber-600,
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  color: #fbbf24 !important;
+}
+.dark .text-blue-500,
+.dark .text-blue-600,
+.dark .text-blue-700,
+.dark .text-blue-800 {
+  color: #60a5fa !important;
+}
+.dark .text-indigo-500,
+.dark .text-indigo-600,
+.dark .text-indigo-700,
+.dark .text-indigo-800 {
+  color: #818cf8 !important;
+}
+.dark .text-purple-500,
+.dark .text-purple-600,
+.dark .text-purple-700,
+.dark .text-purple-800 {
+  color: #c084fc !important;
+}
+.dark .text-violet-500,
+.dark .text-violet-600,
+.dark .text-violet-700,
+.dark .text-violet-800 {
+  color: #a78bfa !important;
+}
+.dark .text-pink-500,
+.dark .text-pink-600,
+.dark .text-pink-700,
+.dark .text-pink-800 {
+  color: #f472b6 !important;
+}
+.dark .text-cyan-500,
+.dark .text-cyan-600,
+.dark .text-cyan-700,
+.dark .text-cyan-800 {
+  color: #22d3ee !important;
+}
+.dark .text-teal-500,
+.dark .text-teal-600,
+.dark .text-teal-700,
+.dark .text-teal-800 {
+  color: #2dd4bf !important;
+}
+.dark .text-fuchsia-500,
+.dark .text-fuchsia-600,
+.dark .text-fuchsia-700,
+.dark .text-fuchsia-800 {
+  color: #f472b6 !important;
+}
+.dark .text-sky-500,
+.dark .text-sky-600,
+.dark .text-sky-700,
+.dark .text-sky-800 {
+  color: #38bdf8 !important;
+}
+.dark .text-lime-500,
+.dark .text-lime-600,
+.dark .text-lime-700,
+.dark .text-lime-800 {
+  color: #a3e635 !important;
+}
+
+/* Borders */
+.dark .border,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark [class*="border-slate-200/"],
+.dark [class*="border-slate-300/"],
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-zinc-100,
+.dark .border-zinc-200 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark .border-emerald-100,
+.dark .border-emerald-200,
+.dark .border-emerald-300 {
+  border-color: rgba(52, 211, 153, 0.25) !important;
+}
+.dark .border-blue-100,
+.dark .border-blue-200,
+.dark .border-blue-300 {
+  border-color: rgba(96, 165, 250, 0.25) !important;
+}
+.dark .border-rose-100,
+.dark .border-rose-200,
+.dark .border-rose-300 {
+  border-color: rgba(251, 113, 133, 0.25) !important;
+}
+.dark .border-red-100,
+.dark .border-red-200,
+.dark .border-red-300 {
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+.dark .border-amber-100,
+.dark .border-amber-200,
+.dark .border-amber-300 {
+  border-color: rgba(251, 191, 36, 0.25) !important;
+}
+.dark .border-indigo-100,
+.dark .border-indigo-200,
+.dark .border-indigo-300 {
+  border-color: rgba(129, 140, 248, 0.25) !important;
+}
+.dark .border-purple-100,
+.dark .border-purple-200,
+.dark .border-purple-300 {
+  border-color: rgba(168, 85, 247, 0.25) !important;
+}
+.dark .border-violet-100,
+.dark .border-violet-200,
+.dark .border-violet-300 {
+  border-color: rgba(139, 92, 246, 0.25) !important;
+}
+.dark .border-pink-100,
+.dark .border-pink-200,
+.dark .border-pink-300 {
+  border-color: rgba(236, 72, 153, 0.25) !important;
+}
+.dark .border-cyan-100,
+.dark .border-cyan-200,
+.dark .border-cyan-300 {
+  border-color: rgba(6, 182, 212, 0.25) !important;
+}
+.dark .border-teal-100,
+.dark .border-teal-200,
+.dark .border-teal-300 {
+  border-color: rgba(20, 184, 166, 0.25) !important;
+}
+.dark .border-fuchsia-100,
+.dark .border-fuchsia-200,
+.dark .border-fuchsia-300 {
+  border-color: rgba(217, 70, 239, 0.25) !important;
+}
+.dark .border-sky-100,
+.dark .border-sky-200,
+.dark .border-sky-300 {
+  border-color: rgba(14, 165, 233, 0.25) !important;
+}
+.dark .border-lime-100,
+.dark .border-lime-200,
+.dark .border-lime-300 {
+  border-color: rgba(132, 204, 22, 0.25) !important;
+}
+
+/* Form inputs & select dropdowns */
+.dark input:not(.bg-transparent),
+.dark select:not(.bg-transparent),
+.dark textarea:not(.bg-transparent) {
+  background-color: #1c2439 !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  color: #e8edf5 !important;
+}
+.dark input:focus:not(.bg-transparent),
+.dark select:focus:not(.bg-transparent),
+.dark textarea:focus:not(.bg-transparent) {
+  border-color: #4f8ef7 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(79, 142, 247, 0.25) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #4a5568 !important;
+}
+
+/* Tables */
+.dark table {
+  border-collapse: collapse !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.dark th {
+  color: #f1f5f9 !important;
+  background-color: #121826 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+.dark td {
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Wildcard Hover background overrides for lists, buttons and tables */
+.dark [class*="hover:bg-slate-"]:hover,
+.dark [class*="hover:bg-gray-"]:hover,
+.dark [class*="hover:bg-zinc-"]:hover,
+.dark [class*="hover:bg-white"]:hover,
+.dark [class*="hover:bg-indigo-"]:hover,
+.dark [class*="hover:bg-blue-"]:hover,
+.dark [class*="group-hover:bg-slate-"],
+.dark [class*="group-hover:bg-gray-"],
+.dark [class*="group-hover:bg-zinc-"],
+.dark [class*="group-hover:bg-white"],
+.dark [class*="group-hover:bg-indigo-"],
+.dark [class*="group-hover:bg-blue-"],
+.dark tr:hover {
+  background-color: #1e2a42 !important;
+}
+
+/* Wildcard Hover text overrides for highlighted items */
+.dark [class*="hover:text-"]:hover,
+.dark [class*="group-hover:text-"] {
+  color: #ffffff !important;
+}
+
+/* Active navigation dot / highlights */
+.dark .bg-accent {
+  background-color: #4f8ef7 !important;
+}
+
+/* Sidebar overrides specific to prevent light flash / borders */
+.dark .sidebar,
+.dark aside {
+  background-color: #0d1221 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Stat-card count numbers: brand pink in light, white in dark.
+   Uses a dedicated class so it beats the !important .text-pink-500
+   remap (matching specificity, later source order wins). */
+.dark .stat-count {
+  color: #ffffff !important;
+}
+
+/* ============================================
+   Missing status families: green / yellow / orange
+   (badges, icon chips, alert boxes used across dashboards)
+   ============================================ */
+
+/* Light background pills / icon chips */
+.dark .bg-green-50,
+.dark .bg-green-100,
+.dark [class*="bg-green-50/"],
+.dark [class*="bg-green-100/"] {
+  background-color: rgba(34, 197, 94, 0.12) !important;
+}
+.dark .bg-yellow-50,
+.dark .bg-yellow-100,
+.dark [class*="bg-yellow-50/"],
+.dark [class*="bg-yellow-100/"] {
+  background-color: rgba(234, 179, 8, 0.12) !important;
+}
+.dark .bg-orange-50,
+.dark .bg-orange-100,
+.dark [class*="bg-orange-50/"],
+.dark [class*="bg-orange-100/"] {
+  background-color: rgba(249, 115, 22, 0.12) !important;
+}
+
+/* Text colors */
+.dark .text-green-500,
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-green-800 {
+  color: #4ade80 !important;
+}
+.dark .text-yellow-500,
+.dark .text-yellow-600,
+.dark .text-yellow-700,
+.dark .text-yellow-800 {
+  color: #facc15 !important;
+}
+.dark .text-orange-500,
+.dark .text-orange-600,
+.dark .text-orange-700,
+.dark .text-orange-800 {
+  color: #fb923c !important;
+}
+
+/* Borders */
+.dark .border-green-100,
+.dark .border-green-200,
+.dark .border-green-300 {
+  border-color: rgba(74, 222, 128, 0.25) !important;
+}
+.dark .border-yellow-100,
+.dark .border-yellow-200,
+.dark .border-yellow-300 {
+  border-color: rgba(250, 204, 21, 0.25) !important;
+}
+.dark .border-orange-100,
+.dark .border-orange-200,
+.dark .border-orange-300 {
+  border-color: rgba(251, 146, 60, 0.25) !important;
+}
+
+/* ============================================
+   Colored -200 badge/chip backgrounds
+   These pair with -700/-800 text that is remapped to a LIGHT
+   shade in dark mode; leaving the -200 bg bright makes the text
+   nearly invisible (e.g. option-letter chips in monitoring).
+   Dim them (slightly heavier than -100 so hover:-200 still reads).
+   ============================================ */
+.dark .bg-red-200      { background-color: rgba(239, 68, 68, 0.2) !important; }
+.dark .bg-rose-200     { background-color: rgba(244, 63, 94, 0.2) !important; }
+.dark .bg-emerald-200  { background-color: rgba(16, 185, 129, 0.2) !important; }
+.dark .bg-green-200    { background-color: rgba(34, 197, 94, 0.2) !important; }
+.dark .bg-blue-200     { background-color: rgba(59, 130, 246, 0.2) !important; }
+.dark .bg-sky-200      { background-color: rgba(14, 165, 233, 0.2) !important; }
+.dark .bg-indigo-200   { background-color: rgba(99, 102, 241, 0.2) !important; }
+.dark .bg-violet-200   { background-color: rgba(139, 92, 246, 0.2) !important; }
+.dark .bg-purple-200   { background-color: rgba(168, 85, 247, 0.2) !important; }
+.dark .bg-fuchsia-200  { background-color: rgba(217, 70, 239, 0.2) !important; }
+.dark .bg-pink-200     { background-color: rgba(236, 72, 153, 0.2) !important; }
+.dark .bg-amber-200    { background-color: rgba(245, 158, 11, 0.2) !important; }
+.dark .bg-yellow-200   { background-color: rgba(234, 179, 8, 0.2) !important; }
+.dark .bg-orange-200   { background-color: rgba(249, 115, 22, 0.2) !important; }
+.dark .bg-cyan-200     { background-color: rgba(6, 182, 212, 0.2) !important; }
+.dark .bg-teal-200     { background-color: rgba(20, 184, 166, 0.2) !important; }
+.dark .bg-lime-200     { background-color: rgba(132, 204, 22, 0.2) !important; }
+
+/* Colored hover backgrounds that were not covered by the generic
+   slate/gray/zinc/indigo/blue hover rule — keep the hover tinted
+   in the item's own hue instead of flashing bright light-mode color. */
+.dark [class*="hover:bg-emerald-2"]:hover,
+.dark [class*="hover:bg-green-2"]:hover { background-color: rgba(16, 185, 129, 0.22) !important; }
+.dark [class*="hover:bg-red-2"]:hover,
+.dark [class*="hover:bg-rose-2"]:hover  { background-color: rgba(239, 68, 68, 0.22) !important; }
+.dark [class*="hover:bg-amber-2"]:hover,
+.dark [class*="hover:bg-yellow-2"]:hover { background-color: rgba(245, 158, 11, 0.22) !important; }
+
+/* Rich Text Editor Toolbar Dark Mode skinning */
+.dark .editor-toolbar {
+  background-color: #121826 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.dark .editor-toolbar button,
+.dark .editor-toolbar label,
+.dark .editor-toolbar select {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+}
+.dark .editor-toolbar button:hover,
+.dark .editor-toolbar label:hover,
+.dark .editor-toolbar select:hover {
+  background-color: #1c2439 !important;
+  color: #ffffff !important;
+}
+.dark .editor-toolbar button.active,
+.dark .editor-toolbar button[class*="bg-[#030C4D]"] {
+  background-color: #4f8ef7 !important;
+  color: #ffffff !important;
+}
+.dark .editor-toolbar select option {
+  background-color: #121826 !important;
+  color: #cbd5e1 !important;
+}
+

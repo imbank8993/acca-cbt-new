@@ -1,0 +1,5 @@
+Pertanyaan,Tipe Soal,Kesulitan,Indeks Jawaban Benar,Pilihan 1,Pilihan 2,Pilihan 3,Pilihan 4,Pilihan 5
+Apa ibukota Indonesia?,mcq,easy,0,Jakarta,Bandung,Surabaya,Medan,Makassar
+Siapa penemu lampu pijar?,mcq,medium,1,Nikola Tesla,Thomas Alva Edison,Albert Einstein,Isaac Newton,Galileo Galilei
+[q]بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ[/q],mcq,easy,0,Basmalah,Hamdalah,Takbir,Tahlil,Tasbih
+Berapa hasil dari 2+2?,mcq,easy,2,2,3,4,5,6

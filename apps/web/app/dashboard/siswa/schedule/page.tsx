@@ -1,0 +1,355 @@
+"use client";
+import React, { useCallback, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import {
+    CalendarDays, Clock, CheckCircle2, ArrowRight,
+    Ghost, Loader2, AlertCircle, Lock, Unlock, RefreshCw, Sparkles, User
+} from 'lucide-react';
+import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
+import { getSessionUser } from '@/lib/session';
+import { getStudentExams } from '@/lib/api/students';
+import { useRouter } from 'next/navigation';
+import { useMemoryState } from '@/lib/useMemoryState';
+
+const SchedulePage = () => {
+    const [exams, setExams] = useMemoryState<any[]>('siswa_schedule_exams', []);
+    const [loading, setLoading] = useMemoryState('siswa_schedule_loading', true);
+    const [now, setNow] = useState(new Date());
+    const [fullName, setFullName] = useState<string>('');
+    const router = useRouter();
+
+    useEffect(() => {
+        loadData();
+        // Jam dinding diperbarui tiap menit supaya hitung mundur tetap akurat.
+        const interval = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        const user = await getSessionUser();
+        if (user) {
+            setExams((await getStudentExams()) || []);
+            setFullName(user.fullName ?? '');
+        }
+        setLoading(false);
+    }, []);
+
+    // Jadwal ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
+    useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
+
+    const getStatus = (exam: any) => {
+        // Must be published
+        if (!exam.is_published) {
+            return { label: 'Belum Publikasi', color: 'text-slate-400', bg: 'bg-slate-50 border-slate-200', icon: Lock, enabled: false };
+        }
+
+        // Check if completed
+        if (exam.isCompleted) {
+            return { label: 'Selesai', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle2, enabled: false };
+        }
+
+        const startTime = exam.start_time ? new Date(exam.start_time) : null;
+        const endTime = exam.end_time ? new Date(exam.end_time) : null;
+        const isBeforeStart = startTime && now < startTime;
+        const isAfterEnd = endTime && now > endTime;
+
+        // Window not yet open
+        if (isBeforeStart) {
+            return { label: 'Belum Mulai', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200', icon: Clock, enabled: false };
+        }
+
+        // Window closed
+        if (isAfterEnd) {
+            return { label: 'Waktu Habis', color: 'text-red-500', bg: 'bg-red-50 border-red-100', icon: AlertCircle, enabled: false };
+        }
+
+        // Window open — student can start
+        return { label: 'Kerjakan Sekarang', color: 'text-white', bg: 'bg-[#0038A8] hover:bg-[#020510]', icon: ArrowRight, enabled: true };
+    };
+
+    const formatDay = (dateStr: string | null | undefined) => {
+        if (!dateStr) return 'TBA';
+        try {
+            // Parse as UTC by appending 'Z', then format using UTC methods to avoid timezone shift
+            const date = new Date(dateStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? dateStr : dateStr + 'Z');
+            if (isNaN(date.getTime())) return 'TBA';
+            const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+            const day = wibDate.getUTCDate();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const month = months[wibDate.getUTCMonth()];
+            const year = wibDate.getUTCFullYear();
+            return `${day} ${month} ${year}`;
+        } catch (e) {
+            console.error('formatDay error:', e, dateStr);
+            return 'TBA';
+        }
+    };
+
+    const formatTimeRange = (startStr: string | null | undefined, endStr: string | null | undefined) => {
+        if (!startStr) return 'Kapan saja';
+        try {
+            // Parse as UTC
+            const s = new Date(startStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? startStr : startStr + 'Z');
+            const e = endStr ? new Date(endStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? endStr : endStr + 'Z') : null;
+            if (isNaN(s.getTime())) return '...';
+            
+            const sWib = new Date(s.getTime() + (7 * 60 * 60 * 1000));
+            const eWib = e && !isNaN(e.getTime()) ? new Date(e.getTime() + (7 * 60 * 60 * 1000)) : null;
+ 
+            const sH = String(sWib.getUTCHours()).padStart(2, '0');
+            const sM = String(sWib.getUTCMinutes()).padStart(2, '0');
+            const eH = eWib ? String(eWib.getUTCHours()).padStart(2, '0') : '..';
+            const eM = eWib ? String(eWib.getUTCMinutes()).padStart(2, '0') : '..';
+            return `${sH}:${sM} — ${eH}:${eM} WIB`;
+        } catch (e) {
+            console.error('formatTimeRange error:', e);
+            return '...';
+        }
+    };
+
+    const formatTimeUntil = (dateStr: string) => {
+        if (!dateStr) return '';
+        const diff = new Date(dateStr).getTime() - now.getTime();
+        if (diff <= 0) return '';
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        if (days > 0) return `${days}h ${hours}m lagi`;
+        if (hours > 0) return `${hours}j ${minutes}m lagi`;
+        return `${minutes}m lagi`;
+    };
+
+    // Sort exams: published/open first, then by start_time
+    const sortedExams = [...exams].sort((a, b) => {
+        const aOpen = a.is_published && !a.isCompleted && (!a.end_time || now <= new Date(a.end_time));
+        const bOpen = b.is_published && !b.isCompleted && (!b.end_time || now <= new Date(b.end_time));
+        if (aOpen && !bOpen) return -1;
+        if (!aOpen && bOpen) return 1;
+        const aStart = a.start_time ? new Date(a.start_time).getTime() : Infinity;
+        const bStart = b.start_time ? new Date(b.start_time).getTime() : Infinity;
+        return aStart - bStart;
+    });
+
+    const openExams = sortedExams.filter(e => e.is_published && !e.isCompleted && (!e.end_time || now <= new Date(e.end_time)));
+    const upcomingExams = sortedExams.filter(e => e.is_published && !e.isCompleted && e.start_time && now < new Date(e.start_time));
+    const closedExams = sortedExams.filter(e => e.isCompleted || (e.is_published && e.end_time && now > new Date(e.end_time)));
+    const draftExams = sortedExams.filter(e => !e.is_published);
+
+    return (
+        <div className="max-w-7xl mx-auto pb-24 space-y-6">
+            {/* ── Hero Header — Compact acca-hero-gradient ── */}
+            <div className="relative overflow-hidden rounded-2xl acca-hero-gradient shadow-xl shadow-[#0038A8]/15 mt-4 md:mt-0 p-6 md:p-8">
+                {/* Decorative Glowing Orbs */}
+                <div className="absolute -top-12 -right-12 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5 z-10">
+                    <div className="space-y-2">
+                        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
+                            Halo, <span className="text-amber-200">{fullName || 'Siswa'}</span>! 👋
+                        </h1>
+                        <p className="text-white/80 text-xs md:text-sm max-w-xl font-medium leading-relaxed">
+                            Berikut adalah daftar jadwal ujian Anda yang aktif dan akan datang. Silakan ikuti waktu pengerjaan yang ditentukan.
+                        </p>
+                    </div>
+
+                    {/* Compact Stat Badge */}
+                    <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15 self-start md:self-center shrink-0 shadow-lg">
+                        <span className="text-xs font-bold text-white/95">Total Ujian Anda:</span>
+                        <span className="text-lg font-black text-white font-mono bg-white/20 px-2.5 py-0.5 rounded-lg leading-none">{exams.length}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Stats bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+                    <p className="text-2xl font-black text-emerald-600 font-mono">{openExams.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Tersedia</p>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+                    <p className="text-2xl font-black text-blue-600 font-mono">{upcomingExams.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Akan Datang</p>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+                    <p className="text-2xl font-black text-[#0038A8] font-mono">{sortedExams.filter(e => e.isCompleted).length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Selesai</p>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
+                    <p className="text-2xl font-black text-slate-400 font-mono">{draftExams.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Draft</p>
+                </div>
+            </div>
+
+            {/* Open / Available exams */}
+            {openExams.length > 0 && (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Tersedia Sekarang</h3>
+                    </div>
+                    <div className="space-y-3">
+                        {openExams.map((exam) => {
+                            return (
+                                <motion.div
+                                    key={exam.id}
+                                    whileHover={{ x: 4, y: -2 }}
+                                    className="p-5 bg-white border border-slate-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 group cursor-pointer transition-all shadow-sm hover:shadow-lg relative overflow-hidden"
+                                    onClick={() => router.push(`/dashboard/siswa/exam/${exam.id}`)}
+                                >
+                                    <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
+                                    
+                                    <div className="flex items-center gap-4 flex-1 w-full min-w-0 pl-1.5">
+                                        <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#0038A8] group-hover:border-[#0038A8] transition-all text-emerald-600 group-hover:text-white">
+                                            <Clock size={18} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-[#0038A8] transition-colors">{exam.title}</h3>
+                                                {exam.exam_type && exam.exam_type !== 'daily' && (
+                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{exam.exam_type}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium font-sans">
+                                                <span className="flex items-center gap-1">
+                                                    <Clock size={12} className="text-slate-400" /> {formatTimeRange(exam.start_time, exam.end_time)}
+                                                </span>
+                                                <span className="flex items-center gap-1 text-[#0038A8] font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/30">
+                                                    <RefreshCw size={11} /> {exam.duration_minutes || 60} menit
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="w-full md:w-auto">
+                                        <div className="bg-[#0038A8] text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-[#0038A8]/10 group-hover:bg-[#020510] group-hover:shadow-lg group-hover:shadow-[#0038A8]/20 transition-all active:scale-95">
+                                            Kerjakan <ArrowRight size={14} />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* Upcoming */}
+            {upcomingExams.length > 0 && (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Akan Datang</h3>
+                    </div>
+                    <div className="space-y-3">
+                        {upcomingExams.map((exam) => {
+                            const until = formatTimeUntil(exam.start_time);
+                            return (
+                                <div key={exam.id}
+                                    className="p-5 bg-white border border-slate-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm opacity-80"
+                                >
+                                    <div className="absolute left-0 top-0 h-full w-1 bg-blue-400" />
+                                    
+                                    <div className="flex items-center gap-4 flex-1 w-full min-w-0 pl-1.5">
+                                        <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center shrink-0 text-blue-500">
+                                            <CalendarDays size={18} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                <h3 className="font-bold text-slate-800 text-base truncate">{exam.title}</h3>
+                                                {exam.exam_type && exam.exam_type !== 'daily' && (
+                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{exam.exam_type}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium font-sans">
+                                                <span className="flex items-center gap-1">
+                                                    <CalendarDays size={12} className="text-slate-400" /> {formatDay(exam.start_time)}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <Clock size={12} className="text-slate-400" /> {formatTimeRange(exam.start_time, exam.end_time)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="w-full md:w-auto text-right">
+                                        <div className="text-blue-600 font-bold text-xs px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl inline-flex items-center gap-1.5">
+                                            <Clock size={13} /> {until}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* Completed */}
+            {closedExams.length > 0 && (
+                <section className="space-y-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <CheckCircle2 size={14} className="text-slate-400" />
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Selesai / Waktu Habis</h3>
+                    </div>
+                    <div className="space-y-3">
+                        {closedExams.slice(0, 10).map((exam) => {
+                            const status = getStatus(exam);
+                            const Icon = status.icon || CheckCircle2;
+                            return (
+                                <div key={exam.id}
+                                    className="p-4 bg-white border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-slate-200 relative overflow-hidden shadow-sm"
+                                >
+                                    <div className="absolute left-0 top-0 h-full w-1 bg-slate-300" />
+                                    
+                                    <div className="flex items-center gap-4 flex-1 w-full min-w-0 pl-1.5">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${status.bg} ${status.color}`}>
+                                            <Icon size={16} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-slate-700 text-sm truncate mb-0.5">{exam.title}</h3>
+                                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-sans">
+                                                <span className="flex items-center gap-1">
+                                                    <CalendarDays size={12} className="text-slate-300" /> {formatDay(exam.start_time)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 mt-2 sm:mt-0">
+                                        <span className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 ${status.bg} ${status.color}`}>
+                                            <Icon size={11} />
+                                            {status.label}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* Empty state */}
+            {loading ? (
+                <div className="p-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col items-center justify-center space-y-3">
+                    <Loader2 className="animate-spin text-[#0038A8]" size={36} />
+                    <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat jadwal ujian...</p>
+                </div>
+            ) : exams.length === 0 ? (
+                <div className="p-16 bg-white border border-dashed border-slate-200 rounded-2xl shadow-sm text-center max-w-xl mx-auto w-full flex flex-col items-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
+                        <Ghost size={28} className="text-slate-300" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-700 mb-1">Belum Ada Jadwal Ujian</h3>
+                    <p className="text-slate-500 text-sm max-w-sm mb-0">Tidak ada jadwal ujian untuk saat ini. Hubungi proktor jika ada kesalahan.</p>
+                </div>
+            ) : null}
+
+            {/* Refresh button */}
+            <div className="flex justify-center">
+                <button onClick={loadData}
+                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl font-bold text-xs hover:bg-slate-50 flex items-center gap-2 transition-all shadow-sm active:scale-95">
+                    <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Perbarui Jadwal
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default SchedulePage;

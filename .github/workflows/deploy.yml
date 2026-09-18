@@ -1,0 +1,42 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Pull code & build on VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        command_timeout: 20m
+        timeout: 20m
+        script: |
+          set -e
+          export PATH="/www/server/nvm/versions/node/v24.16.0/bin:$PATH"
+          APP_DIR="/www/wwwroot/cbt-app"
+
+          echo "Pulling latest code..."
+          cd "$APP_DIR"
+          git fetch origin master
+          git reset --hard origin/master
+
+          echo "Restoring .env.production..."
+          if [ -f /root/.env.production.backup ]; then
+            cp /root/.env.production.backup "$APP_DIR/.env.production"
+          fi
+
+          echo "Installing dependencies..."
+          npm install
+
+          echo "Building Next.js..."
+          npm run build
+
+          echo "Build complete. Restart handled by aaPanel Node.js Manager."

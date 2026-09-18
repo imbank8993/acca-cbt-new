@@ -1,0 +1,14 @@
+[project]
+name = "acca-cbt-scoring"
+version = "0.1.0"
+description = "Layanan penilaian, IRT, analitik butir, dan AI untuk ACCA CBT"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

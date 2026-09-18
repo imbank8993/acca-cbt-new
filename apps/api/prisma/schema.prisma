@@ -1,0 +1,32 @@
+// Skema ini sengaja TIDAK memuat satu pun model.
+//
+// Seluruh akses database di apps/api berjalan lewat SQL mentah:
+// PostgrestQueryBuilder membangun SQL-nya sendiri, RelationRegistry membaca
+// foreign key dari information_schema saat berjalan, dan AuthUsersRepository
+// menulis SQL langsung ke schema `auth`. Tidak ada satu pun pemanggilan
+// `prisma.<model>.findMany()` di src/.
+//
+// Prisma dipakai untuk apa yang memang dibutuhkan: kumpulan koneksi,
+// $queryRawUnsafe, dan $executeRawUnsafe. Ketiganya tersedia tanpa model.
+//
+// Kenapa bukan hasil `prisma db pull` lengkap:
+//
+//   `acca_db` memuat 225 tabel, mayoritas milik acca-new dan tidak pernah
+//   disentuh CBT. Introspeksinya menghasilkan 4.602 baris DAN delapan galat
+//   validasi — tabel `users` ada di schema `auth` maupun `public`, dan Prisma
+//   mengaitkan sebagian relasi acca-new ke model yang salah. Menyimpan berkas
+//   sebesar itu beserta perbaikan manualnya adalah beban perawatan demi tipe
+//   yang tidak dipakai sama sekali.
+//
+// Bila nanti ada jalur panas yang dipindahkan ke Prisma idiomatik (lihat
+// docs/MIGRASI_BACKEND.md), tarik HANYA tabel yang diperlukan saat itu, lalu
+// perbaiki relasinya di sana.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
