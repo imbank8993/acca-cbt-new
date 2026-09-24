@@ -1217,7 +1217,7 @@ const ExamsPage = () => {
                                         <div className="mt-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center gap-2">
                                             <Globe size={12} className="text-emerald-600 shrink-0" />
                                             <p className="text-xs text-emerald-700 font-medium">
-                                                <strong>Ujian Umum (Publik)</strong> • Tersedia untuk seluruh siswa
+                                                <strong>Ujian Umum (Publik)</strong> • Tersedia untuk siswa anggota aktif sekolah ini
                                             </p>
                                         </div>
                                     ) : isAssigned ? (
@@ -2037,7 +2037,7 @@ const ExamsPage = () => {
                                 <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center my-6">
                                     <Globe size={32} className="mx-auto mb-3 text-emerald-500" />
                                     <p className="font-semibold text-lg mb-1">Ujian Umum (Publik)</p>
-                                    <p>Ujian ini telah diatur sebagai Ujian Publik. Ujian ini akan otomatis tersedia untuk <b>semua siswa</b> di seluruh sistem saat dipublikasikan. Anda tidak perlu menetapkan target kelas secara manual.</p>
+                                    <p>Ujian ini tersedia untuk <b>siswa anggota aktif sekolah ini</b> saat dipublikasikan. Anda tidak perlu menetapkan target kelas secara manual. Anggota sekolah lain tidak dapat mengaksesnya.</p>
                                     <button
                                         type="button"
                                         onClick={() => setIsAssignModalOpen(false)}

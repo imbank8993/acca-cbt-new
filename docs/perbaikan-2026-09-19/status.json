@@ -1,0 +1,317 @@
+[
+  {
+    "id": "SEC-01",
+    "priority": "P1",
+    "title": "Akses langsung ujian melewati penugasan peserta",
+    "stage": "1",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-02",
+    "priority": "P1",
+    "title": "Metadata kunci jawaban ikut dikirim ke siswa",
+    "stage": "1",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-03",
+    "priority": "P1",
+    "title": "Deadline dan pengikatan perangkat tidak ditegakkan saat menyimpan jawaban",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "SEC-04",
+    "priority": "P1",
+    "title": "ID pengerjaan tidak dicocokkan dengan ID ujian saat submit",
+    "stage": "1",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-05",
+    "priority": "P2",
+    "title": "Preferensi notifikasi dapat ditulis ke user_id pengguna lain",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-06",
+    "priority": "P1",
+    "title": "Penghapusan berkas non-assignment tidak memeriksa pemilik",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-07",
+    "priority": "P1",
+    "title": "Upsert soal dan opsi menerima ID resource asing",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-08",
+    "priority": "P1",
+    "title": "Penilaian esai dapat menargetkan answer ID dari pengerjaan lain",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-09",
+    "priority": "P1",
+    "title": "Siswa dapat memalsukan event reset proktor",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-10",
+    "priority": "P1",
+    "title": "Terminasi ulang membuka kembali jendela susulan jawaban",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "SEC-11",
+    "priority": "P2",
+    "title": "Impor soal memakai izin lebih longgar daripada editor bank",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "SEC-12",
+    "priority": "P1",
+    "title": "Arsip backup diproses dan diunggah sebelum autentikasi/otorisasi final",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "SEC-13",
+    "priority": "P1",
+    "title": "Ekspor backup melakukan fetch URL gambar tanpa pembatasan tujuan",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "SEC-14",
+    "priority": "P1",
+    "title": "Kebijakan hasil ujian diterapkan tidak konsisten di API",
+    "stage": "1",
+    "status": "Parsial — menunggu penutupan SEC-10"
+  },
+  {
+    "id": "BUG-01",
+    "priority": "P1",
+    "title": "Unggah berhasil di server tetapi dianggap gagal oleh UI",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "BUG-02",
+    "priority": "P1",
+    "title": "Restore ZIP bergambar merusak signature sebelum diverifikasi",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-03",
+    "priority": "P1",
+    "title": "Submit dapat berhasil meski penyimpanan jawaban gagal",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-04",
+    "priority": "P1",
+    "title": "Restore menghapus data sebelum validasi lengkap dan tanpa transaksi",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-05",
+    "priority": "P1",
+    "title": "Cakupan backup tidak lengkap untuk fitur aplikasi sekarang",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-06",
+    "priority": "P1",
+    "title": "Nilai esai tidak dibatasi dan status penilaian selesai terlalu dini",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "BUG-07",
+    "priority": "P2",
+    "title": "Bobot opsi nol berubah menjadi satu",
+    "stage": "2",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "BUG-08",
+    "priority": "P1",
+    "title": "Autosave jawaban rentan tertimpa request lama",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-09",
+    "priority": "P1",
+    "title": "Kegagalan localStorage menghentikan autosave ke server",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-10",
+    "priority": "P2",
+    "title": "Resume sesudah akhir global dapat menutup jalan pemulihan offline",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-11",
+    "priority": "P1",
+    "title": "Pemeriksaan soal yang sudah dipakai tidak mengikuti relasi jawaban aktual",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-12",
+    "priority": "P2",
+    "title": "Dukungan bank soal legacy tidak konsisten antarjalur",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-13",
+    "priority": "P2",
+    "title": "Ujian public dapat diterbitkan tetapi tidak muncul di daftar siswa",
+    "stage": "1",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "BUG-14",
+    "priority": "P2",
+    "title": "Hook React diletakkan setelah conditional return",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "BUG-15",
+    "priority": "P1",
+    "title": "Regrade mengabaikan kontribusi nilai esai pada total",
+    "stage": "3",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "BUG-16",
+    "priority": "P1",
+    "title": "Pilihan duplikat dapat memanipulasi skor",
+    "stage": "3",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "UX-01",
+    "priority": "P2",
+    "title": "Dashboard pengawas menampilkan statistik dan kejadian contoh sebagai data aktif",
+    "stage": 4,
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "UX-02",
+    "priority": "P2",
+    "title": "Kegagalan API disamarkan menjadi daftar kosong",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-03",
+    "priority": "P2",
+    "title": "Fallback autentikasi dapat tetap menampilkan loading tanpa jalan keluar",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-04",
+    "priority": "P2",
+    "title": "Daftar hasil menyebut pengerjaan aktif sebagai selesai",
+    "stage": "1",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "UX-05",
+    "priority": "P2",
+    "title": "Hitungan jawaban salah dapat negatif setelah penilaian esai",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-06",
+    "priority": "P2",
+    "title": "Waktu hasil dan jadwal menggunakan zona waktu berbeda",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-07",
+    "priority": "P2",
+    "title": "Navigasi kartu dan kontrol toggle tidak sepenuhnya dapat diakses dengan keyboard",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-08",
+    "priority": "P2",
+    "title": "Respons monitoring lama dapat menimpa ujian yang baru dipilih",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-09",
+    "priority": "P2",
+    "title": "Detail jadwal PAS tidak menjelaskan hasil pembuatan parsial",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-10",
+    "priority": "P2",
+    "title": "Notifikasi lama tidak memiliki jalur pagination yang jelas",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-11",
+    "priority": "P2",
+    "title": "Ekspor jawaban analitik kehilangan isi tipe soal kompleks",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "UX-12",
+    "priority": "P2",
+    "title": "Indikator tren dapat menyatakan naik saat nilai menurun",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "QA-01",
+    "priority": "P2",
+    "title": "Lint frontend belum menjadi pemeriksaan kualitas yang lulus",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "QA-02",
+    "priority": "P2",
+    "title": "Pengujian yang tersedia belum mencakup integritas alur lintas layanan",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  },
+  {
+    "id": "QA-03",
+    "priority": "P3",
+    "title": "Halaman role yang diduplikasi memperbesar risiko perbaikan tidak merata",
+    "stage": null,
+    "status": "Belum dikerjakan"
+  }
+]

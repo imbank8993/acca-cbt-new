@@ -169,7 +169,7 @@ export default function ExamPage() {
         if (rows.length === 0) return;
         try {
             const blob = new Blob(
-                [JSON.stringify({ attemptId: att.id, answers: rows })],
+                [JSON.stringify({ attemptId: att.id, answers: rows, deviceId: getDeviceId() })],
                 { type: 'application/json' }
             );
             navigator.sendBeacon?.('/api/exam/answers/flush', blob);
@@ -428,10 +428,16 @@ export default function ExamPage() {
             ]);
             if (result.success) {
                 setIsCompleted(true);
-                toast.success(isAssignment ? 'Tugas berhasil dikumpulkan!' : 'Ujian berhasil disubmit!');
-                if (attempt?.id) {
-                    localStorage.removeItem(`exam_answers_${attempt.id}`);
-                    localStorage.removeItem(`exam_assignment_${attempt.id}`);
+                if (result.savedAnswersOnly) {
+                    toast.warning('Waktu ujian berakhir', 'Hanya jawaban yang sudah sampai di server dinilai. Salinan lokal dipertahankan untuk pemulihan dengan persetujuan proktor.');
+                } else {
+                    toast.success(isAssignment ? 'Tugas berhasil dikumpulkan!' : 'Ujian berhasil disubmit!');
+                }
+                if (attempt?.id && !result.savedAnswersOnly) {
+                    try {
+                        localStorage.removeItem(`exam_answers_${attempt.id}`);
+                        localStorage.removeItem(`exam_assignment_${attempt.id}`);
+                    } catch { /* Server has confirmed the commit; cache cleanup must not change its outcome. */ }
                 }
                 router.push('/dashboard/siswa/results');
                 // keep submitInFlightRef = true so nothing re-submits after success
@@ -719,7 +725,11 @@ export default function ExamPage() {
 
         // Save to localStorage
         const localKey = `exam_answers_${att.id}`;
-        localStorage.setItem(localKey, JSON.stringify({ answers: updatedAnswers, doubtfulAnswers: Array.from(doubtfulRef.current) }));
+        try {
+            localStorage.setItem(localKey, JSON.stringify({ answers: updatedAnswers, doubtfulAnswers: Array.from(doubtfulRef.current) }));
+        } catch {
+            toast.warning('Penyimpanan lokal tidak tersedia', 'Jawaban tetap dikirim ke server. Pemulihan offline mungkin tidak tersedia.');
+        }
 
         const q = questionsRef.current.find((x: any) => x.id === questionId);
         // Hasil autosave WAJIB diperiksa. Kegagalan (sesi kedaluwarsa, attempt
@@ -734,7 +744,7 @@ export default function ExamPage() {
         } finally {
             inFlightRef.current.delete(questionId);
         }
-    }, [markFailed]);
+    }, [markFailed, toast]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
         const newDoubtful = new Set(doubtfulRef.current);
@@ -753,7 +763,11 @@ export default function ExamPage() {
 
         // Save to localStorage
         const localKey = `exam_answers_${att.id}`;
-        localStorage.setItem(localKey, JSON.stringify({ answers: answersRef.current, doubtfulAnswers: Array.from(newDoubtful) }));
+        try {
+            localStorage.setItem(localKey, JSON.stringify({ answers: answersRef.current, doubtfulAnswers: Array.from(newDoubtful) }));
+        } catch {
+            toast.warning('Penyimpanan lokal tidak tersedia', 'Jawaban tetap dikirim ke server. Pemulihan offline mungkin tidak tersedia.');
+        }
 
         const q = questionsRef.current.find((x: any) => x.id === questionId);
         inFlightRef.current.add(questionId);

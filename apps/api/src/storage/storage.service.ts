@@ -126,7 +126,7 @@ export class StorageService {
     let url: URL;
     try { url = new URL(fileUrl); } catch { return null; }
 
-    if (url.hostname.endsWith('.r2.dev')) return decode(url.pathname);
+    // r2.dev is shared by unrelated buckets; only the configured public URL is trusted above.
 
     if (url.hostname === `${this.accountId}.r2.cloudflarestorage.com`) {
       const parts = url.pathname.replace(/^\/+/, '').split('/');

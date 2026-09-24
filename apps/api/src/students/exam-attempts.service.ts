@@ -13,8 +13,10 @@ import {
 } from '../common/question-order';
 import { utcToWibClock } from '../common/wib-time';
 import { GradingService } from '../grading/grading.service';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
+import { assertExamAccess } from './exam-access';
+import { studentQuestion } from './student-question';
 
 /** Susulan jawaban hanya diterima dalam jendela ini sejak attempt ditutup sistem. */
 const LATE_SYNC_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -74,12 +76,16 @@ export class ExamAttemptsService {
         const { data: exam } = await this.db
             .from('cbt_exams')
             .select(
-                'id, question_bank_id, is_published, exam_type, randomize_questions, randomize_options',
+                'id, organization_id, metadata, start_time, question_bank_id, is_published, exam_type, randomize_questions, randomize_options',
             )
             .eq('id', examId)
             .maybeSingle();
 
         if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+        await assertExamAccess(this.db, user, exam);
+        if (exam.start_time && await this.serverNow() < new Date(exam.start_time)) {
+            throw new ForbiddenException('Soal belum tersedia sebelum ujian dimulai.');
+        }
 
         const row = exam as {
             question_bank_id: string | null;
@@ -121,7 +127,7 @@ export class ExamAttemptsService {
                 userId: user.id,
                 examId,
                 randomize: row.randomize_options,
-            }),
+            }).map(question => studentQuestion(question, `${user.id}:${examId}`)),
         };
     }
 
@@ -141,12 +147,14 @@ export class ExamAttemptsService {
         const { data: exam } = await this.db
             .from('cbt_exams')
             .select(
-                'organization_id, question_bank_id, is_published, start_time, end_time, duration_minutes, status, metadata',
+                'id, organization_id, question_bank_id, is_published, start_time, end_time, duration_minutes, status, metadata',
             )
             .eq('id', examId)
             .maybeSingle();
 
         if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+
+        await assertExamAccess(this.db, user, exam);
 
         const row = exam as {
             organization_id: string;
@@ -169,11 +177,12 @@ export class ExamAttemptsService {
         if (row.end_time && now > new Date(row.end_time)) {
             const { data: anyAttempt } = await this.db
                 .from('cbt_exam_attempts')
-                .select('id')
+                .select('id, status')
                 .eq('user_id', user.id)
                 .eq('exam_id', examId)
                 .maybeSingle();
 
+            if (anyAttempt?.status === 'in_progress') await this.autoFinish(anyAttempt.id, now);
             return this.refuse('Waktu ujian telah berakhir.', {
                 expiredAttemptId: (anyAttempt as { id: string } | null)?.id,
             });
@@ -339,7 +348,7 @@ export class ExamAttemptsService {
         exam: { end_time: string | null; duration_minutes: number | null },
         now: Date,
     ): Date {
-        if (attempt.personal_end_time) return new Date(attempt.personal_end_time);
+        if (attempt.personal_end_time) return this.capToWindow(new Date(attempt.personal_end_time), exam.end_time);
 
         const startedAt = attempt.started_at ? new Date(attempt.started_at) : now;
         const duration = exam.duration_minutes || DEFAULT_DURATION_MINUTES;
@@ -365,10 +374,12 @@ export class ExamAttemptsService {
      * skor — seluruh `is_correct`-nya null.
      */
     private async autoFinish(attemptId: string, now: Date): Promise<void> {
-        await this.db
+        const { data: closed, error } = await this.db
             .from('cbt_exam_attempts')
             .update({ status: 'auto_submitted', finished_at: now.toISOString() })
-            .eq('id', attemptId);
+            .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
+        if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
+        if (!closed) return;
 
         try {
             const graded = await this.grading.gradeAttemptFromSavedAnswers(attemptId);
@@ -392,23 +403,29 @@ export class ExamAttemptsService {
 
     // ── Menyimpan jawaban ────────────────────────────────────────────────────
 
-    async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput) {
-        await this.assertOwnedAndRunning(user, attemptId);
-        await this.upsertAnswers(attemptId, [answer]);
+    async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput, deviceId?: string) {
+        await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            await this.assertOwnedAndRunning(user, attemptId, db, deviceId);
+            await this.upsertAnswers(attemptId, [answer], db);
+        });
         return { attemptId };
     }
 
-    async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[]) {
+    async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[], deviceId?: string) {
         if (answers.length === 0) return { attemptId, saved: 0 };
 
-        await this.assertOwnedAndRunning(user, attemptId);
-        await this.upsertAnswers(attemptId, answers);
+        await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            await this.assertOwnedAndRunning(user, attemptId, db, deviceId);
+            await this.upsertAnswers(attemptId, answers, db);
+        });
 
         return { attemptId, saved: answers.length };
     }
 
-    private async upsertAnswers(attemptId: string, answers: AnswerInput[]): Promise<void> {
-        const { error } = await this.db.from('cbt_answers').upsert(
+    private async upsertAnswers(attemptId: string, answers: AnswerInput[], db: DbSession = this.db): Promise<void> {
+        const { error } = await db.from('cbt_answers').upsert(
             answers.map((answer) => ({
                 attempt_id: attemptId,
                 question_id: answer.questionId,
@@ -429,20 +446,38 @@ export class ExamAttemptsService {
      * jawaban siswa lain — atau menyunting pengerjaan yang sudah dikumpulkan —
      * hanya dengan menukar `attemptId`.
      */
-    private async assertOwnedAndRunning(user: AuthUser, attemptId: string): Promise<void> {
-        const { data } = await this.db
+    private async assertOwnedAndRunning(user: AuthUser, attemptId: string, db: DbSession = this.db, deviceId?: string): Promise<void> {
+        const { data, error } = await db
             .from('cbt_exam_attempts')
-            .select('user_id, status')
+            .select('user_id, status, exam_id, personal_end_time, started_at, device_fingerprint')
             .eq('id', attemptId)
             .maybeSingle();
 
-        const attempt = data as { user_id: string; status: string } | null;
+        if (error) throw new BadRequestException('Pengerjaan belum dapat diperiksa.');
+        const attempt = data as any;
 
         if (!attempt || attempt.user_id !== user.id) {
             throw new ForbiddenException('Tidak diizinkan.');
         }
         if (attempt.status !== 'in_progress') {
             throw new ForbiddenException('Ujian tidak sedang berlangsung.');
+        }
+        if (attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) {
+            throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
+        }
+        const { data: exam, error: examError } = await db.from('cbt_exams')
+            .select('end_time, start_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+        if (examError || !exam || (!attempt.personal_end_time && !attempt.started_at)) {
+            throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa. Hubungi proktor.');
+        }
+        const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const now = new Date(clock.now);
+        const deadline = this.resolvePersonalEnd(attempt, exam, now);
+        if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
+            throw new ForbiddenException({ code: 'EXAM_TIME_EXPIRED', message: 'Waktu ujian telah berakhir. Jawaban baru tidak dapat diterima.' });
+        }
+        if (exam.start_time && now < new Date(exam.start_time)) {
+            throw new ForbiddenException('Ujian belum dimulai.');
         }
     }
 
@@ -601,6 +636,7 @@ export class ExamAttemptsService {
         studentAnswers: Record<string, string>,
         assignmentData?: Record<string, unknown>,
         clientAttemptId?: string,
+        deviceId?: string,
     ) {
         // Pengerjaan milik orang lain di perangkat ini: pencarian berdasarkan
         // pengguna di bawah akan berakhir "tidak ada sesi aktif", yang membingungkan.
@@ -608,15 +644,20 @@ export class ExamAttemptsService {
         if (clientAttemptId) {
             const { data } = await this.db
                 .from('cbt_exam_attempts')
-                .select('user_id, status, total_score')
+                .select('user_id, exam_id, status, total_score')
                 .eq('id', clientAttemptId)
                 .maybeSingle();
 
             const owned = data as {
                 user_id: string;
+                exam_id: string;
                 status: string;
                 total_score: number | null;
             } | null;
+
+            if (!owned || owned.exam_id !== examId) {
+                throw new ForbiddenException('Sesi pengerjaan tidak cocok dengan ujian ini.');
+            }
 
             if (owned && owned.user_id !== user.id) {
                 throw new ForbiddenException(
@@ -628,6 +669,7 @@ export class ExamAttemptsService {
                 return {
                     score: owned.total_score ?? 0,
                     alreadySubmitted: true,
+                    savedAnswersOnly: owned.status === 'auto_submitted',
                 };
             }
         }
@@ -641,12 +683,6 @@ export class ExamAttemptsService {
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
         const exam = examRow as { exam_type: string | null };
 
-        const graded = await this.gradeSubmission(examId, studentAnswers);
-
-        // Tugas (assignment) selalu butuh penilaian manual, bahkan tanpa soal esai.
-        const needsManualGrading =
-            graded.needsManualGrading || exam.exam_type === 'assignment';
-
         const attempt = await this.resolveAttemptForSubmit(user, examId, clientAttemptId);
 
         if (!attempt) {
@@ -655,7 +691,7 @@ export class ExamAttemptsService {
             // gagal setelah statusnya tersimpan.
             const { data: submitted } = await this.db
                 .from('cbt_exam_attempts')
-                .select('id, total_score')
+                .select('id, total_score, status')
                 .eq('user_id', user.id)
                 .eq('exam_id', examId)
                 .in('status', ['submitted', 'auto_submitted'])
@@ -667,6 +703,7 @@ export class ExamAttemptsService {
                 return {
                     score: (submitted as { total_score: number | null }).total_score ?? 0,
                     alreadySubmitted: true,
+                    savedAnswersOnly: submitted.status === 'auto_submitted',
                 };
             }
 
@@ -675,83 +712,56 @@ export class ExamAttemptsService {
             );
         }
 
-        const finishedAt = new Date();
-
-        // Kolom KRITIS (status dan skor) ditulis TANPA `metadata`, supaya basis
-        // data yang belum punya kolom metadata tidak bisa menggagalkan seluruh
-        // pengumpulan. Ujian harus tercatat terkumpul; metadata menyusul di
-        // bawah sebagai usaha terbaik.
-        //
-        // Penyaringan `.eq('status', 'in_progress')` sekaligus jadi penjaga
-        // submit ganda: pemanggilan kedua tidak menemukan baris untuk diubah.
-        const { data: updated } = await this.db
-            .from('cbt_exam_attempts')
-            .update({
-                status: 'submitted',
-                needs_manual_grading: needsManualGrading,
-                finished_at: finishedAt.toISOString(),
-                total_score: graded.scaledScore,
-            })
-            .eq('id', attempt.id)
-            .eq('status', 'in_progress')
-            .select('id')
-            .maybeSingle();
-
-        if (!updated) {
-            const { data: postCheck } = await this.db
-                .from('cbt_exam_attempts')
-                .select('id, total_score, status')
-                .eq('id', attempt.id)
-                .maybeSingle();
-
-            const row = postCheck as { total_score: number | null; status: string } | null;
-            if (row && ['submitted', 'auto_submitted'].includes(row.status)) {
-                return { score: row.total_score ?? graded.scaledScore, alreadySubmitted: true };
-            }
-
-            throw new BadRequestException(
-                'Gagal memperbarui status ujian. Pastikan Anda memiliki sesi aktif.',
-            );
-        }
-
-        const metadata: Record<string, unknown> = {
-            ...(attempt.metadata || {}),
-            dimension_scores: graded.dimensionScores,
-            base_score: graded.scaledScore,
-        };
-        if (assignmentData) metadata.assignment_submission = assignmentData;
-
-        const { error: metadataError } = await this.db
-            .from('cbt_exam_attempts')
-            .update({ metadata })
-            .eq('id', attempt.id);
-
-        if (metadataError) {
-            this.logger.warn(`Metadata pengerjaan tidak tersimpan: ${metadataError.message}`);
-        }
-
-        // ── Setelah pengerjaan TERCATAT terkumpul ────────────────────────────
-        // Semua di bawah ini penyempurnaan. Kegagalannya tidak boleh dikembalikan
-        // sebagai galat: klien akan mencoba ulang pada pengerjaan yang statusnya
-        // sudah bukan `in_progress`, dan siswa melihat ujiannya seolah gagal
-        // terkumpul padahal sudah tersimpan.
-        let score = graded.scaledScore;
-
+        // Validate the fixed request payload before scoring; network latency in scoring
+        // must not invalidate a submission that the server accepted before its deadline.
         try {
-            await this.persistAnswers(attempt.id, graded.rows);
-
-            if (exam.exam_type === 'quiz') {
-                const relative = await this.grading.applyRelativeQuizScoring(examId);
-                if (relative[attempt.id] !== undefined) score = relative[attempt.id];
+            await this.assertOwnedAndRunning(user, attempt.id, this.db, deviceId);
+        } catch (error) {
+            if (error instanceof ForbiddenException &&
+                (error.getResponse() as { code?: string }).code === 'EXAM_TIME_EXPIRED') {
+                await this.autoFinish(attempt.id, await this.serverNow());
+                const { data: final } = await this.db.from('cbt_exam_attempts')
+                    .select('total_score').eq('id', attempt.id).maybeSingle();
+                return { score: final?.total_score ?? 0, alreadySubmitted: true, savedAnswersOnly: true };
             }
-        } catch (err) {
-            this.logger.error(
-                `Pengolahan lanjutan gagal untuk pengerjaan ${attempt.id} ` +
-                    `(statusnya sudah tersimpan sebagai terkumpul): ${(err as Error).message}`,
-            );
+            throw error;
         }
+        const graded = await this.gradeSubmission(examId, studentAnswers);
+        const needsManualGrading = graded.needsManualGrading || exam.exam_type === 'assignment';
 
-        return { score };
+        const committed = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
+            const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                .select('status, total_score, metadata').eq('id', attempt.id).maybeSingle();
+            if (readError || !current) throw new BadRequestException('Sesi pengerjaan tidak dapat dibaca.');
+            if (['submitted', 'auto_submitted'].includes(current.status)) {
+                return { score: current.total_score ?? 0, alreadySubmitted: true, savedAnswersOnly: current.status === 'auto_submitted' };
+            }
+            if (current.status !== 'in_progress') throw new ForbiddenException('Ujian tidak sedang berlangsung.');
+
+            await this.persistAnswers(attempt.id, graded.rows, db);
+            const metadata: Record<string, unknown> = {
+                ...(current.metadata || {}), dimension_scores: graded.dimensionScores, base_score: graded.scaledScore,
+            };
+            if (assignmentData) metadata.assignment_submission = assignmentData;
+            const { data: updated, error } = await db.from('cbt_exam_attempts').update({
+                status: 'submitted', total_score: graded.scaledScore,
+                needs_manual_grading: needsManualGrading, finished_at: new Date().toISOString(), metadata,
+            }).eq('id', attempt.id).eq('status', 'in_progress').select('id').maybeSingle();
+            if (error || !updated) throw new BadRequestException('Pengumpulan belum tersimpan. Silakan coba lagi.');
+            return { score: graded.scaledScore, alreadySubmitted: false, savedAnswersOnly: false };
+        });
+
+        // Relative scoring may retry independently; all submitted evidence is already committed.
+        if (!committed.alreadySubmitted && exam.exam_type === 'quiz') {
+            try {
+                const relative = await this.grading.applyRelativeQuizScoring(examId);
+                if (relative[attempt.id] !== undefined) committed.score = relative[attempt.id];
+            } catch (err) {
+                this.logger.error(`Penilaian relatif tertunda: ${(err as Error).message}`);
+            }
+        }
+        return committed;
     }
 
     /**
@@ -838,16 +848,16 @@ export class ExamAttemptsService {
      * UPDATE pada baris yang tidak ada gagal diam-diam, yang muncul ke siswa
      * sebagai "jawaban tidak terekam" setelah ujian selesai.
      */
-    private async persistAnswers(attemptId: string, rows: AnswerRow[]): Promise<void> {
+    private async persistAnswers(attemptId: string, rows: AnswerRow[], db: DbSession = this.db): Promise<void> {
         if (rows.length === 0) return;
 
-        const { error } = await this.db.from('cbt_answers').upsert(
+        const { error } = await db.from('cbt_answers').upsert(
             rows.map((row) => ({ attempt_id: attemptId, ...row })),
             { onConflict: 'attempt_id, question_id' },
         );
 
         if (error) {
-            this.logger.error(`Gagal menyimpan jawaban pengerjaan ${attemptId}: ${error.message}`);
+            throw new BadRequestException('Jawaban belum tersimpan. Silakan coba mengumpulkan lagi.');
         }
     }
 
@@ -866,14 +876,18 @@ export class ExamAttemptsService {
         if (clientAttemptId) {
             const { data } = await this.db
                 .from('cbt_exam_attempts')
-                .select('id, metadata, user_id, status')
+                .select('id, metadata, user_id, exam_id, status')
                 .eq('id', clientAttemptId)
                 .maybeSingle();
 
             const attempt = data as any;
+            if (!attempt || attempt.user_id !== user.id || attempt.exam_id !== examId) {
+                throw new ForbiddenException('Sesi pengerjaan tidak cocok dengan ujian ini.');
+            }
             if (attempt && attempt.user_id === user.id && attempt.status === 'in_progress') {
                 return { id: attempt.id, metadata: attempt.metadata };
             }
+            return null;
         }
 
         // `order` + `limit`, bukan `maybeSingle`: baris `in_progress` ganda tidak

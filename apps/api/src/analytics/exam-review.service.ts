@@ -87,6 +87,10 @@ export class ExamReviewService {
             await this.authz.assertExamStaff(user, record.exam_id);
         }
 
+        if (record.user_id === user.id && !['submitted', 'auto_submitted'].includes(record.status)) {
+            throw new ForbiddenException('Review hanya tersedia setelah pengerjaan selesai.');
+        }
+
         if (!record.exams?.show_results) {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');
         }

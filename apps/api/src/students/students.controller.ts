@@ -130,7 +130,7 @@ export class StudentsController {
         @Param('questionId', ParseUUIDPipe) questionId: string,
         @Body() dto: SaveAnswerDto,
     ) {
-        return this.attempts.saveAnswer(user, attemptId, { questionId, ...dto });
+        return this.attempts.saveAnswer(user, attemptId, { questionId, ...dto }, dto.deviceId);
     }
 
     @Put('attempts/:attemptId/answers')
@@ -140,7 +140,7 @@ export class StudentsController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: SyncAnswersDto,
     ) {
-        return this.attempts.syncAnswers(user, attemptId, dto.answers);
+        return this.attempts.syncAnswers(user, attemptId, dto.answers, dto.deviceId);
     }
 
     @Post('attempts/:attemptId/late-answers')
@@ -173,6 +173,7 @@ export class StudentsController {
             dto.answers,
             dto.assignmentData,
             dto.attemptId,
+            dto.deviceId,
         );
     }
 }

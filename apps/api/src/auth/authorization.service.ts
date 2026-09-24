@@ -53,6 +53,16 @@ export class AuthorizationService {
         );
     }
 
+    /** Operasi pemantauan staf sekolah: Proktor, Admin, Guru, dan Pengawas. */
+    assertOrgMonitoring(user: AuthUser, organizationId: string | null | undefined): Promise<void> {
+        return this.assertOrgRole(
+            user,
+            organizationId,
+            ['Proktor', 'Admin', 'Guru', 'Pengawas'],
+            'staf pemantauan sekolah',
+        );
+    }
+
     assertPlatformAdmin(user: AuthUser): void {
         if (this.isElevatedGlobally(user)) return;
         throw new ForbiddenException('Anda tidak memiliki izin (khusus Admin Platform).');
@@ -238,4 +248,43 @@ export class AuthorizationService {
             );
         }
     }
+
+    /**
+     * Otorisasi pemantauan ujian dan log pelanggaran.
+     * Dapat diakses oleh Proktor, Admin, Pengawas di organisasinya, serta Guru (untuk ujiannya sendiri).
+     */
+    async assertExamMonitoring(user: AuthUser, examId: string): Promise<void> {
+        if (!examId) throw new NotFoundException('Data tidak ditemukan.');
+
+        const { data: exam } = await this.db
+            .from('cbt_exams')
+            .select('exam_type, created_by, organization_id')
+            .eq('id', examId)
+            .maybeSingle();
+
+        if (!exam) throw new NotFoundException('Data tidak ditemukan.');
+
+        const record = exam as {
+            exam_type: string | null;
+            created_by: string | null;
+            organization_id: string | null;
+        };
+
+        if (this.isElevatedGlobally(user)) return;
+
+        // Proktor, Admin, dan Pengawas boleh memantau seluruh ujian di organisasinya
+        const isMonitorStaff = await this.roles.hasOrgRole(
+            user.id,
+            record.organization_id,
+            ['Proktor', 'Admin', 'Pengawas'],
+        );
+        if (isMonitorStaff) return;
+
+        // Guru boleh memantau ujian buatannya sendiri
+        const isTeacher = await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
+        if (isTeacher && record.created_by === user.id) return;
+
+        throw new ForbiddenException('Anda tidak memiliki izin memantau ujian ini.');
+    }
 }
+

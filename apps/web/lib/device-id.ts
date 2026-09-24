@@ -10,6 +10,7 @@
  * treated as a different device).
  */
 const DEVICE_ID_KEY = 'acca_device_id';
+let volatileId: string | null = null;
 
 export function getDeviceId(): string {
     if (typeof window === 'undefined') return '';
@@ -26,6 +27,8 @@ export function getDeviceId(): string {
         // localStorage blocked (private mode / disabled) — fall back to a
         // volatile id so the exam still loads; the lock simply won't persist
         // across reloads for this session.
-        return '';
+        volatileId ||= (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID() : `dev_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+        return volatileId;
     }
 }

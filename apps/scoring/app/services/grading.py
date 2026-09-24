@@ -59,6 +59,10 @@ def _loads(raw: str | None, fallback: Any) -> Any:
         return fallback
 
 
+def _unique_strings(values: Any) -> bool:
+    return isinstance(values, list) and all(isinstance(v, str) for v in values) and len(values) == len(set(values))
+
+
 def calculate_single_answer_score(question: Question, raw_answer: str | None) -> GradingResult:
     default_score = question.score_default or 1
     options = _dedupe_options(question.bank_question_options or [])
@@ -92,9 +96,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
     elif qtype == "mcq_complex":
         selected_ids = parse_mcq_complex_answer(raw_answer)
         correct_ids = [o.id for o in options if o.is_correct]
-        is_correct = len(selected_ids) == len(correct_ids) and all(
-            i in correct_ids for i in selected_ids
-        )
+        is_correct = bool(correct_ids) and _unique_strings(selected_ids) and set(selected_ids) == set(correct_ids)
         score_earned = default_score if is_correct else 0
 
     elif qtype == "checklist":
@@ -104,6 +106,8 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
         is_correct = None
         score_earned = 0
         by_id = {o.id: o for o in options}
+        if not _unique_strings(selected_ids) or any(i not in by_id for i in selected_ids):
+            return GradingResult(score=0, is_correct=None)
         for option_id in selected_ids:
             option = by_id.get(str(option_id))
             dimension_id = (option.metadata or {}).get("dimension_id") if option else None
@@ -134,7 +138,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             if not correct_cats:
                 single = metadata.get("category_name")
                 correct_cats = [single] if single else []
-            if len(selected) == len(correct_cats) and all(c in correct_cats for c in selected):
+            if _unique_strings(selected) and set(selected) == set(correct_cats):
                 correct_count += 1
         ratio = correct_count / len(options) if options else 0
         score_earned = ratio * default_score
@@ -152,9 +156,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             if not correct_matches:
                 single = metadata.get("match_text")
                 correct_matches = [single] if single else []
-            if len(matches) == len(correct_matches) and all(
-                m in correct_matches for m in matches
-            ):
+            if _unique_strings(matches) and set(matches) == set(correct_matches):
                 correct_count += 1
         ratio = correct_count / len(options) if options else 0
         score_earned = ratio * default_score
@@ -230,6 +232,8 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
         elif not isinstance(order, list):
             order = []
         order = [str(o) for o in order]
+        if not _unique_strings(order) or any(i not in {o.id for o in options} for i in order):
+            return GradingResult(score=0, is_correct=None if qtype == 'ranking' else False)
 
         if qtype == "ranking":
             is_correct = None

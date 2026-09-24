@@ -1,0 +1,62 @@
+[
+  {
+    "id": "SEC-01/02",
+    "reproduced": true,
+    "evidence": "Question metadata returned intact; no membership/attempt query."
+  },
+  {
+    "id": "SEC-03",
+    "reproduced": true,
+    "evidence": "Expired synthetic in_progress attempt still accepts a save."
+  },
+  {
+    "id": "SEC-04",
+    "reproduced": true,
+    "evidence": "Attempt for exam-A accepted for submission to exam-B."
+  },
+  {
+    "id": "SEC-05",
+    "reproduced": true,
+    "evidence": "Request preferences override authenticated user_id."
+  },
+  {
+    "id": "SEC-06",
+    "reproduced": true,
+    "evidence": "Ordinary authenticated user can remove a non-assignment object."
+  },
+  {
+    "id": "SEC-07",
+    "reproduced": true,
+    "evidence": "Foreign existing question id upserted after authorization of destination bank only."
+  },
+  {
+    "id": "SEC-08/BUG-06",
+    "reproduced": true,
+    "evidence": "Foreign answer id updated; score 999 accepted; manual grading marked complete."
+  },
+  {
+    "id": "SEC-09",
+    "reproduced": true,
+    "evidence": "Student-provided RESET_BY_PROCTOR event stored and used as reset boundary."
+  },
+  {
+    "id": "BUG-01",
+    "reproduced": true,
+    "evidence": "Gagal mengunggah (HTTP 200)."
+  },
+  {
+    "id": "BUG-02",
+    "reproduced": true,
+    "evidence": "Replacing archived image URLs before verification changes the signed payload."
+  },
+  {
+    "id": "BUG-03",
+    "reproduced": true,
+    "evidence": "persistAnswers resolves successfully even when the database returns a write error."
+  },
+  {
+    "id": "BUG-07",
+    "reproduced": true,
+    "evidence": "Option weight 0 persisted as 1."
+  }
+]

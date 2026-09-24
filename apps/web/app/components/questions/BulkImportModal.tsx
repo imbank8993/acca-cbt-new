@@ -180,7 +180,7 @@ export default function BulkImportModal({
                         option_text: o.option_text,
                         is_correct: o.is_correct,
                         order: o.order,
-                        weight: o.weight || 1,
+                        weight: o.weight ?? 1,
                         metadata: o.metadata || {}
                     }))
                 }));
@@ -300,7 +300,7 @@ export default function BulkImportModal({
                     option_text: o.text,
                     is_correct: o.isCorrect ?? o.is_correct ?? false,
                     order: o.order,
-                    weight: o.isCorrect ?? o.is_correct ?? false ? (o.weight || 1) : (o.weight || 0),
+                    weight: o.isCorrect ?? o.is_correct ?? false ? (o.weight ?? 1) : (o.weight ?? 0),
                     metadata: o.metadata
                 }))
             }));

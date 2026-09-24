@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { assertExamAccess, canAccessExam, loadExamAudience } from './exam-access';
 
 /** Status attempt yang berarti siswa sudah selesai mengerjakan. */
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
@@ -177,56 +178,18 @@ export class StudentsService {
      * sekolah.
      */
     async listExams(user: AuthUser) {
-        const [{ data: regular }, { data: additional }] = await Promise.all([
-            this.db.from('cbt_class_members').select('class_id').eq('user_id', user.id),
-            this.db.from('cbt_additional_class_members').select('class_id').eq('user_id', user.id),
-        ]);
-
-        const classIds = ((regular as Array<{ class_id: string }>) || []).map((c) => c.class_id);
-        const additionalIds = ((additional as Array<{ class_id: string }>) || []).map(
-            (c) => c.class_id,
-        );
-
-        const examIds = new Set<string>();
-
-        if (classIds.length > 0 || additionalIds.length > 0) {
-            const conditions: string[] = [];
-            if (classIds.length > 0) conditions.push(`class_id.in.(${classIds.join(',')})`);
-            if (additionalIds.length > 0) {
-                conditions.push(`additional_class_id.in.(${additionalIds.join(',')})`);
-            }
-
-            const { data: targets } = await this.db
-                .from('cbt_exam_targets')
-                .select('exam_id')
-                .or(conditions.join(','));
-
-            for (const target of (targets as Array<{ exam_id: string }>) || []) {
-                examIds.add(target.exam_id);
-            }
-        }
-
-        const { data: participants } = await this.db
-            .from('cbt_exam_participants')
-            .select('exam_id')
-            .eq('user_id', user.id);
-
-        for (const participant of (participants as Array<{ exam_id: string }>) || []) {
-            examIds.add(participant.exam_id);
-        }
-
-        if (examIds.size === 0) return [];
-        const ids = [...examIds];
+        const audience = await loadExamAudience(this.db, user);
+        if (audience.organizationIds.size === 0) return [];
 
         // Ujian yang jendelanya belum dibuka tetap ditampilkan (siswa perlu tahu
         // jadwalnya); yang jendelanya sudah tertutup disaring.
         const { data: exams, error } = await this.db
             .from('cbt_exams')
             .select(
-                `id, title, description, status, is_published, start_time, end_time,
+                `id, organization_id, title, description, status, is_published, start_time, end_time,
                  duration_minutes, exam_type, question_bank_id, created_at, metadata`,
             )
-            .in('id', ids)
+            .in('organization_id', [...audience.organizationIds])
             .eq('is_published', true)
             .or('end_time.is.null,end_time.gte.now()')
             .order('start_time', { ascending: true });
@@ -235,6 +198,10 @@ export class StudentsService {
             this.logger.error(`Gagal membaca jadwal ujian siswa: ${error.message}`);
             return [];
         }
+
+        const visibleExams = ((exams as any[]) || []).filter(exam => canAccessExam(exam, audience));
+        const ids = visibleExams.map(exam => exam.id);
+        if (!ids.length) return [];
 
         const { data: attempts } = await this.db
             .from('cbt_exam_attempts')
@@ -250,7 +217,7 @@ export class StudentsService {
             rows.filter((a) => a.status === 'in_progress').map((a) => a.exam_id),
         );
 
-        return ((exams as any[]) || []).map((exam) => ({
+        return visibleExams.map((exam) => ({
             ...exam,
             isCompleted: completed.has(exam.id),
             isInProgress: inProgress.has(exam.id),
@@ -273,7 +240,7 @@ export class StudentsService {
         const { data } = await this.db
             .from('cbt_exams')
             .select(
-                `id, title, description, exam_type, duration_minutes, question_bank_id,
+                `id, organization_id, title, description, exam_type, duration_minutes, question_bank_id,
                  start_time, end_time, is_published, status, show_results, metadata,
                  question_banks:cbt_question_banks(id, title)`,
             )
@@ -281,6 +248,8 @@ export class StudentsService {
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
+
+        await assertExamAccess(this.db, user, data);
 
         const { data: profile } = await this.db
             .from('cbt_profiles')
@@ -301,13 +270,16 @@ export class StudentsService {
                  exams:cbt_exams(title, duration_minutes, show_results, scoring_type)`,
             )
             .eq('user_id', user.id)
+            .in('status', FINISHED_STATUSES)
             .order('finished_at', { ascending: false });
 
         if (error) {
             this.logger.error(`Gagal membaca riwayat nilai: ${error.message}`);
             return [];
         }
-        return (data as any[]) || [];
+        return ((data as any[]) || []).map(row => row.exams?.show_results === true ? row : {
+            ...row, total_score: null, score_irt: null,
+        });
     }
 
     /**
@@ -333,6 +305,9 @@ export class StudentsService {
         const row = attempt as any;
         if (row.user_id !== user.id) {
             throw new ForbiddenException('Anda hanya dapat melihat hasil ujian Anda sendiri.');
+        }
+        if (!FINISHED_STATUSES.includes(row.status)) {
+            throw new ForbiddenException('Hasil hanya tersedia setelah pengerjaan selesai.');
         }
         if (row.exams?.show_results !== true) {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');

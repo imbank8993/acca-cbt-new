@@ -52,7 +52,7 @@ export class ImportsService {
      * route handler Next.js sebelum ia mengunggah berkas persamaan.
      */
     async assertCanImport(user: AuthUser, bankId: string): Promise<void> {
-        await this.authz.assertStaffByRecord(user, 'cbt_question_banks', bankId);
+        await this.authz.assertBankAccess(user, bankId);
     }
 
     async bulkImport(

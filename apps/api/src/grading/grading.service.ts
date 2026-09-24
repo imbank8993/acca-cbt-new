@@ -26,6 +26,21 @@ interface AnswerRow {
     question_id: string;
     selected_option_id: string | null;
     essay_answer: string | null;
+    score?: number | null;
+    is_correct?: boolean | null;
+}
+
+function manualGradeSummary(questions: Array<{ id: string; type: string }>, answers: Map<string, AnswerRow>) {
+    let score = 0;
+    let pending = false;
+    for (const question of questions) {
+        if (!['essay', 'esay', 'uraian'].includes(question.type.toLowerCase())) continue;
+        const answer = answers.get(question.id);
+        if (typeof answer?.score === 'number' && Number.isFinite(answer.score) &&
+            typeof answer.is_correct === 'boolean') score += answer.score;
+        else pending = true;
+    }
+    return { score, pending };
 }
 
 interface AttemptTimingRow {
@@ -109,11 +124,11 @@ export class GradingService {
                 .eq('bank_id', bankId),
             this.db
                 .from('cbt_answers')
-                .select('question_id, selected_option_id, essay_answer')
+                .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
                 .eq('attempt_id', attemptId),
         ]);
 
-        const answers = new Map<string, { selected_option_id?: string; essay_answer?: string }>(
+        const answers = new Map<string, AnswerRow>(
             ((saved as any[]) || []).map((a) => [a.question_id, a]),
         );
 
@@ -128,16 +143,13 @@ export class GradingService {
             };
         });
 
-        const result = await this.scoring.post<{
-            items: Array<{ answer_id: string; score: number; is_correct: boolean | null }>;
-            scaled_score: number;
-            needs_manual_grading: boolean;
-        }>('/grading/attempt', { items });
+        const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', { items });
+        const manual = manualGradeSummary(questions || [], answers);
 
         // Hanya jawaban yang benar-benar tersimpan yang ditulis ulang; soal tanpa
         // jawaban tidak diberi baris baru.
         for (const item of result.items) {
-            if (!answers.has(item.answer_id)) continue;
+            if (!item.answer_id || !answers.has(item.answer_id)) continue;
             await this.db
                 .from('cbt_answers')
                 .update({ score: item.score, is_correct: item.is_correct })
@@ -146,8 +158,9 @@ export class GradingService {
         }
 
         return {
-            finalScore100: result.scaled_score,
-            hasEssay: result.needs_manual_grading,
+            finalScore100: result.max_possible_score > 0
+                ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0,
+            hasEssay: manual.pending,
         };
     }
 
@@ -204,7 +217,7 @@ export class GradingService {
             this.db.from('cbt_bank_questions').select(BANK_QUESTION_SELECT).eq('bank_id', bankId),
             this.db
                 .from('cbt_answers')
-                .select('id, question_id, selected_option_id, essay_answer')
+                .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
                 .eq('attempt_id', attemptId),
         ]);
 
@@ -226,6 +239,10 @@ export class GradingService {
 
         const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', { items });
 
+        const manual = manualGradeSummary(questions || [], answers);
+        const finalScore = result.max_possible_score > 0
+            ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0;
+
         for (const item of result.items) {
             if (!item.answer_id) continue;
 
@@ -243,11 +260,12 @@ export class GradingService {
         await this.db
             .from('cbt_exam_attempts')
             .update({
-                total_score: result.scaled_score,
+                total_score: finalScore,
+                needs_manual_grading: manual.pending,
                 metadata: {
                     ...(row.metadata || {}),
                     dimension_scores: result.dimension_scores ?? {},
-                    base_score: result.scaled_score,
+                    base_score: finalScore,
                 },
             })
             .eq('id', attemptId);

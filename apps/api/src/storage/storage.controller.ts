@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Delete,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
   InternalServerErrorException,
@@ -126,7 +127,9 @@ export class StorageController {
     const callerId = user?.id ?? 'internal';
     const folder = sanitizeFolder(rawFolder || 'misc', callerId);
     const fileName = this.storage.generateFileName(file.originalname);
-    const key = `${folder}/${fileName}`;
+    const ownedFolder = user && !folder.startsWith('assignments/')
+      ? `users/${user.id}/${folder}` : folder;
+    const key = `${ownedFolder}/${fileName}`;
 
     const result = await this.storage.putObject(key, file.buffer, contentType);
     if (!result.success) {
@@ -134,7 +137,7 @@ export class StorageController {
       throw new InternalServerErrorException(result.error || 'Gagal menyimpan file.');
     }
 
-    return { url: result.url, key: result.key, provider: 'cloudflare-r2' };
+    return { success: true, url: result.url, key: result.key, provider: 'cloudflare-r2' };
   }
 
   /**
@@ -162,12 +165,12 @@ export class StorageController {
       throw new BadRequestException('URL bukan objek penyimpanan yang dikenali.');
     }
 
-    // Lampiran jawaban hanya boleh dihapus oleh pemiliknya.
-    if (key.startsWith('assignments/')) {
-      const ownerId = key.split('/')[2] || '';
-      if (ownerId !== user.id) {
-        throw new BadRequestException('Tidak diizinkan menghapus file milik pengguna lain.');
-      }
+    const segments = key.split('/');
+    const ownerId = segments[0] === 'assignments' ? segments[2]
+      : segments[0] === 'users' ? segments[1] : null;
+    // Legacy/shared objects have no provable user owner; only trusted cleanup paths may delete them.
+    if (!ownerId || ownerId !== user.id || segments.some(segment => segment === '..' || segment === '.')) {
+      throw new ForbiddenException('Tidak diizinkan menghapus file ini.');
     }
 
     const result = await this.storage.deleteObject(key);
@@ -175,6 +178,6 @@ export class StorageController {
       throw new InternalServerErrorException(result.error || 'Gagal menghapus file.');
     }
 
-    return { provider: 'cloudflare-r2' };
+    return { success: true, provider: 'cloudflare-r2' };
   }
 }

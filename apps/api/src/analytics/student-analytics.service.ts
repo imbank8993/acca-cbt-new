@@ -36,6 +36,7 @@ export class StudentAnalyticsService {
                 `*,
                 exams:cbt_exams (
                     id,
+                    show_results,
                     title,
                     subject_id,
                     subjects:cbt_subjects (name),
@@ -49,7 +50,7 @@ export class StudentAnalyticsService {
             .in('status', FINISHED_STATUSES)
             .order('finished_at', { ascending: true });
 
-        const attempts = (attemptRows as any[]) || [];
+        const attempts = ((attemptRows as any[]) || []).filter(a => a.exams?.show_results === true);
         // Belum pernah menyelesaikan ujian: layar analitik menampilkan keadaan
         // kosong, bukan galat.
         if (attempts.length === 0) return null;
@@ -73,11 +74,11 @@ export class StudentAnalyticsService {
         // persentil, bukan identitas siswa lain.
         const { data: allAttemptRows } = await this.db
             .from('cbt_exam_attempts')
-            .select('user_id, total_score')
+            .select('user_id, total_score, exams:cbt_exams(show_results)')
             .in('status', FINISHED_STATUSES);
 
         const studentAverages = new Map<string, number[]>();
-        ((allAttemptRows as any[]) || []).forEach((a) => {
+        ((allAttemptRows as any[]) || []).filter(a => a.exams?.show_results === true).forEach((a) => {
             const list = studentAverages.get(a.user_id) || [];
             list.push(Number(a.total_score) || 0);
             studentAverages.set(a.user_id, list);
@@ -337,6 +338,7 @@ export class StudentAnalyticsService {
                 `*,
                 exams:cbt_exams (
                     id,
+                    show_results,
                     title,
                     description,
                     subject_id,
@@ -349,10 +351,9 @@ export class StudentAnalyticsService {
             )
             .eq('user_id', user.id)
             .in('status', FINISHED_STATUSES)
-            .order('finished_at', { ascending: false })
-            .limit(limit);
+            .order('finished_at', { ascending: false });
 
-        return ((data as any[]) || []).map((a) => ({
+        return ((data as any[]) || []).filter(a => a.exams?.show_results === true).slice(0, limit).map((a) => ({
             id: a.id,
             examId: a.exams?.id,
             examTitle: a.exams?.title || 'Unknown',
@@ -385,11 +386,11 @@ export class StudentAnalyticsService {
 
         const { data: studentAttempts } = await this.db
             .from('cbt_exam_attempts')
-            .select('total_score')
+            .select('total_score, exams:cbt_exams(show_results)')
             .eq('user_id', user.id)
             .in('status', FINISHED_STATUSES);
 
-        const own = (studentAttempts as any[]) || [];
+        const own = ((studentAttempts as any[]) || []).filter(a => a.exams?.show_results === true);
         const studentAvg =
             own.length > 0
                 ? own.reduce((sum, a) => sum + (Number(a.total_score) || 0), 0) / own.length
@@ -399,11 +400,11 @@ export class StudentAnalyticsService {
         if (orgId) {
             const { data: classAttempts } = await this.db
                 .from('cbt_exam_attempts')
-                .select('total_score, organization_id')
+                .select('total_score, organization_id, exams:cbt_exams(show_results)')
                 .eq('organization_id', orgId)
                 .in('status', FINISHED_STATUSES);
 
-            const rows = (classAttempts as any[]) || [];
+            const rows = ((classAttempts as any[]) || []).filter(a => a.exams?.show_results === true);
             classAvg =
                 rows.length > 0
                     ? rows.reduce((sum, a) => sum + (Number(a.total_score) || 0), 0) / rows.length

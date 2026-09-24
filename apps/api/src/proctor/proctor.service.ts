@@ -76,7 +76,7 @@ export class ProctorService {
 
     /** Angka ringkas untuk kartu dasbor. */
     async getStats(user: AuthUser, organizationId: string) {
-        await this.authz.assertOrgStaff(user, organizationId);
+        await this.authz.assertOrgMonitoring(user, organizationId);
 
         const empty = {
             totalMembers: 0,

@@ -1,0 +1,5997 @@
+[
+  {
+    "file": "apps/api/src/ai/ai.controller.ts",
+    "lines": 39,
+    "sha256": "23541164fa868afe595edb9877d3b51f8ed576d8fc5844113739813c93ad665f"
+  },
+  {
+    "file": "apps/api/src/ai/ai.module.ts",
+    "lines": 11,
+    "sha256": "9db360e97464ae17f55c73508798fd0247b871a83746757895b2db8e2f910578"
+  },
+  {
+    "file": "apps/api/src/ai/ai.service.ts",
+    "lines": 26,
+    "sha256": "58564e76f5e57b97070a4b66d7039c0df35d4f5b476c5b5f56215015ff61f97c"
+  },
+  {
+    "file": "apps/api/src/analytics/analytics.controller.ts",
+    "lines": 81,
+    "sha256": "df6278a4065c9720104ad7d07d382d2598f6fc97bd17132fe1a5a01235ab670c"
+  },
+  {
+    "file": "apps/api/src/analytics/analytics.module.ts",
+    "lines": 22,
+    "sha256": "34d47b6143b800193633c485eea9bba428c6c902e1f178e5a67c302c34006641"
+  },
+  {
+    "file": "apps/api/src/analytics/analytics.service.ts",
+    "lines": 449,
+    "sha256": "73a1b11c158a4452d473c6c148a0007d27bb92325cc55295b67548d62439fc77"
+  },
+  {
+    "file": "apps/api/src/analytics/exam-review.controller.ts",
+    "lines": 24,
+    "sha256": "d2b998614f56af06d009e1b7a17006eef4ce021452df4d9298d03b3b4e0a677b"
+  },
+  {
+    "file": "apps/api/src/analytics/exam-review.service.ts",
+    "lines": 347,
+    "sha256": "4e2325fdd1d8c94230283d1605ce55f272028ed76ecca9dd727e66a6a3b0de08"
+  },
+  {
+    "file": "apps/api/src/analytics/student-analytics.controller.ts",
+    "lines": 46,
+    "sha256": "6dbd8f84e022552dbf119a2596cc2eb4f4db6eb4c96d541f06a614856216d5be"
+  },
+  {
+    "file": "apps/api/src/analytics/student-analytics.service.ts",
+    "lines": 422,
+    "sha256": "1724cf9385de9cdb7ce01da73e5697f08b0d4515aa2fe0ac49dcbf96bc685e8a"
+  },
+  {
+    "file": "apps/api/src/app.module.ts",
+    "lines": 55,
+    "sha256": "740cdc10c2b25e496158127ef944c0db9cc2f3d5d21a34017e9d4b98b3b78a98"
+  },
+  {
+    "file": "apps/api/src/auth/allow-internal-key.decorator.ts",
+    "lines": 18,
+    "sha256": "a3c1f1d91cb1878efb0d7fb7d89b533464a2ea0debf8ebac269632df36cd5ab9"
+  },
+  {
+    "file": "apps/api/src/auth/auth-users.repository.ts",
+    "lines": 247,
+    "sha256": "0f45dc51eff097b5fc7288b92ff73ff244e76624481524bf953ac6f47ba09082"
+  },
+  {
+    "file": "apps/api/src/auth/auth.controller.ts",
+    "lines": 60,
+    "sha256": "e6d677b5a16bfb8b50827f2004b57896e07dc0e17aceb65efcb3afa855844a9b"
+  },
+  {
+    "file": "apps/api/src/auth/auth.module.ts",
+    "lines": 36,
+    "sha256": "9523e734e7b3c40f41db6ffc2ef1b03832b2f46c6dad72ae3bc5597f0b824ff6"
+  },
+  {
+    "file": "apps/api/src/auth/auth.service.ts",
+    "lines": 354,
+    "sha256": "9a376c163aef8d5f20a520a0b3a605ffebb28dd5b31bd4f1deda71205a15b0cf"
+  },
+  {
+    "file": "apps/api/src/auth/authorization.service.ts",
+    "lines": 242,
+    "sha256": "6dcc6c1bbfa218d7e1659c97f4591015de7cdb81311ffe507814028b91b63c76"
+  },
+  {
+    "file": "apps/api/src/auth/cbt-roles.service.ts",
+    "lines": 173,
+    "sha256": "4fd86a4d29c9a552f638551ae0477264ecd211bd78ca6f964e99d6ef3db243eb"
+  },
+  {
+    "file": "apps/api/src/auth/dto/login.dto.ts",
+    "lines": 22,
+    "sha256": "86b81ee5fd10fa7f79bb142a6d2bc009fef277511fcb2f40a3f84cf3f6e33540"
+  },
+  {
+    "file": "apps/api/src/auth/jwt-auth.guard.ts",
+    "lines": 43,
+    "sha256": "2f4d1e3c73bff19ddd29bcca65db831717363b114da99a52645f712da6d6ece3"
+  },
+  {
+    "file": "apps/api/src/auth/jwt.strategy.ts",
+    "lines": 110,
+    "sha256": "c0dfe1b561b776c320c5b11ec9698dbda0e972fe7f08edf255491f00a8f60d97"
+  },
+  {
+    "file": "apps/api/src/auth/roles.decorator.ts",
+    "lines": 14,
+    "sha256": "e4234b5fd9227476c6953b4dc209e86f4f50babc75a2f6ca0c203b2e3c1d3c3e"
+  },
+  {
+    "file": "apps/api/src/auth/roles.guard.ts",
+    "lines": 53,
+    "sha256": "1d02efe8d3a81ed536cbd29d223a389f904eb608466b0d511b91b536b1f2519a"
+  },
+  {
+    "file": "apps/api/src/backup/backup.controller.ts",
+    "lines": 72,
+    "sha256": "2180522efb0a10eb54c8911a1f965af9e1bf5104ea4d67b5d186171730207946"
+  },
+  {
+    "file": "apps/api/src/backup/backup.module.ts",
+    "lines": 11,
+    "sha256": "5a35d7b5e3e3e7559072023b3e0898e7968481284c2ce25f950fe922ac2f4b82"
+  },
+  {
+    "file": "apps/api/src/backup/backup.service.ts",
+    "lines": 366,
+    "sha256": "6f8c15913c3a5927722f2d278a86a2a5f0b628abedad36bda3a08e0760b90f09"
+  },
+  {
+    "file": "apps/api/src/common/answer-storage.ts",
+    "lines": 56,
+    "sha256": "f5defc90755615cf88e4abe76b41adaac8a98a6f375afcda039108c8a9937f65"
+  },
+  {
+    "file": "apps/api/src/common/chunk.ts",
+    "lines": 15,
+    "sha256": "2590db1fee13ed0c899c9179a1783d7aa8a5f3b3d973b4b498e79e580eb7f566"
+  },
+  {
+    "file": "apps/api/src/common/decorators/current-user.decorator.ts",
+    "lines": 18,
+    "sha256": "a5783ef0c50f3e02f7d0031a12a206d30e9a68a163ce718a74dd04959aed0569"
+  },
+  {
+    "file": "apps/api/src/common/filters/all-exceptions.filter.ts",
+    "lines": 59,
+    "sha256": "522e4b8ce40f44f7d72c840e292f1747d8af0e0f453c26e3123905247b0ddcab"
+  },
+  {
+    "file": "apps/api/src/common/interceptors/logging.interceptor.ts",
+    "lines": 30,
+    "sha256": "7aa6adfc770f6fd8d8484fafc3d0c89de04b43f7dec60ac03e28830ae279415f"
+  },
+  {
+    "file": "apps/api/src/common/question-order.ts",
+    "lines": 100,
+    "sha256": "d86e7ff61120d62e5072d80f9dcfbd8aca163084f530b11a4c541256435af239"
+  },
+  {
+    "file": "apps/api/src/common/wib-time.ts",
+    "lines": 76,
+    "sha256": "e6af18351253575e04d4829d7dd7dd89d049810b7df1b48c01cbe98cc28e8482"
+  },
+  {
+    "file": "apps/api/src/exam-configs/dto/exam-configs.dto.ts",
+    "lines": 170,
+    "sha256": "b23636a1843c6fb35716c5002903742bf5889e88a4a9c01fb4630e40285fc0a0"
+  },
+  {
+    "file": "apps/api/src/exam-configs/exam-configs.controller.ts",
+    "lines": 143,
+    "sha256": "5051ec7fe0b1a62db5b79389215738963ce95edfb879f79d1f947e0d39cc6cdd"
+  },
+  {
+    "file": "apps/api/src/exam-configs/exam-configs.module.ts",
+    "lines": 11,
+    "sha256": "eec5a1264cdd5d188cbe422474ca0a558b42dffa8ac111857a2774d2391db17b"
+  },
+  {
+    "file": "apps/api/src/exam-configs/exam-configs.service.ts",
+    "lines": 529,
+    "sha256": "74375e00907211de959c307e393de4dc15b05d83036b45cbaca570eb2fa51aae"
+  },
+  {
+    "file": "apps/api/src/exams/exams.controller.ts",
+    "lines": 29,
+    "sha256": "ae2fde9aadc160a931f9e04bbd4e52d1985a7bcbb8071b9ec7d659f49cc964f3"
+  },
+  {
+    "file": "apps/api/src/exams/exams.module.ts",
+    "lines": 11,
+    "sha256": "b048ec8a4296864d9b36c2b6a57037e0d1ea32057622cf43dd3f20b16293a007"
+  },
+  {
+    "file": "apps/api/src/exams/exams.service.ts",
+    "lines": 83,
+    "sha256": "a846ab4285de9dc41fc23e16c40d5ef280fc028c232e0d01a8c2dc92f6b0c7cc"
+  },
+  {
+    "file": "apps/api/src/grading/grading.controller.ts",
+    "lines": 27,
+    "sha256": "5b8df57fd9cd3e70e7af1127040a7ae29710fcbd32d8b4219d2138aa7fcfc765"
+  },
+  {
+    "file": "apps/api/src/grading/grading.module.ts",
+    "lines": 11,
+    "sha256": "5c2eee9f078f72cd86a66ec08c73b116f5bacc8fc8a811f610c79edb544507bc"
+  },
+  {
+    "file": "apps/api/src/grading/grading.service.ts",
+    "lines": 434,
+    "sha256": "bb43a425da0b33b09af86960fc916cbb05c3c9840a4f0093552d17b82d47ec2c"
+  },
+  {
+    "file": "apps/api/src/health/health.controller.ts",
+    "lines": 53,
+    "sha256": "a1cfcde581f853d8b14ee24f1b97a87ce5d09ea169441fb63c3c50da08fccaff"
+  },
+  {
+    "file": "apps/api/src/health/health.module.ts",
+    "lines": 8,
+    "sha256": "8e6fe50b38d87d28ed07af3285935f9496908c98eabd92c987b1b6d8def8d08b"
+  },
+  {
+    "file": "apps/api/src/imports/dto/bulk-import.dto.ts",
+    "lines": 84,
+    "sha256": "9cd6ac4fc681a5d645f18f19b16a406b060347bf6a5ee9577813e63d4f9ca155"
+  },
+  {
+    "file": "apps/api/src/imports/imports.controller.ts",
+    "lines": 63,
+    "sha256": "0520d7fcfe677dfaa9cd15e5205d32e917ad1fb8c6372f6a5204beafdcaec1d3"
+  },
+  {
+    "file": "apps/api/src/imports/imports.module.ts",
+    "lines": 11,
+    "sha256": "8749822020d6ce24b1de83c3028bf7a3946de1aaef77517645641d863eab4d72"
+  },
+  {
+    "file": "apps/api/src/imports/imports.service.ts",
+    "lines": 372,
+    "sha256": "d08386571f0386a63f35a1b7cdece3e3409fdb441b142f3955df8596e14e38fd"
+  },
+  {
+    "file": "apps/api/src/main.ts",
+    "lines": 62,
+    "sha256": "935349b4b8be6c388088960b31815c7a8073f628135f6e73af721410051e525d"
+  },
+  {
+    "file": "apps/api/src/notifications/notifications.controller.ts",
+    "lines": 114,
+    "sha256": "c064cc32e203297a89db376ea20b68a61a0fd203afbb16f844d2e0e26e718f77"
+  },
+  {
+    "file": "apps/api/src/notifications/notifications.module.ts",
+    "lines": 13,
+    "sha256": "1e567e17bdd7a417424b9446024105da27edcb9b625d2589e86a8fef996d9a79"
+  },
+  {
+    "file": "apps/api/src/notifications/notifications.service.ts",
+    "lines": 215,
+    "sha256": "44051c8296f688b1cee359c926fdcfbdc8f28d333bd41dbd48bca7d0e0a0197d"
+  },
+  {
+    "file": "apps/api/src/pas/dto/pas.dto.ts",
+    "lines": 149,
+    "sha256": "f7759b1003fedb6450aef496f512d4dac05b79d9aadfed2def2a413845b466c1"
+  },
+  {
+    "file": "apps/api/src/pas/pas-rooms.service.ts",
+    "lines": 141,
+    "sha256": "8f3a4656e14a078f16b6fed3a3a567282ec2178551b00f120cd9f3399a25bb53"
+  },
+  {
+    "file": "apps/api/src/pas/pas-schedules.service.ts",
+    "lines": 321,
+    "sha256": "beb88f04e3117d47676fa29e411b222ac68a9c81ba1daf571ebe3eb9eba8023e"
+  },
+  {
+    "file": "apps/api/src/pas/pas.controller.ts",
+    "lines": 242,
+    "sha256": "dbeb4c7217c72c0d33d77c59c65a4b95d32c9a2162ec1055b7aad42317f997cf"
+  },
+  {
+    "file": "apps/api/src/pas/pas.module.ts",
+    "lines": 13,
+    "sha256": "ed2d945f8e3bd46171c119d685ad2f35c08d74ed6a10d845fccb96a2a7b06881"
+  },
+  {
+    "file": "apps/api/src/pas/pas.service.ts",
+    "lines": 269,
+    "sha256": "980bff549d2e049f674b1a43a0c9a0ce4c9807818844b57ff536a091d970926f"
+  },
+  {
+    "file": "apps/api/src/prisma/postgrest-select.ts",
+    "lines": 466,
+    "sha256": "4885ae1f92e137b203e28f5670e10c4ec62550249cd9f145c2e0d0bfdc57ce8d"
+  },
+  {
+    "file": "apps/api/src/prisma/prisma-db-adapter.ts",
+    "lines": 630,
+    "sha256": "cc5cfe960589ebe084357dc09934649ce6601b98b0fe783f226272d25d77ab7f"
+  },
+  {
+    "file": "apps/api/src/prisma/prisma.module.ts",
+    "lines": 12,
+    "sha256": "a08c8715ab224fdd27192d52b1ab5b77e3454900d65cbad585ef21406abd7702"
+  },
+  {
+    "file": "apps/api/src/prisma/prisma.service.ts",
+    "lines": 27,
+    "sha256": "0dfed9825531aaa38457a034848e22c06feeb463b859a817fa00de71fd8982f6"
+  },
+  {
+    "file": "apps/api/src/prisma/relation-registry.ts",
+    "lines": 223,
+    "sha256": "a70b81fdcef0b8f1ac8e4bd4fa3f044d1d005bbc4fa56364105828ed91577f8f"
+  },
+  {
+    "file": "apps/api/src/proctor/classes.service.ts",
+    "lines": 582,
+    "sha256": "3e42cb50a5d4a28765417524b6702493cf174bbbe94c7828ce5ed06f823951a4"
+  },
+  {
+    "file": "apps/api/src/proctor/dto/proctor.dto.ts",
+    "lines": 258,
+    "sha256": "e8301adac27d9d829332f7129754c0c0cfb160b4d781d85543bf1189ab49e2ce"
+  },
+  {
+    "file": "apps/api/src/proctor/exam-admin.service.ts",
+    "lines": 470,
+    "sha256": "d920a174d7807c518877f854a5a2c27245fb99b4379ac03e84df56ebe9c6bf4d"
+  },
+  {
+    "file": "apps/api/src/proctor/exam-monitoring.service.ts",
+    "lines": 759,
+    "sha256": "46374815e36dca8a3dab164b88182e579067add77a5e0f65524bccae8b10fd06"
+  },
+  {
+    "file": "apps/api/src/proctor/proctor.controller.ts",
+    "lines": 360,
+    "sha256": "0571648443553f5d0158cc3c0a4d39c235f60591038852dbd63da43227526550"
+  },
+  {
+    "file": "apps/api/src/proctor/proctor.module.ts",
+    "lines": 20,
+    "sha256": "158b1129a3c876b1591fc08317a6caf932703c207960eb2beded7f36547eabfb"
+  },
+  {
+    "file": "apps/api/src/proctor/proctor.service.ts",
+    "lines": 383,
+    "sha256": "b4258de566984acfd46f7510cb88ba72c69d957213ec3f4d174e4338bb8fe8a3"
+  },
+  {
+    "file": "apps/api/src/proctoring/proctoring.controller.ts",
+    "lines": 77,
+    "sha256": "2378198c310baa7d43bc82fdd99fac4beb53a48ccb39f763afb2a72e1be9a6af"
+  },
+  {
+    "file": "apps/api/src/proctoring/proctoring.module.ts",
+    "lines": 13,
+    "sha256": "389428258ce3712a3ccfbb3fedb7ea5b77e111cac176b3e85bbfa81461cbd367"
+  },
+  {
+    "file": "apps/api/src/proctoring/proctoring.service.ts",
+    "lines": 254,
+    "sha256": "b1f5075c47bc18fc06b2dd8c1ddd7cbb010513d3ed0d270dc1f1bf90ed1e5c60"
+  },
+  {
+    "file": "apps/api/src/questions/bank-content.service.ts",
+    "lines": 337,
+    "sha256": "7c58dfc005bbe8ea66e5ec9e429fca5db28e575168a6c9f76182aed12288c508"
+  },
+  {
+    "file": "apps/api/src/questions/dto/questions.dto.ts",
+    "lines": 370,
+    "sha256": "23e0e85bcd1aa3fbbfcf783f314fa2142e26cb7ff234d70da0561c671db93aa8"
+  },
+  {
+    "file": "apps/api/src/questions/question-banks.service.ts",
+    "lines": 389,
+    "sha256": "c0c79fc50c277676c0b8c5facf1f1c834d64f1cf3f7a66c962afce358921605d"
+  },
+  {
+    "file": "apps/api/src/questions/questions.controller.ts",
+    "lines": 439,
+    "sha256": "0e40415d4c39f2d0a5e980c72eb00bae1bc4952945866678aff23231a93b4f18"
+  },
+  {
+    "file": "apps/api/src/questions/questions.module.ts",
+    "lines": 19,
+    "sha256": "072be7d599a83df7f11358417267c426bc113cbc8500cda66a27ce0e6695e645"
+  },
+  {
+    "file": "apps/api/src/questions/questions.service.ts",
+    "lines": 447,
+    "sha256": "1e2436e0fe3db36436ab3524826a31dea07a5a2ab647d0191c553d7bc49562f3"
+  },
+  {
+    "file": "apps/api/src/scoring/scoring.client.ts",
+    "lines": 89,
+    "sha256": "be0379e1aed45d44d53300fc96a28e7b9a41f3cc3e959b21676fcf0b942c3116"
+  },
+  {
+    "file": "apps/api/src/scoring/scoring.module.ts",
+    "lines": 10,
+    "sha256": "acc1e0fef744a607578f77acefffc08cc8756a637ee0b74af3dafe96a95dbf10"
+  },
+  {
+    "file": "apps/api/src/settings/dto/upsert-setting.dto.ts",
+    "lines": 20,
+    "sha256": "d5a23fc1e386066c22b0de63cfe2101994e056eb89842a654f4de26115a854b3"
+  },
+  {
+    "file": "apps/api/src/settings/settings.controller.ts",
+    "lines": 71,
+    "sha256": "2cadd58dd40054058a4c8a7bd1dc030010442a2976fae30b3a6e9093724f4a9a"
+  },
+  {
+    "file": "apps/api/src/settings/settings.module.ts",
+    "lines": 11,
+    "sha256": "0f7409974abd2723643aa34a1dd9d9fd9ec319797e002810c510753c90fee156"
+  },
+  {
+    "file": "apps/api/src/settings/settings.service.ts",
+    "lines": 87,
+    "sha256": "59b9b3f4758d27f533b2a1a3ac8ac09d845c02efad80924f28ba49ecb3b939f0"
+  },
+  {
+    "file": "apps/api/src/storage/storage.controller.ts",
+    "lines": 181,
+    "sha256": "39e5a624e024dcf6da89f990a62340340abbec89235dafeea6f408b88b3923f5"
+  },
+  {
+    "file": "apps/api/src/storage/storage.module.ts",
+    "lines": 27,
+    "sha256": "13c68b29fada84e2b50ffcb2bdf7848f8deec93b462a6bc87fd2539aed122914"
+  },
+  {
+    "file": "apps/api/src/storage/storage.service.ts",
+    "lines": 235,
+    "sha256": "d5b142c549f4398182b937146c3ba8e17b1774c40cb0be9490287c6f8a40644f"
+  },
+  {
+    "file": "apps/api/src/students/dto/students.dto.ts",
+    "lines": 110,
+    "sha256": "38c9864dd6732e9f8131bcf160d3efac03d0124985cb3992f5f98907b65cc7e3"
+  },
+  {
+    "file": "apps/api/src/students/exam-attempts.service.ts",
+    "lines": 997,
+    "sha256": "d1878bef70d9af16b812159f651c8cf450deb98a58ed054d67d488a517032fb0"
+  },
+  {
+    "file": "apps/api/src/students/students.controller.ts",
+    "lines": 179,
+    "sha256": "90bd4c86009a64654c2f693134be22091d47978f9542632319e04b3ddef9cd76"
+  },
+  {
+    "file": "apps/api/src/students/students.module.ts",
+    "lines": 20,
+    "sha256": "818e8468ed7e848a0dc4903721042bc9243d926c6e0b7719872c535b3d56b3cc"
+  },
+  {
+    "file": "apps/api/src/students/students.service.ts",
+    "lines": 401,
+    "sha256": "e356b6a1907a94d969411386c1d62f0db13db279989c417b731151953d330448"
+  },
+  {
+    "file": "apps/api/src/teachers/dto/teachers.dto.ts",
+    "lines": 35,
+    "sha256": "ae889f412d19faca1c222ec69a2dc271fdd1ad4359fa4f71d3ad76038cb001de"
+  },
+  {
+    "file": "apps/api/src/teachers/teachers.controller.ts",
+    "lines": 117,
+    "sha256": "4f01286b9dda311131b6a94a1074ca4886d22bb4b6a3e109b2ff452e86ce4505"
+  },
+  {
+    "file": "apps/api/src/teachers/teachers.module.ts",
+    "lines": 11,
+    "sha256": "acddaf3914c8d7064f2bb9d397f6c7191c475756bf072905be6bab25ab0b0f35"
+  },
+  {
+    "file": "apps/api/src/teachers/teachers.service.ts",
+    "lines": 386,
+    "sha256": "c581f8ad979e60e86101013330638a8475a2f9a728e7f0e7e490d540f925a998"
+  },
+  {
+    "file": "apps/scoring/app/__init__.py",
+    "lines": 1,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "apps/scoring/app/config.py",
+    "lines": 31,
+    "sha256": "a25fccea232d589848d4f55bd62d184d7583f54dca74621317bcce86f3266a58"
+  },
+  {
+    "file": "apps/scoring/app/main.py",
+    "lines": 35,
+    "sha256": "b84a5a764c11896d0b6dfce93cb352794c931cdb8d6454996743ba268b9e55a6"
+  },
+  {
+    "file": "apps/scoring/app/routers/__init__.py",
+    "lines": 1,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "apps/scoring/app/routers/ai.py",
+    "lines": 61,
+    "sha256": "70738f0ae2dbe974905df9c180cf0a1ea1c1020cd256aed64b081a8d903b65f7"
+  },
+  {
+    "file": "apps/scoring/app/routers/analytics.py",
+    "lines": 27,
+    "sha256": "c993f40d2df0438d6af3b5a40c912814560f5f59294d7083091d824c244c059f"
+  },
+  {
+    "file": "apps/scoring/app/routers/grading.py",
+    "lines": 88,
+    "sha256": "30e93135036061f5ee6b478505e584258560a6b1168be95efdd062ecfb08728a"
+  },
+  {
+    "file": "apps/scoring/app/routers/irt.py",
+    "lines": 22,
+    "sha256": "aab3bfe5eee3bb3a22aaede50b188d27f26866a1ac35b79ad75d2d2a24daa9f7"
+  },
+  {
+    "file": "apps/scoring/app/schemas/__init__.py",
+    "lines": 1,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "apps/scoring/app/schemas/analytics.py",
+    "lines": 96,
+    "sha256": "31de427f4b7db5766df72227f208df6f81161aee553a04520d9cceda47cd4552"
+  },
+  {
+    "file": "apps/scoring/app/schemas/grading.py",
+    "lines": 82,
+    "sha256": "a50de1a66b47e452cddfa96ea6ae1783ea40553832a9c7d65ea032e8f7300704"
+  },
+  {
+    "file": "apps/scoring/app/schemas/irt.py",
+    "lines": 72,
+    "sha256": "41064172aad0ec4ad6568dddf44bb3d5cf7df012aae57c01ff0bf70d2f38ab60"
+  },
+  {
+    "file": "apps/scoring/app/security.py",
+    "lines": 28,
+    "sha256": "8238f4fddc1c1ec7a8bbc05aa725e5acb1f56fa7662d2632191780541be6af0f"
+  },
+  {
+    "file": "apps/scoring/app/services/__init__.py",
+    "lines": 1,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "apps/scoring/app/services/ai.py",
+    "lines": 108,
+    "sha256": "aec254f19a51f8b9cf9f2220c1e1a0c5049f55a163f7949b1c37797c8abe54b4"
+  },
+  {
+    "file": "apps/scoring/app/services/analytics.py",
+    "lines": 195,
+    "sha256": "933398b5f59ea2c3f0ce27056720d0609d629ed383046271d86e2b1245d8f9f7"
+  },
+  {
+    "file": "apps/scoring/app/services/answer_parser.py",
+    "lines": 72,
+    "sha256": "1312bed73ade5a2ca068863c966a7ac757a92dd470345aa7f3c2d8554c29bdb1"
+  },
+  {
+    "file": "apps/scoring/app/services/grading.py",
+    "lines": 329,
+    "sha256": "309ebd8e750891338231e8dcc376d192a219495a5c15dfaba2623e540544a569"
+  },
+  {
+    "file": "apps/scoring/app/services/irt.py",
+    "lines": 350,
+    "sha256": "0f712f5547980abd43bb4e8bd9b1fabe8a0b35f40433fbc0a4feccfcf52b7ca2"
+  },
+  {
+    "file": "apps/web/app/api/ai/kisi-kisi/route.ts",
+    "lines": 7,
+    "sha256": "49c701b398b63bce64d8dd8cb4389bc6ffd4eaefe9c832d23fe609e0b63e3a4c"
+  },
+  {
+    "file": "apps/web/app/api/analytics/attempts/[attemptId]/review/route.ts",
+    "lines": 11,
+    "sha256": "d2ca560592aaa67cfd0814c427e94d0e81009449a78d2abcdaae0420b2b0c34a"
+  },
+  {
+    "file": "apps/web/app/api/analytics/exams/[examId]/export/route.ts",
+    "lines": 11,
+    "sha256": "483f08ac60c3f210fc74ea7c56dfade4ed52ae4de1e2e22c850c61cfccd4053c"
+  },
+  {
+    "file": "apps/web/app/api/analytics/exams/[examId]/questions/[questionId]/responses/route.ts",
+    "lines": 14,
+    "sha256": "1bd0925b2ad0eb3877fa3735ff2027259a18c523459b619089fe7f80481e9e9a"
+  },
+  {
+    "file": "apps/web/app/api/analytics/exams/[examId]/route.ts",
+    "lines": 11,
+    "sha256": "9366513b5c6b53ca4f1210184696f30f59e1de4dbdf032640494ec3dcfbbe259"
+  },
+  {
+    "file": "apps/web/app/api/analytics/exams/[examId]/students/route.ts",
+    "lines": 11,
+    "sha256": "dc2bed6cbd2a53df831a4e204bd332b91cf7e4712adc6576d61e9d75b0610f1c"
+  },
+  {
+    "file": "apps/web/app/api/analytics/exams/route.ts",
+    "lines": 8,
+    "sha256": "b46f6178324542128d8a300bbefaaac5c0ccc2480182cec8ebfb7480b8a076e6"
+  },
+  {
+    "file": "apps/web/app/api/auth/login/route.ts",
+    "lines": 50,
+    "sha256": "7174784f0c2aee2107e8f7cafd6c0263910d66ca9915cdd558194c6d26d394d3"
+  },
+  {
+    "file": "apps/web/app/api/auth/logout/route.ts",
+    "lines": 12,
+    "sha256": "981ce9ee14d8e23f951f2fb5be7a35df748d2a7ff9ebb59d900d953ac8f920e3"
+  },
+  {
+    "file": "apps/web/app/api/auth/me/route.ts",
+    "lines": 8,
+    "sha256": "6216bc7d9b0112891916253035270de9203c5c0d3d0caeb52bed95a083240552"
+  },
+  {
+    "file": "apps/web/app/api/auth/profile/route.ts",
+    "lines": 7,
+    "sha256": "658df4f6fd787b6da0e8e4e9f7acb9bba436dad15abedc0a2f10261c6b28be51"
+  },
+  {
+    "file": "apps/web/app/api/auth/role-contexts/route.ts",
+    "lines": 7,
+    "sha256": "137e5f2e5d0439573d033003d2383abd0238e721a4a7aa8d72cdf7e5fd1118fd"
+  },
+  {
+    "file": "apps/web/app/api/auth/session/route.ts",
+    "lines": 12,
+    "sha256": "3daf60727a24125998af167aad00f1eeca3ba5ed081abde88b103dcf7b19446c"
+  },
+  {
+    "file": "apps/web/app/api/auth/sso/route.ts",
+    "lines": 69,
+    "sha256": "50c82e1b494f2d262dd34cbc1d3235287cbe5fd79603e8671638a0feb8996a31"
+  },
+  {
+    "file": "apps/web/app/api/backup/export/route.ts",
+    "lines": 102,
+    "sha256": "a9b48549429c96fd6629f20fc75dde1322618799c3ecaa8d19f9bbcc5c9e8b11"
+  },
+  {
+    "file": "apps/web/app/api/backup/import/route.ts",
+    "lines": 165,
+    "sha256": "5f2141d5eb35ce928ffba2a56170a76515b0793a80ca8d176a64603827680f0a"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/[id]/lock/route.ts",
+    "lines": 11,
+    "sha256": "6eb0abbf7a09bd6e4640ec494ef87174c9b176b791205c5f61088a109c0a4ea7"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/[id]/route.ts",
+    "lines": 20,
+    "sha256": "4da63a8be5bf9ff17c7b7d780fbd63146b9e68f00afc6b4d58e85560fd41b589"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/banks/[bankRowId]/route.ts",
+    "lines": 17,
+    "sha256": "3e59781bf0e37395480eeae633cdce4534ccbf4c7c490233cc68dfbe4ce57116"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/banks/route.ts",
+    "lines": 7,
+    "sha256": "34cf5467a33548fb8847989baef31367efdffdafe825e4c6bb62a64924a0fd00"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/generate/route.ts",
+    "lines": 7,
+    "sha256": "3552e222f63be4fcdd63092032b38ee7f4b765afefda9541bc2d57a82d5f0b36"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/route.ts",
+    "lines": 12,
+    "sha256": "d8aea49ec486ce405037d5524794fcc6dbb06ffe6316f194eeefb37ccc762ef8"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/schedules/[scheduleId]/route.ts",
+    "lines": 13,
+    "sha256": "c7291d96e87e7e06bae38a04c08230ee5e1fe60ef52f23ec1268ec694969ca64"
+  },
+  {
+    "file": "apps/web/app/api/exam-configs/schedules/route.ts",
+    "lines": 7,
+    "sha256": "ae4282a5eace0adfddf2416fdd3cded76433ab6b314b2769953f4f592ccc86e8"
+  },
+  {
+    "file": "apps/web/app/api/exam-review/attempts/[attemptId]/route.ts",
+    "lines": 11,
+    "sha256": "47dc84272d1500d945ccb5f3673c4d8af56460e6b943f054087971253dd46fdb"
+  },
+  {
+    "file": "apps/web/app/api/exam/answers/flush/route.ts",
+    "lines": 40,
+    "sha256": "8ae62a10d73bb5750ad884560ee43c055fa4f56098c0da4d1c5bc53deabd97b7"
+  },
+  {
+    "file": "apps/web/app/api/exams/[id]/route.ts",
+    "lines": 11,
+    "sha256": "dca91ab5343b8474335f4626d330090fadba82a107170c7ead3aca9eb0a9b000"
+  },
+  {
+    "file": "apps/web/app/api/grading/irt/[examId]/route.ts",
+    "lines": 11,
+    "sha256": "7ede117f3c3896cecc1c6299e54b74c203a315913d0fc71a9dccf37f376ba7f3"
+  },
+  {
+    "file": "apps/web/app/api/notifications/[id]/read/route.ts",
+    "lines": 11,
+    "sha256": "f8b42a4a9cd0c229a906fdae6647cbd829f7733de07e4a71a17bf6d559dc04de"
+  },
+  {
+    "file": "apps/web/app/api/notifications/[id]/route.ts",
+    "lines": 11,
+    "sha256": "e868f32d8533b25ece7f7034cec46bdd1c326d9440e0182b3c3eccbee485e9cf"
+  },
+  {
+    "file": "apps/web/app/api/notifications/preferences/route.ts",
+    "lines": 11,
+    "sha256": "56bae97c845f5f7d5b19c3df79ac5994d6463b5c637a637a3bd8e471ec3b7cf5"
+  },
+  {
+    "file": "apps/web/app/api/notifications/read-all/route.ts",
+    "lines": 7,
+    "sha256": "d0c08ac58d93b7e33ca913e6c392f987190465771a2779469cb97ea52fed1e8d"
+  },
+  {
+    "file": "apps/web/app/api/notifications/read/route.ts",
+    "lines": 7,
+    "sha256": "74c6c619c8baf9fc55dffedfd07a430d988a0136ad93381c74eb86d858183430"
+  },
+  {
+    "file": "apps/web/app/api/notifications/route.ts",
+    "lines": 8,
+    "sha256": "7d8c435f21c87e245abd57cfbbba299eeb915807dc3227fafc4c4553ff36122a"
+  },
+  {
+    "file": "apps/web/app/api/notifications/unread-count/route.ts",
+    "lines": 7,
+    "sha256": "3fd20d3d8a04f5d27d3f812ff4cffacb28d5f97de4e9f356a37cd9736ab5d6c4"
+  },
+  {
+    "file": "apps/web/app/api/pas/classes/route.ts",
+    "lines": 12,
+    "sha256": "b87b99137aba97fd9fa30c23c6ec7d7c3a6de8184acba8b25893ee9156f1b462"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/lock/route.ts",
+    "lines": 11,
+    "sha256": "5bd8d1483582e40cece5503c8716f3d1b769d2ea8cdaa53cc59a687d04f6c864"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/room-students/[userId]/route.ts",
+    "lines": 15,
+    "sha256": "687b0a56629971434c64c5b58850d476229ed20712a007eb6f71540d90863de7"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/room-students/route.ts",
+    "lines": 11,
+    "sha256": "42efe7f38b572afbb5069d4f0c9eadf42ef59b0967e5b2ab72f9713b1f07fa2a"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/rooms/route.ts",
+    "lines": 15,
+    "sha256": "c4fdfaf8c68ad866b52a09ae9f566af35303ac4e652fb9572da5371db5c1f270"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/route.ts",
+    "lines": 15,
+    "sha256": "216e16dfa7eb596ff8b070580950b0b6ea4912e995393ce987d2fbb04b21f7cd"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/[periodId]/sessions/route.ts",
+    "lines": 15,
+    "sha256": "908d276efb9c74deb1effb40bc73d95beaf0ade857140fcd5bc9d61dc08184cc"
+  },
+  {
+    "file": "apps/web/app/api/pas/periods/route.ts",
+    "lines": 12,
+    "sha256": "e4c1aa45a94857c7ac75b89df48403b07ef29d70c3be0ebe047e31e7b150f526"
+  },
+  {
+    "file": "apps/web/app/api/pas/rooms/[roomId]/invigilators/route.ts",
+    "lines": 11,
+    "sha256": "f44f2fdb38201c2a12b186660a4a1da8c1fe517c8668f1dfea16a7f7dbb0f2c2"
+  },
+  {
+    "file": "apps/web/app/api/pas/rooms/[roomId]/route.ts",
+    "lines": 11,
+    "sha256": "3f887fe8a1cc8d5ae49e2f6e37e3f46d06b1fa7fe8a3f789a7553fa9b52bbc5c"
+  },
+  {
+    "file": "apps/web/app/api/pas/schedules/[scheduleId]/route.ts",
+    "lines": 13,
+    "sha256": "5eb94ef47502a2d6d5995ef056edb72a78923783f8c25b7d2b21faeb0d2da6a4"
+  },
+  {
+    "file": "apps/web/app/api/pas/schedules/generate/route.ts",
+    "lines": 7,
+    "sha256": "004c1de81a5e197db24faf7047606c70e20a589780c59fa4fee257e83a71eba1"
+  },
+  {
+    "file": "apps/web/app/api/pas/schedules/route.ts",
+    "lines": 7,
+    "sha256": "12a1b362d96ddd97d960b7d1f75687f5c0867a9296d260cfdd912b8bde72c163"
+  },
+  {
+    "file": "apps/web/app/api/pas/sessions/[sessionId]/route.ts",
+    "lines": 11,
+    "sha256": "b6e598ef73e3ee0708d5d9241522f1156743a7baa0ac7322841372bf2e55976e"
+  },
+  {
+    "file": "apps/web/app/api/pas/staff/route.ts",
+    "lines": 8,
+    "sha256": "aba3d7abf20310aa3b687bb647705a9a4bf053f1a26e23a7b652dbd3a7e2c669"
+  },
+  {
+    "file": "apps/web/app/api/pas/subjects/route.ts",
+    "lines": 8,
+    "sha256": "814919cad1b6465b78c199e7305eaa56bcdae385f3f049e51a8c39f2e7ca8b25"
+  },
+  {
+    "file": "apps/web/app/api/proctor/attempts/[attemptId]/grade/route.ts",
+    "lines": 11,
+    "sha256": "df784d174540a3fee9b2202eae2c0e426611cb5eace26f9cdd06257ca84f98c7"
+  },
+  {
+    "file": "apps/web/app/api/proctor/attempts/[attemptId]/route.ts",
+    "lines": 11,
+    "sha256": "3b3161c2c65ffd0dcf1b5208a6e258894e5b95c6e56819d25523afb39b65e822"
+  },
+  {
+    "file": "apps/web/app/api/proctor/class-school-years/route.ts",
+    "lines": 8,
+    "sha256": "01b4d829ea340cc8679146435861793cdb272820ce21a9e10fecd0e655cef1d7"
+  },
+  {
+    "file": "apps/web/app/api/proctor/classes/[classId]/route.ts",
+    "lines": 17,
+    "sha256": "15c928b16146c18dc9d8101185a089a45dfe53de0dab7f16e75599e9e1194984"
+  },
+  {
+    "file": "apps/web/app/api/proctor/classes/[classId]/students/route.ts",
+    "lines": 15,
+    "sha256": "74a2c2dd350a3cb02146980389783e40cd73f0c6f7953f938e0bef689fe0e7b7"
+  },
+  {
+    "file": "apps/web/app/api/proctor/classes/import/route.ts",
+    "lines": 7,
+    "sha256": "6b43a0a0660300adbfc1f2f2e9833ca1ef2b1894c8476d4ab9e7f5ea5e1f95fd"
+  },
+  {
+    "file": "apps/web/app/api/proctor/classes/members/route.ts",
+    "lines": 7,
+    "sha256": "f49cd9f2076a04877019e45192bfb99de25bc4a045124e206ab925c986079042"
+  },
+  {
+    "file": "apps/web/app/api/proctor/classes/route.ts",
+    "lines": 14,
+    "sha256": "14c6c706dfddf28e829cabbf8e625f1993a18099a04698b868d3f9300669ec38"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/assignments/route.ts",
+    "lines": 11,
+    "sha256": "bb4978a41c2f1fed6063d700af108e1df2f27c313442d8a59c6201083d6c3d91"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/attempts/route.ts",
+    "lines": 11,
+    "sha256": "72c2fcbe9c7dbdda68d2ea56c29f2d3131030f5f2b26c394cc3b17878fca6be0"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/item-analysis/route.ts",
+    "lines": 11,
+    "sha256": "4416916cb7a5a0fc5fc122ad77e5d41afa6384eea1309371efe702bebd993083"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/publish/route.ts",
+    "lines": 11,
+    "sha256": "4966fbeccabcd8e724d32607414f4ba491f4514974829635efb96a6759869222"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/route.ts",
+    "lines": 11,
+    "sha256": "bf09e1bb85dad43e153350c903997d83fd68c30ee478cbceb668bc65fad70acd"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/submissions/route.ts",
+    "lines": 11,
+    "sha256": "21bb088e2cbe3e1cb5c655e2f8db48e19f1a429fd82d9711e4bfbcd9643d6a12"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/[examId]/violations/route.ts",
+    "lines": 15,
+    "sha256": "047ba2ccceaa1dfd09616fb845412caaf2bed0b7dfe67c455f016dd67c34a205"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/assignments/route.ts",
+    "lines": 7,
+    "sha256": "23f224169689c892ce90f05c3bed38290ef84f63530b599e8a0ab986dcb70fa6"
+  },
+  {
+    "file": "apps/web/app/api/proctor/exams/route.ts",
+    "lines": 12,
+    "sha256": "c7620942d60265fcd5a355915a5e701d0c1b0bbece55c7b21561a55f6731e5b1"
+  },
+  {
+    "file": "apps/web/app/api/proctor/organization/route.ts",
+    "lines": 7,
+    "sha256": "42ef417d6005d9cadcdaafd2a428f8c117487624b51ea12122c1a963cbd05825"
+  },
+  {
+    "file": "apps/web/app/api/proctor/recent-logins/route.ts",
+    "lines": 11,
+    "sha256": "fcb2d81cd077a96591bba4a27d794a5b3d6da82cfaa028a0f169e3861bf54e47"
+  },
+  {
+    "file": "apps/web/app/api/proctor/roles/route.ts",
+    "lines": 7,
+    "sha256": "29e2098062b971324d77a62ef8b9a2bd0fac5ee4838916890aaf7d5156aeef4e"
+  },
+  {
+    "file": "apps/web/app/api/proctor/school-years/active/route.ts",
+    "lines": 8,
+    "sha256": "24b8ba0c0cadee4e0b63fff3fa2d21c0ada4d750c11538c26fec2719e6389cbc"
+  },
+  {
+    "file": "apps/web/app/api/proctor/school-years/route.ts",
+    "lines": 15,
+    "sha256": "226e77b7038bd49886c2578faa6db45c9952b46c51f4c26aef2b7774790fd53e"
+  },
+  {
+    "file": "apps/web/app/api/proctor/stats/route.ts",
+    "lines": 8,
+    "sha256": "086419cc1e138ab39cda4dd75e492a47bcb6e76ddcddaead0260081fd579c979"
+  },
+  {
+    "file": "apps/web/app/api/proctor/subjects/route.ts",
+    "lines": 8,
+    "sha256": "37be1f8fdf5bebf41c3e437b880c219b27c494df9fa47b867e82854fdc64f130"
+  },
+  {
+    "file": "apps/web/app/api/proctoring/attempts/[attemptId]/reset/route.ts",
+    "lines": 11,
+    "sha256": "f46f4212c9191b3ab2efb5f85de5c12c3790440ab002f86b96acac0d8164ce33"
+  },
+  {
+    "file": "apps/web/app/api/proctoring/attempts/[attemptId]/terminate/route.ts",
+    "lines": 11,
+    "sha256": "171a5f82deb7cf6b4f9db6522e2330788a226cf43dcd42b146462e1bf5f87daf"
+  },
+  {
+    "file": "apps/web/app/api/proctoring/attempts/[attemptId]/violations/route.ts",
+    "lines": 11,
+    "sha256": "b5451fe956e5f84b8e0e42bc816f46f8bb7c9b980f18125df84103090eb66ca9"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/bulk-import/route.ts",
+    "lines": 79,
+    "sha256": "a3a64d8149750b1ee08fa5cfe8f474b529ca8177122ddedda569b1f470bb51f1"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/dimensions/route.ts",
+    "lines": 15,
+    "sha256": "0fab72ebecc71eb71ac59f71e0d2aea79ed92a5ddaa9c0051533e4d7932bc823"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/instructions/import/route.ts",
+    "lines": 11,
+    "sha256": "6d36a1b9ec669df099330e3a0c1f2f474fee2c3e9e72d4087d006d1ec863f3cf"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/instructions/route.ts",
+    "lines": 15,
+    "sha256": "749506b3a6b2bdb2427f215174db90cc94bb748219fc2c8cb194a4cafedc67ab"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/interpretations/route.ts",
+    "lines": 11,
+    "sha256": "d45bf6f7fe305da6bf9dd00122c39627ba873b4bedda34f0c15afb514922a13d"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/kisi-kisi/route.ts",
+    "lines": 15,
+    "sha256": "8a50345f7b9b50e1730200761bf232f1d80ec668a88c723647b6b3cc5f914b9f"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/publish/route.ts",
+    "lines": 11,
+    "sha256": "1363bf7d3b36a6eac4a9caa983692c688b5be8a2e3629caf75f195324ba3a8ef"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/questions/[questionId]/route.ts",
+    "lines": 71,
+    "sha256": "cc24c950acd6d8a2e7e49188d30de379467e49daa28f7335551161e42d2ed380"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/questions/order/route.ts",
+    "lines": 15,
+    "sha256": "16b5aa637e1af074d92afc223aeae5bd755c6f40f539cf80fda821288984c4c1"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/questions/route.ts",
+    "lines": 11,
+    "sha256": "aff51a8bfa2405db6287aa852eaae9de78f1ed2e055369601173c3aa2c617119"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/route.ts",
+    "lines": 20,
+    "sha256": "325099ca93cc94ff483bc514f18d9cc414a946b2fc4006feb201e8be72887333"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/stimuli/import/route.ts",
+    "lines": 11,
+    "sha256": "1c0e39b9f5ba5bb2957cf12e5d87de52e00c7638171c7e57875e245104190d28"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/[bankId]/stimuli/route.ts",
+    "lines": 15,
+    "sha256": "b799a6d44707d9452b7437a7e1a2b0b1bb4028c7765d66b32431d33376a4de09"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/dimensions/[id]/route.ts",
+    "lines": 17,
+    "sha256": "98e744408369b7adb346ab0383c3f79fc02c1d130f62e4e3fe36763b96895ef1"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/folders/[folderId]/route.ts",
+    "lines": 17,
+    "sha256": "e5488b18e309f14fa0c6d16943afc2fb0de168648c4a8a4b4115d6711b105901"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/folders/move/route.ts",
+    "lines": 7,
+    "sha256": "7bc08c2a0f9da5ae141ab950808765570c98842f3f66e73cd098dad6643783c0"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/folders/route.ts",
+    "lines": 15,
+    "sha256": "5841965a2bfa8487fc70c500287b2740a3dad69c022c781d869e99fe1057fba6"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/instructions/[id]/route.ts",
+    "lines": 17,
+    "sha256": "414438c099a334c731be0b9d25d109519e8c241522eca00c873e97ada1e5fd33"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/interpretations/[id]/route.ts",
+    "lines": 17,
+    "sha256": "6c1fe20782d95d348430161f84a64e6144957ead066b210450d42041b28e9938"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/interpretations/route.ts",
+    "lines": 7,
+    "sha256": "37ee079a05c7025d28d952083f59bb70f2155ac18b42a7682701308071e00550"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/kisi-kisi/[id]/route.ts",
+    "lines": 17,
+    "sha256": "d31d6b6094659cfc8890ace34bb0ccd36e545ca28e10d5565696146937022374"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/labels/route.ts",
+    "lines": 15,
+    "sha256": "a8b16cf90cf32763b69768a7d40a53117a00e2eafd108b5c82ae5c76e8512a75"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/questions/[questionId]/metadata/route.ts",
+    "lines": 15,
+    "sha256": "b0529c3c436254d01fadff267e15be0da0b78c77375d73ddc43c3bb146eee2bb"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/questions/route.ts",
+    "lines": 7,
+    "sha256": "8344ec231a9a1166f583234a834943b3a0531ff251dd90f3e76d39a81dea97cf"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/route.ts",
+    "lines": 14,
+    "sha256": "eff2809b495dceb67187f808f82ec717d07e31fad68889bd0681f2e21d9c9618"
+  },
+  {
+    "file": "apps/web/app/api/question-banks/stimuli/[id]/route.ts",
+    "lines": 17,
+    "sha256": "b2f4d37d5f3191d209be46c8e20f6618fcf381e442e8d3608f0678e952293cfd"
+  },
+  {
+    "file": "apps/web/app/api/route.ts",
+    "lines": 6,
+    "sha256": "f7b5d76ac8ebd2a13ebc52e5b069249d7164e8f043dbf71c274702fbbf68e499"
+  },
+  {
+    "file": "apps/web/app/api/settings/route.ts",
+    "lines": 11,
+    "sha256": "97383b51a51a76bfb442262ea91d4bb1343bd1c45c6c73c8c7dca2701238bcd2"
+  },
+  {
+    "file": "apps/web/app/api/storage/upload/route.ts",
+    "lines": 62,
+    "sha256": "c602625b192601763a42b970d36ca0a9e84b2c3a3bbb13721cb07d08d1295427"
+  },
+  {
+    "file": "apps/web/app/api/student-analytics/comparison/route.ts",
+    "lines": 7,
+    "sha256": "fa6ed4f3db7b13907e21dd0bb97c0f951eda11a76673175dd105027f2c605e90"
+  },
+  {
+    "file": "apps/web/app/api/student-analytics/history/route.ts",
+    "lines": 8,
+    "sha256": "ffb0e832c9e59d0324d2e7737e0823021b600f68eb6a61489babb0be811b28a7"
+  },
+  {
+    "file": "apps/web/app/api/student-analytics/route.ts",
+    "lines": 7,
+    "sha256": "a8d9cc05f3c4cc9237bc71b942899956374c580ce8a41d06769e99c52ae3b5fd"
+  },
+  {
+    "file": "apps/web/app/api/students/attempts/[attemptId]/answers/[questionId]/route.ts",
+    "lines": 15,
+    "sha256": "7e46f5031a9bd8d9af7ffa06d1b3a44ef124cb5d98649142166d23081b624ae5"
+  },
+  {
+    "file": "apps/web/app/api/students/attempts/[attemptId]/answers/route.ts",
+    "lines": 11,
+    "sha256": "3ab6a60d68ca5b1dab3208b5ef686c6344e1cceb25100237d790644bdeae3b2d"
+  },
+  {
+    "file": "apps/web/app/api/students/attempts/[attemptId]/late-answers/route.ts",
+    "lines": 11,
+    "sha256": "656e440adfe9cd3e26f6dbb39396b7a36fa66e70760fed3ca0cc74f4efeebc27"
+  },
+  {
+    "file": "apps/web/app/api/students/attempts/[attemptId]/route.ts",
+    "lines": 11,
+    "sha256": "8e52061ea538954519578410016e6b81dbffd8ed62d52877e6180fa984ee42bf"
+  },
+  {
+    "file": "apps/web/app/api/students/classes/[classId]/route.ts",
+    "lines": 13,
+    "sha256": "5d0f1e82f0733c6c767064250f6d96ef173fa0b659a85ac1934b7f836235bb58"
+  },
+  {
+    "file": "apps/web/app/api/students/classes/join/route.ts",
+    "lines": 7,
+    "sha256": "47ba9a3eb73da10aebfb0c78d590dcf96cae5fa7177ca3e3cbefe06826cbf8fd"
+  },
+  {
+    "file": "apps/web/app/api/students/classes/route.ts",
+    "lines": 7,
+    "sha256": "1fec96291c0b3888d9c41ade8bb3b4fc22d87b91a929228847b7ec4fc0556b29"
+  },
+  {
+    "file": "apps/web/app/api/students/exams/[examId]/attempts/route.ts",
+    "lines": 11,
+    "sha256": "9a1c0ddd3804265a1cd4e795369ad428b363d2315d28248ac98a3c7e7dd74f3b"
+  },
+  {
+    "file": "apps/web/app/api/students/exams/[examId]/questions/route.ts",
+    "lines": 11,
+    "sha256": "a685c632bfcc41bfdf11a354c13e331ec32ffa4e6430eafdbe8ac42a96210bbb"
+  },
+  {
+    "file": "apps/web/app/api/students/exams/[examId]/route.ts",
+    "lines": 11,
+    "sha256": "884ea77fd17e435cf61d16166beedabcfd47b5ccca1ff4502710e530029d96bc"
+  },
+  {
+    "file": "apps/web/app/api/students/exams/[examId]/submit/route.ts",
+    "lines": 11,
+    "sha256": "c247d0812c449f650fa63c256fe6b270b0d83d1b69e0becd75834f8ab863f15d"
+  },
+  {
+    "file": "apps/web/app/api/students/exams/route.ts",
+    "lines": 7,
+    "sha256": "b1c6852dc4ba9d535e0121928db466eae0ed86b4dd506a5027100a2a1e7bbd51"
+  },
+  {
+    "file": "apps/web/app/api/students/results/route.ts",
+    "lines": 7,
+    "sha256": "b62ef965c5218ad9e6763a0adbedd14aae219065755c22d59533348ce195a51a"
+  },
+  {
+    "file": "apps/web/app/api/teachers/classes/[id]/route.ts",
+    "lines": 11,
+    "sha256": "8bc61f6cb7e85c109b876ea6346d41acfca0901cd5a3c5d9ab217aa8ca28192d"
+  },
+  {
+    "file": "apps/web/app/api/teachers/classes/[id]/students/route.ts",
+    "lines": 11,
+    "sha256": "3b741da5fc74ff234b32f68c19eccafa2d5b86785ca87df83fd89177f91bdafc"
+  },
+  {
+    "file": "apps/web/app/api/teachers/classes/route.ts",
+    "lines": 12,
+    "sha256": "2b525cc092791ef95c7ec00653805735f378d836732a4097c2879ddfdf63c5cb"
+  },
+  {
+    "file": "apps/web/app/api/teachers/grading/[attemptId]/route.ts",
+    "lines": 19,
+    "sha256": "c434b07937576eb77c51a31912e86bb0311d46571e20bddf84e16ebf7f903818"
+  },
+  {
+    "file": "apps/web/app/api/teachers/organization/route.ts",
+    "lines": 7,
+    "sha256": "0157b9a8976a623c29efdafd5804c40fcf76a6aa5d1f581080c3f3cb50b72eaa"
+  },
+  {
+    "file": "apps/web/app/api/teachers/stats/route.ts",
+    "lines": 8,
+    "sha256": "b26fd02738b38ec48e62351125c94a5433c1b7cc20be82139af88006609896e1"
+  },
+  {
+    "file": "apps/web/app/api/teachers/students/route.ts",
+    "lines": 8,
+    "sha256": "cbef129dbea4024abf5e36723914b9c285f1977a0844fc7cdc0a8960fd193efa"
+  },
+  {
+    "file": "apps/web/app/components/DashboardLoading.tsx",
+    "lines": 46,
+    "sha256": "fdfbbbbc03970c285238c0fd9f8777930c1c2fe97b6620d751fd50a6cbd867e3",
+    "imports": [
+      "react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/GlobalErrorHandler.tsx",
+    "lines": 36,
+    "sha256": "3e76e030034182bd17c5da8ebf670f89f2483a1d5587ec1464c6c8597558eeb6",
+    "imports": [
+      "react"
+    ],
+    "handlers": [
+      {
+        "name": "handleError",
+        "line": 7
+      },
+      {
+        "name": "handleRejection",
+        "line": 16
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/ImageCropperModal.tsx",
+    "lines": 221,
+    "sha256": "d0d68c9d9b8cf7541e31b8a82353ee2823b2aaee58d459415270814371dcd27f",
+    "imports": [
+      "react",
+      "react-easy-crop",
+      "framer-motion",
+      "lucide-react",
+      "react-dom"
+    ],
+    "handlers": [
+      {
+        "name": "handleConfirm",
+        "line": 95
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 111
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/LoadingSpinner.tsx",
+    "lines": 91,
+    "sha256": "4f1ee755a027fab269af20c8bd5cd9093e693fb67eb2c937d06b47e8e7b7c0d9",
+    "imports": [
+      "react",
+      "framer-motion"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/MaintenanceProvider.tsx",
+    "lines": 59,
+    "sha256": "22042d25ea9f64086396e142dd0b2b58fb58b190815c95fb358db7d6f32d7810",
+    "imports": [
+      "next/navigation",
+      "react",
+      "lucide-react",
+      "next/font/google"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/MediaViewer.tsx",
+    "lines": 140,
+    "sha256": "88a2f0b5249d92593b2bd5369c237895fc7a79b06fbe72fca1b424dddc36f6cd",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 20
+      },
+      {
+        "tag": "motion.div",
+        "line": 33
+      },
+      {
+        "tag": "motion.div",
+        "line": 83
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/MobileNav.tsx",
+    "lines": 110,
+    "sha256": "7c3b3d13d346bfd7dc2c8e41dba3ad67b55ecf53d35e25b1d514252fa3ffbba4",
+    "imports": [
+      "react",
+      "next/link",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/PasswordInput.tsx",
+    "lines": 41,
+    "sha256": "2c540395f4ce3a9293ff875bdb954c99b1229f029dd56becc37928ca3dbd13d5",
+    "imports": [
+      "react",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/Sidebar.tsx",
+    "lines": 595,
+    "sha256": "a3e82542cf74858164206cd4b854327eeb8f4063d1518c5b2899387d81f6d7b8",
+    "imports": [
+      "react",
+      "next/link",
+      "next/image",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/session",
+      "next/navigation",
+      "@/lib/rbac",
+      "@/lib/api/account",
+      "@/lib/api/settings",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadUserInfo",
+        "line": 271
+      },
+      {
+        "name": "handler",
+        "line": 303
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 435
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/TiptapEditor.tsx",
+    "lines": 411,
+    "sha256": "837c42b2a6f81da0ea3cd67d3d71c3aabd35442733f9cc35a56004bde661168d",
+    "imports": [
+      "react",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-image",
+      "@tiptap/extension-link",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-underline",
+      "@tiptap/extension-placeholder",
+      "@tiptap/extension-highlight",
+      "@tiptap/extension-subscript",
+      "@tiptap/extension-superscript",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "loadMathLive",
+        "line": 61
+      },
+      {
+        "name": "handleInsert",
+        "line": 75
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/AssignmentUploader.tsx",
+    "lines": 311,
+    "sha256": "714d86de55057289dda912dd43c43ac17883a3cf6409b5f2b9c47fb9790742c2",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/uploader"
+    ],
+    "handlers": [
+      {
+        "name": "formatSize",
+        "line": 109
+      },
+      {
+        "name": "handleDrop",
+        "line": 182
+      },
+      {
+        "name": "handleFileInput",
+        "line": 189
+      },
+      {
+        "name": "handleRemove",
+        "line": 194
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 207
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/BulkImportModal.tsx",
+    "lines": 850,
+    "sha256": "923548002762e82c04455101463a60a631e3c0c8ee4690bc1cd9fe207a94aae3",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/imports",
+      "@/lib/api/questions",
+      "@/lib/excel-parser",
+      "@/lib/doc-parser",
+      "@/app/types/question"
+    ],
+    "handlers": [
+      {
+        "name": "handleClose",
+        "line": 99
+      },
+      {
+        "name": "loadAllBanks",
+        "line": 105
+      },
+      {
+        "name": "loadSourceBankQuestions",
+        "line": 122
+      },
+      {
+        "name": "handleSourceBankChange",
+        "line": 137
+      },
+      {
+        "name": "handleStartCrossImport",
+        "line": 161
+      },
+      {
+        "name": "handleFileSelect",
+        "line": 208
+      },
+      {
+        "name": "handleDragOver",
+        "line": 218
+      },
+      {
+        "name": "handleDrop",
+        "line": 223
+      },
+      {
+        "name": "handleParseFile",
+        "line": 237
+      },
+      {
+        "name": "handleStartImport",
+        "line": 285
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 372
+      },
+      {
+        "tag": "div",
+        "line": 441
+      },
+      {
+        "tag": "div",
+        "line": 572
+      },
+      {
+        "tag": "div",
+        "line": 645
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/ChartRenderer.tsx",
+    "lines": 151,
+    "sha256": "383815a0720bdedce5943801dff73ce997bb40bfde5336f0df435d7147dc116a",
+    "imports": [
+      "react",
+      "chart.js",
+      "react-chartjs-2"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/CustomVideoPlayer.tsx",
+    "lines": 325,
+    "sha256": "59462f3be3bd8074bd08b307c04778f5bcf309c17096f6a717e9fb34fc071cce",
+    "imports": [
+      "react",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "handlePlayPause",
+        "line": 166
+      },
+      {
+        "name": "handleSeek",
+        "line": 178
+      },
+      {
+        "name": "handleVolume",
+        "line": 198
+      },
+      {
+        "name": "formatTime",
+        "line": 217
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 264
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/DimensionManager.tsx",
+    "lines": 341,
+    "sha256": "47b3488a40f6ab50052df1472b5a66cad73c342c110d71e87b2069fce45c96e7",
+    "imports": [
+      "react",
+      "@/lib/api/questions",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 38
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 49
+      },
+      {
+        "name": "handleSave",
+        "line": 62
+      },
+      {
+        "name": "handleDelete",
+        "line": 75
+      },
+      {
+        "name": "handleOpenInterpEditor",
+        "line": 83
+      },
+      {
+        "name": "handleSaveInterp",
+        "line": 101
+      },
+      {
+        "name": "handleDeleteInterp",
+        "line": 115
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/DynamicChart.tsx",
+    "lines": 48,
+    "sha256": "c13d5b90663d3fa7eaa48edf88ccdf0b712485b0115da39c3a18246286a2377f",
+    "imports": [
+      "react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/ErrorBoundary.tsx",
+    "lines": 54,
+    "sha256": "765d3543213e3d6a00a6d9c2854a8f15bd3d6e475c87b1fd9086731c80c32072",
+    "imports": [
+      "react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/ExamPage.tsx",
+    "lines": 929,
+    "sha256": "c9e28d7ffb03b8419328dd83318d5f86d659ac2e3c3aef4b6e319256dcf33a47",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/session",
+      "@/lib/device-id",
+      "@/lib/session-reset",
+      "@/lib/api/students",
+      "@/lib/api/proctoring",
+      "@/app/components/ui/SkeletonPatterns",
+      "@/app/components/ui/Toast",
+      "./ExamViewer"
+    ],
+    "handlers": [
+      {
+        "name": "savedViolationsRef",
+        "line": 97
+      },
+      {
+        "name": "submitInFlightRef",
+        "line": 99
+      },
+      {
+        "name": "loadedQuestions",
+        "line": 219
+      },
+      {
+        "name": "savedA",
+        "line": 329
+      },
+      {
+        "name": "savedD",
+        "line": 330
+      },
+      {
+        "name": "handleSubmitExam",
+        "line": 392
+      },
+      {
+        "name": "handleSubmitExamRef",
+        "line": 456
+      },
+      {
+        "name": "handleOnline",
+        "line": 509
+      },
+      {
+        "name": "handleOffline",
+        "line": 519
+      },
+      {
+        "name": "handleSecurityViolation",
+        "line": 533
+      },
+      {
+        "name": "handleAnswerSelect",
+        "line": 709
+      },
+      {
+        "name": "handleRequestFullscreen",
+        "line": 770
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/ExamPrintView.tsx",
+    "lines": 461,
+    "sha256": "a5e09e17d8829fef1f5212c60ece4f2d6438e200914ad328f03b984d36857d61",
+    "imports": [
+      "react",
+      "./LatexRenderer"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/ExamQuestionCard.tsx",
+    "lines": 119,
+    "sha256": "0a64f51260f867ff5c370423f631a7941c2cebaeb9b796cdf889172bb2f54406",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "./QuestionRenderer",
+      "@/app/types"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/ExamViewer.tsx",
+    "lines": 924,
+    "sha256": "abd85d59d1e089a9e4ce82c8204a451e73065aab870e02f88f84637abe6f7497",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "./ExamQuestionCard",
+      "./AssignmentUploader"
+    ],
+    "handlers": [
+      {
+        "name": "formatTime",
+        "line": 220
+      },
+      {
+        "name": "handleKeyDown",
+        "line": 228
+      },
+      {
+        "name": "handleSubmitClick",
+        "line": 258
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 767
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/InlineMath.tsx",
+    "lines": 67,
+    "sha256": "5f9f8d33b9c440c611033605c8076cf3a0c029d862caaf173fbdaa341652842c",
+    "imports": [
+      "react",
+      "./math-utils"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/InstructionManager.tsx",
+    "lines": 379,
+    "sha256": "d6c645877d06e6781e503b8652ad12d38acd41ace8c7ead8ab54f0654a2fcdf8",
+    "imports": [
+      "react",
+      "@/lib/api/questions",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/TipTapEditor",
+      "@/lib/doc-parser"
+    ],
+    "handlers": [
+      {
+        "name": "loadInstructions",
+        "line": 38
+      },
+      {
+        "name": "handleFileChange",
+        "line": 50
+      },
+      {
+        "name": "handleOpenImport",
+        "line": 99
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 107
+      },
+      {
+        "name": "handleSave",
+        "line": 120
+      },
+      {
+        "name": "handleDelete",
+        "line": 133
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/InteractiveMatching.tsx",
+    "lines": 349,
+    "sha256": "e71d6bfb3560b1230721183b3433656832c0ea2ade88f9effd368c132f8932ec",
+    "imports": [
+      "react",
+      "framer-motion",
+      "react-xarrows",
+      "./LatexRenderer",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 259
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/KisiKisiTab.tsx",
+    "lines": 268,
+    "sha256": "97cef305b0e5b9ac511cef77d52c47856ab8278acd1bdc82e0623ebf152a1cca",
+    "imports": [
+      "react",
+      "@/lib/api/questions",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "loadKisiKisi",
+        "line": 32
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 39
+      },
+      {
+        "name": "handleSave",
+        "line": 58
+      },
+      {
+        "name": "handleDelete",
+        "line": 82
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/LatexRenderer.tsx",
+    "lines": 145,
+    "sha256": "3105f2b18bb1a8525b485fab24838918361a488c9dcb735b6dd4d267f3f721ea",
+    "imports": [
+      "react",
+      "dompurify",
+      "./math-utils"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/MathEditor.tsx",
+    "lines": 310,
+    "sha256": "ea9f1117df9a7cad78cb8957815c114021a44900813fb3725357a97f3d35e68b",
+    "imports": [
+      "react",
+      "./math-utils"
+    ],
+    "handlers": [
+      {
+        "name": "handleInsert",
+        "line": 125
+      },
+      {
+        "name": "handler",
+        "line": 136
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 176
+      },
+      {
+        "tag": "div",
+        "line": 180
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/MathRenderer.tsx",
+    "lines": 141,
+    "sha256": "d5d3dad4fe9e730c879e7ed7afd43fda63a1881a3605064539212733ff69ce54",
+    "imports": [
+      "react",
+      "./math-utils"
+    ],
+    "handlers": [
+      {
+        "name": "handleSave",
+        "line": 37
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "span",
+        "line": 100
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/MathToolbar.tsx",
+    "lines": 103,
+    "sha256": "1b634481765c821892db54f6635090a652a5b71649b43fc2a62f8f43946dabed",
+    "imports": [
+      "react",
+      "./math-utils"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/MobileExamLayout.tsx",
+    "lines": 535,
+    "sha256": "270d507aa4b20a7b8767f6c8ade83ba844d98de4c478f9b4bada94c1d7e52f31",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "formatTime",
+        "line": 93
+      },
+      {
+        "name": "handleTouchStart",
+        "line": 103
+      },
+      {
+        "name": "handleTouchMove",
+        "line": 107
+      },
+      {
+        "name": "handleTouchEnd",
+        "line": 111
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 364
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/MobileExamQuestionCard.tsx",
+    "lines": 147,
+    "sha256": "289bbd1fe78f2034de4f1ddcda32544e6d9db318e553c961755cbce275cf8869",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "./QuestionRenderer",
+      "@/app/types"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/PreviewModal.tsx",
+    "lines": 165,
+    "sha256": "2472abf37ed174da70fa97a55ff3f81d74a798e5cee5ff48a08b85ccbf3ae6bb",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "next/navigation",
+      "./ExamViewer"
+    ],
+    "handlers": [
+      {
+        "name": "handleFinish",
+        "line": 104
+      },
+      {
+        "name": "handleToggleDoubtful",
+        "line": 115
+      },
+      {
+        "name": "handleNavigate",
+        "line": 124
+      },
+      {
+        "name": "handleAnswerChange",
+        "line": 134
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/QuestionEditorModal.tsx",
+    "lines": 1341,
+    "sha256": "0b9b235c4813589ebedb98be485e98a04870c763a6caa5b8178f88b8305d71f7",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "./LatexRenderer",
+      "./MathToolbar",
+      "./math-utils",
+      "./forms/MCQForm",
+      "./forms/TrueFalseForm",
+      "./forms/MatchingForm",
+      "./forms/CategorizationForm",
+      "./forms/ShortAnswerForm",
+      "./forms/EssayForm",
+      "./forms/SJTForm",
+      "./forms/OrderingForm",
+      "./forms/LikertForm",
+      "./forms/ForcedChoiceForm",
+      "./forms/ChecklistForm",
+      "./forms/RankingForm",
+      "./forms/PairedComparisonForm",
+      "@/lib/uploader",
+      "./TipTapEditor"
+    ],
+    "handlers": [
+      {
+        "name": "saveLatexToOption",
+        "line": 248
+      },
+      {
+        "name": "handleSave",
+        "line": 369
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 609
+      },
+      {
+        "tag": "div",
+        "line": 841
+      },
+      {
+        "tag": "div",
+        "line": 1129
+      },
+      {
+        "tag": "motion.div",
+        "line": 1130
+      },
+      {
+        "tag": "div",
+        "line": 1266
+      },
+      {
+        "tag": "motion.div",
+        "line": 1267
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/QuestionRenderer.tsx",
+    "lines": 1805,
+    "sha256": "fc7d910dab69db528425753a5ec7343b4a2d0620d02867ff0136a61009bc0f98",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "./LatexRenderer",
+      "./InteractiveMatching",
+      "./StimulusViewer",
+      "@/app/types",
+      "react-dom/client",
+      "./CustomVideoPlayer",
+      "@/lib/answer-parser",
+      "./AssignmentUploader",
+      "@/lib/safe-url"
+    ],
+    "handlers": [
+      {
+        "name": "handleChange",
+        "line": 1522
+      },
+      {
+        "name": "handleBlur",
+        "line": 1531
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 320
+      },
+      {
+        "tag": "motion.div",
+        "line": 327
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/StimulusManager.tsx",
+    "lines": 377,
+    "sha256": "f9cfeea24136e265673f29a707d5df8ad20ffe0f83aae48cae179b272a8de855",
+    "imports": [
+      "react",
+      "@/lib/api/questions",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/TipTapEditor",
+      "@/lib/doc-parser"
+    ],
+    "handlers": [
+      {
+        "name": "loadStimuli",
+        "line": 38
+      },
+      {
+        "name": "handleFileChange",
+        "line": 50
+      },
+      {
+        "name": "handleOpenImport",
+        "line": 99
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 107
+      },
+      {
+        "name": "handleSave",
+        "line": 120
+      },
+      {
+        "name": "handleDelete",
+        "line": 136
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/StimulusViewer.tsx",
+    "lines": 17,
+    "sha256": "c372498b0c4fe4b5b07dc56c00766f2adc6a7562ea83c3f0e66518d740fcf397",
+    "imports": [
+      "react",
+      "./LatexRenderer"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/TipTapEditor.tsx",
+    "lines": 19,
+    "sha256": "b2695e3834facd9c069989cdc231d4915f9f2065f7b1ac50fdc39d785ec7bcf9",
+    "imports": [
+      "react",
+      "./TipTapEditorCore"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/TipTapEditorCore.tsx",
+    "lines": 1986,
+    "sha256": "1ee35d81176828a11fccaad33783d01f578b01fdb300565f754ae844eb3a5a14",
+    "imports": [
+      "react",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-text-style",
+      "@tiptap/extension-color",
+      "@tiptap/extension-list-item",
+      "@tiptap/extension-ordered-list",
+      "@tiptap/extension-image",
+      "@tiptap/extension-table",
+      "@tiptap/extension-table-row",
+      "@tiptap/extension-table-cell",
+      "@tiptap/extension-table-header",
+      "@tiptap/extension-bullet-list",
+      "@tiptap/extension-placeholder",
+      "@tiptap/extension-underline",
+      "@tiptap/extension-link",
+      "@tiptap/core",
+      "@tiptap/pm/state",
+      "@tiptap/pm/view",
+      "@tiptap/pm/model",
+      "@tiptap/core",
+      "lucide-react",
+      "./MathToolbar",
+      "./MathRenderer",
+      "./math-utils",
+      "./CustomVideoPlayer",
+      "mathlive",
+      "./video-embed",
+      "./audio-embed"
+    ],
+    "handlers": [
+      {
+        "name": "formatted",
+        "line": 365
+      },
+      {
+        "name": "handleEditorClick",
+        "line": 383
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 439
+      },
+      {
+        "name": "handleAudioUpload",
+        "line": 450
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 1532
+      },
+      {
+        "tag": "div",
+        "line": 1536
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/TipTapPreviewRenderer.tsx",
+    "lines": 207,
+    "sha256": "ea60c53d4b50e09038587b7c3a45ad5e78799a177750ecd34bce798a09b1438c",
+    "imports": [
+      "react",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+      "@tiptap/extension-list",
+      "@tiptap/extension-text-align",
+      "@tiptap/extension-underline",
+      "@tiptap/extension-link",
+      "@tiptap/extension-placeholder",
+      "./video-embed",
+      "./audio-embed",
+      "react-dom/client",
+      "./CustomVideoPlayer"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/audio-embed.ts",
+    "lines": 72,
+    "sha256": "26062c396e47155a66ab9a1afeff5b7845507e690361c70d74dc99966a8ef830"
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/AnswerOptionCard.tsx",
+    "lines": 685,
+    "sha256": "a97c8c4bebab6db9f9a217ae075f7e4484f506f02afc0b37712f42d005751890",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./RichInput",
+      "../MathToolbar",
+      "../math-utils",
+      "@/lib/uploader"
+    ],
+    "handlers": [
+      {
+        "name": "handleInsert",
+        "line": 34
+      },
+      {
+        "name": "handleAdd",
+        "line": 297
+      },
+      {
+        "name": "handleClickOutside",
+        "line": 384
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 405
+      },
+      {
+        "name": "handlePaste",
+        "line": 420
+      },
+      {
+        "name": "handleInsertEquation",
+        "line": 446
+      },
+      {
+        "name": "handleInsertTable",
+        "line": 450
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 45
+      },
+      {
+        "tag": "div",
+        "line": 46
+      },
+      {
+        "tag": "div",
+        "line": 203
+      },
+      {
+        "tag": "div",
+        "line": 204
+      },
+      {
+        "tag": "div",
+        "line": 307
+      },
+      {
+        "tag": "div",
+        "line": 308
+      },
+      {
+        "tag": "div",
+        "line": 522
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/CategorizationForm.tsx",
+    "lines": 522,
+    "sha256": "1bea82d774618a5bbd86313a63fde4e82d50cef4b1dc6dc976aeb498537dfe89",
+    "imports": [
+      "react",
+      "lucide-react",
+      "../schema",
+      "./RichInput",
+      "./AnswerOptionCard",
+      "@/lib/uploader",
+      "framer-motion"
+    ],
+    "handlers": [
+      {
+        "name": "handleClick",
+        "line": 365
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 387
+      },
+      {
+        "name": "handleInsertEquation",
+        "line": 403
+      },
+      {
+        "name": "handleInsertTable",
+        "line": 407
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 48
+      },
+      {
+        "tag": "motion.div",
+        "line": 49
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/ChecklistForm.tsx",
+    "lines": 115,
+    "sha256": "a659878e1bb17ecf625116d2207786eb627ddd23a5aae1dff184661a1cc56bf4",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/EssayForm.tsx",
+    "lines": 103,
+    "sha256": "4d886ae5f48e09f63043405601b14bd6d000465d2c9a19a10a8f0f1ab884cbb5",
+    "imports": [
+      "react",
+      "lucide-react",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/ForcedChoiceForm.tsx",
+    "lines": 115,
+    "sha256": "436706c05d97bc49529cf9aecd8ca583db3ca30cce18e7d4b8c540ebc3c6a46d",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/LikertForm.tsx",
+    "lines": 12,
+    "sha256": "af320973cf0e840d11edcf3e86b3eb00dccca401e5d77001a459e03c1efe64ae",
+    "imports": [
+      "react",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/MCQForm.tsx",
+    "lines": 142,
+    "sha256": "ab5dfe1d30e94d76a2a353d0469190127973a5fc0e37b52b032ba189e7e65dc9",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [
+      {
+        "name": "handleCorrectClick",
+        "line": 103
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/MatchingForm.tsx",
+    "lines": 362,
+    "sha256": "86534840d95858a3dc8fc7747cbebce1b2b1cd5b706e1142d303ffb0bb9211b6",
+    "imports": [
+      "react",
+      "lucide-react",
+      "../schema",
+      "./RichInput",
+      "./AnswerOptionCard",
+      "../math-utils"
+    ],
+    "handlers": [
+      {
+        "name": "handleInsertEquation",
+        "line": 258
+      },
+      {
+        "name": "handleInsertTable",
+        "line": 262
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/OrderingForm.tsx",
+    "lines": 208,
+    "sha256": "d0795cd9bb8261f873de35a76d7294843e8b4c3cf98a746f5850f9f3fc2417bc",
+    "imports": [
+      "react",
+      "lucide-react",
+      "../schema"
+    ],
+    "handlers": [
+      {
+        "name": "handleAdd",
+        "line": 41
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/PairedComparisonForm.tsx",
+    "lines": 104,
+    "sha256": "0c34a0756d33c8c5cc8c0a1594a0c631be401bf94747d0252acc405690a1c3e3",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/QuestionForms.tsx",
+    "lines": 309,
+    "sha256": "d457bb9c9201921ecd409bb7c9edaaab30f1090de9949c762557e8d3e031dd4f",
+    "imports": [
+      "react",
+      "../schema",
+      "./MCQForm",
+      "./TrueFalseForm",
+      "./MatchingForm",
+      "./CategorizationForm",
+      "./ShortAnswerForm",
+      "./EssayForm",
+      "./SJTForm",
+      "./OrderingForm"
+    ],
+    "handlers": [
+      {
+        "name": "handleSetAllCorrect",
+        "line": 99
+      },
+      {
+        "name": "handleToggleCorrect",
+        "line": 104
+      },
+      {
+        "name": "handleAddLeftItem",
+        "line": 109
+      },
+      {
+        "name": "handleRemoveLeftItem",
+        "line": 114
+      },
+      {
+        "name": "handleUpdateLeftItem",
+        "line": 119
+      },
+      {
+        "name": "handleAddRightItem",
+        "line": 125
+      },
+      {
+        "name": "handleRemoveRightItem",
+        "line": 130
+      },
+      {
+        "name": "handleUpdateRightItem",
+        "line": 135
+      },
+      {
+        "name": "handleSetLeftMatch",
+        "line": 141
+      },
+      {
+        "name": "handleSetCategories",
+        "line": 147
+      },
+      {
+        "name": "handleSetItemCategory",
+        "line": 152
+      },
+      {
+        "name": "handleAddBlank",
+        "line": 158
+      },
+      {
+        "name": "handleRemoveBlank",
+        "line": 163
+      },
+      {
+        "name": "handleUpdateBlank",
+        "line": 168
+      },
+      {
+        "name": "handleSetOptionWeight",
+        "line": 174
+      },
+      {
+        "name": "handleSetCorrectOrder",
+        "line": 180
+      },
+      {
+        "name": "handleMoveOrderingItem",
+        "line": 185
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/RankingForm.tsx",
+    "lines": 115,
+    "sha256": "fc32cace624b1426a4c06435700cfe15ef2696fb6df083fffef9ec80df460583",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/RichInput.tsx",
+    "lines": 143,
+    "sha256": "403834b9b493aed75550da8dbfdd98a1a98c948d8a702788b6d5fe95289e64d3",
+    "imports": [
+      "react",
+      "../math-utils"
+    ],
+    "handlers": [
+      {
+        "name": "handleChange",
+        "line": 85
+      },
+      {
+        "name": "handleFocus",
+        "line": 89
+      },
+      {
+        "name": "handleBlur",
+        "line": 94
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 105
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/RichInputToolbar.tsx",
+    "lines": 591,
+    "sha256": "2575cabf4657fdfdc666d233683131d1876ad32c83481d6a8efbe78c568b4989",
+    "imports": [
+      "react",
+      "framer-motion",
+      "@/lib/uploader"
+    ],
+    "handlers": [
+      {
+        "name": "formatAction",
+        "line": 64
+      },
+      {
+        "name": "handleAlign",
+        "line": 75
+      },
+      {
+        "name": "handleList",
+        "line": 81
+      },
+      {
+        "name": "handleLink",
+        "line": 87
+      },
+      {
+        "name": "handleImageFile",
+        "line": 96
+      },
+      {
+        "name": "handleInsertLatex",
+        "line": 115
+      },
+      {
+        "name": "handleImageFile",
+        "line": 360
+      },
+      {
+        "name": "handleInsertLatexFromDialog",
+        "line": 379
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/SJTForm.tsx",
+    "lines": 153,
+    "sha256": "27a2a89b35ef1a4843b2bf60bba562c78826d144c9a4108b38e6030311882309",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./AnswerOptionCard",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/ShortAnswerForm.tsx",
+    "lines": 208,
+    "sha256": "d2dd2fb45bc765c93cb62bbdc1154c704dee650d191d3009c17efb9b8cbed06d",
+    "imports": [
+      "react",
+      "lucide-react"
+    ],
+    "handlers": [
+      {
+        "name": "handleAnswerBlur",
+        "line": 115
+      },
+      {
+        "name": "handleAdd",
+        "line": 123
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/TrueFalseForm.tsx",
+    "lines": 217,
+    "sha256": "7cbc2d38398f9aee7065890fc7a806c92f1a1a34141b1b78505143e2930def33",
+    "imports": [
+      "react",
+      "lucide-react",
+      "../schema",
+      "./RichInput",
+      "./AnswerOptionCard"
+    ],
+    "handlers": [
+      {
+        "name": "handleInsertEquation",
+        "line": 102
+      },
+      {
+        "name": "handleInsertTable",
+        "line": 106
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/forms/index.tsx",
+    "lines": 178,
+    "sha256": "a54f2cdbe4a14844ad1afe565354830232afb74ebeeacbe64e769565f311a23c",
+    "imports": [
+      "react",
+      "./QuestionForms",
+      "../schema"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/questions/math-utils.ts",
+    "lines": 269,
+    "sha256": "e58b18ef7d38e56aeb74a5ab068659cf18de762b1356997c0a246b2fce6a873a"
+  },
+  {
+    "file": "apps/web/app/components/questions/schema.ts",
+    "lines": 578,
+    "sha256": "3266382dd6eca28a09b46bbd1627172b2b874f1ff8d3e142d557cd237dfed5c7"
+  },
+  {
+    "file": "apps/web/app/components/questions/video-embed.ts",
+    "lines": 284,
+    "sha256": "ff8b242b0d912b41e7e6e26e2252dee8dd39f7fb91f72bd7ac2ca271e3d66197"
+  },
+  {
+    "file": "apps/web/app/components/ui/Charts.tsx",
+    "lines": 424,
+    "sha256": "d2933e9c6d208300216408e6b5ae12f2fbb92d140faea19231c29a06e0eff0bf",
+    "imports": [
+      "react",
+      "lucide-react",
+      "./Skeleton"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/ui/ErrorBoundary.tsx",
+    "lines": 183,
+    "sha256": "2a71e0f9c61e6a1652317e19d3f79207a1b67ad4ee6dbeeed86d35caeb7fb6f4",
+    "imports": [
+      "react",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/ui/NotificationBell.tsx",
+    "lines": 302,
+    "sha256": "70b27d3801e6c1e02bf30c748e0e73611f1f03703ae4f22c1441b566601f4a68",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/notifications",
+      "@/app/types/notification",
+      "@/app/types/notification",
+      "@/lib/useAutoRefresh"
+    ],
+    "handlers": [
+      {
+        "name": "fetchNotifications",
+        "line": 39
+      },
+      {
+        "name": "handleMarkAsRead",
+        "line": 82
+      },
+      {
+        "name": "handleMarkAllAsRead",
+        "line": 88
+      },
+      {
+        "name": "handleDelete",
+        "line": 96
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 140
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/components/ui/Skeleton.tsx",
+    "lines": 104,
+    "sha256": "ca0444c7cb0155e8834d6afad88a77f73ea1d317737033696309baa41ecbade2",
+    "imports": [
+      "react",
+      "framer-motion"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/ui/SkeletonPatterns.tsx",
+    "lines": 269,
+    "sha256": "3bad7893e49a24dcba304cacb34f0d2fa4f8cf59ff49d6fab4a20d98ff76c6cf",
+    "imports": [
+      "react",
+      "./Skeleton"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/components/ui/Toast.tsx",
+    "lines": 162,
+    "sha256": "31f57f73e887dea98b4c456ee8b9a6339f6cb295a7970ef98404743907f0bed9",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/RecentLoginsCard.tsx",
+    "lines": 189,
+    "sha256": "6802f0de5204f2d4bf8dafe76556606f530687c048ce1477dda9d2963ddb2e66",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 140
+      },
+      {
+        "tag": "div",
+        "line": 144
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/assignments/[examId]/page.tsx",
+    "lines": 471,
+    "sha256": "6e59bce5e03fd2eed380a644db4462511bb5c3a6f2007ab086c35f6883ec8386",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 43
+      },
+      {
+        "name": "handleSaveGrade",
+        "line": 67
+      },
+      {
+        "name": "formatDate",
+        "line": 123
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/backup/page.tsx",
+    "lines": 245,
+    "sha256": "de6611ae30c5702d0ef6a012fcad4f29f8e318d8dcfc7a5f84c09f015392cf4c",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "handleExport",
+        "line": 23
+      },
+      {
+        "name": "handleFileChange",
+        "line": 67
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/classes/page.tsx",
+    "lines": 652,
+    "sha256": "210e58493f77628c50697ef2cbf1b409c57df4117336ffe78ee4bef8fec36057",
+    "imports": [
+      "react",
+      "next/link",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleViewStudents",
+        "line": 46
+      },
+      {
+        "name": "handleFocus",
+        "line": 57
+      },
+      {
+        "name": "loadData",
+        "line": 61
+      },
+      {
+        "name": "handleCreateClass",
+        "line": 86
+      },
+      {
+        "name": "handleDeleteClass",
+        "line": 106
+      },
+      {
+        "name": "handleEditClass",
+        "line": 118
+      },
+      {
+        "name": "handleCopyCode",
+        "line": 140
+      },
+      {
+        "name": "handleExport",
+        "line": 155
+      },
+      {
+        "name": "exportData",
+        "line": 157
+      },
+      {
+        "name": "formattedData",
+        "line": 582
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/exams/page.tsx",
+    "lines": 2255,
+    "sha256": "1fd0fc6b9cc147c47e4004557591053e77c404f8cff72aebbff5ccd71145d8ac",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/exams",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/exam-configs",
+      "@/lib/api/pas",
+      "../pas/page",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 157
+      },
+      {
+        "name": "handleCreateExam",
+        "line": 244
+      },
+      {
+        "name": "handleEditExam",
+        "line": 303
+      },
+      {
+        "name": "handleAssignExam",
+        "line": 341
+      },
+      {
+        "name": "handlePublishToggle",
+        "line": 372
+      },
+      {
+        "name": "handleDeleteExam",
+        "line": 397
+      },
+      {
+        "name": "loadExamAssignments",
+        "line": 505
+      },
+      {
+        "name": "formatDateTime",
+        "line": 516
+      },
+      {
+        "name": "handleCreateConfig",
+        "line": 557
+      },
+      {
+        "name": "handleDeleteConfig",
+        "line": 604
+      },
+      {
+        "name": "handleToggleConfigLock",
+        "line": 618
+      },
+      {
+        "name": "handleAddBankToConfig",
+        "line": 630
+      },
+      {
+        "name": "handleRemoveBankFromConfig",
+        "line": 647
+      },
+      {
+        "name": "handleAddClassExam",
+        "line": 657
+      },
+      {
+        "name": "handleRemoveConfigExam",
+        "line": 684
+      },
+      {
+        "name": "handleGenerateConfigExams",
+        "line": 690
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 766
+      },
+      {
+        "tag": "div",
+        "line": 935
+      },
+      {
+        "tag": "div",
+        "line": 1384
+      },
+      {
+        "tag": "div",
+        "line": 1760
+      },
+      {
+        "tag": "div",
+        "line": 2091
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/exams/pas/[id]/BulkScheduleGrid.tsx",
+    "lines": 232,
+    "sha256": "6117b1f2a91446ea12b5bd3337e67fcda848a61b7d752e81166fe5ecad9f3e7f",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/pas"
+    ],
+    "handlers": [
+      {
+        "name": "handleAddRow",
+        "line": 24
+      },
+      {
+        "name": "handleRemoveRow",
+        "line": 28
+      },
+      {
+        "name": "handleChange",
+        "line": 33
+      },
+      {
+        "name": "handleKeyDown",
+        "line": 37
+      },
+      {
+        "name": "handleSave",
+        "line": 56
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/exams/pas/[id]/page.tsx",
+    "lines": 570,
+    "sha256": "25437bc50746da2585ea875586f305e5560098f4221152dcf4f1e23396d0eed7",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/pas",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "next/navigation",
+      "next/link",
+      "@/lib/useMemoryState",
+      "./BulkScheduleGrid",
+      "@/app/dashboard/admin/pas/RoomManagementModal"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 61
+      },
+      {
+        "name": "loadData",
+        "line": 65
+      },
+      {
+        "name": "handleAddSchedule",
+        "line": 97
+      },
+      {
+        "name": "handleRemoveSchedule",
+        "line": 127
+      },
+      {
+        "name": "handleGenerateExams",
+        "line": 138
+      },
+      {
+        "name": "formatDate",
+        "line": 151
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 479
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/monitoring/[attemptId]/page.tsx",
+    "lines": 484,
+    "sha256": "bb81d7a962640e9d0a734b2bec262594a6f6dbb4f962435a8deafdd42837bc0e",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/api/proctoring",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleGradeChange",
+        "line": 52
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 59
+      },
+      {
+        "name": "handleSave",
+        "line": 77
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/monitoring/page.tsx",
+    "lines": 1100,
+    "sha256": "ef0d04442d423e1189661622f4d3c712136a80fc73547251576777e3941a27bd",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/api/proctor",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/proctoring",
+      "@/lib/api/grading",
+      "@/lib/session",
+      "next/navigation",
+      "react",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadInitialData",
+        "line": 48
+      },
+      {
+        "name": "loadExamData",
+        "line": 64
+      },
+      {
+        "name": "handleRefresh",
+        "line": 115
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 126
+      },
+      {
+        "name": "handleCalculateIRT",
+        "line": 151
+      },
+      {
+        "name": "load",
+        "line": 183
+      },
+      {
+        "name": "exportResultsToExcel",
+        "line": 223
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1014
+      },
+      {
+        "tag": "motion.div",
+        "line": 1021
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/page.tsx",
+    "lines": 561,
+    "sha256": "87c0312c9342f9c75f433a459cc862b689af518dac40cb69ab8e46b7f1afbfba",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/settings",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "next/navigation",
+      "./RecentLoginsCard",
+      "@/lib/useMemoryState",
+      "@/lib/text-format"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 37
+      },
+      {
+        "name": "formatLoginTime",
+        "line": 111
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 313
+      },
+      {
+        "tag": "div",
+        "line": 508
+      },
+      {
+        "tag": "motion.div",
+        "line": 509
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/pas/RoomManagementModal.tsx",
+    "lines": 532,
+    "sha256": "615ce0cb2ef481d6e0cf9999e25c834af68a8b068f734d95f9f0f68f4446fe39",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/pas",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 62
+      },
+      {
+        "name": "handleCreateRoom",
+        "line": 81
+      },
+      {
+        "name": "handleDeleteRoom",
+        "line": 96
+      },
+      {
+        "name": "handleSelectRoom",
+        "line": 109
+      },
+      {
+        "name": "handleSaveProctors",
+        "line": 114
+      },
+      {
+        "name": "handleLoadClassStudents",
+        "line": 130
+      },
+      {
+        "name": "handleAddStudentsToRoom",
+        "line": 142
+      },
+      {
+        "name": "handleRemoveStudent",
+        "line": 158
+      },
+      {
+        "name": "handleCreateSession",
+        "line": 172
+      },
+      {
+        "name": "handleDeleteSession",
+        "line": 186
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 284
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/pas/page.tsx",
+    "lines": 376,
+    "sha256": "9b0cd293365cdd5d729bfbf7062923e47229472482a5657b957e14f3247dfcf1",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/pas",
+      "@/lib/session",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 47
+      },
+      {
+        "name": "loadData",
+        "line": 52
+      },
+      {
+        "name": "handleCreatePeriod",
+        "line": 75
+      },
+      {
+        "name": "handleToggleLock",
+        "line": 99
+      },
+      {
+        "name": "handleDeletePeriod",
+        "line": 109
+      },
+      {
+        "name": "formatDate",
+        "line": 116
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/questions/[bankId]/edit/page.tsx",
+    "lines": 548,
+    "sha256": "8ae52af8205a3c31ea8edd0c068f1d50060bf89ab4619eb2585722f364e19cdc",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/api/proctor",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/TipTapEditor",
+      "@/app/components/questions/PreviewModal",
+      "@/app/components/questions/forms/MCQForm",
+      "@/app/components/questions/forms/TrueFalseForm",
+      "@/app/components/questions/forms/MatchingForm",
+      "@/app/components/questions/forms/CategorizationForm",
+      "@/app/components/questions/forms/ShortAnswerForm",
+      "@/app/components/questions/forms/EssayForm",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSave",
+        "line": 135
+      },
+      {
+        "name": "handleOpenPreview",
+        "line": 178
+      },
+      {
+        "name": "handleTypeChange",
+        "line": 199
+      },
+      {
+        "name": "loadedOpts",
+        "line": 253
+      },
+      {
+        "name": "handleFocus",
+        "line": 301
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/questions/[bankId]/page.tsx",
+    "lines": 1088,
+    "sha256": "0df844899b44a4329c3ae1f19cee45ac42dba8f02100795b18c23b9996de3005",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/ai",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "next/navigation",
+      "next/link",
+      "next/dynamic",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/DimensionManager",
+      "@/app/components/questions/KisiKisiTab",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "exportDropdownRef",
+        "line": 85
+      },
+      {
+        "name": "handleFocus",
+        "line": 106
+      },
+      {
+        "name": "loadData",
+        "line": 151
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 192
+      },
+      {
+        "name": "loadedOptions",
+        "line": 204
+      },
+      {
+        "name": "handleSave",
+        "line": 247
+      },
+      {
+        "name": "handleOpenView",
+        "line": 344
+      },
+      {
+        "name": "handleMoveQuestion",
+        "line": 355
+      },
+      {
+        "name": "handleExportWord",
+        "line": 367
+      },
+      {
+        "name": "handleExportTemplate",
+        "line": 392
+      },
+      {
+        "name": "handleExportPdf",
+        "line": 396
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 560
+      },
+      {
+        "tag": "div",
+        "line": 594
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/questions/[bankId]/patch.py",
+    "lines": 110,
+    "sha256": "25132afa03e6c7b9565dfdb1b0e6a91890a005240ca0596fc38b641cd266818b"
+  },
+  {
+    "file": "apps/web/app/dashboard/admin/questions/page.tsx",
+    "lines": 1312,
+    "sha256": "6cff871997b7f878f4c7cc3d71b69b5e9b9538eeeb73a841b2d0a99d5131ae0d",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/lib/uploader",
+      "next/link",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSelectAll",
+        "line": 74
+      },
+      {
+        "name": "handleClearSelection",
+        "line": 79
+      },
+      {
+        "name": "handleClickOutside",
+        "line": 84
+      },
+      {
+        "name": "handleFocus",
+        "line": 127
+      },
+      {
+        "name": "loadData",
+        "line": 131
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 165
+      },
+      {
+        "name": "handleOpenEdit",
+        "line": 178
+      },
+      {
+        "name": "handleSaveBank",
+        "line": 189
+      },
+      {
+        "name": "handleDeleteBank",
+        "line": 228
+      },
+      {
+        "name": "handleTogglePublish",
+        "line": 239
+      },
+      {
+        "name": "handleCreateCustomLabel",
+        "line": 256
+      },
+      {
+        "name": "handleOpenCreateFolder",
+        "line": 289
+      },
+      {
+        "name": "handleOpenEditFolder",
+        "line": 295
+      },
+      {
+        "name": "handleSaveFolder",
+        "line": 302
+      },
+      {
+        "name": "handleDeleteFolder",
+        "line": 327
+      },
+      {
+        "name": "handleOpenAddToFolder",
+        "line": 340
+      },
+      {
+        "name": "handleAddBanksToFolder",
+        "line": 347
+      },
+      {
+        "name": "handleOpenMoveBank",
+        "line": 362
+      },
+      {
+        "name": "handleMoveBank",
+        "line": 368
+      },
+      {
+        "name": "handleBulkMove",
+        "line": 425
+      },
+      {
+        "name": "formatDate",
+        "line": 518
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1027
+      },
+      {
+        "tag": "motion.div",
+        "line": 1054
+      },
+      {
+        "tag": "motion.div",
+        "line": 1093
+      },
+      {
+        "tag": "div",
+        "line": 1109
+      },
+      {
+        "tag": "motion.div",
+        "line": 1162
+      },
+      {
+        "tag": "motion.div",
+        "line": 1201
+      },
+      {
+        "tag": "motion.div",
+        "line": 1297
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/analytics/exam/[id]/page.tsx",
+    "lines": 753,
+    "sha256": "bbb8b1c6edaee23e30c2715eafd81fd4b51085e818558c9fbf4014bfdc0dbf98",
+    "imports": [
+      "react",
+      "next/navigation",
+      "next/link",
+      "framer-motion",
+      "lucide-react",
+      "next/dynamic",
+      "@/lib/api/analytics",
+      "@/app/components/ui/SkeletonPatterns",
+      "@/app/types",
+      "@/lib/useMemoryState",
+      "@/lib/answer-display",
+      "@/app/components/questions/LatexRenderer"
+    ],
+    "handlers": [
+      {
+        "name": "handleExport",
+        "line": 110
+      },
+      {
+        "name": "formatDuration",
+        "line": 257
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 506
+      },
+      {
+        "tag": "div",
+        "line": 670
+      },
+      {
+        "tag": "div",
+        "line": 671
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/analytics/page.tsx",
+    "lines": 241,
+    "sha256": "6c3b47785359bafa3d5972e18e2059cc4987aed0b5be23037a754c646ac9fb5c",
+    "imports": [
+      "react",
+      "next/link",
+      "framer-motion",
+      "lucide-react",
+      "next/dynamic",
+      "@/lib/api/analytics",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/app/components/ui/SkeletonPatterns",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/assignments/[examId]/page.tsx",
+    "lines": 471,
+    "sha256": "6e59bce5e03fd2eed380a644db4462511bb5c3a6f2007ab086c35f6883ec8386",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 43
+      },
+      {
+        "name": "handleSaveGrade",
+        "line": 67
+      },
+      {
+        "name": "formatDate",
+        "line": 123
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/classes/page.tsx",
+    "lines": 542,
+    "sha256": "df9ce19737f16c5bc0a47b6d3a70f13a2e6aa5ba88cd8b2f9f01724a7e4bad49",
+    "imports": [
+      "react",
+      "next/link",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/session",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleViewStudents",
+        "line": 46
+      },
+      {
+        "name": "handleFocus",
+        "line": 57
+      },
+      {
+        "name": "loadData",
+        "line": 61
+      },
+      {
+        "name": "handleCreateClass",
+        "line": 78
+      },
+      {
+        "name": "handleDeleteClass",
+        "line": 94
+      },
+      {
+        "name": "handleEditClass",
+        "line": 106
+      },
+      {
+        "name": "handleCopyCode",
+        "line": 128
+      },
+      {
+        "name": "handleExport",
+        "line": 143
+      },
+      {
+        "name": "exportData",
+        "line": 145
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/exams/page.tsx",
+    "lines": 2240,
+    "sha256": "efc3117525f1f6cfc2cb9f86219ae99991332316941a2c757a27dcb44428d8cd",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/exams",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/exam-configs",
+      "@/lib/api/pas",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 156
+      },
+      {
+        "name": "handleCreateExam",
+        "line": 243
+      },
+      {
+        "name": "handleEditExam",
+        "line": 302
+      },
+      {
+        "name": "handleAssignExam",
+        "line": 340
+      },
+      {
+        "name": "handlePublishToggle",
+        "line": 371
+      },
+      {
+        "name": "handleDeleteExam",
+        "line": 396
+      },
+      {
+        "name": "loadExamAssignments",
+        "line": 504
+      },
+      {
+        "name": "formatDateTime",
+        "line": 515
+      },
+      {
+        "name": "handleCreateConfig",
+        "line": 556
+      },
+      {
+        "name": "handleDeleteConfig",
+        "line": 603
+      },
+      {
+        "name": "handleToggleConfigLock",
+        "line": 617
+      },
+      {
+        "name": "handleAddBankToConfig",
+        "line": 629
+      },
+      {
+        "name": "handleRemoveBankFromConfig",
+        "line": 646
+      },
+      {
+        "name": "handleAddClassExam",
+        "line": 656
+      },
+      {
+        "name": "handleRemoveConfigExam",
+        "line": 683
+      },
+      {
+        "name": "handleGenerateConfigExams",
+        "line": 689
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 763
+      },
+      {
+        "tag": "div",
+        "line": 924
+      },
+      {
+        "tag": "div",
+        "line": 1371
+      },
+      {
+        "tag": "div",
+        "line": 1745
+      },
+      {
+        "tag": "div",
+        "line": 2076
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/grading/[attemptId]/page.tsx",
+    "lines": 302,
+    "sha256": "580ad1e7dbd980d8beb92971374856f850b82b087e90e6729058de2663af4918",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/api/teachers",
+      "lucide-react",
+      "framer-motion",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/useMemoryState",
+      "@/lib/safe-url"
+    ],
+    "handlers": [
+      {
+        "name": "handleGradeChange",
+        "line": 39
+      },
+      {
+        "name": "handleSave",
+        "line": 46
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/grading/assignment/[attemptId]/page.tsx",
+    "lines": 357,
+    "sha256": "4b47060d05bd4aa7c104d7e1c2a67483325b8b25f6ca7124ec71fe9c15d5e82f",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/api/teachers",
+      "lucide-react",
+      "framer-motion",
+      "@/lib/safe-url"
+    ],
+    "handlers": [
+      {
+        "name": "handleGradeChange",
+        "line": 56
+      },
+      {
+        "name": "handleSave",
+        "line": 63
+      },
+      {
+        "name": "submittedAt",
+        "line": 142
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/grading/page.tsx",
+    "lines": 395,
+    "sha256": "8cf6ced86de1a2bb778485786a1aa219b6a28ce8022e4a64d7386f46440db2af",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/session",
+      "next/navigation",
+      "react",
+      "@/lib/useMemoryState",
+      "@/app/components/questions/InlineMath"
+    ],
+    "handlers": [
+      {
+        "name": "loadInitialData",
+        "line": 28
+      },
+      {
+        "name": "loadExamData",
+        "line": 44
+      },
+      {
+        "name": "formatUTCDateTime",
+        "line": 103
+      },
+      {
+        "name": "handleRefresh",
+        "line": 114
+      },
+      {
+        "name": "exportResultsToExcel",
+        "line": 118
+      },
+      {
+        "name": "exportAnalysisToExcel",
+        "line": 139
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/monitoring/[attemptId]/page.tsx",
+    "lines": 484,
+    "sha256": "43e8b62e2df862fee8890ef6a8a4c94fa0ca6061ee6de0a0bb3178a214ac1d12",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/api/proctoring",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleGradeChange",
+        "line": 51
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 58
+      },
+      {
+        "name": "handleSave",
+        "line": 76
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/monitoring/page.tsx",
+    "lines": 1112,
+    "sha256": "443d7f99dbbe1bb38c35f50e4048ab073687cf36937e6581064979eef748edf6",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/api/proctor",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/proctoring",
+      "@/lib/api/grading",
+      "@/lib/session",
+      "next/navigation",
+      "react",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadInitialData",
+        "line": 49
+      },
+      {
+        "name": "loadExamData",
+        "line": 65
+      },
+      {
+        "name": "handleRefresh",
+        "line": 120
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 131
+      },
+      {
+        "name": "handleCalculateIRT",
+        "line": 156
+      },
+      {
+        "name": "load",
+        "line": 188
+      },
+      {
+        "name": "exportResultsToExcel",
+        "line": 226
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1011
+      },
+      {
+        "tag": "motion.div",
+        "line": 1018
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/page.tsx",
+    "lines": 516,
+    "sha256": "f964a3cd84e248c519b86914d72634052800db1f05f005ae410715dee5c97bd9",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/api/settings",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "next/navigation",
+      "../proktor/RecentLoginsCard",
+      "@/lib/useMemoryState",
+      "@/lib/text-format"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 39
+      },
+      {
+        "name": "formatLoginTime",
+        "line": 104
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 279
+      },
+      {
+        "tag": "div",
+        "line": 462
+      },
+      {
+        "tag": "motion.div",
+        "line": 463
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/questions/[bankId]/edit/page.tsx",
+    "lines": 557,
+    "sha256": "c76f6750012f29c537864916a38c02ee92895686024e59f64a1c1adbfeffab6e",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/api/proctor",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/TipTapEditor",
+      "@/app/components/questions/PreviewModal",
+      "@/app/components/questions/forms/MCQForm",
+      "@/app/components/questions/forms/TrueFalseForm",
+      "@/app/components/questions/forms/MatchingForm",
+      "@/app/components/questions/forms/CategorizationForm",
+      "@/app/components/questions/forms/ShortAnswerForm",
+      "@/app/components/questions/forms/EssayForm",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSave",
+        "line": 135
+      },
+      {
+        "name": "handleOpenPreview",
+        "line": 178
+      },
+      {
+        "name": "handleTypeChange",
+        "line": 199
+      },
+      {
+        "name": "loadedOpts",
+        "line": 253
+      },
+      {
+        "name": "handleFocus",
+        "line": 301
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/questions/[bankId]/page.tsx",
+    "lines": 1088,
+    "sha256": "e648ad42a3e7a8036ee7093ffa1d7e2e81db8904d2ec05324419f137d61c9c44",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/ai",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "next/navigation",
+      "next/link",
+      "next/dynamic",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/DimensionManager",
+      "@/app/components/questions/KisiKisiTab",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "exportDropdownRef",
+        "line": 85
+      },
+      {
+        "name": "handleFocus",
+        "line": 106
+      },
+      {
+        "name": "loadData",
+        "line": 151
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 192
+      },
+      {
+        "name": "loadedOptions",
+        "line": 204
+      },
+      {
+        "name": "handleSave",
+        "line": 247
+      },
+      {
+        "name": "handleOpenView",
+        "line": 344
+      },
+      {
+        "name": "handleMoveQuestion",
+        "line": 355
+      },
+      {
+        "name": "handleExportWord",
+        "line": 367
+      },
+      {
+        "name": "handleExportTemplate",
+        "line": 392
+      },
+      {
+        "name": "handleExportPdf",
+        "line": 396
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 560
+      },
+      {
+        "tag": "div",
+        "line": 594
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/guru/questions/page.tsx",
+    "lines": 1312,
+    "sha256": "615b861cf0113e229a4739784ac9e6251041a9c53a81c5f1c7632333b9772a1e",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/lib/uploader",
+      "next/link",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSelectAll",
+        "line": 74
+      },
+      {
+        "name": "handleClearSelection",
+        "line": 79
+      },
+      {
+        "name": "handleClickOutside",
+        "line": 84
+      },
+      {
+        "name": "handleFocus",
+        "line": 127
+      },
+      {
+        "name": "loadData",
+        "line": 131
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 165
+      },
+      {
+        "name": "handleOpenEdit",
+        "line": 178
+      },
+      {
+        "name": "handleSaveBank",
+        "line": 189
+      },
+      {
+        "name": "handleDeleteBank",
+        "line": 228
+      },
+      {
+        "name": "handleTogglePublish",
+        "line": 239
+      },
+      {
+        "name": "handleCreateCustomLabel",
+        "line": 256
+      },
+      {
+        "name": "handleOpenCreateFolder",
+        "line": 289
+      },
+      {
+        "name": "handleOpenEditFolder",
+        "line": 295
+      },
+      {
+        "name": "handleSaveFolder",
+        "line": 302
+      },
+      {
+        "name": "handleDeleteFolder",
+        "line": 327
+      },
+      {
+        "name": "handleOpenAddToFolder",
+        "line": 340
+      },
+      {
+        "name": "handleAddBanksToFolder",
+        "line": 347
+      },
+      {
+        "name": "handleOpenMoveBank",
+        "line": 362
+      },
+      {
+        "name": "handleMoveBank",
+        "line": 368
+      },
+      {
+        "name": "handleBulkMove",
+        "line": 425
+      },
+      {
+        "name": "formatDate",
+        "line": 518
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1027
+      },
+      {
+        "tag": "motion.div",
+        "line": 1054
+      },
+      {
+        "tag": "motion.div",
+        "line": 1093
+      },
+      {
+        "tag": "div",
+        "line": 1109
+      },
+      {
+        "tag": "motion.div",
+        "line": 1162
+      },
+      {
+        "tag": "motion.div",
+        "line": 1201
+      },
+      {
+        "tag": "motion.div",
+        "line": 1297
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/layout.tsx",
+    "lines": 230,
+    "sha256": "e99141d055f3224fc4d324f7b6d1c6241c33e898f13f365024ad022aae93d8a9",
+    "imports": [
+      "react",
+      "next/navigation",
+      "lucide-react",
+      "next/image",
+      "@/lib/session",
+      "@/app/components/Sidebar",
+      "@/app/components/DashboardLoading",
+      "@/lib/useMemoryState",
+      "@/lib/rbac"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/loading.tsx",
+    "lines": 5,
+    "sha256": "9fe6106b6f009aa0b8abf47775eeecd4c657dd54d14469d54b25a6ed07e2d163",
+    "imports": [
+      "@/app/components/DashboardLoading"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/notifications/page.tsx",
+    "lines": 426,
+    "sha256": "79f14e37a68dd918d167ab58d262e157527e7228739115057fd6282e7be5001c",
+    "imports": [
+      "react",
+      "@/lib/useMemoryState",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/session",
+      "@/lib/api/notifications",
+      "@/app/types/notification",
+      "@/app/types/notification"
+    ],
+    "handlers": [
+      {
+        "name": "fetchNotifications",
+        "line": 64
+      },
+      {
+        "name": "handleMarkAsRead",
+        "line": 109
+      },
+      {
+        "name": "handleMarkAllAsRead",
+        "line": 115
+      },
+      {
+        "name": "handleDelete",
+        "line": 123
+      },
+      {
+        "name": "handleDeleteAllRead",
+        "line": 129
+      },
+      {
+        "name": "handleBulkMarkAsRead",
+        "line": 148
+      },
+      {
+        "name": "handleBulkDelete",
+        "line": 159
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/notifications/settings/page.tsx",
+    "lines": 377,
+    "sha256": "b35d9735d02335e66275831e780acab140e0050c1e0cdcf9f885839df6c2b729",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/session",
+      "@/lib/api/notifications",
+      "@/app/types/notification",
+      "@/app/types/notification",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "fetchData",
+        "line": 33
+      },
+      {
+        "name": "handleToggle",
+        "line": 53
+      },
+      {
+        "name": "handleMinutesChange",
+        "line": 61
+      },
+      {
+        "name": "handleSave",
+        "line": 69
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/pengawas/monitoring/page.tsx",
+    "lines": 9,
+    "sha256": "92e10464a3dd00213c2ace93e768ab8f1fc186e8bcac630e8850ddfceb2d1d30",
+    "imports": [],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/pengawas/page.tsx",
+    "lines": 76,
+    "sha256": "380e1b1038678bfa39077cec764661d721b298e7b2a28ed09ceb95b2adc45397",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "next/navigation"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/RecentLoginsCard.tsx",
+    "lines": 189,
+    "sha256": "6802f0de5204f2d4bf8dafe76556606f530687c048ce1477dda9d2963ddb2e66",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 140
+      },
+      {
+        "tag": "div",
+        "line": 144
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/assignments/[examId]/page.tsx",
+    "lines": 471,
+    "sha256": "6e59bce5e03fd2eed380a644db4462511bb5c3a6f2007ab086c35f6883ec8386",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 43
+      },
+      {
+        "name": "handleSaveGrade",
+        "line": 67
+      },
+      {
+        "name": "formatDate",
+        "line": 123
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/backup/page.tsx",
+    "lines": 245,
+    "sha256": "de6611ae30c5702d0ef6a012fcad4f29f8e318d8dcfc7a5f84c09f015392cf4c",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "handleExport",
+        "line": 23
+      },
+      {
+        "name": "handleFileChange",
+        "line": 67
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/classes/page.tsx",
+    "lines": 652,
+    "sha256": "48bbde3863f7680ae38d9c3466de8e20c5347189186fb5fed83eb7e11183888d",
+    "imports": [
+      "react",
+      "next/link",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleViewStudents",
+        "line": 46
+      },
+      {
+        "name": "handleFocus",
+        "line": 57
+      },
+      {
+        "name": "loadData",
+        "line": 61
+      },
+      {
+        "name": "handleCreateClass",
+        "line": 86
+      },
+      {
+        "name": "handleDeleteClass",
+        "line": 106
+      },
+      {
+        "name": "handleEditClass",
+        "line": 118
+      },
+      {
+        "name": "handleCopyCode",
+        "line": 140
+      },
+      {
+        "name": "handleExport",
+        "line": 155
+      },
+      {
+        "name": "exportData",
+        "line": 157
+      },
+      {
+        "name": "formattedData",
+        "line": 582
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/exams/page.tsx",
+    "lines": 2255,
+    "sha256": "51d8b8fdf44bbeb99ec5821954192bda2326a8ec97cfc451483af31e62bd3e2b",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/exams",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/exam-configs",
+      "@/lib/api/pas",
+      "../pas/page",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 157
+      },
+      {
+        "name": "handleCreateExam",
+        "line": 244
+      },
+      {
+        "name": "handleEditExam",
+        "line": 303
+      },
+      {
+        "name": "handleAssignExam",
+        "line": 341
+      },
+      {
+        "name": "handlePublishToggle",
+        "line": 372
+      },
+      {
+        "name": "handleDeleteExam",
+        "line": 397
+      },
+      {
+        "name": "loadExamAssignments",
+        "line": 505
+      },
+      {
+        "name": "formatDateTime",
+        "line": 516
+      },
+      {
+        "name": "handleCreateConfig",
+        "line": 557
+      },
+      {
+        "name": "handleDeleteConfig",
+        "line": 604
+      },
+      {
+        "name": "handleToggleConfigLock",
+        "line": 618
+      },
+      {
+        "name": "handleAddBankToConfig",
+        "line": 630
+      },
+      {
+        "name": "handleRemoveBankFromConfig",
+        "line": 647
+      },
+      {
+        "name": "handleAddClassExam",
+        "line": 657
+      },
+      {
+        "name": "handleRemoveConfigExam",
+        "line": 684
+      },
+      {
+        "name": "handleGenerateConfigExams",
+        "line": 690
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 766
+      },
+      {
+        "tag": "div",
+        "line": 935
+      },
+      {
+        "tag": "div",
+        "line": 1384
+      },
+      {
+        "tag": "div",
+        "line": 1760
+      },
+      {
+        "tag": "div",
+        "line": 2091
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/exams/pas/[id]/BulkScheduleGrid.tsx",
+    "lines": 232,
+    "sha256": "6117b1f2a91446ea12b5bd3337e67fcda848a61b7d752e81166fe5ecad9f3e7f",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/pas"
+    ],
+    "handlers": [
+      {
+        "name": "handleAddRow",
+        "line": 24
+      },
+      {
+        "name": "handleRemoveRow",
+        "line": 28
+      },
+      {
+        "name": "handleChange",
+        "line": 33
+      },
+      {
+        "name": "handleKeyDown",
+        "line": 37
+      },
+      {
+        "name": "handleSave",
+        "line": 56
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/exams/pas/[id]/page.tsx",
+    "lines": 570,
+    "sha256": "eb3d47c007d0dbc275279488cfb0e1ea05e4a3f62db512bbc633b8be7697c99d",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/pas",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "next/navigation",
+      "next/link",
+      "@/lib/useMemoryState",
+      "./BulkScheduleGrid",
+      "@/app/dashboard/proktor/pas/RoomManagementModal"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 61
+      },
+      {
+        "name": "loadData",
+        "line": 65
+      },
+      {
+        "name": "handleAddSchedule",
+        "line": 97
+      },
+      {
+        "name": "handleRemoveSchedule",
+        "line": 127
+      },
+      {
+        "name": "handleGenerateExams",
+        "line": 138
+      },
+      {
+        "name": "formatDate",
+        "line": 151
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 479
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/monitoring/[attemptId]/page.tsx",
+    "lines": 482,
+    "sha256": "f8e3fab92e81c9f736d2a7d922cf1adf5e4e4b77e80d3f910c763c7ce3a4ccdd",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/teachers",
+      "@/lib/api/proctoring",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleGradeChange",
+        "line": 51
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 58
+      },
+      {
+        "name": "handleSave",
+        "line": 76
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/monitoring/page.tsx",
+    "lines": 1119,
+    "sha256": "df4a8bc59fa2d514bb5514e6679b4e530bce3e8c5c50227b6144739838d30a86",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/api/proctor",
+      "@/lib/useAutoRefresh",
+      "@/lib/api/proctoring",
+      "@/lib/api/grading",
+      "@/lib/session",
+      "next/navigation",
+      "react",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadInitialData",
+        "line": 49
+      },
+      {
+        "name": "loadExamData",
+        "line": 65
+      },
+      {
+        "name": "handleRefresh",
+        "line": 120
+      },
+      {
+        "name": "handleResetAttempt",
+        "line": 131
+      },
+      {
+        "name": "handleCalculateIRT",
+        "line": 156
+      },
+      {
+        "name": "load",
+        "line": 188
+      },
+      {
+        "name": "exportResultsToExcel",
+        "line": 228
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1018
+      },
+      {
+        "tag": "motion.div",
+        "line": 1025
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/page.tsx",
+    "lines": 560,
+    "sha256": "fca3cf2ea2ec411509b1dc6730716260766e2f82e78561eac853f78971cb23dd",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/settings",
+      "@/lib/session",
+      "@/lib/useAutoRefresh",
+      "next/navigation",
+      "./RecentLoginsCard",
+      "@/lib/useMemoryState",
+      "@/lib/text-format"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 37
+      },
+      {
+        "name": "formatLoginTime",
+        "line": 111
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 312
+      },
+      {
+        "tag": "div",
+        "line": 507
+      },
+      {
+        "tag": "motion.div",
+        "line": 508
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/pas/RoomManagementModal.tsx",
+    "lines": 532,
+    "sha256": "615ce0cb2ef481d6e0cf9999e25c834af68a8b068f734d95f9f0f68f4446fe39",
+    "imports": [
+      "react",
+      "lucide-react",
+      "@/lib/api/pas",
+      "@/lib/api/proctor"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 62
+      },
+      {
+        "name": "handleCreateRoom",
+        "line": 81
+      },
+      {
+        "name": "handleDeleteRoom",
+        "line": 96
+      },
+      {
+        "name": "handleSelectRoom",
+        "line": 109
+      },
+      {
+        "name": "handleSaveProctors",
+        "line": 114
+      },
+      {
+        "name": "handleLoadClassStudents",
+        "line": 130
+      },
+      {
+        "name": "handleAddStudentsToRoom",
+        "line": 142
+      },
+      {
+        "name": "handleRemoveStudent",
+        "line": 158
+      },
+      {
+        "name": "handleCreateSession",
+        "line": 172
+      },
+      {
+        "name": "handleDeleteSession",
+        "line": 186
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 284
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/pas/page.tsx",
+    "lines": 376,
+    "sha256": "48f2fa6d45ce3c7e7e79c1887983de03227ade9b670e52137cbef1baebe8aede",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/proctor",
+      "@/lib/api/pas",
+      "@/lib/session",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 47
+      },
+      {
+        "name": "loadData",
+        "line": 52
+      },
+      {
+        "name": "handleCreatePeriod",
+        "line": 75
+      },
+      {
+        "name": "handleToggleLock",
+        "line": 99
+      },
+      {
+        "name": "handleDeletePeriod",
+        "line": 109
+      },
+      {
+        "name": "formatDate",
+        "line": 116
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/questions/[bankId]/edit/page.tsx",
+    "lines": 548,
+    "sha256": "bddc51584d2f25c47077411f2ad9b99c2790e866092ce13ce2051eac6eca4155",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/api/proctor",
+      "@/lib/api/questions",
+      "@/lib/session",
+      "lucide-react",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/TipTapEditor",
+      "@/app/components/questions/PreviewModal",
+      "@/app/components/questions/forms/MCQForm",
+      "@/app/components/questions/forms/TrueFalseForm",
+      "@/app/components/questions/forms/MatchingForm",
+      "@/app/components/questions/forms/CategorizationForm",
+      "@/app/components/questions/forms/ShortAnswerForm",
+      "@/app/components/questions/forms/EssayForm",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSave",
+        "line": 135
+      },
+      {
+        "name": "handleOpenPreview",
+        "line": 178
+      },
+      {
+        "name": "handleTypeChange",
+        "line": 199
+      },
+      {
+        "name": "loadedOpts",
+        "line": 253
+      },
+      {
+        "name": "handleFocus",
+        "line": 301
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/questions/[bankId]/page.tsx",
+    "lines": 1088,
+    "sha256": "9730ad3b055701144920d21179ec86748f00e99187be20c34871193eacd17052",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/ai",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "next/navigation",
+      "next/link",
+      "next/dynamic",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/DimensionManager",
+      "@/app/components/questions/KisiKisiTab",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "exportDropdownRef",
+        "line": 85
+      },
+      {
+        "name": "handleFocus",
+        "line": 106
+      },
+      {
+        "name": "loadData",
+        "line": 151
+      },
+      {
+        "name": "handleOpenEditor",
+        "line": 192
+      },
+      {
+        "name": "loadedOptions",
+        "line": 204
+      },
+      {
+        "name": "handleSave",
+        "line": 247
+      },
+      {
+        "name": "handleOpenView",
+        "line": 344
+      },
+      {
+        "name": "handleMoveQuestion",
+        "line": 355
+      },
+      {
+        "name": "handleExportWord",
+        "line": 367
+      },
+      {
+        "name": "handleExportTemplate",
+        "line": 392
+      },
+      {
+        "name": "handleExportPdf",
+        "line": 396
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 560
+      },
+      {
+        "tag": "div",
+        "line": 594
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/questions/[bankId]/patch.py",
+    "lines": 110,
+    "sha256": "25132afa03e6c7b9565dfdb1b0e6a91890a005240ca0596fc38b641cd266818b"
+  },
+  {
+    "file": "apps/web/app/dashboard/proktor/questions/page.tsx",
+    "lines": 1312,
+    "sha256": "28459616c2fc7dacbfe40348f03ea9c2ea1dac04b098e952564d2680e32870f0",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/questions",
+      "@/lib/api/proctor",
+      "@/lib/session",
+      "@/lib/uploader",
+      "next/link",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleSelectAll",
+        "line": 74
+      },
+      {
+        "name": "handleClearSelection",
+        "line": 79
+      },
+      {
+        "name": "handleClickOutside",
+        "line": 84
+      },
+      {
+        "name": "handleFocus",
+        "line": 127
+      },
+      {
+        "name": "loadData",
+        "line": 131
+      },
+      {
+        "name": "handleImageUpload",
+        "line": 165
+      },
+      {
+        "name": "handleOpenEdit",
+        "line": 178
+      },
+      {
+        "name": "handleSaveBank",
+        "line": 189
+      },
+      {
+        "name": "handleDeleteBank",
+        "line": 228
+      },
+      {
+        "name": "handleTogglePublish",
+        "line": 239
+      },
+      {
+        "name": "handleCreateCustomLabel",
+        "line": 256
+      },
+      {
+        "name": "handleOpenCreateFolder",
+        "line": 289
+      },
+      {
+        "name": "handleOpenEditFolder",
+        "line": 295
+      },
+      {
+        "name": "handleSaveFolder",
+        "line": 302
+      },
+      {
+        "name": "handleDeleteFolder",
+        "line": 327
+      },
+      {
+        "name": "handleOpenAddToFolder",
+        "line": 340
+      },
+      {
+        "name": "handleAddBanksToFolder",
+        "line": 347
+      },
+      {
+        "name": "handleOpenMoveBank",
+        "line": 362
+      },
+      {
+        "name": "handleMoveBank",
+        "line": 368
+      },
+      {
+        "name": "handleBulkMove",
+        "line": 425
+      },
+      {
+        "name": "formatDate",
+        "line": 518
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 1027
+      },
+      {
+        "tag": "motion.div",
+        "line": 1054
+      },
+      {
+        "tag": "motion.div",
+        "line": 1093
+      },
+      {
+        "tag": "div",
+        "line": 1109
+      },
+      {
+        "tag": "motion.div",
+        "line": 1162
+      },
+      {
+        "tag": "motion.div",
+        "line": 1201
+      },
+      {
+        "tag": "motion.div",
+        "line": 1297
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/analytics/page.tsx",
+    "lines": 682,
+    "sha256": "10df4f48ed100ba2d526f79a03c1ec640b38ad5d06d1dce3bf5d8efc0f56503c",
+    "imports": [
+      "react",
+      "@/lib/useMemoryState",
+      "framer-motion",
+      "chart.js",
+      "react-chartjs-2",
+      "lucide-react",
+      "@/lib/session",
+      "@/lib/api/student-analytics",
+      "@/lib/api/student-analytics"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 103
+      },
+      {
+        "name": "formatDuration",
+        "line": 108
+      },
+      {
+        "name": "formatDate",
+        "line": 119
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/classes/page.tsx",
+    "lines": 261,
+    "sha256": "f31acb4edb894cd6c93f699b9966f7786952daa149838b3c9bb19f51bf36e50e",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/session",
+      "@/lib/api/students",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "handleFocus",
+        "line": 20
+      },
+      {
+        "name": "loadData",
+        "line": 25
+      },
+      {
+        "name": "handleJoinClass",
+        "line": 36
+      },
+      {
+        "name": "handleLeaveClass",
+        "line": 52
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/exam/[id]/page.tsx",
+    "lines": 9,
+    "sha256": "1988863aeb7c8be83fd7af039b262b30a0ed2336e739a3c7fd91c7e94897a63e",
+    "imports": [
+      "@/app/components/questions/ExamPage"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/page.tsx",
+    "lines": 367,
+    "sha256": "6532bc1a9e2a53b31b33470c27d3b0af283925ee3e1f42e56e0bc797b69dca1a",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/useAutoRefresh",
+      "@/lib/session",
+      "@/lib/api/students",
+      "@/lib/api/settings",
+      "next/navigation",
+      "@/lib/useMemoryState",
+      "@/lib/text-format"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 38
+      },
+      {
+        "name": "formatTime",
+        "line": 99
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/results/[attemptId]/page.tsx",
+    "lines": 560,
+    "sha256": "8758f4e7f946dd61bcf21425357f0a17fdcd5187a825aba62c7c133efb28fbd8",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/session",
+      "@/lib/api/students",
+      "lucide-react",
+      "framer-motion",
+      "@/app/components/questions/QuestionRenderer",
+      "@/app/components/questions/LatexRenderer",
+      "@/lib/useMemoryState",
+      "@/lib/answer-display"
+    ],
+    "handlers": [
+      {
+        "name": "formatUTCDateTime",
+        "line": 47
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/results/page.tsx",
+    "lines": 177,
+    "sha256": "8c0ab5a5cbc061c7be408ce8e65fe49059bd0af8ede9f6880df6a250039877a2",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/students",
+      "@/lib/session",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadResults",
+        "line": 16
+      },
+      {
+        "name": "formatUTCDateTime",
+        "line": 30
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 90
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/results/review/[attemptId]/page.tsx",
+    "lines": 1043,
+    "sha256": "9f80e57bccaa5f9de0361c0e865380272ea7d3c32a94d7def3cdb87779c74454",
+    "imports": [
+      "react",
+      "next/navigation",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/api/exam-review",
+      "@/lib/session",
+      "@/app/types/review",
+      "@/app/types/review",
+      "@/lib/answer-parser",
+      "@/app/types/question",
+      "@/app/components/questions/LatexRenderer",
+      "@/app/components/questions/InlineMath",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "fetchReview",
+        "line": 51
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/dashboard/siswa/schedule/page.tsx",
+    "lines": 356,
+    "sha256": "af02ea13c97ddf084e7685284a4f72873f0539fc486b87a7b100e5862cc8ebc6",
+    "imports": [
+      "react",
+      "framer-motion",
+      "lucide-react",
+      "@/lib/useAutoRefresh",
+      "@/lib/session",
+      "@/lib/api/students",
+      "next/navigation",
+      "@/lib/useMemoryState"
+    ],
+    "handlers": [
+      {
+        "name": "loadData",
+        "line": 28
+      },
+      {
+        "name": "formatDay",
+        "line": 71
+      },
+      {
+        "name": "formatTimeRange",
+        "line": 89
+      },
+      {
+        "name": "formatTimeUntil",
+        "line": 111
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "motion.div",
+        "line": 195
+      }
+    ]
+  },
+  {
+    "file": "apps/web/app/globals.css",
+    "lines": 2471,
+    "sha256": "62dfda3d9becd200bd6a9a48906d2c929a0df383fbaa355dda7caf3328153709"
+  },
+  {
+    "file": "apps/web/app/layout.tsx",
+    "lines": 70,
+    "sha256": "9332f8e3c561dc2d60d2ecca594ca756c55446b64cf9ffb31b7b415782feeb81",
+    "imports": [
+      "next",
+      "next/font/google",
+      "@/app/components/ui/Toast",
+      "@/app/components/ui/ErrorBoundary",
+      "@/app/components/MaintenanceProvider",
+      "@/lib/api/settings.server",
+      "./globals.css"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/lib/global.d.ts",
+    "lines": 9,
+    "sha256": "fa8d19f1027ef3ecdb53604e0abb6936130ddb00dede27d0926b9ad0ec7456d5"
+  },
+  {
+    "file": "apps/web/app/page.tsx",
+    "lines": 145,
+    "sha256": "5f7408807300ec42e309a7add39d1eea34943d26d9e88347bd352bfb7c3617c2",
+    "imports": [
+      "react",
+      "next/navigation",
+      "@/lib/session-reset",
+      "@/lib/rbac"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/app/styles/cbt-editor.css",
+    "lines": 209,
+    "sha256": "1bb6ba600394ade6fabdc9db7e73ecde1a674461f2caec3d30c2ad9623ffe699"
+  },
+  {
+    "file": "apps/web/app/types/analytics.ts",
+    "lines": 231,
+    "sha256": "a788dd076f5756012afdeb364a1564d7ebd12394cb96c4a2c6946c56def0737a"
+  },
+  {
+    "file": "apps/web/app/types/exam.ts",
+    "lines": 200,
+    "sha256": "8609d1144f01060aee483fbab940047ca1e7c7e0a03e68a00fb4bd0395d721ed"
+  },
+  {
+    "file": "apps/web/app/types/index.ts",
+    "lines": 56,
+    "sha256": "31f36f8ce9f75211b144f1c072057ba0932889c5b7cccaee3d673082dfc9392b"
+  },
+  {
+    "file": "apps/web/app/types/notification.ts",
+    "lines": 200,
+    "sha256": "91e69975e43f4981565195be0ba0a23a1b9bd9b9677cf51c773ee1cb2f3ff31e"
+  },
+  {
+    "file": "apps/web/app/types/pas.ts",
+    "lines": 248,
+    "sha256": "3269dc5b0802f51c8d06492d546f3fed94d6033584bfc1903354445918569a93"
+  },
+  {
+    "file": "apps/web/app/types/question.ts",
+    "lines": 228,
+    "sha256": "a829cb0b23264da22d3d83a6ec8b3853a8414f0ecf064cb36b287f22b1e1897e"
+  },
+  {
+    "file": "apps/web/app/types/review.ts",
+    "lines": 202,
+    "sha256": "bec679d58d116f74a810bb211b8db659bfd5944818a066f7d43c6cc6516fe7a9"
+  },
+  {
+    "file": "apps/web/app/types/user.ts",
+    "lines": 176,
+    "sha256": "bad0e215a7ad1c180c626acb94a1d08c1acc81b97f03044f3d87ed6218ce79f3"
+  },
+  {
+    "file": "apps/web/components/PDFViewer.tsx",
+    "lines": 193,
+    "sha256": "74b244515632baf2a6cc041637e3f915fe41b1c34ecb5987f278fd6851e8751d",
+    "imports": [
+      "react",
+      "@/utils/url",
+      "xlsx",
+      "./viewer/types",
+      "./viewer/types",
+      "./viewer/ViewerShell",
+      "./viewer/PDFContent",
+      "./viewer/ImageContent",
+      "./viewer/VideoContent",
+      "./viewer/AudioContent",
+      "./viewer/ExcelContent",
+      "./viewer/OfficeContent"
+    ],
+    "handlers": [
+      {
+        "name": "load",
+        "line": 45
+      },
+      {
+        "name": "handleRetry",
+        "line": 94
+      }
+    ],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/AudioContent.tsx",
+    "lines": 38,
+    "sha256": "3b1b0ad43fb5cf5defea91c271e9682017ae18194f2b7a04f4acd0c3b54de8f3",
+    "imports": [],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/ExcelContent.tsx",
+    "lines": 93,
+    "sha256": "16438c2b3d18f6f0fdf1c7a2bdb38a6b016b0d314b5611ed5032d851f15d0d20",
+    "imports": [
+      "react"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/ImageContent.tsx",
+    "lines": 42,
+    "sha256": "65a25e1647500c998cd65cad7b3c7e1785b98546cc51df74938f2e9dd9c412b4",
+    "imports": [
+      "react",
+      "yet-another-react-lightbox",
+      "yet-another-react-lightbox/plugins/zoom",
+      "yet-another-react-lightbox/plugins/download",
+      "yet-another-react-lightbox/plugins/inline",
+      "yet-another-react-lightbox/styles.css"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/OfficeContent.tsx",
+    "lines": 76,
+    "sha256": "94edc9bee7059307b60e004f6b46376ea8882fe3f6e492ee68e60ed62337c50b",
+    "imports": [
+      "./types"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/PDFContent.tsx",
+    "lines": 109,
+    "sha256": "f0db23857d95e93fd3050a513e18d13e11e87156604d1b18ba6e96547190af7c",
+    "imports": [
+      "react",
+      "react-pdf",
+      "react-pdf/dist/Page/AnnotationLayer.css",
+      "react-pdf/dist/Page/TextLayer.css"
+    ],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/VideoContent.tsx",
+    "lines": 20,
+    "sha256": "463ce27a90c16fe3ae58b9ff16536b8a53fe0d0238678ac930f6da9baa8cd953",
+    "imports": [],
+    "handlers": [],
+    "accessibilityCandidates": []
+  },
+  {
+    "file": "apps/web/components/viewer/ViewerShell.tsx",
+    "lines": 219,
+    "sha256": "09daa75a750b3d9306f27a8031555a4806ef11a88a1d12dc5702e2f7f7019aa4",
+    "imports": [
+      "react-dom",
+      "react",
+      "./types",
+      "./types"
+    ],
+    "handlers": [
+      {
+        "name": "handleKey",
+        "line": 53
+      },
+      {
+        "name": "handleDownload",
+        "line": 75
+      }
+    ],
+    "accessibilityCandidates": [
+      {
+        "tag": "div",
+        "line": 87
+      }
+    ]
+  },
+  {
+    "file": "apps/web/components/viewer/types.ts",
+    "lines": 55,
+    "sha256": "a660245b7de89c4ec7ce80e4778e0712aa32403f3903a990bb031255eb5be0b1"
+  },
+  {
+    "file": "apps/web/lib/answer-display.ts",
+    "lines": 230,
+    "sha256": "278ae364c54e32409ecd3848ac6c8324617a2394feaa775d605d1f4f6cce9505"
+  },
+  {
+    "file": "apps/web/lib/answer-parser.ts",
+    "lines": 130,
+    "sha256": "f6772d6132d6e1b6c901065861a9c12c3f3eefe5c0835342adf70580b9f70ef8"
+  },
+  {
+    "file": "apps/web/lib/api/account.ts",
+    "lines": 57,
+    "sha256": "5f0f18073dfa7d25f5a7bd4f473d72b178ce3937768921e089430dd8b62498a7"
+  },
+  {
+    "file": "apps/web/lib/api/ai.ts",
+    "lines": 16,
+    "sha256": "7f07ee1931ae279b675aee2a9170b51cfe006986201abaaead31d085182d2a93"
+  },
+  {
+    "file": "apps/web/lib/api/analytics.ts",
+    "lines": 65,
+    "sha256": "30a6e1ad8dc6d806cc03b0be9bd18f7c519cec8172875ff477f37721d6dd013e"
+  },
+  {
+    "file": "apps/web/lib/api/client.ts",
+    "lines": 85,
+    "sha256": "5f7ecb7a836a6939c0cf9f77bbe5b93308875718efe4fd0e72cbf1ff93958a2f"
+  },
+  {
+    "file": "apps/web/lib/api/exam-configs.ts",
+    "lines": 108,
+    "sha256": "4409ecd215a7ea0c19386248c99f96e1375a589b14c23d93ab3746240ef4e1e9"
+  },
+  {
+    "file": "apps/web/lib/api/exam-review.ts",
+    "lines": 23,
+    "sha256": "449ab183c6e4e028d41cbec860a619d9fb23f0e275cbe0fa65ca929ca00dabc2"
+  },
+  {
+    "file": "apps/web/lib/api/exams.ts",
+    "lines": 13,
+    "sha256": "be3a1545c5395b660cb4e9f3398334831aaa7016cd6accd328a0344f900bac39"
+  },
+  {
+    "file": "apps/web/lib/api/grading.ts",
+    "lines": 15,
+    "sha256": "4ecb12740863bf246b48f8ca2be888fcd83fa3f4fbf2018ee153791e66bb7cd0"
+  },
+  {
+    "file": "apps/web/lib/api/imports.ts",
+    "lines": 58,
+    "sha256": "aed75b94fd6aeb9661af7d50cd8b4f1addf9b023c0a24eaafd69e073a6c78fcb"
+  },
+  {
+    "file": "apps/web/lib/api/notifications.ts",
+    "lines": 68,
+    "sha256": "30ae656ad091305a19e59eab34a7f9ffea9bba0700d6bc97dffe208244c0186f"
+  },
+  {
+    "file": "apps/web/lib/api/pas.ts",
+    "lines": 221,
+    "sha256": "199245601b3854e2f0c3b7a21b8a855b584d572d5f3f0e618ff9689762501c8b"
+  },
+  {
+    "file": "apps/web/lib/api/proctor.ts",
+    "lines": 370,
+    "sha256": "f90f4d0cd324f7d7bcc27a4f5177fb70fda4cfdee5a3d5ac1daf9bbaa5f4876b"
+  },
+  {
+    "file": "apps/web/lib/api/proctoring.ts",
+    "lines": 40,
+    "sha256": "523038b328ac69de6d870ed4d4a25a5fcac73368ddcae46a72300e23df17cd06"
+  },
+  {
+    "file": "apps/web/lib/api/questions.ts",
+    "lines": 409,
+    "sha256": "057fb1806302dab5e0cd66a61fcbde8fa74851da878eea4aad014c702eaf5728"
+  },
+  {
+    "file": "apps/web/lib/api/settings.server.ts",
+    "lines": 29,
+    "sha256": "ff0986cae15a445d542e373e634f05675b2d8f83b65488d6c1c2bb019616e95c"
+  },
+  {
+    "file": "apps/web/lib/api/settings.ts",
+    "lines": 75,
+    "sha256": "feafc9ceb0a59472a7527ae77437eef1bd624d910cd88ddf512989f927aa3728"
+  },
+  {
+    "file": "apps/web/lib/api/student-analytics.ts",
+    "lines": 143,
+    "sha256": "6c8555871f407f06c99818663334e143237511c030856efe27cb8799430ba5a6"
+  },
+  {
+    "file": "apps/web/lib/api/students.ts",
+    "lines": 215,
+    "sha256": "1c9e50688fea41e9bd62a4171c01b9b72b15fc9bdc0ff182a3ac6d6738cfbd8a"
+  },
+  {
+    "file": "apps/web/lib/api/teachers.ts",
+    "lines": 98,
+    "sha256": "e365842253eba53589465a737b64f896d87347bd7c49278e537d0e5e54d5b808"
+  },
+  {
+    "file": "apps/web/lib/app-jwt.ts",
+    "lines": 115,
+    "sha256": "63e8f7d871db23190f3ef7dace88d51a8f0fb43fc3604193f4070dbd4735e467"
+  },
+  {
+    "file": "apps/web/lib/device-id.ts",
+    "lines": 32,
+    "sha256": "91cf817ff3568e7fae498fc6e18acc7e93ca31d3dc3e14f0dc8fdda0236c0018"
+  },
+  {
+    "file": "apps/web/lib/doc-parser.ts",
+    "lines": 906,
+    "sha256": "8fa90756551d4faa3c120c9286fea0442bb996570a466a065d823cdd619aeb95"
+  },
+  {
+    "file": "apps/web/lib/excel-parser.ts",
+    "lines": 667,
+    "sha256": "c56776b4e00acdbf7eede0bd7f03acc423fea0ee899b357bf91d182d90f9c227"
+  },
+  {
+    "file": "apps/web/lib/export-template.ts",
+    "lines": 724,
+    "sha256": "091c0b0f495afb99e51790ef036de47f08a582e4f70a3d867a73a4c2847d107e"
+  },
+  {
+    "file": "apps/web/lib/math-equations.ts",
+    "lines": 124,
+    "sha256": "bc041f8c01eda7a62614045b3bf8258333fcc4cdf6e9c8ac5c6627020ced1e8e"
+  },
+  {
+    "file": "apps/web/lib/nest-api.ts",
+    "lines": 93,
+    "sha256": "ac89d3cf2acee359299c29ee6266b1e61e1ab02ed88541c38db5ad44148cafef"
+  },
+  {
+    "file": "apps/web/lib/nest-proxy.ts",
+    "lines": 78,
+    "sha256": "0a0616f9c426d1fa129fef88238eed7cb422b3feaeee781b1ee14eae637a040d"
+  },
+  {
+    "file": "apps/web/lib/rbac.ts",
+    "lines": 306,
+    "sha256": "12b6b783f836733ca566a5adb2c106575d2187f9bfed7f845f8f563e235ab734"
+  },
+  {
+    "file": "apps/web/lib/safe-url.ts",
+    "lines": 41,
+    "sha256": "80c8fd7bbc2447f47a6bf0c4e1d7cb447cf4b883beaf6a0b511a34b750eb8798"
+  },
+  {
+    "file": "apps/web/lib/session-reset.ts",
+    "lines": 50,
+    "sha256": "aa7270a9e336414a9944147face84c1f3a33659948d64d7478f3ae18d8322499"
+  },
+  {
+    "file": "apps/web/lib/session.ts",
+    "lines": 66,
+    "sha256": "0a5c8dca3a0a93dae3418b87aa972405340a896da3006ffb97f54250b3d935bf"
+  },
+  {
+    "file": "apps/web/lib/storage.ts",
+    "lines": 321,
+    "sha256": "b5312fd24b3d7c1ca5b58a92aa2320f96ca247d3045e965a08a698b5c0b2b725"
+  },
+  {
+    "file": "apps/web/lib/text-format.ts",
+    "lines": 27,
+    "sha256": "9441e4b0ca9b1ab590c49efd937957242b8d0037a3b4d23e6182427ada052959"
+  },
+  {
+    "file": "apps/web/lib/uploader.ts",
+    "lines": 96,
+    "sha256": "0f5a24b4615955da60747140b2596ae5c7fbc0d3ca3120fddf5481085e6f3ef0"
+  },
+  {
+    "file": "apps/web/lib/useAutoRefresh.ts",
+    "lines": 63,
+    "sha256": "8b0acd71d63a5bac8e3143b46f17bec7a7e190e1833ecbbd7e7f382447a23b87"
+  },
+  {
+    "file": "apps/web/lib/useMemoryState.ts",
+    "lines": 51,
+    "sha256": "0d1b891c5c434737e954375a4f140f3f8eb3d4edade6e4771e9421c02f918662"
+  },
+  {
+    "file": "packages/shared/src/api.ts",
+    "lines": 33,
+    "sha256": "c748357473b887d39437d32fc6b2de2200782d896d4cbd3ec002bd4654277b0a"
+  },
+  {
+    "file": "packages/shared/src/index.ts",
+    "lines": 3,
+    "sha256": "b6fc5bc541d8af9c1fb7182b05b1cc8e1058e55e2d511ecb06fc040dd8fdcf6f"
+  },
+  {
+    "file": "packages/shared/src/roles.ts",
+    "lines": 93,
+    "sha256": "41a654a60af4aa57d7f13de6ca249b70797ed5795f4ef9d63d3cefb4dc623d4b"
+  }
+]

@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 
@@ -137,8 +137,32 @@ export class NotificationsService {
     }
 
     async updatePreferences(user: AuthUser, preferences: Record<string, unknown>) {
+        const values: Record<string, unknown> = {};
+        const booleans = ['email_enabled', 'push_enabled', 'exam_reminder', 'class_updates',
+            'results_notifications', 'achievement_notifications', 'marketing_notifications'];
+        for (const key of booleans) {
+            if (preferences[key] === undefined) continue;
+            if (typeof preferences[key] !== 'boolean') throw new BadRequestException(`${key} harus boolean.`);
+            values[key] = preferences[key];
+        }
+        if (preferences.exam_reminder_minutes !== undefined) {
+            const minutes = preferences.exam_reminder_minutes;
+            if (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes < 0 || minutes > 10080) {
+                throw new BadRequestException('Waktu pengingat tidak valid.');
+            }
+            values.exam_reminder_minutes = minutes;
+        }
+        for (const key of ['quiet_hours_start', 'quiet_hours_end']) {
+            const value = preferences[key];
+            if (value === undefined) continue;
+            if (value !== null && value !== '' &&
+                (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value))) {
+                throw new BadRequestException('Jam tenang tidak valid.');
+            }
+            values[key] = value || null;
+        }
         const { error } = await this.db.from('cbt_notification_preferences').upsert(
-            { user_id: user.id, ...preferences, updated_at: new Date().toISOString() },
+            { ...values, user_id: user.id, updated_at: new Date().toISOString() },
             { onConflict: 'user_id' },
         );
 

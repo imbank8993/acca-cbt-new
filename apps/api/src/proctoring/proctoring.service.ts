@@ -30,6 +30,10 @@ const NON_WARNING_EVENTS = [
 
 /** Klien mengirim 'tab_switch' dan 'window_blur'; 'blur' adalah nilai warisan. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
+export const STUDENT_SECURITY_EVENTS = [
+    ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
+    'copy_paste_attempt', 'right_click_attempt', 'tab_close',
+];
 
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
@@ -61,6 +65,9 @@ export class ProctoringService {
         eventType: string,
         metadata: Record<string, unknown> = {},
     ) {
+        if (!STUDENT_SECURITY_EVENTS.includes(eventType)) {
+            throw new BadRequestException('Jenis event siswa tidak diizinkan.');
+        }
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
             .select('user_id, status')
@@ -79,7 +86,8 @@ export class ProctoringService {
 
         await this.db
             .from('cbt_attempt_security_logs')
-            .insert({ attempt_id: attemptId, event_type: eventType, metadata });
+            .insert({ attempt_id: attemptId, event_type: eventType,
+                metadata: { ...metadata, actor_id: user.id, source: 'student' } });
 
         // Penghitung diturunkan dengan MENGHITUNG baris log, bukan dengan
         // baca-ubah-tulis. Increment kehilangan kenaikan yang bersamaan ketika
@@ -205,10 +213,12 @@ export class ProctoringService {
             await this.authz.assertProktor(user, row.organization_id);
         }
 
-        await this.db
+        const { data: closed, error } = await this.db
             .from('cbt_exam_attempts')
             .update({ status: 'auto_submitted', finished_at: new Date().toISOString() })
-            .eq('id', attemptId);
+            .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
+        if (error) throw new BadRequestException('Status pengerjaan gagal disimpan.');
+        if (!closed) return;
 
         // Jawaban yang sudah tersimpan tetap dinilai. Tanpa ini attempt yang
         // dihentikan tidak pernah punya skor: total_score kosong dan seluruh

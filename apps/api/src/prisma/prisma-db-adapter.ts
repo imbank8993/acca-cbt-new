@@ -122,7 +122,7 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
 
   constructor(
     private readonly table: string,
-    private readonly prisma: PrismaService,
+    private readonly prisma: Pick<PrismaService, '$queryRawUnsafe'>,
     private readonly registry: RelationRegistry,
   ) {}
 
@@ -626,4 +626,17 @@ export class DbService {
   async raw<T = unknown>(sql: string, ...params: unknown[]): Promise<T> {
     return this.prisma.$queryRawUnsafe<T>(sql, ...params);
   }
+
+  /** Every builder inside the callback uses the same database transaction. */
+  async transaction<T>(work: (db: DbSession) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async connection => work({
+      from: table => new PostgrestQueryBuilder(table, connection, this.registry),
+      raw: <R = unknown>(sql: string, ...params: unknown[]) => connection.$queryRawUnsafe<R>(sql, ...params),
+    }), { timeout: 30000 });
+  }
+}
+
+export interface DbSession {
+  from(table: string): PostgrestQueryBuilder;
+  raw<T = unknown>(sql: string, ...params: unknown[]): Promise<T>;
 }

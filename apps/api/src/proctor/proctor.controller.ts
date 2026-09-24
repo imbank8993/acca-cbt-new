@@ -50,7 +50,7 @@ import { ProctorService } from './proctor.service';
 @ApiBearerAuth()
 @Controller('proctor')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'PROKTOR', 'GURU')
+@Roles('ADMIN', 'PROKTOR', 'GURU', 'PENGAWAS')
 export class ProctorController {
     constructor(
         private readonly proctor: ProctorService,

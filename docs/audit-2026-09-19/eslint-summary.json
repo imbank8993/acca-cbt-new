@@ -1,0 +1,24 @@
+{
+  "errors": 1367,
+  "warnings": 653,
+  "rules": {
+    "@typescript-eslint/no-explicit-any": 1166,
+    "react-hooks/set-state-in-effect": 41,
+    "@typescript-eslint/no-unused-vars": 567,
+    "@next/next/no-img-element": 4,
+    "(configuration/parser)": 5,
+    "react-hooks/exhaustive-deps": 74,
+    "jsx-a11y/alt-text": 2,
+    "react-hooks/refs": 9,
+    "react-hooks/immutability": 34,
+    "react-hooks/preserve-manual-memoization": 9,
+    "prefer-const": 16,
+    "react-hooks/rules-of-hooks": 24,
+    "@typescript-eslint/no-unused-expressions": 1,
+    "@typescript-eslint/ban-ts-comment": 11,
+    "react/display-name": 1,
+    "react/no-unescaped-entities": 52,
+    "react-hooks/purity": 2,
+    "@typescript-eslint/no-require-imports": 2
+  }
+}

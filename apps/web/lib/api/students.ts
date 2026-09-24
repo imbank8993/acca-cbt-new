@@ -1,4 +1,5 @@
 import { apiGet, apiSend } from './client';
+import { getDeviceId } from '../device-id';
 
 /**
  * Semua yang dilakukan siswa atas dirinya sendiri.
@@ -156,7 +157,7 @@ export function saveAnswerAction(
 ) {
     return apiSend<{ attemptId: string }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
-        data,
+        { ...data, deviceId: getDeviceId() },
         'PUT',
     );
 }
@@ -166,7 +167,7 @@ export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPa
 
     return apiSend<{ attemptId: string; saved: number }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers`,
-        { answers },
+        { answers, deviceId: getDeviceId() },
         'PUT',
     );
 }
@@ -199,9 +200,9 @@ export async function submitExamAction(
     },
     attemptId?: string,
 ) {
-    const res = await apiSend<{ score: number; alreadySubmitted?: boolean }>(
+    const res = await apiSend<{ score: number; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-        { answers: studentAnswers, assignmentData, attemptId },
+        { answers: studentAnswers, assignmentData, attemptId, deviceId: getDeviceId() },
     );
 
     return res.success
@@ -209,6 +210,7 @@ export async function submitExamAction(
               success: true as const,
               score: res.score,
               alreadySubmitted: res.alreadySubmitted ?? false,
+              savedAnswersOnly: res.savedAnswersOnly ?? false,
           }
         : { success: false as const, error: res.error };
 }

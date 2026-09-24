@@ -1,0 +1,12 @@
+[
+  {
+    "id": "BUG-16a",
+    "reproduced": true,
+    "evidence": "Keys a,b; answer a,a incorrectly receives 10/10."
+  },
+  {
+    "id": "BUG-16b",
+    "reproduced": true,
+    "evidence": "One checklist option of weight 2 submitted three times receives dimension score 6."
+  }
+]

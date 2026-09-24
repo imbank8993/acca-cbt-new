@@ -38,3 +38,21 @@ export function attachmentLabel(url: string, index: number): string {
         return raw;
     }
 }
+
+/**
+ * Memastikan string URL memiliki format absolut.
+ * Jika URL berupa path relatif (mis. '/uploads/...'), ubah menjadi absolut
+ * dengan memanfaatkan origin window saat ini di browser.
+ */
+export function ensureAbsoluteUrl(url: string): string {
+    if (!url) return url;
+    if (/^(https?:)?\/\//i.test(url)) return url;
+    if (typeof window !== 'undefined' && url.startsWith('/')) {
+        return `${window.location.origin}${url}`;
+    }
+    if (typeof window !== 'undefined') {
+        return new URL(url, window.location.origin).toString();
+    }
+    return url;
+}
+

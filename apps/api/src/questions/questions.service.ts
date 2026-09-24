@@ -81,10 +81,40 @@ export class QuestionsService {
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
 
-        const { data, error } = await this.db
-            .from('cbt_bank_questions')
-            .upsert({
-                id: dto.id,
+        if (dto.id) {
+            const { data: existing, error } = await this.db.from('cbt_bank_questions')
+                .select('id').eq('id', dto.id).eq('bank_id', dto.bankId).maybeSingle();
+            if (error) throw new BadRequestException(error.message);
+            if (!existing) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
+        }
+        // Validate every supplied option ID before changing the question or deleting options.
+        const optionIds = (dto.options || []).flatMap(option => option.id ? [option.id] : []);
+        if (optionIds.length) {
+            if (!dto.id || new Set(optionIds).size !== optionIds.length) {
+                throw new BadRequestException('ID opsi lama tidak valid.');
+            }
+            const { data: ownedOptions, error } = await this.db.from('cbt_bank_question_options')
+                .select('id').eq('question_id', dto.id).in('id', optionIds);
+            if (error) throw new BadRequestException(error.message);
+            if ((ownedOptions || []).length !== optionIds.length) {
+                throw new BadRequestException('Opsi tidak ditemukan pada soal ini.');
+            }
+        }
+
+        for (const [id, table] of [
+            [dto.stimulusId, 'cbt_question_stimuli'],
+            [dto.instructionId, 'cbt_question_instructions'],
+            [dto.dimensionId, 'cbt_question_dimensions'],
+            [dto.kisi_kisi_id, 'cbt_question_kisi_kisi'],
+        ]) {
+            if (!id) continue;
+            const { data: related, error } = await this.db.from(table!)
+                .select('id').eq('id', id).eq('bank_id', dto.bankId).maybeSingle();
+            if (error) throw new BadRequestException(error.message);
+            if (!related) throw new BadRequestException('Referensi soal harus berasal dari bank yang sama.');
+        }
+
+        const payload = {
                 bank_id: dto.bankId,
                 // Organisasi dari banknya, bukan dari `orgId` kiriman klien —
                 // yang pada mode admin platform bahkan berisi 'all'.
@@ -98,7 +128,11 @@ export class QuestionsService {
                 instruction_id: dto.instructionId || null,
                 dimension_id: dto.dimensionId || null,
                 kisi_kisi_id: dto.kisi_kisi_id || null,
-            })
+            };
+        const mutation = dto.id
+            ? this.db.from('cbt_bank_questions').update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
+            : this.db.from('cbt_bank_questions').insert(payload);
+        const { data, error } = await mutation
             .select('id')
             .single();
 
@@ -323,7 +357,7 @@ export class QuestionsService {
             option_text: option.text,
             is_correct: option.isCorrect,
             order: index,
-            weight: option.weight || 1,
+            weight: option.weight ?? 1,
             metadata: option.metadata || {},
         }));
 

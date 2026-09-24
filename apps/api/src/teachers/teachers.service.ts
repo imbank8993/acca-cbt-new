@@ -13,6 +13,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Tipe soal yang dinilai manual oleh guru. */
 const ESSAY_TYPES = ['essay', 'esay', 'uraian'];
+const PERSONALITY_TYPES = ['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
 
 /**
  * Modul guru — dipindahkan dari `apps/web/app/actions/guru.ts`.
@@ -260,7 +261,7 @@ export class TeachersService {
     ) {
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('exam_id, organization_id')
+            .select('exam_id, organization_id, status')
             .eq('id', attemptId)
             .maybeSingle();
 
@@ -270,6 +271,13 @@ export class TeachersService {
         // Proktor/Admin bebas; Guru hanya boleh menilai esai dari ujian
         // buatannya sendiri.
         await this.authz.assertExamStaff(user, examId);
+
+        if (!['submitted', 'auto_submitted'].includes(attempt.status)) {
+            throw new BadRequestException('Pengerjaan belum selesai.');
+        }
+        if (!grades || Object.keys(grades).length === 0) {
+            throw new BadRequestException('Pilih setidaknya satu jawaban untuk dinilai.');
+        }
 
         const { data: exam } = await this.db
             .from('cbt_exams')
@@ -288,41 +296,61 @@ export class TeachersService {
         }
         if (!bankId) throw new BadRequestException('Bank soal ujian tidak ditemukan.');
 
-        // Nilainya berbeda per jawaban, jadi tidak bisa disatukan menjadi satu
-        // UPDATE tanpa VALUES-join. Jumlah esai per attempt kecil.
+        const { data: questions, error: questionsError } = await this.db
+            .from('cbt_bank_questions').select('id, type, score_default').eq('bank_id', bankId);
+        if (questionsError) throw new BadRequestException(questionsError.message);
+        const questionMap = new Map<string, any>(((questions as any[]) || []).map(q => [q.id, q]));
+        const { data: ownedAnswers, error: answersError } = await this.db.from('cbt_answers')
+            .select('id, question_id').eq('attempt_id', attemptId).in('id', Object.keys(grades));
+        if (answersError) throw new BadRequestException(answersError.message);
+        const answerMap = new Map<string, any>(((ownedAnswers as any[]) || []).map(a => [a.id, a]));
+        // Validate the complete request before the first mutation.
         for (const [answerId, score] of Object.entries(grades)) {
-            await this.db
+            const question = questionMap.get(answerMap.get(answerId)?.question_id);
+            if (!question || !ESSAY_TYPES.includes(question.type)) {
+                throw new ForbiddenException('Jawaban esai tidak ditemukan pada pengerjaan ini.');
+            }
+            if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > (question.score_default || 1)) {
+                throw new BadRequestException('Nilai harus berada antara nol dan skor maksimum soal.');
+            }
+        }
+        for (const [answerId, score] of Object.entries(grades)) {
+            const { data: updated, error } = await this.db
                 .from('cbt_answers')
                 .update({ score, is_correct: score > 0 })
-                .eq('id', answerId);
+                .eq('id', answerId).eq('attempt_id', attemptId).select('id').maybeSingle();
+            if (error || !updated) throw new BadRequestException('Nilai jawaban gagal disimpan. Coba lagi.');
         }
 
-        const { data: questions } = await this.db
-            .from('cbt_bank_questions')
-            .select('id, score_default')
-            .eq('bank_id', bankId);
-
-        const maxScore = ((questions as Array<{ score_default: number | null }>) || []).reduce(
+        const academicQuestions = ((questions as any[]) || []).filter(q => !PERSONALITY_TYPES.includes(q.type));
+        const maxScore = academicQuestions.reduce(
             (sum, q) => sum + (q.score_default || 1),
             0,
         );
 
-        const { data: allAnswers } = await this.db
+        const { data: allAnswers, error: allAnswersError } = await this.db
             .from('cbt_answers')
-            .select('score')
+            .select('question_id, score, is_correct')
             .eq('attempt_id', attemptId);
+        if (allAnswersError) throw new BadRequestException(allAnswersError.message);
 
-        const total = ((allAnswers as Array<{ score: number | null }>) || []).reduce(
+        const academicIds = new Set(academicQuestions.map(q => q.id));
+        const total = ((allAnswers as any[]) || []).filter(a => academicIds.has(a.question_id)).reduce(
             (sum, a) => sum + (a.score || 0),
             0,
+        );
+        const pending = academicQuestions.filter(q => ESSAY_TYPES.includes(q.type)).some(q =>
+            !((allAnswers as any[]) || []).some(a => a.question_id === q.id &&
+                typeof a.score === 'number' && a.is_correct !== null && a.is_correct !== undefined),
         );
 
         const finalScore = maxScore > 0 ? (total / maxScore) * 100 : 0;
 
-        await this.db
+        const { error: totalError } = await this.db
             .from('cbt_exam_attempts')
-            .update({ total_score: finalScore, needs_manual_grading: false })
+            .update({ total_score: finalScore, needs_manual_grading: pending })
             .eq('id', attemptId);
+        if (totalError) throw new BadRequestException(totalError.message);
 
         return { totalScore: finalScore };
     }

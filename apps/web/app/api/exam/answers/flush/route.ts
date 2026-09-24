@@ -14,7 +14,7 @@ import { proxy } from '@/lib/nest-proxy';
  * seperti pada autosave biasa.
  */
 export async function POST(request: NextRequest) {
-    let payload: { attemptId?: string; answers?: unknown[] };
+    let payload: { attemptId?: string; answers?: unknown[]; deviceId?: string };
     try {
         payload = await request.json();
     } catch {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const { attemptId, answers } = payload || {};
+    const { attemptId, answers, deviceId } = payload || {};
     if (!attemptId || !Array.isArray(answers) || answers.length === 0) {
         return NextResponse.json(
             { success: false, error: 'Payload tidak valid.' },
@@ -34,6 +34,6 @@ export async function POST(request: NextRequest) {
 
     return proxy(request, `/students/attempts/${encodeURIComponent(attemptId)}/answers`, {
         method: 'PUT',
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, deviceId }),
     });
 }

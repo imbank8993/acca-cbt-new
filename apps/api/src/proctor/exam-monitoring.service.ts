@@ -59,7 +59,7 @@ export class ExamMonitoringService {
      * pengawas tidak bisa melihat siapa yang tertinggal.
      */
     async listAttempts(user: AuthUser, examId: string) {
-        await this.authz.assertExamStaff(user, examId);
+        await this.authz.assertExamMonitoring(user, examId);
 
         // Pengerjaan yang tenggatnya lewat ditutup lebih dulu, supaya status
         // "sedang mengerjakan" di layar benar-benar berarti sedang mengerjakan.
@@ -273,7 +273,7 @@ export class ExamMonitoringService {
      * dimuat ulang. Sejak Supabase tidak ada, umpannya tidak pernah terisi lagi.
      */
     async listRecentViolations(user: AuthUser, examId: string, limit: number) {
-        await this.authz.assertExamStaff(user, examId);
+        await this.authz.assertExamMonitoring(user, examId);
 
         const { data: attemptRows } = await this.db
             .from('cbt_exam_attempts')
@@ -488,7 +488,7 @@ export class ExamMonitoringService {
         if (!data) throw new NotFoundException('Pengerjaan tidak ditemukan.');
 
         const attempt = data as any;
-        await this.authz.assertExamStaff(user, attempt.exam_id);
+        await this.authz.assertExamMonitoring(user, attempt.exam_id);
 
         const [{ data: answerRows }, { data: securityLogs }] = await Promise.all([
             this.db

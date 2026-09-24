@@ -44,13 +44,16 @@ export class ExamAdminService {
      */
     async list(user: AuthUser, organizationId: string) {
         const scoped = organizationId !== 'all';
-        if (scoped) await this.authz.assertOrgStaff(user, organizationId);
+        if (scoped) await this.authz.assertOrgMonitoring(user, organizationId);
         else this.authz.assertPlatformAdmin(user);
 
         let query = this.db.from('cbt_exams').select('*');
         if (scoped) query = query.eq('organization_id', organizationId);
 
-        if (!(await this.isElevated(user, organizationId))) {
+        const canSeeAll =
+            (await this.isElevated(user, organizationId)) ||
+            (await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']));
+        if (!canSeeAll) {
             query = query.eq('created_by', user.id);
         }
 

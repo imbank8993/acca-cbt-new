@@ -54,6 +54,11 @@ export class SaveAnswerDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    deviceId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
     selected_option_id?: string;
 
     @ApiPropertyOptional()
@@ -68,6 +73,11 @@ export class SaveAnswerDto {
 }
 
 export class SyncAnswersDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    deviceId?: string;
+
     @ApiProperty({ type: [AnswerDto] })
     @IsArray()
     @ValidateNested({ each: true })
@@ -75,14 +85,14 @@ export class SyncAnswersDto {
     answers!: AnswerDto[];
 }
 
-export class SyncLateAnswersDto extends SyncAnswersDto {
+export class SyncLateAnswersDto extends SyncAnswersDto {}
+
+export class SubmitExamDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
     deviceId?: string;
-}
 
-export class SubmitExamDto {
     @ApiProperty({
         description: 'Peta id soal → jawaban mentah, seperti yang dipegang klien.',
         example: { '8f1c…': 'a2d0…', 'b31e…': '["x","y"]' },

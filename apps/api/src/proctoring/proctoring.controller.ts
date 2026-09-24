@@ -9,15 +9,16 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { ProctoringService } from './proctoring.service';
+import { ProctoringService, STUDENT_SECURITY_EVENTS } from './proctoring.service';
 
 class LogViolationDto {
     @ApiProperty({ example: 'tab_switch' })
     @IsString()
+    @IsIn(STUDENT_SECURITY_EVENTS)
     @IsNotEmpty({ message: 'Jenis event wajib diisi' })
     eventType!: string;
 
