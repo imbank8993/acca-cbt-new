@@ -198,12 +198,11 @@ export class ClassesService {
         const memberTable = isAdditional
             ? 'cbt_additional_class_members'
             : 'cbt_class_members';
-        const filterColumn = isAdditional ? 'additional_class_id' : 'class_id';
 
         const { data, error } = await this.db
             .from(memberTable)
             .select('user_id, profiles:cbt_profiles!inner(id, full_name, identity_number)')
-            .eq(filterColumn, classId);
+            .eq('class_id', classId);
 
         if (error) {
             this.logger.error(`Gagal membaca siswa kelas ${classId}: ${error.message}`);
@@ -326,9 +325,20 @@ export class ClassesService {
     async remove(user: AuthUser, classId: string) {
         const { table } = await this.locate(classId);
 
+        // Kelas utama/reguler berasal dari data master acca-new dan tidak boleh dihapus dari CBT.
+        if (table === 'cbt_classes') {
+            throw new BadRequestException(
+                'Kelas utama disinkronkan dari data master acca-new dan tidak dapat dihapus di sini.',
+            );
+        }
+
         await this.authz.assertProktorByRecord(user, table, classId);
 
-        const { error } = await this.db.from(table).delete().eq('id', classId);
+        // Bersihkan data relasi terlebih dahulu agar tidak memicu foreign key violation.
+        await this.db.from('cbt_additional_class_members').delete().eq('class_id', classId);
+        await this.db.from('cbt_exam_targets').delete().eq('additional_class_id', classId);
+
+        const { error } = await this.db.from('cbt_additional_classes').delete().eq('id', classId);
         if (error) throw new BadRequestException(error.message);
 
         return { id: classId };

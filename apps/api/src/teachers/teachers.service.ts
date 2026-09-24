@@ -161,7 +161,21 @@ export class TeachersService {
             .maybeSingle();
 
         if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
-        await this.authz.assertOrgStaff(user, (cls as { organization_id: string }).organization_id);
+        const orgId = (cls as { organization_id: string }).organization_id;
+        await this.authz.assertOrgStaff(user, orgId);
+
+        // Pastikan studentId yang didaftarkan adalah anggota aktif di sekolah yang sama
+        const { data: studentMember } = await this.db
+            .from('cbt_organization_members')
+            .select('id')
+            .eq('organization_id', orgId)
+            .eq('user_id', studentId)
+            .eq('is_active', true)
+            .maybeSingle();
+
+        if (!studentMember) {
+            throw new BadRequestException('Siswa yang dipilih bukan anggota aktif dari sekolah ini.');
+        }
 
         const { error } = await this.db
             .from('cbt_additional_class_members')

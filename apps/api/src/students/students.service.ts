@@ -2,6 +2,8 @@ import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    HttpException,
+    HttpStatus,
     Injectable,
     Logger,
     NotFoundException,
@@ -28,8 +30,35 @@ const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
 @Injectable()
 export class StudentsService {
     private readonly logger = new Logger(StudentsService.name);
+    /** Pencatatan percobaan kode kelas yang gagal untuk mencegah brute-force. */
+    private readonly failedJoinAttempts = new Map<string, number[]>();
 
     constructor(private readonly db: DbService) {}
+
+    private assertJoinRateLimit(userId: string) {
+        const now = Date.now();
+        const windowMs = 60_000; // Jendela 1 menit
+        const maxAttempts = 5;
+
+        const timestamps = (this.failedJoinAttempts.get(userId) || []).filter(
+            (t) => now - t < windowMs,
+        );
+
+        if (timestamps.length >= maxAttempts) {
+            throw new HttpException(
+                'Terlalu banyak percobaan kode kelas yang salah. Harap tunggu 1 menit.',
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+
+        this.failedJoinAttempts.set(userId, timestamps);
+    }
+
+    private recordFailedJoinAttempt(userId: string) {
+        const attempts = this.failedJoinAttempts.get(userId) || [];
+        attempts.push(Date.now());
+        this.failedJoinAttempts.set(userId, attempts);
+    }
 
     // ── Kelas ────────────────────────────────────────────────────────────────
 
@@ -98,13 +127,19 @@ export class StudentsService {
      * data induk sekolah.
      */
     async joinClass(user: AuthUser, joinCode: string) {
+        this.assertJoinRateLimit(user.id);
+
+        const normalizedCode = joinCode.trim().toUpperCase();
         const { data: cls } = await this.db
             .from('cbt_additional_classes')
             .select('id, name, organization_id')
-            .eq('join_code', joinCode.trim().toUpperCase())
+            .eq('join_code', normalizedCode)
             .maybeSingle();
 
-        if (!cls) throw new NotFoundException('Kode kelas tidak valid atau tidak ditemukan.');
+        if (!cls) {
+            this.recordFailedJoinAttempt(user.id);
+            throw new NotFoundException('Kode kelas tidak valid atau tidak ditemukan.');
+        }
 
         const row = cls as { id: string; name: string; organization_id: string };
 
@@ -116,10 +151,12 @@ export class StudentsService {
             .select('id')
             .eq('user_id', user.id)
             .eq('organization_id', row.organization_id)
+            .eq('is_active', true)
             .maybeSingle();
 
         if (!member) {
-            throw new ForbiddenException('Anda bukan anggota sekolah pemilik kelas ini.');
+            this.recordFailedJoinAttempt(user.id);
+            throw new ForbiddenException('Anda bukan anggota aktif sekolah pemilik kelas ini.');
         }
 
         const { data: existing } = await this.db
@@ -136,6 +173,9 @@ export class StudentsService {
             .insert({ class_id: row.id, user_id: user.id });
 
         if (error) throw new BadRequestException(error.message);
+
+        // Bersihkan riwayat gagal jika berhasil bergabung
+        this.failedJoinAttempts.delete(user.id);
 
         return { className: row.name };
     }

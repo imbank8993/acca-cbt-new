@@ -20,9 +20,9 @@ const generateYearOptions = (): string[] => {
 };
 
 export default function SettingsClassesPage() {
-    const [classes, setClasses] = useMemoryState<any[]>('proktor_settings_classes_classes', []);
+    const [classes, setClasses] = useMemoryState<any[]>('admin_settings_classes_classes', []);
     const [org, setOrg] = useState<any>(null);
-    const [isLoading, setIsLoading] = useMemoryState('proktor_settings_classes_isLoading', true);
+    const [isLoading, setIsLoading] = useMemoryState('admin_settings_classes_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -586,10 +586,15 @@ export default function SettingsClassesPage() {
                                         })).filter(r => r.name);
                                         if (formattedData.length === 0) { alert('Tidak ada data valid ditemukan.'); return; }
                                         setIsSubmitting(true);
-                                        await importClassesAction(org.id, formattedData);
+                                        const result = await importClassesAction(org.id, formattedData);
                                         setIsImportModalOpen(false);
                                         await loadData();
                                         setIsSubmitting(false);
+                                        if (result.failedCount > 0) {
+                                            alert(`Impor selesai: ${result.successCount} berhasil, ${result.failedCount} gagal.`);
+                                        } else {
+                                            alert(`Berhasil mengimpor ${result.successCount} kelas.`);
+                                        }
                                     };
                                     reader.readAsArrayBuffer(file);
                                 }}

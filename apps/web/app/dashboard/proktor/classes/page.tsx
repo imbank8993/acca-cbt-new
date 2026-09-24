@@ -586,10 +586,15 @@ export default function SettingsClassesPage() {
                                         })).filter(r => r.name);
                                         if (formattedData.length === 0) { alert('Tidak ada data valid ditemukan.'); return; }
                                         setIsSubmitting(true);
-                                        await importClassesAction(org.id, formattedData);
+                                        const result = await importClassesAction(org.id, formattedData);
                                         setIsImportModalOpen(false);
                                         await loadData();
                                         setIsSubmitting(false);
+                                        if (result.failedCount > 0) {
+                                            alert(`Impor selesai: ${result.successCount} berhasil, ${result.failedCount} gagal.`);
+                                        } else {
+                                            alert(`Berhasil mengimpor ${result.successCount} kelas.`);
+                                        }
                                     };
                                     reader.readAsArrayBuffer(file);
                                 }}
