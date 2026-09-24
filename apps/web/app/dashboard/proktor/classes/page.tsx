@@ -6,7 +6,7 @@ import {
     School, Search, Plus, Trash2, X, Loader2, Check,
     Copy, Users, ChevronRight, CalendarDays, Bookmark, Pencil, Upload, Download
 } from 'lucide-react';
-import { getProctorOrganization, listOrganizationClasses, createClassAction, editClassAction, deleteClassAction, listOrganizationSchoolYears, importClassesAction, getStudentsByClassAction } from '@/lib/api/proctor';
+import { getProctorOrganization, listOrganizationClasses, createClassAction, editClassAction, deleteClassAction, listOrganizationSchoolYears, getActiveSchoolYear, importClassesAction, getStudentsByClassAction } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 
@@ -18,6 +18,62 @@ const generateYearOptions = (): string[] => {
     }
     return years;
 };
+
+/** Ekstrak tingkatan kelas dari nama kelas (misal: X/10, XI/11, XII/12, VII/7, dsb). */
+function extractGradeLevel(className: string): number {
+    if (!className) return 99;
+    const name = className.trim().toUpperCase();
+
+    // 1. Angka Romawi: XII (12), XI (11), X (10), IX (9), VIII (8), VII (7), dsb.
+    const romanMatch =
+        name.match(/\b(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i) ||
+        name.match(/^(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)/i);
+    if (romanMatch) {
+        const r = romanMatch[1].toUpperCase();
+        const romanMap: Record<string, number> = {
+            XII: 12, XI: 11, X: 10, IX: 9, VIII: 8, VII: 7, VI: 6, V: 5, IV: 4, III: 3, II: 2, I: 1,
+        };
+        if (romanMap[r]) return romanMap[r];
+    }
+
+    // 2. Angka Arab di batas kata (misal: "10 MIPA", "11-IPS", "Kelas 12", "7A")
+    const numMatch =
+        name.match(/^(1[0-2]|[1-9])(?=[^0-9]|$)/) ||
+        name.match(/(?:KELAS\s+|TINGKAT\s+)?(1[0-2]|[1-9])(?=[^0-9]|$)/);
+    if (numMatch) {
+        return parseInt(numMatch[1], 10);
+    }
+
+    return 99;
+}
+
+/**
+ * Sortir cerdas untuk daftar kelas:
+ * 1. Prioritaskan kelas yang memiliki siswa (> 0) lebih dulu dibanding kelas kosong (0).
+ * 2. Kelompokkan per tingkatan kelas secara berurutan (misal: X -> XI -> XII atau 7 -> 8 -> 9).
+ * 3. Urutkan alfabetis secara natural (misal: "X MIPA 1" sebelum "X MIPA 2").
+ */
+function compareClasses(
+    a: { name?: string; studentCount?: number },
+    b: { name?: string; studentCount?: number },
+): number {
+    const hasA = (a.studentCount || 0) > 0 ? 1 : 0;
+    const hasB = (b.studentCount || 0) > 0 ? 1 : 0;
+    if (hasA !== hasB) {
+        return hasB - hasA;
+    }
+
+    const gradeA = extractGradeLevel(a.name || '');
+    const gradeB = extractGradeLevel(b.name || '');
+    if (gradeA !== gradeB) {
+        return gradeA - gradeB;
+    }
+
+    return (a.name || '').localeCompare(b.name || '', undefined, {
+        numeric: true,
+        sensitivity: 'base',
+    });
+}
 
 export default function SettingsClassesPage() {
     const [classes, setClasses] = useMemoryState<any[]>('proktor_settings_classes_classes', []);
@@ -35,7 +91,8 @@ export default function SettingsClassesPage() {
         schoolYear: ''
     });
     const [classTypeFilter, setClassTypeFilter] = useState<'all' | 'reguler' | 'tambahan'>('all');
-    const [yearFilter, setYearFilter] = useState<string>('all');
+    const defaultCurrentYear = `${currentYear}/${currentYear + 1}`;
+    const [yearFilter, setYearFilter] = useState<string>(defaultCurrentYear);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -65,16 +122,18 @@ export default function SettingsClassesPage() {
             const organization = await getProctorOrganization();
             if (organization) {
                 setOrg(organization);
-                const [classList, yearList] = await Promise.all([
+                const [classList, yearList, activeYearData] = await Promise.all([
                     listOrganizationClasses(organization.id),
                     listOrganizationSchoolYears(organization.id),
+                    getActiveSchoolYear(organization.id),
                 ]);
                 setClasses(classList || []);
                 setYearOptions(yearList);
                 // Set default year to current school year
-                const defaultYear = `${currentYear}/${currentYear + 1}`;
+                const runningYear = activeYearData?.year || yearList?.[0] || defaultCurrentYear;
+                setYearFilter(prev => (!prev || prev === 'all' || prev === defaultCurrentYear ? runningYear : prev));
                 if (!classForm.schoolYear) {
-                    setClassForm(prev => ({ ...prev, schoolYear: defaultYear }));
+                    setClassForm(prev => ({ ...prev, schoolYear: runningYear }));
                 }
             }
         }
@@ -147,9 +206,12 @@ export default function SettingsClassesPage() {
         return classes.filter(cls => {
             const matchSearch = cls.name?.toLowerCase().includes(searchQuery.toLowerCase());
             const matchType = classTypeFilter === 'all' || cls.type === classTypeFilter;
-            const matchYear = yearFilter === 'all' || cls.school_year === yearFilter;
+            const matchYear =
+                yearFilter === 'all' ||
+                cls.school_year === yearFilter ||
+                (cls.type === 'tambahan' && (!cls.school_year || cls.school_year === yearFilter));
             return matchSearch && matchType && matchYear;
-        });
+        }).sort(compareClasses);
     }, [classes, searchQuery, classTypeFilter, yearFilter]);
 
     const handleExport = async () => {

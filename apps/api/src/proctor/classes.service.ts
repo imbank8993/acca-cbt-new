@@ -118,9 +118,7 @@ export class ClassesService {
             };
         });
 
-        const combined = [...regularClasses, ...additionalClasses].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        );
+        const combined = [...regularClasses, ...additionalClasses].sort(compareClasses);
 
         // Pemilih kelas pada penjadwalan menyembunyikan kelas kosong:
         // keanggotaan mencerminkan data siswa acca-app, jadi kelas kosong di
@@ -588,4 +586,74 @@ export class ClassesService {
 /** Kode undangan kelas tambahan: enam karakter, cukup pendek untuk diketik. */
 function generateJoinCode(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+/** Ekstrak tingkatan kelas dari nama kelas (misal: X/10, XI/11, XII/12, VII/7, dsb). */
+export function extractGradeLevel(className: string): number {
+    if (!className) return 99;
+    const name = className.trim().toUpperCase();
+
+    // 1. Angka Romawi di batas kata: XII (12), XI (11), X (10), IX (9), VIII (8), VII (7), dsb.
+    const romanMatch =
+        name.match(/\b(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i) ||
+        name.match(/^(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)/i);
+    if (romanMatch) {
+        const r = romanMatch[1].toUpperCase();
+        const romanMap: Record<string, number> = {
+            XII: 12,
+            XI: 11,
+            X: 10,
+            IX: 9,
+            VIII: 8,
+            VII: 7,
+            VI: 6,
+            V: 5,
+            IV: 4,
+            III: 3,
+            II: 2,
+            I: 1,
+        };
+        if (romanMap[r]) return romanMap[r];
+    }
+
+    // 2. Angka Arab di batas kata (misal: "10 MIPA", "11-IPS", "Kelas 12", "7A")
+    const numMatch =
+        name.match(/^(1[0-2]|[1-9])(?=[^0-9]|$)/) ||
+        name.match(/(?:KELAS\s+|TINGKAT\s+)?(1[0-2]|[1-9])(?=[^0-9]|$)/);
+    if (numMatch) {
+        return parseInt(numMatch[1], 10);
+    }
+
+    return 99;
+}
+
+/**
+ * Sortir cerdas untuk daftar kelas:
+ * 1. Prioritaskan kelas yang memiliki siswa (> 0) lebih dulu dibanding kelas kosong (0).
+ * 2. Kelompokkan per tingkatan kelas secara berurutan (misal: X -> XI -> XII atau 7 -> 8 -> 9).
+ * 3. Urutkan alfabetis secara natural (misal: "X MIPA 1" sebelum "X MIPA 2").
+ */
+export function compareClasses(
+    a: { name?: string; studentCount?: number },
+    b: { name?: string; studentCount?: number },
+): number {
+    // 1. Kelas yang memiliki siswa ditaruh di atas
+    const hasA = (a.studentCount || 0) > 0 ? 1 : 0;
+    const hasB = (b.studentCount || 0) > 0 ? 1 : 0;
+    if (hasA !== hasB) {
+        return hasB - hasA;
+    }
+
+    // 2. Tingkat kelas (misal: X -> XI -> XII)
+    const gradeA = extractGradeLevel(a.name || '');
+    const gradeB = extractGradeLevel(b.name || '');
+    if (gradeA !== gradeB) {
+        return gradeA - gradeB;
+    }
+
+    // 3. Nama kelas (alfabetis natural)
+    return (a.name || '').localeCompare(b.name || '', undefined, {
+        numeric: true,
+        sensitivity: 'base',
+    });
 }

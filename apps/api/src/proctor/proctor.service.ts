@@ -288,7 +288,27 @@ export class ProctorService {
             .eq('is_active', true)
             .maybeSingle();
 
-        return data ?? null;
+        if (data) return data;
+
+        // Fallback ke master_tahun_ajaran (master data acca-app)
+        const { data: masterYear } = await this.db
+            .from('master_tahun_ajaran')
+            .select('tahun_ajaran')
+            .eq('is_active', true)
+            .order('tahun_ajaran', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (masterYear) {
+            return {
+                id: null,
+                organization_id: organizationId,
+                year: (masterYear as { tahun_ajaran: string }).tahun_ajaran,
+                is_active: true,
+            };
+        }
+
+        return null;
     }
 
     async createSchoolYear(
