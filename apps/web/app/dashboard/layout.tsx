@@ -69,12 +69,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 if (!cancelled && !authChecked) {
                     console.warn('[DashboardLayout] safety timeout — forcing authChecked=true');
                     if (!activeRoleCtx) {
-                        const fallbackRole = pathRoleRef.current ?? getActiveRoleFromStorage();
+                        const fallbackRole = getActiveRoleFromStorage();
                         if (fallbackRole) {
                             setActiveRoleCtx({ role: fallbackRole, orgId: '', orgName: '' });
+                            setAuthChecked(true);
+                        } else {
+                            router.replace('/');
                         }
+                    } else {
+                        setAuthChecked(true);
                     }
-                    setAuthChecked(true);
                 }
             }, 8000);
 
