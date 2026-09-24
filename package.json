@@ -11,7 +11,7 @@
     "dev": "npm run dev --workspace=apps/web",
     "dev:frontend": "npm run dev --workspace=apps/web",
     "dev:backend": "npm run build:shared && npm run start:dev --workspace=apps/api",
-    "dev:scoring": "cd apps/scoring && uvicorn app.main:app --reload --port 8000",
+    "dev:scoring": "node tools/dev-scoring.js",
     "dev:all": "npx concurrently -k -p \"[{name}]\" -n \"web,api,scoring\" -c \"cyan,magenta,yellow\" \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:scoring\"",
     "build": "npm run build:shared && npm run build --workspace=apps/web && npm run build --workspace=apps/api",
     "build:shared": "npm run build --workspace=packages/shared",
