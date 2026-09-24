@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   serverExternalPackages: ['mammoth', 'pdfjs-dist', 'docx', 'jszip', 'openai', 'mathjax-full'],
   typescript: {
     ignoreBuildErrors: false,

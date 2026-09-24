@@ -1,0 +1,67 @@
+services:
+  # ─── 1. Scoring & IRT Service (FastAPI / Python) ───────────────────────────
+  cbt-scoring:
+    build:
+      context: .
+      dockerfile: apps/scoring/Dockerfile
+    container_name: cbt-scoring
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    networks:
+      - cbt-network
+    # Port 8000 sengaja TIDAK dipublish ke host agar aman dari internet luar.
+    # Service ini hanya diakses oleh cbt-api lewat jaringan internal Docker.
+
+  # ─── 2. Backend API (NestJS 10 / Node.js) ──────────────────────────────────
+  cbt-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: cbt-api
+    restart: unless-stopped
+    depends_on:
+      cbt-scoring:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - PORT=3009
+      - HOST=0.0.0.0
+      - SCORING_API_URL=http://cbt-scoring:8000
+    # Memungkinkan container menjangkau PostgreSQL di host VPS lewat host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - cbt-network
+    # Port 3009 sengaja TIDAK dipublish ke host. Hanya diakses oleh Next.js route handler.
+
+  # ─── 3. Frontend Web (Next.js 16 / Standalone) ─────────────────────────────
+  cbt-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: cbt-web
+    restart: unless-stopped
+    depends_on:
+      cbt-api:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      - PORT=3008
+      - HOSTNAME=0.0.0.0
+      - NEST_API_URL=http://cbt-api:3009/api
+    ports:
+      # Hanya port ini yang diekspos ke host VPS untuk disambungkan ke Nginx/Reverse Proxy
+      - "${CBT_WEB_PORT:-3008}:3008"
+    networks:
+      - cbt-network
+
+networks:
+  cbt-network:
+    name: cbt-network
+    driver: bridge

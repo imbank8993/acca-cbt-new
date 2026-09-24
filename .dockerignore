@@ -1,0 +1,35 @@
+# Git
+.git
+.github
+.gitignore
+
+# Dependencies
+**/node_modules
+apps/scoring/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Build artifacts
+apps/web/.next
+apps/api/dist
+packages/shared/dist
+coverage
+
+# Environment files (local secrets never go into images)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Logs and system files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+docs/
+*.cbtbak
