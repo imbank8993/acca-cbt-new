@@ -50,9 +50,8 @@ cd acca-cbt-new
 
 ## 3. Konfigurasi Variabel Lingkungan (.env)
 
-Salin templat konfigurasi Docker:
+Buka berkas `.env` di root project:
 ```bash
-cp .env.docker.example .env
 nano .env
 ```
 
