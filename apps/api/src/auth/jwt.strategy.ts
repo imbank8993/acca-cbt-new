@@ -66,12 +66,34 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const email = (user.email || payload.email || '').toLowerCase();
+
+    // ─── Periksa status aktif di master tabel public.users ──────────────────────
+    const publicUsers = await this.prisma.$queryRawUnsafe<
+      Array<{ id: bigint; aktif: boolean; nama: string | null; nama_lengkap: string | null }>
+    >(
+      `SELECT id, aktif, nama, nama_lengkap 
+         FROM public.users 
+        WHERE auth_id = $1::uuid
+        LIMIT 1`,
+      user.id,
+    );
+
+    if (publicUsers.length > 0 && publicUsers[0].aktif === false) {
+      throw new UnauthorizedException('Akun Anda telah dinonaktifkan di sistem ACCA.');
+    }
+
     const context = await this.roles.resolve(user.id, email, user.raw_user_meta_data);
+
+    const verifiedName =
+      publicUsers[0]?.nama_lengkap ||
+      publicUsers[0]?.nama ||
+      (user.raw_user_meta_data?.full_name as string) ||
+      null;
 
     return {
       id: user.id,
       email,
-      fullName: (user.raw_user_meta_data?.full_name as string) ?? null,
+      fullName: verifiedName,
       roles: context.roleNames,
       resolved: context.resolved,
       bestRole: context.bestRole,
@@ -85,18 +107,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.authId && UUID_PATTERN.test(payload.authId)) return payload.authId;
     if (payload.sub && UUID_PATTERN.test(payload.sub)) return payload.sub;
 
-    // Token acca-new: `sub` adalah public_users.id (bigint). Kolom
-    // `cbt_auth_id` dipakai lebih dulu bila ada, karena di acca_db sebagian akun
-    // memisahkan identitas CBT dari identitas acca.
+    // Token acca-new: `sub` adalah public_users.id (bigint).
+    // Ambil auth_id yang valid dari public.users untuk menjamin identitas pengguna
+    // tidak pernah tertukar antar akun.
     if (payload.sub && /^\d+$/.test(payload.sub)) {
       const rows = await this.prisma.$queryRawUnsafe<
-        Array<{ auth_id: string | null; cbt_auth_id: string | null }>
+        Array<{ auth_id: string | null }>
       >(
-        `SELECT auth_id, cbt_auth_id FROM public.users WHERE id = $1::bigint LIMIT 1`,
+        `SELECT auth_id FROM public.users WHERE id = $1::bigint LIMIT 1`,
         payload.sub,
       );
       const row = rows[0];
-      if (row) return row.cbt_auth_id || row.auth_id;
+      if (row?.auth_id) return row.auth_id;
     }
 
     if (payload.email) {

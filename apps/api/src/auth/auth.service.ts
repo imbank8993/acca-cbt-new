@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { jwtVerify } from 'jose';
 import { ROLE_NAME_CANON, type AuthUser, type DashboardRole, type LoginResponse } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { PrismaService } from '../prisma/prisma.service';
 import { AuthUsersRepository } from './auth-users.repository';
 import { CbtRolesService } from './cbt-roles.service';
 
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly db: DbService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResponse> {
@@ -86,11 +88,41 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Akun pada tiket SSO tidak ditemukan di CBT.');
     }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      throw new UnauthorizedException('Akun sedang dinonaktifkan.');
+    }
 
-    await this.syncSsoMembership(userId, fullName, roleClaim);
+    // Pengecekan ketat status aktif di master tabel public.users
+    const publicUsers = await this.prisma.$queryRawUnsafe<
+      Array<{ id: bigint; aktif: boolean; nama: string | null; nama_lengkap: string | null }>
+    >(
+      `SELECT id, aktif, nama, nama_lengkap 
+         FROM public.users 
+        WHERE auth_id = $1::uuid
+        LIMIT 1`,
+      userId,
+    );
+
+    if (publicUsers.length > 0 && publicUsers[0].aktif === false) {
+      throw new UnauthorizedException('Akun Anda telah dinonaktifkan di sistem ACCA.');
+    }
+
+    const verifiedName =
+      publicUsers[0]?.nama_lengkap ||
+      publicUsers[0]?.nama ||
+      fullName ||
+      (user.raw_user_meta_data?.full_name as string) ||
+      '';
+
+    await this.syncSsoMembership(userId, verifiedName, roleClaim);
     await this.authUsers.touchLastSignIn(userId);
 
-    return this.issueSession(userId, user.email || String(payload.email || ''), user.raw_user_meta_data);
+    return this.issueSession(
+      userId,
+      user.email || String(payload.email || ''),
+      user.raw_user_meta_data,
+      verifiedName,
+    );
   }
 
   /**
@@ -218,13 +250,14 @@ export class AuthService {
     userId: string,
     email: string,
     metadata: Record<string, unknown> | null,
+    overrideFullName?: string,
   ): Promise<LoginResponse> {
     const context = await this.roles.resolve(userId, email, metadata);
 
     const user: AuthUser = {
       id: userId,
       email,
-      fullName: (metadata?.full_name as string) ?? null,
+      fullName: overrideFullName || (metadata?.full_name as string) || null,
       roles: context.roleNames,
       resolved: context.resolved,
       bestRole: context.bestRole,

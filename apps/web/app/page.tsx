@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearCbtSession, resetAndRetrySso } from '@/lib/session-reset';
-import { getDashboardPath, setActiveRoleInStorage, lockActiveRole, type Role } from '@/lib/rbac';
+import { getDashboardPath, setActiveRoleInStorage, lockActiveRole, clearActiveRoleInStorage, type Role } from '@/lib/rbac';
+import { clearMemoryCache } from '@/lib/useMemoryState';
 
 type SsoFailure = { title: string; message: string };
 
@@ -24,6 +25,15 @@ export default function Home() {
         const VALID_SSO_ROLES = ['Superadmin', 'Admin', 'Proktor', 'Guru', 'Pengawas', 'Siswa'];
         const ssoRoleParam = new URLSearchParams(window.location.search).get('sso_role') || '';
         const ssoRole = (VALID_SSO_ROLES.includes(ssoRoleParam) ? ssoRoleParam : null) as Role | null;
+
+        // Jika baru berpindah dari sistem induk via SSO, bersihkan seluruh jejak peran
+        // dan memori pengguna sebelumnya di peramban ini agar akun tidak tertukar.
+        if (ssoRoleParam) {
+            try {
+                clearActiveRoleInStorage();
+                clearMemoryCache();
+            } catch {}
+        }
 
         const fail = (title: string, message: string) => {
             isRedirecting = true;
