@@ -1,0 +1,1151 @@
+/* Header - PREMIUM CLEAN STYLE
+   Sync with Sidebar Variables
+*/
+
+:root {
+  --app-sidebar-w: 258px;
+  --app-sidebar-w-collapsed: 85px;
+  --app-header-h: 70px;
+  --app-gap: 0px;
+  --app-margin: 0px;
+
+  --header-bg: #ffffff;
+  /* Solid White */
+  --header-border: rgba(0, 56, 168, 0.16);
+  --header-shadow: none;
+  --header-text: #1e293b;
+}
+
+.dark {
+  --header-bg: #000000;
+  --header-border: rgba(37, 99, 235, 0.35);
+  --header-shadow: none;
+  --header-text: #e2e8f0;
+}
+
+/* ===== Header Shell (Desktop) ===== */
+@media (min-width: 768px) {
+  .header {
+    position: fixed;
+    top: 0;
+    left: calc(var(--app-sidebar-w) + env(safe-area-inset-left));
+    right: 0;
+    height: var(--app-header-h);
+
+    background: var(--header-bg);
+    border: none;
+    border-bottom: 1px solid var(--header-border);
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 24px;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    z-index: 500;
+
+    transition:
+      left .35s cubic-bezier(0.4, 0, 0.2, 1),
+      right .35s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color .35s ease,
+      border-color .35s ease,
+      opacity 0.2s ease,
+      visibility 0.2s ease;
+
+    box-shadow: none;
+    will-change: transform, left, right;
+  }
+
+  .dark .header {
+    background: #000000;
+    border: none !important;
+    border-bottom: 1px solid var(--header-border) !important;
+    box-shadow: none !important;
+    backdrop-filter: blur(16px);
+  }
+}
+
+.header-inner {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  width: 100%;
+}
+
+/* Collapsed state */
+.header.collapsed {
+  left: calc(var(--app-sidebar-w-collapsed) + env(safe-area-inset-left));
+}
+
+/* Blur header when modal is open - prevent interaction */
+.header.blur-when-modal-open {
+  opacity: 0.5;
+  filter: brightness(0.8);
+  pointer-events: none;
+}
+
+/* Mobile: header full width */
+@media (max-width: 767.98px) {
+  :root {
+    /* Nilai ini HARUS sama dengan yang di app/globals.css — dua-duanya
+       mendeklarasikan --app-header-h di :root untuk breakpoint yang sama,
+       dan yang menang tergantung urutan muat CSS. */
+    --app-header-h: 56px;
+  }
+
+  /* Scroll-hide: HANYA pakai opacity, JANGAN transform.
+     Di Safari iOS, transform pada elemen position:fixed menciptakan
+     layer GPU baru yang merusak rendering gradien di html.
+     Opacity-only aman karena tidak memicu recomposite layer baru. */
+  .header {
+    transition: background 0.25s ease, box-shadow 0.25s ease, border-radius 0.25s ease, border-color 0.25s ease !important;
+  }
+}
+
+/* ===== Left Area ===== */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Tombol lipat sidebar — pindahan dari .collapse-toggle di sidebar.
+   Desktop saja: di mobile sidebar berupa panel geser tanpa keadaan terlipat,
+   jadi tombol ini tidak punya arti di sana (aturan penyembunyiannya ada di
+   blok @media mobile di bawah). Ukurannya disamakan dengan .dark-mode-toggle
+   di sisi kanan header supaya kedua ujung barisnya seimbang. */
+.header-collapse-toggle {
+  /* DI LUAR ALIRAN, duduk di pita padding kiri header — yakni tepat di samping
+     sidebar. Kalau ikut aliran .header-left, tombol mulai setelah padding kiri
+     yang berlapis dua (24px dari .header + 24px dari
+     .header-inner.content-container = 48px) sehingga terlihat jauh dari
+     sidebar, DAN ia mendorong judul 52px ke kanan.
+
+     Margin negatif bukan gantinya: itu menarik judul ikut ke kiri. Dengan
+     absolut, judul tetap di 48px — posisi yang sama seperti sebelum tombol ini
+     ada.
+
+     Geometrinya pas-pasan dan diukur, bukan dikira: judul mulai di 48px dari
+     tepi header, jadi tombol 32px pada left:8px berakhir di 40px — menyisakan
+     8px sebelum judul. Membesarkannya kembali ke 36px menyisakan 2px dan
+     terbaca menempel.
+
+     Acuannya .header (position: fixed di desktop), bukan .header-left. */
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--header-text);
+  /* Chevron Font Awesome (ikon yang sama dengan tombol lama di sidebar)
+     digambar jauh lebih kecil dari ukuran fontnya, jadi ukurannya disetel di
+     sini — bukan diwarisi dari header yang 1.1rem. */
+  font-size: 0.8rem;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.header-collapse-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--n-primary);
+  opacity: 1;
+}
+
+.dark .header-collapse-toggle:hover,
+html.dark .header-collapse-toggle:hover {
+  background: rgba(37, 99, 235, 0.22);
+  color: #60a5fa;
+}
+
+@media (max-width: 767.98px) {
+  .header-left {
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .header-title-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-title {
+    font-size: 0.85rem;
+    white-space: normal;
+    line-height: 1.2;
+    flex-shrink: 0;
+  }
+
+  .header-subtitle {
+    display: none;
+  }
+}
+
+.menu-toggle {
+  background: var(--sidebar-hover);
+  border: none;
+  width: 44px;
+  height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--header-text);
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+@media (max-width: 767.98px) {
+  .menu-toggle {
+    display: none !important;
+  }
+
+  /* Sidebar mobile tidak punya keadaan terlipat — dibuka penuh sebagai panel
+     geser lewat bilah nav bawah. */
+  .header-collapse-toggle {
+    display: none !important;
+  }
+}
+
+.menu-toggle:hover {
+  background: var(--n-primary);
+  color: #fff;
+}
+
+.header-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.header-title {
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 1.1rem;
+  font-weight: 750;
+  color: var(--header-text);
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.header-title span {
+  font-weight: 600;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.header-mobile-br {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .header-mobile-br {
+    display: block;
+  }
+
+  .header-title {
+    display: block;
+    font-size: 0.85rem;
+    white-space: normal;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .header-title span {
+    font-size: 0.85rem;
+    display: inline;
+  }
+}
+
+.header-subtitle {
+  font-size: 0.7rem;
+  color: var(--sidebar-text);
+  font-weight: 500;
+  opacity: 0.55;
+  line-height: 1.2;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.header-subtitle.header-subtitle--name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--header-text);
+  opacity: 0.85;
+}
+
+@media (max-width: 767.98px) {
+  .header-subtitle {
+    display: none;
+  }
+}
+
+/* ===== Right Area ===== */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767.98px) {
+  .header-right {
+    gap: 6px;
+  }
+}
+
+/* Header Dark Mode Toggle Button (Single Icon Badge)
+   Ikonnya memakai Bootstrap Icons yang sama dengan sakelar di halaman
+   login (bi-sun-fill / bi-moon-stars-fill). Ukuran tombol ~10% lebih
+   kecil dari sebelumnya (44px → 40px) agar tidak mendominasi header. */
+.dark-mode-toggle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--header-text);
+  font-size: 1rem;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin-right: 4px;
+}
+
+.dark-mode-toggle:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.dark-mode-toggle i {
+  transition: transform 0.35s ease, color 0.3s ease;
+}
+
+.dark-mode-toggle:hover i {
+  transform: rotate(30deg) scale(1.1);
+}
+
+.dark .dark-mode-toggle {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  color: #60a5fa !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.dark .dark-mode-toggle:hover {
+  background: rgba(37, 99, 235, 0.2) !important;
+  border-color: #60a5fa !important;
+  color: #60a5fa !important;
+  transform: translateY(-2px);
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.4);
+}
+
+@media (max-width: 767.98px) {
+  .dark-mode-toggle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.86rem;
+    border-radius: 9px;
+    margin-right: 0px;
+  }
+}
+
+/* Premium Header Icon Buttons (Chat & Bell) */
+.header-icon-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--header-text);
+  font-size: 1.1rem;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin-right: 8px;
+}
+
+.header-icon-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.dark .header-icon-btn {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  color: #60a5fa !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.dark .header-icon-btn:hover {
+  background: rgba(37, 99, 235, 0.2) !important;
+  border-color: #60a5fa !important;
+  color: #60a5fa !important;
+  transform: translateY(-2px);
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.4);
+}
+
+.header-icon-btn:active {
+  transform: translateY(0);
+}
+
+.header-icon-btn svg {
+  transition: all 0.3s ease;
+}
+
+.header-icon-btn:hover svg {
+  transform: scale(1.05);
+}
+
+/* Notification Badge — merah rata, tanpa efek apa pun.
+   Sebelumnya badge ini bergradien, berbayang merah (`0 4px 12px
+   rgba(239,68,68,.4)`), dan berdenyut tanpa henti lewat @keyframes
+   badge-pulse yang membesar-mengecilkan bayangannya. Bayangan merah itulah
+   yang terbaca sebagai halo di sekeliling badge.
+
+   Cincin `border` DIPERTAHANKAN: warnanya = warna header di belakangnya,
+   jadi fungsinya memisahkan badge dari ikon lonceng, bukan menghias.
+   Versi mobile di blok @media bawah sudah lebih dulu memakai bentuk polos
+   ini — sekarang keduanya sepaham. */
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 2px solid var(--header-bg);
+  box-shadow: none;
+}
+
+@media (max-width: 767.98px) {
+  .notification-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .notification-wrapper > .header-icon-btn,
+  .notification-wrapper > .notification-badge {
+    display: flex !important;
+  }
+  .announcement-wrapper .header-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    margin-right: 0px;
+    font-size: 0.9rem;
+  }
+}
+
+/* User Menu */
+.user-menu-wrapper {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  padding: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  gap: 10px;
+}
+
+@media (max-width: 767.98px) {
+  .user-menu-trigger {
+    background: transparent;
+    padding: 0;
+    gap: 0;
+  }
+}
+
+.user-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.user-avatar-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-menu-trigger:hover .user-avatar-small {
+  border-color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.dark .user-avatar-small {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.dark .user-menu-trigger:hover .user-avatar-small {
+  background: rgba(37, 99, 235, 0.2) !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.4);
+}
+
+@media (max-width: 767.98px) {
+  .user-avatar-small {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+  }
+}
+
+.user-avatar-small i {
+  color: var(--n-primary);
+}
+
+.user-info-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+@media (max-width: 767.98px) {
+  .user-info-header {
+    display: none;
+  }
+}
+
+/* Hide user info text on desktop if sidebar is visible to keep it clean */
+@media (min-width: 768px) {
+  .user-info-header {
+    display: none;
+  }
+
+  .user-menu-trigger {
+    padding-right: 4px;
+  }
+}
+
+.user-name-header {
+  font-weight: 700;
+  font-size: .85rem;
+  line-height: 1.2;
+}
+
+.user-role-header {
+  font-size: .7rem;
+  opacity: 0.6;
+}
+
+/* User Dropdown */
+.user-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 240px;
+  background: var(--n-card);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--n-border);
+  z-index: 1001;
+  overflow: hidden;
+}
+
+.user-menu-info {
+  padding: 20px;
+  border-bottom: 1px solid var(--header-border);
+}
+
+.user-menu-name {
+  font-weight: 750;
+  color: var(--header-text);
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.user-menu-role {
+  font-size: 0.75rem;
+  color: var(--n-primary);
+  font-weight: 700;
+}
+
+.user-menu-item {
+  width: 100%;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--header-text);
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.user-menu-item:hover {
+  background: var(--n-surface);
+}
+/* =========================================================
+   HEADER MOBILE — melayang transparan, tanpa container
+   =========================================================
+   Blok ini sengaja ditaruh PALING BAWAH supaya menimpa aturan
+   `.header` / `.dark .header` di atas tanpa perlu menaikkan
+   spesifisitas di sana.
+
+   Alasan aman untuk transparan: `.main-content` adalah container
+   scroll `position: fixed` yang dimulai DI BAWAH header
+   (`top: var(--app-header-h) + ...`, lihat app/(dashboard)/layout.tsx),
+   jadi tidak ada konten yang pernah lewat di belakang header.
+   Yang terlihat di belakangnya selalu kanvas `--n-bg`, bukan teks.
+   Karena itu tidak perlu backdrop-filter atau tint apa pun.
+   ========================================================= */
+
+@media (max-width: 767.98px) {
+
+  /* ≤767.98px: full-bleed floating bar — strip all container chrome.
+     Ditaruh di sini (bukan nested 767px) agar tidak ada celah 4px
+     di kiri-kanan yang membuatnya masih terlihat seperti kotak. */
+  .header,
+  .header.collapsed,
+  .dark .header,
+  html.dark .header,
+  html.dark .header.collapsed {
+    /* `position` hanya dideklarasikan di blok desktop (min-width: 992px), jadi
+       tanpa baris ini header mobile jadi static: ia ikut tergulung ke atas DAN
+       memakan tinggi di aliran dokumen, sehingga `.content-area` yang sudah
+       memberi padding-top setinggi header menghasilkan jarak dobel.
+       Fixed = konten lewat di belakangnya, persis seperti bottom nav. */
+    position: fixed !important;
+    top: 0 !important;
+    height: calc(var(--app-header-h, 56px) + env(safe-area-inset-top)) !important;
+    z-index: 1001;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    left: 0 !important;
+    right: 0 !important;
+    box-sizing: border-box !important;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right, 8px) 0 env(safe-area-inset-left, 8px);
+  }
+
+  /* Nama aplikasi + subjudul: konstan di semua halaman, tidak dibawa ke mobile. */
+  .header-title-wrapper {
+    display: none;
+  }
+
+  .header-pageTitle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .header-pageTitle-logo {
+    width: 17px;
+    height: 19.6px;
+    flex-shrink: 0;
+    color: var(--n-primary, #3083FF);
+  }
+
+  .dark .header-pageTitle-logo {
+    color: #60a5fa;
+  }
+
+  .header-pageTitle {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    /* Satu baris + ellipsis: judul terpanjang ("Bimbingan Konseling",
+       "Registrasi Sanggar") tidak boleh mendorong tinggi header. */
+    margin: 0;
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--header-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Khusus Dashboard: Ucapan Selamat Pagi/Siang/Malam + Nama Pengguna */
+  .header-greeting-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    flex: 1 1 auto;
+    line-height: 1.1;
+  }
+
+  .header-greeting-title {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    position: relative;
+  }
+
+  .header-greeting-text {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: #112E59;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .dark .header-greeting-text,
+  html.dark .header-greeting-text {
+    color: #60a5fa;
+  }
+
+  .header-greeting-name {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    margin-top: 2px;
+    letter-spacing: 0.2px;
+    max-width: 170px;
+  }
+
+  .dark .header-greeting-name,
+  html.dark .header-greeting-name {
+    color: #94a3b8;
+  }
+
+  .header-pageTitle--stacked {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 0.96rem !important;
+    font-weight: 800 !important;
+    color: #0437A6 !important;
+    letter-spacing: -0.015em !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    margin: 0 !important;
+  }
+
+  .dark .header-pageTitle--stacked,
+  html.dark .header-pageTitle--stacked {
+    color: #60a5fa !important;
+  }
+
+  .header-pageSubtitle {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+    margin-top: 1px !important;
+    max-width: 220px !important;
+  }
+
+  .header-pageSubtitle.header-pageSubtitle--name {
+    font-size: 0.74rem !important;
+    font-weight: 500 !important;
+    color: #475569 !important;
+    max-width: calc(100vw - 120px) !important;
+  }
+
+  .dark .header-pageSubtitle,
+  html.dark .header-pageSubtitle {
+    color: #94a3b8 !important;
+  }
+
+  .dark .header-pageSubtitle.header-pageSubtitle--name,
+  html.dark .header-pageSubtitle.header-pageSubtitle--name {
+    color: #f1f5f9 !important;
+  }
+}
+
+/* Desktop: header tetap kartu putih, judulnya tetap nama aplikasi. */
+@media (min-width: 768px) {
+  .header-pageTitle-wrap {
+    display: none;
+  }
+}
+
+/* Mobile: show accamobile.svg <img> in DOM and hide inline SVG for clarity/accessibility */
+.header-pageTitle-mobile-logo {
+  display: none;
+}
+
+/* Breakpoint disamakan dengan sisa aplikasi — lihat MOBILE_QUERY di
+   lib/use-breakpoint.ts, yang wajib sama persis dengan angka di sini.
+
+   Riwayatnya perlu dicatat karena gampang terulang: blok ini pernah berlaku
+   ≤767px sementara cangkang lain sudah 991.98px, dan tablet 768–991px
+   mendapat header fixed transparan TANPA kotak per-kontrol — teks header
+   menumpuk konten. Itu bukan alasan untuk menaikkan angka DI SINI saja;
+   obatnya adalah semua ambang cangkang bergerak bersama. Kini ketiganya
+   (header, sidebar, bilah nav) sama-sama 767.98px, jadi tablet dilayani
+   sepenuhnya sebagai desktop dan tidak ada lagi rentang campur. */
+@media (max-width: 767.98px) {
+  .header-pageTitle-logo {
+    display: none !important;
+  }
+
+  /* Mobile: Header default transparent at top */
+  .header,
+  .header.collapsed,
+  .dark .header,
+  html.dark .header,
+  html.dark .header.collapsed {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(var(--app-header-h, 56px) + env(safe-area-inset-top)) !important;
+    padding-top: env(safe-area-inset-top) !important;
+    padding-left: calc(14px + env(safe-area-inset-left)) !important;
+    padding-right: calc(14px + env(safe-area-inset-right)) !important;
+    padding-bottom: 0 !important;
+    /* Kontainer putih melayang — cerminan bottom nav: warna, tebal garis,
+       radius, dan bobot bayangan sama persis, hanya arahnya dibalik.
+       Putihnya sengaja menembus sampai ke area bilah status (padding-top =
+       safe-area-inset-top) supaya menyatu dengan warna chrome browser
+       yang diset lewat <meta name="theme-color"> di app/layout.tsx. */
+    background: #ffffff !important;
+    border: none !important;
+    border-bottom: 1.5px solid #E1E2E9 !important;
+    border-radius: 0 0 24px 24px !important;
+    box-shadow: 0 8px 28px rgba(17, 46, 89, 0.08) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    z-index: 1001;
+    box-sizing: border-box !important;
+  }
+
+  .dark .header,
+  .dark .header.collapsed,
+  html.dark .header,
+  html.dark .header.collapsed {
+    /* Hitam pekat, sama persis dengan `--header-bg` gelap di desktop dan dengan
+       `--bnav-face` bilah bawah — header dan bottom nav mengapit halaman yang
+       sama, jadi keduanya tidak boleh berbeda kepekatan. */
+    background: #000000 !important;
+    border-bottom: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  /* Saat sidebar mobile terbuka (push drawer), header berada di dalam kartu yang terdorong.
+     Header melengkung di sudut kiri atas (border-top-left-radius: 28px) tepat menyentuh bilah status (y = 0),
+     selaras dengan sudut lengkung .dashboard-content-wrapper seperti aplikasi X (Twitter). */
+  .sidebar-mobile-open .header,
+  .sidebar-mobile-open .header.collapsed {
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .dark .sidebar-mobile-open .header,
+  .dark .sidebar-mobile-open .header.collapsed {
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* Kontrol di dalam header polos */
+  .header .header-mobile-menu-btn,
+  .header .header-pageTitle {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .header-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .header .header-title,
+  .header .header-pageTitle,
+  .header .header-subtitle,
+  .header .user-name-header {
+    color: #112E59 !important;
+  }
+
+  .dark .header .header-title,
+  .dark .header .header-pageTitle,
+  .dark .header .header-subtitle,
+  .dark .header .user-name-header,
+  html.dark .header .header-title,
+  html.dark .header .header-pageTitle,
+  html.dark .header .header-subtitle,
+  html.dark .header .user-name-header {
+    color: #ffffff !important;
+  }
+
+  /* Tombol Menu Mobile di samping judul */
+  .header-mobile-menu-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    color: #3083FF !important;
+    font-size: 1.05rem !important;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: 2px;
+  }
+
+  .header-mobile-menu-btn:active {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+
+  .dark .header-mobile-menu-btn,
+  html.dark .header-mobile-menu-btn {
+    color: #60a5fa !important;
+  }
+
+  .header-pageTitle {
+    padding: 0 !important;
+    font-size: 1.02rem !important;
+  }
+
+  /* Sembunyikan toggle dark mode dari header bar mobile — dipindahkan ke dalam modal profil */
+  .header .dark-mode-toggle,
+  .dark .header .dark-mode-toggle,
+  html.dark .header .dark-mode-toggle {
+    display: none !important;
+  }
+
+  /* Tombol Notifikasi (Bell) di Header Mobile */
+  .header .notification-wrapper {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .header .header-icon-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.9rem !important;
+    color: #3083FF !important;
+    background: #E0ECFF !important;
+    border: 1px solid #E0ECFF !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    cursor: pointer;
+  }
+
+  .dark .header .header-icon-btn,
+  html.dark .header .header-icon-btn {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    color: #60a5fa !important;
+  }
+
+  .header .notification-badge {
+    position: absolute !important;
+    top: -2px !important;
+    right: -2px !important;
+    min-width: 16px !important;
+    height: 16px !important;
+    padding: 0 4px !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    line-height: 16px !important;
+    border-radius: 999px !important;
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1.5px solid #ffffff !important;
+    box-sizing: border-box !important;
+    z-index: 2 !important;
+  }
+
+  .dark .header .notification-badge,
+  html.dark .header .notification-badge {
+    /* Cincin badge = warna header di belakangnya, supaya terbaca sebagai
+       potongan bukan garis. Ikut hitam pekat. */
+    border-color: #000000 !important;
+  }
+
+  .header .user-menu-trigger {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
+  .header .user-avatar-small {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    border: 1.5px solid #E0ECFF !important;
+    background: #E0ECFF !important;
+    box-shadow: 0 1px 3px rgba(17, 46, 89, 0.06) !important;
+  }
+
+  .dark .header .user-avatar-small,
+  html.dark .header .user-avatar-small {
+    border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .header .user-avatar-small img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: 50% !important;
+    display: block !important;
+  }
+
+  .header .user-avatar-small i {
+    color: #3083FF !important;
+    font-size: 0.9rem !important;
+  }
+
+  .dark .header .user-avatar-small i,
+  html.dark .header .user-avatar-small i {
+    color: #60a5fa !important;
+  }
+
+  /* Modal / Dropdown Profil Mobile */
+  .user-menu-dropdown {
+    width: 210px !important;
+    border-radius: 18px !important;
+    top: calc(100% + 8px) !important;
+  }
+
+  .user-menu-info {
+    padding: 14px 16px 12px !important;
+  }
+
+  .user-menu-name {
+    font-size: 0.92rem !important;
+    font-weight: 750 !important;
+    color: #112E59 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .dark .user-menu-name,
+  html.dark .user-menu-name {
+    color: #f1f5f9 !important;
+  }
+
+  /* Hilangkan info role dan NIP pada modal profil mobile */
+  .user-menu-role,
+  .user_menu_nip {
+    display: none !important;
+  }
+
+  .user-menu-item {
+    padding: 11px 16px !important;
+    font-size: 0.88rem !important;
+    gap: 10px !important;
+  }
+}

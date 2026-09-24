@@ -1,0 +1,1150 @@
+/* Sidebar - PREMIUM EDEN STYLE
+   Sinkron dengan Dashboard lewat CSS variable
+*/
+
+:root {
+  --app-sidebar-w: 258px;
+  --app-sidebar-w-collapsed: 85px;
+  --app-margin: 0px;
+  --app-header-h: 70px;
+  --app-gap: 0px;
+
+  /* Light Mode Palette (Eden Style) */
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #64748b;
+  --sidebar-text-active: #ffffff;
+  --sidebar-accent: #0f172a;
+  --sidebar-hover: #f1f5f9;
+  --sidebar-border: rgba(0, 56, 168, 0.16);
+  --sidebar-shadow: none;
+
+  /* Shared transitions */
+  --sidebar-transition: all .35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark {
+  /* Google One AI Dark Mode Palette */
+  --sidebar-bg: #000000;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-active: #e2e8f0;
+  --sidebar-accent: #1a73e8;
+  --sidebar-hover: rgba(37, 99, 235, 0.12);
+  --sidebar-border: rgba(37, 99, 235, 0.35);
+  --sidebar-shadow: none;
+}
+
+/* Overlay (mobile) */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(4px);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Sidebar shell */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100dvh;
+  width: var(--app-sidebar-w);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+
+  display: flex;
+  flex-direction: column;
+
+  transform: translateX(-100%);
+  transition: var(--sidebar-transition);
+  z-index: 1001;
+
+  /* Edge-to-edge style */
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--sidebar-border);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.dark .sidebar {
+  background: #000000;
+  border: none !important;
+  border-right: 1px solid var(--sidebar-border) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  backdrop-filter: blur(16px);
+}
+
+.sidebar.blur-when-modal-open {
+  opacity: 0.5;
+  filter: brightness(0.8);
+  pointer-events: none;
+}
+
+.sidebar.collapsed {
+  overflow: visible !important;
+  /* Allow tooltips to break out of sidebar shell */
+}
+
+
+/* open (mobile) */
+.sidebar.open {
+  transform: translateX(0);
+}
+
+/* collapsed (desktop) */
+.sidebar.collapsed {
+  width: var(--app-sidebar-w-collapsed);
+}
+
+/* Desktop always visible */
+@media (min-width: 768px) {
+  .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: none;
+  }
+}
+
+/* Header */
+.sidebar-header {
+  position: relative;
+  height: var(--app-header-h);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border-bottom: 1px solid var(--sidebar-border);
+  box-sizing: border-box;
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--sidebar-transition);
+  gap: 10px;
+}
+
+.brand-logo-img {
+  width: 120px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
+}
+
+.brand-logo-img.dark-logo {
+  display: none;
+}
+
+.dark .brand-logo-img.light-logo {
+  display: none;
+}
+
+.dark .brand-logo-img.dark-logo {
+  display: block;
+}
+
+/* Logo sidebar menyempit: satu berkas (logo-sidebar-kecil.webp) dipakai di mode
+   terang maupun gelap, jadi tidak ada .light-logo/.dark-logo yang perlu digerbangi
+   di sini. Ukurannya HANYA diatur di aturan ini — sebelumnya selektor yang sama
+   ditulis tiga kali (36px, 28px, 24px) dan dua di antaranya mati tertimpa. */
+.sidebar.collapsed .brand-logo-img {
+  width: 24px;
+}
+
+.brand-text-acca {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 850;
+  font-size: 1.55rem;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, #3083FF 0%, #6d28d9 60%, #a21caf 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: normal;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.sidebar.collapsed .brand-logo {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0;
+}
+
+.sidebar.collapsed .brand-text-acca {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-header {
+  height: var(--app-header-h);
+  min-height: var(--app-header-h);
+  padding: 0 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--sidebar-border);
+  box-sizing: border-box;
+}
+
+.sidebar.collapsed .brand-wrapper {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 6px 4px;
+  margin-top: 0;
+  max-height: calc(100dvh - var(--app-header-h));
+  scrollbar-width: thin;
+  scrollbar-color: var(--sidebar-border) transparent;
+}
+
+.sidebar.collapsed .sidebar-nav::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar.collapsed .sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--sidebar-border);
+  border-radius: 3px;
+}
+
+.sidebar.collapsed .menu-btn {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.sidebar.collapsed .menu-content {
+  justify-content: center;
+  gap: 0;
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --app-sidebar-mobile-w: min(calc(100vw - 64px), 320px);
+  }
+
+  .sidebar,
+  .dark .sidebar,
+  html.dark .sidebar {
+    width: var(--app-sidebar-mobile-w) !important;
+    max-width: var(--app-sidebar-mobile-w) !important;
+    z-index: 90 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-right: none !important;
+    outline: none !important;
+    transform: translateX(-20%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .35s cubic-bezier(0.32, 0.72, 0, 1), opacity .25s ease !important;
+  }
+
+  .sidebar.open {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  .sidebar-header {
+    justify-content: center !important;
+    padding: env(safe-area-inset-top) 20px 0 !important;
+    height: calc(var(--app-header-h, 56px) + env(safe-area-inset-top)) !important;
+  }
+
+  .sidebar-nav-fixed {
+    padding: 12px 12px 0 !important;
+  }
+
+  .sidebar-nav {
+    padding: 0 12px calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+.dark .sidebar-title {
+  color: var(--n-primary-light);
+}
+
+/* Toggle hover — white text in dark mode */
+.dark .toggle-btn:hover {
+  color: var(--n-ink) !important;
+}
+
+.dark .menu-btn.active .menu-label {
+  color: var(--sidebar-text-active) !important;
+}
+
+/* Chevron & ikon item aktif harus sejelas labelnya di mode dark */
+.dark .menu-btn.active .chevron,
+.dark .menu-btn.active .menu-icon {
+  color: var(--sidebar-text-active) !important;
+  opacity: 1;
+}
+
+/* Toggle */
+.toggle-btn {
+  width: 28px;
+  height: 28px;
+  background: var(--sidebar-hover);
+  border: none;
+  border-radius: 8px;
+  color: var(--sidebar-text);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn:hover {
+  background: var(--sidebar-accent);
+  color: #fff;
+}
+
+@media (min-width: 768px) {
+  .toggle-btn {
+    display: flex;
+  }
+}
+
+.sidebar.collapsed .toggle-btn {
+  display: none;
+  /* Hide toggle on collapsed to keep it clean like the UI image */
+}
+
+/* Nav header — CBT/TOOLS + Search: diam di tempat, tidak ikut scroll bareng daftar menu */
+.sidebar-nav-fixed {
+  padding: 12px 16px 0;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-nav-fixed {
+  overflow: visible;
+}
+
+/* Nav area */
+.sidebar-nav {
+  padding: 0 16px 20px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+.dark .sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.4);
+}
+.dark .sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #1a73e8;
+}
+
+.sidebar.collapsed .sidebar-nav {
+  overflow: visible;
+}
+
+/* Menu button */
+.menu-btn {
+  width: 100%;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .2s ease;
+  font-weight: 600;
+}
+
+.menu-btn:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-accent);
+}
+
+@media (max-width: 767.98px) {
+  .menu-btn {
+    padding: 8px 14px;
+    /* Reduced from 12px */
+    margin: 1px 0;
+    /* Reduced from 2px */
+  }
+}
+
+.menu-btn.active {
+  background: var(--n-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(79, 142, 247, 0.3);
+}
+
+.menu-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.menu-label {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* ── Badge antrean ──────────────────────────────────────────────────────────
+   Menempel di pojok kanan atas nama menu; efek "pojok kanan atas" didapat dari
+   pergeseran ke atas, bukan positioning absolut, supaya tidak pernah menimpa
+   elemen lain di baris.
+
+   Baris yang PUNYA badge dijadikan flex: nama menu boleh menyusut dan
+   ber-elipsis, badge tidak. Tanpa ini nama panjang seperti "Daftar Surat ACCA
+   Ketidakhadiran Siswa" akan memakan badge-nya sampai tak terlihat. Selector
+   kedua menyamai spesifisitas aturan `display: block` untuk baris submenu di
+   bagian bawah berkas ini — tanpa itu, aturan ini kalah. */
+.menu-label:has(.menu-badge),
+.submenu-row:not(.pinned-row) .submenu-btn .menu-label:has(.menu-badge) {
+  display: flex;
+  align-items: flex-start;
+  /* min-width:0 wajib: tanpa itu flex item menolak menyusut di bawah lebar
+     kontennya, dan nama panjang meluber keluar sidebar alih-alih ber-elipsis.
+     overflow tetap visible supaya badge yang digeser ke atas tidak terpotong. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.menu-name-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menu-badge {
+  display: inline-block;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.45em;
+  margin-left: 5px;
+  /* min-width = height supaya angka 1 digit tetap bulat sempurna; padding cuma
+     melebarkannya saat 2-3 digit. Ubah ketiganya bersamaan kalau ukurannya
+     disetel ulang — line-height yang tertinggal akan menggeser angka dari tengah. */
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  /* Wajib: .menu-label adalah flex, dan tanpa ini badge ikut menanggung
+     penyusutan saat nama menu panjang — angka 2-3 digit terjepit sampai
+     mentok min-width dan terbaca setengah. Yang boleh menyusut hanya
+     .menu-name-text (lihat flex: 0 1 auto di bawah). */
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.45);
+  pointer-events: none;
+}
+
+/* Sidebar menyempit: label hilang, jadi antrean diwakili titik di sudut ikon. */
+.menu-badge-dot {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 0 2px var(--n-card, #fff);
+  pointer-events: none;
+}
+
+.sidebar.collapsed .menu-btn { position: relative; }
+
+.dark .menu-badge-dot { box-shadow: 0 0 0 2px #000; }
+
+/* Hormati preferensi "kurangi animasi": tanpa itu badge berdenyut halus
+   saat baru muncul supaya perubahan angka tidak lolos dari perhatian. */
+@media (prefers-reduced-motion: no-preference) {
+  .menu-badge { animation: menu-badge-pop 220ms ease-out; }
+  @keyframes menu-badge-pop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+}
+
+.sidebar.collapsed .menu-label,
+.sidebar.collapsed .chevron,
+.sidebar.collapsed .sidebar-search {
+  display: none;
+}
+
+.sidebar.collapsed .menu-btn {
+  justify-content: center;
+  padding: 10px 0;
+  margin: 2px 0;
+}
+
+.sidebar.collapsed .menu-content {
+  gap: 0;
+}
+
+/* Chevron */
+.chevron {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  transition: transform .25s ease;
+}
+
+.menu-btn.active .chevron {
+  opacity: 1;
+}
+
+.chevron.rotate {
+  transform: rotate(180deg);
+}
+
+/* Submenu */
+.submenu {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 0;
+}
+
+.submenu.open {
+  max-height: 1200px;
+  margin-bottom: 8px;
+}
+
+.submenu-btn {
+  width: 100%;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  padding: 12px 14px 12px 50px;
+  /* Aligned with parent text: 14px padding + 24px icon + 12px gap */
+  background: transparent;
+  border: none;
+  color: inherit;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .2s ease;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+@media (max-width: 767.98px) {
+  .submenu-btn {
+    padding: 8px 14px 8px 50px;
+    /* Reduced vertical padding from 12px */
+    margin: 1px 0;
+    /* Reduced from 2px */
+  }
+}
+
+.submenu-btn.active {
+  color: var(--n-primary);
+  background: rgba(79, 142, 247, 0.08);
+  font-weight: 700;
+  box-shadow: none;
+  position: relative;
+}
+
+.submenu-btn.active::before {
+  content: '';
+  position: absolute;
+  left: 28px;
+  width: 6px;
+  height: 6px;
+  background: var(--n-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(79, 142, 247, 0.5);
+}
+
+
+.sidebar.collapsed .submenu {
+  display: none;
+}
+
+/* Tooltips for Collapsed State */
+.menu-group {
+  position: relative;
+}
+
+.sidebar-tooltip {
+  position: absolute;
+  left: 100%;
+  margin-left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  /* Center it vertically relative to the icon */
+  min-width: 140px;
+  width: max-content;
+  max-width: 260px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 12px;
+  box-shadow: 12px 0 45px rgba(0, 56, 168, 0.12);
+  padding: 6px;
+  z-index: 10000;
+  animation: tooltipFadeIn .25s ease-out;
+  pointer-events: all;
+  backdrop-filter: blur(25px);
+}
+
+/* Invisible bridge to keep tooltip open while moving mouse from icon to labels */
+.sidebar-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -25px;
+  /* Bridge the 20px margin gap */
+  width: 30px;
+  background: transparent;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+
+
+.tooltip-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--sidebar-accent);
+}
+
+.tooltip-sub-btn {
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--sidebar-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tooltip-sub-btn:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-accent);
+}
+
+.tooltip-sub-btn.active {
+  background: rgba(79, 142, 247, 0.08);
+  color: var(--n-primary-light);
+  box-shadow: none;
+  font-weight: 700;
+}
+
+
+.cbt-access-btn {
+  border: 1.5px solid #3083FF;
+  color: #3083FF;
+  background: rgba(0, 56, 168, 0.04);
+  font-weight: 700;
+}
+
+.cbt-access-btn:hover {
+  background: #3083FF;
+  color: #ffffff;
+  border-color: #3083FF;
+}
+
+.dark .cbt-access-btn {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: rgba(79, 142, 247, 0.08);
+}
+
+.dark .cbt-access-btn:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.sidebar.collapsed .cbt-access-btn {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.sso-cbt-container {
+  display: flex;
+  gap: 8px;
+  padding: 0;
+  margin: 0 0 10px;
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sso-cbt-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1.5px solid #3083FF;
+  border-radius: 10px;
+  background: rgba(0, 56, 168, 0.04);
+  color: #3083FF;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.sso-cbt-btn .btn-icon {
+  font-size: 1rem;
+}
+
+.sso-cbt-btn:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.sso-cbt-btn:hover:not(:disabled) {
+  background: #3083FF;
+  color: #ffffff;
+  border-color: #3083FF;
+  box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2);
+}
+
+.dark .sso-cbt-btn {
+  border-color: #3b82f6;
+  color: #60a5fa;
+  background: #000000;
+}
+
+.dark .sso-cbt-btn .btn-icon {
+  color: #60a5fa;
+}
+
+.dark .sso-cbt-btn:hover:not(:disabled) {
+  background: rgba(26, 115, 232, 0.18);
+  color: #93c5fd;
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(26, 115, 232, 0.35);
+}
+
+.dark .sso-cbt-btn:hover:not(:disabled) .btn-icon {
+  color: #93c5fd;
+}
+
+.sidebar.collapsed .sso-cbt-btn .btn-label {
+  display: none;
+}
+
+.sidebar.collapsed .sso-cbt-container {
+  padding: 4px 6px;
+  gap: 4px;
+  justify-content: center;
+}
+
+.sidebar.collapsed .sso-cbt-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.sidebar.collapsed .sso-cbt-btn .btn-icon {
+  font-size: 0.75rem;
+}
+
+/* Sidebar Footer */
+/* =====================================================
+   NAV ENHANCEMENTS — mode switch, search, pinned, sections
+===================================================== */
+
+/* Mode switch (Guru / Admin) */
+.nav-mode-switch {
+  display: flex;
+  gap: 4px;
+  background: var(--sidebar-hover);
+  padding: 4px;
+  border-radius: 12px;
+  margin: 6px 0 12px;
+}
+.nav-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+.nav-mode-btn i { font-size: 0.85rem; }
+.nav-mode-btn:hover { color: var(--sidebar-accent); }
+.nav-mode-btn.active {
+  background: var(--n-primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 56, 168, 0.25);
+}
+
+/* Search box — styled exactly like FilterToolbar search */
+.sidebar-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 9999px;
+  padding: 0 14px 0 10px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.sidebar-search-box:focus-within {
+  border-color: var(--n-primary, #3083FF);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.sidebar-search-box > i {
+  flex-shrink: 0;
+  font-size: 0.92rem;
+  line-height: 1;
+  color: #94a3b8;
+  margin-left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.sidebar-search-box:focus-within > i {
+  color: var(--n-primary, #3083FF);
+}
+
+.sidebar-search-box input,
+.sidebar-search-input {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 6px 4px !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  color: var(--n-ink, #0f172a) !important;
+}
+
+.sidebar-search-box input::placeholder,
+.sidebar-search-input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+}
+
+.dark .sidebar-search-box {
+  background: var(--sidebar-bg, #000000) !important;
+  border: 1px solid rgba(59, 130, 246, 0.45) !important;
+  box-shadow: none !important;
+}
+
+.dark .sidebar-search-box:focus-within {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+}
+
+.dark .sidebar-search-box > i {
+  color: #60a5fa !important;
+}
+
+.dark .sidebar-search-box:focus-within > i {
+  color: #60a5fa !important;
+}
+
+.dark .sidebar-search-box input,
+.dark .sidebar-search-input {
+  color: #e2e8f0 !important;
+}
+
+.dark .sidebar-search-box input::placeholder,
+.dark .sidebar-search-input::placeholder {
+  color: #64748b !important;
+}
+
+.search-kbd {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.dark .search-kbd {
+  background: #000000 !important;
+  color: #94a3b8 !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+}
+
+.search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: rgba(148, 163, 184, 0.25);
+  color: #64748b;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.search-clear:hover {
+  background: #ef4444;
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.search-clear i {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.dark .search-clear {
+  background: rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+}
+
+.dark .search-clear:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+.search-results { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
+.search-results .submenu-btn { padding-left: 14px; padding-right: 34px; }
+.search-results .submenu-btn.active::before { display: none; }
+/* Search rows show a page icon on the left (like flat groups), so the pin
+   toggle must sit on the RIGHT to avoid overlapping that icon. */
+.search-results .pin-star { left: auto; right: 10px; }
+.search-empty {
+  font-size: 0.8rem;
+  color: var(--sidebar-text);
+  padding: 14px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Section labels */
+.nav-section-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sidebar-text);
+  opacity: 0.6;
+  padding: 4px 12px;
+  margin-top: 6px;
+}
+
+/* Submenu row + pin star */
+.submenu-row { position: relative; display: flex; align-items: center; }
+.submenu-row .submenu-btn { flex: 1; min-width: 0; }
+/* Group sub-menu items: star sits on the LEFT (inside the indent), so the name
+   uses the full width on ONE line — truncated with ellipsis if too long. */
+.submenu-row:not(.pinned-row) .submenu-btn .menu-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.submenu-row:not(.pinned-row) .submenu-btn.active::before { display: none; }
+/* Pinned list rows: no star on the right — the page icon IS the pin toggle
+   (orange when pinned, click to pin/unpin). */
+.pinned-btn { padding-left: 14px !important; gap: 12px; }
+.pinned-btn.active::before { display: none; }
+.pinned-ico { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+.pin-ico { cursor: pointer; border-radius: 6px; transition: color 0.15s ease, transform 0.15s ease; }
+.pin-ico:hover { transform: scale(1.15); }
+.pin-ico.active { color: var(--n-primary, #3083FF); }
+.pin-star {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--sidebar-text);
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+.submenu-row:hover .pin-star { opacity: 0.4; }
+.pin-star:hover { background: var(--sidebar-hover); opacity: 0.85 !important; }
+.pin-star.active { opacity: 1; color: var(--n-primary, #3083FF); }
+
+.dark .pinned-ico,
+.dark .pin-ico.active { color: #1d6bf3 !important; }
+.dark .pin-star.active { opacity: 1; color: #1d6bf3 !important; }
+
+/* Flat Group Menu Items Alignment (icon doubles as pin toggle, no right star) */
+.menu-group--flat .submenu-row .submenu-btn {
+  padding-left: 14px !important;
+  gap: 12px;
+}
+
+/* Nav Divider */
+.nav-divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: 12px 14px;
+}
+
+
+
+/* Placeholder struktur menu (dipakai selagi menu_layout dimuat, menggantikan
+   taksonomi bawaan yang dulu dirender sebagai cadangan) */
+.menu-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.menu-skeleton-row {
+  height: 44px;
+  border-radius: 12px;
+  background: var(--sidebar-hover);
+  opacity: .55;
+  animation: menu-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.menu-skeleton-row:nth-child(2) { animation-delay: .1s; }
+.menu-skeleton-row:nth-child(3) { animation-delay: .2s; }
+.menu-skeleton-row:nth-child(4) { animation-delay: .3s; }
+.menu-skeleton-row:nth-child(5) { animation-delay: .4s; }
+.menu-skeleton-row:nth-child(6) { animation-delay: .5s; }
+
+@keyframes menu-skeleton-pulse {
+  0%, 100% { opacity: .35; }
+  50% { opacity: .7; }
+}
+
+@media (max-width: 767.98px) {
+  .menu-skeleton-row { height: 36px; }
+}

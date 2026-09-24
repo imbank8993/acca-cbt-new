@@ -108,6 +108,25 @@ mjx-container svg {
   --radius-xl: 0.5rem;
   --radius-2xl: 0.5rem;
   --radius-full: 9999px;
+
+  /* Layout & Navigation Tokens (Eden Style - Sync with ACCA) */
+  --app-sidebar-w: 258px;
+  --app-sidebar-w-collapsed: 85px;
+  --app-header-h: 70px;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #64748b;
+  --sidebar-text-active: #ffffff;
+  --sidebar-accent: #0f172a;
+  --sidebar-hover: #f1f5f9;
+  --sidebar-border: rgba(0, 56, 168, 0.16);
+  --header-bg: #ffffff;
+  --header-border: rgba(0, 56, 168, 0.16);
+  --header-text: #1e293b;
+  --n-bg: #ebecf1;
+  --n-card: #ffffff;
+  --n-surface: #ffffff;
+  --n-primary: #3083ff;
+  --n-border: rgba(0, 56, 168, 0.16);
 }
 
 /* Theme Variables */
@@ -1840,6 +1859,21 @@ html body .option-text .katex-display {
   --warning-light: #78350f;
   --error-light: #7f1d1d;
   --info-light: #172554;
+
+  /* Layout & Navigation Tokens (Eden Style Dark - Sync with ACCA) */
+  --sidebar-bg: #000000;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-active: #e2e8f0;
+  --sidebar-accent: #1a73e8;
+  --sidebar-hover: rgba(37, 99, 235, 0.12);
+  --sidebar-border: rgba(37, 99, 235, 0.35);
+  --header-bg: #000000;
+  --header-border: rgba(37, 99, 235, 0.35);
+  --header-text: #e2e8f0;
+  --n-bg: #020718;
+  --n-card: #0b1329;
+  --n-surface: #0b1329;
+  --n-border: rgba(37, 99, 235, 0.35);
 
   /* Redefine Tailwind v4 theme variables in dark mode for seamless integration */
   --color-slate-55: #0d1221;
