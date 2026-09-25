@@ -88,8 +88,13 @@ jobs:
               exit 1
             fi
 
-            echo "🐳 Menjalankan build & restart kontainer Docker..."
-            docker compose up -d --build --remove-orphans
+            echo "🐳 Menjalankan build image Docker..."
+            docker compose build
+
+            echo "🔄 Me-restart kontainer ke versi terbaru..."
+            docker compose down || true
+            docker rm -f cbt-web cbt-api cbt-scoring 2>/dev/null || true
+            docker compose up -d --remove-orphans
 
             echo "🧹 Membersihkan image lama yang menggantung..."
             docker image prune -f
