@@ -1,12 +1,13 @@
 # ─── Tahap 1: Kompilasi & Build Next.js ───────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Salin package.json untuk instalasi dependensi
+# Salin semua berkas package.json monorepo untuk instalasi dependensi yang lengkap
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
+COPY apps/api/package*.json ./apps/api/
 COPY apps/web/package*.json ./apps/web/
 
 RUN npm ci
@@ -25,19 +26,19 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 RUN npm run build --workspace=apps/web
 
 # ─── Tahap 2: Runtime Produksi (Standalone Minimal) ───────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
-RUN apk add --no-cache libc6-compat
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3008 \
     HOSTNAME="0.0.0.0"
 
-# Jalankan dengan non-root user demi keamanan
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+# Jalankan dengan non-root user demi keamanan (Debian system user)
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs nextjs
 
 # Salin berkas statis publik
 COPY --from=builder /app/apps/web/public ./apps/web/public
@@ -50,7 +51,8 @@ USER nextjs
 
 EXPOSE 3008
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3008/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -f -L http://127.0.0.1:3008/ || exit 1
 
-CMD ["node", "apps/web/server.js"]
+CMD ["sh", "-c", "node apps/web/server.js 2>/dev/null || node server.js"]
+

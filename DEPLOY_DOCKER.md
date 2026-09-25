@@ -1,160 +1,143 @@
-# Panduan Deployment ACCA CBT Menggunakan Docker di VPS
+# Panduan Deployment ACCA CBT Menggunakan Docker & aaPanel di VPS Ubuntu
 
-Dokumen ini memandu langkah demi langkah cara men-deploy **ACCA CBT** ke server VPS (Ubuntu 22.04 / 24.04 LTS) menggunakan Docker dan Docker Compose.
-
----
-
-## 1. Persiapan Awal di Server VPS
-
-### A. Aktifkan Swap Memory (Sangat Disarankan untuk VPS RAM 2GB–4GB)
-Swap mencegah server kehabisan memori (*Out Of Memory*) saat proses kompilasi kode:
-```bash
-sudo fallocate -l 4G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-```
-
-### B. Pasang Docker & Docker Compose
-Jalankan skrip resmi Docker:
-```bash
-# Update paket
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git ufw
-
-# Pasang Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Masukkan user ke grup docker agar tidak perlu 'sudo' setiap saat
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Verifikasi pemasangan
-docker --version
-docker compose version
-```
+Panduan ini menjelaskan konfigurasi dan alur deployment **ACCA CBT** ke server VPS Ubuntu dengan **aaPanel**, Docker Compose, dan otomatisasi CI/CD via **GitHub Actions**.
 
 ---
 
-## 2. Mengambil Proyek dari GitHub
+## 1. Arsitektur & Alokasi Port
 
-Masuk ke direktori yang diinginkan (misal `/var/www` atau `~`):
+Arsitektur multi-layanan dirancang agar berdampingan dengan proyek `acca-new` tanpa tabrakan port (*port collision*):
+
+| Layanan | Teknologi | Port Kontainer | Port Host VPS | Keterangan Akses |
+|---|---|---|---|---|
+| **acca-web** | Next.js | 3000 / 3006 | **3006** | Publik via Nginx aaPanel |
+| **acca-api** | Express / Nest | 3001 / 3007 | **3007** | Publik via Nginx aaPanel |
+| **cbt-web** | Next.js Standalone | 3008 | **3008** | **Publik via Nginx aaPanel (Reverse Proxy)** |
+| **cbt-api** | NestJS 10 | 3009 | *Tidak diekspos* | Internal Docker network (`cbt-network`) |
+| **cbt-scoring**| FastAPI / Python | 8000 | *Tidak diekspos* | Internal Docker network (`cbt-network`) |
+| **PostgreSQL** | PostgreSQL 16 | 5432 | 5432 (Host) | Diakses lewat `host.docker.internal:5432` |
+
+---
+
+## 2. Persiapan Awal di VPS (aaPanel)
+
+### A. Clone Repositori Perdana
+Masuk ke terminal VPS via SSH, lalu jalankan:
+
 ```bash
+cd /www/wwwroot/
 git clone https://github.com/imbank8993/acca-cbt-new.git
 cd acca-cbt-new
 ```
 
----
+### B. Konfigurasi Lingkungan (`.env`)
+Salin file template `.env.example` menjadi `.env`:
 
-## 3. Konfigurasi Variabel Lingkungan (.env)
-
-Buka berkas `.env` di root project:
 ```bash
+cp .env.example .env
 nano .env
 ```
 
-Sesuaikan nilai penting berikut:
-1. **`DATABASE_URL`**:
-   * Jika PostgreSQL berjalan langsung di OS host VPS:
-     ```env
-     DATABASE_URL="postgresql://postgres:password_anda@host.docker.internal:5432/acca_db?schema=public"
-     ```
+Pastikan variabel penting berikut disesuaikan:
+1. **`DATABASE_URL`**: Hubungkan ke PostgreSQL di host VPS:
+   ```env
+   DATABASE_URL="postgresql://postgres:password_db_anda@host.docker.internal:5432/acca_db?schema=public"
+   ```
 2. **`JWT_SECRET` & `CBT_SSO_SECRET`**:
-   * **Wajib sama persis** dengan yang ada di project `acca-new` agar login/SSO berjalan mulus.
+   Wajib sama persis dengan yang ada di `.env` project `acca-new` agar token login SSO kompatibel.
 3. **`NEXT_PUBLIC_SITE_URL` & `NEXT_PUBLIC_ACCA_URL`**:
-   * Masukkan domain produksi (mis. `https://cbt.sekolah.sch.id` dan `https://app.sekolah.sch.id`).
+   Atur domain produksi (mis. `https://cbt.domainanda.sch.id` dan `https://app.domainanda.sch.id`).
 4. **`CLOUDFLARE_R2_*`**:
-   * Masukkan kredensial bucket R2 Cloudflare Anda untuk penyimpanan berkas ujian/gambar.
+   Kredensial bucket Cloudflare R2 untuk penyimpanan berkas ujian/audio/gambar.
 
-Simpan dengan menekan `Ctrl + O`, lalu keluar dengan `Ctrl + X`.
+Simpan perubahan (`Ctrl+O` lalu Enter, `Ctrl+X`).
 
----
-
-## 4. Menjalankan Aplikasi
-
-Jalankan perintah berikut untuk merakit image dan menjalankan semua kontainer:
+### C. Build & Jalankan Kontainer Pertama Kali
 ```bash
 docker compose up -d --build
 ```
-
-Docker akan mengompilasi dan mengaktifkan 3 kontainer:
-1. `cbt-scoring` (FastAPI / Python - port internal 8000)
-2. `cbt-api` (NestJS 10 - port internal 3009)
-3. `cbt-web` (Next.js 16 - port publik 3008)
-
-### Memeriksa Status Kontainer
+Periksa status kontainer:
 ```bash
 docker compose ps
 ```
-Pastikan ketiga service berstatus `Up` (healthy).
+Pastikan ketiga service (`cbt-web`, `cbt-api`, `cbt-scoring`) berstatus `Up`.
 
-### Memeriksa Log
+---
+
+## 3. Konfigurasi Domain, Reverse Proxy & SSL di aaPanel
+
+1. Buka dashboard **aaPanel** (mis. `http://194.233.81.192:8888`).
+2. Masuk ke menu **Website** -> Klik tombol **Add site**.
+3. Isi form:
+   - **Domain**: Masukkan domain CBT Anda, misalnya `cbt.domainanda.sch.id`.
+   - **Type**: Pilih **Pure Static**.
+   - Klik **Submit**.
+4. Setelah website terbuat, klik nama domain tersebut untuk membuka panel pengaturannya:
+   - **Reverse Proxy**:
+     1. Klik tab **Reverse Proxy** -> Klik **Add reverse proxy**.
+     2. Proxy Name: `cbt-proxy`
+     3. Target URL: `http://127.0.0.1:3008`
+     4. Sent Host: `$host`
+     5. Klik **Save**.
+   - **SSL Certificate**:
+     1. Klik tab **SSL** -> Pilih tab **Let's Encrypt**.
+     2. Centang nama domain Anda, klik **Apply**.
+     3. Setelah berhasil terbit, aktifkan tombol **Force HTTPS**.
+5. Uji akses domain Anda di peramban: `https://cbt.domainanda.sch.id`.
+
+---
+
+## 4. Konfigurasi CI/CD Otomatis via GitHub Actions
+
+Workflow otomatis sudah disiapkan di [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
+### Menambahkan GitHub Secrets
+Buka repositori Anda di GitHub -> **Settings** -> **Secrets and variables** -> **Actions** -> Klik **New repository secret**:
+
+| Nama Secret | Nilai | Keterangan |
+|---|---|---|
+| `VPS_HOST` | `194.233.81.192` | Alamat IP VPS Anda |
+| `VPS_USERNAME` | `root` | Username SSH VPS |
+| `VPS_SSH_KEY` | *(Konten Private SSH Key)* | Private key dari pasangan kunci yang ada di VPS `~/.ssh/authorized_keys` |
+| `VPS_PORT` | `22` *(Opsional)* | Port SSH jika bukan port standar 22 |
+| `VPS_APP_DIR` | `/www/wwwroot/acca-cbt-new` | Path root proyek (sudah menjadi default) |
+
+### Alur Kerja CI/CD
+Setiap kali Anda menjalankan `git push origin master` (atau `main`):
+1. **Tahap Verifikasi (Verify Job)**:
+   - Menjalankan `npm ci`, kompilasi paket shared `@acca-cbt/shared`.
+   - Meng-generate Prisma Client.
+   - Typecheck frontend Next.js (`npm run typecheck`).
+   - Kompilasi backend NestJS (`npm run build:backend`).
+   - Menjalankan unit tests scoring Python via `pytest`.
+2. **Tahap Deploy (Deploy Job)**:
+   - Menghubungi VPS via SSH aman.
+   - Melakukan `git fetch` & `git reset --hard` ke commit terbaru.
+   - Menjalankan `docker compose up -d --build --remove-orphans`.
+   - Membersihkan dangling image via `docker image prune -f`.
+   - Melaporkan status kontainer aktif.
+
+---
+
+## 5. Perintah Pemeliharaan Berguna di VPS
+
 ```bash
-# Lihat log seluruh service secara realtime
+# Masuk ke folder proyek
+cd /www/wwwroot/acca-cbt-new
+
+# Melihat log langsung (live stream)
 docker compose logs -f
 
-# Atau lihat log salah satu service saja:
+# Melihat log service tertentu
 docker compose logs -f cbt-web
 docker compose logs -f cbt-api
 docker compose logs -f cbt-scoring
+
+# Restart kontainer tertentu jika diperlukan
+docker compose restart cbt-web
+docker compose restart cbt-api
+
+# Melihat penggunaan resource RAM/CPU kontainer
+docker stats
 ```
 
----
-
-## 5. Menghubungkan Domain & SSL dengan Nginx (Reverse Proxy)
-
-Pasang Nginx dan Certbot untuk mendapatkan HTTPS gratis dari Let's Encrypt:
-```bash
-sudo apt install -y nginx certbot python3-certbot-nginx
-```
-
-Buat konfigurasi virtual host Nginx:
-```bash
-sudo nano /etc/nginx/sites-available/cbt.conf
-```
-
-Isikan konfigurasi berikut (ganti `cbt.domainanda.com` dengan domain Anda):
-```nginx
-server {
-    server_name cbt.domainanda.com;
-
-    client_max_body_size 50M;
-
-    location / {
-        proxy_pass http://127.0.0.1:3008;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Aktifkan konfigurasi dan pasang sertifikat SSL:
-```bash
-sudo ln -s /etc/nginx/sites-available/cbt.conf /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-
-# Pasang SSL Let's Encrypt otomatis
-sudo certbot --nginx -d cbt.domainanda.com
-```
-
----
-
-## 6. Cara Update Aplikasi di Masa Mendatang
-
-Setiap kali Anda selesai coding di laptop dan melakukan `git push` ke GitHub, cukup jalankan ini di VPS:
-
-```bash
-cd acca-cbt-new
-git pull
-docker compose up -d --build
-```
-Selesai! Versi terbaru otomatis aktif tanpa downtime yang lama.

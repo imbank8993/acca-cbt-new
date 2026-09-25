@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - main
   workflow_dispatch:
 
 jobs:
@@ -69,7 +70,7 @@ jobs:
           script: |
             set -e
             echo "🚀 Menghubungkan ke VPS..."
-            TARGET_DIR="${{ secrets.VPS_APP_DIR || '/var/www/acca-cbt-new' }}"
+            TARGET_DIR="${{ secrets.VPS_APP_DIR || '/www/wwwroot/acca-cbt-new' }}"
 
             if [ ! -d "$TARGET_DIR" ]; then
               echo "Direktori $TARGET_DIR belum ada, melakukan clone perdana..."
@@ -79,9 +80,15 @@ jobs:
 
             cd "$TARGET_DIR"
 
-            echo "📥 Mengambil commit terbaru dari GitHub..."
-            git fetch origin master
-            git reset --hard origin/master
+            echo "📥 Mengambil commit terbaru dari GitHub (${{ github.ref_name }})..."
+            git fetch origin ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+
+            if [ ! -f ".env" ]; then
+              echo "⚠️ PERINGATAN: File .env tidak ditemukan di $TARGET_DIR!"
+              echo "Pastikan file .env sudah dibuat sebelum aplikasi dijalankan."
+              exit 1
+            fi
 
             echo "🐳 Menjalankan build & restart kontainer Docker..."
             docker compose up -d --build --remove-orphans
@@ -92,3 +99,4 @@ jobs:
             echo "✅ Status kontainer saat ini:"
             docker compose ps
             echo "🎉 Deployment ACCA CBT selesai dengan sukses!"
+
