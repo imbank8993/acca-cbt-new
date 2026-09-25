@@ -17,8 +17,11 @@ COPY packages/shared ./packages/shared
 RUN npm run build:shared
 
 # Salin kode sumber frontend Next.js
+COPY apps/web ./apps/web
+
 ARG NEXT_PUBLIC_ACCA_URL=https://accav2.icgowa.sch.id
 ARG NEXT_PUBLIC_SITE_URL=https://accav2-cbt.icgowa.sch.id
+
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \
