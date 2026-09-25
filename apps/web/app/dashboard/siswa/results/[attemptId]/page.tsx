@@ -103,24 +103,20 @@ export default function StudentResultDetailsPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
-            {/* ── Hero Header — Compact acca-hero-gradient ── */}
-            <div className="relative overflow-hidden rounded-2xl acca-hero-gradient shadow-xl shadow-[#0038A8]/15 mt-4 md:mt-0 p-6 md:p-8">
-                {/* Decorative Glowing Orbs */}
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-
-                <div className="relative flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5 z-10">
+            {/* Header & Score Summary Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
                     <div className="space-y-2 text-left">
                         <button
                             onClick={() => router.push('/dashboard/siswa/results')}
-                            className="flex items-center gap-1.5 text-white/90 hover:text-white transition-all font-bold uppercase tracking-wider text-[10px] bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl border border-white/10 active:scale-95 mb-2"
+                            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition-all font-bold uppercase tracking-wider text-[10px] bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 active:scale-95 mb-2"
                         >
                             <ArrowLeft size={12} /> Kembali
                         </button>
-                        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight uppercase">
+                        <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight uppercase">
                             Detail Hasil Ujian
                         </h1>
-                        <p className="text-white/80 text-xs md:text-sm font-medium leading-relaxed"> {/* @ts-ignore */}
+                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed"> {/* @ts-ignore */}
                             {attempt.exams?.title}
                         </p>
                     </div>
@@ -128,40 +124,40 @@ export default function StudentResultDetailsPage() {
                     {/* Score cards */}
                     <div className="flex flex-wrap gap-3 self-start xl:self-center shrink-0">
                         {hasPengetahuan && (
-                            <div className="bg-white/10 backdrop-blur-md px-5 py-3.5 rounded-2xl border border-white/15 shadow-lg flex items-center gap-4">
+                            <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
                                 <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-white/90 mb-1">Nilai Klasik</p>
-                                    <p className="text-3xl font-black tracking-tighter text-white leading-none font-mono">
+                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Nilai Klasik</p>
+                                    <p className="text-3xl font-black tracking-tighter text-[#0038A8] leading-none font-mono">
                                         {totalScore.toFixed(0)}
                                     </p>
-                                    <p className="text-[9px] text-white/70 font-bold mt-1 leading-none">/100</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
                                 </div>
                                 {scoreIrt != null && (
                                     <>
-                                        <div className="w-px h-10 bg-white/10" />
+                                        <div className="w-px h-10 bg-slate-200" />
                                         <div className="text-center min-w-[60px]">
-                                            <p className="text-[8px] font-extrabold uppercase tracking-widest text-white/90 mb-1">Nilai IRT</p>
-                                            <p className="text-3xl font-black tracking-tighter text-white leading-none font-mono">
+                                            <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Nilai IRT</p>
+                                            <p className="text-3xl font-black tracking-tighter text-indigo-600 leading-none font-mono">
                                                 {scoreIrt.toFixed(2)}
                                             </p>
-                                            <p className="text-[9px] text-white/70 font-bold mt-1 leading-none">/100</p>
+                                            <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
                                         </div>
                                     </>
                                 )}
-                                <div className="w-px h-10 bg-white/10" />
+                                <div className="w-px h-10 bg-slate-200" />
                                 <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-white/90 mb-1">Benar</p>
-                                    <p className="text-2xl font-black text-white leading-none font-mono mt-0.5">{correctCount}</p>
-                                    <p className="text-[9px] text-white/70 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
+                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Benar</p>
+                                    <p className="text-2xl font-black text-emerald-600 leading-none font-mono mt-0.5">{correctCount}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Tab bar inside hero */}
+                {/* Tab bar inside card */}
                 {tabs.length > 1 && (
-                    <div className="relative px-6 pb-0 flex gap-1 border-t border-white/10">
+                    <div className="mt-6 pt-4 flex gap-2 border-t border-slate-100">
                         {tabs.map(tab => {
                             const Icon = tab.icon;
                             const isActive = resolvedTab === tab.id;
@@ -169,16 +165,16 @@ export default function StudentResultDetailsPage() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
                                         isActive
-                                            ? 'text-white border-white'
-                                            : 'text-white border-transparent hover:text-white'
+                                            ? 'bg-[#0038A8] text-white border-[#0038A8] shadow-xs'
+                                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                     }`}
                                 >
                                     <Icon size={13} />
                                     {tab.label}
                                     {tab.count > 0 && (
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${isActive ? 'bg-white/20 text-white' : 'bg-white/10 text-white'}`}>
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
                                             {tab.count}
                                         </span>
                                     )}

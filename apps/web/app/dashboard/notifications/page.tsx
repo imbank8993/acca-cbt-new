@@ -178,57 +178,9 @@ export default function NotificationsPage() {
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
-            {/* ── Hero Header — Compact acca-hero-gradient ── */}
-            <div className="relative overflow-hidden rounded-2xl acca-hero-gradient shadow-xl shadow-[#0038A8]/15 mt-4 md:mt-0 p-6 md:p-8">
-                {/* Decorative Glowing Orbs */}
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-
-                <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5 z-10">
-                    <div className="space-y-2">
-                        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
-                            Halo, <span className="text-amber-200">{fullName || 'Siswa'}</span>! 👋
-                        </h1>
-                        <p className="text-white/80 text-xs md:text-sm max-w-xl font-medium leading-relaxed">
-                            {unreadCount > 0
-                                ? `Anda memiliki ${unreadCount} notifikasi baru yang belum dibaca.`
-                                : 'Semua notifikasi sudah dibaca. Anda sudah up-to-date!'}
-                        </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 self-start md:self-center shrink-0">
-                        {/* Compact Stat Badge */}
-                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15 shadow-lg">
-                            <span className="text-xs font-bold text-white/95">Belum Dibaca:</span>
-                            <span className="text-base font-black text-white font-mono bg-white/20 px-2.5 py-0.5 rounded-lg leading-none">{unreadCount}</span>
-                        </div>
-
-                        {selectedNotifications.size > 0 && (
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handleBulkMarkAsRead}
-                                    disabled={isProcessing}
-                                    className="px-4 py-2.5 text-xs font-bold text-[#0038A8] bg-white hover:bg-slate-50 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                                >
-                                    <CheckCheck size={14} />
-                                    Tandai Baca
-                                </button>
-                                <button
-                                    onClick={handleBulkDelete}
-                                    disabled={isProcessing}
-                                    className="px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                                >
-                                    <Trash2 size={14} />
-                                    Hapus
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Filter Tabs (Detached) */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2 px-1">
+            {/* Filter Tabs & Bulk Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 px-1">
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                 {filterOptions.map((option) => (
                     <button
                         key={option.value}
@@ -250,7 +202,28 @@ export default function NotificationsPage() {
                             </span>
                         )}
                     </button>
-                ))}
+                </div>
+
+                {selectedNotifications.size > 0 && (
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={handleBulkMarkAsRead}
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs font-bold text-[#0038A8] bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
+                        >
+                            <CheckCheck size={14} />
+                            Tandai Baca ({selectedNotifications.size})
+                        </button>
+                        <button
+                            onClick={handleBulkDelete}
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
+                        >
+                            <Trash2 size={14} />
+                            Hapus ({selectedNotifications.size})
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Content */}
