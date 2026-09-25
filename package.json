@@ -18,6 +18,7 @@
     "build:frontend": "npm run build --workspace=apps/web",
     "build:backend": "npm run build:shared && npm run build --workspace=apps/api",
     "lint": "npm run lint --workspace=apps/web && npm run lint --workspace=apps/api",
+    "lint:web:baseline": "node tools/check-web-lint-baseline.cjs",
     "typecheck": "npx tsc --noEmit -p apps/web/tsconfig.json",
     "prisma:pull": "npm run prisma:pull --workspace=apps/api",
     "prisma:generate": "npm run prisma:generate --workspace=apps/api",

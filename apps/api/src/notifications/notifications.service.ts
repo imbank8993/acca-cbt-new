@@ -40,9 +40,9 @@ export class NotificationsService {
 
     async list(
         user: AuthUser,
-        options: { limit?: number; unreadOnly?: boolean; includeExpired?: boolean } = {},
+        options: { limit?: number; offset?: number; type?: string; unreadOnly?: boolean; includeExpired?: boolean } = {},
     ) {
-        const { limit = 20, unreadOnly = false, includeExpired = false } = options;
+        const { limit = 20, offset = 0, type, unreadOnly = false, includeExpired = false } = options;
 
         let query = this.db
             .from('cbt_notifications')
@@ -51,15 +51,14 @@ export class NotificationsService {
             .order('created_at', { ascending: false });
 
         if (unreadOnly) query = query.eq('is_read', false);
+        if (type) query = query.eq('type', type);
         if (!includeExpired) query = this.notExpired(query);
 
-        const { data, error } = await query.limit(limit);
+        const { data, error } = await query.range(offset, offset + limit - 1);
 
         if (error) {
             this.logger.error(`Gagal membaca notifikasi: ${error.message}`);
-            // Versi lama mengembalikan array kosong saat gagal, dan layar
-            // notifikasi mengandalkan itu untuk menampilkan keadaan kosong.
-            return [];
+            throw new InternalServerErrorException('Notifikasi tidak dapat dimuat.');
         }
         return (data as unknown[]) || [];
     }

@@ -68,4 +68,13 @@ export class BackupController {
     import(@CurrentUser() user: AuthUser, @Body() dto: ImportBackupDto) {
         return this.backup.import(user, dto.organizationId, dto.payload);
     }
+
+    @Get('import-authorization')
+    @ApiOperation({ summary: 'Periksa izin restore sebelum payload backup dibaca' })
+    authorizeImport(
+        @CurrentUser() user: AuthUser,
+        @Query('organizationId') organizationId: string,
+    ) {
+        return this.backup.authorizeImport(user, organizationId);
+    }
 }

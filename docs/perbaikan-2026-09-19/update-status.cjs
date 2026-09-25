@@ -6,11 +6,17 @@ const stages = {
     1: ['SEC-01','SEC-02','SEC-04','SEC-14','BUG-13','UX-04'],
     2: ['SEC-05','SEC-06','SEC-07','SEC-08','SEC-09','SEC-11','BUG-01','BUG-06','BUG-07'],
     3: ['BUG-15','BUG-16'],
+    4: ['SEC-03','SEC-10','BUG-03','BUG-08','BUG-09','BUG-10','UX-01'],
+    5: ['SEC-12','SEC-13','BUG-02','BUG-04','BUG-05'],
+    6: ['BUG-14','UX-02','UX-03','UX-05','UX-06','UX-07','UX-08','UX-09','UX-10','UX-11','UX-12'],
+    7: ['QA-01'],
 };
 const rows = findings.map(f => {
-    const stage = Object.entries(stages).find(([, ids]) => ids.includes(f.id))?.[0];
-    const status = f.id === 'SEC-14' ? 'Parsial — menunggu penutupan SEC-10' : stage ? 'Implementasi dan tes lokal selesai' : 'Belum dikerjakan';
+    const stage = f.id === 'SEC-14'
+        ? '1 + 4'
+        : Object.entries(stages).find(([, ids]) => ids.includes(f.id))?.[0];
+    const status = stage ? 'Implementasi dan tes lokal selesai' : 'Belum dikerjakan';
     return { id: f.id, priority: f.priority, title: f.id === 'BUG-15' ? 'Regrade mengabaikan kontribusi nilai esai pada total' : f.title, stage: stage || null, status };
 });
 fs.writeFileSync(path.join(__dirname, 'status.json'), JSON.stringify(rows, null, 2)+'\n');
-fs.writeFileSync(path.join(__dirname, 'STATUS_TEMUAN.md'), `# Status temuan audit\n\nDiperbarui 20 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUDIT_2026-09-19.md). Status selesai adalah implementasi lokal, belum validasi deployment. Tahap 4 masih berlangsung dan belum ditandai selesai.\n\n| ID | Prioritas | Tahap | Status | Temuan |\n|---|---|---|---|---|\n${rows.map(r=>`| ${r.id} | ${r.priority} | ${r.stage || '—'} | ${r.status} | ${r.title} |`).join('\n')}\n`);
+fs.writeFileSync(path.join(__dirname, 'STATUS_TEMUAN.md'), `# Status temuan audit\n\nDiperbarui 25 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUDIT_2026-09-19.md). Status selesai adalah implementasi dan tes lokal, belum validasi deployment atau database sekolah.\n\n| ID | Prioritas | Tahap | Status | Temuan |\n|---|---|---|---|---|\n${rows.map(r=>`| ${r.id} | ${r.priority} | ${r.stage || '—'} | ${r.status} | ${r.title} |`).join('\n')}\n`);

@@ -193,13 +193,7 @@ export default function BankDetailPage() {
         if (q && q.id) {
             // Deduplicate options before loading into editor
             const rawOptions = q.bank_question_options || q.options || [];
-            const seen = new Set<string>();
-            const uniqueOptions = rawOptions.filter((opt: any) => {
-                if (!opt.id) return true;
-                if (seen.has(opt.id)) return false;
-                seen.add(opt.id);
-                return true;
-            });
+            const uniqueOptions = rawOptions;
 
             const loadedOptions = uniqueOptions.map((opt: any) => ({
                 ...opt, text: opt.option_text || opt.text || '',
@@ -749,7 +743,7 @@ export default function BankDetailPage() {
                                     {q.type === 'true_false' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 8).map((opt: any, oIdx: number) => (
+                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => (
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
                                                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? 'B' : 'S'}</span>
                                                         <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
@@ -761,7 +755,7 @@ export default function BankDetailPage() {
                                     {q.type === 'matching' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 8).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
                                                     const matches = opt.metadata?.match_texts || [];
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
@@ -778,7 +772,7 @@ export default function BankDetailPage() {
                                     {q.type === 'categorization' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 8).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
                                                     const cats = opt.metadata?.category_names || [];
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
@@ -824,7 +818,7 @@ export default function BankDetailPage() {
                                     {(q.type === 'mcq' || q.type === 'mcq_complex') && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 4).map((opt: any, oIdx: number) => (
+                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => (
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
                                                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
                                                         <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
@@ -837,7 +831,7 @@ export default function BankDetailPage() {
                                     {q.type === 'sjt' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 8).map((opt: any, oIdx: number) => {
+                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
                                                     const isHighest = opt.weight === Math.max(...(q.bank_question_options || []).map((o: any) => o.weight || 0));
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
                                                     const dimName = dimensionsList?.find((d: any) => d.id === dimId)?.name;
@@ -895,7 +889,7 @@ export default function BankDetailPage() {
                                     {q.type === 'paired_comparison' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).slice(0, 2).map((opt: any, oIdx: number) => {
+                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
                                                     const dimName = dimensionsList?.find((d: any) => d.id === dimId)?.name;
                                                     return (

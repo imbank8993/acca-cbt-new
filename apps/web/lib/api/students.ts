@@ -46,13 +46,27 @@ export function leaveClassAction(classId: string) {
 // ── Jadwal & hasil ───────────────────────────────────────────────────────────
 
 export async function getStudentExams(): Promise<any[]> {
-    const res = await apiGet<{ exams: any[] }>('/api/students/exams');
+    const res = await getStudentExamsResult();
     return res.success ? res.exams : [];
 }
 
+export async function getStudentExamsResult() {
+    const res = await apiGet<{ exams: any[] }>('/api/students/exams');
+    return res.success
+        ? { success: true as const, exams: res.exams }
+        : { success: false as const, error: res.error };
+}
+
 export async function getStudentResultsAction(): Promise<any[]> {
-    const res = await apiGet<{ results: any[] }>('/api/students/results');
+    const res = await getStudentResultsResult();
     return res.success ? res.results : [];
+}
+
+export async function getStudentResultsResult() {
+    const res = await apiGet<{ results: any[] }>('/api/students/results');
+    return res.success
+        ? { success: true as const, results: res.results }
+        : { success: false as const, error: res.error };
 }
 
 /**

@@ -1,10 +1,10 @@
 # Catatan perbaikan audit ACCA CBT
 
-Dimulai 19 September 2026; diperbarui 20 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
+Dimulai 19 September 2026; diperbarui 25 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
 
 ## Status pekerjaan
 
-Tiga tahap implementasi lokal telah diselesaikan dan diuji. **17 ID temuan ditangani: 16 selesai pada lingkup kode yang disebutkan, 1 diperbaiki sebagian, dan 28 temuan belum dikerjakan.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 tetap parsial karena kebijakan pemulihan jawaban setelah submit (SEC-10) belum ditutup.
+Tujuh tahap implementasi lokal telah diselesaikan dan diuji. **41 dari 45 ID temuan sudah ditangani dan 4 belum dikerjakan.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
 
 Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan objek R2 sungguhan, atau deployment. Bukti audit awal dipertahankan sebagai baseline; skrip reproduksi lama sengaja mengharapkan bug lama sehingga tidak lagi menjadi tes kelulusan untuk kode terbaru.
 
@@ -13,6 +13,10 @@ Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan ob
 | 1 | Akses ujian, DTO soal siswa, pencocokan submit, rilis hasil | SEC-01, SEC-02, SEC-04, sebagian SEC-14, BUG-13, UX-04 | 36 tes regresi lokal lulus |
 | 2 | Kepemilikan resource, validasi nilai, event pengawasan, storage | SEC-05–09, SEC-11, BUG-01, BUG-06–07 | 32 tes baru; gabungan tahap 1–2: 68 lulus |
 | 3 | Integritas pilihan kompleks dan agregasi nilai manual | BUG-15–16 | 3 tes backend lulus; 98 tes Python lulus (78 lama + 20 baru) |
+| 4 | State attempt, deadline, submit atomik, autosave/recovery, dashboard pengawas | SEC-03, SEC-10, penyelesaian SEC-14, BUG-03, BUG-08–10, UX-01 | 7 tes tahap 4; gabungan tes Node: 78 lulus; TypeScript API/web lulus |
+| 5 | Keamanan, atomicity, dan cakupan backup/restore | SEC-12–13, BUG-02, BUG-04–05 | 7 tes tahap 5; gabungan tes Node: 85 lulus; TypeScript API/web lulus |
+| 6 | Keandalan UI, aksesibilitas, waktu, pagination, dan ekspor analitik | BUG-14, UX-02–03, UX-05–12 | 7 tes tahap 6; gabungan tes Node: 92 lulus; TypeScript API/web lulus |
+| 7 | Pengaman regresi lint frontend di CI | QA-01 | Baseline penuh diverifikasi: 1.339 error dan 710 warning lama; kenaikan per aturan menggagalkan CI |
 
 Daftar seluruh 45 ID beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
 
@@ -54,7 +58,7 @@ Untuk matching/kategorisasi, kandidat kanan/kategori diambil sebagai daftar terp
 
 **Pengujian:** mismatch pada in_progress/submitted/auto_submitted, penolakan sebelum scoring, serta submit ulang yang sah.
 
-### SEC-14 (parsial) dan UX-04: hasil aktif/tersembunyi tidak bocor lewat jalur hasil biasa
+### SEC-14 dan UX-04: hasil aktif/tersembunyi tidak bocor lewat jalur hasil biasa
 
 **Sebelum:** daftar hasil menyertakan attempt aktif dan skor belum dirilis; review/detail bisa dibuka ketika masih mengerjakan jika show_results aktif. Analitik masih memasukkan nilai tersembunyi.
 
@@ -64,7 +68,7 @@ Untuk matching/kategorisasi, kandidat kanan/kategori diambil sebagai daftar terp
 
 **Pengujian:** attempt aktif tidak muncul sebagai hasil, skor tersembunyi null, review aktif ditolak sebelum mengambil soal/jawaban, analitik tersembunyi kosong, serta histori tetap mengisi limit dengan hasil yang dirilis.
 
-**Masih terbuka:** SEC-10 memungkinkan pemulihan/terminasi ulang setelah status final; karena itu rilis hasil belum dapat dianggap terlindungi end-to-end dari penyalahgunaan late sync. Filtering analitik dilakukan setelah pembacaan database demi kompatibilitas adapter; optimasi query/pagination untuk volume besar belum dilakukan.
+Jalur late sync otomatis yang sebelumnya masih dapat mengubah jawaban setelah attempt final sudah ditutup pada tahap 4. Filtering analitik dilakukan setelah pembacaan database demi kompatibilitas adapter; optimasi query/pagination untuk volume besar belum dilakukan.
 
 ## Tahap 2 — Penulisan data harus mengikuti pemilik dan aturan nilai
 
@@ -142,22 +146,181 @@ MCQ kompleks memerlukan pilihan unik dan kesetaraan himpunan dengan kunci yang t
 
 Kebijakan input malformed adalah tidak memberikan kredit pada cabang yang ditolak, bukan menggandakan pilihan atau menghentikan seluruh batch. Validasi bentuk seluruh tipe lain tetap perlu diperluas; ini tidak diklaim menutup semua input malformed yang mungkin.
 
+## Tahap 4 — Integritas state pengerjaan dan pemulihan jawaban
+
+### SEC-03: deadline dan perangkat diperiksa pada setiap mutasi jawaban
+
+Save tunggal, sinkronisasi massal, dan submit kini mewajibkan device ID sepanjang 8–200 karakter. Setiap penulisan mengunci baris attempt, memeriksa pemilik, status `in_progress`, perangkat yang terikat, waktu mulai, serta deadline efektif menggunakan jam database. Pemeriksaan tidak lagi bergantung pada timer browser atau pada halaman monitoring yang sedang terbuka. Permintaan tepat pada atau sesudah deadline ditolak.
+
+**Lokasi:** [exam-attempts.service.ts](../apps/api/src/students/exam-attempts.service.ts), [students.dto.ts](../apps/api/src/students/dto/students.dto.ts), [prisma-db-adapter.ts](../apps/api/src/prisma/prisma-db-adapter.ts).
+
+**Pengujian:** device kosong, device berbeda, penulisan sah, serta penulisan setelah deadline. Fixture database kini mendukung jam server, lock, transaksi, dan rollback untuk membuktikan perilaku kegagalan.
+
+**Batas:** device ID browser adalah pengikat sesi operasional, bukan identitas perangkat yang tahan pemalsuan. Kontrol utama tetap autentikasi pengguna, kepemilikan attempt, status, dan deadline server.
+
+### SEC-10 dan penyelesaian SEC-14: state final tidak dapat dibuka lewat late sync
+
+Terminasi otomatis dan terminasi paksa memakai compare-and-set dari `in_progress`; permintaan ulang pada attempt final tidak mengubah `finished_at`, tidak menilai ulang, dan tidak menulis log terminasi baru. Endpoint late answer lama dipertahankan untuk kompatibilitas rute, tetapi selalu menolak perubahan pada attempt `auto_submitted` dan mengarahkan pemulihan melalui reset proktor.
+
+Setelah reset yang sah, proktor menerbitkan grace period 15 menit pada metadata attempt. Penanda ini memungkinkan resume setelah batas akhir global, tetapi hanya sampai deadline pemulihan. Klien lalu mengirim salinan lokal melalui endpoint sinkronisasi biasa, sehingga seluruh pemeriksaan status, perangkat, dan deadline kembali berlaku. Tanpa reset, cache lokal dipertahankan dan UI meminta siswa menghubungi proktor.
+
+**Lokasi:** [proctoring.service.ts](../apps/api/src/proctoring/proctoring.service.ts), [exam-attempts.service.ts](../apps/api/src/students/exam-attempts.service.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx).
+
+**Pengujian:** late sync pada attempt final ditolak, terminasi ulang idempoten, auto-finish hanya menilai sekali, serta recovery proktor dapat dilanjutkan setelah jadwal global berakhir.
+
+### BUG-03: jawaban dan status submit disimpan sebagai satu transaksi
+
+Submit mengunci attempt, melakukan upsert seluruh jawaban hasil penilaian, lalu mengubah status, skor, metadata, dan waktu selesai dalam satu transaksi database. Kegagalan penyimpanan jawaban me-roll back perubahan status; UI dapat mencoba submit lagi tanpa menemukan attempt final yang kehilangan bukti jawaban. Submit ulang yang sudah final tetap idempoten.
+
+**Pengujian:** fixture memaksa kegagalan tabel jawaban dan memverifikasi status tetap `in_progress` serta `finished_at` tidak terisi.
+
+### BUG-08: autosave per soal dijalankan berurutan
+
+`PerKeyQueue` mengantre perubahan untuk soal yang sama, sehingga request lama selalu selesai sebelum request baru dimulai. Autosave soal berbeda tetap dapat berjalan paralel. Penanda in-flight dipertahankan sampai antrean terakhir selesai agar flush saat tab ditutup tetap membawa nilai terbaru.
+
+**Lokasi:** [per-key-queue.ts](../apps/web/lib/per-key-queue.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx). **Tes:** dua save soal yang sama terbukti berurutan, sedangkan save soal lain tetap berjalan tanpa menunggu.
+
+### BUG-09: kegagalan Web Storage tidak menghentikan ujian
+
+Pembacaan dan penulisan `localStorage`/`sessionStorage` yang berada pada jalur pembukaan, heartbeat, autosave, sinkronisasi, dan pembersihan cache kini dilindungi. Browser mode privat, storage penuh, atau kebijakan perangkat tidak lagi melempar exception yang menghentikan autosave server atau menggagalkan pembukaan halaman. UI memberi peringatan ketika cache jawaban lokal tidak dapat ditulis.
+
+### BUG-10: finalisasi kedaluwarsa dan recovery memakai state yang sama
+
+Membuka ulang attempt setelah batas global kini menjalankan auto-finish idempoten walaupun halaman monitoring tidak pernah dibuka. Jawaban server dinilai dan cache lokal tetap ada. Jika proktor menyetujui pemulihan, reset membuat deadline pemulihan bertanda server; resume tidak lagi langsung menutup attempt hanya karena jadwal global telah lewat.
+
+### UX-01: dashboard pengawas memakai data API nyata
+
+Dashboard dan layar monitoring pengawas tidak lagi menampilkan statistik maupun kejadian contoh sebagai data aktif. Pemilihan ujian, ringkasan attempt, log pelanggaran, refresh berkala, dan navigasi monitoring mengambil data dari layanan NestJS. Empty state dan status pemuatan ditampilkan ketika data belum tersedia.
+
+## Tahap 5 — Backup/restore yang terotorisasi, terbatas, dan atomik
+
+### SEC-12 dan BUG-02: izin serta signature diperiksa sebelum ekstraksi dan upload
+
+Route import kini mewajibkan `organizationId` pada query URL. Token dan izin proktor untuk organisasi tersebut diperiksa ke NestJS sebelum `request.formData()` membaca multipart body. Nilai organisasi di form harus sama dengan nilai yang sudah diotorisasi, dan endpoint import NestJS tetap memeriksa izin lagi saat mutasi dimulai.
+
+Arsip dibatasi 50 MB terkompresi, 120 MB hasil dekompresi, 20 MB manifest, 10 MB per gambar, dan 501 file. Jalur absolut/traversal, file di luar `backup.cbtbak` dan folder `images/`, serta ekstensi gambar yang tidak diizinkan ditolak. Signature HMAC dihitung dan dibandingkan atas manifest asli sebelum path gambar diganti atau objek R2 ditulis. Satu byte perubahan pada manifest menyebabkan restore berhenti dengan nol upload.
+
+Setelah signature sah, gambar diunggah. Kegagalan salah satu gambar atau kegagalan import database menghapus kembali seluruh objek yang baru dibuat, sehingga restore gagal tidak meninggalkan objek yatim. Kunci objek memakai UUID kriptografis.
+
+**Lokasi:** [import route](../apps/web/app/api/backup/import/route.ts), [backup controller](../apps/api/src/backup/backup.controller.ts), [backup service](../apps/api/src/backup/backup.service.ts), serta halaman backup admin/proktor.
+
+**Konfigurasi:** fallback secret konstan telah dihapus. `BACKUP_SECRET_KEY` minimal 32 karakter wajib tersedia; tanpa itu export/import mengembalikan 503. Contohnya tercatat di [.env.example](../.env.example).
+
+### SEC-13: gambar ekspor hanya dibaca dari bucket aplikasi
+
+Ekspor tidak lagi menjalankan `fetch(url)` terhadap URL yang tersimpan di HTML. URL harus dapat dipetakan menjadi object key pada bucket R2 yang dikonfigurasi; objek lalu dibaca langsung melalui API S3/R2. URL loopback, alamat privat, domain eksternal, bucket R2 lain, dan redirect HTTP tidak pernah diminta oleh server. Maksimum 500 gambar, 10 MB per objek, dan 100 MB total gambar diterapkan sebelum ZIP dibuat.
+
+**Lokasi:** [export route](../apps/web/app/api/backup/export/route.ts), [storage.ts](../apps/web/lib/storage.ts). Gambar eksternal yang tidak dikelola aplikasi tetap sebagai tautan di manifest dan tidak dimasukkan sebagai berkas backup.
+
+### BUG-04: manifest divalidasi penuh dan restore database memakai transaksi
+
+Sebelum write pertama, service memeriksa versi, bentuk setiap bagian, batas 500.000 baris, ID duplikat, serta referensi pengguna, kelas, bank, soal, ujian, attempt, periode PAS, sesi, dan ruang. Manifest cacat berhenti sebelum wipe.
+
+Wipe, pemulihan profil/keanggotaan, dan seluruh insert data organisasi berjalan dalam satu transaksi database. Setiap hasil delete/insert diperiksa; kegagalan di tengah restore me-roll back ke data awal. Pembuatan akun auth diselesaikan sebelum transaksi agar hashing banyak password tidak menghabiskan timeout transaksi. Akun auth baru dilunakkan kembali jika transaksi organisasi gagal.
+
+**Batas:** akun auth berada di schema/lapis terpisah sehingga kompensasinya berupa soft-delete, bukan rollback transaksi yang sama. Round-trip database staging dengan FK deployment tetap wajib sebelum rollout produksi.
+
+### BUG-05: manifest versi 2 mencakup relasi fitur aktif
+
+Ekspor versi 2 menambahkan kelas tambahan dan anggotanya; petunjuk, kisi-kisi, dimensi dan interpretasi; target kelas, peserta individual dan sumber bank ujian; snapshot soal attempt dan log keamanan; periode, sesi, jadwal, ruang, pengawas dan peserta PAS; serta label organisasi. Semua peran anggota dipertahankan, bukan hanya peran pertama. Referensi `created_by`, `updated_by`, guru, dan proktor dipetakan ke UUID lingkungan tujuan.
+
+Error baca tabel kini menggagalkan ekspor dan tidak lagi diubah menjadi array kosong. Restore lama versi 1 tetap diterima bila bagian inti lengkap; bagian baru yang memang tidak ada diperlakukan kosong. UI tidak lagi mengklaim sukses untuk arsip parsial akibat query gagal.
+
+**Pengujian tahap 5:** signature arsip bergambar dan manipulasi manifest, batas jumlah entry ZIP, urutan otorisasi sebelum parsing, larangan `fetch(url)`, validasi referensi sebelum wipe, rollback kegagalan insert, ekspor fail-closed, serta pemeriksaan izin ringan tanpa write.
+
+## Tahap 6 — Keandalan UI, aksesibilitas, dan ketepatan informasi
+
+### BUG-14: seluruh hook komponen selalu dipanggil dalam urutan yang sama
+
+State URL tugas pada `ExamViewer` dipindahkan sebelum keadaan kosong yang mengembalikan UI lebih awal. `QuestionForms` tidak lagi mengembalikan `null` sebelum deklarasi callback; tipe yang belum dikenali jatuh ke tampilan fallback pada akhir pemilih form. Perubahan ini mencegah error urutan hook ketika data atau tipe soal berubah antar-render.
+
+**Lokasi:** [ExamViewer.tsx](../apps/web/app/components/questions/ExamViewer.tsx), [QuestionForms.tsx](../apps/web/app/components/questions/forms/QuestionForms.tsx). **Pengujian:** pemeriksaan struktur memastikan semua `useEffect` dan state tugas berada sebelum early return; TypeScript web lulus.
+
+### UX-02 dan UX-03: kegagalan data dan autentikasi mempunyai jalan pemulihan
+
+Klien jadwal, hasil, dan notifikasi kini menyediakan hasil sukses/gagal yang eksplisit. Halaman tidak lagi mengubah error API menjadi daftar kosong yang terlihat seperti “belum ada data”; pengguna melihat pesan kegagalan dan tombol coba lagi. Helper lama yang mengembalikan array tetap tersedia untuk pemanggil lain agar perubahan tidak memutus jalur yang belum dimigrasikan.
+
+Dashboard mempunyai batas waktu pemeriksaan sesi dan keadaan error tersendiri. Sesi hilang, resolusi peran gagal, atau pemeriksaan yang terlalu lama akan menampilkan pilihan coba lagi/login, bukan spinner tanpa akhir. Timer dibersihkan setelah resolusi berhasil maupun gagal.
+
+**Lokasi:** [students API](../apps/web/lib/api/students.ts), [notifications API](../apps/web/lib/api/notifications.ts), [jadwal siswa](../apps/web/app/dashboard/siswa/schedule/page.tsx), [hasil siswa](../apps/web/app/dashboard/siswa/results/page.tsx), [notifikasi](../apps/web/app/dashboard/notifications/page.tsx), [dashboard layout](../apps/web/app/dashboard/layout.tsx).
+
+### UX-05: esai tidak masuk hitungan benar/salah objektif
+
+Ringkasan detail attempt admin, guru, dan proktor memakai satu helper. `correct` dan `wrong` hanya menghitung soal non-esai dengan flag boolean yang tegas; esai/uraian selalu masuk kolom esai walaupun sudah diberi nilai. Rumus lama dapat menghasilkan hitungan salah negatif karena jawaban esai bernilai benar ikut masuk `correct` lalu dikurangi lagi.
+
+**Lokasi:** [answer-stats.ts](../apps/web/lib/answer-stats.ts) dan tiga halaman detail monitoring. **Tes:** campuran objektif benar/salah serta esai bernilai dan belum dinilai menghasilkan total 4, benar 1, salah 1, esai 2.
+
+### UX-06: jadwal dan hasil memakai satu zona waktu sekolah
+
+Formatter bersama memakai `Asia/Jakarta` dan label `WIB` untuk tanggal, waktu, dan rentang jadwal. Timestamp tanpa suffix diperlakukan sebagai UTC sesuai kontrak data lama. Pembentukan output memakai `formatToParts`, sehingga tanda baca locale tidak mengubah bentuk jam yang ditampilkan.
+
+**Lokasi:** [school-time.ts](../apps/web/lib/school-time.ts), halaman jadwal dan hasil siswa. **Tes:** instant `2026-09-19T18:30:00Z` ditampilkan sebagai `20 Sep 2026 01:30 WIB`, termasuk rentang yang melintasi pergantian hari UTC.
+
+### UX-07: kartu hasil dan toggle dapat dioperasikan dengan keyboard
+
+Kartu hasil siswa kini elemen `button` semantik dengan fokus terlihat, label aksesibel, dan status disabled ketika detail belum boleh dibuka. Seluruh toggle preferensi notifikasi mempunyai `type="button"`, `role="switch"`, `aria-checked`, dan label yang menjelaskan pengaturan. Perilaku klik dan tampilan yang ada dipertahankan.
+
+### UX-08: respons monitoring lama tidak menimpa pilihan baru
+
+Setiap pemuatan detail ujian proktor membawa nomor generasi. Hanya respons dari permintaan terbaru yang boleh mengganti attempt, analisis, dan spinner. Mengganti pilihan juga langsung membatalkan generasi sebelumnya secara logis, sehingga respons jaringan yang datang terbalik tidak memunculkan data ujian lama.
+
+**Lokasi:** [monitoring proktor](../apps/web/app/dashboard/proktor/monitoring/page.tsx). Pola generasi yang sama dipakai pada pemuatan notifikasi saat filter berubah.
+
+### UX-09: hasil pembuatan jadwal parsial terlihat dan dapat dicoba ulang
+
+Halaman PAS admin dan proktor menampilkan jumlah ujian yang berhasil serta setiap ID/alasan jadwal yang dilewati. Setelah respons parsial, hanya ID yang gagal yang tetap terpilih; operator dapat memperbaiki penyebab lalu mencoba ulang tanpa membuat ulang jadwal yang sudah berhasil.
+
+### UX-10: notifikasi lama dapat dimuat bertahap
+
+Endpoint notifikasi menerima `offset`, `limit`, filter tipe, dan filter belum dibaca dengan batas maksimum 100 item. Query yang gagal kini menghasilkan error server, bukan array kosong. UI memuat 50 item per halaman, menjalankan filter di server, menyediakan tombol “Muat Lebih Banyak”, dan mengabaikan respons filter lama. Penghapusan atau penandaan baca memuat ulang halaman pertama agar daftar konsisten.
+
+**Batas:** pagination masih berbasis offset. Pada arus notifikasi yang sangat tinggi, cursor `created_at + id` akan lebih stabil terhadap insert baru di antara dua permintaan.
+
+### UX-11: ekspor analitik mempertahankan jawaban kompleks
+
+Sheet detail jawaban memakai formatter yang sama dengan layar review. Pilihan tunggal menjadi label opsi; pilihan ganda menjadi beberapa baris; benar/salah, matching, kategori, urutan, isian, dan jawaban esai terstruktur diubah menjadi teks yang dapat dibaca. Ekspor tidak lagi menampilkan `-` hanya karena jawabannya berada di `essay_answer` sebagai JSON.
+
+**Lokasi:** [analitik ujian guru](../apps/web/app/dashboard/guru/analytics/exam/[id]/page.tsx), [answer-display.ts](../apps/web/lib/answer-display.ts). **Tes:** pilihan ganda kompleks dan objek benar/salah menghasilkan seluruh pilihan/nilai yang tersimpan.
+
+### UX-12: tren membandingkan kelompok historis yang valid
+
+Nilai kronologis dibagi menjadi kelompok lama dan baru yang keduanya tidak kosong. Dua nilai `90 → 60` kini menghasilkan turun dan `60 → 90` menghasilkan naik; satu nilai atau perubahan paling banyak lima poin tetap stabil. Jumlah nilai ganjil diuji agar tidak kembali membagi dengan kelompok kosong.
+
+**Lokasi:** [student-analytics.service.ts](../apps/api/src/analytics/student-analytics.service.ts).
+
+## Tahap 7 — Baseline lint yang mencegah regresi baru
+
+### QA-01: utang lint lama dibedakan dari pelanggaran baru
+
+Pemindaian penuh frontend saat ini menghasilkan 1.339 error dan 710 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline baru menyimpan jumlah aktual per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik. Penurunan jumlah langsung memperketat baseline pada pembaruan berikutnya.
+
+Workflow deployment menjalankan pemeriksaan ini setelah typecheck frontend dan sebelum build/deploy. Dengan demikian, pelanggaran berisiko runtime tidak lagi tenggelam tanpa pagar hanya karena seluruh backlog belum dapat dibereskan dalam satu perubahan.
+
+**Lokasi:** [check-web-lint-baseline.cjs](../tools/check-web-lint-baseline.cjs), [eslint-baseline.json](perbaikan-2026-09-19/eslint-baseline.json), [package.json](../package.json), [deploy.yml](../.github/workflows/deploy.yml).
+
+**Verifikasi:** `npm run lint:web:baseline` lulus pada baseline 25 September 2026 dan menampilkan ringkasan jumlah. Opsi maintainer `node tools/check-web-lint-baseline.cjs --update` tersedia untuk memperketat baseline setelah perbaikan; perubahan baseline harus ikut direview agar kenaikan tidak diterima diam-diam.
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
 |---|---|
 | Tahap 1 + 2, Node test runner | 68 lulus, 0 gagal |
 | Tahap 3, Node test runner | 3 lulus, 0 gagal |
+| Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
+| Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
+| Tahap 1–6, Node test runner | 92 lulus, 0 gagal |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus sebelum perubahan tahap 3; pemeriksaan final dicatat di bawah setelah selesai |
+| TypeScript API dan frontend | Lulus setelah perubahan tahap 6 |
+| ESLint baseline penuh | Lulus: 1.339 error/710 warning lama, tanpa kenaikan per aturan |
 | Browser, database nyata, R2, deployment | Belum dijalankan |
 
 Dari root repositori:
 
 ```powershell
-node --test apps/api/test/security-stage1.test.cjs apps/api/test/security-stage2.test.cjs apps/api/test/grading-stage3.test.cjs
+node --test apps/api/test/security-stage1.test.cjs apps/api/test/security-stage2.test.cjs apps/api/test/grading-stage3.test.cjs apps/api/test/exam-integrity-stage4.test.cjs apps/api/test/backup-integrity-stage5.test.cjs apps/api/test/backup-archive-stage5.test.cjs apps/api/test/analytics-trend-stage6.test.cjs apps/api/test/ui-quality-stage6.test.cjs
 node node_modules/typescript/bin/tsc --noEmit --incremental false -p apps/api/tsconfig.json
 node node_modules/typescript/bin/tsc --noEmit --incremental false -p apps/web/tsconfig.json
+npm run lint:web:baseline
 ```
 
 Dari `apps/scoring`:
@@ -168,14 +331,12 @@ Dari `apps/scoring`:
 
 Node test runner membutuhkan child process. Sandbox lokal menolak spawn EPERM, sehingga tes dijalankan dengan izin eksekusi di luar sandbox; tidak ada perubahan metode fixture menjadi akses database/jaringan. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
 
-Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar dan mencatat mutasi, tetapi tidak meniru FK, locking, transaksi, ataupun latensi PostgreSQL.
+Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes tahap 4–5, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan.
 
 ## Prioritas tahap berikutnya
 
-1. **State dan persist pengerjaan:** SEC-03/10, BUG-03/08/09/10. Satukan deadline, terminasi idempoten, pemulihan offline, revision autosave, dan commit jawaban/status yang dapat dipulihkan ketika gagal. Ini juga diperlukan untuk menutup SEC-14 sepenuhnya.
-2. **Backup/restore:** SEC-12/13 dan BUG-02/04/05. Validasi izin/signature sebelum upload, pembatasan arsip/URL, manifest lengkap, dan rollback atomik. Jangan menganggap backup sudah dapat diandalkan hanya karena audit awal selesai.
-3. **Historis dan kompatibilitas soal:** BUG-11/12, perlindungan soal yang pernah dijawab, dan satu kebijakan sumber bank.
-4. **UI/UX dan kualitas:** BUG-14, UX-01–03/05–12, QA-01–03; lakukan pemeriksaan browser dan perbaikan lint terarah setelah alur data stabil.
+1. **Historis dan kompatibilitas soal:** BUG-11/12, perlindungan soal yang pernah dijawab, dan satu kebijakan sumber bank.
+2. **Kualitas dan regresi:** QA-02–03; tambah integrasi HTTP/database dan satukan halaman role yang masih diduplikasi. Kurangi baseline lint secara bertahap tanpa melonggarkan ambang yang sudah tercatat.
 
 ## Verifikasi sebelum rollout
 

@@ -14,6 +14,7 @@ import { resetExamAttempt } from '@/lib/api/proctoring';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
 
 export default function AttemptAnalyticsPage() {
     const params = useParams();
@@ -91,12 +92,7 @@ export default function AttemptAnalyticsPage() {
 
     const stats = useMemo(() => {
         if (!data) return null;
-        const total = data.answers.length;
-        const correct = data.answers.filter((a: any) => a.is_correct).length;
-        const wrong = total - correct - data.answers.filter((a: any) => ['essay', 'esay', 'uraian'].includes(a.bank_questions?.type)).length;
-        const essays = data.answers.filter((a: any) => ['essay', 'esay', 'uraian'].includes(a.bank_questions?.type)).length;
-
-        return { total, correct, wrong, essays };
+        return summarizeAnswerOutcomes(data.answers);
     }, [data]);
 
     if (loading) {

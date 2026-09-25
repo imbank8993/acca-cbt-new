@@ -179,6 +179,8 @@ export function ExamViewer({
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [showNavModal, setShowNavModal] = useState(false);
+    const [studentDocUrl, setStudentDocUrl] = useState('');
+    const [studentVidUrl, setStudentVidUrl] = useState('');
 
     const navigateTo = (index: number) => {
         if (index < 0 || index >= questions.length) return;
@@ -251,9 +253,6 @@ export function ExamViewer({
             </div>
         );
     }
-
-    const [studentDocUrl, setStudentDocUrl] = useState('');
-    const [studentVidUrl, setStudentVidUrl] = useState('');
 
     const handleSubmitClick = () => {
         if (mode === 'exam') {

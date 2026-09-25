@@ -11,7 +11,8 @@ import {
 import { getSessionUser } from '@/lib/session';
 import { getDeviceId } from '@/lib/device-id';
 import { clearCbtSession } from '@/lib/session-reset';
-import { submitExamAction, startExamAttemptAction, saveAnswerAction, syncAnswersBulkAction, syncLateAnswersAction, getExamQuestionsAction, getExamForAttempt, type StudentProfile } from '@/lib/api/students';
+import { submitExamAction, startExamAttemptAction, saveAnswerAction, syncAnswersBulkAction, getExamQuestionsAction, getExamForAttempt, type StudentProfile } from '@/lib/api/students';
+import { PerKeyQueue } from '@/lib/per-key-queue';
 import { logSecurityViolation, forceTerminateAttempt } from '@/lib/api/proctoring';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
@@ -36,7 +37,7 @@ function answerColumns(question: any, ansVal: string | undefined, isDoubtful: bo
     };
 }
 
-/** Bentuk baris untuk syncAnswersBulkAction / syncLateAnswersAction. */
+/** Bentuk baris untuk sinkronisasi jawaban massal. */
 function answerRow(question: any, questionId: string, ansVal: string | undefined, isDoubtful: boolean) {
     return { questionId, ...answerColumns(question, ansVal, isDoubtful) };
 }
@@ -74,6 +75,7 @@ export default function ExamPage() {
     // data tertinggal itu — "centang 3, terekam 2".
     const failedSyncRef = useRef<Set<string>>(new Set());
     const inFlightRef = useRef<Set<string>>(new Set());
+    const saveQueueRef = useRef(new PerKeyQueue());
     const [failedSyncCount, setFailedSyncCount] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
@@ -263,40 +265,14 @@ export default function ExamPage() {
                 // Start or resume attempt (bound to this device — see device lock)
                 const result = await startExamAttemptAction(examId, getDeviceId());
                 if (!result.success) {
-                    // Waktu habis saat attempt masih menyimpan jawaban offline di
-                    // localStorage (koneksi putus lalu tab tertutup): susulkan ke
-                    // server agar ikut dinilai, sebelum menampilkan layar akses.
                     const expiredId = (result as any).expiredAttemptId;
-                    if (expiredId) {
-                        const localKey = `exam_answers_${expiredId}`;
-                        const localData = localStorage.getItem(localKey);
-                        if (localData) {
-                            try {
-                                const parsed = JSON.parse(localData);
-                                const answersArray = Object.keys(parsed.answers || {})
-                                    .filter(qId => loadedQuestions.some((x: any) => x.id === qId))
-                                    .map(qId => answerRow(
-                                        loadedQuestions.find((x: any) => x.id === qId),
-                                        qId,
-                                        parsed.answers[qId],
-                                        Array.isArray(parsed.doubtfulAnswers) ? parsed.doubtfulAnswers.includes(qId) : false,
-                                    ));
-                                if (answersArray.length > 0) {
-                                    const lateRes = await syncLateAnswersAction(expiredId, answersArray, getDeviceId());
-                                    if (lateRes.success) {
-                                        localStorage.removeItem(localKey);
-                                        if ((lateRes.restored || 0) > 0) {
-                                            toast.success('Jawaban tersimpan', 'Jawaban offline Anda berhasil disusulkan dan dinilai.');
-                                        }
-                                    }
-                                }
-                            } catch (e) {
-                                console.error('[ExamPage] Late sync failed:', e);
-                            }
-                        }
-                    }
                     setAccessDenied(true);
-                    setAccessError(result.error || 'Tidak bisa mengakses ujian ini.');
+                    setAccessError(
+                        (result.error || 'Tidak bisa mengakses ujian ini.') +
+                        (expiredId
+                            ? ' Jawaban yang tersimpan di perangkat dipertahankan. Hubungi proktor untuk membuka pemulihan.'
+                            : ''),
+                    );
                     setLoading(false);
                     return;
                 }
@@ -314,20 +290,26 @@ export default function ExamPage() {
                 // ujian sempat ditutup — catat 'tab_close' + lama di luar.
                 const sessionKey = `exam_session_${result.attempt.id}`;
                 const lastSeenKey = `exam_lastseen_${result.attempt.id}`;
-                if (result.attempt.status === 'in_progress' && !sessionStorage.getItem(sessionKey)) {
-                    const lastSeen = Number(localStorage.getItem(lastSeenKey) || 0);
-                    if (lastSeen > 0) {
-                        logSecurityViolation(result.attempt.id, 'tab_close', {
-                            timestamp: new Date().toISOString(),
-                            duration_seconds: Math.max(0, Math.round((Date.now() - lastSeen) / 1000)),
-                        }).catch(() => {});
+                try {
+                    if (result.attempt.status === 'in_progress' && !sessionStorage.getItem(sessionKey)) {
+                        const lastSeen = Number(localStorage.getItem(lastSeenKey) || 0);
+                        if (lastSeen > 0) {
+                            logSecurityViolation(result.attempt.id, 'tab_close', {
+                                timestamp: new Date().toISOString(),
+                                duration_seconds: Math.max(0, Math.round((Date.now() - lastSeen) / 1000)),
+                            }).catch(() => {});
+                        }
                     }
+                    sessionStorage.setItem(sessionKey, '1');
+                } catch {
+                    // Browser dapat menolak Web Storage (mode privat/kebijakan
+                    // perangkat). Itu tidak boleh menggagalkan pembukaan ujian.
                 }
-                sessionStorage.setItem(sessionKey, '1');
 
                 // Restore saved answers and merge with localStorage if available
                 const savedA: Record<string, string> = {};
                 let savedD = new Set<string>();
+                let localAnswerIds: string[] = [];
                 (result.answers || []).forEach((ans: any) => {
                     if (ans.selected_option_id) savedA[ans.question_id] = ans.selected_option_id;
                     else if (ans.essay_answer) savedA[ans.question_id] = ans.essay_answer;
@@ -335,15 +317,21 @@ export default function ExamPage() {
                 });
 
                 const localKey = `exam_answers_${result.attempt.id}`;
-                const localData = localStorage.getItem(localKey);
-                if (localData) {
-                    try {
+                try {
+                    const localData = localStorage.getItem(localKey);
+                    if (localData) {
                         const parsed = JSON.parse(localData);
-                        if (parsed.answers) Object.assign(savedA, parsed.answers);
+                        if (parsed.answers && typeof parsed.answers === 'object') {
+                            localAnswerIds = Object.keys(parsed.answers)
+                                .filter(qId => loadedQuestions.some((q: any) => q.id === qId));
+                            for (const qId of localAnswerIds) savedA[qId] = parsed.answers[qId];
+                        }
                         if (parsed.doubtfulAnswers) {
                             parsed.doubtfulAnswers.forEach((id: string) => savedD.add(id));
                         }
-                    } catch(e) { console.error('Failed to parse local answers', e); }
+                    }
+                } catch(e) {
+                    console.error('Failed to read local answers', e);
                 }
 
                 // Lampiran tugas hanya hidup di state React sampai submit —
@@ -360,6 +348,29 @@ export default function ExamPage() {
 
                 setAnswers(savedA);
                 setDoubtfulAnswers(savedD);
+
+                // Setelah proktor mereset attempt, statusnya kembali in_progress.
+                // Pada titik inilah salinan lokal boleh dipulihkan melalui jalur
+                // biasa yang memeriksa perangkat dan batas waktu di server.
+                if (localAnswerIds.length > 0 && navigator.onLine) {
+                    const rows = localAnswerIds.map(qId => answerRow(
+                        loadedQuestions.find((q: any) => q.id === qId),
+                        qId,
+                        savedA[qId],
+                        savedD.has(qId),
+                    ));
+                    try {
+                        const sync = await syncAnswersBulkAction(result.attempt.id, rows);
+                        if (sync?.success) {
+                            localAnswerIds.forEach(id => failedSyncRef.current.delete(id));
+                        } else {
+                            localAnswerIds.forEach(id => failedSyncRef.current.add(id));
+                        }
+                    } catch {
+                        localAnswerIds.forEach(id => failedSyncRef.current.add(id));
+                    }
+                    setFailedSyncCount(failedSyncRef.current.size);
+                }
 
                 // Timer from server-calculated remaining seconds. Anchor an
                 // absolute deadline so the countdown reflects real elapsed time
@@ -480,9 +491,9 @@ export default function ExamPage() {
         const att = attemptRef.current;
         if (!att?.id) return;
         const localKey = `exam_answers_${att.id}`;
-        const localData = localStorage.getItem(localKey);
-        if (localData) {
-            try {
+        try {
+            const localData = localStorage.getItem(localKey);
+            if (localData) {
                 const parsed = JSON.parse(localData);
                 const answersArray = Object.keys(parsed.answers || {})
                     .filter(qId => questionsRef.current.some((x: any) => x.id === qId))
@@ -503,9 +514,9 @@ export default function ExamPage() {
                         toast.success('Tersinkronisasi', 'Jawaban offline telah dikirim.');
                     }
                 }
-            } catch(e) {
-                console.error('Failed to sync answers', e);
             }
+        } catch(e) {
+            console.error('Failed to sync answers', e);
         }
     }, [toast]);
 
@@ -659,7 +670,9 @@ export default function ExamPage() {
     useEffect(() => {
         if (!attempt || isCompleted || accessDenied) return;
         const key = `exam_lastseen_${attempt.id}`;
-        const write = () => localStorage.setItem(key, String(Date.now()));
+        const write = () => {
+            try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
+        };
         write();
         const iv = setInterval(write, 15000);
         return () => clearInterval(iv);
@@ -736,14 +749,15 @@ export default function ExamPage() {
         // sudah bukan in_progress, 500 sekejap) ditandai supaya retry berkala
         // dan flush penutupan bisa menyusulkannya.
         inFlightRef.current.add(questionId);
-        try {
-            const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answerStr, doubtfulRef.current.has(questionId)));
-            markFailed(questionId, !res?.success);
-        } catch {
-            markFailed(questionId, true);
-        } finally {
-            inFlightRef.current.delete(questionId);
-        }
+        await saveQueueRef.current.enqueue(questionId, async () => {
+            try {
+                const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answerStr, doubtfulRef.current.has(questionId)));
+                markFailed(questionId, !res?.success);
+            } catch {
+                markFailed(questionId, true);
+            }
+        });
+        if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
     }, [markFailed, toast]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
@@ -771,14 +785,15 @@ export default function ExamPage() {
 
         const q = questionsRef.current.find((x: any) => x.id === questionId);
         inFlightRef.current.add(questionId);
-        try {
-            const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answersRef.current[questionId], newDoubtful.has(questionId)));
-            markFailed(questionId, !res?.success);
-        } catch {
-            markFailed(questionId, true);
-        } finally {
-            inFlightRef.current.delete(questionId);
-        }
+        await saveQueueRef.current.enqueue(questionId, async () => {
+            try {
+                const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answersRef.current[questionId], newDoubtful.has(questionId)));
+                markFailed(questionId, !res?.success);
+            } catch {
+                markFailed(questionId, true);
+            }
+        });
+        if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
     }, [toast, markFailed]);
 
     const handleRequestFullscreen = useCallback(() => {

@@ -12,7 +12,6 @@ import {
   type QuestionAction,
   type QuestionType,
   type BaseOption,
-  QUESTION_TYPE_MAP,
 } from '../schema';
 
 import { MCQForm } from './MCQForm';
@@ -64,9 +63,6 @@ export const QuestionForms = React.memo(({
   state: QuestionState;
   dispatch: React.Dispatch<QuestionAction>;
 }) => {
-  const info = QUESTION_TYPE_MAP[state.type];
-  if (!info) return null;
-
   // --- Type-agnostic handlers ---
   const addOption = useCallback(
     (extra: Partial<BaseOption> = {}) => dispatch({ type: 'ADD_OPTION', payload: extra }),

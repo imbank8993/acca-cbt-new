@@ -139,7 +139,7 @@ export class ProctoringService {
     async resetAttempt(user: AuthUser, attemptId: string) {
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, user_id, exam_id, status, personal_end_time')
+            .select('id, user_id, exam_id, status, personal_end_time, metadata')
             .eq('id', attemptId)
             .maybeSingle();
 
@@ -148,6 +148,7 @@ export class ProctoringService {
             exam_id: string;
             status: string;
             personal_end_time: string | null;
+            metadata: Record<string, unknown> | null;
         };
 
         // Proktor/Admin bebas; Guru hanya ujian non-PAS/PAT buatannya sendiri.
@@ -171,12 +172,17 @@ export class ProctoringService {
         };
 
         // Deadline personal yang sudah lewat membuat resume langsung ditutup
-        // otomatis lagi, sehingga reset jadi sia-sia. Jendela ujian tetap
-        // berlaku sebagai pagar terluar saat resume.
+        // otomatis lagi. Tandai grace period ini sebagai keputusan proktor agar
+        // layanan ujian dapat membedakannya dari perpanjangan buatan klien.
         const expired =
             !row.personal_end_time || new Date(row.personal_end_time).getTime() <= Date.now();
         if (expired) {
-            updates.personal_end_time = new Date(Date.now() + RESET_GRACE_MS).toISOString();
+            const recoveryUntil = new Date(Date.now() + RESET_GRACE_MS).toISOString();
+            updates.personal_end_time = recoveryUntil;
+            updates.metadata = {
+                ...(row.metadata || {}),
+                proctor_recovery_until: recoveryUntil,
+            };
         }
 
         await this.db.from('cbt_exam_attempts').update(updates).eq('id', attemptId);

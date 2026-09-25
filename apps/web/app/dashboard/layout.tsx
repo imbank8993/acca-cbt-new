@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const router = useRouter();
     const pathname = usePathname();
     const [authChecked, setAuthChecked] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     const [activeRoleCtx, setActiveRoleCtx] = useState<UserRoleContext | null>(null);
     const [rolesWithOrg, setRolesWithOrg] = useState<UserRoleContext[]>([]);
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -74,7 +75,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             setActiveRoleCtx({ role: fallbackRole, orgId: '', orgName: '' });
                             setAuthChecked(true);
                         } else {
-                            router.replace('/');
+                            setAuthError('Pemeriksaan sesi terlalu lama. Periksa koneksi lalu coba lagi.');
+                            setAuthChecked(true);
                         }
                     } else {
                         setAuthChecked(true);
@@ -88,6 +90,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 if (!user) {
                     clearTimeout(safetyTimer);
+                    setAuthError('Sesi Anda tidak tersedia atau sudah berakhir.');
+                    setAuthChecked(true);
                     router.replace('/');
                     return;
                 }
@@ -171,11 +175,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 if (!active) active = list[0] ?? { role, orgId: '', orgName: '' };
 
                 setActiveRoleCtx(active);
+                setAuthError(null);
                 setAuthChecked(true);
+                clearTimeout(safetyTimer);
                 lastResolvedPath.current = pathname;
             } catch (err) {
                 console.error('[DashboardLayout] Fatal error in role resolution:', err);
+                clearTimeout(safetyTimer);
                 if (!cancelled) {
+                    setAuthError('Akun dan peran tidak dapat dimuat. Periksa koneksi lalu coba lagi.');
                     setAuthChecked(true);
                 }
             }
@@ -195,8 +203,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return () => window.removeEventListener('acca:signout', onSignOut);
     }, []);
 
-    if (!authChecked || !activeRoleCtx) {
+    if (!authChecked) {
         return <DashboardLoading />;
+    }
+    if (authError || !activeRoleCtx) {
+        return (
+            <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+                <div role="alert" className="max-w-md w-full rounded-2xl bg-white border border-red-100 shadow-sm p-6 text-center">
+                    <h1 className="text-lg font-bold text-slate-900">Dashboard belum dapat dibuka</h1>
+                    <p className="mt-2 text-sm text-slate-600">{authError || 'Peran akun tidak tersedia.'}</p>
+                    <div className="mt-5 flex justify-center gap-3">
+                        <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-[#0038A8] text-white text-sm font-semibold">Coba Lagi</button>
+                        <button type="button" onClick={() => router.replace('/')} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Ke Login</button>
+                    </div>
+                </div>
+            </main>
+        );
     }
 
     return (

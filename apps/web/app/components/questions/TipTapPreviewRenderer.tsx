@@ -11,6 +11,7 @@ import { VideoEmbed } from './video-embed';
 import { AudioEmbed } from './audio-embed';
 import { createRoot, Root } from 'react-dom/client';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
+import DOMPurify from 'dompurify';
 
 // Pure HTML renderer without contenteditable - for preview only
 // Parses HTML and applies proper alignment styles
@@ -29,7 +30,7 @@ export function TipTapPreviewRenderer({ content, className = '' }: TipTapPreview
 
         // Create a temporary container to parse HTML
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = content;
+        tempDiv.innerHTML = DOMPurify.sanitize(content, { ADD_TAGS: ['iframe'] });
 
         // Process all elements to ensure alignment is preserved
         const processElement = (el: Element) => {

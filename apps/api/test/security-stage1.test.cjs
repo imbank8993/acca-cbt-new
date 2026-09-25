@@ -156,13 +156,13 @@ test('SEC-02: actual questions endpoint uses sanitized DTO', async () => {
 for (const status of ['in_progress', 'submitted', 'auto_submitted']) {
     test(`SEC-04: mismatched exam rejected before scoring for ${status}`, async () => {
         const db = database({ cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, exam_id: 'different', status }] });
-        await assert.rejects(attempts(db).submit(user, 'exam', {}, undefined, 'attempt'), forbidden);
+        await assert.rejects(attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), forbidden);
         await assert.rejects(attempts(db).resolveAttemptForSubmit(user, 'exam', 'attempt'), forbidden);
     });
 }
 test('SEC-04: matching completed submission stays idempotent', async () => {
     const db = database({ cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, exam_id: 'exam', status: 'submitted', total_score: 80 }] });
-    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt'), { score: 80, alreadySubmitted: true });
+    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), { score: 80, alreadySubmitted: true, savedAnswersOnly: false });
 });
 
 test('SEC-14 / UX-04: results exclude active attempts and redact unreleased scores', async () => {

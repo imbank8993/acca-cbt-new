@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { randomUUID } from 'node:crypto';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { BulkQuestionDto } from './dto/bulk-import.dto';
 
 export interface BulkImportResult {
@@ -15,29 +16,8 @@ export interface BulkImportResult {
 /** Judul stimulus/petunjuk dipotong agar muat di daftar; isinya tetap utuh. */
 const TITLE_MAX_LENGTH = 60;
 
-/**
- * Impor massal soal ke satu bank.
- *
- * Dipindahkan dari `apps/web/app/actions/bulk-import.ts`. Yang TIDAK ikut pindah
- * adalah perenderan persamaan MathML menjadi SVG dan pengunggahannya ke R2: itu
- * urusan berkas, dan NestJS memang tidak pernah menyentuh berkas. Langkah itu
- * tetap di route handler Next.js, yang mengirim ke sini teks soal yang
- * persamaannya sudah berupa `<img>`.
- *
- * Tiga perbedaan lain dengan versi lama:
- *
- *  - `organization_id` DITURUNKAN dari bank soalnya, bukan diterima dari
- *    browser. Versi lama memakai `orgId` kiriman pemanggil, sehingga soal bisa
- *    ditulis dengan organisasi yang bukan pemilik banknya.
- *  - Opsi jawaban dipasangkan lewat indeks sumber yang dicatat, bukan lewat
- *    posisi dalam array hasil insert. Versi lama memakai `questions[i]` untuk
- *    `insertedQuestions[i]`, padahal baris yang gagal validasi tidak ikut
- *    di-insert — begitu ada satu baris kosong, seluruh opsi sesudahnya menempel
- *    pada soal yang salah.
- *  - Dimensi dicari dengan `maybeSingle`, bukan `single`. `single` melempar
- *    ketika tidak ada baris yang cocok, dan galat itu dulu tertelan diam-diam
- *    sehingga dimensi selalu dibuat ulang.
- */
+/** Atomic question-bank import. Ownership is checked before any write; all
+ * companion content, new option identifiers, keys and question rows commit together. */
 @Injectable()
 export class ImportsService {
     private readonly logger = new Logger(ImportsService.name);
@@ -71,129 +51,84 @@ export class ImportsService {
         if (!bank) throw new NotFoundException('Bank soal tidak ditemukan.');
         const organizationId = (bank as { organization_id: string }).organization_id;
 
-        const result: BulkImportResult = {
-            success: false,
-            imported: 0,
-            failed: 0,
-            errors: [],
-            questionIds: [],
-        };
-
-        const context: ImportContext = {
-            bankId,
-            organizationId,
-            stimuli: new Map(),
-            instructions: new Map(),
-            kisiKisi: new Map(),
-            dimensions: new Map(),
-        };
-
-        // `sourceIndexes[n]` adalah posisi asli dari `rows[n]`, dipakai untuk
-        // memasangkan opsi ke soal yang benar setelah insert.
-        const rows: Record<string, unknown>[] = [];
-        const sourceIndexes: number[] = [];
-
-        for (let index = 0; index < questions.length; index++) {
-            const question = questions[index];
-
-            try {
+        // One transaction includes companion records, questions and every option.
+        // No partial success: a failed row rolls back the entire selected import.
+        return this.db.transaction(async db => {
+            const context: ImportContext = {
+                db, bankId, organizationId,
+                stimuli: new Map(), instructions: new Map(), kisiKisi: new Map(), dimensions: new Map(),
+            };
+            const questionIds: string[] = [];
+            for (const [index, question] of questions.entries()) {
                 if (!question.question_text?.trim()) {
-                    result.errors.push({ index, message: `Baris ${index + 1}: teks soal kosong` });
-                    result.failed++;
-                    continue;
+                    throw new BadRequestException(`Baris ${index + 1}: teks soal kosong.`);
                 }
-
-                rows.push({
-                    bank_id: bankId,
-                    organization_id: organizationId,
-                    type: question.type || 'mcq',
-                    question_text: question.question_text.trim(),
-                    difficulty: question.difficulty || 'medium',
-                    score_default: question.score_default || 1,
-                    metadata: question.metadata || {},
+                const type = question.type || 'mcq';
+                const suppliedOptions = question.options || [];
+                const correctCount = suppliedOptions.filter(o => o.is_correct).length;
+                const invalidOptions =
+                    (['mcq', 'mcq_complex', 'sjt', 'ordering', 'forced_choice', 'ranking', 'paired_comparison'].includes(type) && suppliedOptions.length < 2) ||
+                    (type === 'mcq' && correctCount !== 1) ||
+                    (type === 'mcq_complex' && correctCount < 1) ||
+                    (['true_false', 'matching', 'categorization', 'checklist'].includes(type) && !suppliedOptions.length) ||
+                    (type === 'matching' && suppliedOptions.some(o => !Array.isArray(o.metadata?.match_texts))) ||
+                    (type === 'categorization' && suppliedOptions.some(o => !Array.isArray(o.metadata?.category_names))) ||
+                    (type === 'short_answer' && !question.metadata?.blanks?.length);
+                if (invalidOptions) throw new BadRequestException(`Baris ${index + 1}: opsi atau kunci jawaban belum lengkap.`);
+                const questionId = randomUUID();
+                const optionRows: Array<{ id: string; question_id: string; option_text: string;
+                    is_correct: boolean; order: number; weight: number; metadata: Record<string, any> }> = [];
+                for (const [order, option] of (question.options || []).entries()) {
+                    const metadata = { ...(option.metadata || {}) };
+                    // Never retain foreign-bank dimension identifiers on copies.
+                    delete metadata.dimension_id;
+                    if (metadata.dimension) {
+                        metadata.dimension_id = await this.resolveDimension(context, String(metadata.dimension));
+                    }
+                    optionRows.push({
+                        id: randomUUID(), question_id: questionId, option_text: option.option_text,
+                        is_correct: option.is_correct ?? false, order,
+                        weight: option.weight ?? (option.is_correct ? 1 : 0), metadata,
+                    });
+                }
+                const metadata = { ...(question.metadata || {}) };
+                delete metadata._deleted;
+                delete metadata._deleted_at;
+                delete metadata.order_index;
+                if (question.type === 'ordering') {
+                    const supplied = metadata.correct_order || optionRows.map((_, i) => String(i + 1));
+                    const indexes = supplied.map((key: unknown) => {
+                        const text = String(key).trim();
+                        return /^[A-Z]$/i.test(text) ? text.toUpperCase().charCodeAt(0) - 65 : Number(text) - 1;
+                    });
+                    if (indexes.length !== optionRows.length || new Set(indexes).size !== optionRows.length ||
+                        indexes.some((i: number) => !Number.isInteger(i) || !optionRows[i])) {
+                        throw new BadRequestException(`Baris ${index + 1}: urutan kunci tidak sesuai opsi.`);
+                    }
+                    metadata.correct_order = indexes.map((i: number) => optionRows[i].id);
+                }
+                const { error } = await db.from('cbt_bank_questions').insert({
+                    id: questionId, bank_id: bankId, organization_id: organizationId,
+                    type: question.type || 'mcq', question_text: question.question_text.trim(),
+                    difficulty: question.difficulty || 'medium', score_default: question.score_default ?? 1,
+                    metadata,
                     stimulus_id: await this.resolveStimulus(context, question),
                     instruction_id: await this.resolveInstruction(context, question),
                     kisi_kisi_id: await this.resolveKisiKisi(context, question),
-                    dimension_id: question.metadata?.dimension
-                        ? await this.resolveDimension(context, question.metadata.dimension)
-                        : null,
+                    dimension_id: metadata.dimension ? await this.resolveDimension(context, metadata.dimension) : null,
                 });
-                sourceIndexes.push(index);
-            } catch (err) {
-                result.errors.push({
-                    index,
-                    message: `Baris ${index + 1}: ${(err as Error).message}`,
-                });
-                result.failed++;
-            }
-        }
-
-        if (rows.length === 0) return result;
-
-        const { data: inserted, error } = await this.db
-            .from('cbt_bank_questions')
-            .insert(rows)
-            .select('id');
-
-        if (error || !inserted) {
-            this.logger.error(`Gagal menyimpan soal impor: ${error?.message}`);
-            result.errors.push({
-                index: -1,
-                message: `Gagal menyimpan soal: ${error?.message ?? 'tidak diketahui'}`,
-            });
-            result.failed += rows.length;
-            return result;
-        }
-
-        const insertedIds = (inserted as Array<{ id: string }>).map((row) => row.id);
-        const options: Record<string, unknown>[] = [];
-
-        for (let position = 0; position < insertedIds.length; position++) {
-            const questionId = insertedIds[position];
-            const source = questions[sourceIndexes[position]];
-
-            for (const option of source.options || []) {
-                const metadata = { ...(option.metadata || {}) } as Record<string, unknown>;
-                if (metadata.dimension) {
-                    const dimensionId = await this.resolveDimension(
-                        context,
-                        String(metadata.dimension),
-                    );
-                    if (dimensionId) metadata.dimension_id = dimensionId;
+                if (error) throw new BadRequestException(`Baris ${index + 1}: ${error.message}`);
+                if (optionRows.length) {
+                    const { error } = await db.from('cbt_bank_question_options').insert(optionRows);
+                    if (error) throw new BadRequestException(`Baris ${index + 1}: gagal menyimpan opsi: ${error.message}`);
                 }
-
-                options.push({
-                    question_id: questionId,
-                    option_text: option.option_text,
-                    is_correct: option.is_correct || false,
-                    order: option.order || 0,
-                    weight: option.weight ?? (option.is_correct ? 1 : 0),
-                    metadata,
-                });
+                questionIds.push(questionId);
             }
-
-            result.questionIds.push(questionId);
-            result.imported++;
-        }
-
-        if (options.length > 0) {
-            const { error: optionsError } = await this.db
-                .from('cbt_bank_question_options')
-                .insert(options);
-
-            if (optionsError) {
-                // Soalnya sudah masuk; melaporkan gagal total akan membuat guru
-                // mengimpor ulang dan menggandakan seluruh soal.
-                this.logger.error(`Gagal menyimpan opsi impor: ${optionsError.message}`);
-                result.errors.push({
-                    index: -1,
-                    message: `Soal berhasil diimpor tetapi opsinya gagal: ${optionsError.message}`,
-                });
-            }
-        }
-
-        result.success = result.imported > 0;
-        return result;
+            const { error } = await db.from('cbt_question_banks')
+                .update({ updated_at: new Date().toISOString() }).eq('id', bankId);
+            if (error) throw new BadRequestException(error.message);
+            return { success: true, imported: questionIds.length, failed: 0, errors: [], questionIds };
+        });
     }
 
     // ── Entitas pendamping ───────────────────────────────────────────────────
@@ -212,20 +147,21 @@ export class ImportsService {
             question.metadata?.stimulus_title || content,
             `Stimulus ${question.metadata?._stimulus_code || ''}`,
         );
-        const cacheKey = question.metadata?._stimulus_code || title;
+        const cacheKey = JSON.stringify([title, content]);
 
         return this.findOrCreate(context.stimuli, cacheKey, async () => {
-            const { data: existing } = await this.db
+            const { data: existing, error: readError } = await context.db
                 .from('cbt_question_stimuli')
                 .select('id')
                 .eq('bank_id', context.bankId)
-                .ilike('title', title)
+                .eq('title', title).eq('content', content)
                 .limit(1);
 
+            if (readError) throw new BadRequestException(readError.message);
             const found = ((existing as Array<{ id: string }>) || [])[0];
             if (found) return found.id;
 
-            const { data: created } = await this.db
+            const { data: created, error: createError } = await context.db
                 .from('cbt_question_stimuli')
                 .insert({
                     organization_id: context.organizationId,
@@ -236,6 +172,7 @@ export class ImportsService {
                 .select('id')
                 .maybeSingle();
 
+            if (createError) throw new BadRequestException(createError.message);
             return (created as { id: string } | null)?.id ?? null;
         });
     }
@@ -251,20 +188,21 @@ export class ImportsService {
             question.metadata?.instruction_title || content,
             `Petunjuk ${question.metadata?._instruction_code || ''}`,
         );
-        const cacheKey = question.metadata?._instruction_code || title;
+        const cacheKey = JSON.stringify([title, content]);
 
         return this.findOrCreate(context.instructions, cacheKey, async () => {
-            const { data: existing } = await this.db
+            const { data: existing, error: readError } = await context.db
                 .from('cbt_question_instructions')
                 .select('id')
                 .eq('bank_id', context.bankId)
-                .ilike('title', title)
+                .eq('title', title).eq('content', content)
                 .limit(1);
 
+            if (readError) throw new BadRequestException(readError.message);
             const found = ((existing as Array<{ id: string }>) || [])[0];
             if (found) return found.id;
 
-            const { data: created } = await this.db
+            const { data: created, error: createError } = await context.db
                 .from('cbt_question_instructions')
                 .insert({
                     organization_id: context.organizationId,
@@ -275,6 +213,7 @@ export class ImportsService {
                 .select('id')
                 .maybeSingle();
 
+            if (createError) throw new BadRequestException(createError.message);
             return (created as { id: string } | null)?.id ?? null;
         });
     }
@@ -288,17 +227,18 @@ export class ImportsService {
         if (!nomorKd) return null;
 
         return this.findOrCreate(context.kisiKisi, nomorKd.toLowerCase(), async () => {
-            const { data: existing } = await this.db
+            const { data: existing, error: readError } = await context.db
                 .from('cbt_question_kisi_kisi')
                 .select('id')
                 .eq('bank_id', context.bankId)
                 .eq('nomor_kd', nomorKd)
                 .limit(1);
 
+            if (readError) throw new BadRequestException(readError.message);
             const found = ((existing as Array<{ id: string }>) || [])[0];
             if (found) return found.id;
 
-            const { data: created } = await this.db
+            const { data: created, error: createError } = await context.db
                 .from('cbt_question_kisi_kisi')
                 .insert({
                     organization_id: context.organizationId,
@@ -312,6 +252,7 @@ export class ImportsService {
                 .select('id')
                 .maybeSingle();
 
+            if (createError) throw new BadRequestException(createError.message);
             return (created as { id: string } | null)?.id ?? null;
         });
     }
@@ -324,21 +265,23 @@ export class ImportsService {
         if (!name) return null;
 
         return this.findOrCreate(context.dimensions, name.toLowerCase(), async () => {
-            const { data: existing } = await this.db
+            const { data: existing, error: readError } = await context.db
                 .from('cbt_question_dimensions')
                 .select('id')
                 .eq('bank_id', context.bankId)
                 .ilike('name', name)
                 .maybeSingle();
 
+            if (readError) throw new BadRequestException(readError.message);
             if (existing) return (existing as { id: string }).id;
 
-            const { data: created } = await this.db
+            const { data: created, error: createError } = await context.db
                 .from('cbt_question_dimensions')
                 .insert({ bank_id: context.bankId, name, description: '' })
                 .select('id')
                 .maybeSingle();
 
+            if (createError) throw new BadRequestException(createError.message);
             return (created as { id: string } | null)?.id ?? null;
         });
     }
@@ -362,6 +305,7 @@ export class ImportsService {
 }
 
 interface ImportContext {
+    db: DbSession;
     bankId: string;
     organizationId: string;
     stimuli: Map<string, string>;

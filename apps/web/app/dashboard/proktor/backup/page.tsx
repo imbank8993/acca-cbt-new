@@ -88,7 +88,7 @@ export default function BackupRestorePage() {
       formData.append('file', file);
       formData.append('organizationId', orgId ?? '');
 
-      const response = await fetch('/api/backup/import', {
+      const response = await fetch(`/api/backup/import?organizationId=${encodeURIComponent(orgId ?? '')}`, {
         method: 'POST',
         body: formData,
       });

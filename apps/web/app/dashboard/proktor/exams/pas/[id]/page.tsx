@@ -141,8 +141,13 @@ export default function ProctorPASDetailPage() {
         setIsGenerating(true);
         const result = await generateExamsFromSchedulesAction(selectedScheduleIds);
         if (result.success) {
-            alert(`${result.created} ujian berhasil dibuat.`);
-            setSelectedScheduleIds([]);
+            const skipped = result.skipped || [];
+            alert([
+                `${result.created} ujian berhasil dibuat.`,
+                skipped.length > 0 ? `${skipped.length} jadwal dilewati:\n${skipped.join('\n')}` : '',
+            ].filter(Boolean).join('\n\n'));
+            const skippedIds = new Set(skipped.map((item) => item.split(':')[0].trim()));
+            setSelectedScheduleIds((ids) => ids.filter((id) => skippedIds.has(id)));
             await loadData();
         } else { alert(result.error || 'Gagal generate'); }
         setIsGenerating(false);

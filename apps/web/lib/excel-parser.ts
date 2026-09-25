@@ -1,3 +1,4 @@
+import { optionLabel, optionIndex } from './option-label';
 import * as XLSX from 'xlsx';
 import { QuestionType } from '@/lib/api/questions';
 
@@ -38,7 +39,7 @@ function parseQuestionType(raw: string | undefined): { type: QuestionType; label
     if (!raw) return { type: 'mcq', label: 'Pilihan Ganda' };
     const s = String(raw).toUpperCase().trim();
 
-    if (s.includes('PG ') || s === 'PG' || s.includes('PILIHAN GANDA') || s === 'MCQ') {
+    if (s === 'PG' || s === 'PILIHAN GANDA' || s === 'MCQ') {
         return { type: 'mcq', label: 'Pilihan Ganda' };
     }
     if (s.includes('PGK') || s.includes('COMPLEX') || s.includes('KOMPLEKS')) {
@@ -119,18 +120,18 @@ function containsMath(text: string): boolean {
  * Parse correct answer from various formats
  */
 function parseCorrectAnswer(raw: string | undefined, optionCount: number): number[] {
-    if (!raw) return [0];
+    if (!raw) return [];
     const s = String(raw).toUpperCase().trim();
 
     // Single letter (A, B, C, D, E)
-    if (/^[A-E]$/i.test(s)) {
-        return [s.toUpperCase().charCodeAt(0) - 65];
+    if (/^[A-Z]+$/i.test(s)) {
+        return [optionIndex(s)];
     }
 
     // Multiple letters (A,B,C or A-B-C)
     const letters = s.split(/[,;|\-\/]/).map(x => x.trim()).filter(Boolean);
-    if (letters.every(l => /^[A-E]$/i.test(l))) {
-        return letters.map(l => l.toUpperCase().charCodeAt(0) - 65);
+    if (letters.every(l => /^[A-Z]+$/i.test(l))) {
+        return letters.map(l => optionIndex(l));
     }
 
     // Number (1, 2, 3)
@@ -139,10 +140,10 @@ function parseCorrectAnswer(raw: string | undefined, optionCount: number): numbe
         return nums.map(n => n - 1).filter(n => n >= 0 && n < optionCount);
     }
 
-    return [0];
+    return [];
 }
 
-const stripOptionHtml = (text: string) => text ? String(text).replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim() : '';
+const stripOptionHtml = (text: string) => text ? String(text).trim() : '';
 
 export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
     const result: ImportResult = {
@@ -180,13 +181,14 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         // Column mapping - flexible header detection
         const getColumn = (patterns: string[]): string | null => {
             for (const pattern of patterns) {
-                const found = headers.find(h =>
-                    h === pattern.toLowerCase() ||
-                    h.includes(pattern.toLowerCase())
-                );
+                const found = headers.find(h => h === pattern.toLowerCase());
                 if (found && headerMap[found]) {
                     return headerMap[found];
                 }
+            }
+            for (const pattern of patterns.filter(p => p.length > 2)) {
+                const found = headers.find(h => h.includes(pattern.toLowerCase()));
+                if (found) return headerMap[found];
             }
             return null;
         };
@@ -196,17 +198,15 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         const colDiff = getColumn(['kesulitan', 'difficulty', 'level', 'tingkat']);
         const colScore = getColumn(['skor', 'score', 'poin', 'point', 'nilai']);
         const colKunci = getColumn(['kunci', 'jawaban', 'answer', 'correct', 'benar']);
-        const colOptA = getColumn(['a', 'option a', 'pilihan a', 'opsi a']);
-        const colOptB = getColumn(['b', 'option b', 'pilihan b', 'opsi b']);
-        const colOptC = getColumn(['c', 'option c', 'pilihan c', 'opsi c']);
-        const colOptD = getColumn(['d', 'option d', 'pilihan d', 'opsi d']);
-        const colOptE = getColumn(['e', 'option e', 'pilihan e', 'opsi e']);
-        // SJT-specific weight columns (each option's weight value)
-        const colWtA = getColumn(['bobot a', 'weight a', 'poin a', 'bbt a', 'wt a', 'bobot_a']);
-        const colWtB = getColumn(['bobot b', 'weight b', 'poin b', 'bbt b', 'wt b', 'bobot_b']);
-        const colWtC = getColumn(['bobot c', 'weight c', 'poin c', 'bbt c', 'wt c', 'bobot_c']);
-        const colWtD = getColumn(['bobot d', 'weight d', 'poin d', 'bbt d', 'wt d', 'bobot_d']);
-        const colWtE = getColumn(['bobot e', 'weight e', 'poin e', 'bbt e', 'wt e', 'bobot_e']);
+        const exactColumn = (names: string[]) => names.map(name => headerMap[name]).find(Boolean) || null;
+        const optionColumns = Array.from({ length: Math.max(26, ...headers.filter(h => /^[a-z]{1,3}$/.test(h)).map(h => optionIndex(h) + 1)) }, (_, i) => {
+            const letter = optionLabel(i).toLowerCase();
+            return exactColumn([letter, `option ${letter}`, `pilihan ${letter}`, `opsi ${letter}`, `pilihan ${i + 1}`]);
+        });
+        const weightColumns = optionColumns.map((_, i) => {
+            const letter = optionLabel(i).toLowerCase();
+            return exactColumn([`bobot ${letter}`, `weight ${letter}`, `poin ${letter}`, `bbt ${letter}`, `wt ${letter}`, `bobot_${letter}`]);
+        });
         const colStimulus = getColumn(['stimulus', 'stim']);
         const colPetunjuk = getColumn(['petunjuk', 'instruksi', 'instruction', 'ptk']);
         const colKisi = getColumn(['kisi-kisi', 'kisi', 'kisi_kisi', 'indikator', 'kd']);
@@ -238,17 +238,8 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             const diffRaw = getValue(colDiff);
             const scoreRaw = getValue(colScore);
             const kunciRaw = getValue(colKunci);
-            const optA = getValue(colOptA);
-            const optB = getValue(colOptB);
-            const optC = getValue(colOptC);
-            const optD = getValue(colOptD);
-            const optE = getValue(colOptE);
-            // SJT weight columns
-            const wtA = getValue(colWtA);
-            const wtB = getValue(colWtB);
-            const wtC = getValue(colWtC);
-            const wtD = getValue(colWtD);
-            const wtE = getValue(colWtE);
+            const optionValues = optionColumns.map(getValue);
+            const optionWeights = weightColumns.map(col => Number(getValue(col)) || 0);
             const stimulusRaw = getValue(colStimulus);
             const petunjukRaw = getValue(colPetunjuk);
             const kisiRaw = getValue(colKisi);
@@ -284,27 +275,25 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             if (type === 'essay' || type === 'short_answer') {
                 // No options needed for these types
             } else if (type === 'true_false') {
-                options.push({
-                    text: 'Benar',
-                    isCorrect: kunciRaw.toUpperCase().includes('B') || kunciRaw === '1' || kunciRaw.toUpperCase().includes('T'),
-                    order: 0,
-                    weight: kunciRaw.toUpperCase().includes('B') || kunciRaw === '1' || kunciRaw.toUpperCase().includes('T') ? 1 : 0
-                });
-                options.push({
-                    text: 'Salah',
-                    isCorrect: kunciRaw.toUpperCase().includes('S') || kunciRaw === '2' || kunciRaw.toUpperCase().includes('F'),
-                    order: 1,
-                    weight: kunciRaw.toUpperCase().includes('S') || kunciRaw === '2' || kunciRaw.toUpperCase().includes('F') ? 1 : 0
-                });
+                const statements = optionValues.map((text, index) => ({ text, index })).filter(o => o.text);
+                const keys = kunciRaw.toUpperCase().split(/[,;|]/).map(s => s.trim());
+                const legacyPair = statements.length === 2 &&
+                    /^(BENAR|TRUE)$/i.test(statements[0].text) && /^(SALAH|FALSE)$/i.test(statements[1].text);
+                if (legacyPair && keys.length === 1 && ['B', 'S', 'TRUE', 'FALSE'].includes(keys[0])) {
+                    const first = ['B', 'TRUE'].includes(keys[0]);
+                    options.push(...statements.map((o, order) => ({ text: o.text, order, isCorrect: order === 0 ? first : !first, weight: 1 })));
+                } else {
+                    if (!statements.length) statements.push({ text: soalText, index: 0 });
+                    if (keys.length !== statements.length || keys.some(key => !['B', 'S', 'TRUE', 'FALSE'].includes(key))) {
+                        result.errors.push({ row: rowNum, message: `Baris ${rowNum}: isi satu kunci B/S untuk setiap pernyataan, dipisahkan |.` });
+                        continue;
+                    }
+                    statements.forEach((o, order) => options.push({ text: o.text, order, isCorrect: ['B', 'TRUE'].includes(keys[order]), weight: 1 }));
+                }
             } else if (type === 'sjt') {
                 // SJT: options with weights; highest weight = best answer
-                const rawOptions = [
-                    { text: optA, weight: parseFloat(wtA) || 0 },
-                    { text: optB, weight: parseFloat(wtB) || 0 },
-                    { text: optC, weight: parseFloat(wtC) || 0 },
-                    { text: optD, weight: parseFloat(wtD) || 0 },
-                    { text: optE, weight: parseFloat(wtE) || 0 },
-                ].filter(o => o.text && o.text.trim().length > 0);
+                const rawOptions = optionValues.map((text, i) => ({ text, weight: optionWeights[i] }))
+                    .filter(o => o.text && o.text.trim().length > 0);
 
                 rawOptions.forEach((optText, idx) => {
                     options.push({
@@ -316,7 +305,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 });
             } else if (type === 'ordering') {
                 // Ordering: options in display order, correct_order derived from kunci
-                const rawOptions = [optA, optB, optC, optD, optE].filter(Boolean);
+                const rawOptions = optionValues.filter(Boolean);
                 rawOptions.forEach((optText, idx) => {
                     options.push({
                         text: stripOptionHtml(optText),
@@ -325,12 +314,28 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                         isCorrect: false,
                     });
                 });
+            } else if (['matching', 'categorization'].includes(type)) {
+                const items = optionValues.filter(Boolean);
+                const keys = kunciRaw.split('|').map(s => s.trim());
+                if (keys.length !== items.length) {
+                    result.errors.push({ row: rowNum, message: `Baris ${rowNum}: jumlah pasangan/kategori kunci harus sama dengan opsi; pisahkan dengan |.` });
+                    continue;
+                }
+                items.forEach((text, order) => options.push({ text, order, isCorrect: true, weight: 1,
+                    metadata: { [type === 'matching' ? 'match_texts' : 'category_names']: keys[order].split(',').map(s => s.trim()).filter(Boolean) } }));
+            } else if (['likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(type)) {
+                optionValues.forEach((text, index) => {
+                    if (text) options.push({ text, order: options.length, isCorrect: false, weight: optionWeights[index] });
+                });
             } else {
                 // MCQ and variants
-                const optionTexts = [optA, optB, optC, optD, optE].filter(Boolean);
-                const correctIndices = parseCorrectAnswer(kunciRaw, optionTexts.length);
+                const optionTexts = optionValues;
+                const correctIndices = colKunci?.toLowerCase() === 'indeks jawaban benar'
+                    ? kunciRaw.split(/[,;|]/).filter(s => s.trim() !== '').map(Number)
+                    : parseCorrectAnswer(kunciRaw, optionTexts.length);
 
                 optionTexts.forEach((optText, idx) => {
+                    if (!optText) return;
                     const isCorrect = correctIndices.includes(idx);
                     options.push({
                         text: stripOptionHtml(optText),
@@ -339,6 +344,12 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                         weight: isCorrect ? 1 : 0
                     });
                 });
+                if (['mcq', 'mcq_complex'].includes(type) &&
+                    (!correctIndices.length || correctIndices.some(i => !optionTexts[i]) ||
+                    (type === 'mcq' && correctIndices.length !== 1))) {
+                    result.errors.push({ row: rowNum, message: `Baris ${rowNum}: kunci jawaban tidak cocok dengan opsi yang tersedia.` });
+                    continue;
+                }
 
                 // Validate options
                 if (options.length < 2 && type === 'mcq') {
@@ -373,6 +384,8 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 metadata.kisi_kisi = kisiRaw;
             }
 
+            if (type === 'matching') metadata.right_items = [...new Set(options.flatMap(o => o.metadata.match_texts))];
+            if (type === 'categorization') metadata.categories = [...new Set(options.flatMap(o => o.metadata.category_names))];
             if (type === 'short_answer') {
                 const blanks = kunciRaw.split('|').map((part, index) => {
                     const vars = part.split(',').map(s => s.trim()).filter(Boolean);
@@ -392,7 +405,11 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             if (type === 'ordering' && kunciRaw) {
                 const orderParts = kunciRaw.split(',').map(s => s.trim()).filter(Boolean);
                 if (orderParts.length > 0) {
-                    metadata.correct_order = orderParts;
+                    const present = optionValues.map((text, i) => text ? i : -1).filter(i => i >= 0);
+                    metadata.correct_order = orderParts.map(key => {
+                        const index = /^[A-Z]+$/i.test(key) ? optionIndex(key) : Number(key) - 1;
+                        return String(present.indexOf(index) + 1);
+                    });
                 }
             }
 
@@ -440,7 +457,7 @@ export function generateTemplateData(): {
                 'PG',
                 'Mudah',
                 1,
-                'B',
+                'A',
                 'Jakarta', 1,
                 'Bandung', 0,
                 'Surabaya', 0,
@@ -625,7 +642,8 @@ export function validateQuestions(questions: ParsedQuestion[]): {
             if (q.options.length < 2) {
                 errors.push(`Hanya ${q.options.length} opsi (minimal 2)`);
             }
-            const correctCount = q.options.filter(o => o.isCorrect).length;
+            const correctCount = q.options.filter(o => o.isCorrect ?? o.is_correct).length;
+            if (q.type === 'mcq' && correctCount !== 1) errors.push('PG memerlukan tepat satu jawaban benar');
             if (correctCount === 0) {
                 errors.push('Tidak ada jawaban yang ditandai benar');
             }
@@ -648,6 +666,17 @@ export function validateQuestions(questions: ParsedQuestion[]): {
             if (q.options.length < 2) {
                 errors.push(`Hanya ${q.options.length} pernyataan (minimal 2)`);
             }
+        }
+
+        if (['true_false', 'matching', 'categorization'].includes(q.type) && !q.options.length) errors.push('Pernyataan/opsi tidak ditemukan');
+        if (q.type === 'matching' && q.options.some(o => !Array.isArray(o.metadata?.match_texts))) errors.push('Pasangan jawaban belum lengkap');
+        if (q.type === 'categorization' && q.options.some(o => !Array.isArray(o.metadata?.category_names))) errors.push('Kategori jawaban belum lengkap');
+        if (q.type === 'short_answer' && !q.metadata?.blanks?.length) errors.push('Kunci isian belum diisi');
+        if (q.type === 'ordering') {
+            const keys = q.metadata?.correct_order || q.options.map((_, i) => String(i + 1));
+            const indexes = keys.map((key: unknown) => Number(key) - 1);
+            if (indexes.length !== q.options.length || new Set(indexes).size !== q.options.length ||
+                indexes.some((i: number) => !Number.isInteger(i) || !q.options[i])) errors.push('Urutan kunci tidak cocok dengan opsi');
         }
 
         // Check score

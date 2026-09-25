@@ -164,6 +164,7 @@ export default function NotificationSettingsPage() {
                                 </div>
                             </div>
                             <button
+                                type="button" role="switch" aria-checked={preferences.email_enabled} aria-label="Notifikasi email"
                                 onClick={() => handleToggle('email_enabled')}
                                 className={`relative w-12 h-7 rounded-full transition-colors ${
                                     preferences.email_enabled ? 'bg-primary' : 'bg-slate-300'
@@ -187,6 +188,7 @@ export default function NotificationSettingsPage() {
                                 </div>
                             </div>
                             <button
+                                type="button" role="switch" aria-checked={preferences.push_enabled} aria-label="Notifikasi push"
                                 onClick={() => handleToggle('push_enabled')}
                                 className={`relative w-12 h-7 rounded-full transition-colors ${
                                     preferences.push_enabled ? 'bg-primary' : 'bg-slate-300'
@@ -219,6 +221,7 @@ export default function NotificationSettingsPage() {
                                 </div>
                             </div>
                             <button
+                                type="button" role="switch" aria-checked={preferences.exam_reminder} aria-label="Pengingat ujian"
                                 onClick={() => handleToggle('exam_reminder')}
                                 className={`relative w-12 h-7 rounded-full transition-colors ${
                                     preferences.exam_reminder ? 'bg-primary' : 'bg-slate-300'
@@ -272,6 +275,7 @@ export default function NotificationSettingsPage() {
                                     </div>
                                 </div>
                                 <button
+                                    type="button" role="switch" aria-checked={preferences.class_updates} aria-label="Pembaruan kelas"
                                     onClick={() => handleToggle('class_updates')}
                                     className={`relative w-12 h-7 rounded-full transition-colors ${
                                         preferences.class_updates ? 'bg-primary' : 'bg-slate-300'
@@ -295,6 +299,7 @@ export default function NotificationSettingsPage() {
                                     </div>
                                 </div>
                                 <button
+                                    type="button" role="switch" aria-checked={preferences.results_notifications} aria-label="Notifikasi hasil ujian"
                                     onClick={() => handleToggle('results_notifications')}
                                     className={`relative w-12 h-7 rounded-full transition-colors ${
                                         preferences.results_notifications ? 'bg-primary' : 'bg-slate-300'
@@ -318,6 +323,7 @@ export default function NotificationSettingsPage() {
                                     </div>
                                 </div>
                                 <button
+                                    type="button" role="switch" aria-checked={preferences.achievement_notifications} aria-label="Notifikasi pencapaian"
                                     onClick={() => handleToggle('achievement_notifications')}
                                     className={`relative w-12 h-7 rounded-full transition-colors ${
                                         preferences.achievement_notifications ? 'bg-primary' : 'bg-slate-300'
@@ -341,6 +347,7 @@ export default function NotificationSettingsPage() {
                                     </div>
                                 </div>
                                 <button
+                                    type="button" role="switch" aria-checked={preferences.marketing_notifications} aria-label="Notifikasi informasi dan promosi"
                                     onClick={() => handleToggle('marketing_notifications')}
                                     className={`relative w-12 h-7 rounded-full transition-colors ${
                                         preferences.marketing_notifications ? 'bg-primary' : 'bg-slate-300'

@@ -10,10 +10,19 @@ import { apiGet, apiSend } from './client';
  */
 
 export async function getUserNotifications(
-    options: { limit?: number; unreadOnly?: boolean; includeExpired?: boolean } = {},
+    options: { limit?: number; offset?: number; type?: string; unreadOnly?: boolean; includeExpired?: boolean } = {},
 ): Promise<Notification[]> {
+    const result = await getUserNotificationsResult(options);
+    return result.success ? result.notifications : [];
+}
+
+export async function getUserNotificationsResult(
+    options: { limit?: number; offset?: number; type?: string; unreadOnly?: boolean; includeExpired?: boolean } = {},
+): Promise<{ success: true; notifications: Notification[] } | { success: false; error: string }> {
     const params = new URLSearchParams();
     if (options.limit) params.set('limit', String(options.limit));
+    if (options.offset) params.set('offset', String(options.offset));
+    if (options.type) params.set('type', options.type);
     if (options.unreadOnly) params.set('unreadOnly', 'true');
     if (options.includeExpired) params.set('includeExpired', 'true');
 
@@ -21,9 +30,9 @@ export async function getUserNotifications(
     const res = await apiGet<{ notifications: Notification[] }>(
         `/api/notifications${query ? `?${query}` : ''}`,
     );
-    // Versi lama mengembalikan array kosong saat gagal; layar notifikasi
-    // mengandalkan itu untuk menampilkan keadaan kosong.
-    return res.success ? res.notifications : [];
+    return res.success
+        ? { success: true, notifications: res.notifications }
+        : { success: false, error: res.error || 'Notifikasi tidak dapat dimuat.' };
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {

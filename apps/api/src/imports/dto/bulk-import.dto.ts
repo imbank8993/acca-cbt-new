@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { QUESTION_TYPES } from '../../questions/dto/questions.dto';
 import {
     ArrayNotEmpty,
     IsArray,
@@ -47,7 +48,7 @@ export class BulkQuestionDto {
 
     @ApiPropertyOptional({ default: 'mcq' })
     @IsOptional()
-    @IsString()
+    @IsIn(QUESTION_TYPES)
     type?: string;
 
     @ApiPropertyOptional({ enum: DIFFICULTIES, default: 'medium' })

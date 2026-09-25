@@ -16,6 +16,7 @@
 
 import {
     DeleteObjectCommand,
+    GetObjectCommand,
     HeadBucketCommand,
     PutObjectCommand,
     S3Client,
@@ -207,10 +208,8 @@ export function objectKeyFromUrl(fileUrl: string): string | null {
         return null;
     }
 
-    // Domain publik r2.dev, mis. https://pub-<hash>.r2.dev/<key>
-    if (url.hostname.endsWith('.r2.dev')) {
-        return decode(url.pathname);
-    }
+    // Public r2.dev URLs must match config.publicUrl above. A different
+    // tenant's r2.dev hostname is not proof that this bucket owns the key.
 
     // Endpoint S3 gaya path: https://<account>.r2.cloudflarestorage.com/<bucket>/<key>
     if (url.hostname === `${config.accountId}.r2.cloudflarestorage.com`) {
@@ -283,6 +282,37 @@ export async function deleteObject(key: string): Promise<{ success: boolean; err
         const message = (err as Error).message || String(err);
         console.warn(`[storage] Gagal menghapus '${key}':`, message);
         return { success: false, error: message };
+    }
+}
+
+/** Baca objek milik bucket sendiri dengan batas ukuran keras. */
+export async function getObject(
+    key: string,
+    maxBytes: number,
+): Promise<{ success: boolean; body?: Buffer; contentType?: string; error?: string }> {
+    const active = r2();
+    if (!active) return { success: false, error: 'Penyimpanan belum dikonfigurasi.' };
+
+    try {
+        const result = await active.client.send(new GetObjectCommand({
+            Bucket: active.config.bucket,
+            Key: key,
+        }));
+        if ((result.ContentLength || 0) > maxBytes) {
+            return { success: false, error: 'Ukuran objek melewati batas backup.' };
+        }
+        if (!result.Body) return { success: false, error: 'Isi objek kosong.' };
+        const bytes = await result.Body.transformToByteArray();
+        if (bytes.byteLength > maxBytes) {
+            return { success: false, error: 'Ukuran objek melewati batas backup.' };
+        }
+        return {
+            success: true,
+            body: Buffer.from(bytes),
+            contentType: result.ContentType,
+        };
+    } catch (err) {
+        return { success: false, error: (err as Error).message || String(err) };
     }
 }
 

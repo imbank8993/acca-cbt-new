@@ -18,9 +18,6 @@ import { ScoringClient } from '../scoring/scoring.client';
 import { assertExamAccess } from './exam-access';
 import { studentQuestion } from './student-question';
 
-/** Susulan jawaban hanya diterima dalam jendela ini sejak attempt ditutup sistem. */
-const LATE_SYNC_WINDOW_MS = 6 * 60 * 60 * 1000;
-
 /** Durasi bawaan bila ujian tidak menyimpannya. */
 const DEFAULT_DURATION_MINUTES = 60;
 
@@ -142,7 +139,6 @@ export class ExamAttemptsService {
      */
     async start(user: AuthUser, examId: string, deviceId?: string) {
         const now = await this.serverNow();
-        const device = (deviceId || '').trim();
 
         const { data: exam } = await this.db
             .from('cbt_exams')
@@ -155,6 +151,7 @@ export class ExamAttemptsService {
         if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
 
         await assertExamAccess(this.db, user, exam);
+        const device = this.requireDeviceId(deviceId);
 
         const row = exam as {
             organization_id: string;
@@ -163,6 +160,19 @@ export class ExamAttemptsService {
             end_time: string | null;
             duration_minutes: number | null;
         };
+
+        // Ambil attempt aktif sebelum memutuskan jendela global. Reset proktor
+        // dapat memberi grace period bertanda khusus setelah jadwal global
+        // berakhir untuk memulihkan jawaban lokal yang tertahan.
+        const { data: existing } = await this.db
+            .from('cbt_exam_attempts')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('exam_id', examId)
+            .eq('status', 'in_progress')
+            .maybeSingle();
+        const recoveryUntil = this.proctorRecoveryUntil(existing as any);
+        const recoveryActive = recoveryUntil !== null && now < recoveryUntil;
 
         if (!row.is_published) {
             return this.refuse('Ujian belum dipublikasikan oleh proktor.');
@@ -174,17 +184,10 @@ export class ExamAttemptsService {
             );
         }
 
-        if (row.end_time && now > new Date(row.end_time)) {
-            const { data: anyAttempt } = await this.db
-                .from('cbt_exam_attempts')
-                .select('id, status')
-                .eq('user_id', user.id)
-                .eq('exam_id', examId)
-                .maybeSingle();
-
-            if (anyAttempt?.status === 'in_progress') await this.autoFinish(anyAttempt.id, now);
+        if (row.end_time && now > new Date(row.end_time) && !recoveryActive) {
+            if (existing) await this.autoFinish((existing as { id: string }).id, now);
             return this.refuse('Waktu ujian telah berakhir.', {
-                expiredAttemptId: (anyAttempt as { id: string } | null)?.id,
+                expiredAttemptId: (existing as { id: string } | null)?.id,
             });
         }
 
@@ -201,14 +204,6 @@ export class ExamAttemptsService {
                 expiredAttemptId: (completed as { id: string }).id,
             });
         }
-
-        const { data: existing } = await this.db
-            .from('cbt_exam_attempts')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('exam_id', examId)
-            .eq('status', 'in_progress')
-            .maybeSingle();
 
         if (existing) return this.resume(existing as any, row, now, device);
 
@@ -344,11 +339,24 @@ export class ExamAttemptsService {
      * ditambah durasi ujian.
      */
     private resolvePersonalEnd(
-        attempt: { personal_end_time: string | null; started_at: string | null },
+        attempt: {
+            personal_end_time: string | null;
+            started_at: string | null;
+            metadata?: Record<string, unknown> | null;
+        },
         exam: { end_time: string | null; duration_minutes: number | null },
         now: Date,
     ): Date {
-        if (attempt.personal_end_time) return this.capToWindow(new Date(attempt.personal_end_time), exam.end_time);
+        const recoveryUntil = this.proctorRecoveryUntil(attempt);
+        if (recoveryUntil) {
+            if (!attempt.personal_end_time) return recoveryUntil;
+            const personalEnd = new Date(attempt.personal_end_time);
+            return personalEnd < recoveryUntil ? personalEnd : recoveryUntil;
+        }
+
+        if (attempt.personal_end_time) {
+            return this.capToWindow(new Date(attempt.personal_end_time), exam.end_time);
+        }
 
         const startedAt = attempt.started_at ? new Date(attempt.started_at) : now;
         const duration = exam.duration_minutes || DEFAULT_DURATION_MINUTES;
@@ -364,6 +372,16 @@ export class ExamAttemptsService {
         if (!windowEnd) return personalEnd;
         const close = new Date(windowEnd);
         return close < personalEnd ? close : personalEnd;
+    }
+
+    /** Grace period ini hanya dibuat oleh reset proktor, bukan oleh klien siswa. */
+    private proctorRecoveryUntil(
+        attempt: { metadata?: Record<string, unknown> | null } | null | undefined,
+    ): Date | null {
+        const raw = attempt?.metadata?.proctor_recovery_until;
+        if (typeof raw !== 'string') return null;
+        const value = new Date(raw);
+        return Number.isFinite(value.getTime()) ? value : null;
     }
 
     /**
@@ -404,9 +422,10 @@ export class ExamAttemptsService {
     // ── Menyimpan jawaban ────────────────────────────────────────────────────
 
     async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput, deviceId?: string) {
+        const device = this.requireDeviceId(deviceId);
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            await this.assertOwnedAndRunning(user, attemptId, db, deviceId);
+            await this.assertOwnedAndRunning(user, attemptId, db, device);
             await this.upsertAnswers(attemptId, [answer], db);
         });
         return { attemptId };
@@ -414,10 +433,11 @@ export class ExamAttemptsService {
 
     async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[], deviceId?: string) {
         if (answers.length === 0) return { attemptId, saved: 0 };
+        const device = this.requireDeviceId(deviceId);
 
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            await this.assertOwnedAndRunning(user, attemptId, db, deviceId);
+            await this.assertOwnedAndRunning(user, attemptId, db, device);
             await this.upsertAnswers(attemptId, answers, db);
         });
 
@@ -449,7 +469,7 @@ export class ExamAttemptsService {
     private async assertOwnedAndRunning(user: AuthUser, attemptId: string, db: DbSession = this.db, deviceId?: string): Promise<void> {
         const { data, error } = await db
             .from('cbt_exam_attempts')
-            .select('user_id, status, exam_id, personal_end_time, started_at, device_fingerprint')
+            .select('user_id, status, exam_id, personal_end_time, started_at, device_fingerprint, metadata')
             .eq('id', attemptId)
             .maybeSingle();
 
@@ -484,18 +504,11 @@ export class ExamAttemptsService {
     // ── Susulan jawaban ──────────────────────────────────────────────────────
 
     /**
-     * Susulkan jawaban yang tertinggal di localStorage untuk pengerjaan yang
-     * SUDAH ditutup otomatis sistem.
-     *
-     * Kejadiannya: siswa kehilangan jaringan, jawabannya hanya tersimpan lokal,
-     * waktunya habis, tabnya tertutup. Saat dibuka lagi, `start` menilai dari
-     * jawaban server saja dan jawaban lokal itu tidak pernah tersusul — jalur
-     * sinkronisasi biasa menolaknya karena pengerjaannya bukan `in_progress`.
-     *
-     * Pagarnya: hanya pemilik, hanya dari perangkat yang sama, hanya status
-     * `auto_submitted`, hanya dalam enam jam sejak ditutup, dan hanya mengisi
-     * jawaban yang kosong atau tersimpan sebagian. Esai tidak pernah ditimpa
-     * karena mungkin sudah dinilai guru.
+     * Endpoint kompatibilitas untuk klien lama yang mencoba menyusulkan jawaban
+     * setelah attempt ditutup. Perubahan jawaban setelah batas waktu tidak lagi
+     * diterima otomatis. Proktor harus membuka attempt lewat reset; setelah itu
+     * klien mengirim salinan lokal melalui jalur sinkronisasi biasa yang kembali
+     * memeriksa status, perangkat, dan batas waktu.
      */
     async syncLateAnswers(
         user: AuthUser,
@@ -528,95 +541,9 @@ export class ExamAttemptsService {
             );
         }
 
-        const device = (deviceId || '').trim();
-        if (attempt.device_fingerprint && device && attempt.device_fingerprint !== device) {
-            throw new ForbiddenException(
-                'Susulan jawaban hanya bisa dari perangkat yang dipakai mengerjakan.',
-            );
-        }
-        if (
-            attempt.finished_at &&
-            Date.now() - new Date(attempt.finished_at).getTime() > LATE_SYNC_WINDOW_MS
-        ) {
-            throw new ForbiddenException('Batas waktu susulan jawaban telah lewat.');
-        }
-
-        const [{ data: stored }, questionTypes] = await Promise.all([
-            this.db
-                .from('cbt_answers')
-                .select('question_id, selected_option_id, essay_answer')
-                .eq('attempt_id', attemptId),
-            this.loadQuestionTypes(attempt.exam_id),
-        ]);
-
-        const byQuestion = new Map<string, any>(
-            ((stored as any[]) || []).map((r) => [r.question_id, r]),
-        );
-
-        const payload = answers
-            .filter((answer) => {
-                const existing = byQuestion.get(answer.questionId);
-                const storedScore = existing
-                    ? completeness(existing.essay_answer ?? existing.selected_option_id)
-                    : 0;
-
-                // Belum ada atau masih kosong: selalu boleh diisi.
-                if (storedScore === 0) return true;
-                // Esai mungkin sudah dinilai guru.
-                if (isEssayType(questionTypes.get(answer.questionId))) return false;
-                // Sisanya hanya menang bila salinan lokalnya memang lebih lengkap.
-                return (
-                    completeness(answer.essay_answer ?? answer.selected_option_id) > storedScore
-                );
-            })
-            .map((answer) => ({
-                attempt_id: attemptId,
-                question_id: answer.questionId,
-                selected_option_id: answer.selected_option_id || null,
-                essay_answer: answer.essay_answer || null,
-                is_doubtful: answer.is_doubtful ?? false,
-            }))
-            .filter((row) => row.selected_option_id !== null || row.essay_answer !== null);
-
-        if (payload.length === 0) return { restored: 0 };
-
-        const { error } = await this.db
-            .from('cbt_answers')
-            .upsert(payload, { onConflict: 'attempt_id, question_id' });
-
-        if (error) throw new BadRequestException(error.message);
-
-        const graded = await this.grading.gradeAttemptFromSavedAnswers(attemptId);
-        if (graded) {
-            await this.db
-                .from('cbt_exam_attempts')
-                .update({
-                    total_score: graded.finalScore100,
-                    needs_manual_grading: graded.hasEssay,
-                })
-                .eq('id', attemptId);
-        }
-
-        await this.db.from('cbt_attempt_security_logs').insert({
-            attempt_id: attemptId,
-            event_type: 'LATE_ANSWER_SYNC',
-            metadata: { restored_count: payload.length, at: new Date().toISOString() },
-        });
-
-        return { restored: payload.length };
-    }
-
-    private async loadQuestionTypes(examId: string): Promise<Map<string, string>> {
-        const bankId = await this.resolveBankId(examId);
-        if (!bankId) return new Map();
-
-        const { data } = await this.db
-            .from('cbt_bank_questions')
-            .select('id, type')
-            .eq('bank_id', bankId);
-
-        return new Map(
-            ((data as Array<{ id: string; type: string }>) || []).map((q) => [q.id, q.type]),
+        this.requireDeviceId(deviceId);
+        throw new ForbiddenException(
+            'Pemulihan jawaban setelah ujian ditutup memerlukan reset dari proktor.',
         );
     }
 
@@ -638,6 +565,7 @@ export class ExamAttemptsService {
         clientAttemptId?: string,
         deviceId?: string,
     ) {
+        const device = this.requireDeviceId(deviceId);
         // Pengerjaan milik orang lain di perangkat ini: pencarian berdasarkan
         // pengguna di bawah akan berakhir "tidak ada sesi aktif", yang membingungkan.
         // Kasusnya dikenali lebih dulu supaya pesannya menyebut sebab sebenarnya.
@@ -715,7 +643,7 @@ export class ExamAttemptsService {
         // Validate the fixed request payload before scoring; network latency in scoring
         // must not invalidate a submission that the server accepted before its deadline.
         try {
-            await this.assertOwnedAndRunning(user, attempt.id, this.db, deviceId);
+            await this.assertOwnedAndRunning(user, attempt.id, this.db, device);
         } catch (error) {
             if (error instanceof ForbiddenException &&
                 (error.getResponse() as { code?: string }).code === 'EXAM_TIME_EXPIRED') {
@@ -923,6 +851,14 @@ export class ExamAttemptsService {
         return new Date();
     }
 
+    private requireDeviceId(deviceId?: string): string {
+        const device = (deviceId || '').trim();
+        if (device.length < 8 || device.length > 200) {
+            throw new BadRequestException('Identitas perangkat tidak valid. Muat ulang halaman ujian.');
+        }
+        return device;
+    }
+
     private async resolveBankId(examId: string): Promise<string | null> {
         const { data: exam } = await this.db
             .from('cbt_exams')
@@ -966,43 +902,6 @@ interface AnswerRow {
     essay_answer: string | null;
     score: number;
     is_correct: boolean | null;
-}
-
-/**
- * Seberapa "penuh" sebuah jawaban tersimpan, dihitung dari bentuk datanya.
- *
- * Jawaban majemuk — PGK, benar/salah, menjodohkan, kategorisasi, isian — bisa
- * berakhir tersimpan SEBAGIAN kalau autosave terakhir gagal: siswa mencentang
- * tiga opsi tetapi hanya dua yang sampai ke server. Aturan lama "jangan timpa
- * baris yang sudah terisi" membuat keadaan itu mustahil diperbaiki; dengan ukuran
- * ini, salinan lokal boleh menang bila jelas lebih lengkap.
- */
-function completeness(raw: string | null | undefined): number {
-    if (raw === null || raw === undefined) return 0;
-
-    const text = String(raw).trim();
-    if (text === '') return 0;
-
-    let parsed: unknown;
-    try {
-        parsed = JSON.parse(text);
-    } catch {
-        // Bukan JSON: satu nilai tunggal yang tidak kosong.
-        return 1;
-    }
-
-    if (Array.isArray(parsed)) {
-        return parsed.filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
-            .length;
-    }
-
-    if (parsed && typeof parsed === 'object') {
-        return Object.values(parsed as Record<string, unknown>).filter((v) =>
-            Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && String(v).trim() !== '',
-        ).length;
-    }
-
-    return String(parsed).trim() === '' ? 0 : 1;
 }
 
 // Dipakai `toAnswerColumns`; diekspor ulang di sini supaya jalur submit dan

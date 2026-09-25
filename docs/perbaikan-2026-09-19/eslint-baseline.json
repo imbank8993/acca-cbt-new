@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-09-25",
+  "errors": 1339,
+  "warnings": 710,
+  "rules": {
+    "(configuration/parser)": 4,
+    "@next/next/no-img-element": 9,
+    "@next/next/no-page-custom-font": 1,
+    "@typescript-eslint/ban-ts-comment": 11,
+    "@typescript-eslint/no-explicit-any": 1174,
+    "@typescript-eslint/no-require-imports": 2,
+    "@typescript-eslint/no-unused-expressions": 1,
+    "@typescript-eslint/no-unused-vars": 625,
+    "jsx-a11y/alt-text": 2,
+    "prefer-const": 19,
+    "react-hooks/exhaustive-deps": 68,
+    "react-hooks/immutability": 33,
+    "react-hooks/preserve-manual-memoization": 9,
+    "react-hooks/purity": 2,
+    "react-hooks/refs": 8,
+    "react-hooks/set-state-in-effect": 44,
+    "react/display-name": 1,
+    "react/no-unescaped-entities": 36
+  }
+}

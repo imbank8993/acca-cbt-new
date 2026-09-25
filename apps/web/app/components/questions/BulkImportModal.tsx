@@ -1,4 +1,5 @@
 "use client";
+import { optionLabel } from '@/lib/option-label';
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,6 +9,8 @@ import {
     Trash2, Edit3, Table, File, Columns, ArrowRight,
     Database, Search
 } from 'lucide-react';
+import { portableQuestion } from '@/lib/question-transfer';
+import { LatexRenderer } from './LatexRenderer';
 import { bulkImportQuestions } from '@/lib/api/imports';
 import { listQuestionBanks } from '@/lib/api/questions';
 import {
@@ -125,8 +128,9 @@ export default function BulkImportModal({
         setSelectedCrossQuestions(new Set());
         try {
             const { getBankQuestions } = await import('@/lib/api/questions');
-            const questions = await getBankQuestions(srcBankId);
-            setSourceBankQuestions(questions || []);
+            const { getDimensionsByBank } = await import('@/lib/api/questions');
+            const [questions, dimensions] = await Promise.all([getBankQuestions(srcBankId), getDimensionsByBank(srcBankId)]);
+            setSourceBankQuestions((questions || []).map(q => ({ ...q, transfer: portableQuestion(q, { dimensions }) })));
         } catch (err) {
             console.error('Failed to load source questions:', err);
         } finally {
@@ -168,26 +172,22 @@ export default function BulkImportModal({
         try {
             const questionsToImport = sourceBankQuestions
                 .filter((q: any) => selectedCrossQuestions.has(q.id))
-                .map((q: any) => ({
-                    question_text: q.question_text,
-                    type: q.type,
-                    difficulty: q.difficulty || 'medium',
-                    score_default: q.score_default || 1,
-                    metadata: q.metadata || {},
-                    stimulus_id: q.stimulus_id || null,
-                    instruction_id: q.instruction_id || null,
-                    options: (q.bank_question_options || []).map((o: any) => ({
-                        option_text: o.option_text,
-                        is_correct: o.is_correct,
-                        order: o.order,
-                        weight: o.weight ?? 1,
-                        metadata: o.metadata || {}
-                    }))
-                }));
+                .map((q: any) => {
+                    const value = q.transfer || portableQuestion(q);
+                    return {
+                        question_text: value.question_text, type: value.type,
+                        difficulty: value.difficulty, score_default: value.scoreDefault,
+                        metadata: value.metadata,
+                        options: value.options.map((o: any) => ({
+                            option_text: o.text, is_correct: o.isCorrect ?? false,
+                            order: o.order, weight: o.weight, metadata: o.metadata,
+                        })),
+                    };
+                });
 
             const result = await bulkImportQuestions(bankId, questionsToImport);
 
-            if (result.success) {
+            if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 setImportProgress(100);
                 setTimeout(async () => {
                     await onImportComplete();
@@ -237,6 +237,8 @@ export default function BulkImportModal({
     const handleParseFile = useCallback(async () => {
         if (!selectedFile) return;
         setIsProcessing(true);
+        setEditableQuestions([]);
+        setSelectedQuestions(new Set());
         setStep('preview');
         try {
             let result: ImportResult;
@@ -265,6 +267,11 @@ export default function BulkImportModal({
                     totalRows: parsedDocx.length
                 };
             }
+            const validation = validateQuestions(result.questions);
+            for (const invalid of validation.invalid) {
+                result.errors.push({ row: result.questions.indexOf(invalid.question) + 1, message: invalid.errors.join('; ') });
+            }
+            result.success = result.questions.length > 0 && result.errors.length === 0;
             setParseResult(result);
             setEditableQuestions(result.questions);
             setSelectedQuestions(new Set(result.questions.map((_, i) => i)));
@@ -283,7 +290,7 @@ export default function BulkImportModal({
     }, [selectedFile, fileType]);
 
     const handleStartImport = useCallback(async () => {
-        if (selectedQuestions.size === 0) return;
+        if (selectedQuestions.size === 0 || parseResult?.errors.length) return;
         setStep('importing');
         setImportProgress(0);
         setImportError(null);
@@ -307,7 +314,7 @@ export default function BulkImportModal({
 
         try {
             const result = await bulkImportQuestions(bankId, questionsToImport);
-            if (result.success) {
+            if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 setImportProgress(100);
                 setTimeout(async () => {
                     await onImportComplete();
@@ -322,7 +329,7 @@ export default function BulkImportModal({
             console.error('Import error:', error);
             setImportError(error?.message || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [editableQuestions, selectedQuestions, bankId, orgId, onImportComplete, handleClose]);
+    }, [editableQuestions, selectedQuestions, parseResult, bankId, orgId, onImportComplete, handleClose]);
 
     const toggleQuestionSelection = useCallback((index: number) => {
         setSelectedQuestions(prev => {
@@ -695,11 +702,11 @@ export default function BulkImportModal({
                                                         )}
                                                         {q.options && q.options.length > 0 && (
                                                             <div className="mt-2 flex flex-wrap gap-1">
-                                                                {q.options.slice(0, 4).map((opt, optIdx) => (
+                                                                {q.options.map((opt, optIdx) => (
                                                                     <span key={optIdx} className={`px-2 py-0.5 rounded text-xs ${
                                                                         opt.isCorrect || opt.is_correct ? 'bg-emerald-100 text-emerald-700 font-medium' : 'bg-slate-100 text-slate-600'
                                                                     }`}>
-                                                                        {String.fromCharCode(65 + optIdx)}. {opt.text.substring(0, 20)}
+                                                                        {optionLabel(optIdx)}. <LatexRenderer text={opt.text} />
                                                                     </span>
                                                                 ))}
                                                             </div>
@@ -824,7 +831,7 @@ export default function BulkImportModal({
                                     </button>
                                     <button
                                         onClick={handleStartImport}
-                                        disabled={selectedQuestions.size === 0 || isProcessing}
+                                        disabled={selectedQuestions.size === 0 || isProcessing || !!parseResult?.errors.length}
                                         className={`px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
                                             selectedQuestions.size === 0 || isProcessing ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25'
                                         }`}

@@ -140,17 +140,12 @@ export default function ExamResultsDetailPage() {
         data.questions.forEach((q: any, index: number) => {
           const ans = attempt.answers?.find((a: any) => a.question_id === q.id);
           if (ans) {
-            if (q.type === 'essay' || q.type === 'esay' || q.type === 'uraian') {
-              row[`Soal ${index + 1}`] = ans.essay_answer || '-';
-            } else {
-              // Find option label
-              const selectedOption = q.bank_question_options?.find((opt: any) => opt.id === ans.selected_option_id);
-              if (selectedOption) {
-                row[`Soal ${index + 1}`] = String.fromCharCode(65 + q.bank_question_options.indexOf(selectedOption));
-              } else {
-                row[`Soal ${index + 1}`] = '-';
-              }
-            }
+            const answerLines = formatStudentAnswer(
+              { ...q, options: q.bank_question_options || q.options || [] },
+              ans.selected_option_id,
+              ans.essay_answer,
+            );
+            row[`Soal ${index + 1}`] = answerLines.length > 0 ? answerLines.join('\n') : '-';
           } else {
             row[`Soal ${index + 1}`] = '-';
           }

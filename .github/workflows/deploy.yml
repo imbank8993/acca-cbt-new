@@ -41,6 +41,9 @@ jobs:
       - name: Typecheck Frontend (Next.js)
         run: npm run typecheck
 
+      - name: Check Frontend Lint Baseline
+        run: npm run lint:web:baseline
+
       - name: Compile Backend (NestJS)
         run: npm run build:backend
 
@@ -102,4 +105,3 @@ jobs:
             echo "✅ Status kontainer saat ini:"
             docker compose ps
             echo "🎉 Deployment ACCA CBT selesai dengan sukses!"
-

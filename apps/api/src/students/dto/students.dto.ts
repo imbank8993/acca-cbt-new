@@ -7,6 +7,7 @@ import {
     IsObject,
     IsOptional,
     IsString,
+    Length,
     IsUUID,
     ValidateNested,
 } from 'class-validator';
@@ -26,6 +27,7 @@ export class StartAttemptDto {
     })
     @IsOptional()
     @IsString()
+    @Length(8, 200)
     deviceId?: string;
 }
 
@@ -54,6 +56,7 @@ export class SaveAnswerDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @Length(8, 200)
     deviceId?: string;
 
     @ApiPropertyOptional()
@@ -76,6 +79,7 @@ export class SyncAnswersDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @Length(8, 200)
     deviceId?: string;
 
     @ApiProperty({ type: [AnswerDto] })
@@ -91,6 +95,7 @@ export class SubmitExamDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @Length(8, 200)
     deviceId?: string;
 
     @ApiProperty({

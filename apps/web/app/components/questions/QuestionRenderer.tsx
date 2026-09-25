@@ -1,4 +1,5 @@
 "use client";
+import { optionLabel } from '@/lib/option-label';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, AlertTriangle, Info, X } from 'lucide-react';
@@ -397,8 +398,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         });
                         return uniqueOptions.map((opt, idx) => {
                         const isSelected = answer === opt.id;
-                        const letters = ['A', 'B', 'C', 'D', 'E'];
-                        const label = letters[idx];
+                        
+                        const label = optionLabel(idx);
                         const isCorrect = opt.is_correct || opt.isCorrect;
 
                         let borderClass = 'border-slate-200 hover:border-slate-300';
@@ -1078,8 +1079,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         const maxWeight = Math.max(...uniqueOptions.map(o => o.weight ?? 0));
                         return uniqueOptions.map((opt, idx) => {
                             const isSelected = answer === opt.id;
-                            const letters = ['A', 'B', 'C', 'D', 'E'];
-                            const label = letters[idx];
+                            
+                            const label = optionLabel(idx);
                             const optWeight = opt.weight ?? 0;
                             const isHighest = optWeight === maxWeight;
 

@@ -17,8 +17,8 @@
     "id": "SEC-03",
     "priority": "P1",
     "title": "Deadline dan pengikatan perangkat tidak ditegakkan saat menyimpan jawaban",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "SEC-04",
@@ -66,8 +66,8 @@
     "id": "SEC-10",
     "priority": "P1",
     "title": "Terminasi ulang membuka kembali jendela susulan jawaban",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "SEC-11",
@@ -80,22 +80,22 @@
     "id": "SEC-12",
     "priority": "P1",
     "title": "Arsip backup diproses dan diunggah sebelum autentikasi/otorisasi final",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "5",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "SEC-13",
     "priority": "P1",
     "title": "Ekspor backup melakukan fetch URL gambar tanpa pembatasan tujuan",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "5",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "SEC-14",
     "priority": "P1",
     "title": "Kebijakan hasil ujian diterapkan tidak konsisten di API",
-    "stage": "1",
-    "status": "Parsial — menunggu penutupan SEC-10"
+    "stage": "1 + 4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-01",
@@ -108,29 +108,29 @@
     "id": "BUG-02",
     "priority": "P1",
     "title": "Restore ZIP bergambar merusak signature sebelum diverifikasi",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "5",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-03",
     "priority": "P1",
     "title": "Submit dapat berhasil meski penyimpanan jawaban gagal",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-04",
     "priority": "P1",
     "title": "Restore menghapus data sebelum validasi lengkap dan tanpa transaksi",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "5",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-05",
     "priority": "P1",
     "title": "Cakupan backup tidak lengkap untuk fitur aplikasi sekarang",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "5",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-06",
@@ -150,22 +150,22 @@
     "id": "BUG-08",
     "priority": "P1",
     "title": "Autosave jawaban rentan tertimpa request lama",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-09",
     "priority": "P1",
     "title": "Kegagalan localStorage menghentikan autosave ke server",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-10",
     "priority": "P2",
     "title": "Resume sesudah akhir global dapat menutup jalan pemulihan offline",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "4",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-11",
@@ -192,8 +192,8 @@
     "id": "BUG-14",
     "priority": "P2",
     "title": "Hook React diletakkan setelah conditional return",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-15",
@@ -213,22 +213,22 @@
     "id": "UX-01",
     "priority": "P2",
     "title": "Dashboard pengawas menampilkan statistik dan kejadian contoh sebagai data aktif",
-    "stage": 4,
+    "stage": "4",
     "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-02",
     "priority": "P2",
     "title": "Kegagalan API disamarkan menjadi daftar kosong",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-03",
     "priority": "P2",
     "title": "Fallback autentikasi dapat tetap menampilkan loading tanpa jalan keluar",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-04",
@@ -241,64 +241,64 @@
     "id": "UX-05",
     "priority": "P2",
     "title": "Hitungan jawaban salah dapat negatif setelah penilaian esai",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-06",
     "priority": "P2",
     "title": "Waktu hasil dan jadwal menggunakan zona waktu berbeda",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-07",
     "priority": "P2",
     "title": "Navigasi kartu dan kontrol toggle tidak sepenuhnya dapat diakses dengan keyboard",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-08",
     "priority": "P2",
     "title": "Respons monitoring lama dapat menimpa ujian yang baru dipilih",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-09",
     "priority": "P2",
     "title": "Detail jadwal PAS tidak menjelaskan hasil pembuatan parsial",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-10",
     "priority": "P2",
     "title": "Notifikasi lama tidak memiliki jalur pagination yang jelas",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-11",
     "priority": "P2",
     "title": "Ekspor jawaban analitik kehilangan isi tipe soal kompleks",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "UX-12",
     "priority": "P2",
     "title": "Indikator tren dapat menyatakan naik saat nilai menurun",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "6",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "QA-01",
     "priority": "P2",
     "title": "Lint frontend belum menjadi pemeriksaan kualitas yang lulus",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "7",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "QA-02",

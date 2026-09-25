@@ -322,10 +322,7 @@ export default function StimulusManager({ bankId, orgId }: StimulusManagerProps)
                                                     <tr key={idx}>
                                                         <td className="px-3 py-2 font-medium text-slate-800 break-all align-top">{row.Judul || '-'}</td>
                                                         <td className="px-3 py-2 text-slate-600 align-top">
-                                                            <div
-                                                                className="line-clamp-2 break-all text-[11px]"
-                                                                dangerouslySetInnerHTML={{ __html: row.Konten_HTML || row.Konten }}
-                                                            />
+                                                            <div className="line-clamp-2 break-all text-[11px]"><LatexRenderer text={row.Konten_HTML || row.Konten || ""} /></div>
                                                         </td>
                                                     </tr>
                                                 ))}

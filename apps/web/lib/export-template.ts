@@ -1,9 +1,13 @@
+import { optionLabel } from './option-label';
 import {
     Document, Packer, Paragraph, Table, TableRow, TableCell, TableLayoutType,
     WidthType, BorderStyle, TextRun, AlignmentType, VerticalAlign, ImageRun,
     Header, Footer, ITableCellOptions
 } from 'docx';
 import * as JSZipNS from 'jszip';
+import { portableQuestion } from './question-transfer';
+import { attachQuestionArchive } from './question-archive';
+import { loadWordImages, wordRuns, type WordImages } from './word-images';
 const JSZip = (JSZipNS as any).default || JSZipNS;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -112,10 +116,10 @@ function headerCell(text: string, widthPct: number, color: string) {
     });
 }
 
-function dataCell(text: any, widthPct: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT') {
+function dataCell(text: any, widthPct: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT', images: WordImages = new Map()) {
     return new TableCell({
         children: [new Paragraph({
-            children: [new TextRun({ text: sanitizeText(text), size: 20, color: '111827', font: 'Calibri' })],
+            children: wordRuns(text, images, sanitizeText),
             alignment: align === 'CENTER' ? AlignmentType.CENTER : AlignmentType.LEFT,
         })],
         width: { size: widthPct, type: WidthType.PERCENTAGE },
@@ -126,6 +130,8 @@ function dataCell(text: any, widthPct: number, fill: string, align: 'LEFT' | 'CE
     });
 }
 
+const imageCells = (images: WordImages) => (text: any, width: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT') => dataCell(text, width, fill, align, images);
+
 const hRow = (cells: TableCell[]) => new TableRow({ tableHeader: true, children: cells, cantSplit: true });
 const dRow = (cells: TableCell[]) => new TableRow({ children: cells, cantSplit: false });
 
@@ -134,11 +140,12 @@ const dRow = (cells: TableCell[]) => new TableRow({ children: cells, cantSplit: 
 type RowSpec = any[];             // one row = array of cells
 type RowsForOneQuestion = RowSpec[]; // one question produces N rows
 
-function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
-    const opts = question.bank_question_options || question.options || [];
+function buildAkademikRows(question: any, idx: number, images: WordImages = new Map()): RowsForOneQuestion[] {
+    const dataCell = imageCells(images);
+    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => a.order - b.order);
     const typeLabel = TYPE_LABEL[question.type] || 'PG';
     const qNo = String(idx + 1);
-    const score = String(question.score_default || 1);
+    const score = String(question.score_default ?? question.scoreDefault ?? 1);
     const fill = (row: number) => (row % 2 === 0 ? 'FFFFFF' : 'EFF6FF');
 
     const out: RowsForOneQuestion = [];
@@ -147,7 +154,7 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
     if (question.type === 'mcq' || question.type === 'mcq_complex') {
         const correctOpts = opts.filter((o: any) => o.is_correct || o.isCorrect);
         const correctIdx = correctOpts.map((o: any) => opts.indexOf(o));
-        const kunci = correctIdx.map((i: number) => String.fromCharCode(65 + i)).join(',') || '';
+        const kunci = correctIdx.map((i: number) => optionLabel(i)).join(',') || '';
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
             dataCell(typeLabel, 8, fill(row - 1), 'CENTER'),
@@ -155,8 +162,8 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.slice(0, 5).forEach((opt: any, oi: number) => {
-            const letter = String.fromCharCode(65 + oi);
+        opts.forEach((opt: any, oi: number) => {
+            const letter = optionLabel(oi);
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(letter, 8, fill(row), 'CENTER'),
@@ -176,11 +183,11 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.slice(0, 10).forEach((opt: any, oi: number) => {
+        opts.forEach((opt: any, oi: number) => {
             const key = (opt.is_correct || opt.isCorrect) ? 'B' : 'S';
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
-                dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
+                dataCell(`P${oi + 1}`, 8, fill(row), 'CENTER'),
                 dataCell(opt.option_text || opt.text || '', 64, fill(row)),
                 dataCell(key, 13, fill(row), 'CENTER'),
                 dataCell('', 10, fill(row)),
@@ -188,7 +195,7 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             row++;
         });
     } else if (question.type === 'matching') {
-        const kunciArr = opts.map((o: any) => (o.metadata?.match_texts || [])[0] || '');
+        const kunciArr = opts.map((o: any) => (o.metadata?.match_texts || []).join(' | '));
         const kunci = kunciArr.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -197,11 +204,11 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(kunci, 13, fill(row - 1)),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.slice(0, 10).forEach((opt: any, oi: number) => {
-            const match = (opt.metadata?.match_texts || [])[0] || '';
+        opts.forEach((opt: any, oi: number) => {
+            const match = (opt.metadata?.match_texts || []).join(' | ');
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
-                dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
+                dataCell(`MJ${oi + 1}`, 8, fill(row), 'CENTER'),
                 dataCell(opt.option_text || opt.text || '', 64, fill(row)),
                 dataCell(match, 13, fill(row)),
                 dataCell('', 10, fill(row)),
@@ -209,7 +216,7 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             row++;
         });
     } else if (question.type === 'categorization') {
-        const kunciArr = opts.map((o: any) => (o.metadata?.category_names || [])[0] || '');
+        const kunciArr = opts.map((o: any) => (o.metadata?.category_names || []).join(', '));
         const kunci = kunciArr.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -218,11 +225,11 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(kunci, 13, fill(row - 1)),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.slice(0, 10).forEach((opt: any, oi: number) => {
-            const cat = (opt.metadata?.category_names || [])[0] || '';
+        opts.forEach((opt: any, oi: number) => {
+            const cat = (opt.metadata?.category_names || []).join(', ');
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
-                dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
+                dataCell(`CAT${oi + 1}`, 8, fill(row), 'CENTER'),
                 dataCell(opt.option_text || opt.text || '', 64, fill(row)),
                 dataCell(cat, 13, fill(row)),
                 dataCell('', 10, fill(row)),
@@ -254,7 +261,7 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
     } else if (question.type === 'ordering') {
-        const correctOrder: string[] = question.metadata?.correct_order || opts.map((_: any, i: number) => String(i + 1));
+        const correctOrder: string[] = portableQuestion(question).metadata.correct_order;
         const kunci = correctOrder.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -263,7 +270,7 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.slice(0, 10).forEach((opt: any, oi: number) => {
+        opts.forEach((opt: any, oi: number) => {
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
@@ -277,8 +284,9 @@ function buildAkademikRows(question: any, idx: number): RowsForOneQuestion[] {
     return out;
 }
 
-function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] = []): RowsForOneQuestion[] {
-    const opts = question.bank_question_options || question.options || [];
+function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] = [], images: WordImages = new Map()): RowsForOneQuestion[] {
+    const dataCell = imageCells(images);
+    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => a.order - b.order);
     const typeLabel = TYPE_LABEL[question.type] || 'SJT';
     const qNo = String(idx + 1);
     const fill = (row: number) => (row % 2 === 0 ? 'FFFFFF' : 'F1F0FB');
@@ -295,12 +303,12 @@ function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] 
             dataCell(question.question_dimensions?.name || '-', 20, fill(row - 1), 'CENTER'),
             dataCell('', 15, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any) => {
+        opts.forEach((opt: any, oi: number) => {
             const dimId = opt.metadata?.dimension_id || opt.dimension_id;
             const dimName = dimensionsList.find((d: any) => d.id === dimId)?.name || '-';
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
-                dataCell('', 10, fill(row)),
+                dataCell(optionLabel(oi), 10, fill(row)),
                 dataCell(opt.option_text || opt.text || '', 50, fill(row)),
                 dataCell(dimName, 20, fill(row), 'CENTER'),
                 dataCell(String(opt.weight ?? 0), 15, fill(row), 'CENTER'),
@@ -335,7 +343,8 @@ function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] 
 
 // ─── Section builders (Stimulus, Petunjuk) ────────────────────────────────────
 
-function buildStimulusSection(stimuli: any[], questions: any[]): any[] {
+function buildStimulusSection(stimuli: any[], questions: any[], images: WordImages = new Map()): any[] {
+    const dataCell = imageCells(images);
     if (!stimuli || stimuli.length === 0) return [];
     const headerColor = '1E3A8A';
     const rows: TableRow[] = [
@@ -390,7 +399,8 @@ function buildStimulusSection(stimuli: any[], questions: any[]): any[] {
     ];
 }
 
-function buildInstructionSection(instructions: any[], questions: any[]): any[] {
+function buildInstructionSection(instructions: any[], questions: any[], images: WordImages = new Map()): any[] {
+    const dataCell = imageCells(images);
     if (!instructions || instructions.length === 0) return [];
     const headerColor = '1E3A8A';
     const rows: TableRow[] = [
@@ -445,7 +455,8 @@ function buildInstructionSection(instructions: any[], questions: any[]): any[] {
     ];
 }
 
-function buildKisiKisiSection(kisiKisiList: any[], questions: any[]): any[] {
+function buildKisiKisiSection(kisiKisiList: any[], questions: any[], images: WordImages = new Map()): any[] {
+    const dataCell = imageCells(images);
     if (!kisiKisiList || kisiKisiList.length === 0) return [];
     const headerColor = '1E3A8A';
     const rows: TableRow[] = [
@@ -570,7 +581,7 @@ function makeTitleParagraph(variant: Variant, bankTitle: string): Paragraph[] {
 
 // ─── Document factory ─────────────────────────────────────────────────────────
 
-function buildQuestionTable(variant: Variant, questions: any[], dimensionsList: any[] = []): Table {
+function buildQuestionTable(variant: Variant, questions: any[], dimensionsList: any[] = [], images: WordImages = new Map()): Table {
     const color = THEME[variant].header;
     const headerCols = variant === 'akademik'
         ? [
@@ -592,8 +603,8 @@ function buildQuestionTable(variant: Variant, questions: any[], dimensionsList: 
 
     questions.forEach((q, idx) => {
         const produced: RowsForOneQuestion[] = variant === 'akademik'
-            ? buildAkademikRows(q, idx)
-            : buildKepribadianRows(q, idx, dimensionsList);
+            ? buildAkademikRows(q, idx, images)
+            : buildKepribadianRows(q, idx, dimensionsList, images);
         produced.forEach((cells: RowSpec) => {
             rows.push(dRow(cells));
         });
@@ -626,6 +637,7 @@ export async function buildAkademikDoc(
     kisiKisiList: any[] = []
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
+    const images = await loadWordImages([questions, stimuli, instructions, kisiKisiList]);
     const doc = new Document({
         creator: 'adaCode CBT',
         title: THEME.akademik.title,
@@ -636,15 +648,17 @@ export async function buildAkademikDoc(
             footers: { default: makeFooter() },
             children: [
                 ...makeTitleParagraph('akademik', bankInfo?.title || '-'),
-                buildQuestionTable('akademik', questions),
-                ...buildStimulusSection(stimuli, questions),
-                ...buildInstructionSection(instructions, questions),
-                ...buildKisiKisiSection(kisiKisiList, questions),
+                buildQuestionTable('akademik', questions, [], images),
+                ...buildStimulusSection(stimuli, questions, images),
+                ...buildInstructionSection(instructions, questions, images),
+                ...buildKisiKisiSection(kisiKisiList, questions, images),
             ],
         }],
     });
 
-    return await Packer.toBlob(doc);
+    return attachQuestionArchive(await Packer.toBlob(doc), questions.map(q => portableQuestion(q, {
+        stimuli, instructions, kisiKisi: kisiKisiList,
+    })));
 }
 
 export async function buildKepribadianDoc(
@@ -653,6 +667,7 @@ export async function buildKepribadianDoc(
     dimensionsList: any[] = []
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
+    const images = await loadWordImages(questions);
     const doc = new Document({
         creator: 'adaCode CBT',
         title: THEME.kepribadian.title,
@@ -663,12 +678,12 @@ export async function buildKepribadianDoc(
             footers: { default: makeFooter() },
             children: [
                 ...makeTitleParagraph('kepribadian', bankInfo?.title || '-'),
-                buildQuestionTable('kepribadian', questions, dimensionsList),
+                buildQuestionTable('kepribadian', questions, dimensionsList, images),
             ],
         }],
     });
 
-    return await Packer.toBlob(doc);
+    return attachQuestionArchive(await Packer.toBlob(doc), questions.map(q => portableQuestion(q, { dimensions: dimensionsList })));
 }
 
 // ─── Public dispatcher (kept for backwards compatibility) ─────────────────────

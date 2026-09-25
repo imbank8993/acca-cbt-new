@@ -4,10 +4,16 @@ import { DbService } from '../prisma/prisma-db-adapter';
 
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
 
-function calculateTrend(scores: number[]): 'up' | 'down' | 'stable' {
+export function calculateTrend(scores: number[]): 'up' | 'down' | 'stable' {
     if (scores.length < 2) return 'stable';
-    const recentAvg = scores.slice(-3).reduce((a, b) => a + b, 0) / Math.min(3, scores.length);
-    const olderAvg = scores.slice(0, -3).reduce((a, b) => a + b, 0) / Math.max(1, scores.length - 3);
+    // Data berurutan lama → baru. Bagi menjadi dua kelompok yang sama-sama
+    // berisi data; versi lama membandingkan 2–3 skor dengan kelompok kosong
+    // bernilai nol sehingga penurunan 90 → 60 justru dilabeli "naik".
+    const split = Math.floor(scores.length / 2);
+    const older = scores.slice(0, split);
+    const recent = scores.slice(split);
+    const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
     const diff = recentAvg - olderAvg;
     if (diff > 5) return 'up';
     if (diff < -5) return 'down';

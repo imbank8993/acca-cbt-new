@@ -3,37 +3,42 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     CalendarDays, Clock, CheckCircle2, ArrowRight,
-    Ghost, Loader2, AlertCircle, Lock, Unlock, RefreshCw, Sparkles, User
+    Ghost, Loader2, AlertCircle, Lock, RefreshCw
 } from 'lucide-react';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
 import { getSessionUser } from '@/lib/session';
-import { getStudentExams } from '@/lib/api/students';
+import { getStudentExamsResult } from '@/lib/api/students';
 import { useRouter } from 'next/navigation';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { formatSchoolDate, formatSchoolTimeRange } from '@/lib/school-time';
 
 const SchedulePage = () => {
     const [exams, setExams] = useMemoryState<any[]>('siswa_schedule_exams', []);
     const [loading, setLoading] = useMemoryState('siswa_schedule_loading', true);
     const [now, setNow] = useState(new Date());
-    const [fullName, setFullName] = useState<string>('');
+    const [loadError, setLoadError] = useState('');
     const router = useRouter();
-
-    useEffect(() => {
-        loadData();
-        // Jam dinding diperbarui tiap menit supaya hitung mundur tetap akurat.
-        const interval = setInterval(() => setNow(new Date()), 60000);
-        return () => clearInterval(interval);
-    }, []);
 
     const loadData = useCallback(async () => {
         setLoading(true);
+        setLoadError('');
         const user = await getSessionUser();
         if (user) {
-            setExams((await getStudentExams()) || []);
-            setFullName(user.fullName ?? '');
+            const response = await getStudentExamsResult();
+            if (response.success) setExams(response.exams);
+            else setLoadError(response.error || 'Jadwal ujian tidak dapat dimuat.');
+        } else {
+            setLoadError('Sesi berakhir. Silakan login kembali.');
         }
         setLoading(false);
-    }, []);
+    }, [setExams, setLoading]);
+
+    useEffect(() => {
+        void loadData();
+        // Jam dinding diperbarui tiap menit supaya hitung mundur tetap akurat.
+        const interval = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(interval);
+    }, [loadData]);
 
     // Jadwal ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
@@ -68,45 +73,8 @@ const SchedulePage = () => {
         return { label: 'Kerjakan Sekarang', color: 'text-white', bg: 'bg-[#0038A8] hover:bg-[#020510]', icon: ArrowRight, enabled: true };
     };
 
-    const formatDay = (dateStr: string | null | undefined) => {
-        if (!dateStr) return 'TBA';
-        try {
-            // Parse as UTC by appending 'Z', then format using UTC methods to avoid timezone shift
-            const date = new Date(dateStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? dateStr : dateStr + 'Z');
-            if (isNaN(date.getTime())) return 'TBA';
-            const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-            const day = wibDate.getUTCDate();
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-            const month = months[wibDate.getUTCMonth()];
-            const year = wibDate.getUTCFullYear();
-            return `${day} ${month} ${year}`;
-        } catch (e) {
-            console.error('formatDay error:', e, dateStr);
-            return 'TBA';
-        }
-    };
-
-    const formatTimeRange = (startStr: string | null | undefined, endStr: string | null | undefined) => {
-        if (!startStr) return 'Kapan saja';
-        try {
-            // Parse as UTC
-            const s = new Date(startStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? startStr : startStr + 'Z');
-            const e = endStr ? new Date(endStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? endStr : endStr + 'Z') : null;
-            if (isNaN(s.getTime())) return '...';
-            
-            const sWib = new Date(s.getTime() + (7 * 60 * 60 * 1000));
-            const eWib = e && !isNaN(e.getTime()) ? new Date(e.getTime() + (7 * 60 * 60 * 1000)) : null;
- 
-            const sH = String(sWib.getUTCHours()).padStart(2, '0');
-            const sM = String(sWib.getUTCMinutes()).padStart(2, '0');
-            const eH = eWib ? String(eWib.getUTCHours()).padStart(2, '0') : '..';
-            const eM = eWib ? String(eWib.getUTCMinutes()).padStart(2, '0') : '..';
-            return `${sH}:${sM} — ${eH}:${eM} WIB`;
-        } catch (e) {
-            console.error('formatTimeRange error:', e);
-            return '...';
-        }
-    };
+    const formatDay = formatSchoolDate;
+    const formatTimeRange = formatSchoolTimeRange;
 
     const formatTimeUntil = (dateStr: string) => {
         if (!dateStr) return '';
@@ -307,6 +275,18 @@ const SchedulePage = () => {
                 <div className="p-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col items-center justify-center space-y-3">
                     <Loader2 className="animate-spin text-[#0038A8]" size={36} />
                     <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat jadwal ujian...</p>
+                </div>
+            ) : loadError ? (
+                <div role="alert" className="p-10 bg-rose-50 border border-rose-200 rounded-2xl text-center max-w-xl mx-auto w-full flex flex-col items-center">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-4 border border-rose-100">
+                        <AlertCircle size={28} className="text-rose-500" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-700 mb-1">Jadwal Belum Dapat Dimuat</h3>
+                    <p className="text-slate-600 text-sm max-w-sm mb-5">{loadError}</p>
+                    <button type="button" onClick={loadData}
+                        className="px-5 py-2.5 bg-[#0038A8] text-white rounded-xl font-bold text-xs hover:bg-[#002d87] flex items-center gap-2 transition-all">
+                        <RefreshCw size={13} /> Coba Lagi
+                    </button>
                 </div>
             ) : exams.length === 0 ? (
                 <div className="p-16 bg-white border border-dashed border-slate-200 rounded-2xl shadow-sm text-center max-w-xl mx-auto w-full flex flex-col items-center">

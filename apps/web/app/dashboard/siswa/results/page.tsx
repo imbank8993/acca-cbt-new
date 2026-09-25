@@ -2,23 +2,30 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Award, BookOpen, Clock, Loader2, RefreshCw, ChevronRight, Sparkles } from 'lucide-react';
-import { getStudentResultsAction } from '@/lib/api/students';
+import { getStudentResultsResult } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
 import { useRouter } from 'next/navigation';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { formatSchoolDateTime } from '@/lib/school-time';
 
 export default function StudentResultsPage() {
     const [results, setResults] = useMemoryState<any[]>('siswa_results_results', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_results_isLoading', true);
     const [fullName, setFullName] = useState<string>('');
+    const [loadError, setLoadError] = useState('');
     const router = useRouter();
 
     const loadResults = async () => {
         setIsLoading(true);
+        setLoadError('');
         const user = await getSessionUser();
         if (user) {
-            setResults(await getStudentResultsAction());
+            const response = await getStudentResultsResult();
+            if (response.success) setResults(response.results);
+            else setLoadError(response.error || 'Hasil ujian tidak dapat dimuat.');
             setFullName(user.fullName ?? '');
+        } else {
+            setLoadError('Sesi berakhir. Silakan login kembali.');
         }
         setIsLoading(false);
     };
@@ -26,19 +33,6 @@ export default function StudentResultsPage() {
     useEffect(() => {
         loadResults();
     }, []);
-
-    const formatUTCDateTime = (str: string | null | undefined) => {
-        if (!str) return '-';
-        const date = new Date(str.match(/(Z|[+-]\d{2}:\d{2})$/) ? str : str + 'Z');
-        if (isNaN(date.getTime())) return '-';
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const month = months[date.getUTCMonth()];
-        const year = date.getUTCFullYear();
-        const h = String(date.getUTCHours()).padStart(2, '0');
-        const m = String(date.getUTCMinutes()).padStart(2, '0');
-        return `${day} ${month} ${year} ${h}:${m}`;
-    };
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
@@ -62,17 +56,26 @@ export default function StudentResultsPage() {
                     <Loader2 size={36} className="text-[#0038A8] animate-spin" />
                     <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat hasil studi...</p>
                 </div>
+            ) : loadError ? (
+                <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+                    <p className="font-bold text-red-700">Hasil ujian gagal dimuat</p>
+                    <p className="mt-1 text-sm text-red-600">{loadError}</p>
+                    <button type="button" onClick={loadResults} className="mt-4 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold">Coba Lagi</button>
+                </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {results.map((attempt) => {
                         const canViewDetails = attempt.exams?.show_results && !attempt.needs_manual_grading;
 
                         return (
-                            <motion.div
+                            <motion.button
+                                type="button"
                                 layout
                                 key={attempt.id}
+                                disabled={!canViewDetails}
+                                aria-label={canViewDetails ? `Buka hasil ${attempt.exams?.title || 'ujian'}` : undefined}
                                 onClick={() => canViewDetails ? router.push(`/dashboard/siswa/results/${attempt.id}`) : null}
-                                className={`bg-white border border-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row gap-4 transition-all duration-300 group relative overflow-hidden shadow-sm ${
+                                className={`w-full text-left bg-white border border-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row gap-4 transition-all duration-300 group relative overflow-hidden shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0038A8] focus-visible:ring-offset-2 ${
                                     canViewDetails 
                                         ? 'cursor-pointer hover:border-indigo-100 hover:shadow-xl hover:shadow-[#030C4D]/5' 
                                         : 'opacity-90'
@@ -100,7 +103,7 @@ export default function StudentResultsPage() {
                                         </h3>
                                         <p className="text-xs text-slate-400 flex items-center gap-1 font-medium font-sans">
                                             <Clock size={12} className="text-slate-300" />
-                                            {formatUTCDateTime(attempt.finished_at)}
+                                            {formatSchoolDateTime(attempt.finished_at)}
                                         </p>
                                     </div>
                                 </div>
@@ -137,7 +140,7 @@ export default function StudentResultsPage() {
                                         </div>
                                     )}
                                 </div>
-                            </motion.div>
+                            </motion.button>
                         )
                     })}
 

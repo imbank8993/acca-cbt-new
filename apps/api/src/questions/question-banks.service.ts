@@ -63,7 +63,7 @@ export class QuestionBanksService {
             .from('cbt_question_banks')
             .select(
                 `*, profiles:cbt_profiles(full_name),
-                 bank_questions:cbt_bank_questions(count),
+                 bank_questions:cbt_bank_questions(id, metadata),
                  bank_folders(id, name)`,
             );
 
@@ -99,7 +99,7 @@ export class QuestionBanksService {
 
             return {
                 ...bank,
-                question_count: bank.bank_questions?.[0]?.count || 0,
+                question_count: (bank.bank_questions || []).filter((q: any) => !q.metadata?._deleted).length,
                 folder_id: bank.folder_id,
                 creator_name: known
                     ? profileName
@@ -123,6 +123,7 @@ export class QuestionBanksService {
 
     async create(user: AuthUser, organizationId: string, input: BankInput) {
         const resolved = await this.resolveOrganizationId(user, organizationId);
+        await this.assertFolderOrganization(input.folderId, resolved);
 
         const { data, error } = await this.db
             .from('cbt_question_banks')
@@ -150,7 +151,8 @@ export class QuestionBanksService {
     }
 
     async update(user: AuthUser, bankId: string, input: BankInput) {
-        await this.authz.assertBankAccess(user, bankId);
+        const organizationId = await this.authz.assertBankAccess(user, bankId);
+        await this.assertFolderOrganization(input.folderId, organizationId);
 
         const payload: Record<string, unknown> = {};
         if (input.title !== undefined) payload.title = input.title;
@@ -223,7 +225,8 @@ export class QuestionBanksService {
      */
     async moveToFolder(user: AuthUser, bankIds: string[], folderId: string | null) {
         for (const bankId of bankIds) {
-            await this.authz.assertBankAccess(user, bankId);
+            const organizationId = await this.authz.assertBankAccess(user, bankId);
+            await this.assertFolderOrganization(folderId, organizationId);
         }
 
         const { error } = await this.db
@@ -373,6 +376,13 @@ export class QuestionBanksService {
 
     private assertFolderAccess(user: AuthUser, folderId: string): Promise<void> {
         return this.authz.assertStaffByRecord(user, 'bank_folders', folderId);
+    }
+
+    private async assertFolderOrganization(folderId: string | null | undefined, organizationId: string) {
+        if (!folderId) return;
+        const { data, error } = await this.db.from('bank_folders')
+            .select('id').eq('id', folderId).eq('organization_id', organizationId).maybeSingle();
+        if (error || !data) throw new BadRequestException('Folder harus berasal dari organisasi bank soal yang sama.');
     }
 
     /**

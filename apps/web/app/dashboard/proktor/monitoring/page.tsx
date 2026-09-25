@@ -37,10 +37,12 @@ function MonitoringContent() {
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState('');
     const [analysisPage, setAnalysisPage] = useState(1);
+    const examRequestGenerationRef = useRef(0);
 
     useEffect(() => { loadInitialData(); }, []);
 
     useEffect(() => {
+        examRequestGenerationRef.current += 1;
         setAnalysisPage(1);
         if (selectedExamId) loadExamData(selectedExamId);
         else { setAttempts([]); setAnalysis([]); }
@@ -63,14 +65,13 @@ function MonitoringContent() {
     };
 
     const loadExamData = async (examId: string, silent = false) => {
+        const generation = ++examRequestGenerationRef.current;
         if (!silent) setIsRefreshing(true);
         try {
             const [attData, analysisData] = await Promise.all([
                 getExamAttemptsAction(examId),
                 getExamAnswersForAnalysisAction(examId)
             ]);
-            setAttempts(attData);
-
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
             (attData as any[]).forEach((att: any) => studentByAttempt.set(att.id, att.profiles?.full_name || 'Tanpa Nama'));
@@ -110,11 +111,13 @@ function MonitoringContent() {
                     incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
                 };
             }).sort((a: any, b: any) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
+            if (generation !== examRequestGenerationRef.current) return;
+            setAttempts(attData);
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
         }
-        if (!silent) setIsRefreshing(false);
+        if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
     };
 
     const handleRefresh = () => { if (selectedExamId) loadExamData(selectedExamId); };

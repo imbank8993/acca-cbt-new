@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import {
@@ -7,22 +7,15 @@ import {
     Check,
     CheckCheck,
     Trash2,
-    Filter,
     Clock,
     CheckCircle2,
     AlertCircle,
     Loader2,
-    Settings,
-    Calendar,
-    Award,
-    UserPlus,
-    FileText,
     ChevronRight,
-    Sparkles
 } from 'lucide-react';
 import { getSessionUser } from '@/lib/session';
 import {
-    getUserNotifications,
+    getUserNotificationsResult,
     getUnreadNotificationCount,
     markNotificationRead,
     markAllNotificationsRead,
@@ -37,49 +30,70 @@ import {
 } from '@/app/types/notification';
 
 type FilterType = 'all' | 'unread' | NotificationType;
+const PAGE_SIZE = 50;
 
 export default function NotificationsPage() {
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<Awaited<ReturnType<typeof getSessionUser>>>(null);
     const [notifications, setNotifications] = useMemoryState<Notification[]>('notifications_notifications', []);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useMemoryState('notifications_isLoading', true);
     const [filter, setFilter] = useState<FilterType>('all');
     const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set());
     const [isProcessing, setIsProcessing] = useState(false);
-    const [fullName, setFullName] = useState<string>('');
+    const [hasMore, setHasMore] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [loadError, setLoadError] = useState('');
+    const requestGeneration = useRef(0);
 
     // Fetch user
     useEffect(() => {
         async function fetchUser() {
             const user = await getSessionUser();
             setUser(user);
-            if (user) {
-                setFullName(user.fullName ?? '');
-            }
         }
         fetchUser();
     }, []);
 
     // Fetch notifications
-    const fetchNotifications = useCallback(async () => {
+    const loadNotifications = useCallback(async (offset = 0, append = false) => {
         if (!user) return;
-        setIsLoading(true);
+        const generation = append ? requestGeneration.current : ++requestGeneration.current;
+        if (append) setIsLoadingMore(true);
+        else setIsLoading(true);
+        setLoadError('');
         try {
-            const [notifs, count] = await Promise.all([
-                getUserNotifications({ limit: 50 }),
+            const [result, count] = await Promise.all([
+                getUserNotificationsResult({
+                    limit: PAGE_SIZE,
+                    offset,
+                    unreadOnly: filter === 'unread',
+                    type: filter !== 'all' && filter !== 'unread' ? filter : undefined,
+                }),
                 getUnreadNotificationCount()
             ]);
-            setNotifications(notifs);
+            if (generation !== requestGeneration.current) return;
+            if (!result.success) {
+                setLoadError(result.error);
+                return;
+            }
+            setNotifications(current => append ? [...current, ...result.notifications] : result.notifications);
+            setHasMore(result.notifications.length === PAGE_SIZE);
             setUnreadCount(count);
         } catch (error) {
+            if (generation !== requestGeneration.current) return;
             console.error('[Notifications] Fetch error:', error);
+            setLoadError('Notifikasi tidak dapat dimuat. Periksa koneksi lalu coba lagi.');
+        } finally {
+            if (generation === requestGeneration.current) {
+                setIsLoading(false);
+                setIsLoadingMore(false);
+            }
         }
-        setIsLoading(false);
-    }, [user]);
+    }, [filter, user, setIsLoading, setNotifications]);
 
     useEffect(() => {
-        fetchNotifications();
-    }, [fetchNotifications]);
+        loadNotifications();
+    }, [loadNotifications]);
 
     // Filter notifications
     const filteredNotifications = notifications.filter(notif => {
@@ -108,28 +122,28 @@ export default function NotificationsPage() {
     // Handle mark as read
     const handleMarkAsRead = async (id: string) => {
         await markNotificationRead(id);
-        fetchNotifications();
+        loadNotifications();
     };
 
     // Handle mark all as read
     const handleMarkAllAsRead = async () => {
         setIsProcessing(true);
         await markAllNotificationsRead();
-        fetchNotifications();
+        loadNotifications();
         setIsProcessing(false);
     };
 
     // Handle delete
     const handleDelete = async (id: string) => {
         await deleteNotification(id);
-        fetchNotifications();
+        loadNotifications();
     };
 
     // Handle delete all read
     const handleDeleteAllRead = async () => {
         setIsProcessing(true);
         await deleteAllReadNotifications();
-        fetchNotifications();
+        loadNotifications();
         setIsProcessing(false);
     };
 
@@ -151,7 +165,7 @@ export default function NotificationsPage() {
             await markNotificationRead(id);
         }
         setSelectedNotifications(new Set());
-        fetchNotifications();
+        loadNotifications();
         setIsProcessing(false);
     };
 
@@ -162,7 +176,7 @@ export default function NotificationsPage() {
             await deleteNotification(id);
         }
         setSelectedNotifications(new Set());
-        fetchNotifications();
+        loadNotifications();
         setIsProcessing(false);
     };
 
@@ -233,6 +247,16 @@ export default function NotificationsPage() {
                     <div className="flex flex-col items-center justify-center py-20 space-y-3">
                         <Loader2 size={36} className="animate-spin text-[#0038A8]" />
                         <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat notifikasi...</p>
+                    </div>
+                ) : loadError ? (
+                    <div role="alert" className="py-16 px-6 text-center bg-rose-50 border border-rose-200 rounded-2xl max-w-xl mx-auto w-full flex flex-col items-center">
+                        <AlertCircle size={32} className="text-rose-500 mb-3" />
+                        <h3 className="text-lg font-bold text-slate-700 mb-1">Notifikasi Belum Dapat Dimuat</h3>
+                        <p className="text-slate-600 text-sm max-w-sm mb-5">{loadError}</p>
+                        <button type="button" onClick={() => loadNotifications()}
+                            className="px-5 py-2.5 rounded-xl bg-[#0038A8] text-white text-xs font-bold hover:bg-[#002d87]">
+                            Coba Lagi
+                        </button>
                     </div>
                 ) : filteredNotifications.length === 0 ? (
                     <div className="py-20 px-6 text-center bg-white border border-dashed border-slate-200 rounded-2xl max-w-xl mx-auto w-full flex flex-col items-center">
@@ -356,6 +380,15 @@ export default function NotificationsPage() {
                                 </motion.div>
                             );
                         })}
+                        {hasMore && (
+                            <div className="flex justify-center pt-3">
+                                <button type="button" onClick={() => loadNotifications(notifications.length, true)} disabled={isLoadingMore}
+                                    className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 disabled:opacity-60 flex items-center gap-2">
+                                    {isLoadingMore && <Loader2 size={14} className="animate-spin" />}
+                                    Muat Lebih Banyak
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

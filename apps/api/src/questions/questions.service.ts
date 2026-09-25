@@ -2,32 +2,12 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
-/** Menemukan `src` setiap `<img>` di dalam HTML soal maupun opsinya. */
-const IMAGE_SRC_PATTERN = /<img[^>]+src=["']([^"']+)["']/g;
 
-/**
- * Soal di dalam bank: menyimpan, menghapus, dan mengurutkan.
- *
- * Dipindahkan dari `apps/web/app/actions/question.ts`. Tiga catatan penting:
- *
- *  - Penghapusan berkas gambar TIDAK dikerjakan di sini. NestJS tidak pernah
- *    menyentuh penyimpanan; `remove` mengembalikan daftar URL gambar yang menjadi
- *    yatim, dan route handler Next.js — satu-satunya yang memegang kredensial
- *    R2 — yang menghapusnya.
- *  - Siaran realtime `supabase.channel(...).send(...)` yang dulu memberitahu
- *    siswa saat soal berubah di tengah ujian TIDAK ikut pindah: Supabase sudah
- *    tidak ada, dan penggantinya (SSE dari NestJS) belum dikerjakan. Daftar
- *    ujian aktif tetap dikembalikan supaya guru tetap diperingatkan sebelum
- *    menyimpan. Ini penurunan kemampuan yang disengaja, bukan kelalaian —
- *    dicatat di docs/MIGRASI_BACKEND.md.
- *  - Penilaian ulang dijalankan MENUNGGU selesai, bukan dilepas ke latar.
- *    Versi lama memanggilnya tanpa `await` di dalam server action; saat
- *    permintaannya berakhir, prosesnya bisa ikut terhenti di tengah, dan
- *    sebagian peserta tertinggal dengan nilai berdasarkan kunci jawaban lama.
- */
+/** Saves and deletes question content atomically. Media is retained because HTML
+ * cannot prove ownership or exclusive use of an attachment. */
 @Injectable()
 export class QuestionsService {
     private readonly logger = new Logger(QuestionsService.name);
@@ -64,6 +44,7 @@ export class QuestionsService {
         }
 
         return ((data as any[]) || [])
+            .filter(question => !question.metadata?._deleted)
             .map((question) => ({
                 ...question,
                 bank_question_options: dedupeOptions(question.bank_question_options || []),
@@ -129,22 +110,24 @@ export class QuestionsService {
                 dimension_id: dto.dimensionId || null,
                 kisi_kisi_id: dto.kisi_kisi_id || null,
             };
-        const mutation = dto.id
-            ? this.db.from('cbt_bank_questions').update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
-            : this.db.from('cbt_bank_questions').insert(payload);
-        const { data, error } = await mutation
-            .select('id')
-            .single();
+        const questionId = await this.db.transaction(async db => {
+            const mutation = dto.id
+                ? db.from('cbt_bank_questions').update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
+                : db.from('cbt_bank_questions').insert(payload);
+            const { data, error } = await mutation
+                .select('id')
+                .single();
 
-        if (error) throw new BadRequestException(error.message);
+            if (error) throw new BadRequestException(error.message);
 
-        const questionId = (data as { id: string }).id;
+            const questionId = (data as { id: string }).id;
 
-        if (dto.options && dto.options.length > 0) {
-            await this.replaceOptions(questionId, dto.options);
-        }
-
-        await this.touchBank(dto.bankId);
+            if (dto.options !== undefined) {
+                await this.replaceOptions(questionId, dto.options, db);
+            }
+            await this.touchBank(dto.bankId, db);
+            return questionId;
+        });
 
         // Hanya untuk soal yang DIUBAH. Soal baru belum pernah dijawab siapa pun,
         // jadi tidak ada yang perlu dinilai ulang.
@@ -198,91 +181,84 @@ export class QuestionsService {
      * di sana tersimpan konfigurasi soal kompleks (kunci menjodohkan, urutan
      * benar, `order_index`) yang ikut musnah bila objeknya diganti.
      *
-     * `orphanedImages` berisi URL gambar yang tidak lagi dirujuk siapa pun.
-     * Penghapusan berkasnya dikerjakan pemanggil di sisi Next.js.
+     * Berkas gambar dipertahankan; URL dalam HTML bukan bukti kepemilikan.
      */
     async remove(user: AuthUser, questionId: string, bankId: string) {
         await this.authz.assertBankAccess(user, bankId);
 
-        // Penjagaan IDOR: pastikan soalnya memang milik bank yang barusan
-        // diotorisasi. Tanpa ini, bankId milik sendiri bisa dipakai untuk
-        // menghapus soal di bank guru lain.
-        const { data: target } = await this.db
-            .from('cbt_bank_questions')
-            .select('id, question_text, metadata')
-            .eq('id', questionId)
-            .eq('bank_id', bankId)
-            .maybeSingle();
-
-        if (!target) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
-
-        const question = target as {
-            question_text: string | null;
-            metadata: Record<string, unknown> | null;
-        };
-
-        const { data: answered } = await this.db
-            .from('cbt_exam_attempt_questions')
-            .select('id')
-            .eq('question_id', questionId)
-            .limit(1);
-
-        if (((answered as any[]) || []).length > 0) {
-            await this.db
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid FOR UPDATE', questionId);
+            // Penjagaan IDOR: pastikan soalnya memang milik bank yang barusan
+            // diotorisasi. Tanpa ini, bankId milik sendiri bisa dipakai untuk
+            // menghapus soal di bank guru lain.
+            const { data: target } = await db
                 .from('cbt_bank_questions')
-                .update({
-                    metadata: {
-                        ...(question.metadata || {}),
-                        _deleted: true,
-                        _deleted_at: new Date().toISOString(),
-                    },
-                })
+                .select('id, question_text, metadata')
+                .eq('id', questionId)
+                .eq('bank_id', bankId)
+                .maybeSingle();
+
+            if (!target) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
+
+            const question = target as {
+                question_text: string | null;
+                metadata: Record<string, unknown> | null;
+            };
+
+            const { data: answered, error: answerError } = await db
+                .from('cbt_exam_attempt_questions')
+                .select('id')
+                .eq('question_id', questionId)
+                .limit(1);
+
+            if (answerError) throw new BadRequestException(answerError.message);
+
+            if (((answered as any[]) || []).length > 0) {
+                const { error } = await db
+                    .from('cbt_bank_questions')
+                    .update({
+                        metadata: {
+                            ...(question.metadata || {}),
+                            _deleted: true,
+                            _deleted_at: new Date().toISOString(),
+                        },
+                    })
+                    .eq('id', questionId);
+
+                if (error) throw new BadRequestException(error.message);
+                await this.touchBank(bankId, db);
+
+                return {
+                    id: questionId,
+                    softDeleted: true,
+                    orphanedImages: [] as string[],
+                    message:
+                        'Soal sudah dipakai di jawaban ujian siswa, jadi ia disembunyikan dan ' +
+                        'bukan dihapus — jawaban yang merujuk padanya tetap utuh.',
+                };
+            }
+
+            // Opsinya lebih dulu: relasinya menunjuk ke soal.
+            const { error: optionsError } = await db
+                .from('cbt_bank_question_options')
+                .delete()
+                .eq('question_id', questionId);
+
+            if (optionsError) {
+                throw new BadRequestException(optionsError.message);
+            }
+
+            const { error } = await db
+                .from('cbt_bank_questions')
+                .delete()
                 .eq('id', questionId);
 
-            await this.touchBank(bankId);
+            if (error) throw new BadRequestException(error.message);
 
-            return {
-                id: questionId,
-                softDeleted: true,
-                orphanedImages: [] as string[],
-                message:
-                    'Soal sudah dipakai di jawaban ujian siswa, jadi ia disembunyikan dan ' +
-                    'bukan dihapus — jawaban yang merujuk padanya tetap utuh.',
-            };
-        }
+            await this.touchBank(bankId, db);
 
-        const { data: options } = await this.db
-            .from('cbt_bank_question_options')
-            .select('option_text')
-            .eq('question_id', questionId);
-
-        const orphanedImages = extractImageUrls([
-            question.question_text || '',
-            ...((options as Array<{ option_text: string | null }>) || []).map(
-                (o) => o.option_text || '',
-            ),
-        ]);
-
-        // Opsinya lebih dulu: relasinya menunjuk ke soal.
-        const { error: optionsError } = await this.db
-            .from('cbt_bank_question_options')
-            .delete()
-            .eq('question_id', questionId);
-
-        if (optionsError) {
-            this.logger.warn(`Gagal menghapus opsi soal ${questionId}: ${optionsError.message}`);
-        }
-
-        const { error } = await this.db
-            .from('cbt_bank_questions')
-            .delete()
-            .eq('id', questionId);
-
-        if (error) throw new BadRequestException(error.message);
-
-        await this.touchBank(bankId);
-
-        return { id: questionId, softDeleted: false, orphanedImages };
+            return { id: questionId, softDeleted: false, orphanedImages: [] as string[] };
+        });
     }
 
     /**
@@ -337,19 +313,10 @@ export class QuestionsService {
     private async replaceOptions(
         questionId: string,
         options: NonNullable<SaveQuestionDto['options']>,
+        db: DbSession = this.db,
     ): Promise<void> {
-        // Opsi kembar (teks dan status benar yang sama) dibuang di sini, bukan
-        // hanya saat ditampilkan: sumbernya biasanya salin-tempel berulang, dan
-        // membiarkannya membuat soal punya dua jawaban benar yang identik.
-        const seen = new Set<string>();
-        const unique = options.filter((option) => {
-            const text = (option.text || '').trim();
-            if (text === '') return true; // opsi kosong sengaja dipertahankan
-            const key = `${text}_${option.isCorrect}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
+        // Identical text may legitimately have different weights or dimensions.
+        const unique = options;
 
         const rows = unique.map((option, index) => ({
             id: option.id,
@@ -366,25 +333,27 @@ export class QuestionsService {
         const keepIds = existing.map((row) => row.id as string);
 
         if (keepIds.length > 0) {
-            await this.db
+            const { error } = await db
                 .from('cbt_bank_question_options')
                 .delete()
                 .eq('question_id', questionId)
                 .not('id', 'in', `(${keepIds.join(',')})`);
+            if (error) throw new BadRequestException(error.message);
         } else {
-            await this.db
+            const { error } = await db
                 .from('cbt_bank_question_options')
                 .delete()
                 .eq('question_id', questionId);
+            if (error) throw new BadRequestException(error.message);
         }
 
         if (created.length > 0) {
-            const { error } = await this.db.from('cbt_bank_question_options').insert(created);
+            const { error } = await db.from('cbt_bank_question_options').insert(created);
             if (error) throw new BadRequestException(error.message);
         }
 
         if (existing.length > 0) {
-            const { error } = await this.db
+            const { error } = await db
                 .from('cbt_bank_question_options')
                 .upsert(existing, { onConflict: 'id' });
             if (error) throw new BadRequestException(error.message);
@@ -404,29 +373,26 @@ export class QuestionsService {
     }
 
     /** Daftar bank soal diurutkan menurut perubahan terakhir. */
-    private async touchBank(bankId: string): Promise<void> {
-        await this.db
+    private async touchBank(bankId: string, db: DbSession = this.db): Promise<void> {
+        const { error } = await db
             .from('cbt_question_banks')
             .update({ updated_at: new Date().toISOString() })
             .eq('id', bankId);
+        if (error) throw new BadRequestException(error.message);
     }
 }
 
 /**
- * Buang opsi kembar, lalu urutkan menurut `order`.
+ * Remove duplicate join rows by ID, never by text or answer value.
  *
- * Kembarnya berasal dari hasil join berlapis maupun dari salin-tempel guru.
- * Opsi berteks kosong dipertahankan: itu opsi yang memang belum diisi, dan
- * membuangnya membuat barisnya hilang dari layar penyuntingan.
  */
 function dedupeOptions(options: any[]): any[] {
     const seen = new Set<string>();
 
     return options
         .filter((option) => {
-            const text = (option.option_text || '').trim();
-            if (text === '') return true;
-            const key = `${text}_${option.is_correct}`;
+            if (!option.id) return true;
+            const key = option.id;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -461,20 +427,3 @@ function compareQuestions(a: any, b: any): number {
     return String(a.id).localeCompare(String(b.id));
 }
 
-/** Kumpulkan URL gambar unik dari sekumpulan potongan HTML. */
-function extractImageUrls(htmlChunks: string[]): string[] {
-    const urls = new Set<string>();
-
-    for (const html of htmlChunks) {
-        if (!html) continue;
-        // `exec` berulang memakai `lastIndex` bersama, jadi regexnya direset
-        // untuk tiap potongan.
-        IMAGE_SRC_PATTERN.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = IMAGE_SRC_PATTERN.exec(html)) !== null) {
-            if (match[1]) urls.add(match[1]);
-        }
-    }
-
-    return [...urls];
-}

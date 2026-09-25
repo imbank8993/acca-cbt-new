@@ -5,6 +5,7 @@
  */
 import * as JSZip from 'jszip';
 import { QuestionType } from '@/lib/api/questions';
+import { readQuestionArchive } from './question-archive';
 // @ts-ignore
 import omml2mathml from 'omml2mathml';
 
@@ -241,7 +242,7 @@ function parseQuestionType(raw: string): QuestionType {
     if (/URUT|PENGURUTAN|ORDERING/i.test(raw)) return 'ordering';
     if (/LIKERT/i.test(raw)) return 'likert' as QuestionType;
     if (/FC|FORCED/i.test(raw)) return 'forced_choice' as QuestionType;
-    if (/CEK|CHECKLIST/i.test(raw)) return 'checklist' as QuestionType;
+    if (/^(CL|CEK)$|CHECKLIST/i.test(raw)) return 'checklist' as QuestionType;
     if (/RANK/i.test(raw)) return 'ranking' as QuestionType;
     if (/PC|PAIRED/i.test(raw)) return 'paired_comparison' as QuestionType;
     return 'mcq';
@@ -619,6 +620,9 @@ function parseQuestionTable(
                 dimension: isPersonality ? (kunciRaw || '') : '',
             };
             if (type === 'mcq_complex') currentMetadata.isComplex = true;
+            if (type === 'ordering' && currentKunci) {
+                currentMetadata.correct_order = currentKunci.split(/[,;|]+/).map(s => s.trim()).filter(Boolean);
+            }
 
             if (type === 'short_answer' && currentKunci) {
                 const blanks = currentKunci.split('|').map((part, idx) => {
@@ -654,22 +658,24 @@ function parseQuestionTable(
             const effectiveKunci = (!isBlank(kunciRaw)) ? kunciRaw : currentKunci;
 
             // ── Opsi PG/PGK: Tipe = A/B/C/D/E di kolom Tipe, teks di kolom Soal ─
-            if (['mcq', 'mcq_complex'].includes(current.type) && /^[A-E]$/i.test(tipeRaw) && !isBlank(soalRaw)) {
+            if (['mcq', 'mcq_complex'].includes(current.type) && /^[A-Z]+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
                 // Tipe = huruf opsi (A-E) → cek apakah ada di kunci baris utama
                 const kunciArr = currentKunci.split(/[,;|\/\\]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
                 const isCorrect = kunciArr.includes(tipeRaw.toUpperCase());
                 currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect, order: currentOpts.length, weight: isCorrect ? 1 : 0 });
             }
             // ── Sub-item BS: Tipe = P1/P2/P3... ───────────────────────────────────
-            else if (current.type === 'true_false' && /^P\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
-                const pNum = parseInt(tipeRaw.substring(1));
+            else if (current.type === 'true_false' && /^(P)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
+                const pNum = parseInt(tipeRaw.replace(/^P/i, ''));
                 // Kunci dari baris utama, contoh: "B|S|B" → ["B","S","B"]
                 const kunciArr = effectiveKunci.split('|').map(s => s.trim().toUpperCase());
-                const isBenar = kunciArr[pNum - 1] === 'B';
+                const key = kunciArr.length === 1 ? kunciArr[0] : kunciArr[pNum - 1];
+                if (!['B', 'S'].includes(key)) throw new Error(`Kunci Benar/Salah P${pNum} tidak valid.`);
+                const isBenar = key === 'B';
                 currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect: isBenar, order: currentOpts.length, weight: isBenar ? 1 : 0 });
             }
             // ── Sub-item MJ: Tipe = MJ1/MJ2/... ──────────────────────────────────
-            else if (current.type === 'matching' && /^MJ\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
+            else if (current.type === 'matching' && /^(MJ)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
                 // Kunci sub-row MJ = item kanan (jawaban yang cocok)
                 const matchText = (!isBlank(kunciRaw)) ? kunciRaw.trim() : '';
                 currentOpts.push({
@@ -677,15 +683,17 @@ function parseQuestionTable(
                     isCorrect: true,
                     order: currentOpts.length,
                     weight: 1,
-                    metadata: { match_texts: matchText ? [matchText] : [] }
+                    metadata: { match_texts: matchText ? matchText.split(' | ').map(s => s.trim()).filter(Boolean) : [] }
                 } as any);
                 if (matchText && current.metadata) {
                     const ri = (current.metadata.right_items as string[]);
-                    if (!ri.includes(matchText)) ri.push(matchText);
+                    for (const text of matchText.split(' | ').map(s => s.trim()).filter(Boolean)) {
+                        if (!ri.includes(text)) ri.push(text);
+                    }
                 }
             }
             // ── Sub-item CAT: Tipe = CAT1/CAT2/... ───────────────────────────────
-            else if (current.type === 'categorization' && /^CAT\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
+            else if (current.type === 'categorization' && /^(CAT)?\d+$/i.test(tipeRaw) && !isBlank(soalRaw)) {
                 // Kunci sub-row CAT = nama kategori(2)
                 const categoryRaw = (!isBlank(kunciRaw)) ? kunciRaw.trim() : '';
                 // Support comma-separated: "Mamalia, Vertebrata" → both categories assigned
@@ -709,7 +717,7 @@ function parseQuestionTable(
                 }
             }
             // ── Sub-item SJT: Tipe = A/B/C/D/E di kolom Tipe, skor/bobot di kolom Poin ─
-            else if (current.type === 'sjt' && /^[A-E]$/i.test(tipeRaw) && !isBlank(soalRaw)) {
+            else if (current.type === 'sjt' && (/^[A-Z]+$/i.test(tipeRaw) || !tipeRaw) && !isBlank(soalRaw)) {
                 const kunciArr = currentKunci.split(/[,;|\/\\]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
                 const isCorrect = kunciArr.includes(tipeRaw.toUpperCase());
                 const weight = !isNaN(parseFloat(skorRaw)) ? parseFloat(skorRaw) : 0;
@@ -720,7 +728,7 @@ function parseQuestionTable(
                 currentOpts.push({ text: stripOptionHtml(soalRaw), isCorrect: true, order: currentOpts.length, weight: 1 });
             }
             // ── Sub-item Kepribadian (FC/CEK/RANK/PC): Tipe = FC1, C1, R1, P1, A, B, dsb. ────
-            else if (['forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(current.type)) {
+            else if (['likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(current.type)) {
                 if (/^(FC|C|R|P|U|A|B|C|D|E|PC)?[\w-]*$/i.test(tipeRaw.trim()) && !isBlank(soalRaw)) {
                      const weight = !isNaN(parseFloat(skorRaw)) ? parseFloat(skorRaw) : (current.type === 'checklist' ? 1 : 0);
                      currentOpts.push({
@@ -760,10 +768,15 @@ function parseQuestionTable(
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
-const stripOptionHtml = (text: string) => text ? String(text).replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim() : '';
+// Keep option images and math; rendering sanitizes the HTML at its boundary.
+const stripOptionHtml = (text: string) => text ? String(text).trim() : '';
 
 export async function parseDocxToQuestions(file: File): Promise<ParsedQuestion[]> {
     try {
+        const archived = await readQuestionArchive(await file.arrayBuffer());
+        if (archived) return archived.map(q => ({ ...q, options: q.options.map(o => ({
+            ...o, isCorrect: o.isCorrect ?? o.is_correct ?? false,
+        })) }));
         const { tables, tableHeaders } = await extractTablesFromDocx(file);
         if (tables.length === 0) {
             console.warn('[doc-parser] Tidak ada tabel ditemukan dalam DOCX');
@@ -773,7 +786,7 @@ export async function parseDocxToQuestions(file: File): Promise<ParsedQuestion[]
         return questions;
     } catch (err: any) {
         console.error('[doc-parser] Error:', err);
-        return [];
+        throw err;
     }
 }
 

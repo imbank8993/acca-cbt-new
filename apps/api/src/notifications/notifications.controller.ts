@@ -38,15 +38,20 @@ export class NotificationsController {
     async list(
         @CurrentUser() user: AuthUser,
         @Query('limit') limit?: string,
+        @Query('offset') offset?: string,
+        @Query('type') type?: string,
         @Query('unreadOnly') unreadOnly?: string,
         @Query('includeExpired') includeExpired?: string,
     ) {
         const parsed = Number(limit);
+        const parsedOffset = Number(offset);
         return {
             notifications: await this.notifications.list(user, {
                 // Batas atas dipasang supaya satu permintaan tidak bisa menarik
                 // seluruh isi tabel.
                 limit: Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 100) : 20,
+                offset: Number.isFinite(parsedOffset) ? Math.max(Math.floor(parsedOffset), 0) : 0,
+                type: type && /^[a-z0-9_-]{1,50}$/i.test(type) ? type : undefined,
                 unreadOnly: unreadOnly === 'true',
                 includeExpired: includeExpired === 'true',
             }),

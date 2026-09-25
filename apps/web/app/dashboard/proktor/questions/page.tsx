@@ -12,6 +12,11 @@ import { getSessionUser } from '@/lib/session';
 import { uploadToHosting } from '@/lib/uploader';
 import Link from 'next/link';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { Button } from '@/app/components/ui/button';
+import { ActionButton } from '@/app/components/ui/actionbutton';
+import { Modal, ModalHeader, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
+import { FilterToolbar, FilterSearch, FilterSelect, FilterActions } from '@/app/components/ui/filtertoolbar';
+import { Spinner } from '@/app/components/ui/Spinner';
 
 const AVAILABLE_ICONS = [
     { id: 'BookOpen', icon: BookOpen, label: 'Buku' },
@@ -557,18 +562,37 @@ export default function ProktorQuestionBankPage() {
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => handleTogglePublish(bank)} className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-all ${bank.is_published ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200' : 'bg-[#0038A8] text-white hover:bg-[#0038A8]'}`}>
+            <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                    size="sm"
+                    variant={bank.is_published ? "outline" : "primary"}
+                    onClick={() => handleTogglePublish(bank)}
+                >
                     {bank.is_published ? 'Unpublish' : 'Publish'}
-                </button>
-                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="px-3 py-1.5 text-xs bg-[#030C4D]/10 text-[#030C4D] hover:bg-[#030C4D] hover:text-white rounded-lg transition-all flex items-center gap-1 border border-[#030C4D]/30">
-                    Lihat <ArrowRight size={12} />
+                </Button>
+                <Link href={`/dashboard/proktor/questions/${bank.id}`}>
+                    <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />}>
+                        Lihat
+                    </Button>
                 </Link>
-                <button onClick={() => handleOpenMoveBank(bank)} className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-transparent hover:border-[#030C4D]/30" title="Pindah ke folder">
-                    <FolderOpen size={14} />
-                </button>
-                <button onClick={() => handleOpenEdit(bank)} className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-transparent hover:border-[#030C4D]/30"><Edit3 size={14} /></button>
-                <button onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200"><Trash2 size={14} /></button>
+                <ActionButton
+                    action="move"
+                    iconOnly
+                    tooltip="Pindah ke folder"
+                    onClick={() => handleOpenMoveBank(bank)}
+                />
+                <ActionButton
+                    action="edit"
+                    iconOnly
+                    tooltip="Edit"
+                    onClick={() => handleOpenEdit(bank)}
+                />
+                <ActionButton
+                    action="delete"
+                    iconOnly
+                    tooltip="Hapus"
+                    onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }}
+                />
             </div>
         </div>
     );
@@ -594,161 +618,92 @@ export default function ProktorQuestionBankPage() {
             </div>
 
             {/* Search, Filters, and Actions Toolbar */}
-            <div className="flex flex-col xl:flex-row gap-3 mb-6 items-start xl:items-center w-full justify-between">
-                
-                {/* Left Area: Search + Filters */}
-                <div className="flex flex-col lg:flex-row gap-3 w-full xl:w-auto items-stretch lg:items-center flex-1">
-                    {/* Search */}
-                    <div className="relative w-full lg:w-64 shrink-0">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Cari bank soal..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-[#030C4D]/30 rounded-lg h-[38px] pl-9 pr-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 focus:border-[#030C4D] outline-none"
-                        />
-                    </div>
-                    
-                    {/* Filters (4 Dropdowns) */}
-                    <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 w-full lg:w-auto flex-1 xl:flex-none">
-                        {/* Filter Label */}
-                        <div className="relative w-full sm:w-auto sm:min-w-[140px]" ref={labelDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsLabelDropdownOpen(!isLabelDropdownOpen)}
-                                className="bg-white w-full border border-[#030C4D]/30 rounded-lg py-2 px-3 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 flex items-center justify-between gap-1.5 h-[38px] cursor-pointer"
-                            >
-                                <span className="truncate">{activeTagFilter ? activeTagFilter : 'Semua Label'}</span>
-                                <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                            </button>
-                            
-                            {isLabelDropdownOpen && (
-                                <div className="absolute left-0 mt-1.5 w-full sm:w-56 bg-white border border-[#030C4D]/30 rounded-lg shadow-xl z-50 p-2 space-y-2">
-                                    <input type="text" placeholder="Cari label..." value={labelSearchQuery} onChange={e => setLabelSearchQuery(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-md py-1.5 px-3 text-xs outline-none focus:border-[#030C4D]" />
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                        <button type="button" onClick={() => { setActiveTagFilter(null); setIsLabelDropdownOpen(false); setLabelSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${!activeTagFilter ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>Semua Label</button>
-                                        {labels.filter(label => label.name.toLowerCase().includes(labelSearchQuery.toLowerCase())).map(label => (
-                                            <button key={label.id} type="button" onClick={() => { setActiveTagFilter(label.name); setIsLabelDropdownOpen(false); setLabelSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors flex items-center justify-between cursor-pointer ${activeTagFilter === label.name ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>
-                                                <span className="truncate">{label.name}</span>
-                                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: label.color }} />
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+            <div className="mb-6">
+                <FilterToolbar>
+                    <FilterSearch
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Cari bank soal..."
+                    />
 
-                        {/* Filter Mapel */}
-                        <div className="relative w-full sm:w-auto sm:min-w-[140px]" ref={subjectDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsSubjectDropdownOpen(!isSubjectDropdownOpen)}
-                                className="bg-white w-full border border-[#030C4D]/30 rounded-lg py-2 px-3 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 flex items-center justify-between gap-1.5 h-[38px] cursor-pointer"
-                            >
-                                <span className="truncate">{activeSubjectFilter ? activeSubjectFilter : 'Semua Mapel'}</span>
-                                <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                            </button>
-                            
-                            {isSubjectDropdownOpen && (
-                                <div className="absolute left-0 mt-1.5 w-full sm:w-56 bg-white border border-[#030C4D]/30 rounded-lg shadow-xl z-50 p-2 space-y-2">
-                                    <input type="text" placeholder="Cari mapel..." value={subjectSearchQuery} onChange={e => setSubjectSearchQuery(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-md py-1.5 px-3 text-xs outline-none focus:border-[#030C4D]" />
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                        <button type="button" onClick={() => { setActiveSubjectFilter(null); setIsSubjectDropdownOpen(false); setSubjectSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${!activeSubjectFilter ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>Semua Mapel</button>
-                                        {subjects.filter(s => s.toLowerCase().includes(subjectSearchQuery.toLowerCase())).map(s => (
-                                            <button key={s} type="button" onClick={() => { setActiveSubjectFilter(s); setIsSubjectDropdownOpen(false); setSubjectSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${activeSubjectFilter === s ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>
-                                                <span className="truncate">{s}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                    <FilterSelect
+                        label="Label"
+                        value={activeTagFilter || 'all'}
+                        onChange={val => setActiveTagFilter(val === 'all' ? null : val)}
+                        options={[
+                            { value: 'all', label: 'Semua Label' },
+                            ...labels.map(l => ({ value: l.name, label: l.name }))
+                        ]}
+                    />
 
-                        {/* Filter Pembuat */}
-                        <div className="relative w-full sm:w-auto sm:min-w-[140px]" ref={creatorDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsCreatorDropdownOpen(!isCreatorDropdownOpen)}
-                                className="bg-white w-full border border-[#030C4D]/30 rounded-lg py-2 px-3 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 flex items-center justify-between gap-1.5 h-[38px] cursor-pointer"
-                            >
-                                <span className="truncate">{activeCreatorFilter ? activeCreatorFilter : 'Semua Pembuat'}</span>
-                                <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                            </button>
-                            
-                            {isCreatorDropdownOpen && (
-                                <div className="absolute left-0 mt-1.5 w-full sm:w-56 bg-white border border-[#030C4D]/30 rounded-lg shadow-xl z-50 p-2 space-y-2">
-                                    <input type="text" placeholder="Cari pembuat..." value={creatorSearchQuery} onChange={e => setCreatorSearchQuery(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-md py-1.5 px-3 text-xs outline-none focus:border-[#030C4D]" />
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                        <button type="button" onClick={() => { setActiveCreatorFilter(null); setIsCreatorDropdownOpen(false); setCreatorSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${!activeCreatorFilter ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>Semua Pembuat</button>
-                                        {creators.filter(c => c.toLowerCase().includes(creatorSearchQuery.toLowerCase())).map(c => (
-                                            <button key={c} type="button" onClick={() => { setActiveCreatorFilter(c); setIsCreatorDropdownOpen(false); setCreatorSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${activeCreatorFilter === c ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>
-                                                <span className="truncate">{c}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                    <FilterSelect
+                        label="Mata Pelajaran"
+                        value={activeSubjectFilter || 'all'}
+                        onChange={val => setActiveSubjectFilter(val === 'all' ? null : val)}
+                        options={[
+                            { value: 'all', label: 'Semua Mapel' },
+                            ...subjects.map(s => ({ value: s, label: s }))
+                        ]}
+                    />
 
-                        {/* Filter Kelas */}
-                        <div className="relative w-full sm:w-auto sm:min-w-[140px]" ref={classDropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
-                                className="bg-white w-full border border-[#030C4D]/30 rounded-lg py-2 px-3 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 flex items-center justify-between gap-1.5 h-[38px] cursor-pointer"
-                            >
-                                <span className="truncate">{activeClassFilter ? activeClassFilter : 'Semua Kelas'}</span>
-                                <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                            </button>
-                            
-                            {isClassDropdownOpen && (
-                                <div className="absolute left-0 mt-1.5 w-full sm:w-56 bg-white border border-[#030C4D]/30 rounded-lg shadow-xl z-50 p-2 space-y-2">
-                                    <input type="text" placeholder="Cari kelas..." value={classSearchQuery} onChange={e => setClassSearchQuery(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-md py-1.5 px-3 text-xs outline-none focus:border-[#030C4D]" />
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
-                                        <button type="button" onClick={() => { setActiveClassFilter(null); setIsClassDropdownOpen(false); setClassSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${!activeClassFilter ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>Semua Kelas</button>
-                                        {CLASS_LEVELS.filter(c => c.toLowerCase().includes(classSearchQuery.toLowerCase())).map(c => (
-                                            <button key={c} type="button" onClick={() => { setActiveClassFilter(c); setIsClassDropdownOpen(false); setClassSearchQuery(''); }} className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors cursor-pointer ${activeClassFilter === c ? 'bg-[#030C4D]/10 text-[#030C4D] font-semibold' : 'hover:bg-slate-50 text-slate-600'}`}>
-                                                <span className="truncate">{c}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                    <FilterSelect
+                        label="Pembuat"
+                        value={activeCreatorFilter || 'all'}
+                        onChange={val => setActiveCreatorFilter(val === 'all' ? null : val)}
+                        options={[
+                            { value: 'all', label: 'Semua Pembuat' },
+                            ...creators.map(c => ({ value: c, label: c }))
+                        ]}
+                    />
 
-                {/* Right Area: Action Buttons */}
-                <div className="flex flex-row items-center gap-2 w-full sm:w-auto shrink-0 pt-2 xl:pt-0">
-                    {isProctor && (
-                        <button onClick={handleOpenCreateFolder} className="flex-1 sm:flex-none justify-center px-4 py-2 text-sm bg-white text-[#030C4D] border border-[#030C4D] rounded-lg hover:bg-[#030C4D]/5 flex items-center gap-1.5 h-[38px] cursor-pointer whitespace-nowrap font-medium transition-colors">
-                            <FolderPlus size={15} /> Folder
-                        </button>
-                    )}
-                    <button onClick={() => setIsAddModalOpen(true)} className="flex-1 sm:flex-none justify-center px-4 py-2 text-sm bg-[#030C4D] text-white border border-[#030C4D] rounded-lg hover:bg-[#020510] flex items-center gap-1.5 font-semibold h-[38px] cursor-pointer whitespace-nowrap transition-colors">
-                        <Plus size={16} /> Buat
-                    </button>
-                </div>
+                    <FilterSelect
+                        label="Kelas"
+                        value={activeClassFilter || 'all'}
+                        onChange={val => setActiveClassFilter(val === 'all' ? null : val)}
+                        options={[
+                            { value: 'all', label: 'Semua Kelas' },
+                            ...CLASS_LEVELS.map(c => ({ value: c, label: c }))
+                        ]}
+                    />
+
+                    <FilterActions>
+                        {isProctor && (
+                            <Button
+                                variant="secondary"
+                                onClick={handleOpenCreateFolder}
+                                leftIcon={<FolderPlus size={15} />}
+                            >
+                                Folder
+                            </Button>
+                        )}
+                        <Button
+                            variant="primary"
+                            onClick={() => setIsAddModalOpen(true)}
+                            icon="add"
+                        >
+                            Buat Bank Soal
+                        </Button>
+                    </FilterActions>
+                </FilterToolbar>
             </div>
 
             {/* Bulk Actions Panel */}
             {selectedBankIds.size > 0 && (
-                <div className="bg-[#030C4D]/5 border border-[#030C4D]/30 rounded-lg p-3.5 flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-[#030C4D]/5 border border-[#030C4D]/30 rounded-xl p-3.5 flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-[#0038A8] rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
                         <span className="text-xs font-bold text-[#030C4D] uppercase tracking-wider">{selectedBankIds.size} Bank Soal Terpilih</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={handleSelectAll} className="px-3.5 py-2 text-xs font-semibold bg-white border border-[#030C4D]/30 text-[#030C4D] hover:bg-[#030C4D]/5 rounded-lg transition-all cursor-pointer">
+                        <Button size="sm" variant="secondary" onClick={handleSelectAll}>
                             Pilih Semua
-                        </button>
-                        <button onClick={() => setIsBulkMoveModalOpen(true)} className="px-3.5 py-2 text-xs font-semibold bg-[#0038A8] text-white hover:bg-[#0038A8] rounded-lg flex items-center gap-1.5 transition-all cursor-pointer">
-                            <FolderOpen size={13} /> Pindahkan ke Folder
-                        </button>
-                        <button onClick={handleClearSelection} className="px-3.5 py-2 text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-all cursor-pointer">
+                        </Button>
+                        <Button size="sm" variant="primary" onClick={() => setIsBulkMoveModalOpen(true)} leftIcon={<FolderOpen size={13} />}>
+                            Pindahkan ke Folder
+                        </Button>
+                        <Button size="sm" variant="cancel" onClick={handleClearSelection} icon="cancel">
                             Batal
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}
@@ -757,7 +712,7 @@ export default function ProktorQuestionBankPage() {
             <div className="block md:hidden space-y-3">
                 {isLoading ? (
                     <div className="flex justify-center py-12">
-                        <div className="w-8 h-8 border-2 border-[#0038A8]/20 border-t-[#030C4D] rounded-full animate-spin"></div>
+                        <Spinner variant="buble" size={32} />
                     </div>
                 ) : filteredBanks.length === 0 ? (
                     <div className="py-12 text-center text-slate-400">
@@ -800,15 +755,22 @@ export default function ProktorQuestionBankPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleTogglePublish(bank)} className={`flex-1 px-3 py-2 text-xs rounded-lg font-semibold transition-all ${bank.is_published ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-[#0038A8] text-white'}`}>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant={bank.is_published ? "outline" : "primary"}
+                                    onClick={() => handleTogglePublish(bank)}
+                                    className="flex-1"
+                                >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
-                                </button>
-                                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="flex-1 px-3 py-2 text-xs bg-[#030C4D]/10 text-[#030C4D] hover:bg-[#030C4D] hover:text-white rounded-lg transition-all flex items-center justify-center gap-1 border border-[#030C4D]/30">
-                                    Lihat <ArrowRight size={12} />
+                                </Button>
+                                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="flex-1">
+                                    <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
+                                        Lihat
+                                    </Button>
                                 </Link>
-                                <button onClick={() => handleOpenEdit(bank)} className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-transparent hover:border-[#030C4D]/30"><Edit3 size={14} /></button>
-                                <button onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200"><Trash2 size={14} /></button>
+                                <ActionButton action="edit" iconOnly tooltip="Edit" onClick={() => handleOpenEdit(bank)} />
+                                <ActionButton action="delete" iconOnly tooltip="Hapus" onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />
                             </div>
                         </div>
                     ))
@@ -819,7 +781,7 @@ export default function ProktorQuestionBankPage() {
             <div className="hidden md:block space-y-3">
                 {isLoading ? (
                     <div className="flex justify-center py-16">
-                        <div className="w-8 h-8 border-3 border-slate-200 border-t-primary rounded-full animate-spin"></div>
+                        <Spinner variant="buble" size={32} />
                     </div>
                 ) : filteredBanks.length === 0 ? (
                     <div className="py-16 text-center text-slate-400">
@@ -1005,292 +967,394 @@ export default function ProktorQuestionBankPage() {
             </div>
 
             {/* Folder Modal */}
-            <AnimatePresence>
-                {isFolderModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => setIsFolderModalOpen(false)} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10">
-                            <button onClick={() => setIsFolderModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-4">{editingFolder ? 'Edit Folder' : 'Buat Folder Baru'}</h3>
-                            <form onSubmit={handleSaveFolder} className="space-y-4">
-                                <input
-                                    required
-                                    type="text"
-                                    placeholder="Nama Folder"
-                                    value={newFolderName}
-                                    onChange={e => setNewFolderName(e.target.value)}
-                                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                                />
-                                <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-primary text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-                                    {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                    {editingFolder ? 'Simpan' : 'Buat Folder'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <Modal
+                open={isFolderModalOpen}
+                onClose={() => { setIsFolderModalOpen(false); setEditingFolder(null); }}
+                size="sm"
+                variant={editingFolder ? 'edit' : 'add'}
+                title={editingFolder ? 'Edit Folder' : 'Buat Folder Baru'}
+                subtitle={editingFolder ? 'Ubah nama folder bank soal' : 'Kelompokkan bank soal dalam folder'}
+                icon="folder"
+            >
+                <form onSubmit={handleSaveFolder}>
+                    <ModalBody className="space-y-4">
+                        <ModalField label="Nama Folder" required>
+                            <input
+                                required
+                                type="text"
+                                placeholder="Nama Folder"
+                                value={newFolderName}
+                                onChange={e => setNewFolderName(e.target.value)}
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                                autoFocus
+                            />
+                        </ModalField>
+                    </ModalBody>
+                    <ModalFooter align="between">
+                        <Button
+                            type="button"
+                            variant="cancel"
+                            onClick={() => { setIsFolderModalOpen(false); setEditingFolder(null); }}
+                            icon="cancel"
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            isLoading={isSubmitting}
+                            icon="save"
+                        >
+                            {editingFolder ? 'Simpan' : 'Buat Folder'}
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             {/* Move to Folder Modal */}
-            <AnimatePresence>
-                {isMoveModalOpen && bankToMove && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => setIsMoveModalOpen(false)} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10">
-                            <button onClick={() => setIsMoveModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Pindahkan Bank Soal</h3>
-                            <p className="text-sm text-slate-500 mb-4">Pilih folder untuk "{bankToMove.title}"</p>
-                            <div className="space-y-2 mb-4">
-                                <button
-                                    onClick={() => handleMoveBank(null)}
-                                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${!bankToMove.folder_id ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 hover:border-primary/40'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Folder size={14} /> Tanpa Folder
-                                    </div>
-                                </button>
-                                {folders.map(folder => (
-                                    <button
-                                        key={folder.id}
-                                        onClick={() => handleMoveBank(folder.id)}
-                                        className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${bankToMove.folder_id === folder.id ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 hover:border-primary/40'}`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <Folder size={14} /> {folder.name}
-                                        </div>
-                                    </button>
-                                ))}
-                                {folders.length === 0 && (
-                                    <p className="text-xs text-slate-400 text-center py-4">Belum ada folder. Buat folder terlebih dahulu.</p>
-                                )}
+            <Modal
+                open={isMoveModalOpen && !!bankToMove}
+                onClose={() => { setIsMoveModalOpen(false); setBankToMove(null); }}
+                size="sm"
+                title="Pindahkan Bank Soal"
+                subtitle={`Pilih folder tujuan untuk "${bankToMove?.title}"`}
+                icon="folder"
+            >
+                <ModalBody className="space-y-2">
+                    <button
+                        type="button"
+                        onClick={() => handleMoveBank(null)}
+                        className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${!bankToMove?.folder_id ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 hover:border-primary/40'}`}
+                    >
+                        <div className="flex items-center gap-2">
+                            <Folder size={14} /> Tanpa Folder
+                        </div>
+                    </button>
+                    {folders.map(folder => (
+                        <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => handleMoveBank(folder.id)}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${bankToMove?.folder_id === folder.id ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 hover:border-primary/40'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Folder size={14} /> {folder.name}
                             </div>
-                            <button onClick={() => setIsMoveModalOpen(false)} className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium">Batal</button>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                        </button>
+                    ))}
+                    {folders.length === 0 && (
+                        <p className="text-xs text-slate-400 text-center py-4">Belum ada folder. Buat folder terlebih dahulu.</p>
+                    )}
+                </ModalBody>
+                <ModalFooter>
+                    <Button
+                        type="button"
+                        variant="cancel"
+                        onClick={() => { setIsMoveModalOpen(false); setBankToMove(null); }}
+                        icon="cancel"
+                    >
+                        Batal
+                    </Button>
+                </ModalFooter>
+            </Modal>
 
             {/* Add Existing Banks to Folder Modal */}
-            <AnimatePresence>
-                {isAddToFolderModalOpen && targetFolder && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => setIsAddToFolderModalOpen(false)} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative z-10 max-h-[80vh] flex flex-col">
-                            <button onClick={() => setIsAddToFolderModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-1">Tambah ke "{targetFolder.name}"</h3>
-                            <p className="text-sm text-slate-500 mb-4">Pilih bank soal untuk ditambahkan:</p>
-                            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                                {banks.filter(b => !b.folder_id || b.folder_id !== targetFolder.id).length === 0 ? (
-                                    <div className="text-center text-slate-400 py-8">
-                                        <BookOpen size={24} className="mx-auto mb-2 opacity-50" />
-                                        <p className="text-sm">Semua bank soal sudah ada di folder ini</p>
-                                        <p className="text-xs mt-1">atau belum ada bank soal</p>
-                                    </div>
-                                ) : (
-                                    banks
-                                        .filter(b => !b.folder_id || b.folder_id !== targetFolder.id)
-                                        .map(bank => (
-                                            <div
-                                                key={bank.id}
-                                                onClick={() => {
-                                                    setSelectedAddToFolderIds(prev => {
-                                                        const next = new Set(prev);
-                                                        if (next.has(bank.id)) next.delete(bank.id);
-                                                        else next.add(bank.id);
-                                                        return next;
-                                                    });
-                                                }}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedAddToFolderIds.has(bank.id) ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/40'}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedAddToFolderIds.has(bank.id)}
-                                                    onChange={() => {}}
-                                                    className="w-4 h-4 text-primary border-slate-300 rounded"
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-slate-800 text-sm truncate">{bank.title}</p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${bank.is_published ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                            {bank.is_published ? 'Published' : 'Draft'}
-                                                        </span>
-                                                        <span className="text-xs text-slate-400">{bank.question_count || 0} soal</span>
-                                                        {bank.subject && <span className="text-xs text-slate-400">• {bank.subject}</span>}
-                                                        {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                )}
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => setIsAddToFolderModalOpen(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium">Batal</button>
-                                <button
-                                    onClick={handleAddBanksToFolder}
-                                    disabled={selectedAddToFolderIds.size === 0 || isSubmitting}
-                                    className="flex-1 py-2.5 bg-primary text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+            <Modal
+                open={isAddToFolderModalOpen && !!targetFolder}
+                onClose={() => setIsAddToFolderModalOpen(false)}
+                size="md"
+                title={`Tambah ke "${targetFolder?.name}"`}
+                subtitle="Pilih bank soal untuk dimasukkan ke dalam folder ini"
+                icon="folder-plus"
+            >
+                <ModalBody className="max-h-[60vh] overflow-y-auto space-y-2">
+                    {banks.filter(b => !b.folder_id || b.folder_id !== targetFolder?.id).length === 0 ? (
+                        <div className="text-center text-slate-400 py-8">
+                            <BookOpen size={24} className="mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Semua bank soal sudah ada di folder ini</p>
+                            <p className="text-xs mt-1">atau belum ada bank soal</p>
+                        </div>
+                    ) : (
+                        banks
+                            .filter(b => !b.folder_id || b.folder_id !== targetFolder?.id)
+                            .map(bank => (
+                                <div
+                                    key={bank.id}
+                                    onClick={() => {
+                                        setSelectedAddToFolderIds(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(bank.id)) next.delete(bank.id);
+                                            else next.add(bank.id);
+                                            return next;
+                                        });
+                                    }}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedAddToFolderIds.has(bank.id) ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/40'}`}
                                 >
-                                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                                    Tambah {selectedAddToFolderIds.size > 0 ? `(${selectedAddToFolderIds.size})` : ''}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Bulk Move to Folder Modal */}
-            <AnimatePresence>
-                {isBulkMoveModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => setIsBulkMoveModalOpen(false)} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10">
-                            <button onClick={() => setIsBulkMoveModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Pindahkan {selectedBankIds.size} Bank Soal</h3>
-                            <p className="text-sm text-slate-500 mb-4">Pilih folder tujuan:</p>
-                            <div className="space-y-2 mb-4">
-                                <button
-                                    onClick={() => handleBulkMove(null)}
-                                    className="w-full text-left px-4 py-3 rounded-xl border transition-all border-slate-200 hover:border-primary/40"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <Folder size={14} /> Hapus dari Folder (Tanpa Folder)
-                                    </div>
-                                </button>
-                                {folders.map(folder => (
-                                    <button
-                                        key={folder.id}
-                                        onClick={() => handleBulkMove(folder.id)}
-                                        className="w-full text-left px-4 py-3 rounded-xl border transition-all border-slate-200 hover:border-primary/40"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <Folder size={14} /> {folder.name}
-                                        </div>
-                                    </button>
-                                ))}
-                                {folders.length === 0 && (
-                                    <p className="text-xs text-slate-400 text-center py-4">Belum ada folder. Buat folder terlebih dahulu.</p>
-                                )}
-                            </div>
-                            <button onClick={() => setIsBulkMoveModalOpen(false)} className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium">Batal</button>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Add/Edit Modal */}
-            <AnimatePresence>
-                {isAddModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => { setIsAddModalOpen(false); setEditingBank(null); }} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative z-10">
-                            <button onClick={() => { setIsAddModalOpen(false); setEditingBank(null); }} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-4">{editingBank ? 'Edit Bank Soal' : 'Buat Bank Soal Baru'}</h3>
-                            <form onSubmit={handleSaveBank} className="space-y-4">
-                                <input required type="text" placeholder="Judul Bank Soal" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
-                                <input
-                                        type="text"
-                                        list="subject-suggestions"
-                                        placeholder="Ketik nama mapel..."
-                                        value={formData.subject}
-                                        onChange={e => setFormData({ ...formData, subject: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedAddToFolderIds.has(bank.id)}
+                                        onChange={() => {}}
+                                        className="w-4 h-4 text-primary border-slate-300 rounded"
                                     />
-                                    <datalist id="subject-suggestions">
-                                        {orgSubjects.map((sub, idx) => (
-                                            <option key={idx} value={sub.name} />
-                                        ))}
-                                    </datalist>
-                                {folders.length > 0 && (
-                                    <select
-                                        value={formData.folderId || ''}
-                                        onChange={e => setFormData({ ...formData, folderId: e.target.value || undefined })}
-                                        className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                                    >
-                                        <option value="">Pilih Folder (opsional)</option>
-                                        {folders.map(folder => (
-                                            <option key={folder.id} value={folder.id}>{folder.name}</option>
-                                        ))}
-                                    </select>
-                                )}
-                                <select value={formData.classLevel} onChange={e => setFormData({ ...formData, classLevel: e.target.value })} className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none">
-                                    <option value="">Pilih Tingkat</option>
-                                    <option value="Kelas 10">Kelas 10 (SMA)</option>
-                                    <option value="Kelas 11">Kelas 11 (SMA)</option>
-                                    <option value="Kelas 12">Kelas 12 (SMA)</option>
-                                    <option value="Umum">Umum (Guru/Trainer)</option>
-                                </select>
-                                <textarea placeholder="Deskripsi (opsional)" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none min-h-[80px]" />
-                                <label className="flex items-center gap-3 p-4 border border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary/40">
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                    <Upload size={18} className="text-slate-400" />
-                                    <span className="text-sm text-slate-500">{formData.imageUrl ? 'Ganti Cover' : 'Upload Cover'}</span>
-                                </label>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Label</label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {labels.map(label => (
-                                            <button
-                                                key={label.id}
-                                                type="button"
-                                                onClick={() => toggleTag(label.name)}
-                                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${formData.tags.includes(label.name) ? 'text-white' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}
-                                                style={formData.tags.includes(label.name) ? { backgroundColor: label.color, borderColor: label.color } : {}}
-                                            >
-                                                {label.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <div className="flex gap-2 mt-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Tulis & tambah label baru..."
-                                            value={newCustomLabel}
-                                            onChange={e => setNewCustomLabel(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    handleCreateCustomLabel();
-                                                }
-                                            }}
-                                            className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleCreateCustomLabel}
-                                            className="px-3 py-2 bg-primary text-white text-xs font-medium rounded-xl hover:bg-primary-hover transition-colors"
-                                        >
-                                            Tambah
-                                        </button>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-slate-800 text-sm truncate">{bank.title}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${bank.is_published ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                {bank.is_published ? 'Published' : 'Draft'}
+                                            </span>
+                                            <span className="text-xs text-slate-400">{bank.question_count || 0} soal</span>
+                                            {bank.subject && <span className="text-xs text-slate-400">• {bank.subject}</span>}
+                                            {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
+                                        </div>
                                     </div>
                                 </div>
-                                <button type="submit" disabled={isSubmitting || uploadingImage} className="w-full py-3 bg-primary text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-                                    {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                    {editingBank ? 'Simpan' : 'Buat Bank Soal'}
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                            ))
+                    )}
+                </ModalBody>
+                <ModalFooter align="between">
+                    <Button
+                        type="button"
+                        variant="cancel"
+                        onClick={() => setIsAddToFolderModalOpen(false)}
+                        icon="cancel"
+                    >
+                        Batal
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleAddBanksToFolder}
+                        disabled={selectedAddToFolderIds.size === 0 || isSubmitting}
+                        isLoading={isSubmitting}
+                        icon="add"
+                    >
+                        Tambah {selectedAddToFolderIds.size > 0 ? `(${selectedAddToFolderIds.size})` : ''}
+                    </Button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Bulk Move to Folder Modal */}
+            <Modal
+                open={isBulkMoveModalOpen}
+                onClose={() => setIsBulkMoveModalOpen(false)}
+                size="sm"
+                title={`Pindahkan ${selectedBankIds.size} Bank Soal`}
+                subtitle="Pilih folder tujuan untuk semua bank soal terpilih"
+                icon="folder-symlink"
+            >
+                <ModalBody className="space-y-2">
+                    <button
+                        type="button"
+                        onClick={() => handleBulkMove(null)}
+                        className="w-full text-left px-4 py-3 rounded-xl border transition-all border-slate-200 hover:border-primary/40"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Folder size={14} /> Hapus dari Folder (Tanpa Folder)
+                        </div>
+                    </button>
+                    {folders.map(folder => (
+                        <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => handleBulkMove(folder.id)}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all border-slate-200 hover:border-primary/40`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Folder size={14} /> {folder.name}
+                            </div>
+                        </button>
+                    ))}
+                    {folders.length === 0 && (
+                        <p className="text-xs text-slate-400 text-center py-4">Belum ada folder. Buat folder terlebih dahulu.</p>
+                    )}
+                </ModalBody>
+                <ModalFooter>
+                    <Button
+                        type="button"
+                        variant="cancel"
+                        onClick={() => setIsBulkMoveModalOpen(false)}
+                        icon="cancel"
+                    >
+                        Batal
+                    </Button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Add/Edit Modal */}
+            <Modal
+                open={isAddModalOpen}
+                onClose={() => { setIsAddModalOpen(false); setEditingBank(null); }}
+                size="md"
+                variant={editingBank ? 'edit' : 'add'}
+                title={editingBank ? 'Edit Bank Soal' : 'Buat Bank Soal Baru'}
+                subtitle={editingBank ? 'Perbarui informasi bank soal' : 'Isi formulir untuk membuat paket bank soal baru'}
+                icon={editingBank ? 'pencil-square' : 'journal-plus'}
+            >
+                <form onSubmit={handleSaveBank}>
+                    <ModalBody className="space-y-4 max-h-[70vh] overflow-y-auto">
+                        <ModalField label="Judul Bank Soal" required>
+                            <input
+                                required
+                                type="text"
+                                placeholder="Judul Bank Soal"
+                                value={formData.title}
+                                onChange={e => setFormData({ ...formData, title: e.target.value })}
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                            />
+                        </ModalField>
+                        <ModalField label="Mata Pelajaran">
+                            <input
+                                type="text"
+                                list="subject-suggestions"
+                                placeholder="Ketik nama mapel..."
+                                value={formData.subject}
+                                onChange={e => setFormData({ ...formData, subject: e.target.value })}
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                            />
+                            <datalist id="subject-suggestions">
+                                {orgSubjects.map((sub, idx) => (
+                                    <option key={idx} value={sub.name} />
+                                ))}
+                            </datalist>
+                        </ModalField>
+                        {folders.length > 0 && (
+                            <ModalField label="Folder">
+                                <select
+                                    value={formData.folderId || ''}
+                                    onChange={e => setFormData({ ...formData, folderId: e.target.value || undefined })}
+                                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                                >
+                                    <option value="">Pilih Folder (opsional)</option>
+                                    {folders.map(folder => (
+                                        <option key={folder.id} value={folder.id}>{folder.name}</option>
+                                    ))}
+                                </select>
+                            </ModalField>
+                        )}
+                        <ModalField label="Tingkat Kelas">
+                            <select
+                                value={formData.classLevel}
+                                onChange={e => setFormData({ ...formData, classLevel: e.target.value })}
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
+                            >
+                                <option value="">Pilih Tingkat</option>
+                                <option value="Kelas 10">Kelas 10 (SMA)</option>
+                                <option value="Kelas 11">Kelas 11 (SMA)</option>
+                                <option value="Kelas 12">Kelas 12 (SMA)</option>
+                                <option value="Umum">Umum (Guru/Trainer)</option>
+                            </select>
+                        </ModalField>
+                        <ModalField label="Deskripsi">
+                            <textarea
+                                placeholder="Deskripsi (opsional)"
+                                value={formData.description}
+                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none min-h-[80px]"
+                            />
+                        </ModalField>
+                        <ModalField label="Cover Bank Soal">
+                            <label className="flex items-center gap-3 p-4 border border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary/40">
+                                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                <Upload size={18} className="text-slate-400" />
+                                <span className="text-sm text-slate-500">{formData.imageUrl ? 'Ganti Cover' : 'Upload Cover'}</span>
+                            </label>
+                        </ModalField>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Label</label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {labels.map(label => (
+                                    <button
+                                        key={label.id}
+                                        type="button"
+                                        onClick={() => toggleTag(label.name)}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${formData.tags.includes(label.name) ? 'text-white' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}
+                                        style={formData.tags.includes(label.name) ? { backgroundColor: label.color, borderColor: label.color } : {}}
+                                    >
+                                        {label.name}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                                <input
+                                    type="text"
+                                    placeholder="Tulis & tambah label baru..."
+                                    value={newCustomLabel}
+                                    onChange={e => setNewCustomLabel(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleCreateCustomLabel();
+                                        }
+                                    }}
+                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
+                                />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={handleCreateCustomLabel}
+                                >
+                                    Tambah
+                                </Button>
+                            </div>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter align="between">
+                        <Button
+                            type="button"
+                            variant="cancel"
+                            onClick={() => { setIsAddModalOpen(false); setEditingBank(null); }}
+                            icon="cancel"
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            isLoading={isSubmitting || uploadingImage}
+                            icon="save"
+                        >
+                            {editingBank ? 'Simpan' : 'Buat Bank Soal'}
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             {/* Delete Modal */}
-            <AnimatePresence>
-                {isDeleteModalOpen && bankToDelete && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={() => setIsDeleteModalOpen(false)} />
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10">
-                            <button onClick={() => setIsDeleteModalOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Hapus Bank Soal</h3>
-                            <p className="text-sm text-slate-500 mb-4">Yakin ingin menghapus "{bankToDelete.title}"? Tindakan ini tidak dapat dibatalkan.</p>
-                            <div className="flex gap-3">
-                                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium">Batal</button>
-                                <button onClick={handleDeleteBank} disabled={isSubmitting} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-medium disabled:opacity-50">Hapus</button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <Modal
+                open={isDeleteModalOpen && !!bankToDelete}
+                onClose={() => { setIsDeleteModalOpen(false); setBankToDelete(null); }}
+                size="sm"
+                variant="delete"
+                title="Hapus Bank Soal"
+                subtitle="Tindakan ini permanen dan tidak dapat dibatalkan"
+                icon="trash"
+            >
+                <ModalBody>
+                    <p className="text-sm text-slate-600">
+                        Yakin ingin menghapus <strong className="text-slate-900">"{bankToDelete?.title}"</strong> beserta seluruh soal di dalamnya?
+                    </p>
+                </ModalBody>
+                <ModalFooter align="between">
+                    <Button
+                        type="button"
+                        variant="cancel"
+                        onClick={() => { setIsDeleteModalOpen(false); setBankToDelete(null); }}
+                        icon="cancel"
+                    >
+                        Batal
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="danger"
+                        onClick={handleDeleteBank}
+                        isLoading={isSubmitting}
+                        icon="delete"
+                    >
+                        Hapus
+                    </Button>
+                </ModalFooter>
+            </Modal>
         </div>
     );
 }
