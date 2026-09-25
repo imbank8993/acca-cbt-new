@@ -640,6 +640,26 @@ export default function BulkImportModal({
                                             </div>
                                         </div>
                                     )}
+
+                                    {parseResult?.warnings && parseResult.warnings.length > 0 && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5">
+                                            <h4 className="font-semibold text-amber-800 flex items-center gap-2 mb-2 text-xs">
+                                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                                Peringatan ({parseResult.warnings.length}):
+                                            </h4>
+                                            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                                {parseResult.warnings.map((warn, idx) => (
+                                                    <div key={idx} className="flex items-start gap-2 text-xs text-amber-800">
+                                                        <span className="text-amber-500 font-bold">•</span>
+                                                        <span>
+                                                            {warn.row > 0 && <strong className="font-semibold">Baris/Soal {warn.row}: </strong>}
+                                                            {warn.message}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <button onClick={selectAll} className="px-3 py-1.5 text-xs font-medium bg-slate-100 rounded-lg hover:bg-slate-200">Pilih Semua</button>
@@ -709,6 +729,12 @@ export default function BulkImportModal({
                                                                         {optionLabel(optIdx)}. <LatexRenderer text={opt.text} />
                                                                     </span>
                                                                 ))}
+                                                            </div>
+                                                        )}
+                                                        {q.warnings && q.warnings.length > 0 && (
+                                                            <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50/80 px-2.5 py-1 rounded border border-amber-200">
+                                                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                                <span>{q.warnings.join('; ')}</span>
                                                             </div>
                                                         )}
                                                     </div>

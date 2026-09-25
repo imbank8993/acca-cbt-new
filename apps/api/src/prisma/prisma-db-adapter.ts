@@ -149,7 +149,12 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
    */
   private castPlaceholder(column: string, placeholder: string): string {
     const type = this.registry.columnType(this.table, column);
-    if (!type) return placeholder;
+    if (!type) {
+      if (column === 'updated_at' || column === 'created_at' || column === 'deleted_at') {
+        return `${placeholder}::timestamptz`;
+      }
+      return placeholder;
+    }
     const sqlType = type.startsWith('_') ? `${type.slice(1)}[]` : type;
     return `${placeholder}::${sqlType}`;
   }

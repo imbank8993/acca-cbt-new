@@ -156,7 +156,12 @@ export class RelationRegistry {
    * dulu; memakai SQL mentah berarti pekerjaan itu pindah ke sini.
    */
   columnType(table: string, column: string): string | null {
-    return this.columnTypes.get(table)?.get(column) ?? null;
+    const cached = this.columnTypes.get(table)?.get(column);
+    if (cached) return cached;
+    if (column === 'updated_at' || column === 'created_at' || column === 'deleted_at') {
+      return 'timestamptz';
+    }
+    return null;
   }
 
   /**

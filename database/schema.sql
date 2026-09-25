@@ -170,7 +170,8 @@ create table if not exists question_banks (
   description text,
   created_by uuid references profiles(id),
   is_published boolean default false,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 create table if not exists bank_questions (
