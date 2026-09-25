@@ -33,7 +33,10 @@ const TWELVE_HOURS = 12 * 60 * 60;
  */
 export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
-    const origin = request.nextUrl.origin;
+    let origin = request.nextUrl.origin;
+    if (origin.includes('0.0.0.0')) {
+        origin = process.env.NEXT_PUBLIC_SITE_URL || origin.replace('0.0.0.0', 'localhost');
+    }
 
     if (!token) {
         return NextResponse.redirect(new URL('/?error=missing-token', origin));
