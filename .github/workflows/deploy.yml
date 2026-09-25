@@ -54,8 +54,6 @@ jobs:
     name: Deploy to VPS
     needs: verify
     runs-on: ubuntu-latest
-    # Jalankan jika rahasia host SSH telah disetel di GitHub Secrets
-    if: "${{ secrets.VPS_HOST != '' || secrets.SSH_HOST != '' }}"
     steps:
       - name: Trigger Remote Deployment via SSH
         uses: appleboy/ssh-action@v1.0.3
