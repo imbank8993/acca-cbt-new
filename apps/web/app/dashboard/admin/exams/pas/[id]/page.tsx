@@ -216,31 +216,26 @@ export default function ProctorPASDetailPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20">
             {/* ── Hero Header — Navy Gradient ── */}
-            <div className="relative overflow-hidden rounded-2xl acca-hero-gradient shadow-xl shadow-[#0038A8]/20">
-                {/* Decorative blobs */}
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-[#0038A8]/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-
-                <div className="relative z-10 px-6 py-4 flex items-start gap-4">
-                    <Link href="/dashboard/admin/pas" className="mt-1 p-2 text-white hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/20">
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
-                                period.is_locked ? 'bg-red-500/20 text-white border border-red-500/30' : 'bg-emerald-500/20 text-white border border-emerald-500/30'
-                            }`}>
-                                {period.type?.toUpperCase()} {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
-                            </span>
-                            <span className="px-2.5 py-0.5 bg-white/10 text-white text-[10px] font-bold tracking-wider rounded-full border border-white/20">{period.school_year}</span>
-                            {period.is_locked && <span className="px-2.5 py-0.5 bg-red-500/20 text-white border border-red-500/30 text-[10px] font-bold tracking-wider rounded-full flex items-center gap-1"><Lock size={10} /> TERKUNCI</span>}
-                        </div>
-                        <h1 className="text-2xl font-bold text-white mb-1.5">{period.name}</h1>
-                        <p className="text-white text-sm font-semibold flex items-center gap-1.5">
-                            <Calendar size={14} />
-                            {formatDate(period.start_date)} — {formatDate(period.end_date)}
-                        </p>
+                        {/* Period Details Bar */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex items-start gap-4">
+                <Link href="/dashboard/admin/exams" className="mt-1 p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all border border-slate-200">
+                    <ArrowLeft size={18} />
+                </Link>
+                <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
+                            period.is_locked ? "bg-red-50 text-red-600 border border-red-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                        }`}>
+                            {period.type?.toUpperCase()} {period.semester === "ganjil" ? "GANJIL" : "GENAP"}
+                        </span>
+                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wider rounded-full border border-slate-200">{period.school_year}</span>
+                        {period.is_locked && <span className="px-2.5 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold tracking-wider rounded-full flex items-center gap-1"><Lock size={10} /> TERKUNCI</span>}
                     </div>
+                    <h1 className="text-xl font-bold text-slate-800 mb-1">{period.name}</h1>
+                    <p className="text-slate-500 text-xs font-semibold flex items-center gap-1.5">
+                        <Calendar size={13} />
+                        {formatDate(period.start_date)} — {formatDate(period.end_date)}
+                    </p>
                 </div>
             </div>
 

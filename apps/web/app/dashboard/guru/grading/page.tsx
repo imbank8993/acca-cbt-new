@@ -170,50 +170,40 @@ function GradingContent() {
 
     return (
         <div className="space-y-8 pb-20 animate-in fade-in duration-700">
-            <header className="relative p-10 overflow-hidden rounded-lg acca-hero-gradient text-white shadow-xl shadow-[#0038A8]/20 mb-10">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 blur-[80px] -mr-20 -mt-20 rounded-full"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 blur-[60px] -ml-16 -mb-16 rounded-full"></div>
-
-                <div className="relative flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="text-center md:text-left">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest mb-4 border border-white/10"
-                        >
-                            <BarChart3 size={10} className="text-white" /> Exam Grading & Reports
-                        </motion.div>
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tighter mb-2 uppercase flex items-center justify-center md:justify-start gap-4">
-                            Hasil & <span className="text-blue-200">Penilaian</span>
-                        </h1>
-                        <p className="text-white/60 font-bold max-w-sm text-sm uppercase tracking-tight">
-                            Laporan nilai dan analisis butir soal
-                        </p>
+                        {/* Exam Selector Toolbar */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-[#0038A8]/10 text-[#0038A8] flex items-center justify-center">
+                        <BarChart3 size={20} />
                     </div>
-
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <select
-                            value={selectedExamId}
-                            onChange={(e) => setSelectedExamId(e.target.value)}
-                            className="flex-1 md:w-72 bg-white/10 border border-white/20 text-white focus:ring-2 focus:ring-white outline-none p-4 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg"
-                        >
-                            <option value="" className="text-slate-900">-- Pilih Ujian --</option>
-                            {exams.map(exam => (
-                                <option key={exam.id} value={exam.id} className="text-slate-900">{exam.title}</option>
-                            ))}
-                        </select>
-
-                        <button
-                            onClick={handleRefresh}
-                            disabled={isRefreshing || !selectedExamId}
-                            className="bg-white/10 border border-white/20 text-white hover:bg-white hover:text-[#0038A8] p-4 rounded-2xl transition-all shadow-lg disabled:opacity-50"
-                            title="Segarkan Data"
-                        >
-                            <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
-                        </button>
+                    <div>
+                        <h2 className="text-base font-bold text-slate-800">Laporan & Penilaian Ujian</h2>
+                        <p className="text-xs text-slate-400">Pilih ujian untuk melihat rekap nilai dan analisis butir soal</p>
                     </div>
                 </div>
-            </header>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <select
+                        value={selectedExamId}
+                        onChange={(e) => setSelectedExamId(e.target.value)}
+                        className="flex-1 sm:w-72 bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#0038A8] outline-none px-3.5 py-2.5 rounded-xl text-xs font-semibold"
+                    >
+                        <option value="">-- Pilih Ujian --</option>
+                        {exams.map(exam => (
+                            <option key={exam.id} value={exam.id}>{exam.title}</option>
+                        ))}
+                    </select>
+
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || !selectedExamId}
+                        className="p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:text-[#0038A8] hover:bg-slate-50 transition-all disabled:opacity-50"
+                        title="Segarkan Data"
+                    >
+                        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+                    </button>
+                </div>
+            </div>
 
             {!selectedExamId ? (
                 <div className="py-20 text-center bg-white border border-slate-100 rounded-[2rem]">

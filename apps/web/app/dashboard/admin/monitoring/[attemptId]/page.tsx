@@ -129,53 +129,49 @@ export default function AttemptAnalyticsPage() {
     return (
         <div className="max-w-7xl mx-auto pb-24">
             {/* Header Area */}
-            <div className="relative overflow-hidden rounded-lg acca-hero-gradient mb-6 shadow-xl shadow-[#0038A8]/20">
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-[#0038A8]/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl" />
+                        {/* Header Area */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs mb-6 px-6 py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <button
+                        onClick={() => router.back()}
+                        className="group flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-all text-xs font-semibold mb-2"
+                    >
+                        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> Kembali ke Monitor
+                    </button>
+                    <h1 className="text-xl md:text-2xl font-bold text-slate-800 flex flex-wrap items-center gap-2">
+                        Detail Analitik <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded text-xs font-mono">ID: {attempt.id.split('-')[0]}</span>
+                    </h1>
+                    <p className="text-slate-500 text-sm flex flex-wrap items-center gap-2 mt-1">
+                        <User size={14} /> {studentName} <span className="mx-1">•</span> <Activity size={14} /> {examTitle}
+                    </p>
+                </div>
 
-                <div className="relative px-8 py-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2.5">
+                    {['auto_submitted', 'submitted'].includes(attempt.status) && (
                         <button
-                            onClick={() => router.back()}
-                            className="group flex items-center gap-2 text-white hover:text-white transition-all text-xs font-semibold mb-3"
+                            onClick={handleResetAttempt}
+                            disabled={resetting}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-xs"
                         >
-                            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> Kembali ke Monitor
+                            {resetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+                            Reset Ujian
                         </button>
-                        <h1 className="text-xl md:text-2xl font-bold text-white mb-2 flex flex-wrap items-center gap-3">
-                            Detail Analitik <span className="px-2.5 py-1 bg-white/20 border border-white/30 text-white rounded text-xs">ID: {attempt.id.split('-')[0]}</span>
-                        </h1>
-                        <p className="text-white text-sm flex flex-wrap items-center gap-2">
-                            <User size={14} /> {studentName} <span className="mx-1">•</span> <Activity size={14} /> {examTitle}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-end gap-3">
-                        {['auto_submitted', 'submitted'].includes(attempt.status) && (
-                            <button
-                                onClick={handleResetAttempt}
-                                disabled={resetting}
-                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-sm"
-                            >
-                                {resetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-                                Reset Ujian
-                            </button>
-                        )}
-                        {attempt.needs_manual_grading && (
-                            <div className="px-4 py-2 bg-white/20 border border-white/40 text-white rounded-lg text-sm font-semibold flex items-center gap-2 animate-pulse">
-                                <AlertTriangle size={16} /> Menunggu Penilaian Uraian
-                            </div>
-                        )}
-                        {Object.keys(grades).length > 0 && (
-                            <button
-                                onClick={handleSave}
-                                disabled={submitting}
-                                className="bg-[#0038A8] hover:bg-[#0038A8] text-white font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-[#0038A8]/20 disabled:opacity-50 text-sm"
-                            >
-                                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                Simpan Perubahan
-                            </button>
-                        )}
-                    </div>
+                    )}
+                    {attempt.needs_manual_grading && (
+                        <div className="px-3.5 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                            <AlertTriangle size={14} /> Menunggu Penilaian Uraian
+                        </div>
+                    )}
+                    {Object.keys(grades).length > 0 && (
+                        <button
+                            onClick={handleSave}
+                            disabled={submitting}
+                            className="bg-[#0038A8] hover:bg-[#002d86] text-white font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 text-sm"
+                        >
+                            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                            Simpan Perubahan
+                        </button>
+                    )}
                 </div>
             </div>
 

@@ -202,6 +202,7 @@ export default function NotificationsPage() {
                             </span>
                         )}
                     </button>
+                ))}
                 </div>
 
                 {selectedNotifications.size > 0 && (

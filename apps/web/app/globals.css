@@ -52,6 +52,7 @@ mjx-container svg {
 }
 
 .acca-hero-gradient {
+  display: none !important;
   background: linear-gradient(135deg, #0038A8 0%, #c2185b 100%) !important;
 }
 
