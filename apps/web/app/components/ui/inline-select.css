@@ -1,0 +1,79 @@
+/**
+ * Select ringkas untuk dipakai sebaris dengan <ActionButton>.
+ *
+ * Dua hal yang jadi alasan komponen ini ada:
+ * 1. Tingginya dikunci ke --uisel-h (default 34px = tinggi .ui-action di
+ *    action-buttons.css), supaya select dan tombol aksi di sebelahnya rata.
+ * 2. Panahnya memakai ikon drop-down yang berputar saat fokus, bukan
+ *    background-image bawaan select biasa.
+ */
+.uisel {
+    --uisel-h: 34px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.uisel select.uisel-input {
+    height: var(--uisel-h);
+    width: 100%;
+    padding: 0 26px 0 10px !important;
+    border: 1.5px solid var(--n-border, #e2e8f0);
+    border-radius: 6px;
+    background-color: var(--n-card, #ffffff);
+    background-image: none !important;
+    color: var(--n-ink, #0f172a);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    transition: border-color 0.15s ease;
+}
+
+.uisel select.uisel-input:focus {
+    outline: none;
+    border-color: var(--n-primary, #3083FF);
+}
+
+.uisel select.uisel-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.uisel-icon {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 6px;
+    margin: auto 0;
+    color: #64748b;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+}
+
+.uisel:focus-within .uisel-icon {
+    transform: rotate(180deg);
+    color: var(--n-primary, #3083FF);
+}
+
+.dark .uisel select.uisel-input {
+    background-color: #000000 !important;
+    border: 1.5px solid rgba(59, 130, 246, 0.75) !important;
+    color: #e2e8f0 !important;
+}
+
+.dark .uisel select.uisel-input:focus {
+    border-color: #38bdf8 !important;
+}
+
+.dark .uisel-icon {
+    color: #60a5fa;
+}
+
+.dark .uisel:focus-within .uisel-icon {
+    color: #38bdf8;
+}

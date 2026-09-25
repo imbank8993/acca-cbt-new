@@ -1,0 +1,1845 @@
+/* =========================================================
+   FilterToolbar — satu desain filter dipakai bersama
+   Prefix global: .ftb-*  (jangan dipakai untuk hal lain)
+   Dipakai oleh: app/wali-kelas/**, dan halaman lain yang
+   butuh baris filter di atas konten.
+   ========================================================= */
+
+.ftb-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    /* Row-gap (16) sengaja lebih besar dari column-gap (12). Row-gap HANYA
+       terasa saat toolbar membungkus — dan saat itu yang turun ke baris kedua
+       biasanya baris tombol aksi. Dengan jarak yang sama besar, tombol terbaca
+       satu rumpun dengan kolom filter di atasnya; selisih ini yang memisahkan
+       "apa yang disaring" dari "apa yang dilakukan". Toolbar satu baris tidak
+       terpengaruh sama sekali. */
+    gap: 16px 12px;
+    padding: 10px 14px;
+    background: var(--n-card);
+    border: 1px solid var(--n-border);
+    border-radius: 14px;
+    transition: all 0.2s ease;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0;
+}
+
+/* Sembunyikan label di toolbar utama agar tampilan ringkas dan modern */
+.ftb-toolbar .ftb-label {
+    display: none;
+}
+
+/* Lebar per-field diatur lewat custom property, supaya bisa di-override
+   per halaman (prop `width`/`grow`) tanpa mematahkan aturan mobile di bawah. */
+.ftb-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-grow: var(--ftb-grow, 1);
+    flex-shrink: 1;
+    flex-basis: var(--ftb-basis, 145px);
+    min-width: var(--ftb-min, 140px);
+}
+
+.ftb-field--search {
+    --ftb-grow: 3;
+    --ftb-basis: 220px;
+    --ftb-min: 180px;
+}
+
+.ftb-field--search .ftb-box {
+    border-radius: 9999px;
+    padding: 0 14px 0 10px;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid var(--n-border);
+}
+
+.ftb-field--search .ftb-box > i {
+    flex-shrink: 0;
+    font-size: 0.92rem;
+    color: #94a3b8;
+    margin-left: 2px;
+    margin-right: 0px;
+}
+
+.ftb-field--search .ftb-box:focus-within {
+    border-color: var(--n-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.ftb-field--search .ftb-box:focus-within > i {
+    color: var(--n-primary);
+}
+
+.ftb-field--search .ftb-box .ftb-input {
+    padding: 6px 4px !important;
+    font-size: 13px !important;
+}
+
+.ftb-field--search .ftb-box .ftb-input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+    font-weight: 400;
+}
+
+.ftb-field--search .ftb-clear-btn {
+    margin-right: 0px;
+}
+
+.ftb-field--wide {
+    --ftb-grow: 3;
+    --ftb-basis: 200px;
+    --ftb-min: 180px;
+}
+
+.ftb-field--date-range > div:last-child {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.ftb-field--date-range .dpk-trigger {
+    min-width: 0;
+    flex: 1 1 0;
+    width: 100%;
+}
+
+/* Slot aksi pintar: sebaris jika cukup ruang, otomatis di baris 2 secara rapi jika banyak.
+   `0 1 auto` (bukan `0 0 auto`): blok aksi ikut mengecil saat sempit. Dengan
+   `0 0 auto`, seluruh tekanan lebar dilempar ke field filter — akibatnya field
+   yang identik jadi beda lebar antar halaman hanya karena jumlah tombolnya beda
+   (terukur: 4 field @177px dengan 1 tombol vs @149px dengan 5 tombol). */
+.ftb-field--action {
+    flex: 0 1 auto !important;
+    margin-left: auto !important;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ftb-field--full {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+}
+
+/* Tombol aksi.
+   `justify-content: flex-end` supaya 1 tombol dan 4 tombol sama-sama menempel
+   ke kanan — posisinya konsisten berapa pun jumlahnya. */
+.ftb-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.ftb-actions-split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ftb-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ftb-actions-group > button,
+.ftb-actions-group > .ui-btn {
+    min-width: 120px;
+    justify-content: center;
+}
+
+/* Desktop / Mobile Button Text Switcher */
+.btn-text-desktop {
+  display: inline;
+}
+.btn-text-mobile {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .btn-text-desktop {
+    display: none !important;
+  }
+  .btn-text-mobile {
+    display: inline !important;
+  }
+}
+
+.ftb-actions > button,
+.ftb-actions > .ui-btn,
+.ftb-actions > .btn-action-soft,
+.ftb-actions > .btn-action-primary {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+}
+
+.ftb-label {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--n-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+/* Spacer agar tombol aksi sejajar baseline dengan field berlabel */
+.ftb-label--spacer {
+    visibility: hidden;
+}
+
+.ftb-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 38px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    background: var(--n-card);
+    border: 1px solid var(--n-border);
+    border-radius: 8px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ftb-box:focus-within {
+    border-color: var(--n-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.ftb-box > i,
+.ftb-box > svg,
+.ftb-box > .ftb-icon-elem {
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--n-muted);
+}
+
+.ftb-box .ftb-input {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 6px 4px !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    color: var(--n-text) !important;
+}
+
+.ftb-clear-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin: 0 2px 0 0;
+    border: none;
+    background: rgba(148, 163, 184, 0.25);
+    color: #64748b;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+    outline: none;
+}
+
+.ftb-clear-btn:hover {
+    background: #ef4444;
+    color: #ffffff;
+    transform: scale(1.08);
+}
+
+.ftb-clear-btn i {
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.dark .ftb-clear-btn {
+    background: rgba(255, 255, 255, 0.15);
+    color: #94a3b8;
+}
+
+.dark .ftb-clear-btn:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.ftb-box select.ftb-input {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    cursor: pointer;
+    padding-right: 28px !important;
+    /* Panah light mode dari globals.css (`select:not(.kh-input)`) harus dimatikan:
+       toolbar sudah punya panahnya sendiri (.ftb-select-icon), kalau tidak jadi ganda. */
+    background-image: none !important;
+}
+
+.ftb-select-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.ftb-select-icon {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 8px;
+    margin: auto 0;
+    color: #64748b;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+}
+
+.ftb-select-wrapper:focus-within .ftb-select-icon,
+.ftb-select-input:focus + .ftb-select-icon {
+    transform: rotate(180deg);
+    color: var(--n-primary);
+}
+
+.ftb-box input.ftb-input::placeholder {
+    color: var(--n-muted);
+    opacity: 0.8;
+}
+
+.ftb-box input.ftb-input[type="month"],
+.ftb-box input.ftb-input[type="date"] {
+    cursor: pointer;
+}
+
+.ftb-box input.ftb-input[type="month"]::-webkit-calendar-picker-indicator,
+.ftb-box input.ftb-input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.ftb-field--disabled .ftb-box,
+.ftb-box:has(.ftb-input:disabled) {
+    opacity: 0.6;
+}
+
+.ftb-field--disabled .ftb-box .ftb-input,
+.ftb-box .ftb-input:disabled {
+    cursor: not-allowed;
+}
+
+/* DatePicker bersama disamakan tingginya dengan field lain */
+.ftb-toolbar .ftb-field .dpk-trigger {
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--n-card);
+}
+
+/* Tombol Kembali (slot leading) */
+.ftb-backBtn {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--n-card, #ffffff);
+    border: 1px solid var(--n-border, #e2e8f0);
+    color: #3083FF;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ftb-backBtn:hover {
+    border-color: #3083FF;
+    background: rgba(48, 131, 255, 0.05);
+}
+
+.ftb-backBtn:active {
+    background: rgba(48, 131, 255, 0.1);
+}
+
+.dark .ftb-backBtn,
+html.dark .ftb-backBtn {
+    background: #0f172a;
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #60a5fa;
+}
+
+.dark .ftb-backBtn:hover,
+html.dark .ftb-backBtn:hover {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: #60a5fa;
+}
+
+@media (max-width: 639px) {
+    .ftb-backBtn {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        font-size: 1.1rem;
+    }
+    .dark .ftb-backBtn,
+    html.dark .ftb-backBtn {
+        background: #0f172a;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* Tombol aksi */
+
+.ftb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.ftb-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ftb-btn--export {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.ftb-btn--export:hover:not(:disabled) {
+    background: #059669;
+}
+
+.ftb-btn--primary {
+    background: var(--n-primary);
+    color: #ffffff;
+}
+
+.ftb-btn--primary:hover:not(:disabled) {
+    filter: brightness(0.94);
+}
+
+.ftb-actions .ftb-btn--ghost,
+.ftb-btn--ghost {
+    background: var(--n-soft);
+    color: var(--n-ink);
+    border: 1.5px solid var(--n-border);
+}
+
+.ftb-actions .ftb-btn--ghost:hover:not(:disabled),
+.ftb-btn--ghost:hover:not(:disabled) {
+    border-color: var(--n-primary);
+    color: var(--n-primary);
+    background: var(--n-card);
+}
+
+/* Toggle (mis. "Hari Ini") */
+.ftb-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 12px;
+    box-sizing: border-box;
+    background: var(--n-card);
+    border: 1px solid var(--n-border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--n-text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ftb-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ftb-toggle-track {
+    position: relative;
+    flex-shrink: 0;
+    width: 34px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--n-border);
+    transition: background 0.2s ease;
+}
+
+.ftb-toggle-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+    transition: transform 0.2s ease;
+}
+
+.ftb-toggle input:checked + .ftb-toggle-track {
+    background: var(--n-primary);
+}
+
+.ftb-toggle input:checked + .ftb-toggle-track::after {
+    transform: translateX(16px);
+}
+
+/* ===================== Desktop / Mobile Layout ===================== */
+
+.ftb-desktop-wrap {
+    display: contents;
+}
+
+.ftb-mobile-wrap {
+    display: none;
+}
+
+.sk__more,
+.sk__menuItemMobileOnly,
+.mobile-only {
+    display: none !important;
+}
+
+@media (max-width: 639px) {
+    /* Menempel tepat di bawah header saat digulir.
+       Di halaman berisi ratusan baris, kolom cari adalah satu-satunya jalan
+       untuk menemukan sesuatu; kalau ia ikut tergulir, satu-satunya cara mencari
+       adalah menggulir balik ke atas. Tab bar SENGAJA tidak ikut ditempel —
+       kartunya ~89px, dan dua strip menetap memakan ~145px permanen.
+
+       Sticky di sini hanya bekerja karena `overflow-x` html/body sudah `clip`,
+       bukan `hidden` (lihat catatan di app/globals.css). */
+    /* TANPA KONTAINER. Pil cari dan tombol "…" melayang langsung di atas
+       kanvas — keduanya sudah punya latar, tepi, dan bentuknya sendiri, jadi
+       kotak pembungkus di belakangnya hanya menambah satu bidang lagi yang
+       harus dijelaskan bentuknya. Yang menandai "ini menempel" cukup bayangan
+       di masing-masing kontrol.
+
+       Konsekuensi yang disengaja: baris daftar terlihat lewat di sela-sela
+       kontrol. Itu memang wujud melayang; kalau ingin batas tegas, kontainer
+       harus dikembalikan. */
+    .ftb-toolbar {
+        position: sticky;
+        /* +12px, SAMA dengan padding-top .content-area (app/globals.css).
+           Kalau beda, pil cari melompat sejauh selisihnya tepat pada saat ia
+           menempel — dulu 8px, jadi ia naik 4px begitu halaman digulir. */
+        top: calc(var(--app-header-h, 56px) + env(safe-area-inset-top) + 12px);
+        z-index: 30;
+        gap: 8px !important;
+        /* Consistent 12px gap between filter toolbar and data cards/list on mobile */
+        margin-bottom: 12px !important;
+
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* TIDAK ADA PITA BURAM DI BELAKANG TOOLBAR — jangan ditambahkan lagi.
+       Dulu di sini ada `.ftb-toolbar::before`: kotak backdrop-blur berwarna
+       kanvas, melebar lewat margin negatif (12px ke atas, 18px ke bawah, 12px
+       ke kiri/kanan), maksudnya meredam baris daftar yang lewat di sela-sela
+       pil cari. Sudah lebih dulu dimatikan di mode gelap, lalu dimatikan juga
+       di mode terang karena alasan yang sama ternyata berlaku di kedua mode:
+
+       1. Ia terbaca sebagai KOTAK, bukan redaman. Mask-nya cuma memudar ke
+          bawah, jadi tepi atas/kiri/kanan berhenti mendadak — garis lurus
+          horizontal terlihat memotong kartu di belakangnya saat digulir.
+       2. Blur mencuci kartu putih yang lewat di baliknya jadi bidang abu.
+       3. `top: -12px` sama persis dengan celah ke kartu di atas toolbar, jadi
+          tepi atas pita jatuh di garis bawah kartu itu dan mengaburkannya —
+          kartunya terlihat terpotong bahkan saat halaman belum digulir.
+
+       Halaman personal-documents sudah lebih dulu mematikannya sendiri karena
+       menabrak tepi kartu .pd-main (lihat dokumen.css) — gejalanya sama.
+
+       Konsekuensi yang disengaja: isi yang lewat di sela kontrol tidak diredam.
+       Kontrolnya berlatar solid, jadi teks di dalamnya tetap terbaca. Kalau
+       nanti tetap ingin redaman, jangan pakai kotak ber-mask satu arah —
+       kembalikan saja kontainer toolbarnya seperti di desktop. */
+
+    /* Bayangan dipertegas: inilah satu-satunya yang mengangkat kontrol dari
+       baris yang lewat di belakangnya sekarang kontainernya tidak ada. */
+    .ftb-mobile-search-wrap .ftb-field--search .ftb-box {
+        box-shadow: 0 6px 18px rgba(17, 46, 89, 0.12) !important;
+    }
+
+    .ftb-actions button,
+    .ftb-actions .ui-btn,
+    .ftb-actions > .sk__menuWrap > button {
+        box-shadow: 0 6px 18px rgba(17, 46, 89, 0.12) !important;
+    }
+
+    /* Opt-out melayang+menempel. Toolbar mobile sengaja sticky tanpa latar,
+       dan itu bekerja saat yang lewat di belakangnya adalah baris daftar biasa.
+       Di halaman yang persis di bawah toolbarnya ada KARTU (mis. sub-bar BAB di
+       Nilai), kartu itu terbaca menembus sela pil cari dan tombol "…" begitu
+       halaman digulir — terlihat seperti dua lapis yang saling menutupi.
+       Halaman seperti itu memasang kelas ini lewat prop `className`. */
+    .ftb-toolbar--noSticky {
+        position: static !important;
+        z-index: auto !important;
+    }
+
+    .ftb-desktop-wrap {
+        display: none !important;
+    }
+
+    .ftb-mobile-wrap {
+        display: flex !important;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .ftb-mobile-topbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        box-sizing: border-box;
+    }
+
+    .ftb-mobile-search-wrap {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    .ftb-mobile-inlineActions {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Sembunyikan tombol 'Tambah' & aksi biasa di bar atas mobile (karena sudah masuk ke menu titik 3 dan FAB) */
+    .ftb-mobile-inlineActions > button,
+    .ftb-mobile-inlineActions > .ui-btn,
+    .ftb-mobile-inlineActions > .ftb-btn,
+    .ftb-mobile-inlineActions .sk__btnDesktopOnly,
+    .ftb-mobile-inlineActions .desktop-only,
+    .ftb-mobile-inlineActions .ftb-btn--fabOnMobile,
+    .ftb-mobile-inlineActions .ftb-actions > *:not(.sk__more):not(.sk__menuWrap):not(.ftb-btn-icon-mobile) {
+        display: none !important;
+    }
+
+    /* Pengecualian: Tombol ikon murni yang sengaja ditaruh di sebelah pencarian pada mobile */
+    .ftb-mobile-inlineActions .ftb-btn-icon-mobile,
+    .ftb-mobile-inlineActions .ui-btn.ftb-btn-icon-mobile,
+    .ftb-mobile-inlineActions button.ftb-btn-icon-mobile {
+        display: inline-flex !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        max-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        max-height: 42px !important;
+        padding: 0 !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        background: #ffffff !important;
+        border: 1px solid var(--n-border, #e2e8f0) !important;
+        color: var(--n-primary, #3083FF) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        font-size: 1.1rem !important;
+        cursor: pointer !important;
+        overflow: hidden !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Sembunyikan label teks jika tombol ber-kelas .ftb-btn-icon-mobile pada mobile */
+    .ftb-mobile-inlineActions .ftb-btn-icon-mobile span,
+    .ftb-mobile-inlineActions .ui-btn.ftb-btn-icon-mobile span,
+    .ftb-mobile-inlineActions button.ftb-btn-icon-mobile span,
+    .ftb-mobile-inlineActions .ftb-btn-icon-mobile .hidden-mobile {
+        display: none !important;
+    }
+
+
+    /* Hanya tampilkan pembungkus menu titik tiga (.sk__more & .sk__menuWrap) di sebelah kanan kolom cari */
+    .ftb-mobile-inlineActions .sk__more,
+    .ftb-mobile-inlineActions .sk__menuWrap,
+    .ftb-mobile-inlineActions .ftb-actions > .sk__more,
+    .ftb-mobile-inlineActions .ftb-actions > .sk__menuWrap {
+        display: flex !important;
+        position: relative;
+    }
+
+    /* Styling tombol pemicu titik 3 sebagai lingkaran 42px HANYA untuk pemicu utama (bukan item didalam menu) */
+    .ftb-mobile-inlineActions .sk__more > button,
+    .ftb-mobile-inlineActions .sk__more > .ui-btn,
+    .ftb-mobile-inlineActions .sk__menuWrap > button,
+    .ftb-mobile-inlineActions .ftb-actions > .sk__menuWrap > button {
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #ffffff !important;
+        border: 1px solid var(--n-border, #e2e8f0) !important;
+        color: #3083FF !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        font-size: 1.1rem !important;
+    }
+
+    /* Sembunyikan label teks jika pemicu berupa ikon saja */
+    .ftb-mobile-inlineActions .sk__more > button span:not(.bi):not([class*="bi-"]) {
+        display: none !important;
+    }
+
+    /* Sembunyikan label teks jika pemicu berupa ikon saja */
+    .ftb-btn-label {
+        display: none !important;
+    }
+
+    /* =========================================================
+       Desain Dropdown Menu Titik 3 (.sk__moreMenu) — Super Clean & Premium
+       ========================================================= */
+    .sk__moreMenu,
+    .sk__menu {
+        position: absolute !important;
+        top: calc(100% + 6px) !important;
+        right: 0 !important;
+        left: auto !important;
+        z-index: 9999 !important;
+        min-width: 200px !important;
+        padding: 6px !important;
+        background: #ffffff !important;
+        border: 1px solid var(--n-border, #e2e8f0) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 10px 28px -4px rgba(15, 23, 42, 0.16), 0 4px 10px -2px rgba(15, 23, 42, 0.06) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Item di dalam menu titik 3 — BATALKAN SELURUH STYLING LINGKARAN 42PX! */
+    .sk__moreMenu button,
+    .sk__moreMenu [role="menuitem"],
+    .sk__menu button,
+    .sk__menu [role="menuitem"] {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 40px !important;
+        padding: 8px 12px !important;
+        border-radius: 9px !important;
+        border: none !important;
+        background: transparent !important;
+        color: #1e293b !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+        transition: all 0.15s ease !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+        line-height: 1.3 !important;
+    }
+
+    .sk__moreMenu button:hover,
+    .sk__moreMenu [role="menuitem"]:hover,
+    .sk__menu button:hover,
+    .sk__menu [role="menuitem"]:hover {
+        background: #f1f5f9 !important;
+        color: #3083FF !important;
+    }
+
+    /* Pembungkus Ikon — DIPATOK 24PX RATA KETAT SUPAYA SEMUA IKON DUDUK DI GARIS VERTIKAL YANG SAMA PERSIS */
+    .sk__moreMenu .sk__menuIcon,
+    .sk__menu .sk__menuIcon,
+    .sk__moreMenu button > i,
+    .sk__menu button > i {
+        width: 24px !important;
+        min-width: 24px !important;
+        max-width: 24px !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        max-height: 24px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+        margin: 0 10px 0 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .sk__moreMenu .sk__menuIcon i,
+    .sk__menu .sk__menuIcon i,
+    .sk__moreMenu button > i,
+    .sk__menu button > i {
+        font-size: 1.15rem !important;
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .sk__moreMenu .sk__menuLabel,
+    .sk__menu .sk__menuLabel {
+        flex: 1 1 auto !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+    }
+
+    .sk__moreMenu button.danger,
+    .sk__moreMenu [role="menuitem"].danger,
+    .sk__menu button.danger,
+    .sk__menu [role="menuitem"].danger {
+        color: #ef4444 !important;
+    }
+
+    .sk__moreMenu button.danger:hover,
+    .sk__moreMenu [role="menuitem"].danger:hover,
+    .sk__menu button.danger:hover,
+    .sk__menu [role="menuitem"].danger:hover {
+        background: #fef2f2 !important;
+        color: #dc2626 !important;
+    }
+
+    /* Dark Mode Menu Titik 3 */
+    html.dark .sk__moreMenu,
+    html.dark .sk__menu,
+    .dark .sk__moreMenu,
+    .dark .sk__menu {
+        background: #0f172a !important;
+        border-color: rgba(59, 130, 246, 0.3) !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+    }
+
+    html.dark .sk__moreMenu button,
+    html.dark .sk__moreMenu [role="menuitem"],
+    .dark .sk__moreMenu button,
+    .dark .sk__moreMenu [role="menuitem"] {
+        color: #f1f5f9 !important;
+    }
+
+    html.dark .sk__moreMenu button:hover,
+    html.dark .sk__moreMenu [role="menuitem"]:hover,
+    .dark .sk__moreMenu button:hover,
+    .dark .sk__moreMenu [role="menuitem"]:hover {
+        background: rgba(59, 130, 246, 0.15) !important;
+        color: #60a5fa !important;
+    }
+
+    .ftb-mobile-inlineActions:empty {
+        display: none !important;
+    }
+
+    .ftb-mobile-search-wrap .ftb-field {
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        margin: 0 !important;
+    }
+
+    .ftb-mobile-search-wrap .ftb-label {
+        display: none !important;
+    }
+
+    .ftb-mobile-search-wrap .ftb-field--search .ftb-box {
+        height: 42px !important;
+        background: #ffffff !important;
+        border: 1px solid var(--n-border, #e2e8f0) !important;
+        border-radius: 9999px !important;
+        /* Padding kiri 10px (dari 14px): ikon cari digeser sedikit ke kiri
+           supaya jaraknya ke tepi kapsul seimbang dengan jarak tombol filter
+           ke tepi kanan. */
+        padding: 0 6px 0 10px !important;
+        gap: 6px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .ftb-mobile-search-wrap .ftb-field--search .ftb-box > i {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        font-size: 0.95rem !important;
+        /* Biru yang sama dengan ikon tab di mobile (.actab-tabIconOuter di
+           components/tab.css), bukan navy #3083FF. Kedua kontrol ini duduk
+           bersebelahan di layar yang sama, jadi dua biru berbeda terbaca
+           sebagai ketidaksengajaan. */
+        color: #3083FF !important;
+    }
+
+    /* Embedded Filter Button Inside Search Pill (Mobile) */
+    .ftb-embedded-filter-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        border-radius: 50% !important;
+        /* Biru ikon tab (#3083FF), lihat catatan di ikon cari di atas. */
+        color: #3083FF;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+    }
+
+    .ftb-embedded-filter-btn:hover,
+    .ftb-embedded-filter-btn:active {
+        background: #E0ECFF;
+        color: #3083FF;
+        transform: scale(1.05);
+    }
+
+    .ftb-embedded-filter-btn--active {
+        background: #E0ECFF;
+        color: #3083FF;
+    }
+
+    .ftb-embedded-filter-badge {
+        position: absolute;
+        top: -1px;
+        right: -1px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 15px;
+        height: 15px;
+        padding: 0 3px;
+        border-radius: 999px;
+        /* #3083FF eksplisit, BUKAN var(--n-primary): token itu bernilai
+           #3083FF (navy) di :root, jadi badge-nya tidak pernah memakai nilai
+           cadangan dan selalu terbaca lebih tua daripada ikon filter yang
+           dilingkupinya. Disamakan dengan warna ikon di .ftb-embedded-filter-btn
+           dan ikon tab di components/tab.css. */
+        background: #3083FF;
+        color: #ffffff;
+        font-size: 9.5px;
+        font-weight: 800;
+        line-height: 15px;
+        border: 1.5px solid #ffffff;
+        box-sizing: border-box;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+
+    .ftb-mobile-filter-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        background: #ffffff;
+        border: 1px solid var(--n-border, #e2e8f0) !important;
+        border-radius: 50% !important;
+        color: #3083FF;
+        font-size: 1.15rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .ftb-mobile-filter-btn:hover,
+    .ftb-mobile-filter-btn:active {
+        background: rgba(0, 56, 168, 0.06);
+        border-color: #3083FF !important;
+        color: #3083FF;
+        transform: scale(1.04);
+    }
+
+    .ftb-mobile-filter-btn--active {
+        background: rgba(0, 56, 168, 0.08);
+        border-color: #3083FF !important;
+        color: #3083FF;
+    }
+
+    .ftb-mobile-filter-btn--expanded {
+        width: 100%;
+        gap: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        border-radius: 12px;
+        padding: 0 16px;
+    }
+
+    .ftb-mobile-filter-badge {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 999px;
+        /* Sama seperti .ftb-embedded-filter-badge di atas — ini varian badge
+           saat toolbar tampil tanpa kolom cari, jadi warnanya harus sama. */
+        background: #3083FF;
+        color: #ffffff;
+        font-size: 10.5px;
+        font-weight: 700;
+        line-height: 1;
+        border: 2px solid var(--n-card, #ffffff);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .ftb-mobile-actions {
+        width: 100% !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        display: block !important;
+    }
+
+    .ftb-mobile-actions .ftb-field--action {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    .ftb-mobile-actions .ftb-label--spacer {
+        display: none !important;
+    }
+
+    /* Khusus toolbar `alwaysExpanded` (dipakai HANYA oleh Absensi).
+       Dulu di sini dipaksa `nowrap` dengan asumsi jumlah tombolnya tetap tiga
+       (Refresh/Buka Sesi/Export). Asumsi itu sudah tidak berlaku: begitu ada
+       sesi aktif, muncul Simpan/Buka Kunci — dan di mode admin ada Batal Edit —
+       sehingga empat tombol dipaksa sebaris dan yang terakhir terpotong keluar
+       layar. Sekarang dibiarkan membungkus jadi kisi 2 kolom: berapa pun
+       jumlahnya, semua tombol tetap terlihat tanpa perlu digulir mendatar.
+       Diskop ke `--expanded` supaya toolbar lain tidak ikut berubah. */
+    .ftb-mobile-actions--expanded .ftb-actions {
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        row-gap: 8px !important;
+    }
+
+    /* 50% dikurangi separuh gap (8px) supaya tepat dua per baris. Spesifisitas
+       (0,3,0) sengaja lebih tinggi dari `.ftb-actions > *` (0,2,0) dan
+       `.ftb-actions button` (0,2,1) di bawah, yang keduanya memaksa
+       `flex: 0 0 auto !important`. */
+    .ftb-mobile-actions--expanded .ftb-actions > * {
+        flex: 1 1 calc(50% - 4px) !important;
+        min-width: calc(50% - 4px) !important;
+        white-space: nowrap !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    .ftb-field,
+    .ftb-field--search,
+    .ftb-field--action,
+    .ftb-field--wide {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ftb-actions {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .ftb-actions .sk__btnDesktopOnly,
+    .ftb-actions button.sk__btnDesktopOnly,
+    .ftb-actions .desktop-only {
+        display: none !important;
+    }
+
+    /* Aksi utama pindah ke FAB melayang di mobile (.mui-fabWrap di
+       components/mobile/mobile-ui.css). Ambang 639px di sana HARUS sama dengan
+       di sini — kalau berbeda, ada lebar layar yang menampilkan tombolnya dua
+       kali, atau tidak sama sekali. */
+    .ftb-actions .ftb-btn--fabOnMobile,
+    .ftb-actions button.ftb-btn--fabOnMobile {
+        display: none !important;
+    }
+
+    /* Aksi sebaris dengan kolom cari (prop actionsInline).
+       Pembungkus FilterActions dibuat menyusut: aturan umum .ftb-field--action
+       memberinya `flex: 1 1 100%` untuk baris penuh, dan itu akan mendorong
+       kolom cari habis kalau dibiarkan. Spacer label ikut dibuang karena tidak
+       ada label yang perlu disejajarkan di sini. */
+    .ftb-mobile-inlineActions {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .ftb-mobile-inlineActions .ftb-field--action {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+    }
+
+    .ftb-mobile-inlineActions .ftb-label--spacer {
+        display: none !important;
+    }
+
+    .ftb-mobile-inlineActions .ftb-actions {
+        width: auto !important;
+        gap: 6px !important;
+    }
+
+    .ftb-actions > :only-child {
+        margin-left: auto !important;
+    }
+
+    .ftb-actions > * {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 0 0 auto !important;
+        box-sizing: border-box !important;
+    }
+
+    .ftb-actions > .sk__menuWrap,
+    .ftb-actions > div {
+        width: auto !important;
+        min-width: 0 !important;
+        display: inline-flex !important;
+        flex: 0 0 auto !important;
+    }
+
+    .ftb-actions button:not(.ui-btn),
+    .ftb-actions .sk__btnMore,
+    .ftb-actions .sk__btnActionMenu,
+    .ftb-actions > div > button:not(.ui-btn),
+    .ftb-actions > .sk__menuWrap > button:not(.ui-btn) {
+        width: auto !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        padding: 0 16px !important;
+        border-radius: 9999px !important;
+        border: 1px solid #E1E2E9 !important;
+        background: #ffffff !important;
+        color: #112E59 !important;
+        box-shadow: 0 1px 3px rgba(17, 46, 89, 0.04) !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        flex: 0 0 auto !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+    }
+
+    .ftb-actions button:not(.ui-btn):hover:not(:disabled),
+    .ftb-actions .sk__btnActionMenu:hover {
+        background: #E0ECFF !important;
+        border-color: #3083FF !important;
+        color: #112E59 !important;
+    }
+
+    /* Tombol ikon-saja (mis. menu "…"): persegi, tanpa padding mendatar, supaya
+       kolom cari di sebelahnya mendapat lebar maksimal. Labelnya dibungkus
+       .ftb-btn-label lalu disembunyikan; tombolnya WAJIB punya aria-label karena
+       teks display:none hilang dari accessibility tree.
+
+       HARUS ditempatkan SETELAH blok `.ftb-actions button, … ,
+       .ftb-actions > .sk__menuWrap > button` di atas: selektor itu juga (0,2,1)
+       dan memaksa `width: auto !important; padding: 0 16px !important`. Dengan
+       spesifisitas seri, pemenangnya urutan — ditaruh sebelum blok itu, aturan
+       ini tidak berpengaruh sama sekali (tombolnya tetap 52px). */
+    .ftb-actions .ftb-btn--iconOnlyMobile .ftb-btn-label {
+        display: none !important;
+    }
+
+    .ftb-actions .ftb-btn--iconOnlyMobile,
+    .ftb-actions button.ftb-btn--iconOnlyMobile,
+    .ftb-actions > .sk__menuWrap > button,
+    .ftb-actions > .sk__menuWrap > button.ftb-btn--iconOnlyMobile,
+    .ftb-mobile-inlineActions .sk__menuWrap > button {
+        width: 42px !important;
+        min-width: 42px !important;
+        max-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        max-height: 42px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        flex: 0 0 42px !important;
+        aspect-ratio: 1 / 1 !important;
+    }
+
+    /* Ikon di dalamnya ikut biru tab (#3083FF), sama dengan ikon cari dan ikon
+       filter di kapsul sebelahnya. Warna teks tombol (#112E59) sengaja tidak
+       diubah — yang diminta seragam hanya ikonnya. */
+    .ftb-actions .ftb-btn--iconOnlyMobile i,
+    .ftb-actions .ftb-btn--iconOnlyMobile svg,
+    .ftb-actions button.ftb-btn--iconOnlyMobile i,
+    .ftb-actions button.ftb-btn--iconOnlyMobile svg,
+    .ftb-actions > .sk__menuWrap > button.ftb-btn--iconOnlyMobile i,
+    .ftb-actions > .sk__menuWrap > button.ftb-btn--iconOnlyMobile svg {
+        color: #3083FF !important;
+    }
+}
+
+/* =========================================================
+   MENU AKSI "…" (mobile) — .sk__menu*
+
+   Dasar bersama, diangkat ke sini dari <style jsx> tab-tab Master yang
+   menyalinnya satu per satu. Aturan lokal di tab-tab itu SENGAJA dibiarkan:
+   styled-jsx menambahkan kelas hash ke selektornya, jadi versi lokal punya
+   spesifisitas lebih tinggi dan tetap menang — tampilan mereka tidak berubah.
+   Yang memakai definisi di bawah ini hanya halaman yang belum punya salinan
+   sendiri (mis. Nilai).
+
+   Pasangannya di markup: pembungkus .sk__menuWrap berisi tombol pemicu
+   .sk__btnActionMenu dan panel .sk__menu; tiap aksi memakai .sk__menuItem,
+   dan .sk__menuItemMobileOnly untuk aksi yang di desktop sudah punya
+   tombol berlabel sendiri (yang diberi .sk__btnDesktopOnly).
+   ========================================================= */
+
+.sk__menuWrap {
+    position: relative;
+    display: inline-block;
+}
+
+.sk__btnActionMenu,
+.sk__btnMore {
+    min-width: 42px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px solid #E1E2E9;
+    border-radius: 9999px;
+    color: #112E59;
+    font-size: 0.82rem;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(17, 46, 89, 0.04);
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sk__btnActionMenu:hover,
+.sk__btnActionMenu.isOpen,
+.sk__btnMore:hover,
+.sk__btnMore.isOpen {
+    background: #E0ECFF;
+    border-color: #3083FF;
+    color: #112E59;
+}
+
+.sk__btnActionMenu i,
+.sk__btnMore i {
+    font-size: 1.1rem;
+    color: #112E59;
+    transition: color 0.15s ease;
+}
+
+.sk__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 1000;
+    min-width: 190px;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #E1E2E9;
+    box-shadow: 0 12px 32px rgba(17, 46, 89, 0.12);
+    animation: skMenuIn 0.14s ease-out;
+}
+
+@keyframes skMenuIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sk__menuItem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 14px;
+    border: 1px solid #E1E2E9;
+    background: #ffffff;
+    border-radius: 9999px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #112E59;
+    transition: all 0.15s ease;
+}
+
+.sk__menuItem:hover,
+.sk__menuItem:active {
+    background: #f8fafc;
+    border-color: #3083FF;
+    transform: translateY(-1px);
+}
+
+.sk__menuSep {
+    height: 1px;
+    background: #EBECF1;
+    margin: 2px 4px;
+}
+
+.sk__menuIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.sk__menuIcon i {
+    font-size: 1.05rem;
+    line-height: 1;
+    display: block;
+}
+
+.sk__menuLabel {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--n-text, #0f172a);
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Aksi yang di desktop sudah punya tombol berlabel sendiri. */
+.sk__menuItemMobileOnly {
+    display: none !important;
+}
+
+.dark .sk__btnActionMenu,
+.dark .sk__btnMore {
+    background: #000000;
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #e2e8f0;
+}
+
+.dark .sk__btnActionMenu i,
+.dark .sk__btnMore i {
+    color: #93c5fd;
+}
+
+.dark .sk__menu {
+    background: #000000;
+    border-color: rgba(59, 130, 246, 0.35);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.dark .sk__menuItem {
+    background: #000000;
+    border-color: rgba(59, 130, 246, 0.25);
+    color: #e2e8f0;
+}
+
+.dark .sk__menuItem:hover,
+.dark .sk__menuItem:active {
+    background: rgba(26, 115, 232, 0.15);
+    border-color: #3b82f6;
+}
+
+.dark .sk__menuSep {
+    background: rgba(59, 130, 246, 0.25);
+}
+
+@media (max-width: 639px) {
+    .sk__menuItemMobileOnly {
+        display: flex !important;
+    }
+
+    .sk__menuSep.sk__menuItemMobileOnly {
+        display: block !important;
+    }
+
+    /* Panel dijangkarkan ke kanan: pemicunya duduk di ujung kanan bar atas,
+       jadi panel yang dibuka ke kanan akan keluar layar. */
+    .sk__menu {
+        left: auto;
+        right: 0;
+    }
+}
+
+@media (min-width: 640px) {
+    .sk__menuWrap {
+        display: none !important;
+    }
+}
+
+/* ===================== Dark Mode ===================== */
+
+.dark .ftb-toolbar {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+    border-radius: 16px;
+}
+
+@media (max-width: 639px) {
+    /* Dulu bar ini dikosongkan total di mobile — benar selama ia ikut mengalir
+       bersama konten. Sejak jadi sticky, latar transparan membuat baris daftar
+       terbaca menembusnya, jadi chrome-nya dikembalikan: latar gelap pekat +
+       satu garis tipis di bawah, bukan kartu berbingkai seperti di desktop. */
+    /* Ikut tanpa kontainer — lihat catatan di .ftb-toolbar mode terang. */
+    html.dark .ftb-toolbar {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    html.dark .ftb-mobile-search-wrap .ftb-field--search .ftb-box {
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    /* Tombol di baris aksi dipatok putih pekat oleh aturan mobile di atas —
+       benar di mode terang, tapi di mode gelap ia jadi satu-satunya benda
+       menyala di bar yang gelap. */
+    html.dark .ftb-actions button,
+    html.dark .ftb-actions .ui-btn,
+    html.dark .ftb-actions .sk__btnActionMenu,
+    html.dark .ftb-actions > .sk__menuWrap > button {
+        background: rgba(255, 255, 255, 0.06) !important;
+        border-color: rgba(37, 99, 235, 0.45) !important;
+        color: #e2e8f0 !important;
+        box-shadow: none !important;
+    }
+
+    html.dark .ftb-actions button i,
+    html.dark .ftb-actions .sk__btnActionMenu i,
+    html.dark .ftb-mobile-inlineActions .ftb-btn-icon-mobile i {
+        color: #e2e8f0 !important;
+    }
+
+    html.dark .ftb-mobile-inlineActions .ftb-btn-icon-mobile {
+        background: #000000 !important;
+        border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
+        color: #60a5fa !important;
+        box-shadow: none !important;
+    }
+
+    /* SOLID, bukan kaca. Header di atasnya juga solid, jadi kaca di sini
+       membuat dua kartu bersebelahan berbeda material. Selain itu
+       `backdrop-filter` di atas daftar gelap terender pucat kelabu — nilai
+       CSS-nya benar, hasil komposit-nya yang meleset. */
+
+    .dark .ftb-mobile-topbar,
+    .dark .ftb-mobile-actions {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .dark .ftb-mobile-search-wrap .ftb-field--search .ftb-box {
+        background: #000000 !important;
+        border: 1px solid rgba(59, 130, 246, 0.4) !important;
+    }
+
+    .dark .ftb-embedded-filter-btn {
+        color: #60a5fa !important;
+    }
+
+    .dark .ftb-embedded-filter-btn:hover,
+    .dark .ftb-embedded-filter-btn:active,
+    .dark .ftb-embedded-filter-btn--active {
+        background: rgba(59, 130, 246, 0.2) !important;
+        color: #93c5fd !important;
+    }
+
+    .dark .ftb-embedded-filter-badge {
+        background: #1a73e8 !important;
+        color: #ffffff !important;
+        border-color: #000000 !important;
+    }
+
+    .dark .ftb-mobile-filter-btn {
+        background: #000000 !important;
+        border: 1px solid rgba(59, 130, 246, 0.4) !important;
+        color: #60a5fa !important;
+    }
+
+    .dark .ftb-mobile-filter-btn:hover,
+    .dark .ftb-mobile-filter-btn:active,
+    .dark .ftb-mobile-filter-btn--active {
+        background: rgba(26, 115, 232, 0.15) !important;
+        border-color: #60a5fa !important;
+        color: #ffffff !important;
+    }
+
+    .dark .ftb-mobile-inlineActions .ftb-btn-icon-mobile,
+    .dark .ftb-mobile-inlineActions .ui-btn.ftb-btn-icon-mobile,
+    .dark .ftb-mobile-inlineActions button.ftb-btn-icon-mobile {
+        background: #000000 !important;
+        border: 1px solid rgba(59, 130, 246, 0.4) !important;
+        color: #60a5fa !important;
+    }
+}
+
+.dark .ftb-label {
+    color: #94a3b8;
+}
+
+.dark .ftb-box {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+}
+
+.dark .ftb-field--search .ftb-box {
+    border-radius: 9999px;
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+}
+
+.dark .ftb-box:focus-within {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+}
+
+.dark .ftb-box > i {
+    color: #60a5fa;
+}
+
+.dark .ftb-box .ftb-input {
+    color: #ffffff !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+.dark .ftb-select-icon {
+    color: #60a5fa;
+}
+
+.dark .ftb-select-wrapper:focus-within .ftb-select-icon,
+.dark .ftb-select-input:focus + .ftb-select-icon {
+    color: #38bdf8;
+}
+
+.dark .ftb-box select.ftb-input option {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+.dark .ftb-box input.ftb-input::placeholder {
+    color: #64748b;
+}
+
+.dark .ftb-box input.ftb-input[type="month"]::-webkit-calendar-picker-indicator,
+.dark .ftb-box input.ftb-input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.4);
+}
+
+.dark .ftb-toolbar .ftb-field .dpk-trigger {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+    color: #ffffff;
+}
+
+.dark .ftb-actions button:not(.ui-btn),
+.dark .ftb-btn--ghost {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+    color: #60a5fa;
+    border-radius: 12px;
+}
+
+.dark .ftb-actions .ui-btn--primary,
+.dark .ftb-actions button.ui-btn--primary,
+.dark .ftb-actions .btn-action-primary {
+    background-color: rgba(26, 115, 232, 0.16) !important;
+    border: 1.5px solid rgba(26, 115, 232, 0.75) !important;
+    color: #60a5fa !important;
+}
+
+.dark .ftb-actions .ui-btn--primary:hover:not(:disabled),
+.dark .ftb-actions .ui-btn--primary:active:not(:disabled),
+.dark .ftb-actions button.ui-btn--primary:hover:not(:disabled),
+.dark .ftb-actions button.ui-btn--primary:active:not(:disabled) {
+    background-color: #1a73e8 !important;
+    border-color: #60a5fa !important;
+    color: #ffffff !important;
+}
+
+.dark .ftb-actions .ui-btn:not(.ui-btn--danger):hover:not(:disabled),
+.dark .ftb-actions button:not(.ui-btn--danger):hover:not(:disabled),
+.dark .ftb-btn--export:hover:not(:disabled),
+.dark .ftb-btn--primary:hover:not(:disabled),
+.dark .ftb-btn--ghost:hover:not(:disabled) {
+    background-color: rgba(26, 115, 232, 0.14);
+    border-color: #60a5fa;
+    color: #ffffff;
+    filter: none;
+}
+
+.dark .ftb-toggle {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+    color: #ffffff;
+}
+
+.dark .ftb-toggle-track {
+    background: #1e293b;
+}
+
+.dark .ftb-toggle input:checked + .ftb-toggle-track {
+    background: #1a73e8;
+}
+
+.dark .ftb-mobile-filter-btn {
+    background-color: #000000;
+    border: 1.8px solid rgba(26, 115, 232, 0.75);
+    color: #60a5fa;
+}
+
+.dark .ftb-mobile-filter-btn:hover,
+.dark .ftb-mobile-filter-btn:active {
+    background-color: rgba(26, 115, 232, 0.14);
+    border-color: #60a5fa;
+    color: #ffffff;
+}
+
+.dark .ftb-mobile-filter-btn--active {
+    background-color: rgba(26, 115, 232, 0.25);
+    border-color: #60a5fa;
+    color: #93c5fd;
+}
+
+.dark .ftb-mobile-filter-badge {
+    background: #1a73e8;
+    color: #ffffff;
+    border-color: #000000;
+}
+
+/* ===================== Mobile Filter Modal ===================== */
+
+.ftb-modal-body {
+    padding: 16px !important;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.ftb-modal-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+}
+
+.ftb-modal-filter-list .ftb-field {
+    width: 100% !important;
+    min-width: 100% !important;
+    flex: 1 1 100% !important;
+    margin: 0 !important;
+}
+
+.ftb-modal-filter-list .ftb-field .ftb-label {
+    display: block !important;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.ftb-modal-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+}
+
+.ftb-modal-footer > button,
+.ftb-modal-footer > .ui-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    justify-content: center !important;
+}
+
+
+
+/* =========================================================
+   Mobile Option (Radio item in Mobile Sheet / Filter Modal)
+   ========================================================= */
+.mui-opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--n-border, #e2e8f0);
+    border-radius: 12px;
+    background: var(--n-card, #ffffff);
+    color: var(--n-text, #0f172a);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-bottom: 6px;
+    box-sizing: border-box;
+}
+
+.mui-opt:hover,
+.mui-opt:active {
+    background: #f8fafc;
+    border-color: #3083FF;
+}
+
+.mui-opt.isSelected {
+    background: #eff6ff;
+    border-color: #3083FF;
+}
+
+.mui-opt__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #eff6ff;
+    color: #3083FF;
+    flex-shrink: 0;
+}
+
+.mui-opt__text {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.mui-opt__label {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--n-text, #0f172a);
+}
+
+.mui-opt.isSelected .mui-opt__label {
+    color: #3083FF;
+    font-weight: 700;
+}
+
+.mui-opt__hint {
+    font-size: 0.75rem;
+    color: var(--n-muted, #64748b);
+}
+
+.mui-opt__mark {
+    flex: 0 0 auto;
+    width: 20px;
+    text-align: right;
+    color: #3083FF;
+}
+
+.dark .mui-opt {
+    background: #000000;
+    border-color: rgba(59, 130, 246, 0.35);
+    color: #f1f5f9;
+}
+
+.dark .mui-opt:hover,
+.dark .mui-opt:active {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: #60a5fa;
+}
+
+.dark .mui-opt.isSelected {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #60a5fa;
+}
+
+.dark .mui-opt__label {
+    color: #f1f5f9;
+}
+
+.dark .mui-opt.isSelected .mui-opt__label {
+    color: #60a5fa;
+}
+
+.dark .mui-opt__icon {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+.dark .mui-opt__mark {
+    color: #60a5fa;
+}

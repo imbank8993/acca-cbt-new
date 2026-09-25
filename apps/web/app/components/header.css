@@ -118,26 +118,7 @@
    blok @media mobile di bawah). Ukurannya disamakan dengan .dark-mode-toggle
    di sisi kanan header supaya kedua ujung barisnya seimbang. */
 .header-collapse-toggle {
-  /* DI LUAR ALIRAN, duduk di pita padding kiri header — yakni tepat di samping
-     sidebar. Kalau ikut aliran .header-left, tombol mulai setelah padding kiri
-     yang berlapis dua (24px dari .header + 24px dari
-     .header-inner.content-container = 48px) sehingga terlihat jauh dari
-     sidebar, DAN ia mendorong judul 52px ke kanan.
-
-     Margin negatif bukan gantinya: itu menarik judul ikut ke kiri. Dengan
-     absolut, judul tetap di 48px — posisi yang sama seperti sebelum tombol ini
-     ada.
-
-     Geometrinya pas-pasan dan diukur, bukan dikira: judul mulai di 48px dari
-     tepi header, jadi tombol 32px pada left:8px berakhir di 40px — menyisakan
-     8px sebelum judul. Membesarkannya kembali ke 36px menyisakan 2px dan
-     terbaca menempel.
-
-     Acuannya .header (position: fixed di desktop), bukan .header-left. */
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -145,29 +126,36 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1.5px solid rgba(59, 130, 246, 0.22);
+  border-radius: 9px;
   color: var(--header-text);
-  /* Chevron Font Awesome (ikon yang sama dengan tombol lama di sidebar)
-     digambar jauh lebih kecil dari ukuran fontnya, jadi ukurannya disetel di
-     sini — bukan diwarisi dari header yang 1.1rem. */
-  font-size: 0.8rem;
-  opacity: 0.75;
+  font-size: 0.78rem;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-right: 4px;
 }
 
 .header-collapse-toggle:hover {
-  background: rgba(59, 130, 246, 0.1);
-  color: var(--n-primary);
-  opacity: 1;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: var(--n-primary, #3083FF);
+  transform: scale(1.05);
+}
+
+.dark .header-collapse-toggle,
+html.dark .header-collapse-toggle {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1.5px solid rgba(37, 99, 235, 0.35);
+  color: #60a5fa;
 }
 
 .dark .header-collapse-toggle:hover,
 html.dark .header-collapse-toggle:hover {
   background: rgba(37, 99, 235, 0.22);
-  color: #60a5fa;
+  border-color: #60a5fa;
+  color: #93c5fd;
+  transform: scale(1.05);
 }
 
 @media (max-width: 767.98px) {

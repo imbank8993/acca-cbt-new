@@ -94,9 +94,9 @@ export class AuthService {
 
     // Pengecekan ketat status aktif di master tabel public.users
     const publicUsers = await this.prisma.$queryRawUnsafe<
-      Array<{ id: bigint; aktif: boolean; nama: string | null; nama_lengkap: string | null }>
+      Array<{ id: bigint; aktif: boolean; nama: string | null; nama_lengkap: string | null; nip: string | null; foto_profil: string | null }>
     >(
-      `SELECT id, aktif, nama, nama_lengkap 
+      `SELECT id, aktif, nama, nama_lengkap, nip, foto_profil 
          FROM public.users 
         WHERE auth_id = $1::uuid
         LIMIT 1`,
@@ -114,7 +114,13 @@ export class AuthService {
       (user.raw_user_meta_data?.full_name as string) ||
       '';
 
-    await this.syncSsoMembership(userId, verifiedName, roleClaim);
+    await this.syncSsoMembership(
+      userId,
+      verifiedName,
+      roleClaim,
+      publicUsers[0]?.foto_profil,
+      publicUsers[0]?.nip,
+    );
     await this.authUsers.touchLastSignIn(userId);
 
     return this.issueSession(
@@ -137,6 +143,8 @@ export class AuthService {
     userId: string,
     fullName: string,
     roleClaim: string,
+    avatarUrl?: string | null,
+    identityNumber?: string | null,
   ): Promise<void> {
     const orgName =
       this.config.get<string>('CBT_ORGANIZATION_NAME') || 'Sekolah';
@@ -167,10 +175,15 @@ export class AuthService {
     }
     if (!org) return;
 
-    if (fullName) {
+    const profilePayload: Record<string, any> = { id: userId };
+    if (fullName) profilePayload.full_name = fullName;
+    if (avatarUrl) profilePayload.avatar_url = avatarUrl;
+    if (identityNumber) profilePayload.identity_number = identityNumber;
+
+    if (Object.keys(profilePayload).length > 1) {
       await this.db
         .from('cbt_profiles')
-        .upsert({ id: userId, full_name: fullName }, { onConflict: 'id' });
+        .upsert(profilePayload, { onConflict: 'id' });
     }
 
     const { data: member } = await this.db
@@ -287,11 +300,57 @@ export class AuthService {
    * tidak pernah terjadi di sini.
    */
   async getProfileWithOrganization(user: AuthUser) {
-    const { data: profile } = await this.db
+    let { data: profile } = await this.db
       .from('cbt_profiles')
       .select('id, full_name, identity_number, avatar_url')
       .eq('id', user.id)
       .maybeSingle();
+
+    try {
+      const publicUsers = await this.prisma.$queryRawUnsafe<
+        Array<{ foto_profil: string | null; nip: string | null; nama: string | null; nama_lengkap: string | null }>
+      >(
+        `SELECT foto_profil, nip, nama, nama_lengkap 
+           FROM public.users 
+          WHERE auth_id = $1::uuid
+          LIMIT 1`,
+        user.id,
+      );
+
+      if (publicUsers.length > 0) {
+        const pu = publicUsers[0];
+        const avatarUrl = profile?.avatar_url || pu.foto_profil || null;
+        const identityNumber = profile?.identity_number || pu.nip || null;
+        const fullName = profile?.full_name || pu.nama_lengkap || pu.nama || null;
+
+        if (
+          avatarUrl !== profile?.avatar_url ||
+          identityNumber !== profile?.identity_number ||
+          fullName !== profile?.full_name
+        ) {
+          await this.db
+            .from('cbt_profiles')
+            .upsert(
+              {
+                id: user.id,
+                full_name: fullName,
+                identity_number: identityNumber,
+                avatar_url: avatarUrl,
+              },
+              { onConflict: 'id' },
+            );
+
+          profile = {
+            id: user.id,
+            full_name: fullName,
+            identity_number: identityNumber,
+            avatar_url: avatarUrl,
+          };
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to sync profile from public.users: ${(err as Error).message}`);
+    }
 
     const { data: membership } = await this.db
       .from('cbt_organization_members')

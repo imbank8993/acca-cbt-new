@@ -228,26 +228,7 @@ export default function GuruClassesPage() {
     return (
         <div className="max-w-7xl mx-auto pb-20">
             {/* Header — Navy gradient */}
-            <div className="relative overflow-hidden rounded-lg acca-hero-gradient mb-6 shadow-xl shadow-[#0038A8]/20">
-                {/* Decorative blobs */}
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-[#0038A8]/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl" />
-
-                <div className="relative px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white mb-1">Kelola Kelas</h1>
-                        <p className="text-white text-sm font-semibold flex items-center gap-2">
-                            
-                            {org?.name || 'Memuat...'}
-                        </p>
-                    </div>
-                    <Link href="/dashboard/guru" className="mt-4 md:mt-0">
-                        <button className="px-4 py-2 bg-white/10 border border-white/20 text-white rounded-lg hover:bg-white/20 flex items-center gap-2 text-sm font-medium transition-all">
-                            <ChevronRight size={16} className="rotate-180" /> Kembali
-                        </button>
-                    </Link>
-                </div>
-            </div>
+            
 
             {/* Stats Cards - Outside Banner */}
             <div className="grid grid-cols-4 gap-x-2 mb-6">

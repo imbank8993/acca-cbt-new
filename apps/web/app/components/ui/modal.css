@@ -1,0 +1,1869 @@
+/* =========================================================================
+   MODAL BERSAMA — kerangka dialog untuk seluruh aplikasi (components/Modal.tsx)
+
+   Prefix `.mdl-` sengaja baru dan tidak dipakai di tempat lain, supaya tidak
+   bertabrakan dengan keluarga kelas modal yang sudah ada (.sk__, .ta__, .md__,
+   .kh-modal__, .ig-modal__, dst.) selama masa transisi.
+
+   Nilai dasarnya diambil dari `.sk__modal*` versi mayoritas (7 dari 11 file)
+   agar migrasi tab Master Data tidak mengubah tampilan yang sudah familiar.
+   ========================================================================= */
+
+/* =========================================================================
+   TOKEN KONTROL MODAL — satu ukuran untuk DUA wajah (view & edit)
+
+   Modal detail punya dua wajah dari data yang sama: mode view menampilkan
+   nilai di dalam <div> (.sk__readInput / .mdl-detail__value), mode edit
+   menampilkan <input>/<select>/<textarea>. Dulu keduanya menulis angkanya
+   sendiri-sendiri, jadi begitu salah satu sisi digeser, sisi lain tidak ikut
+   dan modal "meloncat" saat berpindah view -> edit.
+
+   Sekarang KEDUANYA membaca token yang sama di bawah ini. Ubah satu tempat,
+   kedua wajah ikut — menyimpang lagi jadi tidak mungkin secara konstruksi,
+   bukan sekadar karena hati-hati.
+   ========================================================================= */
+:root {
+  --mdl-fs-control: 0.85rem;
+  --mdl-h-control: 38px;
+}
+
+/* Satu-satunya pengecualian: iOS/iPadOS.
+   WebKit di iOS otomatis men-zoom halaman saat fokus ke kontrol form yang
+   font-size TERHITUNG-nya < 16px. Sejak iOS 10 ia mengabaikan maximum-scale
+   dan user-scalable di <meta viewport> (keduanya sudah dipasang di
+   app/layout.tsx dan tetap tidak menolong), jadi font-size >= 16px adalah
+   satu-satunya cara yang tersisa untuk mencegahnya.
+
+   Yang dinaikkan TOKEN-nya, bukan hanya <input>. Menaikkan input saja persis
+   bug yang diperbaiki di sini: kotak nilai mode view sebuah <div> — bukan
+   kontrol form — jadi tidak ikut naik, dan teks saat mengetik jadi lebih besar
+   daripada teks yang sama setelah disimpan. Dengan token, view dan edit naik
+   BERSAMA sehingga tetap satu ukuran.
+
+   `@supports (-webkit-touch-callout: none)` hanya cocok di WebKit iOS/iPadOS —
+   tidak pernah di macOS Safari, Windows, maupun Android. Sengaja TIDAK memakai
+   `(hover: none) and (pointer: coarse)` seperti sebelumnya: kueri kemampuan
+   perangkat itu juga cocok di laptop layar sentuh Windows dan iPad landscape
+   (1024px, yang justru memakai tata letak DESKTOP) — di sanalah aturan mobile
+   bocor ke tampilan desktop. Android tidak pernah auto-zoom, jadi ikut memakai
+   ukuran desain 0.85rem. */
+@supports (-webkit-touch-callout: none) {
+  :root {
+    --mdl-fs-control: 16px;
+    /* 16px x line-height 1.45 = 23px, + padding 8px atas-bawah = 39px.
+       38px akan memotong descender huruf g/y, jadi kotaknya ikut naik. */
+    --mdl-h-control: 42px;
+  }
+}
+
+.mdl-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.mdl-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: 90vh;
+  /* dvh = viewport nyata yang terlihat (di-support browser lama sbg vh biasa
+     karena unit tak dikenal membuat baris ini diabaikan, bukan menimpa).
+     Wajib di Safari iOS: 90vh dihitung dari viewport TERBESAR (toolbar
+     dianggap tersembunyi), jadi saat toolbar Safari sedang tampil, bagian
+     bawah panel (biasanya footer tombol) kepotong di balik toolbar itu. */
+  max-height: 90dvh;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+}
+
+.mdl-panel--sm { width: min(420px, 100%); }
+.mdl-panel--md { width: min(520px, 100%); }
+.mdl-panel--lg { width: min(720px, 100%); }
+.mdl-panel--xl { width: min(960px, 100%); }
+
+/* Jenis modal ditandai warna garis tepi panel — tipis, mengelilingi semua sisi.
+   Warnanya ikut dipakai ikon judul di header supaya keduanya senada. */
+.mdl-panel--add { border-color: #3083ff; }    /* navy — biru utama aplikasi */
+.mdl-panel--edit { border-color: #0ea5e9; }   /* sky — biru muda, kontras dgn navy */
+.mdl-panel--delete { border-color: #dc2626; }
+
+/* ------------------------------- Header ---------------------------------- */
+
+.mdl-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+/* =========================================================================
+   DELETE MODAL VARIANT — PROMINENT SWEETALERT-STYLE ALERT CARD
+   ========================================================================= */
+
+.mdl-panel--delete {
+  border-radius: 24px !important;
+  padding: 28px 24px 22px !important;
+  text-align: center !important;
+  border: 1px solid #E1E2E9 !important;
+  background: #ffffff !important;
+  box-shadow: 0 20px 60px rgba(17, 46, 89, 0.16) !important;
+  width: min(390px, 92vw) !important;
+}
+
+.mdl-panel--delete .mdl-head {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border-bottom: none !important;
+  padding: 0 0 10px 0 !important;
+  text-align: center !important;
+  gap: 0 !important;
+}
+
+.mdl-panel--delete .mdl-head__icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: #FEE2E2 !important;
+  color: #DC2626 !important;
+  font-size: 1.4rem !important;
+  margin: 0 auto 14px auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12) !important;
+}
+
+/* Ikon tempat sampah — konsisten di semua modal hapus */
+.mdl-panel--delete .mdl-head__icon i::before {
+  content: "\f78b" !important;
+  font-family: "bootstrap-icons" !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+  font-size: 1.35rem !important;
+  line-height: 1 !important;
+}
+
+.mdl-panel--delete .mdl-head__x {
+  display: none !important;
+}
+
+.mdl-panel--delete .mdl-head__text {
+  text-align: center !important;
+  width: 100% !important;
+}
+
+.mdl-panel--delete .mdl-head__title {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #112E59 !important;
+  text-align: center !important;
+  line-height: 1.45 !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
+}
+
+.mdl-panel--delete .mdl-head__titleText {
+  color: #112E59 !important;
+  background: none !important;
+  -webkit-text-fill-color: initial !important;
+}
+
+.mdl-panel--delete .mdl-head__sub {
+  font-size: 0.82rem !important;
+  color: #64748B !important;
+  text-align: center !important;
+  margin-top: 6px !important;
+  line-height: 1.45 !important;
+}
+
+.mdl-panel--delete .mdl-body {
+  padding: 4px 0 10px 0 !important;
+  text-align: center !important;
+  font-size: 0.86rem !important;
+  color: #64748B !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mdl-panel--delete .mdl-body p {
+  margin: 0 !important;
+  font-size: 0.86rem !important;
+  color: #64748B !important;
+  text-align: center !important;
+  line-height: 1.45 !important;
+}
+
+.mdl-panel--delete .mdl-body strong {
+  color: #112E59 !important;
+  font-weight: 700 !important;
+}
+
+.mdl-panel--delete .mdl-foot {
+  border-top: none !important;
+  background: transparent !important;
+  padding: 12px 0 0 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 10px !important;
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+.mdl-panel--delete .mdl-foot .ui-btn,
+.mdl-panel--delete .mdl-foot button {
+  flex: 1 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  border-radius: 9999px !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  justify-content: center !important;
+  padding: 0 16px !important;
+}
+
+/* Danger Confirm Button */
+.mdl-panel--delete .mdl-foot .ui-btn--danger,
+.mdl-panel--delete .mdl-foot button.sk__btnDanger,
+.mdl-panel--delete .mdl-foot button.lb__btnDanger {
+  background: #DC2626 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.22) !important;
+}
+
+.mdl-panel--delete .mdl-foot .ui-btn--danger:hover {
+  background: #B91C1C !important;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3) !important;
+}
+
+/* Cancel Button */
+.mdl-panel--delete .mdl-foot .ui-btn--cancel {
+  background: #ffffff !important;
+  color: #112E59 !important;
+  border: 1px solid #E1E2E9 !important;
+  box-shadow: 0 1px 3px rgba(17, 46, 89, 0.04) !important;
+}
+
+.mdl-panel--delete .mdl-foot .ui-btn--cancel:hover {
+  background: #E0ECFF !important;
+  border-color: #3083FF !important;
+}
+
+/* Hanya judul, tanpa subjudul → teks dipusatkan vertikal terhadap kotak ikon.
+   Dengan subjudul tetap rata atas, supaya judul sejajar dengan ikon dan
+   subjudulnya menggantung di bawah. */
+.mdl-head--solo {
+  align-items: center;
+}
+
+/* Ikon varian dan tombol tutup memakai kotak yang sama persis, jadi keduanya
+/* Ikon varian dan tombol tutup memakai kotak/badge yang seimbang di kiri & kanan header. */
+.mdl-head__icon {
+  flex: 0 0 auto;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 50% !important;
+  background: #EFF6FF !important;
+  color: #2563EB !important;
+  font-size: 0.95rem !important;
+  border: 1px solid #DBEAFE !important;
+  box-shadow: none !important;
+}
+
+.mdl-panel--add .mdl-head__icon { background: #EFF6FF !important; color: #2563EB !important; border-color: #DBEAFE !important; }
+.mdl-panel--edit .mdl-head__icon { background: #F0F9FF !important; color: #0284C7 !important; border-color: #E0F2FE !important; }
+.mdl-panel--delete .mdl-head__icon { background: #FEF2F2 !important; color: #DC2626 !important; border-color: #FEE2E2 !important; }
+
+.mdl-head__x {
+  flex: 0 0 auto;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: #F1F5F9 !important;
+  color: #64748B !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.85rem !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+.mdl-head__x:hover {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.mdl-head__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mdl-head__title,
+.mdl-head__titleText {
+  margin: 0;
+  font-size: 0.95rem !important;
+  font-weight: 650 !important;
+  line-height: 1.3 !important;
+  color: #0F172A !important;
+  letter-spacing: -0.01em !important;
+  overflow-wrap: anywhere;
+}
+
+.mdl-head__sub {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--n-muted, #64748b);
+}
+
+/* -------------------------------- Body ----------------------------------- */
+
+.mdl-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 16px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 10px !important;
+}
+
+/* Form pembungkus body+footer tetap ikut tinggi panel */
+.mdl-panel > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* ------------------------------- Footer ---------------------------------- */
+
+.mdl-foot {
+  /* Padding mendatar footer disimpan sebagai variabel karena lebar tombol
+     "dua tombol = 33% lebar modal" di blok mobile harus menambahkannya kembali
+     (persentase CSS diukur dari kotak-isi, yang sudah dikurangi padding ini).
+     Ditulis di satu tempat supaya keduanya tidak bisa berbeda. */
+  --mdl-foot-pad-x: 16px;
+  /* Lebar "sepertiga lebar modal" untuk footer berisi dua tombol.
+     Persentase CSS diukur dari kotak-isi induk, yang sudah dikurangi padding
+     footer — jadi padding itu ditambahkan kembali di sini supaya hasilnya
+     benar-benar 33% panel, bukan 30%. Ditulis sekali sebagai variabel karena
+     dipakai beberapa aturan di blok mobile (footer biasa dan footer detail). */
+  --mdl-btn-third: calc(33% + (2 * var(--mdl-foot-pad-x) * 0.33));
+  flex: 0 0 auto;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  padding: 10px var(--mdl-foot-pad-x) !important;
+  border-top: 1px solid #F1F5F9 !important;
+  background: #ffffff !important;
+}
+
+.mdl-foot > .ui-btn,
+.mdl-foot > button,
+.mdl-foot > div > .ui-btn,
+.mdl-foot > div > button,
+.mdl-foot.mdl-viewFoot > .ui-btn,
+.mdl-foot.mdl-viewFoot > .mdl-viewFoot__right,
+.mdl-foot.mdl-viewFoot > .mdl-viewFoot__right .ui-btn {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 16px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  border-radius: 9999px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.mdl-foot .ui-btn--primary,
+.mdl-foot button[type="submit"],
+.mdl-foot button.ui-btn--primary {
+  background: #3083FF !important;
+  border: 1px solid #3083FF !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(48, 131, 255, 0.25) !important;
+}
+
+.mdl-foot .ui-btn--primary:hover,
+.mdl-foot button[type="submit"]:hover,
+.mdl-foot button.ui-btn--primary:hover {
+  background: #2563EB !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 4px 10px rgba(48, 131, 255, 0.35) !important;
+}
+
+.mdl-foot--end { justify-content: flex-end; }
+.mdl-foot--between { justify-content: space-between; }
+
+.mdl-viewFoot__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ----------------------- Detail grid (view ↔ edit) ------------------------ */
+
+.mdl-detail__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .mdl-detail__grid { grid-template-columns: 1fr; }
+}
+
+.mdl-detail__item {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--n-border, #e2e8f0);
+}
+
+.dark .mdl-detail__item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.mdl-detail__item--full { grid-column: 1 / -1; }
+
+.mdl-detail__content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.mdl-detail__item--has-icon .mdl-detail__content {
+  padding-left: 20px;
+}
+
+.mdl-detail__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--n-muted, #64748b);
+  display: flex;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.mdl-detail__label-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--n-primary, #3083FF);
+  font-size: 0.85rem;
+  height: 1rem;
+}
+
+.dark .mdl-detail__label-icon {
+  color: #60a5fa;
+}
+
+.mdl-detail__value {
+  font-size: var(--mdl-fs-control);
+  font-weight: 500;
+  color: var(--n-ink, #0f172a);
+  line-height: 1.45;
+}
+
+/* Kotak isian mode edit dibuat SEPERSIS mungkin dengan kotak nilai mode view
+   di bawah (.sk__readInput / .mdl-detail__value): ukuran font, tinggi, radius,
+   tebal garis, dan latar semuanya diambil dari sumber yang sama. Sebelumnya
+   sisi edit memakai latar keabu-abuan rgba(248,250,252,.9) + garis 1px + tanpa
+   min-height, sementara sisi view putih + 1.5px + 38px — jadi selain fontnya,
+   kotaknya pun berubah bentuk dan tinggi saat tombol "Edit Data" ditekan. */
+/* checkbox/radio dikecualikan: keduanya bukan kotak teks, dan memaksakan
+   lebar 100% + tinggi kotak isian ke sana akan merentangkannya jadi kotak
+   besar. Sama alasannya dengan pengecualian di penjaga iOS globals.css. */
+.mdl-detail__editor input:not([type="checkbox"]):not([type="radio"]),
+.mdl-detail__editor select,
+.mdl-detail__editor textarea,
+.mdl-field__control input:not([type="checkbox"]):not([type="radio"]),
+.mdl-field__control select,
+.mdl-field__control textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--mdl-h-control);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: var(--mdl-fs-control);
+  line-height: 1.45;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mdl-detail__editor input:not([type="checkbox"]):not([type="radio"]),
+.mdl-detail__editor select,
+.mdl-field__control input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.mdl-field__control select {
+  height: var(--mdl-h-control);
+}
+
+.mdl-detail__editor textarea,
+.mdl-field__control textarea {
+  resize: vertical;
+  min-height: 70px;
+  height: auto;
+}
+
+.mdl-detail__editor input:focus,
+.mdl-detail__editor select:focus,
+.mdl-detail__editor textarea:focus,
+.mdl-field__control input:focus,
+.mdl-field__control select:focus,
+.mdl-field__control textarea:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+/* =========================================================================
+   KOLOM ISIAN MODAL FORMULIR (components/Modal.tsx -> <ModalField>)
+   Kontrolnya menumpang aturan di atas, jadi tinggi & ukuran fontnya selalu
+   sama dengan mode edit modal detail.
+   ========================================================================= */
+.mdl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mdl-field__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--n-muted, #64748b);
+}
+
+.mdl-field__req {
+  color: #dc2626;
+}
+
+/* Kontrol dibungkus <span>; tanpa `display: block` ia tetap inline sehingga
+   input width:100% di dalamnya tidak punya lebar acuan. */
+.mdl-field__control {
+  display: block;
+}
+
+/* Kontrol kedua di field yang sama (mis. input "folder baru" yang muncul
+   setelah memilih "+ Tambah Folder") tidak boleh menempel ke kontrol di
+   atasnya. */
+.mdl-field__control > * + * {
+  margin-top: 8px;
+}
+
+/* Input file: tombol bawaan browser tidak setinggi kotaknya, jadi tingginya
+   dibiarkan mengikuti isi (lihat pengecualian [type="file"] di atas) dan
+   padding-nya yang disamakan supaya kotaknya tetap setinggi kontrol lain. */
+.mdl-field__control input[type="file"] {
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+/* <InlineSelect> di dalam ModalField: caret dan perilaku fokusnya dipakai apa
+   adanya, tapi UKURAN kotaknya diserahkan ke token modal supaya sederet dengan
+   input dan file di field lain. Tingginya lewat --uisel-h — memang itu gunanya
+   token di komponennya — sisanya menimpa gaya ringkas bawaan InlineSelect yang
+   dirancang untuk sebaris dengan ActionButton (34px, font 0.75rem), bukan untuk
+   kolom isian modal. */
+.mdl-field__control .uisel {
+  --uisel-h: var(--mdl-h-control);
+  display: flex;
+  width: 100%;
+}
+
+.mdl-field__control .uisel select.uisel-input {
+  padding: 0 34px 0 12px !important;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  font-size: var(--mdl-fs-control);
+  font-weight: 500;
+}
+
+.mdl-field__control .uisel .uisel-icon {
+  right: 14px;
+}
+
+.dark .mdl-field__control .uisel select.uisel-input {
+  border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+}
+
+/* ---------------------------- Kotak unggah berkas ------------------------- */
+
+.mdl-file {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mdl-file__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  height: var(--mdl-h-control);
+  padding: 0 8px 0 12px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--n-muted, #64748b);
+  font-size: var(--mdl-fs-control);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mdl-file__row:hover,
+.mdl-file__row:focus-visible {
+  border-color: rgba(58, 166, 255, 0.55);
+  background: rgba(58, 166, 255, 0.04);
+  outline: none;
+}
+
+/* Saat berkas ditahan di atasnya: garis jadi penuh + latar biru tipis, supaya
+   jelas bahwa menjatuhkan di sini akan diterima. */
+.mdl-file__row.is-dragging {
+  border-style: solid;
+  border-color: rgba(58, 166, 255, 0.8);
+  background: rgba(58, 166, 255, 0.09);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.mdl-file__row.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mdl-file__icon {
+  flex: 0 0 auto;
+  display: flex;
+  font-size: 1.05rem;
+  color: var(--n-primary, #3083ff);
+}
+
+.mdl-file__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mdl-file__btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--n-surface, #f1f5f9);
+  color: var(--n-ink, #0f172a);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mdl-file__row:hover .mdl-file__btn {
+  background: rgba(58, 166, 255, 0.14);
+  color: #1d6bf3;
+}
+
+/* Input asli tetap ada di DOM (dipicu lewat .click()), hanya disembunyikan.
+   `display: none` dihindari supaya tetap bisa jadi sasaran fokus program. */
+.mdl-file__native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mdl-file__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mdl-file__chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--n-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--n-surface, #f8fafc);
+  font-size: 0.76rem;
+}
+
+.mdl-file__chipIcon {
+  flex: 0 0 auto;
+  color: var(--n-primary, #3083ff);
+}
+
+.mdl-file__chipName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--n-ink, #0f172a);
+}
+
+.mdl-file__chipSize {
+  flex: 0 0 auto;
+  color: var(--n-muted, #64748b);
+}
+
+.mdl-file__chipX {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--n-muted, #64748b);
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mdl-file__chipX:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.dark .mdl-file__row {
+  background: #000000;
+  border: 1.8px dashed rgba(26, 115, 232, 0.75);
+  color: #94a3b8;
+}
+
+.dark .mdl-file__row:hover,
+.dark .mdl-file__row:focus-visible,
+.dark .mdl-file__row.is-dragging {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+
+/* Garis putus-putus jadi utuh saat berkas ditahan di atasnya — penanda yang
+   sama dengan mode terang, yang tidak ikut terbawa karena aturan .dark di atas
+   hanya menimpa warnanya. */
+.dark .mdl-file__row.is-dragging {
+  border-style: solid;
+}
+
+.dark .mdl-file__btn {
+  background: rgba(96, 165, 250, 0.16);
+  color: #bfdbfe;
+}
+
+.dark .mdl-file__chip {
+  background: rgba(96, 165, 250, 0.07);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.dark .mdl-file__chipName { color: #e2e8f0; }
+.dark .mdl-file__chipSize { color: #94a3b8; }
+.dark .mdl-file__chipX { color: #94a3b8; }
+
+.mdl-field__hint {
+  font-size: 0.72rem;
+  color: var(--n-muted, #94a3b8);
+}
+
+.dark .mdl-field__label { color: #94a3b8; }
+.dark .mdl-field__hint { color: #64748b; }
+
+.dark .mdl-detail__icon {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.dark .mdl-detail__label { color: #94a3b8; }
+.dark .mdl-detail__value { color: #e2e8f0; }
+
+.dark .mdl-detail__editor input,
+.dark .mdl-detail__editor select,
+.dark .mdl-detail__editor textarea,
+.dark .mdl-field__control input,
+.dark .mdl-field__control select,
+.dark .mdl-field__control textarea {
+  background: #000000 !important;
+  border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+}
+
+.dark .mdl-detail__editor input:focus,
+.dark .mdl-detail__editor select:focus,
+.dark .mdl-detail__editor textarea:focus,
+.dark .mdl-field__control input:focus,
+.dark .mdl-field__control select:focus,
+.dark .mdl-field__control textarea:focus {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* ------------------------------ Dark mode -------------------------------- */
+
+.dark .mdl-panel {
+  background: #000000 !important;
+  border: 1.8px solid rgba(26, 115, 232, 0.75);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
+}
+
+/* Di latar hitam navy #3083ff nyaris tak terlihat, jadi kedua biru dinaikkan
+   terangnya sambil tetap menjaga jarak rona: blue-400 vs sky-400. */
+.dark .mdl-panel--add { border-color: #60a5fa; }
+.dark .mdl-panel--edit { border-color: #38bdf8; }
+
+.dark .mdl-panel--delete {
+  background: #000000 !important;
+  border: 1px solid rgba(220, 38, 38, 0.35) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8) !important;
+}
+
+.dark .mdl-body,
+.dark .mdl-body p {
+  background: transparent !important;
+}
+
+.dark .mdl-panel--delete .mdl-head__icon {
+  background: rgba(248, 113, 113, 0.12) !important;
+  border: none !important;
+  color: #f87171 !important;
+  box-shadow: none !important;
+}
+
+.dark .mdl-panel--delete .mdl-head__title {
+  color: #ffffff !important;
+}
+
+.dark .mdl-panel--delete .mdl-head__titleText {
+  color: #ffffff !important;
+  background: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.dark .mdl-panel--delete .mdl-head__sub,
+.dark .mdl-panel--delete .mdl-body,
+.dark .mdl-panel--delete .mdl-body p {
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+
+.dark .mdl-panel--delete .mdl-body strong {
+  color: #f8fafc !important;
+}
+
+.dark .mdl-panel--delete .mdl-foot .ui-btn--cancel {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.dark .mdl-panel--delete .mdl-foot .ui-btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.dark .mdl-panel--delete .mdl-foot .ui-btn--danger {
+  background: linear-gradient(135deg, #be123c 0%, #9f1239 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(244, 63, 94, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.35) !important;
+}
+
+.dark .mdl-panel--delete .mdl-foot .ui-btn--danger:hover {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important;
+  box-shadow: 0 6px 20px rgba(225, 29, 72, 0.5) !important;
+}
+
+.dark .mdl-head {
+  background: #000000;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+/* Judul memakai gradien biru yang sama persis dengan `.pb-title` di
+   components/page-banner.css, supaya judul modal dan judul banner halaman
+   terbaca sebagai satu keluarga. Gradien ditempel di span, bukan di <h2>,
+   karena `-webkit-text-fill-color` diwariskan dan akan menghapus warna ikon.
+   `-webkit-text-fill-color` juga membuat `.dark h2 { color: … !important }`
+   di globals.css tidak lagi berpengaruh pada teks ini. */
+.dark .mdl-head__titleText {
+  background: linear-gradient(90deg, #1d6bf3 0%, #3b82f6 30%, #60a5fa 70%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .mdl-head__sub { color: #94a3b8; }
+
+.dark .mdl-head__icon {
+  background: rgba(48, 131, 255, 0.18) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+
+.dark .mdl-panel--add .mdl-head__icon { background: rgba(48, 131, 255, 0.18) !important; color: #60a5fa !important; border-color: rgba(59, 130, 246, 0.3) !important; }
+.dark .mdl-panel--edit .mdl-head__icon { background: rgba(14, 165, 233, 0.18) !important; color: #38bdf8 !important; border-color: rgba(14, 165, 233, 0.3) !important; }
+.dark .mdl-panel--delete .mdl-head__icon { background: rgba(239, 68, 68, 0.18) !important; color: #f87171 !important; border-color: rgba(239, 68, 68, 0.3) !important; }
+
+.dark .mdl-head__x {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+}
+
+.dark .mdl-head__x:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #f87171 !important;
+}
+
+.dark .mdl-body { background: #000000; }
+
+/* !important wajib di sini: aturan dasar .mdl-foot menulis
+   `background: #ffffff !important`, dan !important mengalahkan deklarasi biasa
+   berapa pun spesifisitasnya. Tanpa ini aturan di bawah tidak pernah berlaku —
+   footer SETIAP modal di app tetap putih di dark mode. */
+.dark .mdl-foot {
+  background: #000000 !important;
+  border-top: 1.5px solid rgba(59, 130, 246, 0.35) !important;
+}
+
+/* Date items & Mass Delete Modal (Masa Berlaku delete modal) */
+.dark .sk__warningBox {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border: 1px solid rgba(239, 68, 68, 0.45) !important;
+  color: #fca5a5 !important;
+}
+.dark .sk__warningBox i {
+  color: #f87171 !important;
+}
+.dark .sk__dateSelectHeader label {
+  color: #e2e8f0 !important;
+}
+.dark .sk__linkBtn {
+  color: #60a5fa !important;
+}
+.dark .sk__linkBtn:hover {
+  color: #93c5fd !important;
+}
+.dark .sk__loadingSmall {
+  color: #94a3b8 !important;
+}
+.dark .sk__dateList {
+  background: #000000 !important;
+  border: 1.5px solid rgba(26, 115, 232, 0.4) !important;
+}
+.dark .sk__dateItem {
+  background: #090d16 !important;
+  border: 1px solid rgba(26, 115, 232, 0.3) !important;
+  color: #e2e8f0 !important;
+}
+.dark .sk__dateItem:hover {
+  background: rgba(26, 115, 232, 0.12) !important;
+  border-color: #3b82f6 !important;
+}
+.dark .sk__dateItem.selected {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25) !important;
+}
+.dark .sk__dateItemLabel {
+  color: #e2e8f0 !important;
+}
+.dark .sk__dateItemDate {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #94a3b8 !important;
+}
+.dark .sk__dateItem.selected .sk__dateItemDate {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+}
+.dark .sk__infoBox {
+  background: rgba(26, 115, 232, 0.1) !important;
+  border: 1px solid rgba(37, 99, 235, 0.4) !important;
+}
+.dark .sk__infoItem {
+  color: #e2e8f0 !important;
+}
+.dark .sk__infoItem strong {
+  color: #60a5fa !important;
+}
+.dark .sk__hintWarn {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1.5px solid rgba(245, 158, 11, 0.35) !important;
+  color: #fbbf24 !important;
+}
+.dark .sk__hintWarn i {
+  color: #f59e0b !important;
+}
+
+
+/* ------------------------------ Responsive (Bottom Sheet Drawer Style) -------------------------------
+
+   767px, BUKAN 768px. Ambang mobile aplikasi ini ada di satu tempat:
+   MOBILE_QUERY = '(max-width: 767px)' di lib/use-breakpoint.ts, yang dipakai
+   useIsMobile() untuk memilih cabang render mobile vs desktop.
+
+   Selama file ini memakai 768px, ada satu lebar — TEPAT 768px — di mana JS
+   menyimpulkan "desktop" (merender tabel desktop) sementara CSS menyimpulkan
+   "mobile" (memasang modal gaya bottom-sheet). Satu piksel, tapi persis bentuk
+   kebocoran yang harus dihindari: aturan mobile ikut menentukan tampilan
+   desktop. Disamakan supaya kedua sisi selalu sepakat.
+   ------------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .mdl-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    background: rgba(17, 46, 89, 0.55) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    backdrop-filter: blur(8px) !important;
+    animation: mdlFadeIn 0.2s ease-out !important;
+  }
+
+  @keyframes mdlFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes mdlSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .mdl-panel,
+  .mdl-panel--sm,
+  .mdl-panel--md,
+  .mdl-panel--lg,
+  .mdl-panel--xl {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 20px) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 20px) !important;
+    margin: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-top: 1.5px solid #E1E2E9 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: 0 -12px 36px rgba(17, 46, 89, 0.2) !important;
+    animation: mdlSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+
+  /* JARAK BAWAH TOMBOL FOOTER
+     Ruang bawah panel di atas (14px + safe area) berdiri DI LUAR footer, jadi
+     saat ada footer jarak di bawah tombol jadi 10px + 14px + safe area,
+     sementara di atasnya hanya 10px — tombolnya terlihat terdorong ke atas.
+
+     Saat panel memang punya footer, ruang itu dipindahkan KE DALAM footer:
+     panel menyisakan safe area saja, dan footer memberi jarak yang sama di
+     atas dan di bawah tombol. Panel tanpa footer tidak tersentuh — di sana
+     14px itu memang jarak bawah isi. */
+  .mdl-panel:has(> .mdl-foot),
+  .mdl-panel:has(> form > .mdl-foot) {
+    /* 0, bukan safe area: safe area-nya ikut pindah ke footer di bawah —
+       kalau ditulis di dua tempat, ia terhitung dua kali. */
+    padding-bottom: 0 !important;
+  }
+
+  .mdl-panel:has(> .mdl-foot) .mdl-foot,
+  .mdl-panel:has(> form > .mdl-foot) .mdl-foot {
+    padding-top: 14px !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Handle indicator (soft drag handle) */
+  .mdl-panel::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: #CBD5E1 !important;
+    margin: 8px auto 2px !important;
+    flex-shrink: 0;
+  }
+
+  .mdl-panel--delete {
+    padding: 0 20px calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .mdl-panel--delete::before {
+    margin: 14px auto 16px auto !important;
+  }
+
+  .dark .mdl-panel,
+  .dark .mdl-panel--sm,
+  .dark .mdl-panel--md,
+  .dark .mdl-panel--lg,
+  .dark .mdl-panel--xl {
+    background: #000000 !important;
+    border-top: 1px solid rgba(37, 99, 235, 0.4) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.95) !important;
+  }
+
+  .dark .mdl-panel::before {
+    background: #475569 !important;
+  }
+
+  .mdl-head {
+    padding: 10px 16px !important;
+    border-bottom: 1px solid #F1F5F9 !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  /* Icon di kiri judul modal tampil dengan badge lingkaran halus */
+  .mdl-head__icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    font-size: 0.95rem !important;
+    box-shadow: none !important;
+  }
+
+  /* Tombol close (X) di pojok kanan berbentuk lingkaran halus */
+  .mdl-head__x {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 50% !important;
+    border: none !important;
+    background: #F1F5F9 !important;
+    color: #64748B !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* Judul modal diselaraskan dengan ukuran font daftar data mobile */
+  .mdl-head__title,
+  .mdl-head__titleText {
+    font-size: 0.95rem !important;
+    font-weight: 650 !important;
+    line-height: 1.3 !important;
+    color: #0F172A !important;
+  }
+
+  /* Sembunyikan deskripsi / subjudul modal di mobile */
+  .mdl-head__sub {
+    display: none !important;
+  }
+
+  /* Form Labels & Inputs di Mobile disamakan dengan list data */
+  .sk__field label,
+  .ta__field label,
+  .md__field label,
+  .mdl-detail__label {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    color: var(--n-muted, #64748b) !important;
+  }
+
+  /* Ukurannya TIDAK ditulis ulang di sini. Dulu blok ini menyalin `0.85rem`,
+     dan salinan itulah yang akan menimpa token saat token naik ke 16px di iOS
+     — persis cara lama modal view & edit menyimpang. Cukup token. */
+  .sk__field input,
+  .sk__field select,
+  .sk__field textarea,
+  .ta__field input,
+  .ta__field select,
+  .ta__field textarea,
+  .md__field input,
+  .md__field select,
+  .md__field textarea,
+  .sk__readInput,
+  .mdl-detail__value {
+    font-size: var(--mdl-fs-control) !important;
+    font-weight: 500 !important;
+  }
+
+  .dark .mdl-head {
+    border-bottom-color: rgba(59, 130, 246, 0.25) !important;
+  }
+
+  .mdl-body {
+    padding: 16px 18px;
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    /* Terakhir dalam scroll chain: iOS Safari kadang tetap men-scroll body
+       halaman di baliknya walau .mdl-overlay overflow hidden (rubber-band
+       bleed). overscroll-behavior mengunci scroll supaya berhenti di sini. */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tombol aksi di footer modal selalu 1 baris side-by-side & compact */
+  .mdl-foot {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    padding: 10px var(--mdl-foot-pad-x) !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .mdl-foot > .ui-btn,
+  .mdl-foot > button,
+  .mdl-foot > div > .ui-btn,
+  .mdl-foot > div > button,
+  .mdl-foot.mdl-viewFoot > .ui-btn,
+  .mdl-foot.mdl-viewFoot > .mdl-viewFoot__right,
+  .mdl-foot.mdl-viewFoot > .mdl-viewFoot__right .ui-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: min-content !important;
+    max-width: 100% !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 16px !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+
+  /* Footer dengan TEPAT DUA tombol: tombol menyesuaikan panjang label (tidak dipaksa kaku 33%) */
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot:has(> button:first-child:nth-last-child(2)):has(> button:last-child:nth-child(2)) > button,
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot:has(> button:first-child:nth-last-child(2)):has(> button:last-child:nth-child(2)) > .ui-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: min-content !important;
+    max-width: 100% !important;
+    padding: 0 16px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Footer view/detail (.mdl-viewFoot) — "Hapus" + "Edit Data" */
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot.mdl-viewFoot:has(> button):has(> .mdl-viewFoot__right > .ui-btn:only-child) > button,
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot.mdl-viewFoot:has(> button):has(> .mdl-viewFoot__right > .ui-btn:only-child) > .mdl-viewFoot__right {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: min-content !important;
+    max-width: 100% !important;
+  }
+
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot.mdl-viewFoot:has(> button):has(> .mdl-viewFoot__right > .ui-btn:only-child) > .mdl-viewFoot__right {
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot.mdl-viewFoot:has(> button):has(> .mdl-viewFoot__right > .ui-btn:only-child) > .mdl-viewFoot__right > .ui-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 0 16px !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+  }
+
+  /* Kedua tombol dirapatkan berdampingan di kanan */
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot:has(> button:first-child:nth-last-child(2)):has(> button:last-child:nth-child(2)),
+  .mdl-panel:not(.mdl-panel--delete) .mdl-foot.mdl-viewFoot:has(> button):has(> .mdl-viewFoot__right > .ui-btn:only-child) {
+    justify-content: flex-end !important;
+    flex-wrap: nowrap !important;
+  }
+}
+
+/* =========================================================================
+   FORM FIELDS — dipakai di dalam ModalBody (label di atas + kotak isian)
+
+   Sebelum ini, "label + input" di tiap tab Master Data punya definisi CSS
+   sendiri lewat salah satu dari tiga nama kelas (sk__field / ta__field /
+   md__field, tergantung file tempat modal itu ditulis — bukan perbedaan yang
+   disengaja). Sembilan salinan itu perlahan menyimpang: padding 8-16px,
+   radius 10-12px, dan di dark mode ada yang solid hitam ada yang memakai
+   var(--n-surface) — itulah sebabnya tinggi kotak isian terasa tidak
+   seragam. Disatukan di sini: ubah satu tempat, seluruh modal Master Data
+   ikut berubah. Nama kelasnya sengaja TIDAK diseragamkan (masih sk__/ta__/
+   md__) supaya tidak perlu mengubah markup di 9 file.
+
+   `.sk__pendidikanRow input` (baris Riwayat Pendidikan di GuruTab, layout
+   grid label|nama sekolah|tahun — bukan pola label-di-atas seperti
+   .sk__field) ikut disertakan: input-nya sebelumnya TIDAK punya CSS sama
+   sekali, jadi Chromium/Windows merendernya dengan tema form-control native
+   sendiri (pill bulat + glow biru tebal, beda dari kotak elegan di field
+   lain) — pola persis yang sama dengan checkbox tak berstyle, lihat
+   [[ui-checkbox-appearance-none]]. */
+
+.sk__field,
+.ta__field,
+.md__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px !important;
+  min-width: 0;
+}
+
+.sk__field label,
+.ta__field label,
+.md__field label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+.required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.sk__field input,
+.sk__field select,
+.sk__field textarea,
+.ta__field input,
+.ta__field select,
+.ta__field textarea,
+.md__field input,
+.md__field select,
+.md__field textarea,
+.sk__pendidikanRow input {
+  width: 100%;
+  min-width: 0;
+  height: var(--mdl-h-control);
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: var(--mdl-fs-control);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sk__field input:focus,
+.sk__field select:focus,
+.sk__field textarea:focus,
+.ta__field input:focus,
+.ta__field select:focus,
+.ta__field textarea:focus,
+.md__field input:focus,
+.md__field select:focus,
+.md__field textarea:focus,
+.sk__pendidikanRow input:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__field input:disabled,
+.sk__field select:disabled,
+.sk__field input[readonly],
+.ta__field input:disabled,
+.md__field input:disabled {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: #888;
+  cursor: not-allowed;
+}
+
+.sk__field textarea,
+.ta__field textarea,
+.md__field textarea {
+  height: auto !important;
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Dark mode — `!important` diperlukan: input/select polos di sini kena
+   aturan reset agresif `.dark input[type="text"]:not(...)` /
+   `.dark select:not(...)` di globals.css (lihat catatan yang sama di
+   .kh-input / .ftb-input). Tanpa !important warnanya akan tertimpa. */
+.dark .sk__field label,
+.dark .ta__field label,
+.dark .md__field label {
+  color: #94a3b8 !important;
+}
+
+.dark .sk__field input,
+.dark .sk__field select,
+.dark .sk__field textarea,
+.dark .ta__field input,
+.dark .ta__field select,
+.dark .ta__field textarea,
+.dark .md__field input,
+.dark .md__field select,
+.dark .md__field textarea,
+.dark .sk__pendidikanRow input {
+  background: #000000 !important;
+  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  color: #ffffff !important;
+  border-radius: 12px !important;
+}
+
+.dark .sk__field input:disabled,
+.dark .sk__field select:disabled,
+.dark .ta__field input:disabled,
+.dark .md__field input:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #94a3b8 !important;
+}
+
+/* Kotak nilai read-only di modal "Detail Data" (view) — sama persis di
+   GuruTab & SiswaTab, disatukan sebelum sempat menyimpang seperti .sk__field
+   dulu. Modal view sengaja TIDAK punya warna/variant sendiri — identik
+   dengan modal edit (variant="edit"), lihat konvensi di components/Modal.tsx. */
+.sk__readInput {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: var(--mdl-fs-control);
+  min-height: var(--mdl-h-control);
+  display: flex;
+  align-items: center;
+  overflow-wrap: break-word;
+  cursor: default;
+}
+
+/* Nilai monospace (NIP/NISN/NIK/nomor rekening, dst) sengaja TIDAK ikut
+   overflow-wrap: dipecah sembarang karakter (mis. NIP 17 digit jadi 1 digit
+   per baris) jauh lebih tidak terbaca daripada digeser horizontal. Satu
+   baris tetap utuh, scroll ke samping kalau kotaknya sempit (mobile). */
+.sk__readInput.font-mono {
+  overflow-wrap: normal;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.dark .sk__readInput {
+  background: #000000 !important;
+  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  color: #ffffff !important;
+}
+
+/* Grid 2 kolom + judul seksi — sama seperti .sk__field, ini dulu disalin
+   sendiri-sendiri per tab (GuruTab/SiswaTab/KelasTab/WaktuTab/dst, gap-nya
+   sempat beda-beda 10-12px) sampai transisi modal Detail↔Edit terasa
+   "meloncat". Disatukan di sini supaya lebar kolom & gap SELALU sama,
+   baik di modal Tambah, Edit, maupun Detail — tinggal ubah satu tempat. */
+.sk__grid2,
+.ta__grid2,
+.md__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.sk__grid2--guru {
+  display: grid;
+  grid-template-columns: 6.5fr 3.5fr;
+  gap: 12px;
+}
+
+/* `1 / -1` (dari garis grid pertama sampai terakhir), bukan `span 2` —
+   selalu selebar penuh berapa pun jumlah kolom `.sk__grid2` saat itu
+   (2 di desktop, 1 di mobile), tidak bergantung asumsi jumlah kolom. */
+.sk__fieldFull,
+.ta__fieldFull,
+.md__fieldFull {
+  grid-column: 1 / -1;
+}
+
+.sk__sectionTitle,
+.ta__sectionTitle,
+.md__sectionTitle {
+  grid-column: 1 / -1;
+  font-weight: 650 !important;
+  color: #0F172A !important;
+  margin-top: 10px !important;
+  margin-bottom: 4px !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  padding-bottom: 4px !important;
+  font-size: 0.82rem !important;
+}
+
+.dark .sk__sectionTitle,
+.dark .ta__sectionTitle,
+.dark .md__sectionTitle {
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.4) !important;
+}
+
+/* 900px — sengaja lebih lebar dari breakpoint tabel→kartu (768px) di
+   halaman Master Data/Pengaturan Data supaya TIDAK ADA jendela lebar
+   layar sama sekali di mana isian modal masih 2 kolom padahal halaman
+   sudah tampil mode ringkas. Panel modal sendiri maksimal 720px
+   (size="lg"), jadi 2 kolom di lebar berapa pun ≤900px cenderung terlalu
+   sempit untuk terasa lega — lebih aman selalu 1 kolom di rentang ini. */
+@media (max-width: 900px) {
+  .sk__grid2,
+  .sk__grid2--guru,
+  .ta__grid2,
+  .md__grid2 {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+}
+
+/* Modal Form Typography & Control Refinements */
+.sk__field label,
+.ta__field label,
+.md__field label,
+.mdl-detail__label {
+  font-size: 0.72rem !important;
+  font-weight: 550 !important;
+  color: #64748b !important;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+  margin-bottom: 0px !important;
+  margin-top: 0px !important;
+  line-height: 1.25 !important;
+}
+
+.dark .sk__field label,
+.dark .ta__field label,
+.dark .md__field label,
+.dark .mdl-detail__label {
+  color: #94a3b8 !important;
+}
+
+/* WAJAH EDIT — kotak isian.
+   Rantai `:not()` di sini sengaja dibuat sepanjang aturan penjaga iOS di
+   app/globals.css. Alasannya spesifisitas: penjaga itu memakai lima `:not()`
+   beratribut sehingga bernilai (0,5,1), sementara `.sk__field input:not(...)`
+   hanya (0,2,1) — dua-duanya `!important`, jadi yang menang penjaga globalnya,
+   dan itulah kenapa <input> dulu ikut 16px di perangkat sentuh sementara
+   <select>/<textarea> (yang rantainya pendek, jadi kalah) tetap 13,6px.
+   Disamakan panjangnya supaya aturan modal-lah yang menentukan, dan nilainya
+   sendiri sudah ikut token (yang memang naik ke 16px di iOS). */
+.sk__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.sk__field select,
+.sk__field textarea,
+.ta__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.ta__field select,
+.ta__field textarea,
+.md__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.md__field select,
+.md__field textarea {
+  min-height: var(--mdl-h-control) !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: var(--mdl-fs-control) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.sk__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.sk__field select,
+.ta__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.ta__field select,
+.md__field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+.md__field select {
+  height: var(--mdl-h-control) !important;
+  padding: 0 12px !important;
+}
+
+/* WAJAH VIEW — kotak nilai. Nilai-nilainya WAJIB sama persis dengan blok
+   "wajah edit" di atas; keduanya membaca token yang sama supaya tidak bisa
+   menyimpang lagi. */
+.sk__readInput,
+.mdl-detail__value {
+  min-height: var(--mdl-h-control) !important;
+  height: auto !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  font-size: var(--mdl-fs-control) !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+
+.sk__field input::placeholder,
+.sk__field textarea::placeholder,
+.ta__field input::placeholder,
+.ta__field textarea::placeholder,
+.md__field input::placeholder,
+.md__field textarea::placeholder {
+  font-size: var(--mdl-fs-control) !important;
+  font-weight: 400 !important;
+  color: #94a3b8 !important;
+}
+
+.sk__field input:focus,
+.sk__field select:focus,
+.sk__field textarea:focus,
+.ta__field input:focus,
+.ta__field select:focus,
+.ta__field textarea:focus,
+.md__field input:focus,
+.md__field select:focus,
+.md__field textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Hint text inside modal body */
+.sk__hint {
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  margin-top: 4px !important;
+}
+
+/* React-Select Customizations for Mobile Multi-select (Jam Ke-) */
+.sk__field [class*="-control"] {
+  border-radius: 12px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  min-height: var(--mdl-h-control) !important;
+  background: #ffffff !important;
+  font-size: var(--mdl-fs-control) !important;
+  box-shadow: none !important;
+}
+
+.sk__field [class*="-control"]:hover {
+  border-color: #3b82f6 !important;
+}
+
+.sk__field [class*="-control--is-focused"] {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.15) !important;
+}
+
+.sk__field [class*="-multiValue"] {
+  background-color: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 8px !important;
+  margin: 2px 4px 2px 0 !important;
+}
+
+.sk__field [class*="-multiValueLabel"] {
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+  font-size: 0.79rem !important;
+  padding: 3px 6px !important;
+}
+
+.sk__field [class*="-multiValueRemove"] {
+  color: #2563eb !important;
+  border-radius: 6px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+/* =========================================================================
+   STATUS TOGGLE SWITCH COMPONENT
+   ========================================================================= */
+.mdl-switchWrap {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 2px 0;
+}
+
+.mdl-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mdl-switch input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.mdl-switch__track {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.mdl-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.mdl-switch input[type="checkbox"]:checked + .mdl-switch__track {
+  background: #3083FF !important;
+  box-shadow: 0 2px 6px rgba(48, 131, 255, 0.3) !important;
+}
+
+.mdl-switch input[type="checkbox"]:checked + .mdl-switch__track .mdl-switch__thumb {
+  transform: translateX(20px);
+}
+
+.mdl-switch input[type="checkbox"]:focus-visible + .mdl-switch__track {
+  outline: 2px solid #3083FF;
+  outline-offset: 2px;
+}
+
+.mdl-switch__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.mdl-switch__badge.isOn {
+  background: #E0ECFF;
+  color: #3083FF;
+  border: 1px solid #D0E2FF;
+}
+
+.mdl-switch__badge.isOff {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+}
+
+.dark .mdl-switch__track {
+  background: #334155;
+}
+
+.dark .mdl-switch input[type="checkbox"]:checked + .mdl-switch__track {
+  background: #3083FF !important;
+}
+
+.dark .mdl-switch__badge.isOn {
+  background: rgba(48, 131, 255, 0.18);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark .mdl-switch__badge.isOff {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.sk__field [class*="-multiValueRemove"]:hover {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+.dark .sk__field [class*="-control"] {
+  background: #000000 !important;
+  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.dark .sk__field [class*="-multiValue"] {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+}
+
+.dark .sk__field [class*="-multiValueLabel"] {
+  color: #93c5fd !important;
+}
+
+.dark .sk__field [class*="-multiValueRemove"] {
+  color: #60a5fa !important;
+}
+
+.dark .sk__field [class*="-multiValueRemove"]:hover {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  color: #f87171 !important;
+}
+

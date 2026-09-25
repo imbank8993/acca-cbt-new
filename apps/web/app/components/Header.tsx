@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Sun, Moon, Menu, User as UserIcon, LogOut, Bell } from 'lucide-react';
+import { Sun, Moon, Menu, User as UserIcon, LogOut } from 'lucide-react';
 import { clearSessionCache } from '@/lib/session';
+import { NotificationBell } from './ui/NotificationBell';
 import './header.css';
 
 export interface HeaderUser {
@@ -173,15 +174,7 @@ export default function Header({
                 </div>
 
                 <div className="header-right">
-                    <button
-                        type="button"
-                        onClick={() => router.push('/dashboard/notifications')}
-                        className="header-icon-btn"
-                        title="Notifikasi"
-                        aria-label="Notifikasi"
-                    >
-                        <Bell size={18} />
-                    </button>
+                    <NotificationBell userId={user?.id} />
 
                     <button
                         type="button"
@@ -197,10 +190,31 @@ export default function Header({
                         <button className="user-menu-trigger" onClick={() => setShowUserMenu(!showUserMenu)} type="button">
                             <div className="user-avatar-small">
                                 {avatarImg ? (
-                                    <img src={avatarImg} alt={displayName} />
-                                ) : (
+                                    <img
+                                        src={avatarImg}
+                                        alt={displayName}
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                            const parent = e.currentTarget.parentElement;
+                                            if (parent) {
+                                                const fallback = parent.querySelector('.user-avatar-fallback') as HTMLElement;
+                                                if (fallback) fallback.style.display = 'inline-flex';
+                                            }
+                                        }}
+                                    />
+                                ) : null}
+                                <span
+                                    className="user-avatar-fallback"
+                                    style={{
+                                        display: avatarImg ? 'none' : 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '100%',
+                                        height: '100%'
+                                    }}
+                                >
                                     <UserIcon size={16} />
-                                )}
+                                </span>
                             </div>
                             <div className="user-info-header">
                                 <span className="user-name-header">{displayName}</span>
@@ -211,11 +225,43 @@ export default function Header({
                         {showUserMenu && (
                             <div className="user-menu-dropdown">
                                 <div className="user-menu-info">
-                                    <div className="user-menu-name">{displayName}</div>
-                                    <div className="user_menu_nip" style={{ fontSize: '0.75rem', color: 'var(--n-muted, rgba(255,255,255,0.7))', margin: '2px 0' }}>
-                                        NIP/NISN: {displayNip}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                        <div className="user-avatar-small" style={{ width: '40px', height: '40px', minWidth: '40px', flexShrink: 0 }}>
+                                            {avatarImg ? (
+                                                <img
+                                                    src={avatarImg}
+                                                    alt={displayName}
+                                                    onError={(e) => {
+                                                        e.currentTarget.style.display = 'none';
+                                                        const parent = e.currentTarget.parentElement;
+                                                        if (parent) {
+                                                            const fallback = parent.querySelector('.user-avatar-fallback') as HTMLElement;
+                                                            if (fallback) fallback.style.display = 'inline-flex';
+                                                        }
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <span
+                                                className="user-avatar-fallback"
+                                                style={{
+                                                    display: avatarImg ? 'none' : 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    width: '100%',
+                                                    height: '100%'
+                                                }}
+                                            >
+                                                <UserIcon size={18} />
+                                            </span>
+                                        </div>
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                            <div className="user-menu-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
+                                            <div className="user_menu_nip" style={{ fontSize: '0.75rem', color: 'var(--n-muted, rgba(255,255,255,0.7))', margin: '2px 0' }}>
+                                                NIP/NISN: {displayNip}
+                                            </div>
+                                            <div className="user-menu-role">{displayRoles.join(', ')}</div>
+                                        </div>
                                     </div>
-                                    <div className="user-menu-role">{displayRoles.join(', ')}</div>
                                 </div>
 
                                 <button

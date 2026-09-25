@@ -200,22 +200,6 @@ export default function GuruDashboard() {
         <div className="max-w-7xl mx-auto pb-24">
 
             {/* ── Hero Header ── */}
-            <div className="relative overflow-hidden rounded-lg acca-hero-gradient mb-8 shadow-xl shadow-[#0038A8]/20">
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-[#0038A8]/10 rounded-full blur-3xl" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl" />
-
-                <div className="relative px-8 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-white mb-2">
-                            Selamat datang, <span className="text-white font-bold">{fullName || 'Guru'}</span>
-                        </h1>
-                        <p className="text-white text-sm max-w-xl">
-                            {org?.name || 'Dashboard Guru'} • {getDay()}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-x-2 mb-8">
                 {statCards.map((item, i) => (

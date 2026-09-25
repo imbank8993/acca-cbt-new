@@ -105,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         email: user.email,
                         nip: profileData?.profile?.identity_number || (user as any).nip,
                         roles: (user as any).roles || [],
-                        photoUrl: profileData?.profile?.avatar_url || (user as any).user_metadata?.avatar_url,
+                        photoUrl: profileData?.profile?.avatar_url || (user as any).photoUrl || (user as any).avatar_url || (user as any).user_metadata?.avatar_url,
                     });
                 } catch (e) {
                     console.error('[DashboardLayout] profile load error:', e);
