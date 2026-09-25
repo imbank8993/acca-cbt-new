@@ -31,12 +31,43 @@ const TWELVE_HOURS = 12 * 60 * 60;
  * JWT CBT sendiri. Token itu masuk ke cookie httpOnly. Tidak ada token di URL,
  * tidak ada keluarga refresh token bersama, dan tidak ada Supabase.
  */
+function resolvePublicOrigin(request: NextRequest): string {
+    // 1. Cek header reverse proxy (Nginx / Traefik / Cloudflare)
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+    if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.startsWith('127.') && !forwardedHost.endsWith(':3008')) {
+        return `${forwardedProto}://${forwardedHost}`;
+    }
+
+    // 2. Cek variabel lingkungan NEXT_PUBLIC_SITE_URL (misal https://accav2-cbt.icgowa.sch.id di VPS)
+    const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    if (envSiteUrl && !envSiteUrl.includes('0.0.0.0') && (envSiteUrl.startsWith('https://') || !envSiteUrl.includes('localhost'))) {
+        return envSiteUrl.replace(/\/$/, '');
+    }
+
+    // 3. Cek header host standar jika berupa domain publik
+    const host = request.headers.get('host');
+    if (host && !host.includes('0.0.0.0') && !host.startsWith('127.') && !host.endsWith(':3008')) {
+        const proto = request.headers.get('x-forwarded-proto') || 'https';
+        return `${proto}://${host}`;
+    }
+
+    // 4. Fallback ke NEXT_PUBLIC_SITE_URL apa pun yang valid
+    if (envSiteUrl && !envSiteUrl.includes('0.0.0.0')) {
+        return envSiteUrl.replace(/\/$/, '');
+    }
+
+    // 5. Fallback lokal untuk dev
+    const origin = request.nextUrl.origin;
+    if (origin.includes('0.0.0.0') || origin.includes('127.0.0.1')) {
+        return 'http://localhost:3008';
+    }
+    return origin;
+}
+
 export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
-    let origin = request.nextUrl.origin;
-    if (origin.includes('0.0.0.0')) {
-        origin = process.env.NEXT_PUBLIC_SITE_URL || origin.replace('0.0.0.0', 'localhost');
-    }
+    const origin = resolvePublicOrigin(request);
 
     if (!token) {
         return NextResponse.redirect(new URL('/?error=missing-token', origin));

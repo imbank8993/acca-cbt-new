@@ -23,7 +23,13 @@ export async function middleware(req: NextRequest) {
     }
 
     if (req.nextUrl.pathname.startsWith('/dashboard')) {
-        return NextResponse.redirect(new URL('/', req.url));
+        const forwardedHost = req.headers.get('x-forwarded-host');
+        const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+        const base = (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.endsWith(':3008'))
+            ? `${forwardedProto}://${forwardedHost}`
+            : (siteUrl && !siteUrl.includes('0.0.0.0') ? siteUrl : req.url);
+        return NextResponse.redirect(new URL('/', base));
     }
 
     return NextResponse.next({ request: req });
