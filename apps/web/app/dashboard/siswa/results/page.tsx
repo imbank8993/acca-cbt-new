@@ -42,38 +42,19 @@ export default function StudentResultsPage() {
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
-            {/* ── Hero Header — Compact acca-hero-gradient ── */}
-            <div className="relative overflow-hidden rounded-2xl acca-hero-gradient shadow-xl shadow-[#0038A8]/15 mt-4 md:mt-0 p-6 md:p-8">
-                {/* Decorative Glowing Orbs */}
-                <div className="absolute -top-12 -right-12 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-
-                <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5 z-10">
-                    <div className="space-y-2">
-                        <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-tight">
-                            Halo, <span className="text-amber-200">{fullName || 'Siswa'}</span>! 👋
-                        </h1>
-                        <p className="text-white/80 text-xs md:text-sm max-w-xl font-medium leading-relaxed">
-                            Berikut adalah rekapitulasi performa dan nilai hasil ujian belajar Anda.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 self-start md:self-center shrink-0">
-                        {/* Compact Stat Badge */}
-                        <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-white/15 shadow-lg">
-                            <span className="text-xs font-bold text-white/95">Ujian Selesai:</span>
-                            <span className="text-base font-black text-white font-mono bg-white/20 px-2 py-0.5 rounded-lg leading-none">{results.length}</span>
-                        </div>
-                        
-                        <button
-                            onClick={loadResults}
-                            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95 shrink-0"
-                        >
-                            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-                            Muat Ulang
-                        </button>
-                    </div>
+            {/* Top Stat & Refresh Bar */}
+            <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">Total Ujian Selesai:</span>
+                    <span className="text-base font-black text-[#0038A8] font-mono bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-lg leading-none">{results.length}</span>
                 </div>
+                <button
+                    onClick={loadResults}
+                    className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3.5 py-2 rounded-xl font-bold text-xs transition-all shadow-xs active:scale-95 shrink-0"
+                >
+                    <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                    Muat Ulang
+                </button>
             </div>
 
             {isLoading ? (
