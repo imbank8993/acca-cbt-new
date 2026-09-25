@@ -17,13 +17,17 @@ COPY packages/shared ./packages/shared
 RUN npm run build:shared
 
 # Salin kode sumber frontend Next.js
-COPY apps/web ./apps/web
+ARG NEXT_PUBLIC_ACCA_URL=https://accav2.icgowa.sch.id
+ARG NEXT_PUBLIC_SITE_URL=https://accav2-cbt.icgowa.sch.id
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
-    NODE_ENV=production
+    NODE_ENV=production \
+    NEXT_PUBLIC_ACCA_URL=$NEXT_PUBLIC_ACCA_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 # Bangun aplikasi Next.js (output standalone otomatis terbentuk di apps/web/.next/standalone)
 RUN npm run build --workspace=apps/web
+
 
 # ─── Tahap 2: Runtime Produksi (Standalone Minimal) ───────────────────────────
 FROM node:20-bookworm-slim AS runner

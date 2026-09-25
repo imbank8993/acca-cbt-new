@@ -113,7 +113,7 @@ export default function Home() {
                 // dulu, baru arahkan ke acca-app untuk memulai dari awal.
                 isRedirecting = true;
                 await clearCbtSession();
-                const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'http://localhost:3002';
+                const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'https://accav2.icgowa.sch.id';
                 window.location.href = `${accaUrl}/login?error=cbt-no-session&v=3&hash=0`;
             }, 1500);
         };
@@ -121,7 +121,7 @@ export default function Home() {
     }, [router]);
 
     if (failure) {
-        const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'http://localhost:3002';
+        const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'https://accav2.icgowa.sch.id';
         return (
             <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
                 <div className="bg-white p-8 rounded-lg shadow-sm border border-slate-100 max-w-md w-full text-center">

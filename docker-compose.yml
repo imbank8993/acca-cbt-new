@@ -44,6 +44,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://accav2.icgowa.sch.id}
+        - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://accav2-cbt.icgowa.sch.id}
     container_name: cbt-web
     restart: unless-stopped
     depends_on:
