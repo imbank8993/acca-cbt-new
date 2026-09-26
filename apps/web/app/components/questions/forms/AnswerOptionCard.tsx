@@ -23,6 +23,9 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
     const [editorMode, setEditorMode] = useState<'visual' | 'latex'>('visual');
 
     useEffect(() => {
+        // Dynamic import to register <math-field> without breaking SSR
+        import('mathlive').catch((err) => console.error('Failed to load mathlive', err));
+
         if (input.trim()) {
             const r = renderLatex(sanitizeLatex(input), false);
             setPreviewHtml(r.error ? '' : r.html);

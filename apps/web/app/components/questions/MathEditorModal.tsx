@@ -35,6 +35,9 @@ function MathEditorModalContent({
 
   // Keyboard shortcut listener (Escape to close, Ctrl+Enter to apply)
   useEffect(() => {
+    // Dynamically import mathlive to register <math-field> without breaking Next.js SSR
+    import('mathlive').catch((err) => console.error('Failed to load mathlive', err));
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
