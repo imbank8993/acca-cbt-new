@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import {
     orderQuestionsForStudent,
     shuffleOptionsForStudent,
@@ -94,26 +95,21 @@ export class ExamAttemptsService {
         if (!row.is_published) {
             throw new ForbiddenException('Ujian belum dipublikasikan oleh proktor.');
         }
-        if (!row.question_bank_id) return { questions: [] };
-
-        const { data, error } = await this.db
-            .from('cbt_bank_questions')
-            .select(
-                `id, question_text, type, score_default, metadata, created_at,
-                 bank_question_options:cbt_bank_question_options(id, option_text, weight, metadata, order),
-                 stimulus:cbt_question_stimuli(*),
-                 instruction:cbt_question_instructions(*)`,
-            )
-            .eq('bank_id', row.question_bank_id)
-            .order('created_at', { ascending: true });
-
-        if (error) throw new BadRequestException(error.message);
+        const questions = await loadExamQuestions(
+            this.db,
+            examId,
+            `id, question_text, type, score_default, metadata, created_at,
+             bank_question_options:cbt_bank_question_options(id, option_text, weight, metadata, order),
+             stimulus:cbt_question_stimuli(*),
+             instruction:cbt_question_instructions(*)`,
+            row.question_bank_id,
+        );
 
         // Urutan soal diambil dari `common/question-order`, bukan disalin ulang:
         // layar review hasil memakai fungsi yang sama, dan begitu keduanya
         // berbeda satu langkah saja, "soal nomor 7" di review berhenti merujuk
         // soal yang benar-benar dikerjakan siswa.
-        const ordered = orderQuestionsForStudent((data as any[]) || [], {
+        const ordered = orderQuestionsForStudent(questions, {
             userId: user.id,
             examId,
             randomize: row.randomize_questions,
@@ -707,20 +703,13 @@ export class ExamAttemptsService {
             rows: [] as AnswerRow[],
         };
 
-        const bankId = await this.resolveBankId(examId);
-        if (!bankId) return empty;
-
-        const { data, error } = await this.db
-            .from('cbt_bank_questions')
-            .select(
-                `id, type, score_default, metadata, dimension_id,
-                 bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
-            )
-            .eq('bank_id', bankId);
-
-        if (error) throw new BadRequestException('Gagal memuat soal untuk penilaian.');
-
-        const questions = (data as any[]) || [];
+        const questions = await loadExamQuestions(
+            this.db,
+            examId,
+            `id, type, score_default, metadata, dimension_id, created_at,
+             bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
+        );
+        if (questions.length === 0) return empty;
 
         const result = await this.scoring.post<{
             items: Array<{
@@ -857,25 +846,6 @@ export class ExamAttemptsService {
             throw new BadRequestException('Identitas perangkat tidak valid. Muat ulang halaman ujian.');
         }
         return device;
-    }
-
-    private async resolveBankId(examId: string): Promise<string | null> {
-        const { data: exam } = await this.db
-            .from('cbt_exams')
-            .select('question_bank_id')
-            .eq('id', examId)
-            .maybeSingle();
-
-        const direct = (exam as { question_bank_id: string | null } | null)?.question_bank_id;
-        if (direct) return direct;
-
-        const { data: sources } = await this.db
-            .from('cbt_exam_question_sources')
-            .select('bank_id')
-            .eq('exam_id', examId)
-            .limit(1);
-
-        return ((sources as Array<{ bank_id: string }>) || [])[0]?.bank_id ?? null;
     }
 
     /**

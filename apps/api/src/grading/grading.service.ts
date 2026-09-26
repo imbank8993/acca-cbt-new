@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
 
@@ -114,19 +115,14 @@ export class GradingService {
 
         const examId = (attempt as { exam_id: string }).exam_id;
 
-        const bankId = await this.resolveBankId(examId);
-        if (!bankId) return null;
-
-        const [{ data: questions }, { data: saved }] = await Promise.all([
-            this.db
-                .from('cbt_bank_questions')
-                .select(BANK_QUESTION_SELECT)
-                .eq('bank_id', bankId),
+        const [questions, { data: saved }] = await Promise.all([
+            loadExamQuestions(this.db, examId, BANK_QUESTION_SELECT),
             this.db
                 .from('cbt_answers')
                 .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
                 .eq('attempt_id', attemptId),
         ]);
+        if (questions.length === 0) return null;
 
         const answers = new Map<string, AnswerRow>(
             ((saved as any[]) || []).map((a) => [a.question_id, a]),
@@ -165,30 +161,6 @@ export class GradingService {
     }
 
     /**
-     * Bank soal sebuah ujian. Ujian lama menyimpannya di kolom
-     * `cbt_exams.question_bank_id`; ujian yang menarik soal dari beberapa bank
-     * memakai `cbt_exam_question_sources`. Keduanya masih ada di data produksi.
-     */
-    private async resolveBankId(examId: string): Promise<string | null> {
-        const { data: exam } = await this.db
-            .from('cbt_exams')
-            .select('question_bank_id')
-            .eq('id', examId)
-            .maybeSingle();
-
-        const direct = (exam as { question_bank_id: string | null } | null)?.question_bank_id;
-        if (direct) return direct;
-
-        const { data: sources } = await this.db
-            .from('cbt_exam_question_sources')
-            .select('bank_id')
-            .eq('exam_id', examId)
-            .limit(1);
-
-        return ((sources as Array<{ bank_id: string }>) || [])[0]?.bank_id ?? null;
-    }
-
-    /**
      * Hitung ulang satu attempt terhadap keadaan bank soal SAAT INI.
      *
      * Dipanggil setelah kunci jawaban diubah. Berbeda dari
@@ -210,16 +182,14 @@ export class GradingService {
 
         const row = attempt as { exam_id: string; metadata: Record<string, unknown> | null };
 
-        const bankId = await this.resolveBankId(row.exam_id);
-        if (!bankId) return;
-
-        const [{ data: questions }, { data: saved }] = await Promise.all([
-            this.db.from('cbt_bank_questions').select(BANK_QUESTION_SELECT).eq('bank_id', bankId),
+        const [questions, { data: saved }] = await Promise.all([
+            loadExamQuestions(this.db, row.exam_id, BANK_QUESTION_SELECT),
             this.db
                 .from('cbt_answers')
                 .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
                 .eq('attempt_id', attemptId),
         ]);
+        if (questions.length === 0) return;
 
         const answers = new Map<string, AnswerRow>(
             ((saved as AnswerRow[]) || []).map((a) => [a.question_id, a]),

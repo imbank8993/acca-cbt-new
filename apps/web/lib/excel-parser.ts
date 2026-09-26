@@ -193,12 +193,13 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             return null;
         };
 
-        const colSoal = getColumn(['soal', 'pertanyaan', 'question', 'item', 'teks', 'text', 'no']);
+        const colSoal = getColumn(['soal', 'pertanyaan', 'question', 'item', 'teks', 'text']);
         const colType = getColumn(['tipe', 'type', 'jenis']);
         const colDiff = getColumn(['kesulitan', 'difficulty', 'level', 'tingkat']);
         const colScore = getColumn(['skor', 'score', 'poin', 'point', 'nilai']);
         const colKunci = getColumn(['kunci', 'jawaban', 'answer', 'correct', 'benar']);
         const exactColumn = (names: string[]) => names.map(name => headerMap[name]).find(Boolean) || null;
+        const colNumber = exactColumn(['no', 'no.', 'nomor', '#']);
         const optionColumns = Array.from({ length: Math.max(26, ...headers.filter(h => /^[a-z]{1,3}$/.test(h)).map(h => optionIndex(h) + 1)) }, (_, i) => {
             const letter = optionLabel(i).toLowerCase();
             return exactColumn([letter, `option ${letter}`, `pilihan ${letter}`, `opsi ${letter}`, `pilihan ${i + 1}`]);
@@ -234,6 +235,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             };
 
             const soalText = getValue(colSoal);
+            const sourceNumberRaw = getValue(colNumber);
             const typeRaw = getValue(colType);
             const diffRaw = getValue(colDiff);
             const scoreRaw = getValue(colScore);
@@ -368,6 +370,8 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
 
             // Build metadata
             const metadata: any = {};
+            const sourceNumber = Number.parseInt(sourceNumberRaw.replace(/\D+/g, ''), 10);
+            if (Number.isFinite(sourceNumber)) metadata.import_source_number = sourceNumber;
             if (type === 'mcq_complex') {
                 metadata.isComplex = true;
             }
@@ -430,6 +434,11 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             });
         }
 
+        result.questions.sort((left, right) => {
+            const a = left.metadata?.import_source_number;
+            const b = right.metadata?.import_source_number;
+            return Number.isFinite(a) && Number.isFinite(b) ? a - b : 0;
+        });
         result.success = result.questions.length > 0 || result.errors.length === 0;
 
     } catch (error: any) {

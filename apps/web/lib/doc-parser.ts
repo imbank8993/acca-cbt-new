@@ -332,6 +332,32 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
 
 const stripHtml = (html: string | undefined | null) => html ? html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() : '';
 
+/** Samakan "01", "1.", dan "Soal 1" agar referensi stimulus tidak meleset. */
+function normalizeQuestionNumber(value: string): string {
+    const match = stripHtml(value).match(/^(?:SOAL\s*)?0*(\d+)\s*[.)]?$/i);
+    return match ? String(Number(match[1])) : '';
+}
+
+/** Mendukung daftar nomor umum: 1,2; 1 dan 2; serta rentang 1-3. */
+function parseQuestionReferences(value: string): string[] {
+    const normalized = stripHtml(value).replace(/\bdan\b/gi, ',');
+    const result: string[] = [];
+    for (const part of normalized.split(/[,;|]+/)) {
+        const range = part.match(/^\s*(\d+)\s*[-–—]\s*(\d+)\s*\.?\s*$/);
+        if (range) {
+            const start = Number(range[1]);
+            const end = Number(range[2]);
+            if (end >= start && end - start <= 500) {
+                for (let number = start; number <= end; number++) result.push(String(number));
+            }
+            continue;
+        }
+        const number = normalizeQuestionNumber(part);
+        if (number) result.push(number);
+    }
+    return [...new Set(result)];
+}
+
 function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questions: ParsedQuestion[]; stimulusMap: Record<string, string>; instructionMap: Record<string, string>; kisiMap: Record<string, string> } {
     // ── Phase 1: Extract stimulus, instruction and kisi-kisi tables ─────────────
     const stimulusMap: Record<string, string> = {};
@@ -357,7 +383,7 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
             for (let r = 1; r < rows.length; r++) {
                 const cells = rows[r].cells;
                 if (cells.length < 2) continue;
-                const numbers = cells[0].replace(/<[^>]*>/g, '').split(',').map(s => s.trim()).filter(Boolean);
+                const numbers = parseQuestionReferences(cells[0]);
                 if (numbers.length === 0) continue;
                 
                 // If it's the new 5-column format: Nomor Soal | Nomor KD/CP | KD/CP | Materi | Indikator Soal
@@ -402,7 +428,7 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
                 for (let r = 1; r < rows.length; r++) {
                     const cells = rows[r].cells;
                     if (cells.length < 2) continue;
-                    const numbers = cells[0].replace(/<[^>]*>/g, '').split(',').map(s => s.trim()).filter(Boolean);
+                    const numbers = parseQuestionReferences(cells[0]);
                     if (numbers.length === 0) continue;
                     // 3-col: Nomor Soal | Judul | Isi Petunjuk
                     const is3Col = headers.length >= 3;
@@ -430,7 +456,7 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
                 for (let r = 1; r < rows.length; r++) {
                     const cells = rows[r].cells;
                     if (cells.length < 2) continue;
-                    const numbers = cells[0].replace(/<[^>]*>/g, '').split(',').map(s => s.trim()).filter(Boolean);
+                    const numbers = parseQuestionReferences(cells[0]);
                     if (numbers.length === 0) continue;
                     // 3-col: Nomor Soal | Judul | Isi Stimulus
                     const is3Col = headers.length >= 3;
@@ -560,12 +586,13 @@ function parseQuestionTable(
         };
 
         const noRaw = getColText('no');
+        const questionNumber = normalizeQuestionNumber(noRaw);
         const tipeRaw = getColText('tipe');
         const soalRaw = getCol('soal'); // Tetap simpan format HTML untuk soal
         const kunciRaw = getColText('kunci');
         const skorRaw = getColText('skor');
 
-        const isNumberedRow = /^\d+$/.test(noRaw);
+        const isNumberedRow = questionNumber !== '';
 
         if (isNumberedRow) {
             if (current) {
@@ -591,9 +618,9 @@ function parseQuestionTable(
 
             currentKunci = kunciRaw;
             
-            const resolvedStimulus = stimulusMap[noRaw] || '';
-            const resolvedInstruction = instructionMap[noRaw] || '';
-            const resolvedKisi = kisiMap[noRaw] || '';
+            const resolvedStimulus = stimulusMap[questionNumber] || '';
+            const resolvedInstruction = instructionMap[questionNumber] || '';
+            const resolvedKisi = kisiMap[questionNumber] || '';
             
             const isPersonality = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(type);
 
@@ -611,10 +638,11 @@ function parseQuestionTable(
             currentMetadata = {
                 import_stimulus: resolvedStimulus || '',
                 import_instruction: resolvedInstruction || '',
-                _stimulus_code: resolvedStimulus ? noRaw : '',
-                _instruction_code: resolvedInstruction ? noRaw : '',
-                stimulus_title: stimulusTitles[noRaw] || '',
-                instruction_title: instructionTitles[noRaw] || '',
+                import_source_number: Number(questionNumber),
+                _stimulus_code: resolvedStimulus ? questionNumber : '',
+                _instruction_code: resolvedInstruction ? questionNumber : '',
+                stimulus_title: stimulusTitles[questionNumber] || '',
+                instruction_title: instructionTitles[questionNumber] || '',
                 kisi_kisi: kisiString,
                 kisi_kisi_data: kisiData,
                 dimension: isPersonality ? (kunciRaw || '') : '',
@@ -649,7 +677,7 @@ function parseQuestionTable(
             };
             currentOpts = [];
 
-            console.log(`[doc-parser] Q${noRaw} type=${type}: "${soalRaw.substring(0, 60)}"`);
+            console.log(`[doc-parser] Q${questionNumber} type=${type}: "${soalRaw.substring(0, 60)}"`);
 
         } else if (current) {
             const tipeUpper = tipeRaw.toUpperCase().trim();
@@ -761,6 +789,11 @@ function parseQuestionTable(
         if (!q.scoreDefault || isNaN(q.scoreDefault)) q.scoreDefault = 1;
     }
 
+    questions.sort((left, right) => {
+        const a = left.metadata?.import_source_number;
+        const b = right.metadata?.import_source_number;
+        return Number.isFinite(a) && Number.isFinite(b) ? a - b : 0;
+    });
     console.log('[doc-parser] Total parsed questions:', questions.length);
     return questions;
 }

@@ -1,6 +1,6 @@
 # Status temuan audit
 
-Diperbarui 25 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUDIT_2026-09-19.md). Status selesai adalah implementasi dan tes lokal, belum validasi deployment atau database sekolah.
+Diperbarui 26 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUDIT_2026-09-19.md). Tracker memuat 45 temuan audit awal dan temuan tambahan IMP-01. Status selesai adalah implementasi dan tes lokal, belum validasi deployment atau database sekolah.
 
 | ID | Prioritas | Tahap | Status | Temuan |
 |---|---|---|---|---|
@@ -28,8 +28,8 @@ Diperbarui 25 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUD
 | BUG-08 | P1 | 4 | Implementasi dan tes lokal selesai | Autosave jawaban rentan tertimpa request lama |
 | BUG-09 | P1 | 4 | Implementasi dan tes lokal selesai | Kegagalan localStorage menghentikan autosave ke server |
 | BUG-10 | P2 | 4 | Implementasi dan tes lokal selesai | Resume sesudah akhir global dapat menutup jalan pemulihan offline |
-| BUG-11 | P1 | — | Belum dikerjakan | Pemeriksaan soal yang sudah dipakai tidak mengikuti relasi jawaban aktual |
-| BUG-12 | P2 | — | Belum dikerjakan | Dukungan bank soal legacy tidak konsisten antarjalur |
+| BUG-11 | P1 | 9 | Implementasi dan tes lokal selesai | Pemeriksaan soal yang sudah dipakai tidak mengikuti relasi jawaban aktual |
+| BUG-12 | P2 | 10 | Implementasi dan tes lokal selesai | Dukungan bank soal legacy tidak konsisten antarjalur |
 | BUG-13 | P2 | 1 | Implementasi dan tes lokal selesai | Ujian public dapat diterbitkan tetapi tidak muncul di daftar siswa |
 | BUG-14 | P2 | 6 | Implementasi dan tes lokal selesai | Hook React diletakkan setelah conditional return |
 | BUG-15 | P1 | 3 | Implementasi dan tes lokal selesai | Regrade mengabaikan kontribusi nilai esai pada total |
@@ -47,5 +47,6 @@ Diperbarui 25 September 2026. [Rincian perubahan dan pengujian](../PERBAIKAN_AUD
 | UX-11 | P2 | 6 | Implementasi dan tes lokal selesai | Ekspor jawaban analitik kehilangan isi tipe soal kompleks |
 | UX-12 | P2 | 6 | Implementasi dan tes lokal selesai | Indikator tren dapat menyatakan naik saat nilai menurun |
 | QA-01 | P2 | 7 | Implementasi dan tes lokal selesai | Lint frontend belum menjadi pemeriksaan kualitas yang lulus |
-| QA-02 | P2 | — | Belum dikerjakan | Pengujian yang tersedia belum mencakup integritas alur lintas layanan |
-| QA-03 | P3 | — | Belum dikerjakan | Halaman role yang diduplikasi memperbesar risiko perbaikan tidak merata |
+| QA-02 | P2 | 11 | Implementasi dan tes lokal selesai | Pengujian yang tersedia belum mencakup integritas alur lintas layanan |
+| QA-03 | P3 | 12 | Implementasi dan tes lokal selesai | Halaman role yang diduplikasi memperbesar risiko perbaikan tidak merata |
+| IMP-01 | P1 | 8 | Implementasi dan tes lokal selesai | Urutan nomor soal dan relasi stimulus berubah saat impor massal |

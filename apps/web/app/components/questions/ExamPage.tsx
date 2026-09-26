@@ -217,47 +217,42 @@ export default function ExamPage() {
                 // Get questions from the bank — WAJIB lewat server action.
                 // Query langsung dari browser (anon key) membuat RLS bisa
                 // memblokir embed opsi secara diam-diam → "soal tanpa opsi".
-                let qbId = examData.question_bank_id;
                 let loadedQuestions: any[] = [];
-                if (qbId) {
-                    const qRes = await getExamQuestionsAction(examId);
-                    if (!qRes.success) {
-                        console.error('[ExamPage] Failed to load questions:', qRes.error);
-                        setAccessDenied(true);
-                        setAccessError(qRes.error || 'Gagal memuat soal. Silakan muat ulang halaman.');
-                        setLoading(false);
-                        return;
-                    }
-                    const qData = qRes.questions;
-                    if (qData && qData.length > 0) {
-                        const deduplicatedData = qData.map((q: any) => ({
-                            ...q,
-                            // Dedup berdasarkan ID, bukan teks. Dedup teks dulu
-                            // MENYEMBUNYIKAN opsi yang kebetulan berbunyi sama
-                            // dari siswa, padahal grading tetap menghitungnya —
-                            // kunci yang tersembunyi jadi mustahil dicentang.
-                            bank_question_options: (() => {
-                                const opts = q.bank_question_options || [];
-                                const seen = new Set<string>();
-                                return opts.filter((o: any) => {
-                                    if (!o?.id) return true;
-                                    if (seen.has(o.id)) return false;
-                                    seen.add(o.id);
-                                    return true;
-                                });
-                            })().sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-                        }));
-                        loadedQuestions = deduplicatedData;
-                        setQuestions(deduplicatedData);
-                    } else if (examData.exam_type !== 'assignment') {
-                        setAccessDenied(true);
-                        setAccessError('Bank soal belum tersedia untuk ujian ini.');
-                        setLoading(false);
-                        return;
-                    }
+                // Endpoint backend menyatukan `question_bank_id` dan seluruh
+                // `cbt_exam_question_sources`; browser tidak boleh menebak
+                // sumber hanya dari kolom bank langsung.
+                const qRes = await getExamQuestionsAction(examId);
+                if (!qRes.success) {
+                    console.error('[ExamPage] Failed to load questions:', qRes.error);
+                    setAccessDenied(true);
+                    setAccessError(qRes.error || 'Gagal memuat soal. Silakan muat ulang halaman.');
+                    setLoading(false);
+                    return;
+                }
+                const qData = qRes.questions;
+                if (qData && qData.length > 0) {
+                    const deduplicatedData = qData.map((q: any) => ({
+                        ...q,
+                        // Dedup berdasarkan ID, bukan teks. Dedup teks dulu
+                        // MENYEMBUNYIKAN opsi yang kebetulan berbunyi sama
+                        // dari siswa, padahal grading tetap menghitungnya —
+                        // kunci yang tersembunyi jadi mustahil dicentang.
+                        bank_question_options: (() => {
+                            const opts = q.bank_question_options || [];
+                            const seen = new Set<string>();
+                            return opts.filter((o: any) => {
+                                if (!o?.id) return true;
+                                if (seen.has(o.id)) return false;
+                                seen.add(o.id);
+                                return true;
+                            });
+                        })().sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+                    }));
+                    loadedQuestions = deduplicatedData;
+                    setQuestions(deduplicatedData);
                 } else if (examData.exam_type !== 'assignment') {
                     setAccessDenied(true);
-                    setAccessError('Bank soal belum ditentukan untuk ujian ini.');
+                    setAccessError('Bank soal belum tersedia untuk ujian ini.');
                     setLoading(false);
                     return;
                 }

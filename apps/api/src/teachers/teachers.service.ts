@@ -9,6 +9,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Tipe soal yang dinilai manual oleh guru. */
@@ -293,27 +294,9 @@ export class TeachersService {
             throw new BadRequestException('Pilih setidaknya satu jawaban untuk dinilai.');
         }
 
-        const { data: exam } = await this.db
-            .from('cbt_exams')
-            .select('question_bank_id')
-            .eq('id', examId)
-            .maybeSingle();
-
-        let bankId = (exam as { question_bank_id: string | null })?.question_bank_id ?? null;
-        if (!bankId) {
-            const { data: sources } = await this.db
-                .from('cbt_exam_question_sources')
-                .select('bank_id')
-                .eq('exam_id', examId)
-                .limit(1);
-            bankId = ((sources as Array<{ bank_id: string }>) || [])[0]?.bank_id ?? null;
-        }
-        if (!bankId) throw new BadRequestException('Bank soal ujian tidak ditemukan.');
-
-        const { data: questions, error: questionsError } = await this.db
-            .from('cbt_bank_questions').select('id, type, score_default').eq('bank_id', bankId);
-        if (questionsError) throw new BadRequestException(questionsError.message);
-        const questionMap = new Map<string, any>(((questions as any[]) || []).map(q => [q.id, q]));
+        const questions = await loadExamQuestions(this.db, examId, 'id, type, score_default, created_at');
+        if (questions.length === 0) throw new BadRequestException('Bank soal ujian tidak ditemukan.');
+        const questionMap = new Map<string, any>(questions.map(q => [q.id, q]));
         const { data: ownedAnswers, error: answersError } = await this.db.from('cbt_answers')
             .select('id, question_id').eq('attempt_id', attemptId).in('id', Object.keys(grades));
         if (answersError) throw new BadRequestException(answersError.message);

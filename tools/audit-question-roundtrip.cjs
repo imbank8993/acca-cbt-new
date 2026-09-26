@@ -50,6 +50,27 @@ async function parseSheet(headers,rows) {
     const headers={cells:['NO','TIPE','SOAL','KUNCI','SKOR']};
     const tf=parseRows([headers,{cells:['1','BS','Question','B|B','1']},{cells:['','P1','one','B','']},{cells:['','P2','two','B','']}]);
     check('Each B/S subrow uses its own key',()=>assert.deepEqual(tf[0].options.map(o=>o.isCorrect),[true,true]));
+    const mapped=doc.parseAllTables([
+        [{cells:['Nomor Soal','Judul','Stimulus']},{cells:['2.','Bacaan Dua','Stimulus Dua']},{cells:['01','Bacaan Satu','Stimulus Satu']}],
+        [{cells:['NO','TIPE','SOAL','KUNCI','SKOR']},{cells:['2.','PG','Soal Dua','A','1']},{cells:['','A','Jawaban Dua','','']},{cells:['','B','Pengecoh Dua','','']},{cells:['01','PG','Soal Satu','A','1']},{cells:['','A','Jawaban Satu','','']},{cells:['','B','Pengecoh Satu','','']}],
+    ],[['Nomor Soal','Judul','Stimulus'],['NO','TIPE','SOAL','KUNCI','SKOR']]);
+    check('Word source numbers preserve order and stimulus ownership',()=>{
+        assert.deepEqual(mapped.questions.map(q=>q.question_text),['Soal Satu','Soal Dua']);
+        assert.deepEqual(mapped.questions.map(q=>q.metadata.import_stimulus),['Stimulus Satu','Stimulus Dua']);
+    });
+    const numberedExcel=await parseSheet(
+        ['No','Soal','Tipe','Kunci','A','B','Stimulus'],
+        [[2,'Soal Dua','PG','A','Dua benar','Dua salah','Stimulus Dua'],[1,'Soal Satu','PG','A','Satu benar','Satu salah','Stimulus Satu']],
+    );
+    check('Excel source numbers preserve order and inline stimulus ownership',()=>{
+        assert.deepEqual(numberedExcel.questions.map(q=>q.question_text),['Soal Satu','Soal Dua']);
+        assert.deepEqual(numberedExcel.questions.map(q=>q.metadata.import_stimulus),['Stimulus Satu','Stimulus Dua']);
+    });
+    const numberOnly=await parseSheet(['No','Tipe','Kunci','A','B'],[[1,'PG','A','Benar','Salah']]);
+    check('Excel never mistakes the number column for question text',()=>{
+        assert.equal(numberOnly.questions.length,0);
+        assert.match(numberOnly.errors[0].message,/Soal\/Pertanyaan/);
+    });
     const types=['mcq','mcq_complex','true_false','matching','categorization','short_answer','essay','ordering','sjt','likert','forced_choice','checklist','ranking','paired_comparison'];
     const fixtures=types.map(type=>({
         question_text:`Question ${type}`,type,difficulty:'hard',score_default:3,

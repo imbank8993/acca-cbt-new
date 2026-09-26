@@ -44,6 +44,9 @@ jobs:
       - name: Check Frontend Lint Baseline
         run: npm run lint:web:baseline
 
+      - name: Run Security and Integrity Regression Tests
+        run: npm run test:audit
+
       - name: Compile Backend (NestJS)
         run: npm run build:backend
 

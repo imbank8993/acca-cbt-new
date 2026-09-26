@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import { orderQuestionsForStudent } from '../common/question-order';
 import { DbService } from '../prisma/prisma-db-adapter';
 
@@ -99,27 +100,26 @@ export class ExamReviewService {
         // dibaca layar ujian. Soal yang TIDAK dijawab ikut terbawa, sehingga
         // `unansweredCount` bisa terisi; menyusunnya dari `cbt_answers` saja
         // akan membuat soal kosong hilang sama sekali dari review.
-        const { data: bankQuestions } = await this.db
-            .from('cbt_bank_questions')
-            .select(
-                `id,
-                question_text,
-                type,
-                score_default,
-                metadata,
-                difficulty,
-                created_at,
-                bank_question_options:cbt_bank_question_options (
-                    id,
-                    option_text,
-                    is_correct,
-                    weight
-                )`,
-            )
-            .eq('bank_id', record.exams?.question_bank_id)
-            .order('created_at', { ascending: true });
+        const bankQuestions = await loadExamQuestions(
+            this.db,
+            record.exam_id,
+            `id,
+             question_text,
+             type,
+             score_default,
+             metadata,
+             difficulty,
+             created_at,
+             bank_question_options:cbt_bank_question_options (
+                 id,
+                 option_text,
+                 is_correct,
+                 weight
+             )`,
+            record.exams?.question_bank_id,
+        );
 
-        const orderedQuestions = orderQuestionsForStudent((bankQuestions as any[]) || [], {
+        const orderedQuestions = orderQuestionsForStudent(bankQuestions, {
             userId: record.user_id,
             examId: record.exam_id,
             randomize: record.exams?.randomize_questions,

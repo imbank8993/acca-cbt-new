@@ -221,6 +221,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         );
     }
 
+    const isQuestionEditRoute = pathname.includes('/questions/') && pathname.endsWith('/edit');
+
+    if (isQuestionEditRoute) {
+        return (
+            <div className="min-h-screen bg-slate-50 text-slate-900">
+                <main className="min-h-screen p-0 m-0">
+                    {children}
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="dashboard-layout min-h-screen bg-[#EBECF1] dark:bg-[#020718] text-slate-900 dark:text-slate-100 transition-colors duration-200">
             <Sidebar
@@ -274,6 +286,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     .dashboard-main.collapsed {
                         margin-left: var(--app-sidebar-w-collapsed, 85px);
                     }
+                }
+                /* When Question Editor is open, hide main Header & Sidebar completely */
+                html.cbt-editor-open .header,
+                body.cbt-editor-open .header,
+                html.cbt-editor-open aside.sidebar,
+                body.cbt-editor-open aside.sidebar,
+                html.cbt-editor-open .sidebar-overlay,
+                body.cbt-editor-open .sidebar-overlay {
+                    display: none !important;
+                    visibility: hidden !important;
+                    pointer-events: none !important;
+                }
+                html.cbt-editor-open .dashboard-main,
+                body.cbt-editor-open .dashboard-main {
+                    margin-left: 0 !important;
+                    padding-top: 0 !important;
                 }
             `}</style>
         </div>

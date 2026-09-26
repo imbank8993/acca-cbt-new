@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { randomUUID } from 'node:crypto';
@@ -33,6 +33,33 @@ export class ImportsService {
      */
     async assertCanImport(user: AuthUser, bankId: string): Promise<void> {
         await this.authz.assertBankAccess(user, bankId);
+
+        const [{ data: direct, error: directError }, { data: sources, error: sourceError }] =
+            await Promise.all([
+                this.db.from('cbt_exams').select('id').eq('question_bank_id', bankId),
+                this.db.from('cbt_exam_question_sources').select('exam_id').eq('bank_id', bankId),
+            ]);
+        if (directError) throw new BadRequestException(directError.message);
+        if (sourceError) throw new BadRequestException(sourceError.message);
+
+        const examIds = [...new Set([
+            ...(((direct as Array<{ id: string }>) || []).map(row => row.id)),
+            ...(((sources as Array<{ exam_id: string }>) || []).map(row => row.exam_id)),
+        ])];
+        if (examIds.length === 0) return;
+
+        const { data: attempts, error: attemptError } = await this.db
+            .from('cbt_exam_attempts')
+            .select('id')
+            .in('exam_id', examIds)
+            .limit(1);
+        if (attemptError) throw new BadRequestException(attemptError.message);
+        if (((attempts as any[]) || []).length > 0) {
+            throw new ConflictException(
+                'Bank soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diimpor ulang. ' +
+                'Buat bank baru untuk hasil impor berikutnya.',
+            );
+        }
     }
 
     async bulkImport(
@@ -58,6 +85,29 @@ export class ImportsService {
                 db, bankId, organizationId,
                 stimuli: new Map(), instructions: new Map(), kisiKisi: new Map(), dimensions: new Map(),
             };
+            // Semua soal pada satu bulk import dapat memperoleh created_at yang
+            // identik. Tanpa order_index, fallback UUID membuat urutannya acak
+            // dan nomor soal tampak bertukar bersama stimulus/petunjuknya.
+            // Normalisasi soal lama terlebih dahulu, lalu tambahkan hasil impor
+            // tepat dalam urutan array hasil parser/template.
+            const { data: existingQuestions, error: existingError } = await db
+                .from('cbt_bank_questions')
+                .select('id, metadata, created_at')
+                .eq('bank_id', bankId)
+                .order('created_at', { ascending: true });
+            if (existingError) throw new BadRequestException(existingError.message);
+
+            const activeExisting = ((existingQuestions as ExistingQuestionOrder[]) || [])
+                .filter(question => !question.metadata?._deleted)
+                .sort(compareExistingQuestionOrder);
+            for (const [orderIndex, existing] of activeExisting.entries()) {
+                const { error } = await db.from('cbt_bank_questions')
+                    .update({ metadata: { ...(existing.metadata || {}), order_index: orderIndex } })
+                    .eq('id', existing.id)
+                    .eq('bank_id', bankId);
+                if (error) throw new BadRequestException(error.message);
+            }
+
             const questionIds: string[] = [];
             for (const [index, question] of questions.entries()) {
                 if (!question.question_text?.trim()) {
@@ -95,6 +145,7 @@ export class ImportsService {
                 delete metadata._deleted;
                 delete metadata._deleted_at;
                 delete metadata.order_index;
+                metadata.order_index = activeExisting.length + index;
                 if (question.type === 'ordering') {
                     const supplied = metadata.correct_order || optionRows.map((_, i) => String(i + 1));
                     const indexes = supplied.map((key: unknown) => {
@@ -312,4 +363,21 @@ interface ImportContext {
     instructions: Map<string, string>;
     kisiKisi: Map<string, string>;
     dimensions: Map<string, string>;
+}
+
+interface ExistingQuestionOrder {
+    id: string;
+    metadata?: Record<string, any> | null;
+    created_at?: string | null;
+}
+
+function compareExistingQuestionOrder(a: ExistingQuestionOrder, b: ExistingQuestionOrder): number {
+    const orderA = a.metadata?.order_index;
+    const orderB = b.metadata?.order_index;
+    if (Number.isFinite(orderA) && Number.isFinite(orderB) && orderA !== orderB) return orderA - orderB;
+    if (Number.isFinite(orderA) !== Number.isFinite(orderB)) return Number.isFinite(orderA) ? -1 : 1;
+    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (timeA !== timeB) return timeA - timeB;
+    return a.id.localeCompare(b.id);
 }

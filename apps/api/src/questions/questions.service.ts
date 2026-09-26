@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
@@ -62,11 +62,27 @@ export class QuestionsService {
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
 
+        // Begitu ada attempt, komposisi bank adalah bagian dari bukti ujian.
+        // Menambah soal baru sama merusaknya dengan mengubah soal lama: review
+        // historis akan memperoleh penyebut dan nomor soal yang berbeda.
+        if (await this.bankHasAttempts(dto.bankId)) {
+            throw new ConflictException(
+                'Bank soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah. ' +
+                'Buat bank baru untuk perubahan berikutnya.',
+            );
+        }
+
         if (dto.id) {
             const { data: existing, error } = await this.db.from('cbt_bank_questions')
                 .select('id').eq('id', dto.id).eq('bank_id', dto.bankId).maybeSingle();
             if (error) throw new BadRequestException(error.message);
             if (!existing) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
+            if (await this.questionHasHistoricalUse(dto.id, dto.bankId)) {
+                throw new ConflictException(
+                    'Soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah. ' +
+                    'Buat soal tersebut pada bank baru untuk versi berikutnya.',
+                );
+            }
         }
         // Validate every supplied option ID before changing the question or deleting options.
         const optionIds = (dto.options || []).flatMap(option => option.id ? [option.id] : []);
@@ -160,6 +176,12 @@ export class QuestionsService {
 
         const row = data as { metadata: Record<string, unknown> | null; bank_id: string };
 
+        if (await this.questionHasHistoricalUse(questionId, row.bank_id)) {
+            throw new ConflictException(
+                'Metadata soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah.',
+            );
+        }
+
         const { error } = await this.db
             .from('cbt_bank_questions')
             .update({ metadata: { ...(row.metadata || {}), ...updates } })
@@ -205,15 +227,12 @@ export class QuestionsService {
                 metadata: Record<string, unknown> | null;
             };
 
-            const { data: answered, error: answerError } = await db
-                .from('cbt_exam_attempt_questions')
-                .select('id')
-                .eq('question_id', questionId)
-                .limit(1);
+            // `cbt_answers` adalah relasi yang benar-benar ditulis oleh alur ujian.
+            // Tabel snapshot lama dipertahankan sebagai lapisan kompatibilitas,
+            // tetapi tidak boleh lagi menjadi satu-satunya bukti pemakaian.
+            const historicallyUsed = await this.questionHasHistoricalUse(questionId, bankId, db);
 
-            if (answerError) throw new BadRequestException(answerError.message);
-
-            if (((answered as any[]) || []).length > 0) {
+            if (historicallyUsed) {
                 const { error } = await db
                     .from('cbt_bank_questions')
                     .update({
@@ -270,6 +289,13 @@ export class QuestionsService {
      */
     async reorder(user: AuthUser, bankId: string, orderedIds: string[]) {
         await this.authz.assertBankAccess(user, bankId);
+
+        if (await this.bankHasAttempts(bankId)) {
+            throw new ConflictException(
+                'Urutan bank tidak dapat diubah setelah ada peserta yang mulai mengerjakan. ' +
+                'Buat bank baru untuk susunan berikutnya.',
+            );
+        }
 
         const { data } = await this.db
             .from('cbt_bank_questions')
@@ -370,6 +396,67 @@ export class QuestionsService {
             .eq('status', 'active');
 
         return (data as Array<{ id: string; title: string }>) || [];
+    }
+
+    /**
+     * Apakah soal/bank sudah menjadi bagian dari pengerjaan nyata.
+     *
+     * Jawaban langsung adalah bukti terkuat. Pemeriksaan attempt pada bank juga
+     * melindungi soal yang dilewati/tidak dijawab agar penyebut nilai dan urutan
+     * review historis tidak berubah setelah ujian berlangsung.
+     */
+    private async questionHasHistoricalUse(
+        questionId: string,
+        bankId: string,
+        db: DbSession = this.db,
+    ): Promise<boolean> {
+        const { data: answers, error: answerError } = await db
+            .from('cbt_answers')
+            .select('id')
+            .eq('question_id', questionId)
+            .limit(1);
+        if (answerError) throw new BadRequestException(answerError.message);
+        if (((answers as any[]) || []).length > 0) return true;
+
+        // Data impor/versi lama mungkin memang memiliki snapshot ini.
+        const { data: snapshots, error: snapshotError } = await db
+            .from('cbt_exam_attempt_questions')
+            .select('id')
+            .eq('question_id', questionId)
+            .limit(1);
+        if (snapshotError) throw new BadRequestException(snapshotError.message);
+        if (((snapshots as any[]) || []).length > 0) return true;
+
+        return this.bankHasAttempts(bankId, db);
+    }
+
+    private async bankHasAttempts(bankId: string, db: DbSession = this.db): Promise<boolean> {
+        const { data: direct, error: directError } = await db
+            .from('cbt_exams')
+            .select('id')
+            .eq('question_bank_id', bankId);
+        if (directError) throw new BadRequestException(directError.message);
+
+        const { data: sources, error: sourceError } = await db
+            .from('cbt_exam_question_sources')
+            .select('exam_id')
+            .eq('bank_id', bankId);
+        if (sourceError) throw new BadRequestException(sourceError.message);
+
+        const examIds = [...new Set([
+            ...(((direct as Array<{ id: string }>) || []).map(row => row.id)),
+            ...(((sources as Array<{ exam_id: string }>) || []).map(row => row.exam_id)),
+        ])];
+        if (examIds.length === 0) return false;
+
+        const { data: attempts, error: attemptError } = await db
+            .from('cbt_exam_attempts')
+            .select('id')
+            .in('exam_id', examIds)
+            .limit(1);
+        if (attemptError) throw new BadRequestException(attemptError.message);
+
+        return ((attempts as any[]) || []).length > 0;
     }
 
     /** Daftar bank soal diurutkan menurut perubahan terakhir. */

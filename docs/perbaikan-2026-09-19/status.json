@@ -171,15 +171,15 @@
     "id": "BUG-11",
     "priority": "P1",
     "title": "Pemeriksaan soal yang sudah dipakai tidak mengikuti relasi jawaban aktual",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "9",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-12",
     "priority": "P2",
     "title": "Dukungan bank soal legacy tidak konsisten antarjalur",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "10",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "BUG-13",
@@ -304,14 +304,21 @@
     "id": "QA-02",
     "priority": "P2",
     "title": "Pengujian yang tersedia belum mencakup integritas alur lintas layanan",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "11",
+    "status": "Implementasi dan tes lokal selesai"
   },
   {
     "id": "QA-03",
     "priority": "P3",
     "title": "Halaman role yang diduplikasi memperbesar risiko perbaikan tidak merata",
-    "stage": null,
-    "status": "Belum dikerjakan"
+    "stage": "12",
+    "status": "Implementasi dan tes lokal selesai"
+  },
+  {
+    "id": "IMP-01",
+    "priority": "P1",
+    "title": "Urutan nomor soal dan relasi stimulus berubah saat impor massal",
+    "stage": "8",
+    "status": "Implementasi dan tes lokal selesai"
   }
 ]

@@ -1,10 +1,12 @@
 # Catatan perbaikan audit ACCA CBT
 
-Dimulai 19 September 2026; diperbarui 25 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
+Dimulai 19 September 2026; diperbarui 26 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
 
 ## Status pekerjaan
 
-Tujuh tahap implementasi lokal telah diselesaikan dan diuji. **41 dari 45 ID temuan sudah ditangani dan 4 belum dikerjakan.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
+Dua belas tahap implementasi lokal telah diselesaikan dan diuji. **Seluruh 45 ID audit awal sudah ditangani; satu temuan tambahan IMP-01 juga sudah diperbaiki.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
+
+Audit lanjutan terhadap perekaman jawaban dan gangguan jaringan menemukan delapan area hardening baru, terutama request autosave yang dapat menggantung, retry auto-submit yang terbatas, validasi keanggotaan soal saat autosave, serta prosedur pemulihan jawaban offline setelah deadline. Temuan ini berada di luar 45 ID awal dan dicatat terpisah dalam [audit perekaman jawaban dan jaringan](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md); temuan tersebut belum dinyatakan selesai.
 
 Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan objek R2 sungguhan, atau deployment. Bukti audit awal dipertahankan sebagai baseline; skrip reproduksi lama sengaja mengharapkan bug lama sehingga tidak lagi menjadi tes kelulusan untuk kode terbaru.
 
@@ -16,9 +18,14 @@ Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan ob
 | 4 | State attempt, deadline, submit atomik, autosave/recovery, dashboard pengawas | SEC-03, SEC-10, penyelesaian SEC-14, BUG-03, BUG-08–10, UX-01 | 7 tes tahap 4; gabungan tes Node: 78 lulus; TypeScript API/web lulus |
 | 5 | Keamanan, atomicity, dan cakupan backup/restore | SEC-12–13, BUG-02, BUG-04–05 | 7 tes tahap 5; gabungan tes Node: 85 lulus; TypeScript API/web lulus |
 | 6 | Keandalan UI, aksesibilitas, waktu, pagination, dan ekspor analitik | BUG-14, UX-02–03, UX-05–12 | 7 tes tahap 6; gabungan tes Node: 92 lulus; TypeScript API/web lulus |
-| 7 | Pengaman regresi lint frontend di CI | QA-01 | Baseline penuh diverifikasi: 1.339 error dan 710 warning lama; kenaikan per aturan menggagalkan CI |
+| 7 | Pengaman regresi lint frontend di CI | QA-01 | Baseline penuh diperketat menjadi 1.214 error dan 640 warning lama; kenaikan per aturan menggagalkan CI |
+| 8 | Integritas urutan dan relasi stimulus saat impor soal | IMP-01 (temuan tambahan) | 44 tes round-trip dan 9 tes service lulus; TypeScript API/web lulus |
+| 9 | Integritas soal dan jawaban historis | BUG-11 | 5 skenario regresi BUG-11; 13 tes service dan TypeScript API/web lulus |
+| 10 | Keseragaman sumber soal ujian legacy dan multi-bank | BUG-12 | 3 tes BUG-12; gabungan tes Node menjadi 95 lulus; TypeScript API/web lulus |
+| 11 | Integrasi lintas layanan dan gate regresi P1 | QA-02 | 4 tes integrasi baru; paket CI: 102 tes Node + 44 round-trip + 13 service lulus |
+| 12 | Implementasi bersama halaman bank soal lintas peran | QA-03 | 4 tes paritas route/otorisasi; paket CI: 106 tes Node + 44 round-trip + 13 service lulus |
 
-Daftar seluruh 45 ID beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
+Daftar 45 ID audit awal serta temuan tambahan IMP-01 beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
 
 ## Tahap 1 — Akses ujian dan kerahasiaan jawaban
 
@@ -84,7 +91,7 @@ Update memeriksa bahwa soal sudah ada pada bank tujuan. ID opsi existing harus u
 
 **Lokasi:** [questions.service.ts](../apps/api/src/questions/questions.service.ts). **Tes:** soal asing, opsi asing, stimulus lintas bank, opsi existing pada create, serta update sah dengan bobot nol.
 
-**Batas:** penggantian opsi belum menjadi satu transaksi database penuh. Kegagalan infrastruktur di tengah rangkaian write masih perlu penanganan atomicity; tes “tanpa partial write” tahap ini hanya membuktikan input yang tidak sah ditolak sebelum write, bukan rollback seluruh kegagalan database. Perubahan bank/soal historis juga masih terkait BUG-11.
+**Batas:** penggantian opsi belum menjadi satu transaksi database penuh. Kegagalan infrastruktur di tengah rangkaian write masih perlu penanganan atomicity; tes “tanpa partial write” tahap ini hanya membuktikan input yang tidak sah ditolak sebelum write, bukan rollback seluruh kegagalan database. Perlindungan perubahan bank/soal historis diselesaikan pada tahap 9 (BUG-11).
 
 ### SEC-08 dan BUG-06: penilaian esai dibatasi ke attempt dan rentang yang benar
 
@@ -292,13 +299,71 @@ Nilai kronologis dibagi menjadi kelompok lama dan baru yang keduanya tidak koson
 
 ### QA-01: utang lint lama dibedakan dari pelanggaran baru
 
-Pemindaian penuh frontend saat ini menghasilkan 1.339 error dan 710 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline baru menyimpan jumlah aktual per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik. Penurunan jumlah langsung memperketat baseline pada pembaruan berikutnya.
+Pemindaian penuh frontend saat ini menghasilkan 1.214 error dan 640 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline menyimpan jumlah aktual per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik. Penurunan pada tahap 12 sudah dikunci sebagai baseline baru.
 
 Workflow deployment menjalankan pemeriksaan ini setelah typecheck frontend dan sebelum build/deploy. Dengan demikian, pelanggaran berisiko runtime tidak lagi tenggelam tanpa pagar hanya karena seluruh backlog belum dapat dibereskan dalam satu perubahan.
 
 **Lokasi:** [check-web-lint-baseline.cjs](../tools/check-web-lint-baseline.cjs), [eslint-baseline.json](perbaikan-2026-09-19/eslint-baseline.json), [package.json](../package.json), [deploy.yml](../.github/workflows/deploy.yml).
 
-**Verifikasi:** `npm run lint:web:baseline` lulus pada baseline 25 September 2026 dan menampilkan ringkasan jumlah. Opsi maintainer `node tools/check-web-lint-baseline.cjs --update` tersedia untuk memperketat baseline setelah perbaikan; perubahan baseline harus ikut direview agar kenaikan tidak diterima diam-diam.
+**Verifikasi:** `npm run lint:web:baseline` lulus pada baseline 26 September 2026 dan menampilkan ringkasan jumlah. Opsi maintainer `node tools/check-web-lint-baseline.cjs --update` tersedia untuk memperketat baseline setelah perbaikan; perubahan baseline harus ikut direview agar kenaikan tidak diterima diam-diam.
+
+## Tahap 8 — Urutan impor dan kepemilikan stimulus
+
+### IMP-01: nomor soal hasil impor tidak deterministik dan referensi nomor tidak dinormalisasi
+
+Soal hasil satu bulk import dapat berbagi timestamp. Backend sebelumnya menghapus `metadata.order_index`, sehingga UUID acak menjadi pemutus urutan dan susunan template berubah setelah disimpan. Backend kini menormalkan urutan soal lama di dalam transaksi dan memberi setiap soal impor `order_index` sesuai urutan hasil parser. Stimulus, petunjuk, dan kisi-kisi tetap melekat melalui ID masing-masing; nomor tampil tidak lagi berpindah secara acak.
+
+Parser Word menyamakan `01`, `1.`, dan `Soal 1`, serta mendukung referensi `1,2`, `1;2`, `1 dan 2`, dan `1-3`. Parser Word dan Excel mengurutkan hasil berdasarkan nomor sumber bila tersedia. Excel tidak lagi memakai kolom `No` sebagai pengganti teks pertanyaan dan akan menolak file tanpa kolom soal.
+
+Rincian penyebab, perubahan, cakupan tes, dan batas staging tersedia di [dokumentasi integritas impor](perbaikan-2026-09-19/IMPORT_SOAL_2026-09-26.md).
+
+## Tahap 9 — Integritas soal dan jawaban historis
+
+### BUG-11: pemeriksaan pemakaian mengikuti relasi jawaban aktual
+
+Penghapusan soal kini memeriksa `cbt_answers`, yaitu tabel yang benar-benar ditulis saat siswa menjawab. Pemeriksaan tabel snapshot lama `cbt_exam_attempt_questions` tetap dipertahankan untuk data impor/legacy, tetapi bukan lagi satu-satunya bukti pemakaian. Jika ada jawaban, soal hanya ditandai `_deleted`; baris soal, opsi, dan jawaban tetap utuh untuk review, analitik, serta penilaian historis.
+
+Perlindungan juga mencakup soal yang dilewati siswa. Begitu bank mempunyai attempt, komposisi bank dibekukan: soal tidak dapat ditambah, disunting, diimpor ulang, diubah metadatanya, atau disusun ulang. Kebijakan ini mencegah soal yang tidak dijawab tiba-tiba hilang dari penyebut nilai atau berganti nomor pada review. Operator diarahkan membuat bank baru untuk versi berikutnya.
+
+Bank yang sudah direferensikan oleh ujian, baik melalui `question_bank_id` maupun `cbt_exam_question_sources`, tidak dapat dihapus. Dengan demikian cascade atau perilaku FK deployment tidak dapat menghapus bukti ujian secara tidak sengaja.
+
+**Lokasi:** [questions.service.ts](../apps/api/src/questions/questions.service.ts), [question-banks.service.ts](../apps/api/src/questions/question-banks.service.ts), [imports.service.ts](../apps/api/src/imports/imports.service.ts). Rincian keputusan, skenario, dan batas verifikasi tersedia di [dokumentasi BUG-11](perbaikan-2026-09-19/BUG-11-INTEGRITAS-HISTORIS-SOAL.md).
+
+## Tahap 10 — Satu sumber kebenaran soal ujian
+
+### BUG-12: ujian legacy dan multi-bank dirender serta dinilai dari himpunan yang sama
+
+Resolver bersama kini menggabungkan `cbt_exams.question_bank_id` dengan seluruh relasi `cbt_exam_question_sources`. Bank langsung ditempatkan pertama, sumber tambahan dideduplikasi dan diurutkan deterministik, lalu soal disusun menurut sumber, `metadata.order_index`, waktu pembuatan, dan ID. Penanda urutan internal tidak ikut dikirim ke browser, ekspor, atau layanan scoring.
+
+Resolver tersebut dipakai oleh pengambilan soal siswa, submit, penutupan otomatis, regrade, review hasil, analisis monitoring, penilaian esai guru, analitik ujian, dan ekspor. Komponen ujian di browser selalu meminta soal kepada backend dan tidak lagi menolak ujian hanya karena `question_bank_id` langsung kosong.
+
+Tes regresi membuktikan bahwa ujian legacy dengan dua bank menampilkan dan menilai dua soal yang identik, relasi duplikat tidak menggandakan bank, gabungan bank langsung dan sumber legacy mempunyai urutan stabil, serta frontend tidak lagi memakai `question_bank_id` sebagai gerbang pemuatan.
+
+**Lokasi:** [exam-question-sources.ts](../apps/api/src/common/exam-question-sources.ts), [exam-attempts.service.ts](../apps/api/src/students/exam-attempts.service.ts), [grading.service.ts](../apps/api/src/grading/grading.service.ts), [exam-review.service.ts](../apps/api/src/analytics/exam-review.service.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx). Rincian lengkap tersedia di [dokumentasi BUG-12](perbaikan-2026-09-19/BUG-12-SUMBER-SOAL-UJIAN.md).
+
+## Tahap 11 — Integrasi lintas layanan dan gate regresi
+
+### QA-02: kasus P1 terhubung ke tes yang dijalankan CI
+
+Skenario integrasi baru menjalankan service nyata pada satu state database fixture: peserta memulai ujian legacy, menerima soal tanpa kunci, pengguna lain ditolak saat mencoba menyimpan jawaban, pemilik melakukan autosave dan submit, hasil dinilai, review dibuka, lalu soal historis dihapus secara lunak tanpa mengubah nilai atau menghilangkan opsi/jawaban.
+
+Tes kontrak HTTP membuka aplikasi Nest lokal dan memanggil endpoint submit melalui HTTP. Guard memasang identitas terautentikasi, `ValidationPipe` menolak DTO tidak sah, field identitas palsu dibuang, serta controller meneruskan pengguna hasil guard—bukan ID dari body—ke service. Tes tambahan menjaga BUG-09 dan memastikan setiap temuan P1 dalam audit mempunyai skenario serta berkas regresi yang masih ada.
+
+Pada akhir tahap 11, `npm run test:audit` menjalankan 102 tes Node, 44 pemeriksaan round-trip parser/ekspor, dan 13 pemeriksaan service. Workflow deployment menjalankan gate ini sebelum kompilasi dan deployment. Matriks [cakupan P1](perbaikan-2026-09-19/p1-test-coverage.json) mengikat 23 temuan P1 ke bukti tesnya.
+
+**Lokasi:** [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [package.json](../package.json), [deploy.yml](../.github/workflows/deploy.yml). Rincian cakupan dan batas lingkungan tersedia di [dokumentasi QA-02](perbaikan-2026-09-19/QA-02-INTEGRASI-LINTAS-LAYANAN.md).
+
+## Tahap 12 — Paritas halaman bank soal lintas peran
+
+### QA-03: satu implementasi UI untuk admin, guru, dan proktor
+
+Tiga halaman detail bank soal sebelumnya menyalin sekitar 1.088 baris implementasi yang sama. Perbaikan pada impor, stimulus, editor, ekspor, dan pratinjau harus diterapkan tiga kali sehingga satu peran mudah tertinggal. Halaman admin juga memakai kunci memori berawalan `proktor`, dan ketiga salinan menyimpan fungsi template DOCX mati yang menunjuk berkas publik yang tidak ada.
+
+Seluruh perilaku detail bank soal kini berada di `QuestionBankDetailPage`. Route admin, guru, dan proktor masing-masing hanya meneruskan identitas route untuk membentuk URL navigasi serta namespace cache yang terpisah. Nilai peran tidak dipakai sebagai izin: setiap baca/tulis tetap melalui endpoint yang dilindungi `JwtAuthGuard`, `RolesGuard`, dan pemeriksaan `AuthorizationService.assertBankAccess` pada backend.
+
+Empat tes regresi menjaga agar ketiga route terus memakai komponen yang sama, namespace cache dan URL mengikuti route aktif, kode template mati tidak kembali, dan guard/pemeriksaan kepemilikan backend tetap ada. Konsolidasi mengurangi implementasi route dari 3 × 1.088 baris menjadi satu komponen 1.087 baris dan tiga pembungkus 5 baris. Penghapusan salinan juga menurunkan baseline lint dari 1.338 error/709 warning menjadi 1.214 error/640 warning.
+
+**Lokasi:** [QuestionBankDetailPage.tsx](../apps/web/app/components/questions/QuestionBankDetailPage.tsx), route [admin](../apps/web/app/dashboard/admin/questions/[bankId]/page.tsx), [guru](../apps/web/app/dashboard/guru/questions/[bankId]/page.tsx), dan [proktor](../apps/web/app/dashboard/proktor/questions/[bankId]/page.tsx), serta [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs). Rincian keputusan dan batas cakupan tersedia di [dokumentasi QA-03](perbaikan-2026-09-19/QA-03-HALAMAN-BERSAMA.md).
 
 ## Hasil pengujian dan cara menjalankan
 
@@ -308,16 +373,17 @@ Workflow deployment menjalankan pemeriksaan ini setelah typecheck frontend dan s
 | Tahap 3, Node test runner | 3 lulus, 0 gagal |
 | Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
-| Tahap 1–6, Node test runner | 92 lulus, 0 gagal |
+| Seluruh regresi Node termasuk integrasi HTTP | 106 lulus, 0 gagal |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus setelah perubahan tahap 6 |
-| ESLint baseline penuh | Lulus: 1.339 error/710 warning lama, tanpa kenaikan per aturan |
+| TypeScript API dan frontend | Lulus setelah perubahan tahap 12 |
+| ESLint baseline penuh | Lulus: 1.214 error/640 warning lama, tanpa kenaikan per aturan |
+| Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Browser, database nyata, R2, deployment | Belum dijalankan |
 
 Dari root repositori:
 
 ```powershell
-node --test apps/api/test/security-stage1.test.cjs apps/api/test/security-stage2.test.cjs apps/api/test/grading-stage3.test.cjs apps/api/test/exam-integrity-stage4.test.cjs apps/api/test/backup-integrity-stage5.test.cjs apps/api/test/backup-archive-stage5.test.cjs apps/api/test/analytics-trend-stage6.test.cjs apps/api/test/ui-quality-stage6.test.cjs
+npm run test:audit
 node node_modules/typescript/bin/tsc --noEmit --incremental false -p apps/api/tsconfig.json
 node node_modules/typescript/bin/tsc --noEmit --incremental false -p apps/web/tsconfig.json
 npm run lint:web:baseline
@@ -331,12 +397,12 @@ Dari `apps/scoring`:
 
 Node test runner membutuhkan child process. Sandbox lokal menolak spawn EPERM, sehingga tes dijalankan dengan izin eksekusi di luar sandbox; tidak ada perubahan metode fixture menjadi akses database/jaringan. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
 
-Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes tahap 4–5, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan.
+Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes tahap 4–5, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan.
 
 ## Prioritas tahap berikutnya
 
-1. **Historis dan kompatibilitas soal:** BUG-11/12, perlindungan soal yang pernah dijawab, dan satu kebijakan sumber bank.
-2. **Kualitas dan regresi:** QA-02–03; tambah integrasi HTTP/database dan satukan halaman role yang masih diduplikasi. Kurangi baseline lint secara bertahap tanpa melonggarkan ambang yang sudah tercatat.
+1. **Validasi staging:** jalankan paket integrasi terhadap PostgreSQL dan storage sekali pakai, lalu uji matriks browser untuk admin, guru, proktor, dan siswa.
+2. **Pengurangan utang lint:** lanjutkan perbaikan kelompok aturan terbesar secara bertahap tanpa melonggarkan baseline 1.214 error/640 warning yang sudah tercatat.
 
 ## Verifikasi sebelum rollout
 

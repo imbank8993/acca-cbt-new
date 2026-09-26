@@ -179,6 +179,21 @@ export class QuestionBanksService {
     async remove(user: AuthUser, bankId: string) {
         await this.authz.assertBankAccess(user, bankId);
 
+        const [{ data: direct, error: directError }, { data: sources, error: sourceError }] =
+            await Promise.all([
+                this.db.from('cbt_exams').select('id').eq('question_bank_id', bankId).limit(1),
+                this.db.from('cbt_exam_question_sources').select('exam_id').eq('bank_id', bankId).limit(1),
+            ]);
+
+        if (directError) throw new BadRequestException(directError.message);
+        if (sourceError) throw new BadRequestException(sourceError.message);
+        if (((direct as any[]) || []).length > 0 || ((sources as any[]) || []).length > 0) {
+            throw new BadRequestException(
+                'Bank soal sudah terhubung ke ujian dan tidak dapat dihapus. ' +
+                'Pertahankan bank ini sebagai arsip dan buat bank baru untuk perubahan berikutnya.',
+            );
+        }
+
         const { error } = await this.db.from('cbt_question_banks').delete().eq('id', bankId);
         if (error) throw new BadRequestException(error.message);
 

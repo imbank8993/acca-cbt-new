@@ -3,6 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { chunk } from '../common/chunk';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import { GradingService } from '../grading/grading.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
@@ -343,24 +344,14 @@ export class ExamMonitoringService {
             .maybeSingle();
 
         const bankId = (examRow as { question_bank_id: string | null } | null)?.question_bank_id;
-        if (!bankId) return { questions: [], answers: [] };
-
-        const { data: bankQuestions } = await this.db
-            .from('cbt_bank_questions')
-            .select(
-                `id, question_text, type, score_default, metadata, dimension_id, created_at,
-                 bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
-            )
-            .eq('bank_id', bankId)
-            .order('created_at', { ascending: true });
-
-        // Urutan soal mengikuti urutan bank (created_at lalu order_index) supaya
-        // "soal nomor 7" di layar analisis sama dengan nomor 7 di pratinjau.
-        const sorted = [...((bankQuestions as any[]) || [])].sort((a, b) => {
-            const oa = a.metadata?.order_index;
-            const ob = b.metadata?.order_index;
-            return oa !== undefined && ob !== undefined ? oa - ob : 0;
-        });
+        const sorted = await loadExamQuestions(
+            this.db,
+            examId,
+            `id, question_text, type, score_default, metadata, dimension_id, created_at,
+             bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
+            bankId,
+        );
+        if (sorted.length === 0) return { questions: [], answers: [] };
 
         const questionById = new Map(sorted.map((q) => [q.id, q]));
 

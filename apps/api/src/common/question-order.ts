@@ -48,11 +48,15 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
  * Pengacakan diseed dengan `userId:examId`, bukan angka acak: siswa yang memuat
  * ulang halaman di tengah ujian harus menerima urutan yang sama.
  */
-export function orderQuestionsForStudent<T extends { metadata?: any }>(
+export function orderQuestionsForStudent<T extends { metadata?: any; __exam_source_order?: number }>(
     questions: T[],
     options: { userId: string; examId: string; randomize?: boolean | null },
 ): T[] {
     const ordered = [...questions].sort((a, b) => {
+        if (a.__exam_source_order !== undefined && b.__exam_source_order !== undefined &&
+            a.__exam_source_order !== b.__exam_source_order) {
+            return a.__exam_source_order - b.__exam_source_order;
+        }
         const oa = a.metadata?.order_index;
         const ob = b.metadata?.order_index;
         if (oa !== undefined && ob !== undefined) return oa - ob;

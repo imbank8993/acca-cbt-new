@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
+import { loadExamQuestions } from '../common/exam-question-sources';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /**
@@ -138,12 +139,12 @@ export class AnalyticsService {
             };
         });
 
-        const { data: questionRows } = await this.db
-            .from('cbt_bank_questions')
-            .select('*')
-            .eq('bank_id', exam.question_bank_id)
-            .order('created_at', { ascending: true });
-        const questions = (questionRows as any[]) || [];
+        const questions = await loadExamQuestions(
+            this.db,
+            examId,
+            '*',
+            exam.question_bank_id,
+        );
 
         const attemptIds = attempts.map((a) => a.id);
         const { data: answerRows } =
@@ -422,11 +423,12 @@ export class AnalyticsService {
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
         const exam = examRow as any;
 
-        const { data: questions } = await this.db
-            .from('cbt_bank_questions')
-            .select('*, bank_question_options:cbt_bank_question_options(*)')
-            .eq('bank_id', exam.question_bank_id)
-            .order('created_at', { ascending: true });
+        const questions = await loadExamQuestions(
+            this.db,
+            examId,
+            '*, bank_question_options:cbt_bank_question_options(*)',
+            exam.question_bank_id,
+        );
 
         const { data: attempts } = await this.db
             .from('cbt_exam_attempts')
@@ -441,7 +443,7 @@ export class AnalyticsService {
 
         return {
             exam,
-            questions: (questions as any[]) ?? [],
+            questions,
             attempts: (attempts as any[]) ?? [],
         };
     }

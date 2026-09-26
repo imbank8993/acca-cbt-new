@@ -174,13 +174,13 @@ export default function QuestionEditorModal({
 }: QuestionEditorModalProps) {
     useEffect(() => {
         const scrollY = window.scrollY;
-        document.documentElement.classList.add('scroll-locked');
-        document.body.classList.add('scroll-locked');
+        document.documentElement.classList.add('scroll-locked', 'cbt-editor-open');
+        document.body.classList.add('scroll-locked', 'cbt-editor-open');
         document.body.dataset.scrollY = String(scrollY);
         return () => {
             const sy = parseInt(document.body.dataset.scrollY || '0');
-            document.body.classList.remove('scroll-locked');
-            document.documentElement.classList.remove('scroll-locked');
+            document.body.classList.remove('scroll-locked', 'cbt-editor-open');
+            document.documentElement.classList.remove('scroll-locked', 'cbt-editor-open');
             delete document.body.dataset.scrollY;
             window.scrollTo(0, sy);
         };
@@ -473,7 +473,7 @@ export default function QuestionEditorModal({
     const typeColors = TYPE_COLORS[selectedType] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
 
     return (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-slate-50 overflow-hidden font-sans">
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-50 overflow-hidden font-sans">
 
             {/* ── Header ── */}
             <header className="shrink-0 z-20 bg-white border-b border-slate-100">
@@ -1126,7 +1126,7 @@ export default function QuestionEditorModal({
 
             {/* ── LaTeX Editor Modal (Elegan) ── */}
             {latexEditorOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" onClick={closeLatexEditor}>
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60" onClick={closeLatexEditor}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1263,7 +1263,7 @@ export default function QuestionEditorModal({
 
             {/* ── Table Dialog ── */}
             {tableDialogOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" onClick={() => setTableDialogOpen(false)}>
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60" onClick={() => setTableDialogOpen(false)}>
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
