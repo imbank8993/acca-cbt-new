@@ -16,10 +16,6 @@ import {
 const DATE_EXAMPLE = '2026-06-01';
 
 export class CreatePASPeriodDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-
     @ApiProperty({ example: 'PAS Ganjil 2025/2026' })
     @IsString()
     @IsNotEmpty({ message: 'Nama periode wajib diisi.' })

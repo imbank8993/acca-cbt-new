@@ -53,7 +53,7 @@ function MonitoringContent() {
             const org = await getProctorOrganization();
             console.log('[Monitoring] Org:', org);
             if (org) {
-                const examList = await listOrganizationExams(org.id);
+                const examList = await listOrganizationExams();
                 console.log('[Monitoring] Exams:', examList);
                 setExams(examList);
                 if (!initialExamId && examList.length > 0) setSelectedExamId(examList[0].id);

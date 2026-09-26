@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { CbtRolesService } from './cbt-roles.service';
+import { SingleSchoolService } from './single-school.service';
 
 /**
  * Otorisasi per-organisasi, dipindahkan dari `apps/web/lib/server-authz.ts`.
@@ -21,9 +22,10 @@ export class AuthorizationService {
     constructor(
         private readonly db: DbService,
         private readonly roles: CbtRolesService,
+        private readonly schoolScope: SingleSchoolService,
     ) {}
 
-    /** Admin platform boleh lintas organisasi. */
+    /** Peran platform tetap istimewa, tetapi terikat pada sekolah instalasi. */
     private isElevatedGlobally(user: AuthUser): boolean {
         return user.isPlatformAdmin || user.resolved?.superadmin === true;
     }
@@ -34,8 +36,9 @@ export class AuthorizationService {
         roles: string[],
         label = 'staf',
     ): Promise<void> {
+        const schoolId = await this.schoolScope.assertSchoolId(organizationId);
         if (this.isElevatedGlobally(user)) return;
-        if (await this.roles.hasOrgRole(user.id, organizationId, roles)) return;
+        if (await this.roles.hasOrgRole(user.id, schoolId, roles)) return;
         throw new ForbiddenException(`Anda tidak memiliki izin (khusus ${label}).`);
     }
 
@@ -287,4 +290,3 @@ export class AuthorizationService {
         throw new ForbiddenException('Anda tidak memiliki izin memantau ujian ini.');
     }
 }
-

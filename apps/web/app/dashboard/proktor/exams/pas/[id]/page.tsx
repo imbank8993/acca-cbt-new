@@ -69,9 +69,9 @@ export default function ProctorPASDetailPage() {
             if (orgData) {
                 const [periodData, bankList, classList, subjectList, sessionList] = await Promise.all([
                     getPASPeriod(periodId),
-                    listQuestionBanks(orgData.id, true),
-                    listOrganizationClasses(orgData.id, { activeYearOnly: true }),
-                    listSubjects(orgData.id),
+                    listQuestionBanks(true),
+                    listOrganizationClasses({ activeYearOnly: true }),
+                    listSubjects(),
                     listPASSessions(periodId),
                 ]);
                 setPeriod(periodData);

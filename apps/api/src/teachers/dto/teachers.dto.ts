@@ -2,10 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsObject, IsString, IsUUID } from 'class-validator';
 
 export class CreateClassDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-
     @ApiProperty({ example: 'Kelas Tambahan Matematika' })
     @IsString()
     @IsNotEmpty({ message: 'Nama kelas wajib diisi' })

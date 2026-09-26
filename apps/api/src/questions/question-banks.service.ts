@@ -55,9 +55,7 @@ export class QuestionBanksService {
      * platform melihat semuanya.
      */
     async list(user: AuthUser, organizationId: string, onlyPublished = false) {
-        const scoped = organizationId !== 'all';
-        if (scoped) await this.authz.assertOrgStaff(user, organizationId);
-        else this.authz.assertPlatformAdmin(user);
+        await this.authz.assertOrgStaff(user, organizationId);
 
         let query = this.db
             .from('cbt_question_banks')
@@ -65,9 +63,8 @@ export class QuestionBanksService {
                 `*, profiles:cbt_profiles(full_name),
                  bank_questions:cbt_bank_questions(id, metadata),
                  bank_folders(id, name)`,
-            );
-
-        if (scoped) query = query.eq('organization_id', organizationId);
+            )
+            .eq('organization_id', organizationId);
         if (onlyPublished) query = query.eq('is_published', true);
 
         if (!(await this.isElevated(user, organizationId))) {
@@ -257,12 +254,9 @@ export class QuestionBanksService {
     // ── Folder ───────────────────────────────────────────────────────────────
 
     async listFolders(user: AuthUser, organizationId: string) {
-        const scoped = organizationId !== 'all';
-        if (scoped) await this.authz.assertOrgStaff(user, organizationId);
-        else this.authz.assertPlatformAdmin(user);
+        await this.authz.assertOrgStaff(user, organizationId);
 
-        let query = this.db.from('bank_folders').select('*');
-        if (scoped) query = query.eq('organization_id', organizationId);
+        const query = this.db.from('bank_folders').select('*').eq('organization_id', organizationId);
 
         const { data, error } = await query.order('created_at', { ascending: true });
 
@@ -314,12 +308,9 @@ export class QuestionBanksService {
     // ── Label ────────────────────────────────────────────────────────────────
 
     async listLabels(user: AuthUser, organizationId: string) {
-        const scoped = organizationId !== 'all';
-        if (scoped) await this.authz.assertOrgStaff(user, organizationId);
-        else this.authz.assertPlatformAdmin(user);
+        await this.authz.assertOrgStaff(user, organizationId);
 
-        let query = this.db.from('cbt_organization_labels').select('*');
-        if (scoped) query = query.eq('organization_id', organizationId);
+        const query = this.db.from('cbt_organization_labels').select('*').eq('organization_id', organizationId);
 
         const { data, error } = await query.order('created_at', { ascending: true });
 
@@ -352,41 +343,21 @@ export class QuestionBanksService {
 
     private async isElevated(user: AuthUser, organizationId: string): Promise<boolean> {
         if (user.isPlatformAdmin || user.resolved?.superadmin === true) return true;
-        if (organizationId === 'all') return false;
         return this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Admin']);
     }
 
     /**
      * Organisasi untuk baris baru.
      *
-     * Dasbor admin platform mengirim `'all'`; penulisan butuh organisasi
-     * sungguhan, jadi dipilih yang aktif dan paling lama ada. Nilai selain itu
-     * dipakai apa adanya SETELAH pemanggilnya terbukti staf di sana.
+     * ID sekolah tetap menjadi foreign key internal. Otorisasi memastikan ID
+     * yang diterima sama dengan satu-satunya sekolah pada instalasi ini.
      */
     private async resolveOrganizationId(
         user: AuthUser,
         organizationId: string,
     ): Promise<string> {
-        if (organizationId && organizationId !== 'all' && organizationId !== 'platform-admin') {
-            await this.authz.assertOrgStaff(user, organizationId);
-            return organizationId;
-        }
-
-        this.authz.assertPlatformAdmin(user);
-
-        const { data } = await this.db
-            .from('cbt_organizations')
-            .select('id')
-            .eq('is_active', true)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-        const resolved = (data as { id: string } | null)?.id;
-        if (!resolved) {
-            throw new BadRequestException('Tidak ada organisasi aktif yang bisa dipakai.');
-        }
-        return resolved;
+        await this.authz.assertOrgStaff(user, organizationId);
+        return organizationId;
     }
 
     private assertFolderAccess(user: AuthUser, folderId: string): Promise<void> {

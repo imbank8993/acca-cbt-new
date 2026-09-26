@@ -84,7 +84,7 @@ async function main() {
     if (body1.access_token) {
         console.log(`       peran dari database : ${body1.user.roles.join(', ') || '(kosong)'}`);
         console.log(`       bestRole            : ${body1.user.bestRole}`);
-        console.log(`       organisasi          : ${body1.user.organizationIds.length}`);
+        console.log(`       organisasi          : ${body1.user.organizationId || '(belum menjadi anggota)'}`);
     } else {
         console.log(`       ${JSON.stringify(body1)}`);
     }

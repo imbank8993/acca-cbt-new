@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
+import { SingleSchoolService } from '../auth/single-school.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Format tahun ajaran yang diterima, mis. `2025/2026`. */
@@ -53,6 +54,7 @@ export class ProctorService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly authUsers: AuthUsersRepository,
+        private readonly schoolScope: SingleSchoolService,
     ) {}
 
     /**
@@ -64,14 +66,7 @@ export class ProctorService {
      * yang dikembalikan selalu satu-satunya organisasi yang ada.
      */
     async getOrganization() {
-        const { data } = await this.db
-            .from('cbt_organizations')
-            .select('id, name')
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-        return (data as { id: string; name: string } | null) ?? null;
+        return this.schoolScope.getSchool();
     }
 
     /** Angka ringkas untuk kartu dasbor. */

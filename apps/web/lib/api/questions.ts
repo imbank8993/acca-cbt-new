@@ -12,9 +12,8 @@ import { apiGet, apiSend } from './client';
  *    baris bank itu sendiri, sehingga id bank milik sekolah lain tidak bisa
  *    diselundupkan bersama organisasi milik sendiri.
  *
- * `orgId` tetap ada di tempat yang memang membutuhkannya sebagai lingkup —
- * daftar, pembuatan bank/folder/label — karena di sana belum ada baris yang bisa
- * menjadi acuan.
+ * Lingkup sekolah untuk daftar dan pembuatan juga diambil dari sesi
+ * terverifikasi, sehingga browser tidak lagi mengirim `organizationId`.
  */
 
 export type QuestionType =
@@ -41,8 +40,8 @@ export interface ImportRow {
 
 // ── Bank soal ────────────────────────────────────────────────────────────────
 
-export async function listQuestionBanks(orgId: string, onlyPublished?: boolean): Promise<any[]> {
-    const query = new URLSearchParams({ organizationId: orgId });
+export async function listQuestionBanks(onlyPublished?: boolean): Promise<any[]> {
+    const query = new URLSearchParams();
     if (onlyPublished) query.set('onlyPublished', 'true');
 
     const res = await apiGet<{ banks: any[] }>(`/api/question-banks?${query.toString()}`);
@@ -55,7 +54,6 @@ export async function getQuestionBankAction(bankId: string): Promise<any | null>
 }
 
 export function createQuestionBank(
-    orgId: string,
     input: {
         title: string;
         description?: string;
@@ -67,7 +65,7 @@ export function createQuestionBank(
         folderId?: string | null;
     },
 ) {
-    return apiSend<{ id: string }>('/api/question-banks', { organizationId: orgId, ...input });
+    return apiSend<{ id: string }>('/api/question-banks', input);
 }
 
 export function updateQuestionBankAction(
@@ -117,18 +115,13 @@ export async function toggleQuestionBankPublishAction(bankId: string, isPublishe
 
 // ── Folder ───────────────────────────────────────────────────────────────────
 
-export async function listBankFolders(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ folders: any[] }>(
-        `/api/question-banks/folders?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listBankFolders(): Promise<any[]> {
+    const res = await apiGet<{ folders: any[] }>('/api/question-banks/folders');
     return res.success ? res.folders : [];
 }
 
-export function createBankFolder(orgId: string, name: string) {
-    return apiSend<{ id: string }>('/api/question-banks/folders', {
-        organizationId: orgId,
-        name,
-    });
+export function createBankFolder(name: string) {
+    return apiSend<{ id: string }>('/api/question-banks/folders', { name });
 }
 
 export function updateBankFolder(folderId: string, name: string) {
@@ -161,19 +154,13 @@ export function bulkMoveBanksToFolder(bankIds: string[], folderId: string | null
 
 // ── Label ────────────────────────────────────────────────────────────────────
 
-export async function listOrganizationLabels(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ labels: any[] }>(
-        `/api/question-banks/labels?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listOrganizationLabels(): Promise<any[]> {
+    const res = await apiGet<{ labels: any[] }>('/api/question-banks/labels');
     return res.success ? res.labels : [];
 }
 
-export function createOrganizationLabel(orgId: string, name: string, color: string) {
-    return apiSend<{ id: string }>('/api/question-banks/labels', {
-        organizationId: orgId,
-        name,
-        color,
-    });
+export function createOrganizationLabel(name: string, color: string) {
+    return apiSend<{ id: string }>('/api/question-banks/labels', { name, color });
 }
 
 // ── Soal ─────────────────────────────────────────────────────────────────────

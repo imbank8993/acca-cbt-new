@@ -8,6 +8,7 @@ import { AuthUsersRepository } from './auth-users.repository';
 import { AuthorizationService } from './authorization.service';
 import { CbtRolesService } from './cbt-roles.service';
 import { JwtStrategy } from './jwt.strategy';
+import { SingleSchoolService } from './single-school.service';
 
 @Global()
 @Module({
@@ -28,8 +29,9 @@ import { JwtStrategy } from './jwt.strategy';
     AuthUsersRepository,
     AuthorizationService,
     CbtRolesService,
+    SingleSchoolService,
     JwtStrategy,
   ],
-  exports: [AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService],
+  exports: [AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService, SingleSchoolService],
 })
 export class AuthModule {}

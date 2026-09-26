@@ -3,7 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 export interface ExamAudience {
-    organizationIds: Set<string>;
+    organizationId: string | null;
     assignedExamIds: Set<string>;
 }
 
@@ -28,9 +28,13 @@ export async function loadExamAudience(db: DbService, user: AuthUser): Promise<E
         throw new ServiceUnavailableException('Izin peserta belum dapat diperiksa. Coba lagi.');
     }
     const [members, regular, additional, participants] = results;
-    const organizationIds = new Set<string>((members.data || []).map(
+    const membershipSchoolIds = [...new Set<string>((members.data || []).map(
         (row: { organization_id: string }) => row.organization_id,
-    ));
+    ).filter(Boolean))];
+    if (membershipSchoolIds.length > 1) {
+        throw new ServiceUnavailableException('Akun terhubung ke lebih dari satu sekolah.');
+    }
+    const organizationId = membershipSchoolIds[0] || null;
     const assignedExamIds = new Set<string>((participants.data || []).map(
         (row: { exam_id: string }) => row.exam_id,
     ));
@@ -46,12 +50,12 @@ export async function loadExamAudience(db: DbService, user: AuthUser): Promise<E
         }
         for (const target of targets.data || []) assignedExamIds.add(target.exam_id);
     }
-    return { organizationIds, assignedExamIds };
+    return { organizationId, assignedExamIds };
 }
 
 export function canAccessExam(exam: AccessibleExam, audience: ExamAudience): boolean {
     return exam.is_published === true && !!exam.organization_id &&
-        audience.organizationIds.has(exam.organization_id) &&
+        audience.organizationId === exam.organization_id &&
         (exam.metadata?.is_public === true || audience.assignedExamIds.has(exam.id));
 }
 

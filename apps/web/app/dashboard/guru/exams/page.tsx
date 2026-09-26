@@ -162,13 +162,13 @@ const ExamsPage = () => {
                 if (organization) {
                     setOrg(organization);
                     const [examList, bankList, classList, pasPeriodList, labelList, subjectList, schoolYearList] = await Promise.all([
-                        listOrganizationExams(organization.id),
-                        listQuestionBanks(organization.id, true),
-                        listOrganizationClasses(organization.id, { activeYearOnly: true }),
-                        listExamConfigs(organization.id),
-                        listOrganizationLabels(organization.id),
-                        listSubjects(organization.id),
-                        listSchoolYears(organization.id),
+                        listOrganizationExams(),
+                        listQuestionBanks(true),
+                        listOrganizationClasses({ activeYearOnly: true }),
+                        listExamConfigs(),
+                        listOrganizationLabels(),
+                        listSubjects(),
+                        listSchoolYears(),
                     ]);
 
                     // Fetch existing exam assignments via SERVER ACTION — query
@@ -253,7 +253,6 @@ const ExamsPage = () => {
         }
         setIsSubmitting(true);
         const result = await createExamAction({
-            orgId: org.id,
             title: formData.title,
             description: formData.description,
             duration: formData.duration,
@@ -571,7 +570,7 @@ const ExamsPage = () => {
 
             const exists = schoolYears.some(sy => sy.year.trim() === targetSchoolYear);
             if (!exists) {
-                const addSyResult = await createSchoolYearAction(org.id, { year: targetSchoolYear });
+                const addSyResult = await createSchoolYearAction({ year: targetSchoolYear });
                 if (!addSyResult.success) {
                     alert('Gagal menambah tahun ajaran baru: ' + (addSyResult.error || 'Unknown error'));
                     setIsSubmittingConfig(false);
@@ -580,7 +579,7 @@ const ExamsPage = () => {
             }
         }
 
-        const result = await createExamConfigAction(org.id, {
+        const result = await createExamConfigAction({
             name: configForm.name,
             school_year: targetSchoolYear || undefined,
             semester: configForm.semester || undefined,
@@ -594,9 +593,9 @@ const ExamsPage = () => {
         }
         setIsConfigModalOpen(false);
         setConfigForm({ name: '', school_year: '', semester: '', start_date: '', end_date: '' });
-        const list = await listExamConfigs(org.id);
+        const list = await listExamConfigs();
         setExamConfigs(list);
-        const syList = await listSchoolYears(org.id);
+        const syList = await listSchoolYears();
         setSchoolYears(syList || []);
     };
 
@@ -604,7 +603,7 @@ const ExamsPage = () => {
         if (!confirm('Hapus folder ini beserta semua jadwal?')) return;
         const result = await deleteExamConfigAction(configId);
         if (result.success) {
-            const list = await listExamConfigs(org.id);
+            const list = await listExamConfigs();
             setExamConfigs(list);
             if (selectedConfigId === configId) {
                 setSelectedConfigId(null);
@@ -617,7 +616,7 @@ const ExamsPage = () => {
     const handleToggleConfigLock = async (configId: string, currentLock: boolean) => {
         const result = await lockExamConfigAction(configId, !currentLock);
         if (result.success) {
-            const list = await listExamConfigs(org.id);
+            const list = await listExamConfigs();
             setExamConfigs(list);
             if (selectedConfigId === configId) {
                 const updated = await getExamConfig(configId);

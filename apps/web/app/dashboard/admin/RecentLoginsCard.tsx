@@ -59,7 +59,7 @@ export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: Logi
         setShowAllModal(true);
         setAllLoading(true);
         try {
-            const all = await getRecentLogins(orgId, 1000);
+            const all = await getRecentLogins(1000);
             setAllLogins((all || []).filter((m: any) => m.lastLoginAt) as LoginUser[]);
         } catch (e) {
             console.error('Load all logins error:', e);

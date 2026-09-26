@@ -109,8 +109,7 @@ export class ExamConfigsService {
         };
     }
 
-    async create(user: AuthUser, dto: CreateExamConfigDto) {
-        const organizationId = await this.resolveOrganizationId(dto.organizationId);
+    async create(user: AuthUser, organizationId: string, dto: CreateExamConfigDto) {
         await this.authz.assertProktor(user, organizationId);
 
         const { data, error } = await this.db
@@ -471,28 +470,6 @@ export class ExamConfigsService {
     }
 
     // ── Pembantu ─────────────────────────────────────────────────────────────
-
-    /**
-     * Dasbor admin platform mengirim `'all'` sebagai organisasi. Pembuatan butuh
-     * organisasi sungguhan, jadi dipilih yang aktif dan paling lama ada.
-     */
-    private async resolveOrganizationId(organizationId: string): Promise<string> {
-        if (organizationId !== 'all') return organizationId;
-
-        const { data } = await this.db
-            .from('cbt_organizations')
-            .select('id')
-            .eq('is_active', true)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-        const resolved = (data as { id: string } | null)?.id;
-        if (!resolved) {
-            throw new BadRequestException('Tidak ada organisasi aktif yang bisa dipakai.');
-        }
-        return resolved;
-    }
 
     private async assertUnlocked(configId: string, detail = ''): Promise<void> {
         const { data } = await this.db

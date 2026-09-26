@@ -7,7 +7,7 @@
  * server lewat `/api/auth/me`, yang meneruskannya ke NestJS.
  *
  * Yang kembali lebih kaya daripada yang dulu diberikan Supabase: selain `id` dan
- * `email`, ada `roles`, `bestRole`, `organizationIds`, dan `isPlatformAdmin` —
+ * `email`, ada `roles`, `bestRole`, `organizationId`, dan `isPlatformAdmin` —
  * seluruhnya dihitung ulang NestJS dari database pada tiap permintaan. Halaman
  * yang tadinya perlu satu putaran tambahan hanya untuk mencari organisasi
  * pengguna bisa membacanya langsung dari sini.

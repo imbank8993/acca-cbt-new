@@ -3,7 +3,7 @@ import { proxyGet, proxyJson } from '@/lib/nest-proxy';
 
 export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
-    const query = new URLSearchParams({ organizationId: params.get('organizationId') || '' });
+    const query = new URLSearchParams();
     if (params.get('onlyPublished') === 'true') query.set('onlyPublished', 'true');
     return proxyGet(request, `/question-banks?${query.toString()}`);
 }

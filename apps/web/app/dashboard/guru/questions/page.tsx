@@ -149,10 +149,10 @@ export default function GuruQuestionBankPage() {
                     setIsDualRole(dualRoleStatus);
                     setCurrentUserId(user.id);
                     const [bankList, labelList, folderList, subjectList] = await Promise.all([
-                        listQuestionBanks(organization.id),
-                        listOrganizationLabels(organization.id),
-                        listBankFolders(organization.id),
-                        listSubjects(organization.id)
+                        listQuestionBanks(),
+                        listOrganizationLabels(),
+                        listBankFolders(),
+                        listSubjects()
                     ]);
                     setBanks(bankList || []);
                     setLabels(labelList || []);
@@ -208,7 +208,7 @@ export default function GuruQuestionBankPage() {
                     tags: formData.tags, folderId: formData.folderId
                 });
             } else {
-                result = await createQuestionBank(org.id, {
+                result = await createQuestionBank({
                     title: formData.title,
                     description: formData.description,
                     subject: formData.subject,
@@ -276,9 +276,9 @@ export default function GuruQuestionBankPage() {
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
         try {
-            const result = await createOrganizationLabel(org.id, labelName, randomColor);
+            const result = await createOrganizationLabel(labelName, randomColor);
             if (result.success) {
-                const labelList = await listOrganizationLabels(org.id);
+                const labelList = await listOrganizationLabels();
                 setLabels(labelList || []);
                 setFormData(prev => ({ ...prev, tags: [...prev.tags, labelName] }));
                 setNewCustomLabel('');
@@ -316,7 +316,7 @@ export default function GuruQuestionBankPage() {
             if (editingFolder) {
                 result = await updateBankFolder(editingFolder.id, newFolderName);
             } else {
-                result = await createBankFolder(org.id, newFolderName);
+                result = await createBankFolder(newFolderName);
             }
 
             if (result.success) {

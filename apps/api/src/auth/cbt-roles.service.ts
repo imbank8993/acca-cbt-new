@@ -7,12 +7,13 @@ import {
   type ResolvedUserRoles,
 } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { SingleSchoolService } from './single-school.service';
 
 export interface UserRoleContext {
   resolved: ResolvedUserRoles;
   bestRole: DashboardRole;
   roleNames: string[];
-  organizationIds: string[];
+  organizationId: string;
   isPlatformAdmin: boolean;
 }
 
@@ -28,7 +29,10 @@ export interface UserRoleContext {
 export class CbtRolesService {
   private readonly logger = new Logger(CbtRolesService.name);
 
-  constructor(private readonly db: DbService) {}
+  constructor(
+    private readonly db: DbService,
+    private readonly schoolScope: SingleSchoolService,
+  ) {}
 
   /**
    * Galat query sengaja ditelan: tabel `platform_admins` belum tentu ada di
@@ -56,7 +60,8 @@ export class CbtRolesService {
     userMetadata: Record<string, unknown> | null = null,
   ): Promise<UserRoleContext> {
     const out = emptyResolvedRoles();
-    const organizationIds: string[] = [];
+    const school = await this.schoolScope.getSchool();
+    const organizationId = school.id;
     let isPlatformAdmin = false;
 
     // Peran dari metadata akun. Dipertahankan karena tiket SSO acca-app menulis
@@ -84,6 +89,7 @@ export class CbtRolesService {
               'id, organization_id, is_active, member_roles:cbt_member_roles(role_id, roles:cbt_roles(name))',
             )
             .eq('user_id', userId)
+            .eq('organization_id', school.id)
             .eq('is_active', true),
         ),
         out.superadmin
@@ -103,7 +109,6 @@ export class CbtRolesService {
     const orgRoleNames = new Set<string>();
 
     for (const member of (memberships as any[]) || []) {
-      if (member.organization_id) organizationIds.push(member.organization_id);
       for (const memberRole of member.member_roles || []) {
         const name = memberRole?.roles?.name;
         // Dinormalkan ke huruf besar agar 'Proktor'/'PROKTOR'/'proktor' di
@@ -140,7 +145,7 @@ export class CbtRolesService {
       resolved: out,
       bestRole: pickBestRole(out),
       roleNames: [...new Set(roleNames)],
-      organizationIds: [...new Set(organizationIds)],
+      organizationId,
       isPlatformAdmin,
     };
   }
@@ -152,13 +157,14 @@ export class CbtRolesService {
     roles: string[],
   ): Promise<boolean> {
     if (!organizationId) return false;
+    const schoolId = await this.schoolScope.assertSchoolId(organizationId);
     const wanted = new Set(roles.map((r) => r.toUpperCase()));
 
     const { data } = await this.db
       .from('cbt_organization_members')
       .select('id, member_roles:cbt_member_roles(roles:cbt_roles(name))')
       .eq('user_id', userId)
-      .eq('organization_id', organizationId)
+      .eq('organization_id', schoolId)
       .eq('is_active', true);
 
     for (const member of (data as any[]) || []) {

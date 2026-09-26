@@ -7,6 +7,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUsersRepository } from './auth-users.repository';
 import { CbtRolesService } from './cbt-roles.service';
+import { SingleSchoolService } from './single-school.service';
 
 /** Peran yang disamakan persis dengan isi tiket SSO; 'ADMIN' sengaja tidak. */
 const SSO_SYNCED_ROLES = ['PROKTOR', 'GURU', 'PENGAWAS', 'SISWA'] as const;
@@ -22,6 +23,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly db: DbService,
     private readonly prisma: PrismaService,
+    private readonly schoolScope: SingleSchoolService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResponse> {
@@ -146,34 +148,7 @@ export class AuthService {
     avatarUrl?: string | null,
     identityNumber?: string | null,
   ): Promise<void> {
-    const orgName =
-      this.config.get<string>('CBT_ORGANIZATION_NAME') || 'Sekolah';
-
-    // Slug dibuat otomatis dari nama bila CBT_ORGANIZATION_SLUG tidak diset:
-    // huruf kecil, spasi → tanda hubung, buang karakter non-alfanumerik.
-    const orgSlug =
-      this.config.get<string>('CBT_ORGANIZATION_SLUG') ||
-      orgName
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
-
-    let { data: org } = await this.db
-      .from('cbt_organizations')
-      .select('id')
-      .eq('name', orgName)
-      .limit(1)
-      .maybeSingle();
-
-    if (!org) {
-      const created = await this.db
-        .from('cbt_organizations')
-        .insert({ name: orgName, status: 'active', slug: orgSlug })
-        .select('id')
-        .single();
-      org = created.data;
-    }
-    if (!org) return;
+    const org = await this.schoolScope.getSchool({ createIfMissing: true });
 
     const profilePayload: Record<string, any> = { id: userId };
     if (fullName) profilePayload.full_name = fullName;
@@ -274,7 +249,7 @@ export class AuthService {
       roles: context.roleNames,
       resolved: context.resolved,
       bestRole: context.bestRole,
-      organizationIds: context.organizationIds,
+      organizationId: context.organizationId,
       isPlatformAdmin: context.isPlatformAdmin,
     };
 
@@ -294,10 +269,8 @@ export class AuthService {
   /**
    * Profil pemanggil beserta organisasi yang ditampilkan bilah sisi.
    *
-   * Pemasangan ini satu sekolah, jadi "organisasi utama" cukup diambil dari
-   * keanggotaan pertama yang aktif. Versi lama di sisi browser menyusun urutan
-   * prioritas peran untuk memilih di antara beberapa sekolah — sesuatu yang
-   * tidak pernah terjadi di sini.
+   * Pemasangan ini satu sekolah, jadi profil hanya mencari keanggotaan aktif
+   * pada ID sekolah instalasi yang sudah diverifikasi.
    */
   async getProfileWithOrganization(user: AuthUser) {
     let { data: profile } = await this.db
@@ -352,10 +325,12 @@ export class AuthService {
       this.logger.warn(`Failed to sync profile from public.users: ${(err as Error).message}`);
     }
 
+    const school = await this.schoolScope.getSchool();
     const { data: membership } = await this.db
       .from('cbt_organization_members')
       .select('organization_id, organizations:cbt_organizations(id, name, logo_url)')
       .eq('user_id', user.id)
+      .eq('organization_id', school.id)
       .eq('is_active', true)
       .limit(1)
       .maybeSingle();
@@ -380,61 +355,37 @@ export class AuthService {
    * bisa dibaca hanya dengan menukar UUID.
    */
   async listRoleContexts(user: AuthUser): Promise<RoleContext[]> {
-    const contexts: RoleContext[] = [];
-
-    // Admin platform muncul sebagai satu entri semu tanpa sekolah: ia bertindak
-    // lintas organisasi, jadi tidak ada satu organisasi yang bisa disebut.
-    if (user.resolved?.superadmin === true) {
-      contexts.push({ role: 'Superadmin', orgId: 'platform-admin', orgName: 'Admin Utama' });
-    } else if (user.isPlatformAdmin) {
-      contexts.push({ role: 'Admin', orgId: 'platform-admin', orgName: 'Admin Utama' });
-    }
-
-    if (user.organizationIds.length === 0) return contexts;
+    const school = await this.schoolScope.getSchool();
+    const roleSet = new Set<DashboardRole>();
+    if (user.resolved?.superadmin === true) roleSet.add('Superadmin');
+    else if (user.isPlatformAdmin) roleSet.add('Admin');
 
     const { data } = await this.db
       .from('cbt_organization_members')
       .select(
-        `organization_id,
-         organizations:cbt_organizations(name),
-         member_roles:cbt_member_roles(roles:cbt_roles(name))`,
+        'member_roles:cbt_member_roles(roles:cbt_roles(name))',
       )
       .eq('user_id', user.id)
+      .eq('organization_id', school.id)
       .eq('is_active', true);
 
-    const byOrg = new Map<string, { name: string; roles: Set<DashboardRole> }>();
-
     for (const membership of (data as any[]) || []) {
-      const orgId = membership.organization_id as string;
-      const related = Array.isArray(membership.organizations)
-        ? membership.organizations[0]
-        : membership.organizations;
-
-      const entry = byOrg.get(orgId) ?? { name: related?.name || 'Sekolah', roles: new Set() };
-
       for (const memberRole of membership.member_roles || []) {
         const name = memberRole?.roles?.name;
         if (!name) continue;
         // Nama peran di basis data tidak konsisten kapitalisasinya; dikanonkan
         // supaya cocok dengan DashboardRole.
         const canonical = ROLE_NAME_CANON[String(name).toUpperCase()];
-        if (canonical) entry.roles.add(canonical);
+        if (canonical) roleSet.add(canonical);
       }
-
-      byOrg.set(orgId, entry);
     }
 
     // Urutan tetap, dari yang paling berwenang, supaya pemilih peran tidak
     // berubah-ubah susunannya antar pemuatan.
-    const ORDER: DashboardRole[] = ['Proktor', 'Admin', 'Guru', 'Pengawas', 'Siswa'];
-
-    for (const [orgId, { name, roles }] of byOrg) {
-      for (const role of ORDER) {
-        if (roles.has(role)) contexts.push({ role, orgId, orgName: name });
-      }
-    }
-
-    return contexts;
+    const ORDER: DashboardRole[] = ['Superadmin', 'Proktor', 'Admin', 'Guru', 'Pengawas', 'Siswa'];
+    return ORDER
+      .filter(role => roleSet.has(role))
+      .map(role => ({ role, orgId: school.id, orgName: school.name || 'Sekolah' }));
   }
 }
 

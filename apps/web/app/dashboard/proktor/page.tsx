@@ -44,7 +44,7 @@ export default function ProktorDashboard() {
             const organization = user ? await getProctorOrganization() : null;
 
             if (!organization) {
-                setErrorMsg('Organisasi tidak ditemukan. Silakan hubungi admin.');
+                setErrorMsg('Sekolah belum dikonfigurasi. Silakan hubungi admin.');
                 setLoading(false);
                 return;
             }
@@ -53,9 +53,9 @@ export default function ProktorDashboard() {
             setOrg({ id: organization.id, name: organization.name });
 
             const [statData, examData, loginData, announcementConfig] = await Promise.all([
-                getOrganizationStats(orgId),
-                listOrganizationExams(orgId),
-                getRecentLogins(orgId, 10),
+                getOrganizationStats(),
+                listOrganizationExams(),
+                getRecentLogins(10),
                 getSetting<Announcement | Announcement[]>('announcement_config')
             ]);
             setStats(statData);
@@ -98,7 +98,7 @@ export default function ProktorDashboard() {
         setShowMembersModal(true);
         setMembersLoading(true);
         try {
-            const all = await getRecentLogins(org.id, 500);
+            const all = await getRecentLogins(500);
             setMembersList((all || []).filter((m: any) => m.lastLoginAt));
         } catch (e) {
             console.error('Load members error:', e);

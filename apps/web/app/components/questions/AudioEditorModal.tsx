@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, UploadCloud, Link as LinkIcon, Play, Square, RotateCcw, Volume2, X, Check, Loader2, Music } from 'lucide-react';
+import { Mic, UploadCloud, Link as LinkIcon, Square, RotateCcw, Volume2, X, Check, Loader2, Music } from 'lucide-react';
 
 export interface AudioEditorModalProps {
   isOpen: boolean;
@@ -11,8 +11,12 @@ export interface AudioEditorModalProps {
 
 type AudioTab = 'upload' | 'record' | 'url';
 
-export default function AudioEditorModal({
-  isOpen,
+export default function AudioEditorModal(props: AudioEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <AudioEditorModalContent {...props} />;
+}
+
+function AudioEditorModalContent({
   onClose,
   onInsert,
   onUpload,
@@ -41,7 +45,7 @@ export default function AudioEditorModal({
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cleanup URLs on unmount/close
+  // Cleanup URLs and recording on unmount
   useEffect(() => {
     return () => {
       if (filePreviewUrl && filePreviewUrl.startsWith('blob:')) {
@@ -50,37 +54,17 @@ export default function AudioEditorModal({
       if (recordedAudioUrl && recordedAudioUrl.startsWith('blob:')) {
         URL.revokeObjectURL(recordedAudioUrl);
       }
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [filePreviewUrl, recordedAudioUrl]);
-
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedFile(null);
-      setFilePreviewUrl('');
-      setIsRecording(false);
-      setRecordDuration(0);
-      setRecordedBlob(null);
-      setRecordedAudioUrl('');
-      setMicPermissionError('');
-      setDirectUrl('');
-      setIsUploading(false);
-      setUploadError('');
-    } else {
-      // Stop recording if modal is closed abruptly
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
       }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-    }
-  }, [isOpen]);
+    };
+  }, [filePreviewUrl, recordedAudioUrl]);
 
   // Keyboard shortcut listener (Escape to close)
   useEffect(() => {
-    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isRecording && !isUploading) {
         onClose();
@@ -88,7 +72,7 @@ export default function AudioEditorModal({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, isRecording, isUploading, onClose]);
+  }, [isRecording, isUploading, onClose]);
 
   // Handle local audio file selection
   const handleFileChange = (file: File) => {
@@ -235,8 +219,6 @@ export default function AudioEditorModal({
       setIsUploading(false);
     }
   };
-
-  if (!isOpen) return null;
 
   const canInsert =
     (activeTab === 'upload' && selectedFile !== null) ||

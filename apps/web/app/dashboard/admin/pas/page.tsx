@@ -58,9 +58,9 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
             if (orgData) {
                 setOrg(orgData);
                 const [periodList, subjectList, activeYear] = await Promise.all([
-                    listPASPeriods(orgData.id),
-                    listSubjects(orgData.id),
-                    getActiveSchoolYear(orgData.id)
+                    listPASPeriods(),
+                    listSubjects(),
+                    getActiveSchoolYear()
                 ]);
                 setPeriods(periodList || []);
                 setSubjects(subjectList || []);
@@ -77,7 +77,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
         if (!org || !user) return;
         setIsSubmitting(true);
 
-        const result = await createPASPeriodAction(org.id, {
+        const result = await createPASPeriodAction({
             name: periodForm.name,
             type: periodForm.type,
             school_year: periodForm.school_year,

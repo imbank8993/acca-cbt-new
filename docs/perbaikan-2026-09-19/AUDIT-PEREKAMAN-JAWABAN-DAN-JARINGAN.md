@@ -148,3 +148,7 @@ Empat tes ANS-06 membuktikan serialisasi snapshot, fallback ketika IndexedDB tid
 ## Verifikasi tahap 18
 
 Lima tes ANS-07 membuktikan deduplikasi event retry, validasi heartbeat pemilik/perangkat, kontrak antrean durable, urutan konfirmasi terminasi sebelum pembersihan sesi, indikator offline empat peran, dan pengaman migrasi. Paket lengkap kini menjalankan 131 tes Node, 44 pemeriksaan round-trip impor/ekspor, dan 13 pemeriksaan service. Build backend dan typecheck frontend lulus.
+
+## Verifikasi tahap 19
+
+Empat tes lifecycle membuktikan hasil grading auto-finish/terminasi yang tertunda tidak masuk setelah reset, audit terminasi mendahului reset, dan finalisasi monitoring menutup status sebelum menunggu scoring. Validator migrasi serta audit database read-only ditambahkan untuk staging. Paket lengkap kini menjalankan 135 tes Node, 44 pemeriksaan round-trip impor/ekspor, dan 13 pemeriksaan service. Rincian tersedia pada [panduan tahap 19](TAHAP-19-VALIDASI-LIFECYCLE-DAN-STAGING.md).

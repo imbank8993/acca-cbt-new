@@ -50,7 +50,7 @@ export default function PengawasDashboard() {
             setOrganization(org);
 
             if (org) {
-                const examList = await listOrganizationExams(org.id);
+                const examList = await listOrganizationExams();
                 setExams(examList);
 
                 // Prioritaskan ujian yang sedang berlangsung atau pertama dalam daftar

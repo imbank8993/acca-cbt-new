@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import {
     AssignRoomStudentsDto,
     AssignUsersDto,
@@ -56,7 +57,7 @@ export class PasController {
     @ApiOperation({ summary: 'Daftar periode PAS satu organisasi' })
     async listPeriods(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { periods: await this.pas.listPeriods(user, organizationId) };
     }
@@ -72,8 +73,12 @@ export class PasController {
 
     @Post('periods')
     @ApiOperation({ summary: 'Buat periode PAS baru' })
-    createPeriod(@CurrentUser() user: AuthUser, @Body() dto: CreatePASPeriodDto) {
-        return this.pas.createPeriod(user, dto);
+    createPeriod(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreatePASPeriodDto,
+    ) {
+        return this.pas.createPeriod(user, organizationId, dto);
     }
 
     @Post('periods/:periodId/lock')
@@ -102,7 +107,7 @@ export class PasController {
     @ApiOperation({ summary: 'Mata pelajaran aktif dari master data acca-app' })
     async listSubjects(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { subjects: await this.pas.listSubjects(user, organizationId) };
     }
@@ -111,7 +116,7 @@ export class PasController {
     @ApiOperation({ summary: 'Kelas satu organisasi beserta jumlah siswanya' })
     async listClasses(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
         @Query('activeYearOnly') activeYearOnly?: string,
     ) {
         return {
@@ -123,7 +128,7 @@ export class PasController {
     @ApiOperation({ summary: 'Guru dan pengawas organisasi, untuk penugasan ruang' })
     async listStaff(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { staff: await this.pas.listStaff(user, organizationId) };
     }

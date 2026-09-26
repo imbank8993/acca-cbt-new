@@ -486,7 +486,10 @@ export class ExamAttemptsService {
                         total_score: graded.finalScore100,
                         needs_manual_grading: graded.hasEssay,
                     })
-                    .eq('id', attemptId);
+                    .eq('id', attemptId)
+                    // Reset proktor dapat terjadi saat penilaian masih berjalan.
+                    // Hasil dari penutupan lama tidak boleh menimpa attempt aktif.
+                    .eq('status', 'auto_submitted');
             }
         } catch (err) {
             // Statusnya sudah tercatat; kegagalan penilaian tidak boleh membuat

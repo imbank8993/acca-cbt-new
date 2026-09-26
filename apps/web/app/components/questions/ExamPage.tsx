@@ -1,13 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Clock, AlertTriangle, CheckCircle2, Check, Ghost, Loader2,
-    Maximize2, ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight, Ban,
-    X, Info, RefreshCw, Grid3X3, Send, Flag, ChevronUp, ChevronDown,
-    Eye, User, Rows3, Columns2, Menu
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { getSessionUser } from '@/lib/session';
 import { getDeviceId, setDeviceId } from '@/lib/device-id';
 import { clearCbtSession } from '@/lib/session-reset';
@@ -100,7 +94,7 @@ export default function ExamPage() {
     const [accessError, setAccessError] = useState('');
 
     // Offline Tolerance
-    const [isOffline, setIsOffline] = useState(false);
+    const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
     const [waitingForSyncAndSubmit, setWaitingForSyncAndSubmit] = useState(false);
     const [recoverySummary, setRecoverySummary] = useState<{
         localCount: number;
@@ -361,7 +355,7 @@ export default function ExamPage() {
                 // Pulihkan jawaban server lalu timpa dengan snapshot lokal yang
                 // lebih baru. Helper juga memigrasikan cache localStorage lama.
                 const savedA: Record<string, string> = {};
-                let savedD = new Set<string>();
+                const savedD = new Set<string>();
                 let localAnswerIds: string[] = [];
                 const serverAnswerIds = new Set<string>();
                 (result.answers || []).forEach((ans: any) => {
@@ -560,7 +554,9 @@ export default function ExamPage() {
 
     // Simpan referensi terbaru agar retry terjadwal selalu memanggil versi
     // dengan closure `answers` termutakhir (bukan snapshot saat gagal).
-    handleSubmitExamRef.current = handleSubmitExam;
+    useEffect(() => {
+        handleSubmitExamRef.current = handleSubmitExam;
+    }, [handleSubmitExam]);
 
     useEffect(() => () => {
         if (autoRetryTimerRef.current) clearTimeout(autoRetryTimerRef.current);
@@ -649,7 +645,6 @@ export default function ExamPage() {
 
     // ── Network Detection ────────────────────────────────────
     useEffect(() => {
-        setIsOffline(!navigator.onLine);
         const handleOnline = () => {
             setIsOffline(false);
             if (attempt?.id) {
@@ -846,6 +841,7 @@ export default function ExamPage() {
         };
         // Note: timeLeft is intentionally NOT a dependency — the interval owns the
         // countdown and clears itself at 0, so we don't recreate it every second.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, exam, submitting, accessDenied, isCompleted]);
 
     // Auto-submit when timer hits 0.
@@ -860,9 +856,13 @@ export default function ExamPage() {
         autoSubmittedRef.current = true;
 
         if (isOffline) {
-            setWaitingForSyncAndSubmit(true);
+            setTimeout(() => {
+                setWaitingForSyncAndSubmit(true);
+            }, 0);
         } else {
-            handleSubmitExam(undefined, { isAuto: true });
+            setTimeout(() => {
+                handleSubmitExam(undefined, { isAuto: true });
+            }, 0);
         }
     }, [timeLeft, isOffline, submitting, isCompleted, user, attempt, loading, accessDenied, handleSubmitExam]);
 

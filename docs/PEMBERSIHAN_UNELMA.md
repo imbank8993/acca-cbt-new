@@ -122,11 +122,17 @@ dan peran Pengawas yang sebelumnya terlewat ikut ditambahkan.
 
 ## Yang sengaja DIPERTAHANKAN
 
-**Struktur multi-organisasi** (`cbt_organizations`, `cbt_organization_members`,
-`organization_id` di hampir semua tabel) tetap ada. Membongkarnya berarti
-menyentuh 45 tabel dan hampir seluruh query — pekerjaan besar dengan risiko
-tinggi, dan tidak ada ruginya membiarkannya: sistem berjalan normal dengan satu
-baris organisasi.
+**Foreign key organisasi** (`cbt_organizations`, `cbt_organization_members`,
+`organization_id` di hampir semua tabel) tetap ada sebagai pengikat data
+internal. Kemampuan multi-sekolahnya sudah dihapus: sesi hanya membawa satu ID,
+nilai `all` ditolak, seluruh query dibatasi ke sekolah instalasi, dan unique
+index database mencegah sekolah kedua. Rinciannya ada di
+[Tahap 20](perbaikan-2026-09-19/TAHAP-20-SINGLE-SCHOOL.md).
+
+Browser juga tidak lagi mengirim `organizationId` untuk memilih lingkup pada
+fitur operasional. Controller mengambil sekolah dari sesi JWT yang telah
+diverifikasi; rincian dan daftar endpoint ada di
+[Tahap 22](perbaikan-2026-09-19/TAHAP-22-KONTEKS-SEKOLAH-DARI-SESI.md).
 
 **Kata "expired" untuk habisnya waktu ujian** tetap ada dan tidak ada
 hubungannya dengan langganan — mis. `autoFinishExpiredAttemptsAction` dan

@@ -120,7 +120,7 @@ export default function GuruClassesPage() {
             if (organization) {
                 setOrg(organization);
                 // Guru hanya melihat & mengelola kelas tambahan buatannya sendiri.
-                const classList = await listGuruClasses(organization.id);
+                const classList = await listGuruClasses();
                 setClasses(classList || []);
             }
         }
@@ -134,7 +134,7 @@ export default function GuruClassesPage() {
         if (!org) return;
         setIsSubmitting(true);
         // Guru hanya dapat membuat kelas tambahan.
-        const result = await createTambahanClass(org.id, classForm.name);
+        const result = await createTambahanClass(classForm.name);
         if (result.success) {
             setIsModalOpen(false);
             setClassForm({ name: '', type: 'tambahan', schoolYear: classForm.schoolYear });

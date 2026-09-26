@@ -54,7 +54,7 @@ function MonitoringContent() {
 
             const org = await getProctorOrganization();
             if (org) {
-                const examList = await listOrganizationExams(org.id);
+                const examList = await listOrganizationExams();
                 setExams(examList);
 
                 const currentExamId = selectedExamId || initialExamId || (examList.length > 0 ? examList[0].id : '');

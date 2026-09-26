@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { BankContentService } from './bank-content.service';
 import {
     CreateBankDto,
@@ -68,7 +69,7 @@ export class QuestionsController {
     @ApiOperation({ summary: 'Daftar bank soal satu organisasi' })
     async listBanks(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
+        @CurrentSchoolId() organizationId: string,
         @Query('onlyPublished') onlyPublished?: string,
     ) {
         return {
@@ -78,9 +79,12 @@ export class QuestionsController {
 
     @Post()
     @ApiOperation({ summary: 'Buat bank soal baru' })
-    createBank(@CurrentUser() user: AuthUser, @Body() dto: CreateBankDto) {
-        const { organizationId, ...input } = dto;
-        return this.banks.create(user, organizationId, input);
+    createBank(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateBankDto,
+    ) {
+        return this.banks.create(user, organizationId, dto);
     }
 
     // Segmen statis didaftarkan sebelum `:bankId` supaya "folders" dan "labels"
@@ -90,15 +94,19 @@ export class QuestionsController {
     @ApiOperation({ summary: 'Folder bank soal satu organisasi' })
     async listFolders(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { folders: await this.banks.listFolders(user, organizationId) };
     }
 
     @Post('folders')
     @ApiOperation({ summary: 'Buat folder bank soal' })
-    createFolder(@CurrentUser() user: AuthUser, @Body() dto: CreateFolderDto) {
-        return this.banks.createFolder(user, dto.organizationId, dto.name);
+    createFolder(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateFolderDto,
+    ) {
+        return this.banks.createFolder(user, organizationId, dto.name);
     }
 
     @Patch('folders/:folderId')
@@ -133,15 +141,19 @@ export class QuestionsController {
     @ApiOperation({ summary: 'Label bank soal satu organisasi' })
     async listLabels(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { labels: await this.banks.listLabels(user, organizationId) };
     }
 
     @Post('labels')
     @ApiOperation({ summary: 'Buat label baru' })
-    createLabel(@CurrentUser() user: AuthUser, @Body() dto: CreateLabelDto) {
-        return this.banks.createLabel(user, dto.organizationId, dto.name, dto.color || '');
+    createLabel(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateLabelDto,
+    ) {
+        return this.banks.createLabel(user, organizationId, dto.name, dto.color || '');
     }
 
     @Get(':bankId')

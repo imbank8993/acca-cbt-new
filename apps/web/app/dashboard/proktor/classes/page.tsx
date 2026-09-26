@@ -138,9 +138,9 @@ export default function ProctorSettingsClassesPage() {
             if (organization) {
                 setOrg(organization);
                 const [classList, yearList, activeYearData] = await Promise.all([
-                    listOrganizationClasses(organization.id),
-                    listOrganizationSchoolYears(organization.id),
-                    getActiveSchoolYear(organization.id),
+                    listOrganizationClasses(),
+                    listOrganizationSchoolYears(),
+                    getActiveSchoolYear(),
                 ]);
                 setClasses(classList || []);
                 setYearOptions(yearList || []);
@@ -160,9 +160,7 @@ export default function ProctorSettingsClassesPage() {
         e.preventDefault();
         if (!org) return;
         setIsSubmitting(true);
-        const result = await createClassAction(
-            org.id,
-            classForm.name,
+        const result = await createClassAction(classForm.name,
             classForm.type,
             classForm.schoolYear || undefined
         );
@@ -266,7 +264,7 @@ export default function ProctorSettingsClassesPage() {
                 return;
             }
             setIsSubmitting(true);
-            const result = await importClassesAction(org.id, formattedData);
+            const result = await importClassesAction(formattedData);
             setIsImportModalOpen(false);
             await loadData();
             setIsSubmitting(false);
@@ -555,7 +553,7 @@ export default function ProctorSettingsClassesPage() {
                     id="modal-create-class"
                     icon="plus-lg"
                     title="Buat Kelas Baru"
-                    subtitle="Tambah kelas baru untuk organisasi"
+                    subtitle="Tambah kelas baru untuk sekolah"
                     onClose={() => setIsModalOpen(false)}
                 />
                 <form onSubmit={handleCreateClass}>

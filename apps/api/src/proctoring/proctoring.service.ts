@@ -262,6 +262,10 @@ export class ProctoringService {
             const updates: Record<string, unknown> = {
                 status: 'in_progress',
                 finished_at: null,
+                total_score: null,
+                score_irt: null,
+                irt_theta: null,
+                needs_manual_grading: false,
                 warning_count: 0,
                 tab_switch_count: 0,
                 // Kunci perangkat dilepas supaya siswa bisa melanjutkan di perangkat
@@ -275,11 +279,15 @@ export class ProctoringService {
             const expired =
                 !previousDeadline || new Date(previousDeadline).getTime() <= now.getTime();
             let recoveryUntil: string | null = null;
+            const metadataWithoutOldScore = { ...previousMetadata };
+            delete metadataWithoutOldScore.base_score;
+            delete metadataWithoutOldScore.dimension_scores;
+            updates.metadata = metadataWithoutOldScore;
             if (expired) {
                 recoveryUntil = new Date(now.getTime() + RESET_GRACE_MS).toISOString();
                 updates.personal_end_time = recoveryUntil;
                 updates.metadata = {
-                    ...previousMetadata,
+                    ...metadataWithoutOldScore,
                     proctor_recovery_until: recoveryUntil,
                 };
             }
@@ -349,11 +357,30 @@ export class ProctoringService {
             await this.authz.assertProktor(user, row.organization_id);
         }
 
-        const { data: closed, error } = await this.db
-            .from('cbt_exam_attempts')
-            .update({ status: 'auto_submitted', finished_at: new Date().toISOString() })
-            .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
-        if (error) throw new BadRequestException('Status pengerjaan gagal disimpan.');
+        const now = await this.databaseNow(this.db);
+        const closed = await this.db.transaction(async db => {
+            await db.raw(
+                'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
+                attemptId,
+            );
+            const { data: updated, error } = await db
+                .from('cbt_exam_attempts')
+                .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                .eq('id', attemptId)
+                .eq('status', 'in_progress')
+                .select('id')
+                .maybeSingle();
+            if (error) throw new BadRequestException('Status pengerjaan gagal disimpan.');
+            if (!updated) return null;
+
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: attemptId,
+                event_type: 'FORCE_TERMINATED',
+                metadata: { reason, terminated_at: now.toISOString(), actor_user_id: user.id },
+            });
+            if (logError) throw new BadRequestException('Jejak terminasi gagal disimpan.');
+            return updated;
+        });
         if (!closed) return;
 
         // Jawaban yang sudah tersimpan tetap dinilai. Tanpa ini attempt yang
@@ -368,7 +395,9 @@ export class ProctoringService {
                         total_score: graded.finalScore100,
                         needs_manual_grading: graded.hasEssay,
                     })
-                    .eq('id', attemptId);
+                    .eq('id', attemptId)
+                    // Jangan tulis hasil lama jika proktor sudah mereset attempt.
+                    .eq('status', 'auto_submitted');
             }
         } catch (error) {
             // Kegagalan penilaian tidak boleh membatalkan terminasi — attempt
@@ -390,10 +419,5 @@ export class ProctoringService {
         // Penguncian yang sebenarnya ada di tingkat attempt: statusnya sudah
         // auto_submitted, sehingga ujian tidak bisa dilanjutkan.
 
-        await this.db.from('cbt_attempt_security_logs').insert({
-            attempt_id: attemptId,
-            event_type: 'FORCE_TERMINATED',
-            metadata: { reason },
-        });
     }
 }

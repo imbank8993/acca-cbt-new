@@ -19,10 +19,8 @@ import { apiGet, apiSend } from './client';
 
 // ── Periode ──────────────────────────────────────────────────────────────────
 
-export async function listPASPeriods(orgId: string): Promise<PASPeriod[]> {
-    const res = await apiGet<{ periods: PASPeriod[] }>(
-        `/api/pas/periods?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listPASPeriods(): Promise<PASPeriod[]> {
+    const res = await apiGet<{ periods: PASPeriod[] }>('/api/pas/periods');
     return res.success ? res.periods : [];
 }
 
@@ -34,7 +32,6 @@ export async function getPASPeriod(periodId: string): Promise<PASPeriod | null> 
 }
 
 export function createPASPeriodAction(
-    orgId: string,
     input: {
         name: string;
         type?: string;
@@ -44,7 +41,7 @@ export function createPASPeriodAction(
         end_date: string;
     },
 ) {
-    return apiSend<{ id: string }>('/api/pas/periods', { organizationId: orgId, ...input });
+    return apiSend<{ id: string }>('/api/pas/periods', input);
 }
 
 export function lockPASPeriodAction(periodId: string, lock: boolean) {
@@ -67,32 +64,25 @@ export function deletePASPeriodAction(periodId: string) {
 /**
  * Mata pelajaran dari master data acca-app.
  *
- * `orgId` kini benar-benar dipakai — sebagai dasar otorisasi. Versi lama
- * menerimanya lalu mengabaikannya sepenuhnya, sehingga daftarnya bisa dibaca
- * tanpa keanggotaan organisasi mana pun.
+ * Lingkup sekolah diambil dari sesi terverifikasi oleh backend.
  */
-export async function listSubjects(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ subjects: any[] }>(
-        `/api/pas/subjects?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listSubjects(): Promise<any[]> {
+    const res = await apiGet<{ subjects: any[] }>('/api/pas/subjects');
     return res.success ? res.subjects : [];
 }
 
 export async function listOrganizationClasses(
-    orgId: string,
     opts?: { activeYearOnly?: boolean },
 ): Promise<any[]> {
-    const query = new URLSearchParams({ organizationId: orgId });
+    const query = new URLSearchParams();
     if (opts?.activeYearOnly) query.set('activeYearOnly', 'true');
 
     const res = await apiGet<{ classes: any[] }>(`/api/pas/classes?${query.toString()}`);
     return res.success ? res.classes : [];
 }
 
-export async function listTeachersAndInvigilators(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ staff: any[] }>(
-        `/api/pas/staff?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listTeachersAndInvigilators(): Promise<any[]> {
+    const res = await apiGet<{ staff: any[] }>('/api/pas/staff');
     return res.success ? res.staff : [];
 }
 

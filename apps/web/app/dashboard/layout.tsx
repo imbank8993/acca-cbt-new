@@ -6,7 +6,7 @@ import { getSessionUser } from '@/lib/session';
 import { getAccountProfile } from '@/lib/api/account';
 import { getSetting, type AppConfig } from '@/lib/api/settings';
 import Sidebar from '@/app/components/Sidebar';
-import Header from '@/app/components/Header';
+import Header, { type HeaderUser } from '@/app/components/Header';
 import DashboardLoading from '@/app/components/DashboardLoading';
 import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
 import {
@@ -23,6 +23,15 @@ import {
     type DashboardRole,
 } from '@/lib/rbac';
 
+interface ExtendedUser {
+    nama?: string;
+    nip?: string;
+    roles?: string[];
+    photoUrl?: string;
+    avatar_url?: string;
+    user_metadata?: { avatar_url?: string };
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -32,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [rolesWithOrg, setRolesWithOrg] = useState<UserRoleContext[]>([]);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<HeaderUser | null>(null);
     const [appSubtitle, setAppSubtitle] = useState('MAN IC Gowa');
     const lastResolvedPath = useRef<string | null>(null);
     const pathRoleRef = useRef<DashboardRole | null>(null);
@@ -103,13 +112,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         getSetting<AppConfig>('app_config').catch(() => null),
                     ]);
                     if (appConfig?.app_subtitle) setAppSubtitle(appConfig.app_subtitle);
+                    const extUser = user as unknown as ExtendedUser;
                     setCurrentUser({
                         id: user.id,
-                        nama: profileData?.profile?.full_name || (user as any).nama || user.email,
+                        nama: profileData?.profile?.full_name || extUser.nama || user.email,
                         email: user.email,
-                        nip: profileData?.profile?.identity_number || (user as any).nip,
-                        roles: (user as any).roles || [],
-                        photoUrl: profileData?.profile?.avatar_url || (user as any).photoUrl || (user as any).avatar_url || (user as any).user_metadata?.avatar_url,
+                        nip: profileData?.profile?.identity_number || extUser.nip,
+                        roles: extUser.roles || [],
+                        photoUrl: profileData?.profile?.avatar_url || extUser.photoUrl || extUser.avatar_url || extUser.user_metadata?.avatar_url,
                     });
                 } catch (e) {
                     console.error('[DashboardLayout] profile load error:', e);
@@ -164,14 +174,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 const candidates = list.filter(c => c.role === role);
                 let active: UserRoleContext | undefined = candidates[0];
-                if (pathRole) {
-                    const pathSeg = pathname.split('/')[3] || '';
-                    const byPath = candidates.find(c =>
-                        c.orgId === pathSeg ||
-                        (pathSeg && c.orgName && c.orgName.toLowerCase() === pathSeg.toLowerCase())
-                    );
-                    if (byPath) active = byPath;
-                }
                 if (!active) active = list[0] ?? { role, orgId: '', orgName: '' };
 
                 setActiveRoleCtx(active);

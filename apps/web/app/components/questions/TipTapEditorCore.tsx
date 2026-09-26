@@ -46,10 +46,8 @@ import {
   ImageIcon,
   Mic,
   LinkIcon,
-  Youtube,
   Table as TableIcon,
   BarChart2,
-  FunctionSquare,
   Video,
   Sigma,
 } from 'lucide-react';
@@ -229,7 +227,7 @@ export default function TipTapEditorCore({
   const [showImageModal, setShowImageModal] = useState(false);
   const [localImageSrc, setLocalImageSrc] = useState('');
   const [imgWidth, setImgWidth] = useState('100%');
-  const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [imgAlign] = useState<'left' | 'center' | 'right'>('center');
 
   const [showMathModal, setShowMathModal] = useState(false);
   const [mathInput, setMathInput] = useState('');
@@ -274,7 +272,6 @@ export default function TipTapEditorCore({
       Highlight.configure({ multicolor: true }),
       VideoEmbed,
       AudioEmbed,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       OrderedList.configure({
         addAttributes() {
           return {
@@ -289,7 +286,6 @@ export default function TipTapEditorCore({
         },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       BulletList.configure({
         addAttributes() {
           return {
@@ -401,8 +397,9 @@ export default function TipTapEditorCore({
     for (let depth = $from.depth; depth > 0; depth--) {
       const node = $from.node(depth);
       if (node.type.name === 'table') {
-        const style = ((node.attrs as any).style as string | null | undefined) || '';
-        const widthAttr = (node.attrs as any).width as string | null | undefined;
+        const attrs = node.attrs as Record<string, unknown>;
+        const style = (attrs.style as string | null | undefined) || '';
+        const widthAttr = attrs.width as string | null | undefined;
         const combined = style || (widthAttr ? `width: ${widthAttr}` : '');
         if (!combined) return { preset: 'auto', custom: '' };
         const match = combined.match(/width\s*:\s*([^;]+)/i);
@@ -566,7 +563,7 @@ export default function TipTapEditorCore({
             src,
             alt: 'Gambar Soal',
             title: 'Gambar Soal',
-          } as any)
+          })
           .run();
         editor
           .chain()
@@ -1027,6 +1024,7 @@ export default function TipTapEditorCore({
         initialWidth={imgWidth}
         initialAlign={imgAlign}
         onApply={handleApplyImage}
+        onUpload={onImageUpload}
       />
 
       {/* Standalone Math / LaTeX Equation Modal */}

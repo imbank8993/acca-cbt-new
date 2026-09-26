@@ -116,11 +116,6 @@ class ExamFieldsDto {
 }
 
 export class CreateExamDto extends ExamFieldsDto {
-    @ApiProperty({ description: "Boleh 'all' pada dasbor admin platform." })
-    @IsString()
-    @IsNotEmpty({ message: 'organizationId wajib diisi' })
-    organizationId!: string;
-
     @ApiPropertyOptional()
     @IsOptional()
     @IsUUID('4', { message: 'subjectId tidak valid' })
@@ -202,19 +197,11 @@ export class ClassFieldsDto {
     schoolYear?: string;
 }
 
-export class CreateClassDto extends ClassFieldsDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-}
+export class CreateClassDto extends ClassFieldsDto {}
 
 export class UpdateClassDto extends ClassFieldsDto {}
 
 export class ImportClassesDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-
     @ApiProperty({ type: [ClassFieldsDto] })
     @IsArray()
     @ArrayNotEmpty({ message: 'Tidak ada kelas untuk diimpor.' })
@@ -226,10 +213,6 @@ export class ImportClassesDto {
 // ── Tahun ajaran ─────────────────────────────────────────────────────────────
 
 export class CreateSchoolYearDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-
     @ApiProperty({ example: '2025/2026' })
     @IsString()
     @IsNotEmpty({ message: 'Tahun ajaran wajib diisi.' })

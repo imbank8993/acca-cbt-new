@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart2, PieChart, LineChart, Plus, Trash2, X, Check } from 'lucide-react';
 
 export interface ChartEditorModalProps {
@@ -8,8 +8,12 @@ export interface ChartEditorModalProps {
   onInsert: (chartHTML: string) => void;
 }
 
-export default function ChartEditorModal({
-  isOpen,
+export default function ChartEditorModal(props: ChartEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <ChartEditorModalContent {...props} />;
+}
+
+function ChartEditorModalContent({
   onClose,
   onInsert,
 }: ChartEditorModalProps) {
@@ -25,24 +29,7 @@ export default function ChartEditorModal({
     }],
   });
 
-  // Keyboard shortcut listener
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleInsert();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, chartType, chartData]);
-
-  const handleInsert = () => {
+  const handleInsert = useCallback(() => {
     const maxVal = Math.max(1, ...chartData.datasets[0].data);
     const chartHTML = `
       <div class="chart-container" style="width:100%;max-width:500px;margin:1rem auto;padding:1rem;background:#f8fafc;border-radius:0.75rem;border:1px solid #e2e8f0;text-align:center">
@@ -59,7 +46,23 @@ export default function ChartEditorModal({
     `;
     onInsert(chartHTML);
     onClose();
-  };
+  }, [chartData, chartType, onInsert, onClose]);
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleInsert();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [handleInsert, onClose]);
 
   const addDataPoint = () => {
     if (chartData.labels.length >= 8) return;
@@ -88,8 +91,6 @@ export default function ChartEditorModal({
       }],
     });
   };
-
-  if (!isOpen) return null;
 
   const maxVal = Math.max(1, ...chartData.datasets[0].data);
 

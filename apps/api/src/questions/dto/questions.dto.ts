@@ -181,12 +181,7 @@ export class SaveBankDto {
     folderId?: string | null;
 }
 
-export class CreateBankDto extends SaveBankDto {
-    @ApiProperty({ description: "Boleh 'all' pada dasbor admin platform." })
-    @IsString()
-    @IsNotEmpty({ message: 'organizationId wajib diisi' })
-    organizationId!: string;
-}
+export class CreateBankDto extends SaveBankDto {}
 
 export class PublishBankDto {
     @ApiProperty()
@@ -214,19 +209,9 @@ export class SaveFolderDto {
     name!: string;
 }
 
-export class CreateFolderDto extends SaveFolderDto {
-    @ApiProperty()
-    @IsString()
-    @IsNotEmpty({ message: 'organizationId wajib diisi' })
-    organizationId!: string;
-}
+export class CreateFolderDto extends SaveFolderDto {}
 
 export class CreateLabelDto {
-    @ApiProperty()
-    @IsString()
-    @IsNotEmpty({ message: 'organizationId wajib diisi' })
-    organizationId!: string;
-
     @ApiProperty()
     @IsString()
     @IsNotEmpty({ message: 'Nama label wajib diisi.' })

@@ -23,6 +23,10 @@ const FILES = [
     '20260916_01_cbt_missing_tables.sql',
     '20260916_02_cbt_missing_columns.sql',
     '20260916_03_drop_fitur_produk_asal.sql',
+    '20260925_01_add_updated_at_question_banks.sql',
+    '20260926_01_unique_active_exam_attempt.sql',
+    '20260926_02_offline_proctoring.sql',
+    '20260926_03_single_school.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
@@ -55,6 +59,16 @@ const EXPECTED_COLUMNS = [
     ['cbt_profiles', 'unique_id'],
     ['cbt_profiles', 'role'],
     ['cbt_organization_members', 'role'],
+    ['cbt_question_banks', 'updated_at'],
+    ['bank_folders', 'updated_at'],
+    ['cbt_exam_attempts', 'last_seen_at'],
+];
+
+const EXPECTED_INDEXES = [
+    'cbt_exam_attempts_one_active_per_user_exam',
+    'cbt_exam_attempts_active_last_seen',
+    'cbt_security_logs_client_event_unique',
+    'cbt_organizations_singleton',
 ];
 
 function resolveDatabaseUrl() {
@@ -145,6 +159,18 @@ function stripTransactionControl(sql) {
             }
         }
         console.log(`  kolom terbentuk : ${columnsOk}/${EXPECTED_COLUMNS.length}`);
+
+        const indexes = (await client.query(
+            `SELECT indexname FROM pg_indexes
+              WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+            [EXPECTED_INDEXES],
+        )).rows.map((row) => row.indexname);
+        const missingIndexes = EXPECTED_INDEXES.filter((name) => !indexes.includes(name));
+        console.log(`  index terbentuk : ${indexes.length}/${EXPECTED_INDEXES.length}`);
+        if (missingIndexes.length) {
+            failed = true;
+            console.log(`  TIDAK TERBENTUK : ${missingIndexes.join(', ')}`);
+        }
 
         // Migrasi ketiga menghapus; yang diperiksa adalah KETIADAANNYA.
         const stillThere = (await client.query(

@@ -49,8 +49,7 @@ export class ClassesService {
     async list(user: AuthUser, organizationId: string, activeYearOnly: boolean) {
         await this.authz.assertOrgStaff(user, organizationId);
 
-        const resolvedOrgId = await this.resolveOrganizationId(organizationId);
-        if (resolvedOrgId) await this.syncFromMasterData(resolvedOrgId);
+        await this.syncFromMasterData(organizationId);
 
         const activeYears = activeYearOnly ? await this.activeSchoolYears() : [];
 
@@ -62,10 +61,8 @@ export class ClassesService {
             .from('cbt_additional_classes')
             .select('*, class_members:cbt_additional_class_members(count)');
 
-        if (organizationId !== 'all') {
-            regularQuery = regularQuery.eq('organization_id', organizationId);
-            additionalQuery = additionalQuery.eq('organization_id', organizationId);
-        }
+        regularQuery = regularQuery.eq('organization_id', organizationId);
+        additionalQuery = additionalQuery.eq('organization_id', organizationId);
 
         // Hanya kelas reguler yang disaring per tahun: kelas tambahan bersifat
         // sesaat dan tidak terikat tahun ajaran.
@@ -141,9 +138,7 @@ export class ClassesService {
             .in('user_id', creatorIds)
             .eq('is_active', true);
 
-        if (organizationId !== 'all') {
-            query = query.eq('organization_id', organizationId);
-        }
+        query = query.eq('organization_id', organizationId);
 
         const { data } = await query;
 
@@ -417,24 +412,6 @@ export class ClassesService {
                     .filter((y): y is string => Boolean(y)),
             ),
         ];
-    }
-
-    /**
-     * Dasbor admin platform mengirim `'all'`; sinkronisasi butuh organisasi
-     * sungguhan karena nilainya ditulis ke kolom uuid. Pemasangan ini satu
-     * sekolah, jadi yang tertua adalah satu-satunya.
-     */
-    private async resolveOrganizationId(organizationId: string): Promise<string | null> {
-        if (organizationId !== 'all') return organizationId;
-
-        const { data } = await this.db
-            .from('cbt_organizations')
-            .select('id')
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-        return (data as { id: string } | null)?.id ?? null;
     }
 
     /**

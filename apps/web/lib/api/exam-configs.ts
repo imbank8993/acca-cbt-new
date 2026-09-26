@@ -16,10 +16,8 @@ import { apiGet, apiSend } from './client';
  * dari token. Versi lama menerimanya sebagai parameter biasa dari browser.
  */
 
-export async function listExamConfigs(orgId: string): Promise<ExamConfig[]> {
-    const res = await apiGet<{ configs: ExamConfig[] }>(
-        `/api/exam-configs?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listExamConfigs(): Promise<ExamConfig[]> {
+    const res = await apiGet<{ configs: ExamConfig[] }>('/api/exam-configs');
     return res.success ? res.configs : [];
 }
 
@@ -31,7 +29,6 @@ export async function getExamConfig(configId: string): Promise<ExamConfig | null
 }
 
 export function createExamConfigAction(
-    orgId: string,
     input: {
         name: string;
         school_year?: string;
@@ -40,7 +37,7 @@ export function createExamConfigAction(
         end_date?: string;
     },
 ) {
-    return apiSend<{ id: string }>('/api/exam-configs', { organizationId: orgId, ...input });
+    return apiSend<{ id: string }>('/api/exam-configs', input);
 }
 
 export function deleteExamConfigAction(configId: string) {

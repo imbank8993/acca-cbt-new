@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
+import { SingleSchoolService } from '../auth/single-school.service';
 import { chunk } from '../common/chunk';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 
@@ -51,10 +52,12 @@ export class BackupService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly authUsers: AuthUsersRepository,
+        private readonly schoolScope: SingleSchoolService,
     ) {}
 
     /** Pemeriksaan ringan sebelum route Next.js membaca multipart/ZIP. */
-    async authorizeImport(user: AuthUser, organizationId: string) {
+    async authorizeImport(user: AuthUser) {
+        const { id: organizationId } = await this.schoolScope.getSchool();
         await this.authz.assertProktor(user, organizationId);
         const { data: organization, error } = await this.db
             .from('cbt_organizations')
@@ -65,7 +68,8 @@ export class BackupService {
         return { authorized: true as const };
     }
 
-    async export(user: AuthUser, organizationId: string): Promise<BackupPayload> {
+    async export(user: AuthUser): Promise<BackupPayload> {
+        const { id: organizationId } = await this.schoolScope.getSchool();
         await this.authz.assertProktor(user, organizationId);
 
         const { data: org } = await this.db
@@ -203,7 +207,8 @@ export class BackupService {
      * tengah proses berarti proktor kehilangan aksesnya sebelum pemulihan
      * selesai.
      */
-    async import(user: AuthUser, organizationId: string, payload: BackupPayload) {
+    async import(user: AuthUser, payload: BackupPayload) {
+        const { id: organizationId } = await this.schoolScope.getSchool();
         await this.authz.assertProktor(user, organizationId);
 
         const data = payload?.data;
@@ -220,17 +225,18 @@ export class BackupService {
                 await this.restoreMemberships(
                     user, organizationId, data.users_data || [], userIdMap, db,
                 );
-                const withOrg = (rows: any[]) => (rows || []).map((row) =>
-                    this.remapUserReferences({ ...row, organization_id: organizationId }, userIdMap, user.id),
-                );
+                const localize = (row: any, forceOrganization = false) => {
+                    const copy = { ...row };
+                    if (forceOrganization || Object.prototype.hasOwnProperty.call(copy, 'organization_id')) {
+                        copy.organization_id = organizationId;
+                    }
+                    return this.remapUserReferences(copy, userIdMap, user.id);
+                };
+                const withOrg = (rows: any[]) => (rows || []).map((row) => localize(row, true));
                 const withUser = (rows: any[]) => (rows || [])
                     .filter((row) => userIdMap.has(row.user_id))
-                    .map((row) => this.remapUserReferences(
-                        { ...row, user_id: userIdMap.get(row.user_id) }, userIdMap, user.id,
-                    ));
-                const plain = (rows: any[]) => (rows || []).map((row) =>
-                    this.remapUserReferences({ ...row }, userIdMap, user.id),
-                );
+                    .map((row) => localize({ ...row, user_id: userIdMap.get(row.user_id) }));
+                const plain = (rows: any[]) => (rows || []).map((row) => localize(row));
 
                 await this.insert('cbt_classes', withOrg(data.classes), db);
                 await this.insert('cbt_additional_classes', withOrg(data.additional_classes), db);
@@ -307,13 +313,20 @@ export class BackupService {
 
         const rows = (key: string) => (data[key] as any[] | undefined) || [];
         const ids = (key: string, field = 'id') => new Set(rows(key).map((row) => row?.[field]).filter(Boolean));
-        const unique = (key: string) => {
-            const values = rows(key).map((row) => row?.id).filter(Boolean);
+        const unique = (key: string, field = 'id') => {
+            const values = rows(key).map((row) => row?.[field]).filter(Boolean);
             if (new Set(values).size !== values.length) {
-                throw new BadRequestException(`ID duplikat ditemukan pada '${key}'.`);
+                throw new BadRequestException(`${field} duplikat ditemukan pada '${key}'.`);
             }
         };
-        Object.keys(data).forEach(unique);
+        Object.keys(data).forEach((key) => unique(key));
+        unique('users_data', 'original_user_id');
+        const emails = rows('users_data')
+            .map((row) => String(row?.email || '').trim().toLowerCase())
+            .filter(Boolean);
+        if (new Set(emails).size !== emails.length) {
+            throw new BadRequestException("Email duplikat ditemukan pada 'users_data'.");
+        }
 
         const userIds = ids('users_data', 'original_user_id');
         const classIds = ids('classes');

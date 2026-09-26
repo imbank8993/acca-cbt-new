@@ -219,7 +219,7 @@ export class StudentsService {
      */
     async listExams(user: AuthUser) {
         const audience = await loadExamAudience(this.db, user);
-        if (audience.organizationIds.size === 0) return [];
+        if (!audience.organizationId) return [];
 
         // Ujian yang jendelanya belum dibuka tetap ditampilkan (siswa perlu tahu
         // jadwalnya); yang jendelanya sudah tertutup disaring.
@@ -229,7 +229,7 @@ export class StudentsService {
                 `id, organization_id, title, description, status, is_published, start_time, end_time,
                  duration_minutes, exam_type, question_bank_id, created_at, metadata`,
             )
-            .in('organization_id', [...audience.organizationIds])
+            .eq('organization_id', audience.organizationId)
             .eq('is_published', true)
             .or('end_time.is.null,end_time.gte.now()')
             .order('start_time', { ascending: true });

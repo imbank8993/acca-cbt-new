@@ -51,7 +51,7 @@ export default function AnalyticsDashboard() {
 
         // getExamsWithStats sudah ter-scoping di server: Guru hanya menerima
         // ujian buatannya sendiri.
-        const examsData = await getExamsWithStats(org.id);
+        const examsData = await getExamsWithStats();
         setExams((examsData as ExamWithStats[]) || []);
       } catch (error) {
         console.error('Error fetching analytics:', error);

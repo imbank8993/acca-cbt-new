@@ -9,10 +9,8 @@ import { apiGet } from './client';
  * analitik tidak perlu diubah penanganan galatnya.
  */
 
-export async function getExamsWithStats(organizationId: string): Promise<any[]> {
-    const res = await apiGet<{ exams: any[] }>(
-        `/api/analytics/exams?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+export async function getExamsWithStats(): Promise<any[]> {
+    const res = await apiGet<{ exams: any[] }>('/api/analytics/exams');
     return res.success ? res.exams : [];
 }
 

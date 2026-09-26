@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Database, Download, UploadCloud, AlertTriangle, CheckCircle2, XCircle, Loader2, ShieldAlert } from 'lucide-react';
-import { getProctorOrganization } from '@/lib/api/proctor';
 
 export default function BackupRestorePage() {
   const [isExporting, setIsExporting] = useState(false);
@@ -11,15 +10,6 @@ export default function BackupRestorePage() {
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Sekolah yang dicadangkan. Dulu server menyimpulkannya sendiri; kini ia
-  // dikirim eksplisit supaya NestJS bisa memeriksa izin pemanggil terhadap
-  // organisasi itu, bukan sekadar terhadap "organisasi satu-satunya".
-  const [orgId, setOrgId] = useState<string | null>(null);
-
-  useEffect(() => {
-    getProctorOrganization().then((org) => setOrgId(org?.id ?? null));
-  }, []);
-
   const handleExport = async () => {
     try {
       setIsExporting(true);
@@ -27,10 +17,7 @@ export default function BackupRestorePage() {
       // Sesi ada di cookie httpOnly `cbt_session`. Permintaan same-origin
       // mengirimnya otomatis, jadi tidak ada lagi token yang perlu dirakit
       // sendiri di sini — dan tidak ada token yang bisa terbaca JavaScript.
-      const response = await fetch(
-        `/api/backup/export?organizationId=${encodeURIComponent(orgId ?? '')}`,
-        { method: 'GET' },
-      );
+      const response = await fetch('/api/backup/export', { method: 'GET' });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -86,9 +73,8 @@ export default function BackupRestorePage() {
       
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('organizationId', orgId ?? '');
 
-      const response = await fetch(`/api/backup/import?organizationId=${encodeURIComponent(orgId ?? '')}`, {
+      const response = await fetch('/api/backup/import', {
         method: 'POST',
         body: formData,
       });

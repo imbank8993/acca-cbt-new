@@ -9,7 +9,6 @@ import {
     ParseUUIDPipe,
     Patch,
     Post,
-    Query,
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -18,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import {
     AddExamConfigBankDto,
     AddExamConfigExamDto,
@@ -46,7 +46,7 @@ export class ExamConfigsController {
 
     @Get()
     @ApiOperation({ summary: 'Daftar konfigurasi ujian satu organisasi' })
-    async list(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId: string) {
+    async list(@CurrentUser() user: AuthUser, @CurrentSchoolId() organizationId: string) {
         return { configs: await this.configs.list(user, organizationId) };
     }
 
@@ -58,8 +58,12 @@ export class ExamConfigsController {
 
     @Post()
     @ApiOperation({ summary: 'Buat konfigurasi ujian baru' })
-    create(@CurrentUser() user: AuthUser, @Body() dto: CreateExamConfigDto) {
-        return this.configs.create(user, dto);
+    create(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateExamConfigDto,
+    ) {
+        return this.configs.create(user, organizationId, dto);
     }
 
     @Patch(':id')

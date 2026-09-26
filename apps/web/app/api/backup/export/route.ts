@@ -33,13 +33,6 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    const organizationId = request.nextUrl.searchParams.get('organizationId') || '';
-    if (!organizationId) {
-        return NextResponse.json(
-            { success: false, error: 'organizationId wajib diisi.' },
-            { status: 400 },
-        );
-    }
     const backupSecret = process.env.BACKUP_SECRET_KEY;
     if (!backupSecret || backupSecret.length < 32) {
         return NextResponse.json(
@@ -49,7 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { status, body } = await nestFetchAsUser<any>(
-        `/backup/export?organizationId=${encodeURIComponent(organizationId)}`,
+        '/backup/export',
         token,
     );
 

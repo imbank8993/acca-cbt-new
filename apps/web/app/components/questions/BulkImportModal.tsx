@@ -108,7 +108,7 @@ export default function BulkImportModal({
     const loadAllBanks = useCallback(async () => {
         if (allBanks.length > 0) return;
         try {
-            const banks = await listQuestionBanks(orgId);
+            const banks = await listQuestionBanks();
             setAllBanks((banks || []).filter((b: any) => b.id !== bankId));
         } catch (err) {
             console.error('Failed to load banks:', err);

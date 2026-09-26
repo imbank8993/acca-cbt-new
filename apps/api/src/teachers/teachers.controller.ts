@@ -10,13 +10,13 @@ import {
     ParseUUIDPipe,
     Post,
     Put,
-    Query,
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { AddStudentDto, CreateClassDto, SubmitGradesDto } from './dto/teachers.dto';
 import { TeachersService } from './teachers.service';
 
@@ -37,15 +37,19 @@ export class TeachersController {
     @ApiOperation({ summary: 'Kelas tambahan buatan pemanggil' })
     async listClasses(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { classes: await this.teachers.listClasses(user, organizationId) };
     }
 
     @Post('classes')
     @ApiOperation({ summary: 'Buat kelas tambahan' })
-    async createClass(@CurrentUser() user: AuthUser, @Body() dto: CreateClassDto) {
-        return { data: await this.teachers.createClass(user, dto.organizationId, dto.name) };
+    async createClass(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateClassDto,
+    ) {
+        return { data: await this.teachers.createClass(user, organizationId, dto.name) };
     }
 
     @Delete('classes/:id')
@@ -74,7 +78,7 @@ export class TeachersController {
     @ApiOperation({ summary: 'Daftar siswa satu organisasi' })
     async listStudents(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { students: await this.teachers.listStudents(user, organizationId) };
     }
@@ -109,7 +113,7 @@ export class TeachersController {
     @ApiOperation({ summary: 'Statistik ringkas dasbor guru' })
     async stats(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { stats: await this.teachers.stats(user, organizationId) };
     }

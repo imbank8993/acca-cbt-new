@@ -4,7 +4,7 @@ Dimulai 19 September 2026; diperbarui 26 September 2026. Acuan: [audit awal](AUD
 
 ## Status pekerjaan
 
-Delapan belas tahap implementasi lokal telah diselesaikan dan diuji. **Seluruh 45 ID audit awal, temuan tambahan IMP-01, dan delapan temuan audit jawaban/jaringan sudah ditangani.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
+Sembilan belas tahap implementasi lokal telah diselesaikan dan diuji. **Seluruh 45 ID audit awal, temuan tambahan IMP-01, delapan temuan audit jawaban/jaringan, serta tiga temuan lifecycle tahap 19 sudah ditangani.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
 
 Audit lanjutan terhadap perekaman jawaban dan gangguan jaringan menemukan delapan area hardening baru. ANS-01, ANS-02, dan ANS-08 diperbaiki pada tahap 13; ANS-04 pada tahap 14; ANS-05 pada tahap 15; ANS-03 pada tahap 16; ANS-06 pada tahap 17; dan ANS-07 pada tahap 18. Temuan ini berada di luar 45 ID awal dan dicatat terpisah dalam [audit perekaman jawaban dan jaringan](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md).
 
@@ -30,6 +30,7 @@ Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan ob
 | 16 | Pemulihan jawaban offline yang terotorisasi dan dapat diaudit | ANS-03 | 4 tes baru; paket CI: 122 tes Node + 44 round-trip + 13 service lulus |
 | 17 | IndexedDB untuk snapshot jawaban dan identitas perangkat | ANS-06 | 4 tes baru; paket CI: 126 tes Node + 44 round-trip + 13 service lulus |
 | 18 | Antrean event keamanan, heartbeat, status offline, terminasi terkonfirmasi | ANS-07 | 5 tes baru; paket CI: 131 tes Node + 44 round-trip + 13 service lulus |
+| 19 | Race reset/grading, finalisasi kedaluwarsa, dan paket validasi staging | LIF-01–03 | 4 tes baru; paket CI: 135 tes Node + 44 round-trip + 13 service lulus |
 
 Daftar 45 ID audit awal serta temuan tambahan IMP-01 beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
 
@@ -429,6 +430,40 @@ Event keamanan disimpan di IndexedDB sebelum dikirim dan dicerminkan ke `localSt
 
 Saat batas pelanggaran tercapai, halaman masuk keadaan blokir dan mencoba mengirim jawaban tertunda serta terminasi. Sesi CBT baru dibersihkan setelah respons sukses server. Kegagalan jaringan mempertahankan layar blokir dan retry otomatis. Lima tes baru mencakup deduplikasi, heartbeat, antrean, konfirmasi terminasi, empat UI peran, dan migrasi. **Lokasi:** [proctoring.service.ts](../apps/api/src/proctoring/proctoring.service.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx), [migrasi ANS-07](../database/migrations/20260926_02_offline_proctoring.sql), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), dan [dokumentasi pengawasan offline](perbaikan-2026-09-19/PENGAWASAN-OFFLINE-DAN-HEARTBEAT.md).
 
+## Tahap 19 — Race lifecycle dan paket validasi staging
+
+### LIF-01–03: grading lama tidak masuk setelah reset dan validator mencakup migrasi terbaru
+
+Auto-finish dan terminasi kini hanya menulis hasil grading selama attempt tetap `auto_submitted`. Reset membersihkan nilai dan metadata skor lama. Status terminasi serta log audit ditulis atomik sebelum grading, sehingga reset tidak dapat mendahului log terminasi. Finalisasi kedaluwarsa dari monitoring melakukan compare-and-set status sebelum memanggil layanan scoring; kegagalan scoring tidak lagi membiarkan attempt kedaluwarsa terlihat aktif.
+
+Validator migrasi mencakup migrasi sampai tahap 18 dan memeriksa kolom/index hasilnya. Skrip audit database read-only mendeteksi duplikat attempt/jawaban/event, relasi jawaban yatim, schema yang belum terpasang, serta attempt dengan state tidak lengkap. Empat tes baru mencakup dua race reset/grading, urutan finalisasi monitoring, dan kontrak validator. **Lokasi:** [exam-lifecycle-stage19.test.cjs](../apps/api/test/exam-lifecycle-stage19.test.cjs), [audit database read-only](../tools/audit-exam-lifecycle-db.js), [validator migrasi](../tools/validate-migrations.js), dan [panduan staging tahap 19](perbaikan-2026-09-19/TAHAP-19-VALIDASI-LIFECYCLE-DAN-STAGING.md).
+
+## Tahap 20 — Penguncian aplikasi ke satu sekolah
+
+### SCHOOL-01–06: satu identitas sekolah, tanpa cakupan `all`
+
+Kolom `organization_id` dipertahankan sebagai foreign key internal, tetapi kemampuan multi-sekolah dihapus. Sesi kini membawa satu `organizationId`; konteks semu `platform-admin`, cabang `organizationId=all`, dan pemilihan organisasi aktif pertama dihapus. Admin platform tetap harus memakai ID sekolah instalasi yang sama. Sinkronisasi SSO memakai sumber identitas sekolah tunggal dan gagal tertutup bila database berisi lebih dari satu sekolah.
+
+Migrasi menambahkan unique expression index agar `cbt_organizations` hanya dapat memiliki paling banyak satu baris. Migrasi sengaja berhenti bila menemukan data lama lebih dari satu sekolah dan tidak menghapus data otomatis. Enam tes baru menjaga penolakan ID asing, bootstrap satu sekolah, kontrak sesi tunggal, migrasi, dan penghapusan jalur `all`. **Lokasi:** [SingleSchoolService](../apps/api/src/auth/single-school.service.ts), [migrasi single-school](../database/migrations/20260926_03_single_school.sql), [single-school-stage20.test.cjs](../apps/api/test/single-school-stage20.test.cjs), dan [dokumentasi tahap 20](perbaikan-2026-09-19/TAHAP-20-SINGLE-SCHOOL.md).
+
+## Tahap 21 — Backup/restore satu sekolah
+
+### SCHOOL-07–08: sekolah tujuan ditentukan server dan identitas arsip divalidasi
+
+Export, import, dan pemeriksaan izin backup tidak lagi menerima ID sekolah dari browser. `BackupService` mengambil sekolah langsung dari sumber identitas instalasi. Semua `organization_id` yang ditemukan pada arsip—termasuk pada baris anak—dipetakan ke sekolah lokal sebelum insert. Metadata sekolah asal tetap tersedia sebagai informasi dan tidak menentukan tujuan restore.
+
+Validasi arsip kini memeriksa `original_user_id` dan email pengguna yang duplikat sebelum akun dibuat atau data lama dihapus. Dua tes tambahan menjaga pemetaan sekolah dan penolakan identitas duplikat. **Lokasi:** [BackupService](../apps/api/src/backup/backup.service.ts), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), dan [dokumentasi tahap 21](perbaikan-2026-09-19/TAHAP-21-BACKUP-SINGLE-SCHOOL.md).
+
+## Tahap 22 — Konteks sekolah hanya dari sesi
+
+### SCHOOL-09: browser tidak lagi memilih sekolah pada endpoint operasional
+
+Sisa parameter `organizationId` di analitik, kelas guru, bank soal, PAS/PAT, konfigurasi ujian, dan dasbor proktor telah dihapus dari query, body, fungsi API browser, serta proxy Next.js. Controller mengambil ID sekolah melalui `CurrentSchoolId` dari pengguna yang telah diverifikasi JWT, lalu memasukkannya ke service secara internal. DTO publik tidak lagi mempunyai properti pemilih sekolah.
+
+Kontrak sesi sekarang mewajibkan satu `organizationId`; permintaan gagal tertutup bila konteks sekolah tidak tersedia. Empat tes baru menjaga kontrak controller, DTO, frontend/proxy, dan sesi. **Lokasi:** [CurrentSchoolId](../apps/api/src/common/decorators/current-school-id.decorator.ts), [single-school-transport-stage22.test.cjs](../apps/api/test/single-school-transport-stage22.test.cjs), dan [dokumentasi tahap 22](perbaikan-2026-09-19/TAHAP-22-KONTEKS-SEKOLAH-DARI-SESI.md).
+
+Typecheck akhir juga menemukan pemeriksaan `isOpen` lama di isi modal Audio, Grafik, dan Video setelah tanggung jawab itu dipindahkan ke wrapper. Tiga referensi yang tidak terdefinisi dihapus; wrapper tetap mencegah isi modal dirender saat tertutup.
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -437,9 +472,9 @@ Saat batas pelanggaran tercapai, halaman masuk keadaan blokir dan mencoba mengir
 | Tahap 3, Node test runner | 3 lulus, 0 gagal |
 | Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
-| Seluruh regresi Node termasuk integrasi HTTP | 131 lulus, 0 gagal |
+| Seluruh regresi Node termasuk integrasi HTTP | 147 lulus, 0 gagal (dijalankan serial) |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus sampai perubahan tahap 18 |
+| TypeScript API dan frontend | Lulus sampai perubahan tahap 22 |
 | ESLint baseline penuh | Lulus: 1.212 error/635 warning lama, tanpa kenaikan per aturan |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Browser, database nyata, R2, deployment | Belum dijalankan |
@@ -459,14 +494,14 @@ Dari `apps/scoring`:
 & '.\.venv\Scripts\python.exe' -m pytest tests -q -p no:cacheprovider
 ```
 
-Node test runner membutuhkan child process. Sandbox lokal menolak spawn EPERM, sehingga tes dijalankan dengan izin eksekusi di luar sandbox; tidak ada perubahan metode fixture menjadi akses database/jaringan. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
+Node test runner paralel membutuhkan child process. Sandbox Windows lokal menolak spawn dengan `EPERM`, sehingga 21 berkas tes dijalankan satu per satu; seluruh 147 tes lulus tanpa mengubah fixture menjadi akses database atau jaringan. Mode satu proses tidak dipakai sebagai hasil karena dua tes ZIP membutuhkan isolasi modul. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
 
-Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs), [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs), [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan. Tes konkurensi tahap 15 menambahkan serialisasi transaksi khusus untuk meniru efek advisory lock; index unik tetap perlu divalidasi pada PostgreSQL staging.
+Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs), [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs), [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), [exam-lifecycle-stage19.test.cjs](../apps/api/test/exam-lifecycle-stage19.test.cjs), [single-school-stage20.test.cjs](../apps/api/test/single-school-stage20.test.cjs), [single-school-transport-stage22.test.cjs](../apps/api/test/single-school-transport-stage22.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan. Tes konkurensi tahap 15 menambahkan serialisasi transaksi khusus untuk meniru efek advisory lock; index unik tetap perlu divalidasi pada PostgreSQL staging.
 
 ## Prioritas tahap berikutnya
 
 1. **Validasi staging:** jalankan paket integrasi terhadap PostgreSQL dan storage sekali pakai, lalu uji matriks browser untuk admin, guru, proktor, dan siswa.
-2. **Simulasi jaringan/pengawasan:** validasi heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
+2. **Simulasi jaringan/pengawasan:** jalankan checklist tahap 19 untuk heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
 3. **Pengurangan utang lint:** lanjutkan perbaikan kelompok aturan terbesar secara bertahap tanpa melonggarkan baseline 1.214 error/640 warning yang sudah tercatat.
 
 ## Verifikasi sebelum rollout

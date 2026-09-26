@@ -2,11 +2,7 @@ import { NextRequest } from 'next/server';
 import { proxyGet, proxyJson } from '@/lib/nest-proxy';
 
 export async function GET(request: NextRequest) {
-    const organizationId = request.nextUrl.searchParams.get('organizationId') || '';
-    return proxyGet(
-        request,
-        `/proctor/school-years?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+    return proxyGet(request, '/proctor/school-years');
 }
 
 export async function POST(request: NextRequest) {

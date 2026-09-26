@@ -195,7 +195,7 @@ export default function SiswaClassesPage() {
                                                 <Building size={13} className="stroke-[2.5]" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Organisasi</span>
+                                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Sekolah</span>
                                                 <span className="block text-xs font-semibold text-slate-700 truncate leading-none">{cls.orgName || 'Sekolah'}</span>
                                             </div>
                                         </div>

@@ -12,8 +12,18 @@ export interface MathEditorModalProps {
   initialIsBlock?: boolean;
 }
 
-export default function MathEditorModal({
-  isOpen,
+interface MathfieldTarget extends HTMLElement {
+  value: string;
+  executeCommand: (cmd: unknown[]) => void;
+  placeholderSymbol?: string;
+}
+
+export default function MathEditorModal(props: MathEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <MathEditorModalContent key={props.initialLatex} {...props} />;
+}
+
+function MathEditorModalContent({
   onClose,
   onInsert,
   initialLatex = '',
@@ -23,18 +33,8 @@ export default function MathEditorModal({
   const [mathInput, setMathInput] = useState(initialLatex);
   const [isMathBlock, setIsMathBlock] = useState(initialIsBlock);
 
-  // Sync state on open
-  useEffect(() => {
-    if (isOpen) {
-      setMathInput(initialLatex || '');
-      setIsMathBlock(initialIsBlock || false);
-      setMathEditorMode('visual');
-    }
-  }, [isOpen, initialLatex, initialIsBlock]);
-
   // Keyboard shortcut listener (Escape to close, Ctrl+Enter to apply)
   useEffect(() => {
-    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -50,9 +50,7 @@ export default function MathEditorModal({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, mathInput, isMathBlock, onInsert, onClose]);
-
-  if (!isOpen) return null;
+  }, [mathInput, isMathBlock, onInsert, onClose]);
 
   return (
     <div
@@ -93,7 +91,7 @@ export default function MathEditorModal({
             <MathToolbar
               onInsert={(latex) => {
                 if (mathEditorMode === 'visual') {
-                  const mf = document.getElementById('mf-editor-modal') as any;
+                  const mf = document.getElementById('mf-editor-modal') as MathfieldTarget | null;
                   if (mf) {
                     const liveLatex = latex.replace(/\?/g, '#?');
                     mf.executeCommand(['insert', liveLatex]);
@@ -181,12 +179,13 @@ export default function MathEditorModal({
                     #mf-editor-modal::part(prompt) { border: 1px dashed #94a3b8 !important; background-color: #f1f5f9 !important; border-radius: 2px !important; min-width: 0.8em; min-height: 1em; margin: 0 1px; }
                     #mf-editor-modal::part(placeholder) { border: 1px dashed #94a3b8 !important; background-color: #f1f5f9 !important; border-radius: 2px !important; }
                   `}</style>
-                  {/* @ts-ignore */}
+                  {/* @ts-expect-error math-field is a custom web component */}
                   <math-field
                     id="mf-editor-modal"
                     style={{ width: '100%', fontSize: '1.3rem', padding: '4px', outline: 'none' }}
-                    onInput={(e: any) => {
-                      let val = e.target.value;
+                    onInput={(e: React.FormEvent<HTMLElement>) => {
+                      const target = e.target as MathfieldTarget;
+                      let val = target.value;
                       const originalVal = val;
                       val = val
                         .replace(/\\overrightarrow\{\}/g, '\\overrightarrow{\\placeholder{}}')
@@ -195,19 +194,20 @@ export default function MathEditorModal({
                         .replace(/\\wideparen\{\}/g, '\\wideparen{\\placeholder{}}')
                         .replace(/\\underline\{\}/g, '\\underline{\\placeholder{}}');
                       if (val !== originalVal) {
-                        e.target.value = val;
-                        e.target.executeCommand(['moveToNextPlaceholder']);
+                        target.value = val;
+                        target.executeCommand(['moveToNextPlaceholder']);
                       }
                       setMathInput(val);
                     }}
-                    ref={(el: any) => {
-                      if (el) {
-                        if (el.value !== mathInput) el.value = mathInput;
-                        el.placeholderSymbol = '⬚';
+                    ref={(el: unknown) => {
+                      const target = el as MathfieldTarget | null;
+                      if (target) {
+                        if (target.value !== mathInput) target.value = mathInput;
+                        target.placeholderSymbol = '⬚';
                       }
                     }}
                   >
-                    {/* @ts-ignore */}
+                    {/* @ts-expect-error math-field close tag */}
                   </math-field>
                 </div>
               ) : (

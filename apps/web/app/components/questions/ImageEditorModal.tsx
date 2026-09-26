@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ImageIcon,
   Crop,
@@ -19,20 +19,25 @@ export interface ImageEditorModalProps {
   initialWidth?: string;
   initialAlign?: 'left' | 'center' | 'right';
   onApply: (data: { src: string; width: string; align: 'left' | 'center' | 'right' }) => void;
+  onUpload?: (file: File) => Promise<string>;
 }
 
-export default function ImageEditorModal({
-  isOpen,
+export default function ImageEditorModal(props: ImageEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <ImageEditorModalContent key={props.imageSrc} {...props} />;
+}
+
+function ImageEditorModalContent({
   onClose,
   imageSrc,
   initialWidth = '100%',
   initialAlign = 'center',
   onApply,
 }: ImageEditorModalProps) {
-  const [originalImageSrc, setOriginalImageSrc] = useState(imageSrc);
+  const originalImageSrc = imageSrc;
   const [currentImageSrc, setCurrentImageSrc] = useState(imageSrc);
-  const [imgWidth, setImgWidth] = useState(initialWidth);
-  const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>(initialAlign);
+  const [imgWidth, setImgWidth] = useState(initialWidth || '100%');
+  const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>(initialAlign || 'center');
 
   // Crop Modal state
   const [showCropModal, setShowCropModal] = useState(false);
@@ -43,16 +48,51 @@ export default function ImageEditorModal({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const cropContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sync internal state when opened or imageSrc changes
-  useEffect(() => {
-    if (isOpen) {
-      setOriginalImageSrc(imageSrc);
-      setCurrentImageSrc(imageSrc);
-      setImgWidth(initialWidth || '100%');
-      setImgAlign(initialAlign || 'center');
+  const handleApplyCrop = useCallback(() => {
+    const img = new window.Image();
+    img.src = originalImageSrc || currentImageSrc;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const sw = img.naturalWidth || img.width;
+      const sh = img.naturalHeight || img.height;
+
+      let sx = 0;
+      let sy = 0;
+      let sWidth = sw;
+      let sHeight = sh;
+
+      if (cropContainerRef.current) {
+        const rect = cropContainerRef.current.getBoundingClientRect();
+        const scaleX = sw / rect.width;
+        const scaleY = sh / rect.height;
+
+        sx = Math.max(0, cropBox.x * scaleX);
+        sy = Math.max(0, cropBox.y * scaleY);
+        sWidth = Math.min(sw - sx, cropBox.width * scaleX);
+        sHeight = Math.min(sh - sy, cropBox.height * scaleY);
+      }
+
+      canvas.width = Math.max(1, Math.round(sWidth));
+      canvas.height = Math.max(1, Math.round(sHeight));
+      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+
+      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.95);
+      setCurrentImageSrc(croppedBase64);
       setShowCropModal(false);
-    }
-  }, [isOpen, imageSrc, initialWidth, initialAlign]);
+    };
+  }, [originalImageSrc, currentImageSrc, cropBox]);
+
+  const handleFinalApply = useCallback(() => {
+    onApply({
+      src: currentImageSrc,
+      width: imgWidth,
+      align: imgAlign,
+    });
+    onClose();
+  }, [currentImageSrc, imgWidth, imgAlign, onApply, onClose]);
 
   // Global mousemove/mouseup listener for crop box dragging & resizing
   useEffect(() => {
@@ -92,8 +132,6 @@ export default function ImageEditorModal({
 
   // Keyboard shortcut listener (Escape to close, Ctrl+Enter to apply)
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showCropModal) {
@@ -115,55 +153,7 @@ export default function ImageEditorModal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showCropModal]);
-
-  const handleApplyCrop = () => {
-    const img = new window.Image();
-    img.src = originalImageSrc || currentImageSrc;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const sw = img.naturalWidth || img.width;
-      const sh = img.naturalHeight || img.height;
-
-      let sx = 0;
-      let sy = 0;
-      let sWidth = sw;
-      let sHeight = sh;
-
-      if (cropContainerRef.current) {
-        const rect = cropContainerRef.current.getBoundingClientRect();
-        const scaleX = sw / rect.width;
-        const scaleY = sh / rect.height;
-
-        sx = Math.max(0, cropBox.x * scaleX);
-        sy = Math.max(0, cropBox.y * scaleY);
-        sWidth = Math.min(sw - sx, cropBox.width * scaleX);
-        sHeight = Math.min(sh - sy, cropBox.height * scaleY);
-      }
-
-      canvas.width = Math.max(1, Math.round(sWidth));
-      canvas.height = Math.max(1, Math.round(sHeight));
-      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
-
-      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.95);
-      setCurrentImageSrc(croppedBase64);
-      setShowCropModal(false);
-    };
-  };
-
-  const handleFinalApply = () => {
-    onApply({
-      src: currentImageSrc,
-      width: imgWidth,
-      align: imgAlign,
-    });
-    onClose();
-  };
-
-  if (!isOpen) return null;
+  }, [showCropModal, handleApplyCrop, handleFinalApply, onClose]);
 
   return (
     <>
@@ -265,7 +255,7 @@ export default function ImageEditorModal({
                       <button
                         key={align.key}
                         type="button"
-                        onClick={() => setImgAlign(align.key as any)}
+                        onClick={() => setImgAlign(align.key as 'left' | 'center' | 'right')}
                         className={`py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                           isActive
                             ? 'bg-white text-slate-900 shadow-xs'
@@ -351,6 +341,7 @@ export default function ImageEditorModal({
                       imgAlign === 'left' ? 'flex-start' : imgAlign === 'right' ? 'flex-end' : 'center',
                   }}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={currentImageSrc}
                     alt="Live Style Preview"
@@ -447,7 +438,7 @@ export default function ImageEditorModal({
                     key={ratio.id}
                     type="button"
                     onClick={() => {
-                      setCropAspectRatio(ratio.id as any);
+                      setCropAspectRatio(ratio.id as 'original' | '1:1' | '4:3' | '16:9');
                       if (cropContainerRef.current) {
                         const rect = cropContainerRef.current.getBoundingClientRect();
                         let w = cropBox.width;
@@ -507,6 +498,7 @@ export default function ImageEditorModal({
                 className="relative inline-block overflow-hidden rounded-md shadow-2xl"
                 style={{ maxWidth: '100%', maxHeight: '400px' }}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={originalImageSrc || currentImageSrc}
                   alt="Crop Target"

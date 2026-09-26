@@ -374,7 +374,7 @@ export default function QuestionEditorModal({
     const doSave = async (afterSave: 'close' | 'prev' | 'next' = 'close') => {
         if (!validateQuestion()) return;
         if (!org) {
-            alert('Organisasi tidak ditemukan');
+            alert('Sekolah belum dikonfigurasi');
             return;
         }
         setIsSubmitting(true);

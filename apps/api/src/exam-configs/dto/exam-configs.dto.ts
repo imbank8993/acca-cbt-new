@@ -23,14 +23,6 @@ const DATE_EXAMPLE = '2026-06-01';
 const TIME_EXAMPLE = '07:30';
 
 export class CreateExamConfigDto {
-    @ApiProperty({
-        description:
-            "Organisasi pemilik. Boleh 'all' pada dasbor admin platform; server memilih organisasi aktif pertama.",
-    })
-    @IsString()
-    @IsNotEmpty({ message: 'organizationId wajib diisi' })
-    organizationId!: string;
-
     @ApiProperty({ example: 'PAS Ganjil 2026' })
     @IsString()
     @IsNotEmpty({ message: 'Nama ujian folder wajib diisi.' })

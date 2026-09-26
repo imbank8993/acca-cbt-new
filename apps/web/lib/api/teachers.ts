@@ -35,17 +35,15 @@ export async function getGuruOrganization(): Promise<GuruOrganization | null> {
     return res.success ? res.organization : null;
 }
 
-export async function listGuruClasses(organizationId: string): Promise<any[]> {
-    const res = await apiGet<{ classes: any[] }>(
-        `/api/teachers/classes?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+export async function listGuruClasses(): Promise<any[]> {
+    const res = await apiGet<{ classes: any[] }>('/api/teachers/classes');
     // Versi lama mengembalikan array kosong saat gagal, bukan melempar. Halaman
     // pemanggilnya mengandalkan itu.
     return res.success ? res.classes : [];
 }
 
-export function createTambahanClass(organizationId: string, name: string) {
-    return apiSend<{ data: any }>('/api/teachers/classes', { organizationId, name });
+export function createTambahanClass(name: string) {
+    return apiSend<{ data: any }>('/api/teachers/classes', { name });
 }
 
 export function deleteTambahanClass(classId: string) {
@@ -63,10 +61,8 @@ export function assignStudentToClass(classId: string, studentId: string) {
     );
 }
 
-export async function listStudentsForGuru(organizationId: string): Promise<GuruStudent[]> {
-    const res = await apiGet<{ students: GuruStudent[] }>(
-        `/api/teachers/students?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+export async function listStudentsForGuru(): Promise<GuruStudent[]> {
+    const res = await apiGet<{ students: GuruStudent[] }>('/api/teachers/students');
     return res.success ? res.students : [];
 }
 
@@ -87,10 +83,8 @@ export function submitEssayGrades(attemptId: string, grades: Record<string, numb
     );
 }
 
-export async function getGuruOrganizationStats(organizationId: string): Promise<GuruStats> {
-    const res = await apiGet<{ stats: GuruStats }>(
-        `/api/teachers/stats?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+export async function getGuruOrganizationStats(): Promise<GuruStats> {
+    const res = await apiGet<{ stats: GuruStats }>('/api/teachers/stats');
     return res.success
         ? res.stats
         : { totalMembers: 0, totalBanks: 0, draftExams: 0, ongoingExams: 0, finishedExams: 0 };

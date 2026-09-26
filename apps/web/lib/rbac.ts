@@ -281,8 +281,7 @@ export interface UserRoleContext {
 }
 
 /**
- * Seluruh pasangan (peran, sekolah) milik pengguna, untuk pemilih peran di
- * bilah sisi.
+ * Seluruh peran pengguna pada sekolah tunggal instalasi ini.
  *
  * Perhitungannya kini di NestJS. Versi lama menyusunnya di BROWSER dari
  * `platform_admins`, `cbt_organization_members`, dan metadata pengguna — jalur
@@ -296,9 +295,8 @@ export async function getUserRolesWithOrg(): Promise<UserRoleContext[]> {
 }
 
 /**
- * "Personal" roles are not tied to an organization — e.g. Siswa (Bank Soal).
- * Used by the landing redirect to prefer an org-bound dashboard when the user
- * has BOTH a Bank Soal purchase and a CBT ACCA subscription.
+ * Compatibility helper for the landing redirect. Siswa tetap berada pada
+ * sekolah tunggal yang sama seperti peran lain.
  */
 export function isPersonalRole(role: Role | null | undefined): boolean {
     return role === 'Siswa';

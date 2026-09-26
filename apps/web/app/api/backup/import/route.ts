@@ -33,15 +33,6 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // organizationId wajib tersedia di URL agar izin dapat diperiksa SEBELUM
-    // multipart body dibaca, ZIP dibuka, atau objek apa pun diunggah.
-    const organizationId = request.nextUrl.searchParams.get('organizationId') || '';
-    if (!organizationId) {
-        return NextResponse.json(
-            { success: false, error: 'organizationId wajib diisi pada URL.' },
-            { status: 400 },
-        );
-    }
     const backupSecret = process.env.BACKUP_SECRET_KEY;
     if (!backupSecret || backupSecret.length < 32) {
         return NextResponse.json(
@@ -58,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     const authorization = await nestFetchAsUser<{ error?: string }>(
-        `/backup/import-authorization?organizationId=${encodeURIComponent(organizationId)}`,
+        '/backup/import-authorization',
         token,
     );
     if (authorization.status < 200 || authorization.status >= 300) {
@@ -70,7 +61,6 @@ export async function POST(request: NextRequest) {
 
     const form = await request.formData();
     const file = form.get('file');
-    const bodyOrganizationId = String(form.get('organizationId') || '');
 
     if (!(file instanceof File)) {
         return NextResponse.json(
@@ -82,12 +72,6 @@ export async function POST(request: NextRequest) {
     if (!lowerName.endsWith('.zip') && !lowerName.endsWith('.cbtbak')) {
         return NextResponse.json(
             { success: false, error: 'Format berkas harus .zip atau .cbtbak.' },
-            { status: 400 },
-        );
-    }
-    if (bodyOrganizationId !== organizationId) {
-        return NextResponse.json(
-            { success: false, error: 'organizationId pada berkas tidak cocok dengan permintaan.' },
             { status: 400 },
         );
     }
@@ -145,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     const { status, body } = await nestFetchAsUser<{ error?: string }>('/backup/import', token, {
         method: 'POST',
-        body: JSON.stringify({ organizationId, payload: importPayload }),
+        body: JSON.stringify({ payload: importPayload }),
     });
 
     if (status < 200 || status >= 300) {

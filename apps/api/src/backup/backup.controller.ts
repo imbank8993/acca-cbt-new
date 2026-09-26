@@ -5,11 +5,10 @@ import {
     HttpCode,
     HttpStatus,
     Post,
-    Query,
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsObject, IsUUID } from 'class-validator';
+import { IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -19,10 +18,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BackupService, type BackupPayload } from './backup.service';
 
 class ImportBackupDto {
-    @ApiProperty()
-    @IsUUID('4', { message: 'organizationId tidak valid' })
-    organizationId!: string;
-
     @ApiProperty({
         description:
             'Isi berkas cadangan yang sudah dibuka route handler Next.js. Keutuhan berkasnya ' +
@@ -49,32 +44,26 @@ export class BackupController {
     constructor(private readonly backup: BackupService) {}
 
     @Get('export')
-    @ApiOperation({ summary: 'Seluruh data satu organisasi, sebagai JSON' })
-    export(
-        @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
-    ) {
-        return this.backup.export(user, organizationId);
+    @ApiOperation({ summary: 'Seluruh data sekolah instalasi, sebagai JSON' })
+    export(@CurrentUser() user: AuthUser) {
+        return this.backup.export(user);
     }
 
     @Post('import')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
-        summary: 'Pulihkan cadangan, MENGGANTI seluruh data organisasi',
+        summary: 'Pulihkan cadangan, MENGGANTI seluruh data sekolah',
         description:
             'Data lama dihapus lebih dulu. Keanggotaan pemanggil sengaja dipertahankan supaya ' +
             'ia tidak kehilangan akses di tengah pemulihan.',
     })
     import(@CurrentUser() user: AuthUser, @Body() dto: ImportBackupDto) {
-        return this.backup.import(user, dto.organizationId, dto.payload);
+        return this.backup.import(user, dto.payload);
     }
 
     @Get('import-authorization')
     @ApiOperation({ summary: 'Periksa izin restore sebelum payload backup dibaca' })
-    authorizeImport(
-        @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
-    ) {
-        return this.backup.authorizeImport(user, organizationId);
+    authorizeImport(@CurrentUser() user: AuthUser) {
+        return this.backup.authorizeImport(user);
     }
 }

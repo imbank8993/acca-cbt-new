@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { ClassesService } from './classes.service';
 import {
     AssignExamDto,
@@ -71,7 +72,7 @@ export class ProctorController {
     @ApiOperation({ summary: 'Angka ringkas untuk kartu dasbor' })
     async getStats(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { stats: await this.proctor.getStats(user, organizationId) };
     }
@@ -90,7 +91,7 @@ export class ProctorController {
     @ApiOperation({ summary: 'Anggota organisasi, terurut menurut waktu masuk terakhir' })
     async getRecentLogins(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
         @Query() query: RecentLoginsQueryDto,
     ) {
         return {
@@ -104,7 +105,7 @@ export class ProctorController {
     @ApiOperation({ summary: 'Tahun ajaran terdaftar' })
     async listSchoolYears(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { schoolYears: await this.proctor.listSchoolYears(user, organizationId) };
     }
@@ -113,23 +114,26 @@ export class ProctorController {
     @ApiOperation({ summary: 'Tahun ajaran yang sedang aktif' })
     async getActiveSchoolYear(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { schoolYear: await this.proctor.getActiveSchoolYear(user, organizationId) };
     }
 
     @Post('school-years')
     @ApiOperation({ summary: 'Tambah tahun ajaran' })
-    createSchoolYear(@CurrentUser() user: AuthUser, @Body() dto: CreateSchoolYearDto) {
-        const { organizationId, ...input } = dto;
-        return this.proctor.createSchoolYear(user, organizationId, input);
+    createSchoolYear(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateSchoolYearDto,
+    ) {
+        return this.proctor.createSchoolYear(user, organizationId, dto);
     }
 
     @Get('class-school-years')
     @ApiOperation({ summary: 'Tahun ajaran yang benar-benar dipakai kelas' })
     async listClassSchoolYears(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { years: await this.proctor.listClassSchoolYears(user, organizationId) };
     }
@@ -138,7 +142,7 @@ export class ProctorController {
     @ApiOperation({ summary: 'Mata pelajaran dari master data acca-app' })
     async listSubjects(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { subjects: await this.proctor.listSubjects(user, organizationId) };
     }
@@ -152,7 +156,7 @@ export class ProctorController {
     })
     async listClasses(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
+        @CurrentSchoolId() organizationId: string,
         @Query('activeYearOnly') activeYearOnly?: string,
     ) {
         return {
@@ -162,16 +166,23 @@ export class ProctorController {
 
     @Post('classes')
     @ApiOperation({ summary: 'Buat kelas baru' })
-    createClass(@CurrentUser() user: AuthUser, @Body() dto: CreateClassDto) {
-        const { organizationId, ...input } = dto;
-        return this.classes.create(user, organizationId, input);
+    createClass(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateClassDto,
+    ) {
+        return this.classes.create(user, organizationId, dto);
     }
 
     @Post('classes/import')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Impor banyak kelas sekaligus' })
-    importClasses(@CurrentUser() user: AuthUser, @Body() dto: ImportClassesDto) {
-        return this.classes.importMany(user, dto.organizationId, dto.classes);
+    importClasses(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: ImportClassesDto,
+    ) {
+        return this.classes.importMany(user, organizationId, dto.classes);
     }
 
     @Post('classes/members')
@@ -221,15 +232,19 @@ export class ProctorController {
     @ApiOperation({ summary: 'Daftar ujian satu organisasi' })
     async listExams(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId') organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { exams: await this.exams.list(user, organizationId) };
     }
 
     @Post('exams')
     @ApiOperation({ summary: 'Buat ujian baru (berstatus draf)' })
-    createExam(@CurrentUser() user: AuthUser, @Body() dto: CreateExamDto) {
-        return this.exams.create(user, dto);
+    createExam(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Body() dto: CreateExamDto,
+    ) {
+        return this.exams.create(user, organizationId, dto);
     }
 
     @Post('exams/assignments')

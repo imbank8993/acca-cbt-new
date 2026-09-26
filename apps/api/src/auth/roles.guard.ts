@@ -35,8 +35,8 @@ export class RolesGuard implements CanActivate {
       );
     }
 
-    // Superadmin dan admin platform melewati pemeriksaan peran per-organisasi:
-    // keduanya memang dirancang lintas sekolah.
+    // Superadmin dan admin platform melewati daftar peran biasa. Pembatasan ke
+    // satu sekolah tetap dilakukan oleh AuthorizationService pada endpointnya.
     if (user.resolved?.superadmin || user.isPlatformAdmin) return true;
 
     const held = new Set((user.roles || []).map((r) => r.toUpperCase()));

@@ -64,8 +64,8 @@ export default function RoomManagementModal({ period, orgId, onClose }: RoomMana
         try {
             const [roomList, teacherList, classList, sessionList] = await Promise.all([
                 listPASRooms(period.id),
-                listTeachersAndInvigilators(orgId),
-                listOrganizationClasses(orgId, { activeYearOnly: true }),
+                listTeachersAndInvigilators(),
+                listOrganizationClasses({ activeYearOnly: true }),
                 listPASSessions(period.id)
             ]);
             setRooms(roomList);

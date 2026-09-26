@@ -50,6 +50,10 @@ class MemoryDb {
 }
 const user={id:'teacher',roles:['GURU']};
 const roles={hasOrgRole:async(id,org,wanted)=>org==='org-1'&&wanted.includes(id==='teacher'?'Guru':id==='proctor'?'Proktor':'Admin')};
+const schoolScope={assertSchoolId:async id=>{
+    if(id!=='org-1')throw new Error('ID sekolah tidak sesuai');
+    return id;
+}};
 const base=()=>new MemoryDb({
     cbt_question_banks:[{id:'bank',organization_id:'org-1',created_by:'teacher'},{id:'other',organization_id:'org-1',created_by:'someone'}],
     bank_folders:[{id:'folder',organization_id:'org-1'},{id:'foreign',organization_id:'org-2'}],
@@ -59,7 +63,7 @@ let count=0;
 async function test(name,fn){await fn();console.log('PASS',name);count++;}
 (async()=>{
     await test('Teacher cannot modify another teacher bank; staff limited to organization',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles);
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope);
         await assert.rejects(auth.assertBankAccess(user,'other'));
         await auth.assertBankAccess({id:'proctor'},'other');
         await auth.assertBankAccess({id:'admin'},'other');
@@ -67,13 +71,13 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         await assert.rejects(auth.assertBankAccess({id:'proctor'},'foreign'));
     });
     await test('Create, update and move reject foreign folders before mutation',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles),svc=new QuestionBanksService(db,auth,roles,{emailMap:async()=>new Map()});
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope),svc=new QuestionBanksService(db,auth,roles,{emailMap:async()=>new Map()});
         for(const work of [()=>svc.create(user,'org-1',{title:'x',folderId:'foreign'}),()=>svc.update(user,'bank',{folderId:'foreign'}),()=>svc.moveToFolder(user,['bank'],'foreign')])await assert.rejects(work);
         assert.equal(db.state.cbt_question_banks.length,2);assert.equal(db.state.cbt_question_banks[0].folder_id,undefined);
         await svc.moveToFolder(user,['bank'],'folder');assert.equal(db.state.cbt_question_banks[0].folder_id,'folder');
     });
     await test('Save retains identical texts with different weights; [] removes all options',async()=>{
-        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles),{regradeExamAttemptsByQuestion:async()=>{}});
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});
         const dto={bankId:'bank',questionText:'Question',type:'mcq',difficulty:'medium',scoreDefault:1,options:[{text:'Same',isCorrect:false,weight:2},{text:'Same',isCorrect:false,weight:3}]};
         const saved=await svc.save(user,dto);
         assert.equal(db.state.cbt_bank_question_options.length,2);
@@ -81,7 +85,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         await svc.save(user,{...dto,id:saved.id,options:[]});assert.equal(db.state.cbt_bank_question_options.length,0);
     });
     await test('Failed option save rolls back question text and existing options',async()=>{
-        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles),{regradeExamAttemptsByQuestion:async()=>{}});
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',question_text:'Original'}];
         db.state.cbt_bank_question_options=[{id:'old',question_id:'question',option_text:'Original'}];
         const before=structuredClone(db.state);db.fail=(t,a)=>t==='cbt_bank_question_options'&&a==='insert';
@@ -89,7 +93,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         assert.deepEqual(db.state,before);
     });
     await test('Actual cbt_answers references cause soft deletion and preserve options',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles),svc=new QuestionsService(db,auth,{});
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope),svc=new QuestionsService(db,auth,{});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',metadata:{key:'preserved'}}];
         db.state.cbt_bank_question_options=[{id:'option',question_id:'question',option_text:'Historical option'}];
         db.state.cbt_answers=[{id:'answer',attempt_id:'attempt',question_id:'question'}];
@@ -100,7 +104,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         assert.equal((await banks.list(user,'org-1'))[0].question_count,0);
     });
     await test('An unanswered question is protected once its bank has an attempt',async()=>{
-        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles),{});
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',metadata:{}}];
         db.state.cbt_exams=[{id:'exam',question_bank_id:'bank'}];
         db.state.cbt_exam_attempts=[{id:'attempt',exam_id:'exam'}];
@@ -108,7 +112,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         assert.equal(result.softDeleted,true);assert.equal(db.state.cbt_bank_questions.length,1);
     });
     await test('Historical questions cannot be edited, patched, or reordered',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles),svc=new QuestionsService(db,auth,{regradeExamAttemptsByQuestion:async()=>{}});
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope),svc=new QuestionsService(db,auth,{regradeExamAttemptsByQuestion:async()=>{}});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',question_text:'Historical',metadata:{order_index:0}}];
         db.state.cbt_exams=[{id:'exam',question_bank_id:'bank'}];
         db.state.cbt_exam_attempts=[{id:'attempt',exam_id:'exam'}];
@@ -119,7 +123,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         assert.equal(db.state.cbt_bank_questions[0].metadata.order_index,0);
     });
     await test('New questions and imports cannot change a bank after an attempt starts',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles);
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope);
         db.state.cbt_exams=[{id:'exam',question_bank_id:'bank'}];
         db.state.cbt_exam_attempts=[{id:'attempt',exam_id:'exam'}];
         const questions=new QuestionsService(db,auth,{regradeExamAttemptsByQuestion:async()=>{}});
@@ -129,31 +133,31 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         assert.equal(db.state.cbt_bank_questions?.length||0,0);
     });
     await test('A bank referenced by an exam cannot be deleted',async()=>{
-        const db=base(),auth=new AuthorizationService(db,roles),svc=new QuestionBanksService(db,auth,roles,{emailMap:async()=>new Map()});
+        const db=base(),auth=new AuthorizationService(db,roles,schoolScope),svc=new QuestionBanksService(db,auth,roles,{emailMap:async()=>new Map()});
         db.state.cbt_exams=[{id:'exam',question_bank_id:'bank'}];
         await assert.rejects(()=>svc.remove(user,'bank'),/tidak dapat dihapus/);
         assert.ok(db.state.cbt_question_banks.some(bank=>bank.id==='bank'));
     });
     await test('Deleting own question does not authorize deletion of arbitrary image URLs',async()=>{
-        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles),{});
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',question_text:'<img src="https://foreign.r2.dev/victim.png">'}];
         assert.deepEqual((await svc.remove(user,'question','bank')).orphanedImages,[]);
     });
     const question={question_text:'Imported',type:'mcq',metadata:{import_stimulus:'New stimulus'},options:[{option_text:'a',is_correct:true},{option_text:'b',is_correct:false}]};
     await test('Bulk import rolls back companion records and questions when options fail',async()=>{
-        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles));
+        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles,schoolScope));
         const before=structuredClone(db.state);db.fail=(t,a)=>t==='cbt_bank_question_options'&&a==='insert';
         await assert.rejects(svc.bulkImport(user,'bank',[question]));assert.deepEqual(db.state,before);
     });
     await test('Imported ordering keys reference new option IDs; full options preserved',async()=>{
-        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles));
+        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles,schoolScope));
         const result=await svc.bulkImport(user,'bank',[{...question,type:'ordering',metadata:{correct_order:['2','1']}}]);
         assert.equal(result.imported,1);assert.equal(result.failed,0);
         const options=db.state.cbt_bank_question_options;
         assert.deepEqual(db.state.cbt_bank_questions[0].metadata.correct_order,[options[1].id,options[0].id]);
     });
     await test('Bulk import preserves template order and each question stimulus',async()=>{
-        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles));
+        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles,schoolScope));
         db.state.cbt_bank_questions=[
             {id:'existing-b',bank_id:'bank',question_text:'Existing 2',created_at:'2026-01-01T00:00:00Z',metadata:{}},
             {id:'existing-a',bank_id:'bank',question_text:'Existing 1',created_at:'2025-01-01T00:00:00Z',metadata:{}},

@@ -21,7 +21,8 @@ export interface AuthUser {
   roles: string[];
   resolved: ResolvedUserRoles;
   bestRole: DashboardRole;
-  organizationIds: string[];
+  /** Sekolah tunggal instalasi, ditentukan server dari database. */
+  organizationId: string;
   isPlatformAdmin: boolean;
 }
 

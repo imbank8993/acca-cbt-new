@@ -84,8 +84,8 @@ export class PasService {
         return { ...(period as object), pas_class_schedules: (schedules as any[]) || [] };
     }
 
-    async createPeriod(user: AuthUser, dto: CreatePASPeriodDto) {
-        await this.authz.assertProktor(user, dto.organizationId);
+    async createPeriod(user: AuthUser, organizationId: string, dto: CreatePASPeriodDto) {
+        await this.authz.assertProktor(user, organizationId);
 
         if (new Date(dto.start_date) > new Date(dto.end_date)) {
             throw new BadRequestException('Tanggal mulai harus sebelum tanggal selesai.');
@@ -94,7 +94,7 @@ export class PasService {
         const { data, error } = await this.db
             .from('cbt_pas_periods')
             .insert({
-                organization_id: dto.organizationId,
+                organization_id: organizationId,
                 name: dto.name,
                 type: dto.type || 'pas',
                 school_year: dto.school_year,

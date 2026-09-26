@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Table as TableIcon, Plus, Minus, Trash2, X, Check } from 'lucide-react';
 
 export type TableWidthPreset = 'auto' | '100%' | '75%' | '50%';
@@ -21,8 +21,12 @@ export interface TableEditorModalProps {
   currentTableWidth?: { preset: TableWidthPreset; custom: string };
 }
 
-export default function TableEditorModal({
-  isOpen,
+export default function TableEditorModal(props: TableEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <TableEditorModalContent {...props} />;
+}
+
+function TableEditorModalContent({
   onClose,
   isInTable,
   activeTablePreview = '',
@@ -40,19 +44,18 @@ export default function TableEditorModal({
   const [tableRowsInput, setTableRowsInput] = useState(3);
   const [tableColsInput, setTableColsInput] = useState(3);
   const [tableHeaderRow, setTableHeaderRow] = useState(true);
-  const [tableWidthPreset, setTableWidthPreset] = useState<TableWidthPreset>('100%');
-  const [tableWidthCustom, setTableWidthCustom] = useState<string>('');
+  const [tableWidthPreset, setTableWidthPreset] = useState<TableWidthPreset>(currentTableWidth?.preset || '100%');
+  const [tableWidthCustom, setTableWidthCustom] = useState<string>(currentTableWidth?.custom || '');
 
-  useEffect(() => {
-    if (isOpen && currentTableWidth) {
-      setTableWidthPreset(currentTableWidth.preset);
-      setTableWidthCustom(currentTableWidth.custom);
-    }
-  }, [isOpen, currentTableWidth]);
+  const handleInsert = useCallback(() => {
+    const custom = tableWidthCustom.trim();
+    const finalWidth = custom ? custom : tableWidthPreset === 'auto' ? '' : tableWidthPreset;
+    onInsertTable(tableRowsInput, tableColsInput, tableHeaderRow, finalWidth);
+    onClose();
+  }, [tableWidthCustom, tableWidthPreset, onInsertTable, tableRowsInput, tableColsInput, tableHeaderRow, onClose]);
 
   // Keyboard shortcut listener
   useEffect(() => {
-    if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -67,14 +70,7 @@ export default function TableEditorModal({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, isInTable, tableRowsInput, tableColsInput, tableHeaderRow, tableWidthPreset, tableWidthCustom]);
-
-  const handleInsert = () => {
-    const custom = tableWidthCustom.trim();
-    const finalWidth = custom ? custom : tableWidthPreset === 'auto' ? '' : tableWidthPreset;
-    onInsertTable(tableRowsInput, tableColsInput, tableHeaderRow, finalWidth);
-    onClose();
-  };
+  }, [isInTable, handleInsert, onClose]);
 
   const TABLE_WIDTH_PRESETS: { key: TableWidthPreset; label: string }[] = [
     { key: 'auto', label: 'Otomatis' },
@@ -82,8 +78,6 @@ export default function TableEditorModal({
     { key: '75%', label: '75%' },
     { key: '100%', label: '100%' },
   ];
-
-  if (!isOpen) return null;
 
   return (
     <div

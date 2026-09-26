@@ -252,19 +252,33 @@ export class ExamMonitoringService {
             if (deadline === null || deadline + AUTO_FINISH_GRACE_MS > now) continue;
 
             try {
-                const graded = await this.grading.gradeAttemptFromSavedAnswers(attempt.id);
-
-                await this.db
+                // Menangkan status lebih dahulu. Jika submit siswa sudah menang,
+                // monitoring tidak ikut menilai atau menimpa bukti jawabannya.
+                const { data: closed, error: closeError } = await this.db
                     .from('cbt_exam_attempts')
                     .update({
                         status: 'auto_submitted',
-                        needs_manual_grading: graded?.hasEssay ?? false,
                         finished_at: new Date().toISOString(),
-                        total_score: graded?.finalScore100 ?? 0,
                     })
                     .eq('id', attempt.id)
-                    // Jangan timpa siswa yang submit tepat bersamaan.
-                    .eq('status', 'in_progress');
+                    .eq('status', 'in_progress')
+                    .select('id')
+                    .maybeSingle();
+                if (closeError) throw new Error(closeError.message);
+                if (!closed) continue;
+
+                const graded = await this.grading.gradeAttemptFromSavedAnswers(attempt.id);
+                if (graded) {
+                    await this.db
+                        .from('cbt_exam_attempts')
+                        .update({
+                            needs_manual_grading: graded.hasEssay,
+                            total_score: graded.finalScore100,
+                        })
+                        .eq('id', attempt.id)
+                        // Reset dapat terjadi ketika grading masih berjalan.
+                        .eq('status', 'auto_submitted');
+                }
             } catch (err) {
                 this.logger.error(
                     `Gagal menutup pengerjaan ${attempt.id}: ${(err as Error).message}`,

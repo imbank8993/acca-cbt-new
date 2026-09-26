@@ -1,10 +1,11 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { AnalyticsService } from './analytics.service';
 
 /**
@@ -27,7 +28,7 @@ export class AnalyticsController {
     @ApiOperation({ summary: 'Daftar ujian satu organisasi beserta ringkasan nilainya' })
     async examsWithStats(
         @CurrentUser() user: AuthUser,
-        @Query('organizationId', ParseUUIDPipe) organizationId: string,
+        @CurrentSchoolId() organizationId: string,
     ) {
         return { exams: await this.analytics.examsWithStats(user, organizationId) };
     }

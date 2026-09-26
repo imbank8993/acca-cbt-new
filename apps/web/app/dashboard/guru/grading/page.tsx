@@ -31,7 +31,7 @@ function GradingContent() {
         if (user) {
             const org = await getGuruOrganization();
             if (org) {
-                const examList = await listOrganizationExams(org.id);
+                const examList = await listOrganizationExams();
                 setExams(examList);
                 if (!initialExamId && examList.length > 0) {
                     setSelectedExamId(examList[0].id);

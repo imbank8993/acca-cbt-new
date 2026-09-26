@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Youtube, X, Check, Trash2, ExternalLink, Play, Monitor } from 'lucide-react';
+import { Youtube, X, Check, Trash2, Play, Monitor } from 'lucide-react';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
 
 export type VideoModalMode = 'insert' | 'edit' | 'play';
@@ -46,8 +46,12 @@ export function parseVideoUrl(raw: string): { provider: 'YouTube' | 'Vimeo'; id:
   return null;
 }
 
-export default function VideoEditorModal({
-  isOpen,
+export default function VideoEditorModal(props: VideoEditorModalProps) {
+  if (!props.isOpen) return null;
+  return <VideoEditorModalContent key={`${props.mode}-${props.initialUrl || ''}`} {...props} />;
+}
+
+function VideoEditorModalContent({
   mode,
   onClose,
   initialUrl = '',
@@ -57,55 +61,23 @@ export default function VideoEditorModal({
   onUpdate,
   onDelete,
 }: VideoEditorModalProps) {
-  const [url, setUrl] = useState(initialUrl);
-  const [width, setWidth] = useState(initialWidth);
-  const [customWidth, setCustomWidth] = useState('');
+  const standardPresets = ['25%', '50%', '75%', '100%'];
+  const [url, setUrl] = useState(initialUrl || '');
+  const [width, setWidth] = useState(standardPresets.includes(initialWidth) ? initialWidth : 'custom');
+  const [customWidth, setCustomWidth] = useState(standardPresets.includes(initialWidth) ? '' : (initialWidth || ''));
   const [error, setError] = useState('');
-
-  // Sync state when opened or props change
-  useEffect(() => {
-    if (isOpen) {
-      setUrl(initialUrl || '');
-      setError('');
-      const standardPresets = ['25%', '50%', '75%', '100%'];
-      if (standardPresets.includes(initialWidth)) {
-        setWidth(initialWidth);
-        setCustomWidth('');
-      } else {
-        setWidth('custom');
-        setCustomWidth(initialWidth || '');
-      }
-    }
-  }, [isOpen, initialUrl, initialWidth]);
 
   // Derived parsed video
   const parsed = parseVideoUrl(url);
 
-  // Keyboard shortcut listener (Escape to close, Ctrl+Enter to submit)
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  });
-
-  const getEffectiveWidth = (): string => {
+  const getEffectiveWidth = useCallback((): string => {
     if (width === 'custom') {
       return customWidth.trim() || '100%';
     }
     return width;
-  };
+  }, [width, customWidth]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!parsed) {
       setError('URL tidak dikenali. Gunakan link YouTube atau Vimeo yang valid.');
       return;
@@ -126,9 +98,23 @@ export default function VideoEditorModal({
       onUpdate(data);
       onClose();
     }
-  };
+  }, [parsed, getEffectiveWidth, url, mode, onInsert, onUpdate, onClose]);
 
-  if (!isOpen) return null;
+  // Keyboard shortcut listener (Escape to close, Ctrl+Enter to submit)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [handleSubmit, onClose]);
 
   // PLAY MODE (Cinema / Overlay view)
   if (mode === 'play') {
@@ -269,6 +255,7 @@ export default function VideoEditorModal({
               <div className="relative aspect-video flex items-center justify-center overflow-hidden">
                 {parsed.provider === 'YouTube' ? (
                   <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://img.youtube.com/vi/${parsed.id}/hqdefault.jpg`}
                       alt="Thumbnail Video"

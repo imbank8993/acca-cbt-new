@@ -43,12 +43,9 @@ export class ExamAdminService {
      * lain tidak boleh muncul.
      */
     async list(user: AuthUser, organizationId: string) {
-        const scoped = organizationId !== 'all';
-        if (scoped) await this.authz.assertOrgMonitoring(user, organizationId);
-        else this.authz.assertPlatformAdmin(user);
+        await this.authz.assertOrgMonitoring(user, organizationId);
 
-        let query = this.db.from('cbt_exams').select('*');
-        if (scoped) query = query.eq('organization_id', organizationId);
+        let query = this.db.from('cbt_exams').select('*').eq('organization_id', organizationId);
 
         const canSeeAll =
             (await this.isElevated(user, organizationId)) ||
@@ -90,8 +87,8 @@ export class ExamAdminService {
         }));
     }
 
-    async create(user: AuthUser, dto: CreateExamDto) {
-        const organizationId = await this.resolveOrganizationId(user, dto.organizationId);
+    async create(user: AuthUser, sessionOrganizationId: string, dto: CreateExamDto) {
+        const organizationId = await this.resolveOrganizationId(user, sessionOrganizationId);
 
         // Tipe efektif dihitung LEBIH DULU, lalu gerbangnya diterapkan pada tipe
         // itu. Sebelumnya payload tanpa `examType` lolos gerbang tetapi tetap
@@ -375,7 +372,6 @@ export class ExamAdminService {
 
     private async isElevated(user: AuthUser, organizationId: string): Promise<boolean> {
         if (user.isPlatformAdmin || user.resolved?.superadmin === true) return true;
-        if (organizationId === 'all') return false;
         return this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Admin']);
     }
 
@@ -448,25 +444,7 @@ export class ExamAdminService {
         user: AuthUser,
         organizationId: string,
     ): Promise<string> {
-        if (organizationId && organizationId !== 'all') {
-            await this.authz.assertOrgStaff(user, organizationId);
-            return organizationId;
-        }
-
-        this.authz.assertPlatformAdmin(user);
-
-        const { data } = await this.db
-            .from('cbt_organizations')
-            .select('id')
-            .eq('is_active', true)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-        const resolved = (data as { id: string } | null)?.id;
-        if (!resolved) {
-            throw new BadRequestException('Tidak ada organisasi aktif yang bisa dipakai.');
-        }
-        return resolved;
+        await this.authz.assertOrgStaff(user, organizationId);
+        return organizationId;
     }
 }

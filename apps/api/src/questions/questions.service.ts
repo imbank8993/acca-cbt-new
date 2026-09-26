@@ -113,8 +113,8 @@ export class QuestionsService {
 
         const payload = {
                 bank_id: dto.bankId,
-                // Organisasi dari banknya, bukan dari `orgId` kiriman klien —
-                // yang pada mode admin platform bahkan berisi 'all'.
+                // Organisasi selalu diambil dari banknya, bukan dipercaya dari
+                // parameter tambahan kiriman klien.
                 organization_id: organizationId,
                 type: dto.type,
                 question_text: dto.questionText,

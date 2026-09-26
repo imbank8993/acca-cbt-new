@@ -29,7 +29,7 @@ export async function getProctorOrganization(): Promise<ProctorOrganization | nu
     return res.success ? res.organization : null;
 }
 
-export async function getOrganizationStats(orgId: string) {
+export async function getOrganizationStats() {
     const empty = {
         totalMembers: 0,
         totalBanks: 0,
@@ -38,9 +38,7 @@ export async function getOrganizationStats(orgId: string) {
         finishedExams: 0,
     };
 
-    const res = await apiGet<{ stats: typeof empty }>(
-        `/api/proctor/stats?organizationId=${encodeURIComponent(orgId)}`,
-    );
+    const res = await apiGet<{ stats: typeof empty }>('/api/proctor/stats');
     return res.success ? res.stats : empty;
 }
 
@@ -70,59 +68,48 @@ export async function hasUserDualRole(): Promise<boolean> {
     return (await resolveRoles()).hasDualRole;
 }
 
-export async function getRecentLogins(orgId: string, limit = 10): Promise<any[]> {
-    const query = new URLSearchParams({ organizationId: orgId, limit: String(limit) });
+export async function getRecentLogins(limit = 10): Promise<any[]> {
+    const query = new URLSearchParams({ limit: String(limit) });
     const res = await apiGet<{ logins: any[] }>(`/api/proctor/recent-logins?${query}`);
     return res.success ? res.logins : [];
 }
 
 // ── Tahun ajaran & mata pelajaran ────────────────────────────────────────────
 
-export async function listSchoolYears(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ schoolYears: any[] }>(
-        `/api/proctor/school-years?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listSchoolYears(): Promise<any[]> {
+    const res = await apiGet<{ schoolYears: any[] }>('/api/proctor/school-years');
     return res.success ? res.schoolYears : [];
 }
 
-export async function getActiveSchoolYear(orgId: string): Promise<any | null> {
-    const res = await apiGet<{ schoolYear: any }>(
-        `/api/proctor/school-years/active?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function getActiveSchoolYear(): Promise<any | null> {
+    const res = await apiGet<{ schoolYear: any }>('/api/proctor/school-years/active');
     return res.success ? res.schoolYear : null;
 }
 
 export function createSchoolYearAction(
-    orgId: string,
     data: { year: string; startDate?: string; endDate?: string },
 ) {
     return apiSend<{ id: string }>('/api/proctor/school-years', {
-        organizationId: orgId,
         ...data,
     });
 }
 
-export async function listOrganizationSchoolYears(orgId: string): Promise<string[]> {
-    const res = await apiGet<{ years: string[] }>(
-        `/api/proctor/class-school-years?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listOrganizationSchoolYears(): Promise<string[]> {
+    const res = await apiGet<{ years: string[] }>('/api/proctor/class-school-years');
     return res.success ? res.years : [];
 }
 
-export async function listSubjects(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ subjects: any[] }>(
-        `/api/proctor/subjects?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listSubjects(): Promise<any[]> {
+    const res = await apiGet<{ subjects: any[] }>('/api/proctor/subjects');
     return res.success ? res.subjects : [];
 }
 
 // ── Kelas ────────────────────────────────────────────────────────────────────
 
 export async function listOrganizationClasses(
-    orgId: string,
     opts?: { activeYearOnly?: boolean },
 ): Promise<any[]> {
-    const query = new URLSearchParams({ organizationId: orgId });
+    const query = new URLSearchParams();
     if (opts?.activeYearOnly) query.set('activeYearOnly', 'true');
 
     const res = await apiGet<{ classes: any[] }>(`/api/proctor/classes?${query}`);
@@ -130,13 +117,11 @@ export async function listOrganizationClasses(
 }
 
 export function createClassAction(
-    orgId: string,
     name: string,
     type: 'reguler' | 'tambahan',
     schoolYear?: string,
 ) {
     return apiSend<{ id: string }>('/api/proctor/classes', {
-        organizationId: orgId,
         name,
         type,
         schoolYear,
@@ -165,14 +150,13 @@ export function deleteClassAction(classId: string) {
 }
 
 export async function importClassesAction(
-    orgId: string,
     classes: { name: string; type: 'reguler' | 'tambahan'; schoolYear?: string }[],
 ) {
     const res = await apiSend<{
         successCount: number;
         failedCount: number;
         errors: { name: string; error: string }[];
-    }>('/api/proctor/classes/import', { organizationId: orgId, classes });
+    }>('/api/proctor/classes/import', { classes });
 
     return res.success
         ? { successCount: res.successCount, failedCount: res.failedCount, errors: res.errors }
@@ -205,10 +189,8 @@ export async function getStudentsByClassAction(
 
 // ── Ujian ────────────────────────────────────────────────────────────────────
 
-export async function listOrganizationExams(orgId: string): Promise<any[]> {
-    const res = await apiGet<{ exams: any[] }>(
-        `/api/proctor/exams?organizationId=${encodeURIComponent(orgId)}`,
-    );
+export async function listOrganizationExams(): Promise<any[]> {
+    const res = await apiGet<{ exams: any[] }>('/api/proctor/exams');
     return res.success ? res.exams : [];
 }
 
@@ -234,10 +216,9 @@ export interface ExamInput {
 }
 
 export function createExamAction(
-    data: ExamInput & { orgId: string; subjectId?: string; questionBankId?: string },
+    data: ExamInput & { subjectId?: string; questionBankId?: string },
 ) {
-    const { orgId, ...rest } = data;
-    return apiSend<{ id: string }>('/api/proctor/exams', { organizationId: orgId, ...rest });
+    return apiSend<{ id: string }>('/api/proctor/exams', data);
 }
 
 export function editExamAction(examId: string, data: ExamInput) {
