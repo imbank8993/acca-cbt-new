@@ -296,14 +296,14 @@ Perintah, bukti, dan batas reproduksi tercantum pada [rencana uji](audit-2026-09
 
 **Skenario/verifikasi:** Pada lingkungan uji terisolasi, simpan HTML soal dengan src menuju server canary internal, lalu ekspor sebagai proktor. Pastikan tidak menguji alamat internal produksi.
 
-**Dampak:** Potensi SSRF: request dari server dapat menjangkau layanan internal dan respons ikut dalam arsip. Eksploitabilitas bergantung siapa yang dapat menyimpan URL, egress jaringan, dan perilaku respons; belum diuji melalui jaringan.
+**Dampak:** Potensi SSRF: request dari server dapat menjangkau layanan internal dan respons ikut dalam arsip. Eksploitabilitas bergantung siapa yang dapat menyimpan                               URL, egress jaringan, dan perilaku respons; belum diuji melalui jaringan.
 
 **Perbaikan yang disarankan:** Batasi gambar pada storage yang dikelola aplikasi dan ambil objek berdasarkan key. Bila URL eksternal wajib, validasi DNS/IP dan setiap redirect, tolak jaringan privat, serta batasi waktu dan ukuran.
 
 **Kriteria selesai:** Loopback, private IP, redirect ke internal, DNS rebinding, dan respons berlebih ditolak; gambar storage sah tetap ikut backup.
 
 <a id="sec-14"></a>
-
+   
 ### SEC-14 — Kebijakan hasil ujian diterapkan tidak konsisten di API
 
 **Prioritas:** P1. **Bukti:** S. **Lokasi:** [apps/api/src/students/students.service.ts](../apps/api/src/students/students.service.ts) baris 296; [apps/api/src/students/students.service.ts](../apps/api/src/students/students.service.ts) baris 320; [apps/api/src/analytics/exam-review.service.ts](../apps/api/src/analytics/exam-review.service.ts) baris 90; [apps/api/src/analytics/student-analytics.service.ts](../apps/api/src/analytics/student-analytics.service.ts) baris 5.

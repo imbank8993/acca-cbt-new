@@ -8,7 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 
 /**
  * Event yang TIDAK dihitung sebagai peringatan.
@@ -64,6 +64,7 @@ export class ProctoringService {
         attemptId: string,
         eventType: string,
         metadata: Record<string, unknown> = {},
+        clientEventId?: string,
     ) {
         if (!STUDENT_SECURITY_EVENTS.includes(eventType)) {
             throw new BadRequestException('Jenis event siswa tidak diizinkan.');
@@ -84,10 +85,39 @@ export class ProctoringService {
             throw new BadRequestException('Ujian tidak sedang berlangsung.');
         }
 
-        await this.db
-            .from('cbt_attempt_security_logs')
-            .insert({ attempt_id: attemptId, event_type: eventType,
-                metadata: { ...metadata, actor_id: user.id, source: 'student' } });
+        let duplicate = false;
+        if (clientEventId) {
+            const { data: existing } = await this.db
+                .from('cbt_attempt_security_logs')
+                .select('id')
+                .eq('attempt_id', attemptId)
+                .contains('metadata', { client_event_id: clientEventId })
+                .maybeSingle();
+            duplicate = Boolean(existing);
+        }
+
+        if (!duplicate) {
+            const { error: insertError } = await this.db
+                .from('cbt_attempt_security_logs')
+                .insert({ attempt_id: attemptId, event_type: eventType,
+                    metadata: {
+                        ...metadata,
+                        ...(clientEventId ? { client_event_id: clientEventId } : {}),
+                        actor_id: user.id,
+                        source: 'student',
+                    } });
+            if (insertError) {
+                const { data: winner } = clientEventId
+                    ? await this.db.from('cbt_attempt_security_logs')
+                        .select('id')
+                        .eq('attempt_id', attemptId)
+                        .contains('metadata', { client_event_id: clientEventId })
+                        .maybeSingle()
+                    : { data: null };
+                if (!winner) throw new BadRequestException('Log pengawasan belum dapat disimpan.');
+                duplicate = true;
+            }
+        }
 
         // Penghitung diturunkan dengan MENGHITUNG baris log, bukan dengan
         // baca-ubah-tulis. Increment kehilangan kenaikan yang bersamaan ketika
@@ -124,9 +154,42 @@ export class ProctoringService {
             updates.tab_switch_count = tabCount || 0;
         }
 
-        await this.db.from('cbt_exam_attempts').update(updates).eq('id', attemptId);
+        const { error: updateError } = await this.db
+            .from('cbt_exam_attempts').update(updates).eq('id', attemptId);
+        if (updateError) throw new BadRequestException('Penghitung pengawasan belum dapat diperbarui.');
 
-        return { warningCount: (updates.warning_count as number) || 0 };
+        return { warningCount: (updates.warning_count as number) || 0, duplicate };
+    }
+
+    /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
+    async heartbeat(user: AuthUser, attemptId: string, deviceId: string) {
+        const { data: attempt } = await this.db
+            .from('cbt_exam_attempts')
+            .select('user_id, status, device_fingerprint')
+            .eq('id', attemptId)
+            .maybeSingle();
+        if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+        const row = attempt as {
+            user_id: string;
+            status: string;
+            device_fingerprint: string | null;
+        };
+        if (row.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
+        if (row.status !== 'in_progress') {
+            throw new BadRequestException('Ujian tidak sedang berlangsung.');
+        }
+        if (!deviceId || (row.device_fingerprint && row.device_fingerprint !== deviceId)) {
+            throw new ForbiddenException('Perangkat tidak cocok dengan sesi ujian.');
+        }
+
+        const now = await this.databaseNow(this.db);
+        const { error } = await this.db
+            .from('cbt_exam_attempts')
+            .update({ last_seen_at: now.toISOString() })
+            .eq('id', attemptId)
+            .eq('status', 'in_progress');
+        if (error) throw new BadRequestException('Status koneksi belum dapat diperbarui.');
+        return { lastSeenAt: now.toISOString() };
     }
 
     /**
@@ -136,66 +199,133 @@ export class ProctoringService {
      * (salah pencet "Selesai", atau guru meminta perbaikan). Attempt yang masih
      * berjalan tidak perlu — dan tidak boleh — di-reset.
      */
-    async resetAttempt(user: AuthUser, attemptId: string) {
+    async resetAttempt(user: AuthUser, attemptId: string, reason: string) {
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+            throw new BadRequestException('Alasan pemulihan wajib diisi (5–500 karakter).');
+        }
+
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, user_id, exam_id, status, personal_end_time, metadata')
+            .select('id, exam_id')
             .eq('id', attemptId)
             .maybeSingle();
 
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        const row = attempt as {
-            exam_id: string;
-            status: string;
-            personal_end_time: string | null;
-            metadata: Record<string, unknown> | null;
-        };
 
         // Proktor/Admin bebas; Guru hanya ujian non-PAS/PAT buatannya sendiri.
         // Tanpa ini siswa bisa membatalkan terminasi attempt-nya sendiri.
-        await this.authz.assertExamStaff(user, row.exam_id);
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id);
 
-        if (!RESETTABLE_STATUSES.includes(row.status)) {
-            throw new BadRequestException(
-                'Hanya ujian yang sudah selesai (submit / ditutup sistem) yang bisa di-reset.',
+        return this.db.transaction(async db => {
+            await db.raw(
+                'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
+                attemptId,
             );
-        }
 
-        const updates: Record<string, unknown> = {
-            status: 'in_progress',
-            finished_at: null,
-            warning_count: 0,
-            tab_switch_count: 0,
-            // Kunci perangkat dilepas supaya siswa bisa melanjutkan di perangkat
-            // yang kini ia pegang — justru itu inti dari reset oleh proktor.
-            device_fingerprint: null,
-        };
-
-        // Deadline personal yang sudah lewat membuat resume langsung ditutup
-        // otomatis lagi. Tandai grace period ini sebagai keputusan proktor agar
-        // layanan ujian dapat membedakannya dari perpanjangan buatan klien.
-        const expired =
-            !row.personal_end_time || new Date(row.personal_end_time).getTime() <= Date.now();
-        if (expired) {
-            const recoveryUntil = new Date(Date.now() + RESET_GRACE_MS).toISOString();
-            updates.personal_end_time = recoveryUntil;
-            updates.metadata = {
-                ...(row.metadata || {}),
-                proctor_recovery_until: recoveryUntil,
+            const { data: locked, error: readError } = await db
+                .from('cbt_exam_attempts')
+                .select('id, exam_id, status, personal_end_time, metadata')
+                .eq('id', attemptId)
+                .maybeSingle();
+            if (readError || !locked) {
+                throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            }
+            const row = locked as {
+                status: string;
+                personal_end_time: string | null;
+                metadata: Record<string, unknown> | null;
             };
-        }
 
-        await this.db.from('cbt_exam_attempts').update(updates).eq('id', attemptId);
+            if (!RESETTABLE_STATUSES.includes(row.status)) {
+                throw new BadRequestException(
+                    'Hanya ujian yang sudah selesai (submit / ditutup sistem) yang bisa di-reset.',
+                );
+            }
 
-        await this.db.from('cbt_attempt_security_logs').insert({
-            attempt_id: attemptId,
-            event_type: 'RESET_BY_PROCTOR',
-            metadata: {
-                resetAt: new Date().toISOString(),
-                previous_status: row.status,
-                extended_deadline: updates.personal_end_time ?? null,
-            },
+            // Salin nilai sebelum UPDATE. Selain membuat audit eksplisit, ini
+            // mencegah adapter/fixture yang mengembalikan referensi mutable
+            // mengubah "status sebelumnya" menjadi `in_progress`.
+            const previousStatus = row.status;
+            const previousDeadline = row.personal_end_time;
+            const previousMetadata = { ...(row.metadata || {}) };
+
+            const now = await this.databaseNow(db);
+            const { count: serverAnswerCount, error: countError } = await db
+                .from('cbt_answers')
+                .select('id', { count: 'exact', head: true })
+                .eq('attempt_id', attemptId);
+            if (countError) {
+                throw new BadRequestException('Jumlah jawaban server belum dapat diperiksa.');
+            }
+
+            const updates: Record<string, unknown> = {
+                status: 'in_progress',
+                finished_at: null,
+                warning_count: 0,
+                tab_switch_count: 0,
+                // Kunci perangkat dilepas supaya siswa bisa melanjutkan di perangkat
+                // yang kini ia pegang — justru itu inti dari reset oleh proktor.
+                device_fingerprint: null,
+            };
+
+            // Deadline personal yang sudah lewat membuat resume langsung ditutup
+            // otomatis lagi. Jam database dipakai agar keputusan dan audit tidak
+            // bergantung pada jam proses NestJS.
+            const expired =
+                !previousDeadline || new Date(previousDeadline).getTime() <= now.getTime();
+            let recoveryUntil: string | null = null;
+            if (expired) {
+                recoveryUntil = new Date(now.getTime() + RESET_GRACE_MS).toISOString();
+                updates.personal_end_time = recoveryUntil;
+                updates.metadata = {
+                    ...previousMetadata,
+                    proctor_recovery_until: recoveryUntil,
+                };
+            }
+
+            const { error: updateError } = await db
+                .from('cbt_exam_attempts')
+                .update(updates)
+                .eq('id', attemptId)
+                .eq('status', previousStatus);
+            if (updateError) {
+                throw new BadRequestException('Status pemulihan belum dapat disimpan.');
+            }
+
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: attemptId,
+                event_type: 'RESET_BY_PROCTOR',
+                metadata: {
+                    reset_at: now.toISOString(),
+                    actor_user_id: user.id,
+                    reason: normalizedReason,
+                    previous_status: previousStatus,
+                    previous_deadline: previousDeadline,
+                    recovery_until: recoveryUntil,
+                    server_answer_count: serverAnswerCount || 0,
+                },
+            });
+            if (logError) {
+                throw new BadRequestException('Jejak audit pemulihan belum dapat disimpan.');
+            }
+
+            return {
+                attemptId,
+                previousStatus,
+                recoveryUntil,
+                serverAnswerCount: serverAnswerCount || 0,
+            };
         });
+    }
+
+    private async databaseNow(db: DbSession): Promise<Date> {
+        const rows = await db.raw<Array<{ now: Date }>>('SELECT NOW() AS now');
+        const now = rows?.[0]?.now ? new Date(rows[0].now) : null;
+        if (!now || !Number.isFinite(now.getTime())) {
+            throw new BadRequestException('Waktu server belum dapat diperiksa.');
+        }
+        return now;
     }
 
     /**

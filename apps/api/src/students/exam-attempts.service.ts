@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
-import { loadExamQuestions } from '../common/exam-question-sources';
+import { loadExamQuestions, resolveExamBankIds } from '../common/exam-question-sources';
 import {
     orderQuestionsForStudent,
     shuffleOptionsForStudent,
@@ -203,7 +203,81 @@ export class ExamAttemptsService {
 
         if (existing) return this.resume(existing as any, row, now, device);
 
-        return this.createAttempt(user, examId, row, now, device);
+        // Dua tab dapat melewati pemeriksaan `existing` di atas pada saat yang
+        // sama. Serialisasikan keputusan terakhir berdasarkan pasangan
+        // siswa-ujian, lalu periksa ulang di dalam transaksi sebelum INSERT.
+        // Dengan begitu retry start bersifat idempoten dan selalu kembali ke
+        // attempt yang sudah menang.
+        const decision = await this.createAttemptSafely(user, examId, row, now, device);
+        if (decision.kind === 'completed') {
+            return this.refuse('Anda sudah menyelesaikan ujian ini.', {
+                expiredAttemptId: decision.attemptId,
+            });
+        }
+        if (decision.kind === 'existing') {
+            return this.resume(decision.attempt, row, now, device);
+        }
+        return decision.result;
+    }
+
+    /**
+     * Buat satu attempt saja walaupun beberapa request start tiba bersamaan.
+     *
+     * Advisory lock hanya hidup selama transaksi dan memakai kunci stabil dari
+     * exam + user. Unique index parsial pada migrasi tahap 15 menjadi pagar
+     * database bila ada penulis lain yang tidak melewati service ini.
+     */
+    private async createAttemptSafely(
+        user: AuthUser,
+        examId: string,
+        exam: { organization_id: string; end_time: string | null; duration_minutes: number | null },
+        now: Date,
+        device: string,
+    ) {
+        return this.db.transaction(async db => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `${examId}:${user.id}`,
+            );
+
+            const { data: active, error: activeError } = await db
+                .from('cbt_exam_attempts')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('exam_id', examId)
+                .eq('status', 'in_progress')
+                .maybeSingle();
+            if (activeError) {
+                throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
+            }
+            if (active) {
+                return { kind: 'existing' as const, attempt: active };
+            }
+
+            // Sesi dapat selesai di antara pemeriksaan awal dan saat lock
+            // didapatkan. Jangan membuat attempt baru untuk retry semacam itu.
+            const { data: completed, error: completedError } = await db
+                .from('cbt_exam_attempts')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('exam_id', examId)
+                .in('status', ['submitted', 'auto_submitted'])
+                .maybeSingle();
+            if (completedError) {
+                throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
+            }
+            if (completed) {
+                return {
+                    kind: 'completed' as const,
+                    attemptId: (completed as { id: string }).id,
+                };
+            }
+
+            return {
+                kind: 'created' as const,
+                result: await this.createAttempt(user, examId, exam, now, device, db),
+            };
+        });
     }
 
     /** Lanjutkan pengerjaan yang masih berjalan. */
@@ -267,6 +341,12 @@ export class ExamAttemptsService {
             });
         }
 
+        await this.db
+            .from('cbt_exam_attempts')
+            .update({ last_seen_at: now.toISOString() })
+            .eq('id', attempt.id)
+            .eq('status', 'in_progress');
+
         const { data: answers } = await this.db
             .from('cbt_answers')
             .select('question_id, selected_option_id, essay_answer, is_doubtful')
@@ -286,6 +366,7 @@ export class ExamAttemptsService {
         exam: { organization_id: string; end_time: string | null; duration_minutes: number | null },
         now: Date,
         device: string,
+        db: DbSession = this.db,
     ) {
         const personalEnd = this.capToWindow(
             new Date(
@@ -295,7 +376,7 @@ export class ExamAttemptsService {
             exam.end_time,
         );
 
-        const { data: attempt, error } = await this.db
+        const { data: attempt, error } = await db
             .from('cbt_exam_attempts')
             .insert({
                 organization_id: exam.organization_id,
@@ -303,6 +384,7 @@ export class ExamAttemptsService {
                 user_id: user.id,
                 status: 'in_progress',
                 started_at: now.toISOString(),
+                last_seen_at: now.toISOString(),
                 personal_end_time: personalEnd.toISOString(),
                 device_fingerprint: device || null,
             })
@@ -421,7 +503,8 @@ export class ExamAttemptsService {
         const device = this.requireDeviceId(deviceId);
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            await this.assertOwnedAndRunning(user, attemptId, db, device);
+            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device);
+            await this.assertAnswersBelongToExam(owned.examId, [answer], db);
             await this.upsertAnswers(attemptId, [answer], db);
         });
         return { attemptId };
@@ -433,7 +516,8 @@ export class ExamAttemptsService {
 
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            await this.assertOwnedAndRunning(user, attemptId, db, device);
+            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device);
+            await this.assertAnswersBelongToExam(owned.examId, answers, db);
             await this.upsertAnswers(attemptId, answers, db);
         });
 
@@ -456,13 +540,77 @@ export class ExamAttemptsService {
     }
 
     /**
+     * Pastikan autosave hanya dapat membuat baris untuk soal ujian ini.
+     *
+     * Foreign key database hanya membuktikan UUID soal/opsi memang ada. Tanpa
+     * pemeriksaan relasi ini, klien yang dimodifikasi dapat menempelkan soal
+     * bank lain atau opsi milik soal lain ke attempt miliknya sendiri.
+     */
+    private async assertAnswersBelongToExam(
+        examId: string,
+        answers: AnswerInput[],
+        db: DbSession = this.db,
+    ): Promise<void> {
+        const bankIds = await resolveExamBankIds(db, examId);
+        const requestedQuestionIds = [...new Set(answers.map(answer => answer.questionId))];
+        const { data, error } = bankIds.length === 0
+            ? { data: [], error: null }
+            : await db
+                .from('cbt_bank_questions')
+                .select('id, bank_id, type, bank_question_options:cbt_bank_question_options(id)')
+                .in('bank_id', bankIds)
+                .in('id', requestedQuestionIds);
+        if (error) throw new BadRequestException('Relasi soal ujian belum dapat diperiksa.');
+        const questions = (data as any[]) || [];
+        const byId = new Map<string, any>(questions.map(question => [question.id, question]));
+
+        for (const answer of answers) {
+            const question = byId.get(answer.questionId);
+            if (!question) {
+                throw new BadRequestException('Soal tidak termasuk dalam ujian yang sedang dikerjakan.');
+            }
+
+            const selectedOptionId = answer.selected_option_id?.trim();
+            const essayAnswerProvided = answer.essay_answer !== undefined && answer.essay_answer !== '';
+            if (selectedOptionId && essayAnswerProvided) {
+                throw new BadRequestException('Jawaban tidak boleh memakai dua format sekaligus.');
+            }
+
+            if (usesTextColumn(question.type)) {
+                if (selectedOptionId) {
+                    throw new BadRequestException('Format jawaban tidak sesuai dengan tipe soal.');
+                }
+                continue;
+            }
+
+            if (essayAnswerProvided) {
+                throw new BadRequestException('Format jawaban tidak sesuai dengan tipe soal.');
+            }
+            if (!selectedOptionId) continue;
+
+            const optionIds = new Set<string>(
+                ((question.bank_question_options as Array<{ id: string }> | null) || [])
+                    .map(option => option.id),
+            );
+            if (!optionIds.has(selectedOptionId)) {
+                throw new BadRequestException('Pilihan jawaban tidak termasuk dalam soal tersebut.');
+            }
+        }
+    }
+
+    /**
      * Pemilik pengerjaan, dan pengerjaannya masih berjalan.
      *
      * Menjaga seluruh jalur penulisan jawaban: tanpa ini, siswa bisa menimpa
      * jawaban siswa lain — atau menyunting pengerjaan yang sudah dikumpulkan —
      * hanya dengan menukar `attemptId`.
      */
-    private async assertOwnedAndRunning(user: AuthUser, attemptId: string, db: DbSession = this.db, deviceId?: string): Promise<void> {
+    private async assertOwnedAndRunning(
+        user: AuthUser,
+        attemptId: string,
+        db: DbSession = this.db,
+        deviceId?: string,
+    ): Promise<{ examId: string }> {
         const { data, error } = await db
             .from('cbt_exam_attempts')
             .select('user_id, status, exam_id, personal_end_time, started_at, device_fingerprint, metadata')
@@ -495,6 +643,7 @@ export class ExamAttemptsService {
         if (exam.start_time && now < new Date(exam.start_time)) {
             throw new ForbiddenException('Ujian belum dimulai.');
         }
+        return { examId: attempt.exam_id };
     }
 
     // ── Susulan jawaban ──────────────────────────────────────────────────────
@@ -783,7 +932,7 @@ export class ExamAttemptsService {
      *
      * `clientAttemptId` didahulukan supaya submit selalu mengenai baris yang
      * benar-benar dikerjakan, bahkan bila ada lebih dari satu baris
-     * `in_progress` — yang bisa terjadi akibat balapan saat memulai.
+     * `in_progress` dari data lama sebelum pengaman tahap 15 diterapkan.
      */
     private async resolveAttemptForSubmit(
         user: AuthUser,
@@ -807,8 +956,8 @@ export class ExamAttemptsService {
             return null;
         }
 
-        // `order` + `limit`, bukan `maybeSingle`: baris `in_progress` ganda tidak
-        // boleh melempar galat justru di saat siswa mengumpulkan ujian.
+        // `order` + `limit`, bukan `maybeSingle`: duplikat legacy tidak boleh
+        // melempar galat justru di saat siswa mengumpulkan ujian.
         const { data: rows } = await this.db
             .from('cbt_exam_attempts')
             .select('id, metadata')

@@ -4,9 +4,9 @@ Dimulai 19 September 2026; diperbarui 26 September 2026. Acuan: [audit awal](AUD
 
 ## Status pekerjaan
 
-Dua belas tahap implementasi lokal telah diselesaikan dan diuji. **Seluruh 45 ID audit awal sudah ditangani; satu temuan tambahan IMP-01 juga sudah diperbaiki.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
+Delapan belas tahap implementasi lokal telah diselesaikan dan diuji. **Seluruh 45 ID audit awal, temuan tambahan IMP-01, dan delapan temuan audit jawaban/jaringan sudah ditangani.** “Selesai” di sini berarti perubahan kode dan tes lokal lulus; bukan berarti sudah diterapkan ke produksi atau diuji dengan database sekolah. SEC-14 kini selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada tahap 4.
 
-Audit lanjutan terhadap perekaman jawaban dan gangguan jaringan menemukan delapan area hardening baru, terutama request autosave yang dapat menggantung, retry auto-submit yang terbatas, validasi keanggotaan soal saat autosave, serta prosedur pemulihan jawaban offline setelah deadline. Temuan ini berada di luar 45 ID awal dan dicatat terpisah dalam [audit perekaman jawaban dan jaringan](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md); temuan tersebut belum dinyatakan selesai.
+Audit lanjutan terhadap perekaman jawaban dan gangguan jaringan menemukan delapan area hardening baru. ANS-01, ANS-02, dan ANS-08 diperbaiki pada tahap 13; ANS-04 pada tahap 14; ANS-05 pada tahap 15; ANS-03 pada tahap 16; ANS-06 pada tahap 17; dan ANS-07 pada tahap 18. Temuan ini berada di luar 45 ID awal dan dicatat terpisah dalam [audit perekaman jawaban dan jaringan](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md).
 
 Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan objek R2 sungguhan, atau deployment. Bukti audit awal dipertahankan sebagai baseline; skrip reproduksi lama sengaja mengharapkan bug lama sehingga tidak lagi menjadi tes kelulusan untuk kode terbaru.
 
@@ -24,6 +24,12 @@ Tidak dilakukan migrasi, perubahan database sekolah, pengunggahan/penghapusan ob
 | 10 | Keseragaman sumber soal ujian legacy dan multi-bank | BUG-12 | 3 tes BUG-12; gabungan tes Node menjadi 95 lulus; TypeScript API/web lulus |
 | 11 | Integrasi lintas layanan dan gate regresi P1 | QA-02 | 4 tes integrasi baru; paket CI: 102 tes Node + 44 round-trip + 13 service lulus |
 | 12 | Implementasi bersama halaman bank soal lintas peran | QA-03 | 4 tes paritas route/otorisasi; paket CI: 106 tes Node + 44 round-trip + 13 service lulus |
+| 13 | Ketahanan autosave dan auto-submit pada jaringan bermasalah | ANS-01, ANS-02, ANS-08 | 4 tes baru; paket CI: 110 tes Node + 44 round-trip + 13 service lulus |
+| 14 | Validasi relasi soal dan opsi pada autosave | ANS-04 | 5 tes baru; paket CI: 115 tes Node + 44 round-trip + 13 service lulus |
+| 15 | Idempotensi start dan pencegahan attempt aktif ganda | ANS-05 | 3 tes baru; paket CI: 118 tes Node + 44 round-trip + 13 service lulus |
+| 16 | Pemulihan jawaban offline yang terotorisasi dan dapat diaudit | ANS-03 | 4 tes baru; paket CI: 122 tes Node + 44 round-trip + 13 service lulus |
+| 17 | IndexedDB untuk snapshot jawaban dan identitas perangkat | ANS-06 | 4 tes baru; paket CI: 126 tes Node + 44 round-trip + 13 service lulus |
+| 18 | Antrean event keamanan, heartbeat, status offline, terminasi terkonfirmasi | ANS-07 | 5 tes baru; paket CI: 131 tes Node + 44 round-trip + 13 service lulus |
 
 Daftar 45 ID audit awal serta temuan tambahan IMP-01 beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
 
@@ -365,6 +371,64 @@ Empat tes regresi menjaga agar ketiga route terus memakai komponen yang sama, na
 
 **Lokasi:** [QuestionBankDetailPage.tsx](../apps/web/app/components/questions/QuestionBankDetailPage.tsx), route [admin](../apps/web/app/dashboard/admin/questions/[bankId]/page.tsx), [guru](../apps/web/app/dashboard/guru/questions/[bankId]/page.tsx), dan [proktor](../apps/web/app/dashboard/proktor/questions/[bankId]/page.tsx), serta [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs). Rincian keputusan dan batas cakupan tersedia di [dokumentasi QA-03](perbaikan-2026-09-19/QA-03-HALAMAN-BERSAMA.md).
 
+## Tahap 13 — Ketahanan autosave dan auto-submit
+
+### ANS-01, ANS-02, dan ANS-08: request dapat dibatalkan, retry berkelanjutan, snapshot terbaru
+
+Autosave tunggal kini mempunyai timeout 15 detik, sedangkan bulk sync dan submit mempunyai timeout 30 detik. Timeout memakai `AbortController`, sehingga fetch lama benar-benar dibatalkan sebelum antrean soal melanjutkan pekerjaan berikutnya. Kegagalan tetap ditandai untuk bulk retry.
+
+Auto-submit tidak lagi berhenti setelah tiga percobaan. Retry memakai jeda 10 detik, 20 detik, lalu maksimum 30 detik sampai server mengonfirmasi status final. Guard ref memastikan hanya satu submit aktif dan satu timer retry terjadwal. Submit juga membaca `answersRef.current` tepat sebelum request sehingga jawaban terakhir tidak tertinggal ketika perubahan berimpit dengan timer nol atau pemulihan jaringan.
+
+Empat tes baru menguji abort request menggantung, pemasangan timeout pada endpoint jawaban, backoff setelah percobaan ketiga, serta snapshot ref terbaru. **Lokasi:** [client.ts](../apps/web/lib/api/client.ts), [students.ts](../apps/web/lib/api/students.ts), [exam-retry.ts](../apps/web/lib/exam-retry.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx), dan [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs). Rincian risiko yang masih terbuka tersedia di [audit perekaman jawaban](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md).
+
+## Tahap 14 — Integritas target autosave
+
+### ANS-04: soal dan opsi harus berasal dari ujian aktif
+
+Sebelum upsert, backend kini memvalidasi seluruh jawaban terhadap resolver sumber soal ujian yang juga dipakai oleh tampilan, submit, dan grading. Query hanya memuat ID soal yang dikirim, bukan seluruh bank. Soal harus berasal dari bank langsung atau salah satu sumber multi-bank ujian. Untuk tipe pilihan tunggal, opsi harus menjadi anak dari soal tersebut. Jawaban teks dan pilihan tunggal tidak boleh dicampur atau digunakan pada tipe soal yang salah.
+
+Validasi dilakukan setelah pemeriksaan pemilik/perangkat/deadline dan sebelum penulisan, di dalam transaksi yang mengunci attempt. Bulk sync bersifat atomik: satu soal atau opsi asing membatalkan seluruh batch tanpa meninggalkan jawaban parsial. Lima tes baru mencakup soal asing, opsi silang, rollback batch, multi-bank sah, dan format kolom salah.
+
+**Lokasi:** [exam-attempts.service.ts](../apps/api/src/students/exam-attempts.service.ts) dan [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs).
+
+## Tahap 15 — Satu attempt aktif per siswa dan ujian
+
+### ANS-05: start bersamaan menjadi idempoten
+
+Keputusan “lanjutkan atau buat attempt” kini diperiksa ulang di dalam transaksi. Transaksi mengambil advisory lock dengan kunci stabil dari `examId:userId`, lalu mencari attempt aktif dan attempt final sekali lagi sebelum melakukan insert. Dua tab dari perangkat yang sama menerima ID attempt yang sama. Jika perangkat berbeda kalah dalam race, ia diarahkan ke attempt pemenang dan ditolak oleh kunci perangkat yang sudah ada, sehingga tidak terbentuk baris pengerjaan kedua.
+
+Migrasi menambahkan unique index parsial `(exam_id, user_id)` untuk status `in_progress` sebagai perlindungan database. Migrasi sengaja berhenti bila menemukan duplikat aktif lama. Data tersebut tidak boleh dihapus otomatis karena setiap attempt dapat membawa kumpulan jawaban berbeda; operator harus meninjau jawaban dan menentukan attempt yang sah lebih dahulu.
+
+Tiga tes baru menjalankan start bersamaan dari perangkat yang sama, start bersamaan dari dua perangkat, serta memeriksa pengaman migrasi dan index parsial. **Lokasi:** [exam-attempts.service.ts](../apps/api/src/students/exam-attempts.service.ts), [migrasi ANS-05](../database/migrations/20260926_01_unique_active_exam_attempt.sql), dan [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs).
+
+## Tahap 16 — Pemulihan jawaban offline setelah deadline
+
+### ANS-03: reset proktor mempunyai alasan, audit atomik, dan ringkasan sinkronisasi
+
+Reset attempt kini mewajibkan alasan 5–500 karakter. Backend memeriksa kewenangan staf, mengunci baris attempt, memakai jam database, menghitung jawaban server, membuka grace period 15 menit bila deadline telah lewat, dan menulis event audit dalam satu transaksi. Audit menyimpan aktor, alasan, waktu reset, status/deadline sebelumnya, tenggat pemulihan, dan jumlah jawaban server. Jika update atau log gagal, seluruh reset dibatalkan.
+
+Semua layar monitoring meminta alasan dan menampilkan jumlah jawaban server serta tenggat yang diberikan. Saat siswa membuka kembali attempt pada browser yang sama, banner menampilkan jumlah jawaban lokal dan server. Snapshot lokal dikirim ulang melalui endpoint bulk yang tetap memeriksa pemilik, perangkat, soal/opsi, status, dan deadline. Pada layar kedaluwarsa, siswa diberi tahu jumlah jawaban lokal serta diminta tidak menghapus data browser atau berpindah perangkat.
+
+Empat tes baru mencakup audit dan deadline berbasis jam database, penolakan alasan kosong, rollback saat log audit gagal, serta kontrak indikator lokal/server. **Lokasi:** [proctoring.service.ts](../apps/api/src/proctoring/proctoring.service.ts), [proctoring.controller.ts](../apps/api/src/proctoring/proctoring.controller.ts), [proctoring.ts](../apps/web/lib/api/proctoring.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), dan [SOP pemulihan offline](perbaikan-2026-09-19/SOP-PEMULIHAN-JAWABAN-OFFLINE.md).
+
+## Tahap 17 — Penyimpanan jawaban offline durable
+
+### ANS-06: IndexedDB utama, fallback kompatibel, dan preflight sebelum start
+
+Snapshot jawaban serta tanda ragu kini ditulis ke IndexedDB dan dicerminkan ke `localStorage` sebagai fallback. Write untuk satu attempt diserialisasi agar transaksi lambat tidak menimpa perubahan terbaru. Cache legacy dimigrasikan saat dibaca, sinkronisasi setelah jaringan pulih membaca snapshot durable, dan cleanup setelah submit diurutkan setelah seluruh write yang masih berjalan.
+
+Sebelum attempt dibuat, halaman menguji tulis/hapus nyata, meminta persistence browser, dan memeriksa kapasitas. Browser tanpa IndexedDB masih dapat memakai fallback dengan peringatan. Jika seluruh storage ditolak, ujian tidak dimulai. ID perangkat acak juga disimpan di IndexedDB sehingga reload tetap memakai perangkat yang sama ketika `localStorage` diblokir.
+
+Empat tes baru mencakup urutan write cepat, fallback `localStorage`, penolakan start tanpa storage, serta kontrak preflight/restore/write/cleanup/migrasi/persistence perangkat. **Lokasi:** [exam-durable-storage.ts](../apps/web/lib/exam-durable-storage.ts), [device-id.ts](../apps/web/lib/device-id.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), dan [dokumentasi penyimpanan durable](perbaikan-2026-09-19/PENYIMPANAN-JAWABAN-OFFLINE-DURABLE.md).
+
+## Tahap 18 — Pengawasan offline dan status koneksi peserta
+
+### ANS-07: event durable, retry idempoten, heartbeat, dan terminasi terkonfirmasi
+
+Event keamanan disimpan di IndexedDB sebelum dikirim dan dicerminkan ke `localStorage`. UUID event tetap sama selama retry, sedangkan unique expression index database mencegah hitungan ganda. Heartbeat siswa diverifikasi terhadap pengguna, status attempt, dan perangkat; monitoring menandai attempt aktif sebagai terputus setelah 45 detik tanpa heartbeat.
+
+Saat batas pelanggaran tercapai, halaman masuk keadaan blokir dan mencoba mengirim jawaban tertunda serta terminasi. Sesi CBT baru dibersihkan setelah respons sukses server. Kegagalan jaringan mempertahankan layar blokir dan retry otomatis. Lima tes baru mencakup deduplikasi, heartbeat, antrean, konfirmasi terminasi, empat UI peran, dan migrasi. **Lokasi:** [proctoring.service.ts](../apps/api/src/proctoring/proctoring.service.ts), [ExamPage.tsx](../apps/web/app/components/questions/ExamPage.tsx), [migrasi ANS-07](../database/migrations/20260926_02_offline_proctoring.sql), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), dan [dokumentasi pengawasan offline](perbaikan-2026-09-19/PENGAWASAN-OFFLINE-DAN-HEARTBEAT.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -373,10 +437,10 @@ Empat tes regresi menjaga agar ketiga route terus memakai komponen yang sama, na
 | Tahap 3, Node test runner | 3 lulus, 0 gagal |
 | Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
-| Seluruh regresi Node termasuk integrasi HTTP | 106 lulus, 0 gagal |
+| Seluruh regresi Node termasuk integrasi HTTP | 131 lulus, 0 gagal |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus setelah perubahan tahap 12 |
-| ESLint baseline penuh | Lulus: 1.214 error/640 warning lama, tanpa kenaikan per aturan |
+| TypeScript API dan frontend | Lulus sampai perubahan tahap 18 |
+| ESLint baseline penuh | Lulus: 1.212 error/635 warning lama, tanpa kenaikan per aturan |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Browser, database nyata, R2, deployment | Belum dijalankan |
 
@@ -397,12 +461,13 @@ Dari `apps/scoring`:
 
 Node test runner membutuhkan child process. Sandbox lokal menolak spawn EPERM, sehingga tes dijalankan dengan izin eksekusi di luar sandbox; tidak ada perubahan metode fixture menjadi akses database/jaringan. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
 
-Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes tahap 4–5, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan.
+Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs), [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs), [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan. Tes konkurensi tahap 15 menambahkan serialisasi transaksi khusus untuk meniru efek advisory lock; index unik tetap perlu divalidasi pada PostgreSQL staging.
 
 ## Prioritas tahap berikutnya
 
 1. **Validasi staging:** jalankan paket integrasi terhadap PostgreSQL dan storage sekali pakai, lalu uji matriks browser untuk admin, guru, proktor, dan siswa.
-2. **Pengurangan utang lint:** lanjutkan perbaikan kelompok aturan terbesar secara bertahap tanpa melonggarkan baseline 1.214 error/640 warning yang sudah tercatat.
+2. **Simulasi jaringan/pengawasan:** validasi heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
+3. **Pengurangan utang lint:** lanjutkan perbaikan kelompok aturan terbesar secara bertahap tanpa melonggarkan baseline 1.214 error/640 warning yang sudah tercatat.
 
 ## Verifikasi sebelum rollout
 
@@ -411,4 +476,5 @@ Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.t
 - Uji upload baru dan penanganan penolakan delete legacy; rencanakan pembersihan berkas lama dengan kepemilikan yang dapat dibuktikan.
 - Jalankan penilaian manual, impor bobot nol, dan edit kunci dengan HTTP scoring sebenarnya; bandingkan total dan status pending.
 - Validasi schema/FK dan kegagalan tengah write; kelulusan mock tidak membuktikan atomicity.
+- Sebelum migrasi tahap 15, cari pasangan `exam_id,user_id` dengan lebih dari satu baris `in_progress`; tinjau jawaban pada setiap attempt dan finalkan duplikat secara manual.
 - Tutup masalah state/persist serta backup prioritas tinggi sebelum menyatakan seluruh proyek aman untuk ujian nyata.

@@ -203,6 +203,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return () => window.removeEventListener('acca:signout', onSignOut);
     }, []);
 
+    // Automatic global modal detection: whenever any modal overlay is active anywhere in the dashboard
+    useEffect(() => {
+        const checkModal = () => {
+            const hasActiveModal = !!document.querySelector(
+                'main .fixed.inset-0, [role="dialog"], .cbt-modal-open, .cbt-editor-open'
+            );
+            if (hasActiveModal) {
+                document.body.classList.add('cbt-modal-active', 'scroll-locked');
+                document.documentElement.classList.add('scroll-locked');
+            } else {
+                const manualLock = document.querySelector('.cbt-editor-open, .cbt-modal-open');
+                if (!manualLock) {
+                    document.body.classList.remove('cbt-modal-active', 'scroll-locked');
+                    document.documentElement.classList.remove('scroll-locked');
+                }
+            }
+        };
+
+        const observer = new MutationObserver(checkModal);
+        observer.observe(document.body, { childList: true, subtree: true });
+        checkModal();
+
+        return () => {
+            observer.disconnect();
+            document.body.classList.remove('cbt-modal-active', 'scroll-locked');
+            document.documentElement.classList.remove('scroll-locked');
+        };
+    }, []);
+
     if (!authChecked) {
         return <DashboardLoading />;
     }
@@ -287,21 +316,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         margin-left: var(--app-sidebar-w-collapsed, 85px);
                     }
                 }
-                /* When Question Editor is open, hide main Header & Sidebar completely */
+                /* When ANY modal or question editor is active, Header & Sidebar become the background */
                 html.cbt-editor-open .header,
                 body.cbt-editor-open .header,
+                html.cbt-modal-active .header,
+                body.cbt-modal-active .header,
+                html.scroll-locked .header,
+                body.scroll-locked .header,
                 html.cbt-editor-open aside.sidebar,
                 body.cbt-editor-open aside.sidebar,
+                html.cbt-modal-active aside.sidebar,
+                body.cbt-modal-active aside.sidebar,
+                html.scroll-locked aside.sidebar,
+                body.scroll-locked aside.sidebar,
                 html.cbt-editor-open .sidebar-overlay,
-                body.cbt-editor-open .sidebar-overlay {
-                    display: none !important;
-                    visibility: hidden !important;
+                body.cbt-editor-open .sidebar-overlay,
+                body.cbt-modal-active .sidebar-overlay,
+                body.scroll-locked .sidebar-overlay {
+                    z-index: 10 !important;
                     pointer-events: none !important;
+                    user-select: none !important;
                 }
-                html.cbt-editor-open .dashboard-main,
-                body.cbt-editor-open .dashboard-main {
-                    margin-left: 0 !important;
-                    padding-top: 0 !important;
+
+                /* Suppress sidebar tooltips completely when a modal is active */
+                html.cbt-editor-open .sidebar-tooltip,
+                body.cbt-editor-open .sidebar-tooltip,
+                html.cbt-modal-active .sidebar-tooltip,
+                body.cbt-modal-active .sidebar-tooltip,
+                html.scroll-locked .sidebar-tooltip,
+                body.scroll-locked .sidebar-tooltip {
+                    display: none !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
                 }
             `}</style>
         </div>

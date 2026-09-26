@@ -9,7 +9,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -26,12 +26,31 @@ class LogViolationDto {
     @IsOptional()
     @IsObject()
     metadata?: Record<string, unknown>;
+
+    @ApiProperty({ required: false, description: 'ID idempoten dari antrean browser' })
+    @IsOptional()
+    @IsUUID()
+    clientEventId?: string;
+}
+
+class HeartbeatDto {
+    @ApiProperty()
+    @IsString()
+    @IsNotEmpty()
+    deviceId!: string;
 }
 
 class TerminateDto {
     @ApiProperty({ example: 'Melebihi batas pelanggaran' })
     @IsString()
     @IsNotEmpty({ message: 'Alasan wajib diisi' })
+    reason!: string;
+}
+
+class ResetAttemptDto {
+    @ApiProperty({ example: 'Jaringan siswa terputus sampai melewati batas waktu.' })
+    @IsString()
+    @Length(5, 500)
     reason!: string;
 }
 
@@ -49,7 +68,24 @@ export class ProctoringController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: LogViolationDto,
     ) {
-        return this.proctoring.logViolation(user, attemptId, dto.eventType, dto.metadata ?? {});
+        return this.proctoring.logViolation(
+            user,
+            attemptId,
+            dto.eventType,
+            dto.metadata ?? {},
+            dto.clientEventId,
+        );
+    }
+
+    @Post('attempts/:attemptId/heartbeat')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Perbarui status koneksi peserta selama ujian' })
+    heartbeat(
+        @CurrentUser() user: AuthUser,
+        @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: HeartbeatDto,
+    ) {
+        return this.proctoring.heartbeat(user, attemptId, dto.deviceId);
     }
 
     @Post('attempts/:attemptId/reset')
@@ -58,9 +94,9 @@ export class ProctoringController {
     async reset(
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: ResetAttemptDto,
     ) {
-        await this.proctoring.resetAttempt(user, attemptId);
-        return { attemptId };
+        return this.proctoring.resetAttempt(user, attemptId, dto.reason);
     }
 
     @Post('attempts/:attemptId/terminate')

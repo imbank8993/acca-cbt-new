@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getAttemptFullDetailsAction } from '@/lib/api/proctor';
 import { submitEssayGrades } from '@/lib/api/teachers';
-import { resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -58,16 +58,18 @@ export default function AttemptAnalyticsPage() {
     };
 
     const handleResetAttempt = async () => {
+        const reason = promptRecoveryReason(studentName);
+        if (!reason) return;
         if (!confirm(
             `Yakin ingin mereset ujian siswa "${studentName}"?\n\n` +
-            `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya.\n\n` +
+            `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya.\n\nAlasan: ${reason}\n\n` +
             `Peringatan: Pastikan perangkat siswa sudah dalam kondisi baik.`
         )) return;
 
         setResetting(true);
-        const res = await resetExamAttempt(attemptId);
+        const res = await resetExamAttempt(attemptId, reason);
         if (res.success) {
-            alert(`Ujian "${studentName}" berhasil di-reset.`);
+            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban sudah ada di server.`);
             router.push('/dashboard/admin/monitoring');
         } else {
             alert('Gagal mereset: ' + res.error);

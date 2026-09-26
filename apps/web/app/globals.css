@@ -240,6 +240,31 @@ html.scroll-locked::-webkit-scrollbar {
 }
 
 /* ============================================
+   ACTIVE MODAL LAYER: HEADER & SIDEBAR BECOME BACKGROUND
+   ============================================ */
+body.scroll-locked .header,
+body.cbt-modal-active .header,
+body.cbt-editor-open .header,
+body.scroll-locked aside.sidebar,
+body.cbt-modal-active aside.sidebar,
+body.cbt-editor-open aside.sidebar,
+body.scroll-locked .sidebar,
+body.cbt-modal-active .sidebar,
+body.cbt-editor-open .sidebar {
+  z-index: 10 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+body.scroll-locked .sidebar-tooltip,
+body.cbt-modal-active .sidebar-tooltip,
+body.cbt-editor-open .sidebar-tooltip {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ============================================
    DESIGN TOKENS & UTILITIES
    ============================================ */
 

@@ -22,6 +22,7 @@ export function getDeviceId(): string {
                 : `dev_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
             localStorage.setItem(DEVICE_ID_KEY, id);
         }
+        volatileId = id;
         return id;
     } catch {
         // localStorage blocked (private mode / disabled) — fall back to a
@@ -31,4 +32,11 @@ export function getDeviceId(): string {
             ? crypto.randomUUID() : `dev_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
         return volatileId;
     }
+}
+
+/** Sinkronkan ID yang dipulihkan dari IndexedDB ke memori dan fallback lama. */
+export function setDeviceId(id: string): void {
+    if (!id) return;
+    volatileId = id;
+    try { localStorage.setItem(DEVICE_ID_KEY, id); } catch { /* IndexedDB tetap menjadi sumber */ }
 }

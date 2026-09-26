@@ -871,7 +871,7 @@ const ExamsPage = () => {
             {/* ─────────────── CREATE FOLDER CONFIG MODAL ─────────────── */}
             <AnimatePresence>
                 {isConfigModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -995,7 +995,7 @@ const ExamsPage = () => {
             {/* ─────────────── ADD BANK SOAL MODAL ─────────────── */}
             <AnimatePresence>
                 {isAddBankModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -1056,7 +1056,7 @@ const ExamsPage = () => {
             {/* ─────────────── ADD CLASS SCHEDULE MODAL ─────────────── */}
             <AnimatePresence>
                 {isAddClassModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -1324,7 +1324,7 @@ const ExamsPage = () => {
             {/* ─────────────── CREATE MODAL ─────────────── */}
             <AnimatePresence>
                 {isAddModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -1706,7 +1706,7 @@ const ExamsPage = () => {
             {/* ─────────────── EDIT MODAL ─────────────── */}
             <AnimatePresence>
                 {isEditModalOpen && selectedExam && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -1996,7 +1996,7 @@ const ExamsPage = () => {
             {/* ─────────────── ASSIGN MODAL ─────────────── */}
             <AnimatePresence>
                 {isAssignModalOpen && selectedExam && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}

@@ -26,7 +26,12 @@ function baseTables(status = 'in_progress') {
             device_fingerprint: 'device-123', metadata: {}, total_score: null,
         }],
         cbt_answers: [],
-        cbt_bank_questions: [],
+        cbt_exam_question_sources: [],
+        cbt_bank_questions: [{
+            id: 'q1', bank_id: 'bank', type: 'mcq', score_default: 10,
+            created_at: '2026-01-01T00:00:00Z',
+            bank_question_options: [{ id: 'a', is_correct: true, weight: 1 }, { id: 'b', is_correct: false, weight: 0 }],
+        }],
     };
 }
 
@@ -135,10 +140,11 @@ test('SEC-10: automatic expiry is compare-and-set and grades only once', async (
 
 test('BUG-03: failed answer persistence rolls back submission status', async () => {
     const tables = baseTables();
-    tables.cbt_bank_questions.push({
+    tables.cbt_bank_questions[0] = {
         id: 'q1', bank_id: 'bank', type: 'mcq', score_default: 10,
+        created_at: '2026-01-01T00:00:00Z',
         bank_question_options: [{ id: 'a', is_correct: true, weight: 1 }],
-    });
+    };
     const db = fixtureDb(tables, ['cbt_answers']);
     const attempts = service(db, { scoring: { post: async () => ({
         items: [{ answer_id: 'q1', score: 10, is_correct: true, dimension_scores: {} }],

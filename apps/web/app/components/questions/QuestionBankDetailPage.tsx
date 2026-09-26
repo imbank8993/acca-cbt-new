@@ -110,6 +110,23 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [isPrintOpen, setIsPrintOpen] = useState(false);
     const isFirstRender = useRef(true);
 
+    const filteredQuestions = questions.filter(q => {
+        const matchSearch = (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase());
+        const matchType = filterType === 'all' || q.type === filterType;
+        return matchSearch && matchType;
+    });
+    // Sinkronkan ref sebelum effect navigasi URL membacanya. Urutan ini juga
+    // membuat React Compiler dapat membuktikan ref tidak dimutasi sesudah
+    // lebih dahulu dipakai oleh effect lain.
+    const filteredQuestionsRef = useRef(filteredQuestions);
+    const editingQuestionRef = useRef(editingQuestion);
+    const isEditorOpenRef = useRef(isEditorOpen);
+    useEffect(() => {
+        filteredQuestionsRef.current = filteredQuestions;
+        editingQuestionRef.current = editingQuestion;
+        isEditorOpenRef.current = isEditorOpen;
+    }, [filteredQuestions, editingQuestion, isEditorOpen]);
+
     useEffect(() => { loadData();
         // Auto-injected smart sync (Window Focus)
         const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
@@ -165,6 +182,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         } else {
             setIsViewModalOpen(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchQuery, searchParams, isLoading, questions, bankId]);
 
     const loadData = async () => {
@@ -235,7 +253,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             setKisiKisiId(q.kisi_kisi_id || null);
             setOptions(loadedOptions);
             const list = filteredQuestionsRef.current || [];
-            const idx = list.findIndex((item: any) => item.id === q.id);
+            const idx = list.findIndex(item => item?.id === q.id);
             if (idx >= 0) {
                 const p = new URLSearchParams(window.location.search);
                 p.set("index", idx.toString());
@@ -425,22 +443,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         window.open(`${questionsBasePath}/${bankId}?print=true`, '_blank');
     };
 
-    const filteredQuestions = questions.filter(q => {
-        const matchSearch = (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchType = filterType === 'all' || q.type === filterType;
-        return matchSearch && matchType;
-    });
     const totalQuestions = questions.length;
     const lastUpdated = bankInfo?.updated_at ? new Date(bankInfo.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
 
     // In-editor navigation: keep latest list/editing in refs to avoid stale
     // closures when jumping to the adjacent question right after a save.
-    const filteredQuestionsRef = useRef(filteredQuestions);
-    filteredQuestionsRef.current = filteredQuestions;
-    const editingQuestionRef = useRef(editingQuestion);
-    editingQuestionRef.current = editingQuestion;
-    const isEditorOpenRef = useRef(isEditorOpen);
-    isEditorOpenRef.current = isEditorOpen;
     const editorIndex = editingQuestion?.id ? filteredQuestions.findIndex(q => q.id === editingQuestion.id) : -1;
     const navigateEditor = (dir: 'prev' | 'next') => {
         const list = filteredQuestionsRef.current;

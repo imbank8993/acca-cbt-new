@@ -9,7 +9,7 @@ import {
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { getProctorOrganization, listOrganizationExams, getExamAttemptsAction, getExamAnswersForAnalysisAction, getRecentViolationsAction } from '@/lib/api/proctor';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
-import { resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getSessionUser } from '@/lib/session';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -129,10 +129,13 @@ function MonitoringContent() {
     }, [selectedExamId]);
 
     const handleResetAttempt = async (attemptId: string, studentName: string) => {
+        const reason = promptRecoveryReason(studentName);
+        if (!reason) return;
         const confirmed = window.confirm(
             `Yakin ingin mereset ujian siswa "${studentName}"?\n\n` +
             `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya. ` +
-            `Jika waktu pengerjaannya sudah habis, siswa otomatis mendapat tenggat baru 15 menit (selama jendela ujian masih terbuka).\n\n` +
+            `Jika waktu pengerjaannya sudah habis, siswa mendapat tenggat pemulihan 15 menit.\n\n` +
+            `Alasan: ${reason}\n\n` +
             `Peringatan: Pastikan perangkat siswa sudah dalam kondisi baik untuk menghindari pelanggaran berulang.`
         );
 
@@ -140,9 +143,15 @@ function MonitoringContent() {
 
         setResettingAttemptId(attemptId);
         try {
-            const result = await resetExamAttempt(attemptId);
+            const result = await resetExamAttempt(attemptId, reason);
             if (result.success) {
-                alert(`Ujian "${studentName}" berhasil di-reset. Siswa bisa melanjutkan ujian.`);
+                const deadline = result.recoveryUntil
+                    ? ` Tenggat pemulihan: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
+                    : '';
+                alert(
+                    `Ujian "${studentName}" berhasil dipulihkan. ` +
+                    `${result.serverAnswerCount} jawaban sudah ada di server.${deadline}`,
+                );
                 if (selectedExamId) loadExamData(selectedExamId);
             } else {
                 alert(`Gagal mereset: ${result.error}`);
@@ -538,7 +547,7 @@ function MonitoringContent() {
                                                                             : isBelum ? 'bg-slate-50 text-slate-500 border border-slate-200'
                                                                             : 'bg-blue-50 text-blue-600 border border-blue-100'
                                                                         }`}>
-                                                                            {isTerminated ? 'TERMINATED' : isInProgress ? 'MENGERJAKAN' : isBelum ? 'BELUM' : 'SELESAI'}
+                                                                            {isTerminated ? 'TERMINATED' : isInProgress ? (att.connection_status === 'offline' ? 'KONEKSI TERPUTUS' : 'MENGERJAKAN') : isBelum ? 'BELUM' : 'SELESAI'}
                                                                         </span>
                                                                     </p>
                                                                 </div>
@@ -673,7 +682,7 @@ function MonitoringContent() {
                                                                             ? 'bg-[#0038A8]/10 text-[#0038A8] border-[#0038A8]/30'
                                                                             : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                                     }`}>
-                                                                        {isTerminated ? 'Terminated' : isInProgress ? 'Mengerjakan' : 'Selesai'}
+                                                                        {isTerminated ? 'Terminated' : isInProgress ? (att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan') : 'Selesai'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="p-3 text-center">
@@ -789,7 +798,7 @@ function MonitoringContent() {
                                                     const isTerminated = att.status === 'auto_submitted';
                                                     const isBelum = att.status === 'belum';
                                                     const canReset = isTerminated || att.status === 'submitted';
-                                                    const statusLabel = isTerminated ? 'Terminated' : att.status === 'submitted' ? 'Selesai' : isBelum ? 'Belum Mengerjakan' : 'Mengerjakan';
+                                                    const statusLabel = isTerminated ? 'Terminated' : att.status === 'submitted' ? 'Selesai' : isBelum ? 'Belum Mengerjakan' : att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan';
 
                                                     return (
                                                         <tr key={att.id}

@@ -71,6 +71,7 @@ export class ExamMonitoringService {
             .select(
                 `id, status, total_score, score_irt, irt_theta, needs_manual_grading,
                  started_at, finished_at, tab_switch_count, warning_count, exam_id, user_id,
+                 last_seen_at,
                  profiles:cbt_profiles(full_name)`,
             )
             .eq('exam_id', examId)
@@ -106,10 +107,16 @@ export class ExamMonitoringService {
             }
         }
 
+        const nowRows = await this.db.raw<Array<{ now: Date }>>('SELECT NOW() AS now');
+        const serverNow = new Date(nowRows?.[0]?.now || Date.now()).getTime();
         const rows = attempts.map((attempt) => ({
             ...attempt,
             kelas_name: assigned.classByUser.get(attempt.user_id) || '-',
             violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
+            connection_status: attempt.status === 'in_progress' &&
+                (!attempt.last_seen_at || serverNow - new Date(attempt.last_seen_at).getTime() > 45_000)
+                ? 'offline'
+                : attempt.status === 'in_progress' ? 'online' : 'inactive',
         }));
 
         for (const [userId, profile] of assigned.profileByUser) {
@@ -126,11 +133,13 @@ export class ExamMonitoringService {
                 finished_at: null,
                 tab_switch_count: 0,
                 warning_count: 0,
+                last_seen_at: null,
                 exam_id: examId,
                 user_id: userId,
                 profiles: profile,
                 kelas_name: assigned.classByUser.get(userId) || '-',
                 violation_breakdown: { pindah_tab: 0, close_tab: 0, lainnya: 0 },
+                connection_status: 'inactive',
             });
         }
 

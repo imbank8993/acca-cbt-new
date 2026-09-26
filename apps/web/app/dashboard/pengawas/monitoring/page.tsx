@@ -26,7 +26,7 @@ import {
     getRecentViolationsAction,
     type ViolationEvent
 } from '@/lib/api/proctor';
-import { resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
 import { useAutoRefresh, REFRESH_INTERVAL } from '@/hooks/useAutoRefresh';
 import { getSessionUser } from '@/lib/session';
 
@@ -100,14 +100,17 @@ function MonitoringContent() {
     };
 
     const handleReset = async (attemptId: string, studentName: string) => {
-        if (!confirm(`Konfirmasi reset ujian untuk siswa "${studentName}"? Siswa dapat melanjutkan pengerjaan.`)) {
+        const reason = promptRecoveryReason(studentName);
+        if (!reason) return;
+        if (!confirm(`Konfirmasi pemulihan ujian untuk siswa "${studentName}"?\n\nAlasan: ${reason}`)) {
             return;
         }
 
         setResettingId(attemptId);
         try {
-            const res = await resetExamAttempt(attemptId);
+            const res = await resetExamAttempt(attemptId, reason);
             if (res.success) {
+                alert(`${res.serverAnswerCount} jawaban sudah ada di server. Siswa dapat melanjutkan pemulihan.`);
                 await loadData(true);
             } else {
                 alert(`Gagal mereset ujian: ${res.error}`);
@@ -353,9 +356,9 @@ function MonitoringContent() {
                                                     </td>
                                                     <td className="py-3 px-3">
                                                         {isStarted && (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                                                Mengerjakan
+                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${attempt.connection_status === 'offline' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${attempt.connection_status === 'offline' ? 'bg-amber-500' : 'bg-blue-500 animate-pulse'}`} />
+                                                                {attempt.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan'}
                                                             </span>
                                                         )}
                                                         {isFinished && (

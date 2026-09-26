@@ -197,9 +197,13 @@ test('QA-02 / BUG-09: storage failure cannot precede or suppress server autosave
         source.indexOf('const handleAnswerSelect'),
         source.indexOf('const toggleDoubtful'),
     );
-    assert.match(handler, /try\s*{[\s\S]*localStorage\.setItem[\s\S]*}\s*catch\s*{/);
+    assert.match(handler, /void writeExamSnapshot\(att\.id/);
     assert.match(handler, /await saveAnswerAction\(/);
-    assert.ok(handler.indexOf('await saveAnswerAction(') > handler.indexOf('catch {'));
+    assert.ok(handler.indexOf('await saveAnswerAction(') > handler.indexOf('void writeExamSnapshot('));
+    assert.doesNotMatch(
+        handler.slice(0, handler.indexOf('await saveAnswerAction(')),
+        /await\s+writeExamSnapshot/,
+    );
 });
 
 test('QA-02: every P1 audit finding is linked to an existing regression test', () => {

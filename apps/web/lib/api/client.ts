@@ -16,13 +16,24 @@ export interface ApiFailure {
 
 export type ApiResult<T> = ({ success: true } & T) | ApiFailure;
 
+export interface ApiRequestOptions {
+    timeoutMs?: number;
+}
+
 async function request<T>(
     path: string,
     init: RequestInit = {},
+    options: ApiRequestOptions = {},
 ): Promise<ApiResult<T>> {
+    const controller = options.timeoutMs ? new AbortController() : null;
+    const timeout = controller
+        ? setTimeout(() => controller.abort(), options.timeoutMs)
+        : null;
+
     try {
         const response = await fetch(path, {
             ...init,
+            signal: controller?.signal ?? init.signal,
             headers: {
                 ...(init.body ? { 'Content-Type': 'application/json' } : {}),
                 ...((init.headers as Record<string, string>) || {}),
@@ -66,8 +77,12 @@ async function request<T>(
         // Termasuk saat perangkat kehilangan jaringan di tengah ujian.
         return {
             success: false,
-            error: (error as Error).message || 'Tidak dapat menghubungi server.',
+            error: controller?.signal.aborted
+                ? 'Server tidak merespons dalam batas waktu. Jawaban akan dicoba lagi.'
+                : ((error as Error).message || 'Tidak dapat menghubungi server.'),
         };
+    } finally {
+        if (timeout) clearTimeout(timeout);
     }
 }
 
@@ -79,6 +94,7 @@ export function apiSend<T>(
     path: string,
     body: unknown,
     method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
+    options: ApiRequestOptions = {},
 ): Promise<ApiResult<T>> {
-    return request<T>(path, { method, body: JSON.stringify(body) });
+    return request<T>(path, { method, body: JSON.stringify(body) }, options);
 }

@@ -813,7 +813,7 @@ export default function QuestionEditorModal({
 
                 {/* Editor */}
                 <main className="flex-1 overflow-y-visible md:overflow-y-auto bg-slate-50/50">
-                    <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-6 md:py-8 space-y-5">
+                    <div className="max-w-[210mm] mx-auto w-full px-3 sm:px-4 md:px-5 py-6 space-y-5">
                         {/* Card: Pertanyaan */}
                         <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
                             {/* Question header bar */}

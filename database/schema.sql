@@ -275,8 +275,9 @@ create table if not exists exam_attempts (
   tab_switch_count int default 0,
   warning_count int default 0,
   ip_address text,
-  device_fingerprint text,
-  created_at timestamptz default now()
+    device_fingerprint text,
+    last_seen_at timestamptz,
+    created_at timestamptz default now()
 );
 
 create table if not exists exam_attempt_questions (
@@ -310,6 +311,10 @@ create table if not exists attempt_security_logs (
   metadata jsonb,
   created_at timestamptz default now()
 );
+
+create unique index if not exists security_logs_client_event_unique
+  on attempt_security_logs(attempt_id, (metadata->>'client_event_id'))
+  where metadata ? 'client_event_id';
 
 create table if not exists proctoring_snapshots (
   id uuid primary key default gen_random_uuid(),
@@ -415,7 +420,9 @@ create index if not exists idx_org_members_org on organization_members(organizat
 create index if not exists idx_exam_org on exams(organization_id);
 create index if not exists idx_attempt_exam_user on exam_attempts(exam_id, user_id);
 create index if not exists idx_attempt_status on exam_attempts(status);
-create index if not exists idx_attempt_active on exam_attempts(exam_id) where status = 'in_progress';
+  create index if not exists idx_attempt_active on exam_attempts(exam_id) where status = 'in_progress';
+  create unique index if not exists exam_attempts_one_active_per_user_exam
+    on exam_attempts(exam_id, user_id) where status = 'in_progress';
 create index if not exists idx_answers_attempt on answers(attempt_id);
 create index if not exists idx_bank_questions_bank on bank_questions(bank_id);
 create index if not exists idx_bank_questions_difficulty on bank_questions(difficulty);

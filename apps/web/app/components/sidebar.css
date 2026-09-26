@@ -39,7 +39,7 @@
   inset: 0;
   background: rgba(15, 23, 42, 0.3);
   backdrop-filter: blur(4px);
-  z-index: 40;
+  z-index: 39;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -75,7 +75,7 @@
 
   transform: translateX(-100%);
   transition: var(--sidebar-transition);
-  z-index: 1001;
+  z-index: 40;
 
   /* Edge-to-edge style */
   border-radius: 0;
@@ -269,7 +269,7 @@
   html.dark .sidebar {
     width: var(--app-sidebar-mobile-w) !important;
     max-width: var(--app-sidebar-mobile-w) !important;
-    z-index: 90 !important;
+    z-index: 40 !important;
     box-shadow: none !important;
     border: none !important;
     border-right: none !important;
@@ -654,7 +654,7 @@
   border-radius: 12px;
   box-shadow: 12px 0 45px rgba(0, 56, 168, 0.12);
   padding: 6px;
-  z-index: 10000;
+  z-index: 45;
   animation: tooltipFadeIn .25s ease-out;
   pointer-events: all;
   backdrop-filter: blur(25px);

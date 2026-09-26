@@ -173,6 +173,7 @@ export function saveAnswerAction(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
         { ...data, deviceId: getDeviceId() },
         'PUT',
+        { timeoutMs: 15_000 },
     );
 }
 
@@ -183,6 +184,7 @@ export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPa
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers`,
         { answers, deviceId: getDeviceId() },
         'PUT',
+        { timeoutMs: 30_000 },
     );
 }
 
@@ -217,6 +219,8 @@ export async function submitExamAction(
     const res = await apiSend<{ score: number; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}/submit`,
         { answers: studentAnswers, assignmentData, attemptId, deviceId: getDeviceId() },
+        'POST',
+        { timeoutMs: 30_000 },
     );
 
     return res.success

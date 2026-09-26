@@ -43,7 +43,7 @@
     padding: 0 24px;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
-    z-index: 500;
+    z-index: 30;
 
     transition:
       left .35s cubic-bezier(0.4, 0, 0.2, 1),
@@ -672,7 +672,7 @@ html.dark .header-collapse-toggle:hover {
     position: fixed !important;
     top: 0 !important;
     height: calc(var(--app-header-h, 56px) + env(safe-area-inset-top)) !important;
-    z-index: 1001;
+    z-index: 35;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -878,7 +878,7 @@ html.dark .header-collapse-toggle:hover {
     box-shadow: 0 8px 28px rgba(17, 46, 89, 0.08) !important;
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
-    z-index: 1001;
+    z-index: 35;
     box-sizing: border-box !important;
   }
 
