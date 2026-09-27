@@ -246,7 +246,7 @@ export default function SiswaClassesPage() {
                                     Keluar dari Kelas?
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                                    Anda akan keluar dari kelas tambahan <strong className="text-slate-700 dark:text-slate-200 font-semibold">"{classToLeave.name}"</strong>. Ujian yang ditugaskan ke kelas ini tidak akan muncul lagi di daftar ujian Anda.
+                                    Anda akan keluar dari kelas tambahan <strong className="text-slate-700 dark:text-slate-200 font-semibold">&quot;{classToLeave.name}&quot;</strong>. Ujian yang ditugaskan ke kelas ini tidak akan muncul lagi di daftar ujian Anda.
                                 </p>
                             </div>
 
