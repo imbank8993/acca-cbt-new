@@ -23,6 +23,8 @@ export interface AuthUser {
   bestRole: DashboardRole;
   /** Sekolah tunggal instalasi, ditentukan server dari database. */
   organizationId: string;
+  /** Nama sekolah tunggal untuk tampilan; tidak dipakai sebagai scope otorisasi. */
+  organizationName: string;
   isPlatformAdmin: boolean;
 }
 

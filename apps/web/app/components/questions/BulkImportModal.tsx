@@ -27,7 +27,6 @@ interface BulkImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     bankId: string;
-    orgId: string;
     userId: string;
     onImportComplete: () => Promise<void>;
 }
@@ -52,7 +51,6 @@ export default function BulkImportModal({
     isOpen,
     onClose,
     bankId,
-    orgId,
     userId,
     onImportComplete
 }: BulkImportModalProps) {
@@ -113,7 +111,7 @@ export default function BulkImportModal({
         } catch (err) {
             console.error('Failed to load banks:', err);
         }
-    }, [allBanks.length, orgId, bankId]);
+    }, [allBanks.length, bankId]);
 
     useEffect(() => {
         if (isOpen && importTab === 'bank') {
@@ -202,7 +200,7 @@ export default function BulkImportModal({
             console.error('Cross-import error:', error);
             setImportError(error?.message || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [selectedCrossQuestions, sourceBankQuestions, bankId, orgId, onImportComplete, handleClose]);
+    }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose]);
 
     // ── File import handlers ───────────────────────────────────────────────────
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -329,7 +327,7 @@ export default function BulkImportModal({
             console.error('Import error:', error);
             setImportError(error?.message || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [editableQuestions, selectedQuestions, parseResult, bankId, orgId, onImportComplete, handleClose]);
+    }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose]);
 
     const toggleQuestionSelection = useCallback((index: number) => {
         setSelectedQuestions(prev => {

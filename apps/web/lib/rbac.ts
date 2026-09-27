@@ -1,4 +1,3 @@
-import { getRoleContexts } from './api/account';
 import { getSessionUser } from './session';
 
 export type DashboardRole = 'Siswa' | 'Proktor' | 'Guru' | 'Pengawas' | 'Admin' | 'Superadmin' | 'None';
@@ -219,7 +218,7 @@ function isRoleQualified(roles: ResolvedUserRoles, role: DashboardRole): boolean
 
 /**
  * Check whether a user is qualified for a given role based on a
- * `UserRoleContext[]` list (the output of `getUserRolesWithOrg`).
+ * `UserRoleContext[]` list derived from the verified session.
  * Used by the dashboard layout to decide if a URL path is reachable
  * for the current user.
  *
@@ -276,22 +275,22 @@ export type Role = DashboardRole;
 
 export interface UserRoleContext {
     role: Role;
-    orgId: string;
-    orgName: string;
 }
 
 /**
- * Seluruh peran pengguna pada sekolah tunggal instalasi ini.
- *
- * Perhitungannya kini di NestJS. Versi lama menyusunnya di BROWSER dari
- * `platform_admins`, `cbt_organization_members`, dan metadata pengguna — jalur
- * terakhir di berkas ini yang menyentuh basis data langsung, dan satu-satunya
- * yang menahan seluruh modul rbac tetap bergantung pada Supabase.
- *
- * `userId` tidak lagi diterima: peran selalu untuk pemilik sesi.
+ * Seluruh peran yang sudah dihitung backend pada `/auth/me`.
+ * Tidak ada query kedua dan tidak ada lagi konteks sekolah per peran.
  */
-export async function getUserRolesWithOrg(): Promise<UserRoleContext[]> {
-    return getRoleContexts();
+export function getUserRoleContexts(roles: ResolvedUserRoles): UserRoleContext[] {
+    const ordered: Array<[DashboardRole, keyof ResolvedUserRoles]> = [
+        ['Superadmin', 'superadmin'],
+        ['Admin', 'admin'],
+        ['Proktor', 'proktor'],
+        ['Guru', 'guru'],
+        ['Pengawas', 'pengawas'],
+        ['Siswa', 'siswa'],
+    ];
+    return ordered.filter(([, key]) => roles[key]).map(([role]) => ({ role }));
 }
 
 /**

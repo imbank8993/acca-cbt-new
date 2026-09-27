@@ -16,6 +16,10 @@ import {
 const DATE_EXAMPLE = '2026-06-01';
 
 export class CreatePASPeriodDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ example: 'PAS Ganjil 2025/2026' })
     @IsString()
     @IsNotEmpty({ message: 'Nama periode wajib diisi.' })
@@ -54,6 +58,10 @@ export class LockPASPeriodDto {
 }
 
 export class CreatePASScheduleDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty()
     @IsUUID('4', { message: 'pas_period_id tidak valid' })
     pas_period_id!: string;
@@ -102,6 +110,10 @@ export class GeneratePASExamsDto {
 }
 
 export class CreatePASSessionDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ example: 'Sesi 1' })
     @IsString()
     @IsNotEmpty({ message: 'Nama sesi wajib diisi.' })
@@ -119,6 +131,10 @@ export class CreatePASSessionDto {
 }
 
 export class CreatePASRoomDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ example: 'Lab Komputer 1' })
     @IsString()
     @IsNotEmpty({ message: 'Nama ruang wajib diisi.' })

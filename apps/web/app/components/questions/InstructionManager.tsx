@@ -11,10 +11,9 @@ import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
 
 interface InstructionManagerProps {
     bankId: string;
-    orgId: string;
 }
 
-export default function InstructionManager({ bankId, orgId }: InstructionManagerProps) {
+export default function InstructionManager({ bankId }: InstructionManagerProps) {
     const [instructions, setInstructions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { deriveRequestUuid, insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /**
@@ -37,9 +38,10 @@ export class BankContentService {
         user: AuthUser,
         bankId: string,
         data: Record<string, unknown>,
+        clientRequestId: string,
     ) {
         const organizationId = await this.authz.assertBankAccess(user, bankId);
-        return this.insert('cbt_question_kisi_kisi', {
+        return this.insert('cbt_question_kisi_kisi', bankId, clientRequestId, {
             organization_id: organizationId,
             bank_id: bankId,
             ...data,
@@ -63,9 +65,11 @@ export class BankContentService {
         return this.listByBank('cbt_question_stimuli', bankId);
     }
 
-    async createStimulus(user: AuthUser, bankId: string, title: string, content: string) {
+    async createStimulus(
+        user: AuthUser, bankId: string, title: string, content: string, clientRequestId: string,
+    ) {
         const organizationId = await this.authz.assertBankAccess(user, bankId);
-        return this.insert('cbt_question_stimuli', {
+        return this.insert('cbt_question_stimuli', bankId, clientRequestId, {
             organization_id: organizationId,
             bank_id: bankId,
             title,
@@ -90,7 +94,7 @@ export class BankContentService {
      * Baris tanpa konten dilewati dan dilaporkan, bukan membatalkan seluruh
      * impor — satu baris kosong di tengah berkas adalah hal yang biasa terjadi.
      */
-    async importStimuli(user: AuthUser, bankId: string, rows: ImportRow[]) {
+    async importStimuli(user: AuthUser, bankId: string, rows: ImportRow[], clientRequestId: string) {
         const organizationId = await this.authz.assertBankAccess(user, bankId);
 
         const { inserts, errors } = this.prepareImport(rows, (title, content) => ({
@@ -100,7 +104,9 @@ export class BankContentService {
             content,
         }));
 
-        return this.runImport('cbt_question_stimuli', inserts, errors, 'stimulus');
+        return this.runImport(
+            'cbt_question_stimuli', bankId, inserts, errors, 'stimulus', clientRequestId,
+        );
     }
 
     // ── Petunjuk ─────────────────────────────────────────────────────────────
@@ -110,9 +116,11 @@ export class BankContentService {
         return this.listByBank('cbt_question_instructions', bankId);
     }
 
-    async createInstruction(user: AuthUser, bankId: string, title: string, content: string) {
+    async createInstruction(
+        user: AuthUser, bankId: string, title: string, content: string, clientRequestId: string,
+    ) {
         await this.authz.assertBankAccess(user, bankId);
-        return this.insert('cbt_question_instructions', {
+        return this.insert('cbt_question_instructions', bankId, clientRequestId, {
             bank_id: bankId,
             title: title || null,
             content,
@@ -133,7 +141,9 @@ export class BankContentService {
         return this.remove('cbt_question_instructions', id);
     }
 
-    async importInstructions(user: AuthUser, bankId: string, rows: ImportRow[]) {
+    async importInstructions(
+        user: AuthUser, bankId: string, rows: ImportRow[], clientRequestId: string,
+    ) {
         await this.authz.assertBankAccess(user, bankId);
 
         const { inserts, errors } = this.prepareImport(rows, (title, content) => ({
@@ -142,7 +152,9 @@ export class BankContentService {
             content,
         }));
 
-        return this.runImport('cbt_question_instructions', inserts, errors, 'petunjuk');
+        return this.runImport(
+            'cbt_question_instructions', bankId, inserts, errors, 'petunjuk', clientRequestId,
+        );
     }
 
     // ── Dimensi ──────────────────────────────────────────────────────────────
@@ -152,9 +164,14 @@ export class BankContentService {
         return this.listByBank('cbt_question_dimensions', bankId);
     }
 
-    async createDimension(user: AuthUser, bankId: string, name: string, description: string) {
+    async createDimension(
+        user: AuthUser, bankId: string, name: string, description: string, clientRequestId: string,
+    ) {
         await this.authz.assertBankAccess(user, bankId);
-        return this.insert('cbt_question_dimensions', { bank_id: bankId, name, description });
+        return this.insert(
+            'cbt_question_dimensions', bankId, clientRequestId,
+            { bank_id: bankId, name, description },
+        );
     }
 
     async updateDimension(user: AuthUser, id: string, name: string, description: string) {
@@ -185,10 +202,15 @@ export class BankContentService {
         return (data as any[]) || [];
     }
 
-    async createInterpretation(user: AuthUser, dimensionId: string, data: InterpretationInput) {
+    async createInterpretation(
+        user: AuthUser,
+        dimensionId: string,
+        data: InterpretationInput,
+        clientRequestId: string,
+    ) {
         await this.authz.assertBankAccessByChild(user, 'cbt_question_dimensions', dimensionId);
 
-        return this.insert('cbt_dimension_interpretations', {
+        return this.insert('cbt_dimension_interpretations', dimensionId, clientRequestId, {
             dimension_id: dimensionId,
             min_score: data.minScore,
             max_score: data.maxScore,
@@ -249,10 +271,22 @@ export class BankContentService {
         return (data as any[]) || [];
     }
 
-    private async insert(table: string, payload: Record<string, unknown>) {
-        const { data, error } = await this.db.from(table).insert(payload).select().single();
-        if (error) throw new BadRequestException(error.message);
-        return { id: (data as { id: string }).id, data };
+    private async insert(
+        table: string,
+        scopeId: string,
+        clientRequestId: string,
+        payload: Record<string, unknown>,
+    ) {
+        const scopeColumn = table === 'cbt_dimension_interpretations' ? 'dimension_id' : 'bank_id';
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table,
+            scope: { column: scopeColumn, value: scopeId },
+            clientRequestId,
+            fingerprint: payload,
+            payload,
+            select: 'id',
+        });
+        return { id: data.id, data };
     }
 
     /**
@@ -301,9 +335,11 @@ export class BankContentService {
 
     private async runImport(
         table: string,
+        bankId: string,
         inserts: Record<string, unknown>[],
         errors: string[],
         label: string,
+        clientRequestId: string,
     ) {
         if (inserts.length === 0) {
             return {
@@ -315,8 +351,22 @@ export class BankContentService {
             };
         }
 
-        const { error } = await this.db.from(table).insert(inserts);
-        if (error) throw new BadRequestException(`Gagal impor: ${error.message}`);
+        await this.db.transaction(async db => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+                `content-import:${table}:${bankId}:${clientRequestId}`,
+            );
+            for (const [index, payload] of inserts.entries()) {
+                await insertIdempotently(db, {
+                    table,
+                    scope: { column: 'bank_id', value: bankId },
+                    clientRequestId: deriveRequestUuid(clientRequestId, index),
+                    fingerprint: payload,
+                    payload,
+                    select: 'id',
+                });
+            }
+        });
 
         return { imported: inserts.length, errors };
     }

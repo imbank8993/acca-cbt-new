@@ -7,6 +7,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
+import { insertIdempotently } from '../common/idempotent-create';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadExamQuestions } from '../common/exam-question-sources';
@@ -35,19 +36,6 @@ export class TeachersService {
         private readonly authUsers: AuthUsersRepository,
     ) {}
 
-    /** Organisasi tempat pemanggil terdaftar. */
-    async organization(user: AuthUser) {
-        const { data: member } = await this.db
-            .from('cbt_organization_members')
-            .select('organization_id, organizations:cbt_organizations(name)')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-        if (!member) return null;
-        const row = member as { organization_id: string; organizations?: { name?: string } };
-        return { id: row.organization_id, name: row.organizations?.name ?? null };
-    }
-
     /** Kelas tambahan yang dibuat pemanggil sendiri. */
     async listClasses(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgStaff(user, organizationId);
@@ -71,28 +59,25 @@ export class TeachersService {
         }));
     }
 
-    async createClass(user: AuthUser, organizationId: string, name: string) {
+    async createClass(user: AuthUser, organizationId: string, name: string, clientRequestId: string) {
         await this.authz.assertOrgStaff(user, organizationId);
 
         // Kode gabung 6 karakter. Tabrakan tidak dicegah di sini — batasan unik
         // di database yang menolaknya, dan pemanggil diminta mencoba lagi.
         const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-        const { data, error } = await this.db
-            .from('cbt_additional_classes')
-            .insert({
+        const data = await insertIdempotently<any>(this.db, {
+            table: 'cbt_additional_classes',
+            organizationId,
+            clientRequestId,
+            fingerprint: { name },
+            payload: {
                 organization_id: organizationId,
                 name,
                 join_code: joinCode,
                 created_by: user.id,
-            })
-            .select()
-            .single();
-
-        if (error) {
-            this.logger.error(`Gagal membuat kelas: ${error.message}`);
-            throw new InternalServerErrorException('Gagal membuat kelas.');
-        }
+            },
+        });
 
         return { ...(data as object), type: 'tambahan' };
     }

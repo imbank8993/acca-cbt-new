@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { insertIdempotently } from '../common/idempotent-create';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
 
 /**
@@ -91,9 +92,13 @@ export class PasService {
             throw new BadRequestException('Tanggal mulai harus sebelum tanggal selesai.');
         }
 
-        const { data, error } = await this.db
-            .from('cbt_pas_periods')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_pas_periods',
+            organizationId,
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 organization_id: organizationId,
                 name: dto.name,
                 type: dto.type || 'pas',
@@ -103,13 +108,10 @@ export class PasService {
                 end_date: dto.end_date,
                 created_by: user.id,
                 is_locked: false,
-            })
-            .select()
-            .single();
+            },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async setPeriodLock(user: AuthUser, periodId: string, lock: boolean) {

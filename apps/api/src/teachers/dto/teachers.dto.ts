@@ -6,6 +6,10 @@ export class CreateClassDto {
     @IsString()
     @IsNotEmpty({ message: 'Nama kelas wajib diisi' })
     name!: string;
+
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
 }
 
 export class AddStudentDto {

@@ -583,13 +583,13 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-6 print:hidden">
                 {activeTab === 'stimuli' ? (
-                    org && <StimulusManager bankId={bankId} orgId={org.id} />
+                    <StimulusManager bankId={bankId} />
                 ) : activeTab === 'instructions' ? (
-                    org && <InstructionManager bankId={bankId} orgId={org.id} />
+                    <InstructionManager bankId={bankId} />
                 ) : activeTab === 'dimensions' ? (
-                    org && <DimensionManager bankId={bankId} orgId={org.id} />
+                    <DimensionManager bankId={bankId} />
                 ) : activeTab === 'kisikisi' ? (
-                    org && <KisiKisiTab bankId={bankId} orgId={org.id} />
+                    <KisiKisiTab bankId={bankId} />
                 ) : (
                     <>
                         {/* Stats */}
@@ -1080,7 +1080,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 bankId={bankId}
-                orgId={org?.id || ''}
                 userId={userId}
                 onImportComplete={loadData}
             />

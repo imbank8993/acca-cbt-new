@@ -9,6 +9,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
 import { chunk } from '../common/chunk';
+import { deriveRequestUuid, insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Sisipan anggota kelas dipecah agar satu pernyataan tidak menjadi raksasa. */
@@ -212,29 +213,32 @@ export class ClassesService {
     async create(
         user: AuthUser,
         organizationId: string,
-        input: { name: string; type: 'reguler' | 'tambahan'; schoolYear?: string },
+        input: { name: string; type: 'reguler' | 'tambahan'; schoolYear?: string; clientRequestId: string },
     ) {
         await this.authz.assertProktor(user, organizationId);
 
         if (input.type === 'tambahan') {
-            const { data, error } = await this.db
-                .from('cbt_additional_classes')
-                .insert({
+            const data = await insertIdempotently<any>(this.db, {
+                table: 'cbt_additional_classes',
+                organizationId,
+                clientRequestId: input.clientRequestId,
+                fingerprint: input,
+                payload: {
                     organization_id: organizationId,
                     name: input.name,
                     join_code: generateJoinCode(),
                     created_by: user.id,
-                })
-                .select()
-                .single();
-
-            if (error) throw new BadRequestException(error.message);
+                },
+            });
             return { ...(data as object), type: 'tambahan' };
         }
 
-        const { data, error } = await this.db
-            .from('cbt_classes')
-            .insert({
+        const data = await insertIdempotently<any>(this.db, {
+            table: 'cbt_classes',
+            organizationId,
+            clientRequestId: input.clientRequestId,
+            fingerprint: input,
+            payload: {
                 organization_id: organizationId,
                 name: input.name,
                 type: input.type,
@@ -242,11 +246,8 @@ export class ClassesService {
                 // Kelas manual selalu Reguler; program lain datang dari
                 // sinkronisasi master data.
                 program: 'Reguler',
-            })
-            .select()
-            .single();
-
-        if (error) throw new BadRequestException(error.message);
+            },
+        });
         return { ...(data as object), type: 'reguler' };
     }
 
@@ -261,15 +262,21 @@ export class ClassesService {
         user: AuthUser,
         organizationId: string,
         classes: Array<{ name: string; type: 'reguler' | 'tambahan'; schoolYear?: string }>,
+        clientRequestId: string,
     ) {
         await this.authz.assertProktor(user, organizationId);
 
         let successCount = 0;
         const errors: Array<{ name: string; error: string }> = [];
 
-        for (const cls of classes) {
+        for (const [index, cls] of classes.entries()) {
             try {
-                await this.create(user, organizationId, cls);
+                await this.create(user, organizationId, {
+                    ...cls,
+                    // Stabil untuk kombinasi request dan posisi baris. Retry
+                    // batch parsial melewati baris yang sudah berhasil.
+                    clientRequestId: deriveRequestUuid(clientRequestId, index),
+                });
                 successCount++;
             } catch (err) {
                 errors.push({ name: cls.name, error: (err as Error).message });

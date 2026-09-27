@@ -1,5 +1,5 @@
 import type { PASPeriod } from '@/app/types/pas';
-import { apiGet, apiSend } from './client';
+import { apiCreate, apiGet, apiSend } from './client';
 
 /**
  * Penilaian Akhir Semester / Tahun (PAS/PAT).
@@ -41,7 +41,7 @@ export function createPASPeriodAction(
         end_date: string;
     },
 ) {
-    return apiSend<{ id: string }>('/api/pas/periods', input);
+    return apiCreate<{ id: string }>('/api/pas/periods', input);
 }
 
 export function lockPASPeriodAction(periodId: string, lock: boolean) {
@@ -101,7 +101,7 @@ export function createPASSessionAction(
     startTime: string,
     endTime: string,
 ) {
-    return apiSend<{ id: string }>(`/api/pas/periods/${encodeURIComponent(periodId)}/sessions`, {
+    return apiCreate<{ id: string }>(`/api/pas/periods/${encodeURIComponent(periodId)}/sessions`, {
         name,
         start_time: startTime,
         end_time: endTime,
@@ -128,7 +128,7 @@ export function addPASScheduleAction(input: {
     duration_override?: number;
     room?: string;
 }) {
-    return apiSend<{ id: string }>('/api/pas/schedules', input);
+    return apiCreate<{ id: string }>('/api/pas/schedules', input);
 }
 
 export function removePASScheduleAction(scheduleId: string) {
@@ -171,7 +171,7 @@ export async function listPASRooms(periodId: string): Promise<any[]> {
 }
 
 export function createPASRoomAction(periodId: string, name: string, capacity: number) {
-    return apiSend<{ id: string }>(`/api/pas/periods/${encodeURIComponent(periodId)}/rooms`, {
+    return apiCreate<{ id: string }>(`/api/pas/periods/${encodeURIComponent(periodId)}/rooms`, {
         name,
         capacity,
     });

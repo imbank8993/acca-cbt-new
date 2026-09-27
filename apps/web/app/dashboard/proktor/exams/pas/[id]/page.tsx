@@ -6,7 +6,6 @@ import {
     Calendar, Clock, BookOpen, Users, Lock,
     AlertTriangle, Settings, Zap
 } from 'lucide-react';
-import { getProctorOrganization } from '@/lib/api/proctor';
 import {
     getPASPeriod,
     listOrganizationClasses,
@@ -36,7 +35,6 @@ export default function ProctorPASDetailPage() {
     const [subjects, setSubjects] = useMemoryState<any[]>('proktor_exams_pas__id__subjects', []);
     const [qBanks, setQBanks] = useMemoryState<any[]>('proktor_exams_pas__id__qBanks', []);
     const [sessions, setSessions] = useMemoryState<any[]>('proktor_exams_pas__id__sessions', []);
-    const [orgId, setOrgId] = useMemoryState<string>('proktor_exams_pas__id__orgId', '');
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,9 +63,7 @@ export default function ProctorPASDetailPage() {
     const loadData = async () => {
         const authUser = await getSessionUser();
         if (authUser) {
-            const orgData = await getProctorOrganization();
-            if (orgData) {
-                const [periodData, bankList, classList, subjectList, sessionList] = await Promise.all([
+            const [periodData, bankList, classList, subjectList, sessionList] = await Promise.all([
                     getPASPeriod(periodId),
                     listQuestionBanks(true),
                     listOrganizationClasses({ activeYearOnly: true }),
@@ -79,8 +75,6 @@ export default function ProctorPASDetailPage() {
                 setClasses(classList || []);
                 setSubjects(subjectList || []);
                 setSessions(sessionList || []);
-                setOrgId(orgData.id);
-            }
         }
         setIsLoading(false);
     };
@@ -553,10 +547,9 @@ export default function ProctorPASDetailPage() {
 
             {/* ─── ROOM & SESSION MANAGEMENT MODAL ─── */}
             <AnimatePresence>
-                {isRoomManagementOpen && orgId && (
+                {isRoomManagementOpen && (
                     <RoomManagementModal
                         period={period}
-                        orgId={orgId}
                         onClose={() => {
                             setIsRoomManagementOpen(false);
                             loadData(); // Reload sessions in case they changed

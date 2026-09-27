@@ -14,6 +14,7 @@ export interface UserRoleContext {
   bestRole: DashboardRole;
   roleNames: string[];
   organizationId: string;
+  organizationName: string;
   isPlatformAdmin: boolean;
 }
 
@@ -146,6 +147,7 @@ export class CbtRolesService {
       bestRole: pickBestRole(out),
       roleNames: [...new Set(roleNames)],
       organizationId,
+      organizationName: school.name || 'Sekolah',
       isPlatformAdmin,
     };
   }

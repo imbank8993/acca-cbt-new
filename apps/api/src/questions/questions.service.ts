@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
+import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -126,24 +127,44 @@ export class QuestionsService {
                 dimension_id: dto.dimensionId || null,
                 kisi_kisi_id: dto.kisi_kisi_id || null,
             };
-        const questionId = await this.db.transaction(async db => {
-            const mutation = dto.id
-                ? db.from('cbt_bank_questions').update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
-                : db.from('cbt_bank_questions').insert(payload);
-            const { data, error } = await mutation
-                .select('id')
-                .single();
+        const saved = await this.db.transaction(async db => {
+            let questionId: string;
 
-            if (error) throw new BadRequestException(error.message);
-
-            const questionId = (data as { id: string }).id;
+            if (dto.id) {
+                const { data, error } = await db.from('cbt_bank_questions')
+                    .update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
+                    .select('id').single();
+                if (error) throw new BadRequestException(error.message);
+                questionId = (data as { id: string }).id;
+            } else {
+                // Constraint error di dalam transaksi PostgreSQL membuat
+                // transaksi aborted. Advisory lock menyerialkan request dengan
+                // kunci sama sehingga retry kedua menemukan baris lama sebelum
+                // mencoba insert.
+                await db.raw(
+                    'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+                    `question:${dto.bankId}:${dto.clientRequestId}`,
+                );
+                const inserted = await insertIdempotentlyWithStatus<{ id: string }>(db, {
+                    table: 'cbt_bank_questions',
+                    scope: { column: 'bank_id', value: dto.bankId },
+                    clientRequestId: dto.clientRequestId!,
+                    fingerprint: dto,
+                    payload,
+                    select: 'id',
+                });
+                questionId = inserted.data.id;
+                if (inserted.replayed) return { questionId, replayed: true };
+            }
 
             if (dto.options !== undefined) {
                 await this.replaceOptions(questionId, dto.options, db);
             }
             await this.touchBank(dto.bankId, db);
-            return questionId;
+            return { questionId, replayed: false };
         });
+
+        const questionId = saved.questionId;
 
         // Hanya untuk soal yang DIUBAH. Soal baru belum pernah dijawab siapa pun,
         // jadi tidak ada yang perlu dinilai ulang.

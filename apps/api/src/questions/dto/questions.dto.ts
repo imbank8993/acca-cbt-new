@@ -12,6 +12,7 @@ import {
     IsOptional,
     IsString,
     IsUUID,
+    ValidateIf,
     ValidateNested,
 } from 'class-validator';
 
@@ -68,6 +69,11 @@ export class SaveQuestionDto {
     @IsOptional()
     @IsUUID('4', { message: 'id soal tidak valid' })
     id?: string;
+
+    @ApiPropertyOptional({ description: 'Wajib untuk soal baru; mencegah duplikasi saat retry.' })
+    @ValidateIf((dto: SaveQuestionDto) => !dto.id)
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId?: string;
 
     @ApiProperty()
     @IsUUID('4', { message: 'bankId tidak valid' })
@@ -181,7 +187,11 @@ export class SaveBankDto {
     folderId?: string | null;
 }
 
-export class CreateBankDto extends SaveBankDto {}
+export class CreateBankDto extends SaveBankDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+}
 
 export class PublishBankDto {
     @ApiProperty()
@@ -209,9 +219,17 @@ export class SaveFolderDto {
     name!: string;
 }
 
-export class CreateFolderDto extends SaveFolderDto {}
+export class CreateFolderDto extends SaveFolderDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+}
 
 export class CreateLabelDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty()
     @IsString()
     @IsNotEmpty({ message: 'Nama label wajib diisi.' })
@@ -250,6 +268,12 @@ export class KisiKisiDto {
     @IsOptional()
     @IsString()
     level_kognitif?: string;
+}
+
+export class CreateKisiKisiDto extends KisiKisiDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
 }
 
 export class UpdateKisiKisiDto {
@@ -291,6 +315,12 @@ export class TitledContentDto {
     content!: string;
 }
 
+export class CreateTitledContentDto extends TitledContentDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+}
+
 export class DimensionDto {
     @ApiProperty()
     @IsString()
@@ -301,6 +331,12 @@ export class DimensionDto {
     @IsOptional()
     @IsString()
     description?: string;
+}
+
+export class CreateDimensionDto extends DimensionDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
 }
 
 export class InterpretationDto {
@@ -322,6 +358,10 @@ export class InterpretationDto {
 }
 
 export class CreateInterpretationDto extends InterpretationDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty()
     @IsUUID('4', { message: 'dimensionId tidak valid' })
     dimensionId!: string;
@@ -345,6 +385,10 @@ export class ImportRowDto {
 }
 
 export class ImportRowsDto {
+    @ApiProperty({ description: 'UUID stabil untuk membuat retry impor aman.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ type: [ImportRowDto] })
     @IsArray()
     @ArrayNotEmpty({ message: 'Tidak ada baris untuk diimpor.' })

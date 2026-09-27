@@ -98,6 +98,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       resolved: context.resolved,
       bestRole: context.bestRole,
       organizationId: context.organizationId,
+      organizationName: context.organizationName,
       isPlatformAdmin: context.isPlatformAdmin,
     };
   }

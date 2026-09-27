@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
@@ -42,15 +43,16 @@ export class PasRoomsService {
     async createRoom(user: AuthUser, periodId: string, dto: CreatePASRoomDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const { data, error } = await this.db
-            .from('cbt_pas_rooms')
-            .insert({ pas_period_id: periodId, name: dto.name, capacity: dto.capacity })
-            .select('id')
-            .single();
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_pas_rooms',
+            scope: { column: 'pas_period_id', value: periodId },
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: { pas_period_id: periodId, name: dto.name, capacity: dto.capacity },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async removeRoom(user: AuthUser, roomId: string) {

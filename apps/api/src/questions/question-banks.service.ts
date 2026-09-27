@@ -3,12 +3,14 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
+import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Kode galat PostgreSQL untuk pelanggaran batasan unik. */
 const UNIQUE_VIOLATION = '23505';
 
 export interface BankInput {
+    clientRequestId?: string;
     title?: string;
     description?: string;
     subject?: string;
@@ -122,9 +124,13 @@ export class QuestionBanksService {
         const resolved = await this.resolveOrganizationId(user, organizationId);
         await this.assertFolderOrganization(input.folderId, resolved);
 
-        const { data, error } = await this.db
-            .from('cbt_question_banks')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_question_banks',
+            organizationId: resolved,
+            clientRequestId: input.clientRequestId!,
+            fingerprint: input,
+            select: 'id',
+            payload: {
                 organization_id: resolved,
                 // Kepemilikan adalah dasar seluruh pembatasan Guru, jadi
                 // pembuatnya selalu dari token.
@@ -138,13 +144,10 @@ export class QuestionBanksService {
                 image_url: input.imageUrl,
                 tags: input.tags || [],
                 folder_id: input.folderId || null,
-            })
-            .select('id')
-            .single();
+            },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async update(user: AuthUser, bankId: string, input: BankInput) {
@@ -267,18 +270,17 @@ export class QuestionBanksService {
         return (data as any[]) || [];
     }
 
-    async createFolder(user: AuthUser, organizationId: string, name: string) {
+    async createFolder(user: AuthUser, organizationId: string, name: string, clientRequestId: string) {
         const resolved = await this.resolveOrganizationId(user, organizationId);
 
-        const { data, error } = await this.db
-            .from('bank_folders')
-            .insert({ organization_id: resolved, created_by: user.id, name: name.trim() })
-            .select('id')
-            .single();
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'bank_folders', organizationId: resolved, clientRequestId,
+            fingerprint: { name }, select: 'id',
+            payload: { organization_id: resolved, created_by: user.id, name: name.trim() },
+            mapError: (error) => this.describeWriteError(error, 'Folder'),
+        });
 
-        if (error) throw this.describeWriteError(error, 'Folder');
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async updateFolder(user: AuthUser, folderId: string, name: string) {
@@ -321,22 +323,27 @@ export class QuestionBanksService {
         return (data as any[]) || [];
     }
 
-    async createLabel(user: AuthUser, organizationId: string, name: string, color: string) {
+    async createLabel(
+        user: AuthUser,
+        organizationId: string,
+        name: string,
+        color: string,
+        clientRequestId: string,
+    ) {
         const resolved = await this.resolveOrganizationId(user, organizationId);
 
-        const { data, error } = await this.db
-            .from('cbt_organization_labels')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_organization_labels', organizationId: resolved, clientRequestId,
+            fingerprint: { name, color }, select: 'id',
+            payload: {
                 organization_id: resolved,
                 name: name.trim(),
                 color: color || '#6366f1',
-            })
-            .select('id')
-            .single();
+            },
+            mapError: (error) => this.describeWriteError(error, 'Label'),
+        });
 
-        if (error) throw this.describeWriteError(error, 'Label');
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     // ── Pembantu ─────────────────────────────────────────────────────────────

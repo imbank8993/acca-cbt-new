@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
-import { SingleSchoolService } from '../auth/single-school.service';
+import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Format tahun ajaran yang diterima, mis. `2025/2026`. */
@@ -54,20 +54,7 @@ export class ProctorService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly authUsers: AuthUsersRepository,
-        private readonly schoolScope: SingleSchoolService,
     ) {}
-
-    /**
-     * Organisasi konteks untuk dasbor staf.
-     *
-     * Pemasangan ini SATU sekolah: ada tepat satu organisasi, dan peran staf
-     * berasal dari metadata pengguna, bukan dari keanggotaan
-     * `cbt_organization_members` yang nyaris tidak dipakai di sini. Karena itu
-     * yang dikembalikan selalu satu-satunya organisasi yang ada.
-     */
-    async getOrganization() {
-        return this.schoolScope.getSchool();
-    }
 
     /** Angka ringkas untuk kartu dasbor. */
     async getStats(user: AuthUser, organizationId: string) {
@@ -309,7 +296,7 @@ export class ProctorService {
     async createSchoolYear(
         user: AuthUser,
         organizationId: string,
-        input: { year: string; startDate?: string; endDate?: string },
+        input: { year: string; startDate?: string; endDate?: string; clientRequestId: string },
     ) {
         await this.authz.assertProktor(user, organizationId);
 
@@ -320,25 +307,24 @@ export class ProctorService {
             );
         }
 
-        const { data, error } = await this.db
-            .from('school_years')
-            .insert({
+        const data = await insertIdempotently<any>(this.db, {
+            table: 'school_years',
+            organizationId,
+            clientRequestId: input.clientRequestId,
+            fingerprint: input,
+            payload: {
                 organization_id: organizationId,
                 year,
                 start_date: input.startDate || null,
                 end_date: input.endDate || null,
                 is_active: false,
-            })
-            .select()
-            .single();
-
-        if (error) {
-            throw new BadRequestException(
+            },
+            mapError: (error) => new BadRequestException(
                 error.code === UNIQUE_VIOLATION
                     ? 'Tahun ajaran itu sudah ada.'
                     : error.message,
-            );
-        }
+            ),
+        });
 
         return { id: (data as { id: string }).id, data };
     }

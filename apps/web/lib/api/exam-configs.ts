@@ -2,7 +2,7 @@ import type {
     AddExamConfigBankInput,
     ExamConfig,
 } from '@/app/types/pas';
-import { apiGet, apiSend } from './client';
+import { apiCreate, apiGet, apiSend } from './client';
 
 /**
  * Konfigurasi ujian massal ("ujian folder") PAS/PAT.
@@ -37,7 +37,7 @@ export function createExamConfigAction(
         end_date?: string;
     },
 ) {
-    return apiSend<{ id: string }>('/api/exam-configs', input);
+    return apiCreate<{ id: string }>('/api/exam-configs', input);
 }
 
 export function deleteExamConfigAction(configId: string) {
@@ -56,7 +56,7 @@ export function lockExamConfigAction(configId: string, lock: boolean) {
 }
 
 export function addExamConfigBankAction(input: AddExamConfigBankInput) {
-    return apiSend<{ id: string }>('/api/exam-configs/banks', input);
+    return apiCreate<{ id: string }>('/api/exam-configs/banks', input);
 }
 
 export function removeExamConfigBankAction(bankRowId: string) {
@@ -75,7 +75,7 @@ export function addExamConfigExamAction(input: {
     scheduled_time?: string;
     window_end_time?: string;
 }) {
-    return apiSend<{ id: string }>('/api/exam-configs/schedules', input);
+    return apiCreate<{ id: string }>('/api/exam-configs/schedules', input);
 }
 
 export function removeExamConfigExamAction(scheduleId: string) {

@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { jwtVerify } from 'jose';
-import { ROLE_NAME_CANON, type AuthUser, type DashboardRole, type LoginResponse } from '@acca-cbt/shared';
+import { type AuthUser, type LoginResponse } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUsersRepository } from './auth-users.repository';
@@ -250,6 +250,7 @@ export class AuthService {
       resolved: context.resolved,
       bestRole: context.bestRole,
       organizationId: context.organizationId,
+      organizationName: context.organizationName,
       isPlatformAdmin: context.isPlatformAdmin,
     };
 
@@ -341,56 +342,4 @@ export class AuthService {
     return { profile: profile ?? null, organization: organization ?? null };
   }
 
-  /**
-   * Daftar peran pemanggil beserta sekolah tempat peran itu berlaku, untuk
-   * pemilih peran di bilah sisi.
-   *
-   * Dipindahkan dari `getUserRolesWithOrg` di `apps/web/lib/rbac.ts` — fungsi
-   * TERAKHIR yang menahan modul rbac tetap bergantung pada Supabase. Ia menunggu
-   * endpoint tersendiri karena butuh NAMA organisasi, satu-satunya keterangan
-   * yang tidak dibawa `AuthUser`.
-   *
-   * Perbedaan dengan versi lama: peran diambil untuk PEMILIK TOKEN. Versi lama
-   * menerima `userId` dari browser, jadi daftar peran dan sekolah orang lain
-   * bisa dibaca hanya dengan menukar UUID.
-   */
-  async listRoleContexts(user: AuthUser): Promise<RoleContext[]> {
-    const school = await this.schoolScope.getSchool();
-    const roleSet = new Set<DashboardRole>();
-    if (user.resolved?.superadmin === true) roleSet.add('Superadmin');
-    else if (user.isPlatformAdmin) roleSet.add('Admin');
-
-    const { data } = await this.db
-      .from('cbt_organization_members')
-      .select(
-        'member_roles:cbt_member_roles(roles:cbt_roles(name))',
-      )
-      .eq('user_id', user.id)
-      .eq('organization_id', school.id)
-      .eq('is_active', true);
-
-    for (const membership of (data as any[]) || []) {
-      for (const memberRole of membership.member_roles || []) {
-        const name = memberRole?.roles?.name;
-        if (!name) continue;
-        // Nama peran di basis data tidak konsisten kapitalisasinya; dikanonkan
-        // supaya cocok dengan DashboardRole.
-        const canonical = ROLE_NAME_CANON[String(name).toUpperCase()];
-        if (canonical) roleSet.add(canonical);
-      }
-    }
-
-    // Urutan tetap, dari yang paling berwenang, supaya pemilih peran tidak
-    // berubah-ubah susunannya antar pemuatan.
-    const ORDER: DashboardRole[] = ['Superadmin', 'Proktor', 'Admin', 'Guru', 'Pengawas', 'Siswa'];
-    return ORDER
-      .filter(role => roleSet.has(role))
-      .map(role => ({ role, orgId: school.id, orgName: school.name || 'Sekolah' }));
-  }
-}
-
-export interface RoleContext {
-  role: DashboardRole;
-  orgId: string;
-  orgName: string;
 }

@@ -116,6 +116,10 @@ class ExamFieldsDto {
 }
 
 export class CreateExamDto extends ExamFieldsDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsUUID('4', { message: 'subjectId tidak valid' })
@@ -197,11 +201,19 @@ export class ClassFieldsDto {
     schoolYear?: string;
 }
 
-export class CreateClassDto extends ClassFieldsDto {}
+export class CreateClassDto extends ClassFieldsDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+}
 
 export class UpdateClassDto extends ClassFieldsDto {}
 
 export class ImportClassesDto {
+    @ApiProperty({ description: 'UUID stabil untuk membuat retry impor aman.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ type: [ClassFieldsDto] })
     @IsArray()
     @ArrayNotEmpty({ message: 'Tidak ada kelas untuk diimpor.' })
@@ -213,6 +225,10 @@ export class ImportClassesDto {
 // ── Tahun ajaran ─────────────────────────────────────────────────────────────
 
 export class CreateSchoolYearDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ example: '2025/2026' })
     @IsString()
     @IsNotEmpty({ message: 'Tahun ajaran wajib diisi.' })

@@ -17,11 +17,10 @@ import { listOrganizationClasses, getStudentsByClassAction } from '@/lib/api/pro
 
 interface RoomManagementModalProps {
     period: any;
-    orgId: string;
     onClose: () => void;
 }
 
-export default function RoomManagementModal({ period, orgId, onClose }: RoomManagementModalProps) {
+export default function RoomManagementModal({ period, onClose }: RoomManagementModalProps) {
     const [rooms, setRooms] = useState<any[]>([]);
     const [teachers, setTeachers] = useState<any[]>([]);
     const [classes, setClasses] = useState<any[]>([]);
@@ -57,7 +56,7 @@ export default function RoomManagementModal({ period, orgId, onClose }: RoomMana
 
     useEffect(() => {
         loadData();
-    }, [period.id, orgId]);
+    }, [period.id]);
 
     const loadData = async () => {
         setIsLoading(true);

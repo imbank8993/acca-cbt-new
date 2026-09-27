@@ -1,4 +1,5 @@
-import { apiGet, apiSend } from './client';
+import { apiCreate, apiGet, apiSend } from './client';
+import { getSessionUser } from '../session';
 
 /**
  * Klien modul guru. Menggantikan `app/actions/guru.ts`.
@@ -29,10 +30,10 @@ export interface GuruStudent {
 
 /** Organisasi pemanggil. Tidak lagi menerima userId — identitas dari token. */
 export async function getGuruOrganization(): Promise<GuruOrganization | null> {
-    const res = await apiGet<{ organization: GuruOrganization | null }>(
-        '/api/teachers/organization',
-    );
-    return res.success ? res.organization : null;
+    const user = await getSessionUser();
+    return user
+        ? { id: user.organizationId, name: user.organizationName || 'Sekolah' }
+        : null;
 }
 
 export async function listGuruClasses(): Promise<any[]> {
@@ -43,7 +44,7 @@ export async function listGuruClasses(): Promise<any[]> {
 }
 
 export function createTambahanClass(name: string) {
-    return apiSend<{ data: any }>('/api/teachers/classes', { name });
+    return apiCreate<{ data: any }>('/api/teachers/classes', { name });
 }
 
 export function deleteTambahanClass(classId: string) {

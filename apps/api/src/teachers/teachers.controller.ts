@@ -27,12 +27,6 @@ import { TeachersService } from './teachers.service';
 export class TeachersController {
     constructor(private readonly teachers: TeachersService) {}
 
-    @Get('organization')
-    @ApiOperation({ summary: 'Organisasi tempat pemanggil terdaftar' })
-    async organization(@CurrentUser() user: AuthUser) {
-        return { organization: await this.teachers.organization(user) };
-    }
-
     @Get('classes')
     @ApiOperation({ summary: 'Kelas tambahan buatan pemanggil' })
     async listClasses(
@@ -49,7 +43,14 @@ export class TeachersController {
         @CurrentSchoolId() organizationId: string,
         @Body() dto: CreateClassDto,
     ) {
-        return { data: await this.teachers.createClass(user, organizationId, dto.name) };
+        return {
+            data: await this.teachers.createClass(
+                user,
+                organizationId,
+                dto.name,
+                dto.clientRequestId,
+            ),
+        };
     }
 
     @Delete('classes/:id')

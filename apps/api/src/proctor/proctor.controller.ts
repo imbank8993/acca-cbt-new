@@ -62,12 +62,6 @@ export class ProctorController {
 
     // ── Organisasi & identitas ───────────────────────────────────────────────
 
-    @Get('organization')
-    @ApiOperation({ summary: 'Organisasi konteks dasbor staf' })
-    async getOrganization() {
-        return { organization: await this.proctor.getOrganization() };
-    }
-
     @Get('stats')
     @ApiOperation({ summary: 'Angka ringkas untuk kartu dasbor' })
     async getStats(
@@ -182,7 +176,7 @@ export class ProctorController {
         @CurrentSchoolId() organizationId: string,
         @Body() dto: ImportClassesDto,
     ) {
-        return this.classes.importMany(user, organizationId, dto.classes);
+        return this.classes.importMany(user, organizationId, dto.classes, dto.clientRequestId);
     }
 
     @Post('classes/members')

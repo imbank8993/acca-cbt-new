@@ -18,7 +18,7 @@ import {
     isRoleQualifiedFromList,
     ROLE_TO_DASHBOARD_PATH,
     getRoleFromPath,
-    getUserRolesWithOrg,
+    getUserRoleContexts,
     type UserRoleContext,
     type DashboardRole,
 } from '@/lib/rbac';
@@ -38,7 +38,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [authChecked, setAuthChecked] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
     const [activeRoleCtx, setActiveRoleCtx] = useState<UserRoleContext | null>(null);
-    const [rolesWithOrg, setRolesWithOrg] = useState<UserRoleContext[]>([]);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState<HeaderUser | null>(null);
@@ -81,7 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     if (!activeRoleCtx) {
                         const fallbackRole = getActiveRoleFromStorage();
                         if (fallbackRole) {
-                            setActiveRoleCtx({ role: fallbackRole, orgId: '', orgName: '' });
+                            setActiveRoleCtx({ role: fallbackRole });
                             setAuthChecked(true);
                         } else {
                             setAuthError('Pemeriksaan sesi terlalu lama. Periksa koneksi lalu coba lagi.');
@@ -137,14 +136,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 const evictPrefixes = rolePrefixes.filter((p) => p !== keepPrefix);
                 clearMemoryCacheByPrefix(evictPrefixes);
 
-                let list: UserRoleContext[] = [];
-                try {
-                    list = await getUserRolesWithOrg();
-                } catch (listErr) {
-                    console.error('[DashboardLayout] getUserRolesWithOrg error:', listErr);
-                }
+                const list = getUserRoleContexts(user.resolved);
                 if (cancelled) return;
-                setRolesWithOrg(list);
 
                 if (
                     role !== 'None' &&
@@ -172,9 +165,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setActiveRoleInStorage(pathRole);
                 }
 
-                const candidates = list.filter(c => c.role === role);
+                const activeRole = pathRole && isRoleQualifiedFromList(list, pathRole)
+                    ? pathRole
+                    : role;
+                const candidates = list.filter(c => c.role === activeRole);
                 let active: UserRoleContext | undefined = candidates[0];
-                if (!active) active = list[0] ?? { role, orgId: '', orgName: '' };
+                if (!active) active = list[0] ?? { role: activeRole };
 
                 setActiveRoleCtx(active);
                 setAuthError(null);
@@ -272,7 +268,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 isOpen={mobileOpen}
                 setIsOpen={setMobileOpen}
                 activeRole={activeRoleCtx}
-                availableRoles={rolesWithOrg}
             />
             <Header
                 user={{

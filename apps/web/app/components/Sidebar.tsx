@@ -24,9 +24,7 @@ export interface SidebarProps {
     setIsCollapsed: (v: boolean) => void;
     isOpen?: boolean;
     setIsOpen?: (v: boolean) => void;
-    availableRoles?: Array<{ role: Role; orgId: string; orgName: string }>;
-    activeRole?: { role: Role; orgId: string; orgName: string } | null;
-    onRoleSwitch?: (ctx: { role: Role; orgId: string; orgName: string }) => void;
+    activeRole?: { role: Role } | null;
 }
 
 export default function Sidebar({
@@ -34,9 +32,7 @@ export default function Sidebar({
     setIsCollapsed,
     isOpen,
     setIsOpen,
-    availableRoles = [],
     activeRole,
-    onRoleSwitch,
 }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();

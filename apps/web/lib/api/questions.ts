@@ -1,4 +1,4 @@
-import { apiGet, apiSend } from './client';
+import { apiCreate, apiGet, apiIdempotentMutation, apiSend } from './client';
 
 /**
  * Bank soal beserta isinya. Menggantikan `app/actions/question.ts`.
@@ -65,7 +65,7 @@ export function createQuestionBank(
         folderId?: string | null;
     },
 ) {
-    return apiSend<{ id: string }>('/api/question-banks', input);
+    return apiCreate<{ id: string }>('/api/question-banks', input);
 }
 
 export function updateQuestionBankAction(
@@ -121,7 +121,7 @@ export async function listBankFolders(): Promise<any[]> {
 }
 
 export function createBankFolder(name: string) {
-    return apiSend<{ id: string }>('/api/question-banks/folders', { name });
+    return apiCreate<{ id: string }>('/api/question-banks/folders', { name });
 }
 
 export function updateBankFolder(folderId: string, name: string) {
@@ -160,7 +160,7 @@ export async function listOrganizationLabels(): Promise<any[]> {
 }
 
 export function createOrganizationLabel(name: string, color: string) {
-    return apiSend<{ id: string }>('/api/question-banks/labels', { name, color });
+    return apiCreate<{ id: string }>('/api/question-banks/labels', { name, color });
 }
 
 // ── Soal ─────────────────────────────────────────────────────────────────────
@@ -193,11 +193,13 @@ export async function saveQuestionAction(data: {
         metadata?: any;
     }[];
 }) {
-    const res = await apiSend<{ id: string; activeExams: { id: string; title: string }[] }>(
-        '/api/question-banks/questions',
-        data,
-        'PUT',
-    );
+    const res = data.id
+        ? await apiSend<{ id: string; activeExams: { id: string; title: string }[] }>(
+            '/api/question-banks/questions', data, 'PUT',
+        )
+        : await apiIdempotentMutation<{
+            id: string; activeExams: { id: string; title: string }[]
+        }>('/api/question-banks/questions', data, 'PUT');
 
     return res.success
         ? { success: true as const, id: res.id, activeExams: res.activeExams }
@@ -256,7 +258,7 @@ function bankChild<T>(segment: string) {
             return res.success ? res.items : [];
         },
         create: (bankId: string, payload: Record<string, unknown>) =>
-            apiSend<{ id: string }>(
+            apiCreate<{ id: string }>(
                 `/api/question-banks/${encodeURIComponent(bankId)}/${segment}`,
                 payload,
             ),
@@ -353,7 +355,7 @@ export function createDimensionInterpretation(
     title: string,
     interpretation: string,
 ) {
-    return apiSend<{ id: string }>('/api/question-banks/interpretations', {
+    return apiCreate<{ id: string }>('/api/question-banks/interpretations', {
         dimensionId,
         minScore,
         maxScore,
@@ -376,9 +378,10 @@ export function updateDimensionInterpretation(
 // Berkasnya dibaca di browser; yang dikirim hanya barisnya.
 
 async function importRows(bankId: string, segment: 'stimuli' | 'instructions', rows: ImportRow[]) {
-    const res = await apiSend<{ imported: number; errors: string[] }>(
+    const res = await apiCreate<{ imported: number; errors: string[] }>(
         `/api/question-banks/${encodeURIComponent(bankId)}/${segment}/import`,
         { rows },
+        { timeoutMs: 60_000 },
     );
 
     return res.success

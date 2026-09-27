@@ -8,10 +8,9 @@ import { Plus, Edit3, Trash2, X, Check, Settings2, BarChart2 } from 'lucide-reac
 
 interface DimensionManagerProps {
     bankId: string;
-    orgId: string;
 }
 
-export default function DimensionManager({ bankId, orgId }: DimensionManagerProps) {
+export default function DimensionManager({ bankId }: DimensionManagerProps) {
     const [dimensions, setDimensions] = useState<any[]>([]);
     const [interpretations, setInterpretations] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);

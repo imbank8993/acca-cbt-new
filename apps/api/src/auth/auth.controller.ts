@@ -46,14 +46,4 @@ export class AuthController {
     return this.authService.getProfileWithOrganization(user);
   }
 
-  @Get('role-contexts')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Peran pemanggil beserta sekolah tempat peran itu berlaku',
-    description: 'Dipakai pemilih peran di bilah sisi.',
-  })
-  async roleContexts(@CurrentUser() user: AuthUser) {
-    return { contexts: await this.authService.listRoleContexts(user) };
-  }
 }

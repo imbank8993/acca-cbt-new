@@ -24,21 +24,29 @@ import type { AuthUser } from '@acca-cbt/shared';
  * lebih lama daripada yang wajar.
  */
 const TTL_MS = 30_000;
+export const SESSION_REQUEST_TIMEOUT_MS = 10_000;
 
 let cached: { user: AuthUser | null; at: number } | null = null;
 let inFlight: Promise<AuthUser | null> | null = null;
 
 async function fetchMe(): Promise<AuthUser | null> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS);
     try {
-        const res = await fetch('/api/auth/me', { cache: 'no-store' });
+        const res = await fetch('/api/auth/me', {
+            cache: 'no-store',
+            signal: controller.signal,
+        });
         if (!res.ok) return null;
         const body = await res.json().catch(() => null);
         if (!body?.success || !body?.id) return null;
         return body as AuthUser;
     } catch {
-        // Jaringan putus. Pemanggil memperlakukannya sama dengan "belum masuk",
-        // dan middleware yang akan mengarahkan ulang bila sesinya memang habis.
-        return null;
+        // Gangguan jaringan tidak menghapus identitas cache. Nilai ini hanya
+        // dipakai UI; setiap operasi tetap diverifikasi backend.
+        return cached?.user ?? null;
+    } finally {
+        clearTimeout(timeout);
     }
 }
 

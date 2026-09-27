@@ -7,10 +7,9 @@ import { Plus, Edit3, Trash2, X, Check, Search } from 'lucide-react';
 
 interface KisiKisiTabProps {
     bankId: string;
-    orgId: string;
 }
 
-export default function KisiKisiTab({ bankId, orgId }: KisiKisiTabProps) {
+export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     const [kisiKisi, setKisiKisi] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);

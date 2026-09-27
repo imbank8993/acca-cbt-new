@@ -11,10 +11,9 @@ import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
 
 interface StimulusManagerProps {
     bankId: string;
-    orgId: string;
 }
 
-export default function StimulusManager({ bankId, orgId }: StimulusManagerProps) {
+export default function StimulusManager({ bankId }: StimulusManagerProps) {
     const [stimuli, setStimuli] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);

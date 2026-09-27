@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { insertIdempotently } from '../common/idempotent-create';
 import { wibDateTimeToUtc } from '../common/wib-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
@@ -47,20 +48,21 @@ export class PasSchedulesService {
     async createSession(user: AuthUser, periodId: string, dto: CreatePASSessionDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const { data, error } = await this.db
-            .from('cbt_pas_sessions')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_pas_sessions',
+            scope: { column: 'pas_period_id', value: periodId },
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 pas_period_id: periodId,
                 name: dto.name,
                 start_time: dto.start_time,
                 end_time: dto.end_time,
-            })
-            .select('id')
-            .single();
+            },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async removeSession(user: AuthUser, sessionId: string) {
@@ -106,18 +108,6 @@ export class PasSchedulesService {
             );
         }
 
-        const { data: existing } = await this.db
-            .from('cbt_pas_class_schedules')
-            .select('id')
-            .eq('pas_period_id', dto.pas_period_id)
-            .eq('bank_id', dto.bank_id)
-            .eq('class_id', dto.class_id)
-            .maybeSingle();
-
-        if (existing) {
-            throw new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.');
-        }
-
         // Jam jadwal diturunkan dari sesinya, bukan diterima dari formulir: satu
         // sesi dipakai banyak kelas sekaligus, dan menyalin jamnya di sisi klien
         // membuat keduanya bisa menyimpang.
@@ -131,9 +121,13 @@ export class PasSchedulesService {
 
         const times = session as { start_time: string; end_time: string };
 
-        const { data, error } = await this.db
-            .from('cbt_pas_class_schedules')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_pas_class_schedules',
+            scope: { column: 'pas_period_id', value: dto.pas_period_id },
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 pas_period_id: dto.pas_period_id,
                 bank_id: dto.bank_id,
                 subject_id: dto.subject_id || null,
@@ -145,13 +139,13 @@ export class PasSchedulesService {
                 duration_minutes: dto.duration_override || 90,
                 room: dto.room || null,
                 status: 'scheduled',
-            })
-            .select('id')
-            .single();
+            },
+            mapError: (error) => error.code === '23505'
+                ? new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.')
+                : new BadRequestException(`Gagal menyimpan jadwal: ${error.message}`),
+        });
 
-        if (error) throw new BadRequestException(`Gagal menyimpan jadwal: ${error.message}`);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async removeSchedule(user: AuthUser, scheduleId: string) {

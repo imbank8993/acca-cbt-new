@@ -23,13 +23,15 @@ import { CurrentSchoolId } from '../common/decorators/current-school-id.decorato
 import { BankContentService } from './bank-content.service';
 import {
     CreateBankDto,
+    CreateDimensionDto,
     CreateFolderDto,
     CreateInterpretationDto,
+    CreateKisiKisiDto,
     CreateLabelDto,
+    CreateTitledContentDto,
     DimensionDto,
     ImportRowsDto,
     InterpretationDto,
-    KisiKisiDto,
     MoveBanksDto,
     PublishBankDto,
     ReorderQuestionsDto,
@@ -106,7 +108,7 @@ export class QuestionsController {
         @CurrentSchoolId() organizationId: string,
         @Body() dto: CreateFolderDto,
     ) {
-        return this.banks.createFolder(user, organizationId, dto.name);
+        return this.banks.createFolder(user, organizationId, dto.name, dto.clientRequestId);
     }
 
     @Patch('folders/:folderId')
@@ -153,7 +155,13 @@ export class QuestionsController {
         @CurrentSchoolId() organizationId: string,
         @Body() dto: CreateLabelDto,
     ) {
-        return this.banks.createLabel(user, organizationId, dto.name, dto.color || '');
+        return this.banks.createLabel(
+            user,
+            organizationId,
+            dto.name,
+            dto.color || '',
+            dto.clientRequestId,
+        );
     }
 
     @Get(':bankId')
@@ -260,9 +268,10 @@ export class QuestionsController {
     createKisiKisi(
         @CurrentUser() user: AuthUser,
         @Param('bankId', ParseUUIDPipe) bankId: string,
-        @Body() dto: KisiKisiDto,
+        @Body() dto: CreateKisiKisiDto,
     ) {
-        return this.content.createKisiKisi(user, bankId, { ...dto });
+        const { clientRequestId, ...data } = dto;
+        return this.content.createKisiKisi(user, bankId, data, clientRequestId);
     }
 
     @Patch('kisi-kisi/:id')
@@ -297,9 +306,11 @@ export class QuestionsController {
     createStimulus(
         @CurrentUser() user: AuthUser,
         @Param('bankId', ParseUUIDPipe) bankId: string,
-        @Body() dto: TitledContentDto,
+        @Body() dto: CreateTitledContentDto,
     ) {
-        return this.content.createStimulus(user, bankId, dto.title || '', dto.content);
+        return this.content.createStimulus(
+            user, bankId, dto.title || '', dto.content, dto.clientRequestId,
+        );
     }
 
     @Post(':bankId/stimuli/import')
@@ -310,7 +321,7 @@ export class QuestionsController {
         @Param('bankId', ParseUUIDPipe) bankId: string,
         @Body() dto: ImportRowsDto,
     ) {
-        return this.content.importStimuli(user, bankId, dto.rows);
+        return this.content.importStimuli(user, bankId, dto.rows, dto.clientRequestId);
     }
 
     @Patch('stimuli/:id')
@@ -345,9 +356,11 @@ export class QuestionsController {
     createInstruction(
         @CurrentUser() user: AuthUser,
         @Param('bankId', ParseUUIDPipe) bankId: string,
-        @Body() dto: TitledContentDto,
+        @Body() dto: CreateTitledContentDto,
     ) {
-        return this.content.createInstruction(user, bankId, dto.title || '', dto.content);
+        return this.content.createInstruction(
+            user, bankId, dto.title || '', dto.content, dto.clientRequestId,
+        );
     }
 
     @Post(':bankId/instructions/import')
@@ -358,7 +371,7 @@ export class QuestionsController {
         @Param('bankId', ParseUUIDPipe) bankId: string,
         @Body() dto: ImportRowsDto,
     ) {
-        return this.content.importInstructions(user, bankId, dto.rows);
+        return this.content.importInstructions(user, bankId, dto.rows, dto.clientRequestId);
     }
 
     @Patch('instructions/:id')
@@ -393,9 +406,11 @@ export class QuestionsController {
     createDimension(
         @CurrentUser() user: AuthUser,
         @Param('bankId', ParseUUIDPipe) bankId: string,
-        @Body() dto: DimensionDto,
+        @Body() dto: CreateDimensionDto,
     ) {
-        return this.content.createDimension(user, bankId, dto.name, dto.description || '');
+        return this.content.createDimension(
+            user, bankId, dto.name, dto.description || '', dto.clientRequestId,
+        );
     }
 
     @Patch('dimensions/:id')
@@ -428,8 +443,8 @@ export class QuestionsController {
     @Post('interpretations')
     @ApiOperation({ summary: 'Tambah tafsiran dimensi' })
     createInterpretation(@CurrentUser() user: AuthUser, @Body() dto: CreateInterpretationDto) {
-        const { dimensionId, ...rest } = dto;
-        return this.content.createInterpretation(user, dimensionId, rest);
+        const { dimensionId, clientRequestId, ...rest } = dto;
+        return this.content.createInterpretation(user, dimensionId, rest, clientRequestId);
     }
 
     @Patch('interpretations/:id')

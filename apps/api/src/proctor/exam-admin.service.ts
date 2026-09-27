@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
+import { insertIdempotently } from '../common/idempotent-create';
 import { wibLocalToUtc } from '../common/wib-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
@@ -113,9 +114,13 @@ export class ExamAdminService {
             }
         }
 
-        const { data, error } = await this.db
-            .from('cbt_exams')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'cbt_exams',
+            organizationId,
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 organization_id: organizationId,
                 question_bank_id: dto.questionBankId || null,
                 title: dto.title.trim(),
@@ -133,13 +138,10 @@ export class ExamAdminService {
                 created_by: user.id,
                 scoring_type: dto.scoringType || 'classical',
                 metadata: this.buildMetadata(examType, dto, {}),
-            })
-            .select('id')
-            .single();
+            },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async update(user: AuthUser, examId: string, dto: UpdateExamDto) {

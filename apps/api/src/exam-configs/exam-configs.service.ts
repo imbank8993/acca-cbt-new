@@ -9,6 +9,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { wibDateTimeToUtc } from '../common/wib-time';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { insertIdempotently } from '../common/idempotent-create';
 import type {
     AddExamConfigBankDto,
     AddExamConfigExamDto,
@@ -112,9 +113,13 @@ export class ExamConfigsService {
     async create(user: AuthUser, organizationId: string, dto: CreateExamConfigDto) {
         await this.authz.assertProktor(user, organizationId);
 
-        const { data, error } = await this.db
-            .from('exam_configs')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'exam_configs',
+            organizationId,
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 organization_id: organizationId,
                 name: dto.name.trim(),
                 school_year: dto.school_year || null,
@@ -125,13 +130,10 @@ export class ExamConfigsService {
                 // pada versi server action.
                 created_by: user.id,
                 is_locked: false,
-            })
-            .select()
-            .single();
+            },
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async update(user: AuthUser, configId: string, dto: UpdateExamConfigDto) {
@@ -217,31 +219,26 @@ export class ExamConfigsService {
 
         if (!bank) throw new NotFoundException('Bank soal tidak ditemukan.');
 
-        const { data: existing } = await this.db
-            .from('exam_config_banks')
-            .select('id')
-            .eq('exam_config_id', dto.exam_config_id)
-            .eq('bank_id', dto.bank_id)
-            .maybeSingle();
-
-        if (existing) {
-            throw new ConflictException('Bank soal sudah ada di konfigurasi ini.');
-        }
-
-        const { data, error } = await this.db
-            .from('exam_config_banks')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'exam_config_banks',
+            scope: { column: 'exam_config_id', value: dto.exam_config_id },
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 exam_config_id: dto.exam_config_id,
                 bank_id: dto.bank_id,
                 subject_id: dto.subject_id || null,
                 duration_minutes: dto.duration_minutes || 90,
-            })
-            .select()
-            .single();
+            },
+            mapError: (error) => error.code === '23505'
+                ? new ConflictException('Bank soal sudah ada di konfigurasi ini.')
+                : new BadRequestException(
+                    error.message,
+                ),
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async updateBank(user: AuthUser, bankRowId: string, dto: UpdateExamConfigBankDto) {
@@ -292,21 +289,13 @@ export class ExamConfigsService {
         await this.authz.assertProktorByRecord(user, 'exam_configs', dto.exam_config_id);
         await this.assertUnlocked(dto.exam_config_id);
 
-        const { data: existing } = await this.db
-            .from('exam_config_exams')
-            .select('id')
-            .eq('exam_config_id', dto.exam_config_id)
-            .eq('exam_config_bank_id', dto.exam_config_bank_id)
-            .eq('class_id', dto.class_id)
-            .maybeSingle();
-
-        if (existing) {
-            throw new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.');
-        }
-
-        const { data, error } = await this.db
-            .from('exam_config_exams')
-            .insert({
+        const data = await insertIdempotently<{ id: string }>(this.db, {
+            table: 'exam_config_exams',
+            scope: { column: 'exam_config_id', value: dto.exam_config_id },
+            clientRequestId: dto.clientRequestId,
+            fingerprint: dto,
+            select: 'id',
+            payload: {
                 exam_config_id: dto.exam_config_id,
                 exam_config_bank_id: dto.exam_config_bank_id,
                 class_id: dto.class_id,
@@ -314,13 +303,13 @@ export class ExamConfigsService {
                 scheduled_time: dto.scheduled_time || null,
                 window_end_time: dto.window_end_time || null,
                 status: 'scheduled',
-            })
-            .select()
-            .single();
+            },
+            mapError: (error) => error.code === '23505'
+                ? new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.')
+                : new BadRequestException(error.message),
+        });
 
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: (data as { id: string }).id };
+        return { id: data.id };
     }
 
     async removeSchedule(user: AuthUser, configExamId: string) {

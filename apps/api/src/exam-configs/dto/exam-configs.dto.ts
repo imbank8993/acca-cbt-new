@@ -23,6 +23,10 @@ const DATE_EXAMPLE = '2026-06-01';
 const TIME_EXAMPLE = '07:30';
 
 export class CreateExamConfigDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty({ example: 'PAS Ganjil 2026' })
     @IsString()
     @IsNotEmpty({ message: 'Nama ujian folder wajib diisi.' })
@@ -88,6 +92,10 @@ export class LockExamConfigDto {
 }
 
 export class AddExamConfigBankDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty()
     @IsUUID('4', { message: 'exam_config_id tidak valid' })
     exam_config_id!: string;
@@ -124,6 +132,10 @@ export class UpdateExamConfigBankDto {
 }
 
 export class AddExamConfigExamDto {
+    @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId!: string;
+
     @ApiProperty()
     @IsUUID('4', { message: 'exam_config_id tidak valid' })
     exam_config_id!: string;

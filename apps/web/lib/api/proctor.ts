@@ -1,4 +1,5 @@
-import { apiGet, apiSend } from './client';
+import { apiCreate, apiGet, apiSend } from './client';
+import { getSessionUser } from '../session';
 
 /**
  * Dasbor staf sekolah. Menggantikan `app/actions/proktor.ts`.
@@ -23,10 +24,10 @@ export interface ProctorOrganization {
 }
 
 export async function getProctorOrganization(): Promise<ProctorOrganization | null> {
-    const res = await apiGet<{ organization: ProctorOrganization | null }>(
-        '/api/proctor/organization',
-    );
-    return res.success ? res.organization : null;
+    const user = await getSessionUser();
+    return user
+        ? { id: user.organizationId, name: user.organizationName || 'Sekolah' }
+        : null;
 }
 
 export async function getOrganizationStats() {
@@ -89,7 +90,7 @@ export async function getActiveSchoolYear(): Promise<any | null> {
 export function createSchoolYearAction(
     data: { year: string; startDate?: string; endDate?: string },
 ) {
-    return apiSend<{ id: string }>('/api/proctor/school-years', {
+    return apiCreate<{ id: string }>('/api/proctor/school-years', {
         ...data,
     });
 }
@@ -121,7 +122,7 @@ export function createClassAction(
     type: 'reguler' | 'tambahan',
     schoolYear?: string,
 ) {
-    return apiSend<{ id: string }>('/api/proctor/classes', {
+    return apiCreate<{ id: string }>('/api/proctor/classes', {
         name,
         type,
         schoolYear,
@@ -152,11 +153,11 @@ export function deleteClassAction(classId: string) {
 export async function importClassesAction(
     classes: { name: string; type: 'reguler' | 'tambahan'; schoolYear?: string }[],
 ) {
-    const res = await apiSend<{
+    const res = await apiCreate<{
         successCount: number;
         failedCount: number;
         errors: { name: string; error: string }[];
-    }>('/api/proctor/classes/import', { classes });
+    }>('/api/proctor/classes/import', { classes }, { timeoutMs: 60_000 });
 
     return res.success
         ? { successCount: res.successCount, failedCount: res.failedCount, errors: res.errors }
@@ -218,7 +219,7 @@ export interface ExamInput {
 export function createExamAction(
     data: ExamInput & { subjectId?: string; questionBankId?: string },
 ) {
-    return apiSend<{ id: string }>('/api/proctor/exams', data);
+    return apiCreate<{ id: string }>('/api/proctor/exams', data);
 }
 
 export function editExamAction(examId: string, data: ExamInput) {

@@ -134,6 +134,30 @@ fitur operasional. Controller mengambil sekolah dari sesi JWT yang telah
 diverifikasi; rincian dan daftar endpoint ada di
 [Tahap 22](perbaikan-2026-09-19/TAHAP-22-KONTEKS-SEKOLAH-DARI-SESI.md).
 
+Konteks navigasi peran juga tidak lagi membawa pasangan `orgId/orgName` atau
+meminta endpoint kedua. Dashboard memakai peran yang sudah dihitung `/auth/me`.
+Rinciannya ada di
+[Tahap 23](perbaikan-2026-09-19/TAHAP-23-SATU-SUMBER-PERAN.md).
+
+ID dan nama sekolah untuk tampilan sekarang ikut dalam sesi terverifikasi.
+Endpoint profil organisasi khusus Proktor/Guru yang sebelumnya menjadi gerbang
+pemuatan halaman telah dihapus. Rinciannya ada di
+[Tahap 24](perbaikan-2026-09-19/TAHAP-24-PROFIL-SEKOLAH-DARI-SESI.md).
+
+Permintaan baca halaman mempunyai timeout default dan pemeriksaan sesi tidak
+lagi dapat menggantung tanpa batas. Rinciannya ada di
+[Tahap 25](perbaikan-2026-09-19/TAHAP-25-TIMEOUT-PERMINTAAN-BACA.md).
+
+Pembuatan ujian, kelas, periode PAS/PAT, konfigurasi ujian, dan bank soal kini
+aman diulang ketika respons hilang. Browser mempertahankan UUID permintaan dan
+database menjamin satu kunci hanya menghasilkan satu baris. Rinciannya ada di
+[Tahap 26](perbaikan-2026-09-19/TAHAP-26-IDEMPOTENSI-PEMBUATAN-DATA.md).
+
+Tahun ajaran, folder/label bank, sesi/ruang/jadwal PAS, serta isi konfigurasi
+ujian juga memakai kunci retry-safe. Indeks database menutup race pada aturan
+jadwal yang sebelumnya hanya diperiksa service. Rinciannya ada di
+[Tahap 27](perbaikan-2026-09-19/TAHAP-27-IDEMPOTENSI-DATA-TURUNAN.md).
+
 **Kata "expired" untuk habisnya waktu ujian** tetap ada dan tidak ada
 hubungannya dengan langganan — mis. `autoFinishExpiredAttemptsAction` dan
 `expiredAttemptId`.

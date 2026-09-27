@@ -419,8 +419,18 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
       }
     } catch (error) {
       const message = (error as Error)?.message || 'Query gagal';
+      // `$queryRawUnsafe` membungkus kode PostgreSQL (mis. 23505 untuk
+      // pelanggaran unik) di `meta.code` milik Prisma P2010. Beberapa service
+      // perlu membedakan konflik yang aman dicoba ulang dari galat lain.
+      const rawCode = (error as { meta?: { code?: unknown }; code?: unknown })?.meta?.code;
+      const code =
+        typeof rawCode === 'string'
+          ? rawCode
+          : typeof (error as { code?: unknown })?.code === 'string'
+            ? String((error as { code: string }).code)
+            : undefined;
       this.logger.error(`Query gagal pada tabel '${this.table}': ${message}`);
-      return { data: null, error: { message } };
+      return { data: null, error: { message, code } };
     }
   }
 
