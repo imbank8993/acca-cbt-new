@@ -173,7 +173,7 @@ function GradingContent() {
                         {/* Exam Selector Toolbar */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#0038A8]/10 text-[#0038A8] flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center">
                         <BarChart3 size={20} />
                     </div>
                     <div>
@@ -186,7 +186,7 @@ function GradingContent() {
                     <select
                         value={selectedExamId}
                         onChange={(e) => setSelectedExamId(e.target.value)}
-                        className="flex-1 sm:w-72 bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#0038A8] outline-none px-3.5 py-2.5 rounded-xl text-xs font-semibold"
+                        className="flex-1 sm:w-72 bg-slate-50 border border-slate-200 text-slate-800 focus:ring-2 focus:ring-[#3083FF] outline-none px-3.5 py-2.5 rounded-xl text-xs font-semibold"
                     >
                         <option value="">-- Pilih Ujian --</option>
                         {exams.map(exam => (
@@ -197,7 +197,7 @@ function GradingContent() {
                     <button
                         onClick={handleRefresh}
                         disabled={isRefreshing || !selectedExamId}
-                        className="p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:text-[#0038A8] hover:bg-slate-50 transition-all disabled:opacity-50"
+                        className="p-2.5 border border-slate-200 rounded-xl text-slate-600 hover:text-[#3083FF] hover:bg-slate-50 transition-all disabled:opacity-50"
                         title="Segarkan Data"
                     >
                         <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
@@ -216,7 +216,7 @@ function GradingContent() {
                     <div className="flex border-b border-slate-200">
                         <button
                             onClick={() => setActiveTab('results')}
-                            className={`px-8 py-4 font-black uppercase tracking-widest text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'results' ? 'border-[#0038A8] text-[#0038A8]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            className={`px-8 py-4 font-black uppercase tracking-widest text-[11px] transition-all flex border-b-2 items-center gap-2 ${activeTab === 'results' ? 'border-[#3083FF] text-[#3083FF]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
                             <Users size={16} /> REKAP HASIL SISWA
                         </button>
@@ -231,7 +231,7 @@ function GradingContent() {
                     <div className="relative min-h-[400px]">
                         {isRefreshing && (
                             <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center rounded-2xl">
-                                <Loader2 size={32} className="text-[#0038A8] animate-spin" />
+                                <Loader2 size={32} className="text-[#3083FF] animate-spin" />
                             </div>
                         )}
 
@@ -282,7 +282,7 @@ function GradingContent() {
                                                                         BELUM DINILAI
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="font-black text-[#0038A8] text-lg">{Number(att.total_score).toFixed(0)}</span>
+                                                                    <span className="font-black text-[#3083FF] text-lg">{Number(att.total_score).toFixed(0)}</span>
                                                                 )}
                                                             </td>
                                                         </tr>
@@ -375,7 +375,7 @@ export default function GradingPage() {
     return (
         <Suspense fallback={
             <div className="flex justify-center py-20">
-                <Loader2 size={48} className="text-[#0038A8] animate-spin" />
+                <Loader2 size={48} className="text-[#3083FF] animate-spin" />
             </div>
         }>
             <GradingContent />

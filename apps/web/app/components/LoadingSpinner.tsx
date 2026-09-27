@@ -17,20 +17,20 @@ export default function LoadingSpinner({ size = 'md', text }: LoadingSpinnerProp
         <div className="flex flex-col items-center justify-center gap-4">
             <div className={`relative flex items-center justify-center ${sizeClasses[size]}`}>
                 <motion.div
-                    className="absolute inset-0 rounded-full border-[2.5px] border-[#030C4D]/10"
+                    className="absolute inset-0 rounded-full border-[2.5px] border-[#3083FF]/10"
                 />
                 <motion.div
-                    className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#030C4D]"
+                    className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#3083FF]"
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <motion.div
-                    className="absolute inset-[4px] rounded-full border-[2.5px] border-transparent border-b-[#0038A8]"
+                    className="absolute inset-[4px] rounded-full border-[2.5px] border-transparent border-b-[#3083FF]"
                     animate={{ rotate: -360 }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 />
                 <motion.div 
-                    className="absolute bg-[#030C4D] rounded-full w-1.5 h-1.5"
+                    className="absolute bg-[#3083FF] rounded-full w-1.5 h-1.5"
                     animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 />
@@ -54,7 +54,7 @@ export function LoadingDots() {
             {[0, 1, 2].map((i) => (
                 <motion.div
                     key={i}
-                    className="w-2 h-2 bg-[#030C4D] rounded-full"
+                    className="w-2 h-2 bg-[#3083FF] rounded-full"
                     animate={{ y: ["0%", "-50%", "0%"] }}
                     transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.15 }}
                 />
@@ -70,7 +70,7 @@ export function LoadingPulse({ text }: { text?: string }) {
                 {[0, 1, 2].map((i) => (
                     <motion.div
                         key={i}
-                        className={`w-3 h-3 rounded-full ${i === 1 ? 'bg-[#0038A8]' : 'bg-[#030C4D]'}`}
+                        className={`w-3 h-3 rounded-full ${i === 1 ? 'bg-[#3083FF]' : 'bg-[#3083FF]'}`}
                         animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
                         transition={{ duration: 1, repeat: Infinity, ease: "easeInOut", delay: i * 0.2 }}
                     />

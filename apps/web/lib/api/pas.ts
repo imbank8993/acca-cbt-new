@@ -147,6 +147,8 @@ export async function generateExamsFromSchedulesAction(scheduleIds: string[]) {
     const res = await apiSend<{ created: number; skipped: string[] }>(
         '/api/pas/schedules/generate',
         { scheduleIds },
+        'POST',
+        { timeoutMs: 120_000 },
     );
 
     if (!res.success) {

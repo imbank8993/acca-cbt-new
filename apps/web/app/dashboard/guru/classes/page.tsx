@@ -232,32 +232,32 @@ export default function GuruClassesPage() {
 
             {/* Stats Cards - Outside Banner */}
             <div className="grid grid-cols-4 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
-                        <School size={18} className="text-[#030C4D]" />
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
+                        <School size={18} className="text-[#3083FF]" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.length}</p>
                     <p className="text-xs text-slate-500">Total</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <Check size={18} className="text-emerald-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.filter(c => c.type === 'reguler').length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'reguler').length}</p>
                     <p className="text-xs text-slate-500">Utama</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <School size={18} className="text-amber-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.filter(c => c.type === 'tambahan').length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'tambahan').length}</p>
                     <p className="text-xs text-slate-500">Tambahan</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <CalendarDays size={18} className="text-violet-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{yearOptions.length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{yearOptions.length}</p>
                     <p className="text-xs text-slate-500">Thn Ajaran</p>
                 </div>
             </div>
@@ -266,11 +266,11 @@ export default function GuruClassesPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 {/* Filter + Search */}
                 <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-                    <div className="flex gap-1 p-1 bg-white border border-[#030C4D]/30 rounded-lg">
+                    <div className="flex gap-1 p-1 bg-white border border-[#3083FF]/30 rounded-lg">
                         {(['all', 'reguler', 'tambahan'] as const).map(type => (
                             <button key={type} onClick={() => setClassTypeFilter(type)}
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                    classTypeFilter === type ? 'bg-[#030C4D] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                    classTypeFilter === type ? 'bg-[#3083FF] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                 }`}>
                                 {type === 'all' ? 'Semua' : type === 'reguler' ? 'Utama' : 'Tambahan'}
                             </button>
@@ -279,7 +279,7 @@ export default function GuruClassesPage() {
                     <select
                         value={yearFilter}
                         onChange={e => setYearFilter(e.target.value)}
-                        className="bg-white border border-[#030C4D]/30 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#0038A8]/20 outline-none"
+                        className="bg-white border border-[#3083FF]/30 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                     >
                         <option value="all">Semua Tahun Ajaran</option>
                         {yearOptions.map(y => (
@@ -289,12 +289,12 @@ export default function GuruClassesPage() {
                 </div>
 
                 <div className="flex gap-2">
-                    <button onClick={handleExport} className="px-4 py-2 text-sm bg-white border border-[#030C4D]/30 text-slate-700 rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-all">
+                    <button onClick={handleExport} className="px-4 py-2 text-sm bg-white border border-[#3083FF]/30 text-slate-700 rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-all">
                         <Download size={16} /> Export
                     </button>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="px-4 py-2.5 bg-[#0038A8] text-white rounded-lg hover:bg-[#0038A8] flex items-center gap-2 text-sm font-semibold shadow-lg shadow-[#0038A8]/20 transition-all"
+                        className="px-4 py-2.5 bg-[#3083FF] text-white rounded-lg hover:bg-[#3083FF] flex items-center gap-2 text-sm font-semibold shadow-lg shadow-[#3083FF]/20 transition-all"
                     >
                         <Plus size={16} /> Buat Kelas
                     </button>
@@ -309,17 +309,17 @@ export default function GuruClassesPage() {
                     placeholder="Cari kelas..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full bg-white border border-[#030C4D]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#0038A8]/20 focus:border-[#0038A8] outline-none"
+                    className="w-full bg-white border border-[#3083FF]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none"
                 />
             </div>
 
             {/* Grid grouped by year — Mobile */}
             {isLoading ? (
                 <div className="flex justify-center py-16">
-                    <div className="w-8 h-8 border-3 border-[#030C4D]/20 border-t-[#030C4D] rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-3 border-[#3083FF]/20 border-t-[#3083FF] rounded-full animate-spin" />
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="py-16 text-center bg-white border border-[#030C4D]/30 rounded-lg">
+                <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">
                     <School size={40} className="mx-auto mb-3 text-slate-300" />
                     <p className="text-slate-500 font-medium">Tidak ada kelas ditemukan</p>
                     <p className="text-sm text-slate-400 mt-1">Klik "Buat Kelas" untuk menambah kelas baru</p>
@@ -327,22 +327,22 @@ export default function GuruClassesPage() {
             ) : (
                 <>
                     {/* Desktop: Table */}
-                    <div className="hidden lg:block bg-white border border-[#030C4D]/30 rounded-lg overflow-hidden shadow-sm">
+                    <div className="hidden lg:block bg-white border border-[#3083FF]/30 rounded-lg overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
-                                    <tr className="border-b border-[#030C4D]/20 bg-[#030C4D]/5">
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Nama Kelas</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Tahun Ajaran</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Tipe</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Kode</th>
-                                        <th className="text-center text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Siswa</th>
-                                        <th className="text-right text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Aksi</th>
+                                    <tr className="border-b border-[#3083FF]/20 bg-[#3083FF]/5">
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Nama Kelas</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Tahun Ajaran</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Tipe</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Kode</th>
+                                        <th className="text-center text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Siswa</th>
+                                        <th className="text-right text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[#030C4D]/10">
+                                <tbody className="divide-y divide-[#3083FF]/10">
                                     {filtered.map((cls, i) => (
-                                        <tr key={cls.id} className="hover:bg-[#030C4D]/5 transition-colors group">
+                                        <tr key={cls.id} className="hover:bg-[#3083FF]/5 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
                                                     <span className="font-semibold text-slate-800 text-sm">{cls.name}</span>
@@ -356,7 +356,7 @@ export default function GuruClassesPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
-                                                    cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#030C4D]/30'
+                                                    cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
                                                 </span>
@@ -368,7 +368,7 @@ export default function GuruClassesPage() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <button onClick={() => handleViewStudents(cls)} className="inline-flex items-center gap-1 text-sm font-semibold text-[#030C4D] bg-[#030C4D]/10 hover:bg-[#030C4D]/20 transition-all px-3 py-1 rounded-lg border border-[#030C4D]/20 cursor-pointer">
+                                                <button onClick={() => handleViewStudents(cls)} className="inline-flex items-center gap-1 text-sm font-semibold text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-3 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer">
                                                     <Users size={12} />
                                                     {cls.studentCount || 0}
                                                 </button>
@@ -376,12 +376,12 @@ export default function GuruClassesPage() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-1">
                                                     {cls.canEdit !== false && (
-                                                        <button onClick={() => openEditModal(cls)} className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-transparent hover:border-[#030C4D]/30" title="Edit">
+                                                        <button onClick={() => openEditModal(cls)} className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all border border-transparent hover:border-[#3083FF]/30" title="Edit">
                                                             <Pencil size={14} />
                                                         </button>
                                                     )}
                                                     {cls.type !== 'reguler' && (
-                                                        <button onClick={() => handleCopyCode(cls.join_code)} className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-transparent hover:border-[#030C4D]/30" title="Salin kode">
+                                                        <button onClick={() => handleCopyCode(cls.join_code)} className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all border border-transparent hover:border-[#3083FF]/30" title="Salin kode">
                                                             <Copy size={14} />
                                                         </button>
                                                     )}
@@ -404,9 +404,9 @@ export default function GuruClassesPage() {
                         {Object.entries(classesByYear).map(([year, yearClasses]) => (
                             <div key={year}>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <Bookmark size={14} className="text-[#030C4D]" />
+                                    <Bookmark size={14} className="text-[#3083FF]" />
                                     <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{year}</h3>
-                                    <span className="text-xs text-slate-400 bg-[#0038A8]/10 px-2 py-0.5 rounded-lg border border-[#030C4D]/30">{(yearClasses as any[]).length} kelas</span>
+                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{(yearClasses as any[]).length} kelas</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {(yearClasses as any[]).map((cls: any, i: number) => (
@@ -415,15 +415,15 @@ export default function GuruClassesPage() {
                                             initial={{ opacity: 0, y: 12 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: i * 0.05 }}
-                                            className="bg-white border border-[#030C4D]/30 rounded-lg p-4 hover:shadow-md transition-all"
+                                            className="bg-white border border-[#3083FF]/30 rounded-lg p-4 hover:shadow-md transition-all"
                                         >
                                             <div className="flex items-start justify-between mb-3">
-                                                <span className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#030C4D]/30'}`}>
+                                                <span className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
                                                 </span>
                                                 <div className="flex items-center gap-1">
-                                                    {cls.canEdit !== false && <button onClick={() => openEditModal(cls)} className="p-1.5 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all"><Pencil size={13} /></button>}
-                                                    {cls.type !== 'reguler' && <button onClick={() => handleCopyCode(cls.join_code)} className="p-1.5 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all"><Copy size={13} /></button>}
+                                                    {cls.canEdit !== false && <button onClick={() => openEditModal(cls)} className="p-1.5 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all"><Pencil size={13} /></button>}
+                                                    {cls.type !== 'reguler' && <button onClick={() => handleCopyCode(cls.join_code)} className="p-1.5 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all"><Copy size={13} /></button>}
                                                     {cls.canDelete !== false && <button onClick={() => handleDeleteClass(cls.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={13} /></button>}
                                                 </div>
                                             </div>
@@ -435,7 +435,7 @@ export default function GuruClassesPage() {
                                             </div>
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-slate-400">Kode: <span className={`font-mono font-medium ${copiedCode === cls.join_code ? 'text-emerald-500' : 'text-slate-600'}`}>{cls.join_code || '—'}</span></span>
-                                                <button onClick={() => handleViewStudents(cls)} className="text-xs font-medium text-[#030C4D] bg-[#030C4D]/10 hover:bg-[#030C4D]/20 transition-all px-2 py-1 rounded-lg border border-[#030C4D]/20 cursor-pointer"><Users size={10} className="inline mr-1" />{cls.studentCount || 0} siswa</button>
+                                                <button onClick={() => handleViewStudents(cls)} className="text-xs font-medium text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-2 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer"><Users size={10} className="inline mr-1" />{cls.studentCount || 0} siswa</button>
                                             </div>
                                         </motion.div>
                                     ))}
@@ -450,13 +450,13 @@ export default function GuruClassesPage() {
             <AnimatePresence>
                 {isModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#030C4D]/30">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30">
                             <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <School size={18} />
                                 </div>
                                 <div>
@@ -473,12 +473,12 @@ export default function GuruClassesPage() {
                                         placeholder="Contoh: Bimbingan Fisika Intensif"
                                         value={classForm.name}
                                         onChange={e => setClassForm({ ...classForm, name: e.target.value })}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#0038A8]/20 focus:border-[#0038A8]/50 outline-none"
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF]/50 outline-none"
                                     />
                                     <p className="text-xs text-slate-400 mt-1.5">Siswa bergabung memakai kode kelas yang dihasilkan otomatis.</p>
                                 </div>
                                 <button type="submit" disabled={isSubmitting}
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
                                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                                     Buat Kelas
                                 </button>
@@ -492,13 +492,13 @@ export default function GuruClassesPage() {
             <AnimatePresence>
                 {isEditModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#030C4D]/30">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30">
                             <button onClick={() => setIsEditModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <Pencil size={18} />
                                 </div>
                                 <div>
@@ -515,11 +515,11 @@ export default function GuruClassesPage() {
                                         placeholder="Contoh: X IPA 1"
                                         value={classForm.name}
                                         onChange={e => setClassForm({ ...classForm, name: e.target.value })}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#0038A8]/20 focus:border-[#0038A8]/50 outline-none"
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF]/50 outline-none"
                                     />
                                 </div>
                                 <button type="submit" disabled={isSubmitting}
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
                                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                                     Simpan Perubahan
                                 </button>
@@ -533,19 +533,19 @@ export default function GuruClassesPage() {
             <AnimatePresence>
                 {isStudentModalOpen && selectedClassForStudents && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative border border-[#030C4D]/30 max-h-[85vh] flex flex-col">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative border border-[#3083FF]/30 max-h-[85vh] flex flex-col">
                             <button onClick={() => setIsStudentModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             <div className="mb-4">
                                 <h3 className="text-lg font-bold text-slate-900">Daftar Siswa</h3>
-                                <p className="text-sm text-slate-500">Kelas: <span className="font-semibold text-[#030C4D]">{selectedClassForStudents.name}</span></p>
+                                <p className="text-sm text-slate-500">Kelas: <span className="font-semibold text-[#3083FF]">{selectedClassForStudents.name}</span></p>
                             </div>
                             
                             <div className="flex-1 overflow-y-auto min-h-[200px] border border-slate-100 rounded-xl bg-slate-50/50 p-2">
                                 {isLoadingStudents ? (
                                     <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                        <Loader2 size={24} className="animate-spin mb-2 text-[#030C4D]" />
+                                        <Loader2 size={24} className="animate-spin mb-2 text-[#3083FF]" />
                                         <p className="text-sm">Memuat data siswa...</p>
                                     </div>
                                 ) : classStudents.length === 0 ? (
@@ -556,9 +556,9 @@ export default function GuruClassesPage() {
                                 ) : (
                                     <ul className="space-y-1">
                                         {classStudents.map((s, idx) => (
-                                            <li key={s.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg hover:border-[#030C4D]/20 transition-colors">
+                                            <li key={s.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg hover:border-[#3083FF]/20 transition-colors">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-[#030C4D]/10 flex items-center justify-center text-[#030C4D] font-bold text-xs">
+                                                    <div className="w-8 h-8 rounded-full bg-[#3083FF]/10 flex items-center justify-center text-[#3083FF] font-bold text-xs">
                                                         {idx + 1}
                                                     </div>
                                                     <div className="flex flex-col">

@@ -528,20 +528,20 @@ export default function GuruQuestionBankPage() {
 
     // Render bank card for desktop
     const renderBankCard = (bank: any) => (
-        <div key={bank.id} className="bg-white border border-[#030C4D]/30 rounded-lg p-4 flex items-center justify-between hover:border-[#030C4D] transition-all">
+        <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 flex items-center justify-between hover:border-[#3083FF] transition-all">
             <div className="flex items-center gap-4 min-w-0">
                 <input
                     type="checkbox"
                     checked={selectedBankIds.has(bank.id)}
                     onChange={() => toggleSelectBank(bank.id)}
-                    className="w-4 h-4 text-[#030C4D] border-[#0038A8]/30 rounded focus:ring-2 focus:ring-[#0038A8]/20 shrink-0 cursor-pointer"
+                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
-                <div className="w-12 h-12 bg-[#030C4D]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#030C4D]/40">
-                    <BookOpen size={20} className="text-[#030C4D]" />
+                <div className="w-12 h-12 bg-[#3083FF]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#3083FF]/40">
+                    <BookOpen size={20} className="text-[#3083FF]" />
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#0038A8]/30'}`}>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
                             {bank.is_published ? 'Published' : 'Draft'}
                         </span>
                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
@@ -603,16 +603,16 @@ export default function GuruQuestionBankPage() {
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-3 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#030C4D]">{allCount}</p>
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-[#3083FF]">{allCount}</p>
                     <p className="text-xs text-slate-500">Total</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#030C4D]">{draftCount}</p>
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-[#3083FF]">{draftCount}</p>
                     <p className="text-xs text-slate-500">Draft</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#030C4D]">{publishedCount}</p>
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-[#3083FF]">{publishedCount}</p>
                     <p className="text-xs text-slate-500">Published</p>
                 </div>
             </div>
@@ -689,10 +689,10 @@ export default function GuruQuestionBankPage() {
 
             {/* Bulk Actions Panel */}
             {selectedBankIds.size > 0 && (
-                <div className="bg-[#030C4D]/5 border border-[#030C4D]/30 rounded-xl p-3.5 flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-xl p-3.5 flex items-center justify-between mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                        <span className="text-xs font-bold text-[#030C4D] uppercase tracking-wider">{selectedBankIds.size} Bank Soal Terpilih</span>
+                        <span className="text-xs font-bold text-[#3083FF] uppercase tracking-wider">{selectedBankIds.size} Bank Soal Terpilih</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button size="sm" variant="secondary" onClick={handleSelectAll}>
@@ -721,20 +721,20 @@ export default function GuruQuestionBankPage() {
                     </div>
                 ) : (
                     paginatedBanks.map((bank) => (
-                        <div key={bank.id} className="bg-white border border-[#030C4D]/30 rounded-lg p-4 shadow-sm">
+                        <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
                             <div className="flex items-center gap-3 mb-3">
                                 <input
                                     type="checkbox"
                                     checked={selectedBankIds.has(bank.id)}
                                     onChange={() => toggleSelectBank(bank.id)}
-                                    className="w-4 h-4 text-[#030C4D] border-[#0038A8]/30 rounded focus:ring-2 focus:ring-[#0038A8]/20 shrink-0 cursor-pointer"
+                                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                                 />
-                                <div className="w-12 h-12 bg-[#030C4D]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#030C4D]/40">
-                                    <BookOpen size={20} className="text-[#030C4D]" />
+                                <div className="w-12 h-12 bg-[#3083FF]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#3083FF]/40">
+                                    <BookOpen size={20} className="text-[#3083FF]" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#0038A8]/30'}`}>
+                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
                                             {bank.is_published ? 'Published' : 'Draft'}
                                         </span>
                                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
@@ -807,20 +807,20 @@ export default function GuruQuestionBankPage() {
                             return (
                                 <div key={folder.id}>
                                     {/* Folder header */}
-                                    <div className="flex items-center gap-2 px-4 py-3 bg-[#030C4D]/5 border border-[#030C4D]/30 rounded-lg mb-2">
+                                    <div className="flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
                                         <button
                                             onClick={() => toggleFolderExpand(folder.id)}
-                                            className="flex items-center gap-2 flex-1 hover:text-[#030C4D] transition-all"
+                                            className="flex items-center gap-2 flex-1 hover:text-[#3083FF] transition-all"
                                         >
                                             <input
                                                 type="checkbox"
                                                 checked={folderBanks.length > 0 && folderBanks.every(b => selectedBankIds.has(b.id))}
                                                 onChange={() => toggleSelectAllInFolder(folderBanks)}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="w-4 h-4 text-[#030C4D] border-[#0038A8]/30 rounded focus:ring-2 focus:ring-[#0038A8]/20 cursor-pointer shrink-0"
+                                                className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 cursor-pointer shrink-0"
                                             />
                                             {isExpanded ? <ChevronRight size={16} className="text-slate-400 rotate-90" /> : <ChevronRight size={16} className="text-slate-400" />}
-                                            <Folder size={16} className="text-[#030C4D]" />
+                                            <Folder size={16} className="text-[#3083FF]" />
                                             <span className="font-semibold text-slate-700">{folder.name}</span>
                                             <span className="text-xs text-slate-400">({folderBanks.length})</span>
                                         </button>
@@ -834,7 +834,7 @@ export default function GuruQuestionBankPage() {
                                                 </button>
                                             )}
                                             {folderMenuId === folder.id && (
-                                                <div className="absolute right-0 top-full mt-1 bg-white border border-[#030C4D]/30 rounded-lg shadow-lg py-1 z-20 min-w-[160px]">
+                                                <div className="absolute right-0 top-full mt-1 bg-white border border-[#3083FF]/30 rounded-lg shadow-lg py-1 z-20 min-w-[160px]">
                                                     <div className="px-3 py-1 text-[10px] text-slate-400 font-medium uppercase">Tambah Bank Soal</div>
                                                     <button
                                                         onClick={() => {
@@ -847,19 +847,19 @@ export default function GuruQuestionBankPage() {
                                                             setIsAddModalOpen(true);
                                                             setFolderMenuId(null);
                                                         }}
-                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#030C4D]/5 flex items-center gap-2"
+                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
                                                     >
                                                         <Plus size={12} /> Buat Baru
                                                     </button>
                                                     <button
                                                         onClick={() => handleOpenAddToFolder(folder)}
-                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#030C4D]/5 flex items-center gap-2"
+                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
                                                     >
                                                         <BookOpen size={12} /> Pilih Existing
                                                     </button>
                                                     {folderBanks.length > 0 && (
                                                         <>
-                                                            <div className="border-t border-[#0038A8]/20 my-1"></div>
+                                                            <div className="border-t border-[#3083FF]/20 my-1"></div>
                                                             <button
                                                                 onClick={() => {
                                                                     setBulkMode(true);
@@ -867,16 +867,16 @@ export default function GuruQuestionBankPage() {
                                                                     setExpandedFolders(prev => new Set([...prev, folder.id]));
                                                                     setFolderMenuId(null);
                                                                 }}
-                                                                className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#030C4D]/5 flex items-center gap-2"
+                                                                className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
                                                             >
                                                                 <Check size={12} /> Pindahkan
                                                             </button>
                                                         </>
                                                     )}
-                                                    <div className="border-t border-[#0038A8]/20 my-1"></div>
+                                                    <div className="border-t border-[#3083FF]/20 my-1"></div>
                                                     <button
                                                         onClick={() => handleOpenEditFolder(folder)}
-                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#030C4D]/5 flex items-center gap-2"
+                                                        className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
                                                     >
                                                         <Edit3 size={12} /> Edit Nama
                                                     </button>
@@ -912,7 +912,7 @@ export default function GuruQuestionBankPage() {
                                                     });
                                                     setIsAddModalOpen(true);
                                                 }}
-                                                className="w-full py-2 border border-dashed border-[#030C4D]/30 rounded-lg text-xs text-slate-500 hover:border-[#030C4D] hover:text-[#030C4D] transition-all flex items-center justify-center gap-1"
+                                                className="w-full py-2 border border-dashed border-[#3083FF]/30 rounded-lg text-xs text-slate-500 hover:border-[#3083FF] hover:text-[#3083FF] transition-all flex items-center justify-center gap-1"
                                             >
                                                 <Plus size={12} /> Tambah Bank Soal
                                             </button>

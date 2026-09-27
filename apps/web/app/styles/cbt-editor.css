@@ -126,7 +126,7 @@ html body .ck-editor__editable td { color: #1a1a2e; }
 
 /* 3g. Blockquote */
 html body .ck-editor__editable blockquote {
-  border-left: 3px solid #030C4D;
+  border-left: 3px solid #3083FF;
   padding-left: 1rem;
   margin: 0.75rem 0;
   color: #475569;

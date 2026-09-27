@@ -314,15 +314,15 @@ function MonitoringContent() {
                         { label: 'Selesai', value: completed, icon: CheckCircle2 },
                         { label: 'Pelanggaran', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
                     ].map((stat, i) => (
-                        <div key={i} className="bg-white rounded-lg border border-[#0038A8]/30 text-center px-4 py-3">
+                        <div key={i} className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
                             <div className={`w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center ${
-                                stat.alert ? 'bg-red-100 border border-red-200' : 'bg-[#030C4D]/10 border border-[#030C4D]/30'
+                                stat.alert ? 'bg-red-100 border border-red-200' : 'bg-[#3083FF]/10 border border-[#3083FF]/30'
                             }`}>
                                 <stat.icon size={18} className={`${
-                                    stat.alert ? 'text-red-500' : stat.pulse ? 'text-emerald-500 animate-pulse' : 'text-[#030C4D]'
+                                    stat.alert ? 'text-red-500' : stat.pulse ? 'text-emerald-500 animate-pulse' : 'text-[#3083FF]'
                                 }`} />
                             </div>
-                            <p className="text-2xl font-bold text-[#0038A8]">{stat.value}</p>
+                            <p className="text-2xl font-bold text-[#3083FF]">{stat.value}</p>
                             <p className="text-xs text-slate-500">{stat.label}</p>
                         </div>
                     ))}
@@ -333,7 +333,7 @@ function MonitoringContent() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <div>
                     {selectedExamId ? (
-                        <div className="flex gap-1 bg-white border border-[#0038A8]/30 p-1 rounded-lg w-fit shadow-sm">
+                        <div className="flex gap-1 bg-white border border-[#3083FF]/30 p-1 rounded-lg w-fit shadow-sm">
                             {[
                                 { id: 'live', label: 'Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'results', label: 'Rekap', icon: Users, badge: null as number | null },
@@ -344,7 +344,7 @@ function MonitoringContent() {
                                     onClick={() => setActiveTab(tab.id as typeof activeTab)}
                                     className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                                         activeTab === tab.id
-                                            ? 'bg-[#030C4D] text-white shadow-sm'
+                                            ? 'bg-[#3083FF] text-white shadow-sm'
                                             : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                                     }`}
                                 >
@@ -374,13 +374,13 @@ function MonitoringContent() {
                                 value={searchName}
                                 onChange={(e) => setSearchName(e.target.value)}
                                 placeholder="Cari nama peserta..."
-                                className="bg-white border border-[#030C4D]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#0038A8]/50 outline-none px-4 py-2.5 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px]"
+                                className="bg-white border border-[#3083FF]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/50 outline-none px-4 py-2.5 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px]"
                             />
                             <div className="relative flex-1 min-w-0 sm:max-w-[200px]">
                                 <select
                                     value={filterKelas}
                                     onChange={(e) => setFilterKelas(e.target.value)}
-                                    className="appearance-none bg-white border border-[#030C4D]/30 text-slate-800 focus:ring-2 focus:ring-[#0038A8]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
+                                    className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
                                 >
                                     <option value="">Semua Kelas</option>
                                     {kelasOptions.map(k => (
@@ -395,7 +395,7 @@ function MonitoringContent() {
                         <select
                             value={selectedExamId}
                             onChange={(e) => setSelectedExamId(e.target.value)}
-                            className="appearance-none bg-white border border-[#030C4D]/30 text-slate-800 focus:ring-2 focus:ring-[#0038A8]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
+                            className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
                         >
                             <option value="" className="text-slate-500">-- Pilih Ujian --</option>
                             {exams.map(exam => (
@@ -405,7 +405,7 @@ function MonitoringContent() {
                         <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                     </div>
                     <button onClick={handleRefresh} disabled={isRefreshing || !selectedExamId}
-                        className="shrink-0 bg-[#0038A8] hover:bg-[#0038A8] text-white px-5 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#0038A8]/20 cursor-pointer">
+                        className="shrink-0 bg-[#3083FF] hover:bg-[#3083FF] text-white px-5 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer">
                         <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
                     </button>
                 </div>
@@ -413,9 +413,9 @@ function MonitoringContent() {
 
             {/* Empty state */}
             {!selectedExamId && (
-                <div className="py-16 text-center bg-white border border-[#0038A8]/30 rounded-lg">
-                    <div className="w-16 h-16 bg-[#030C4D]/10 rounded-lg flex items-center justify-center mx-auto mb-4 border border-[#030C4D]/30">
-                        <ShieldAlert size={32} className="text-[#030C4D]" />
+                <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">
+                    <div className="w-16 h-16 bg-[#3083FF]/10 rounded-lg flex items-center justify-center mx-auto mb-4 border border-[#3083FF]/30">
+                        <ShieldAlert size={32} className="text-[#3083FF]" />
                     </div>
                     <h2 className="text-lg font-bold text-slate-700 mb-2">Pilih Ujian</h2>
                     <p className="text-sm text-slate-500">Pilih ujian untuk mulai memonitoring</p>
@@ -436,12 +436,12 @@ function MonitoringContent() {
                                 {/* Status pemantauan. Datanya disegarkan berkala, bukan
                                     didorong seketika, jadi jedanya disebutkan apa adanya
                                     alih-alih dilabeli "Live". */}
-                                <div className="flex items-center gap-3 px-4 py-3 bg-white border border-[#0038A8]/30 rounded-lg shadow-sm">
+                                <div className="flex items-center gap-3 px-4 py-3 bg-white border border-[#3083FF]/30 rounded-lg shadow-sm">
                                     <span className="relative flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0038A8] opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0038A8]"></span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3083FF] opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#3083FF]"></span>
                                     </span>
-                                    <span className="text-xs font-semibold text-[#030C4D] uppercase tracking-wider">
+                                    <span className="text-xs font-semibold text-[#3083FF] uppercase tracking-wider">
                                         Pantauan otomatis &middot; tiap {REFRESH_INTERVAL.monitoring / 1000} detik
                                     </span>
                                     <div className="ml-auto flex items-center gap-3 text-[10px] font-medium text-slate-500">
@@ -452,10 +452,10 @@ function MonitoringContent() {
                                 </div>
 
                                 {/* Tabel peserta aktif — daftar rapi, pelanggaran pindah ke tab sendiri */}
-                                <div className="bg-white border border-[#0038A8]/30 rounded-lg shadow-sm overflow-hidden">
-                                    <div className="px-5 py-4 border-b border-[#0038A8]/20 flex items-center justify-between bg-[#030C4D]/5">
-                                        <h3 className="font-bold text-[#030C4D]">Sedang Mengerjakan</h3>
-                                        <span className="text-[10px] font-semibold text-[#0038A8] uppercase tracking-wider">{inProgress} aktif</span>
+                                <div className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
+                                    <div className="px-5 py-4 border-b border-[#3083FF]/20 flex items-center justify-between bg-[#3083FF]/5">
+                                        <h3 className="font-bold text-[#3083FF]">Sedang Mengerjakan</h3>
+                                        <span className="text-[10px] font-semibold text-[#3083FF] uppercase tracking-wider">{inProgress} aktif</span>
                                     </div>
 
                                     {activeAttempts.length === 0 ? (
@@ -469,7 +469,7 @@ function MonitoringContent() {
                                             {attempts.length > 0 && inProgress === 0 && (
                                                 <p className="text-slate-300 text-xs mt-2">Semua peserta sudah selesai — lihat tab Rekap.</p>
                                             )}
-                                            <button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-[#030C4D]/10 text-[#030C4D] text-xs font-semibold rounded-lg hover:bg-[#030C4D]/20 transition-all">
+                                            <button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-[#3083FF]/10 text-[#3083FF] text-xs font-semibold rounded-lg hover:bg-[#3083FF]/20 transition-all">
                                                 <RefreshCw size={12} className="inline mr-1" /> Refresh Data
                                             </button>
                                         </div>
@@ -510,7 +510,7 @@ function MonitoringContent() {
                                                                     : isInProgress
                                                                     ? hasViolations
                                                                         ? 'bg-red-50/70 border-red-200'
-                                                                        : 'bg-[#030C4D]/5 border-[#030C4D]/20'
+                                                                        : 'bg-[#3083FF]/5 border-[#3083FF]/20'
                                                                     : 'bg-slate-50/70 border-slate-200'
                                                             }`}
                                                         >
@@ -518,7 +518,7 @@ function MonitoringContent() {
                                                                 isTerminated
                                                                     ? 'bg-pink-500'
                                                                     : isInProgress
-                                                                    ? hasViolations ? 'bg-red-500' : 'bg-[#0038A8]'
+                                                                    ? hasViolations ? 'bg-red-500' : 'bg-[#3083FF]'
                                                                     : 'bg-slate-300'
                                                             }`} />
 
@@ -527,13 +527,13 @@ function MonitoringContent() {
                                                                     isTerminated
                                                                         ? 'bg-pink-400'
                                                                         : isInProgress
-                                                                        ? hasViolations ? 'bg-red-400' : 'bg-[#030C4D]'
+                                                                        ? hasViolations ? 'bg-red-400' : 'bg-[#3083FF]'
                                                                         : 'bg-slate-400'
                                                                 }`}>
                                                                     {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-[#030C4D] text-sm truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
+                                                                    <p className="font-bold text-[#3083FF] text-sm truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
                                                                     {att.kelas_name && att.kelas_name !== '-' && (
                                                                         <p className="text-[9px] text-slate-400 truncate">{att.kelas_name}</p>
                                                                     )}
@@ -549,7 +549,7 @@ function MonitoringContent() {
                                                                     </p>
                                                                 </div>
                                                                 {isInProgress && (
-                                                                    <span className="w-2 h-2 bg-[#0038A8] rounded-full animate-pulse mt-2" />
+                                                                    <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse mt-2" />
                                                                 )}
                                                             </div>
 
@@ -564,7 +564,7 @@ function MonitoringContent() {
                                                                             {[...Array(MAX)].map((_, i) => (
                                                                                 <div key={i} className={`flex-1 h-1.5 rounded-full transition-all ${
                                                                                     i < violations
-                                                                                        ? hasViolations ? 'bg-red-500' : 'bg-[#0038A8]'
+                                                                                        ? hasViolations ? 'bg-red-500' : 'bg-[#3083FF]'
                                                                                         : 'bg-slate-100'
                                                                                 }`} />
                                                                             ))}
@@ -573,12 +573,12 @@ function MonitoringContent() {
                                                                 )}
 
                                                                 <div className="flex items-center justify-between gap-1 text-[9px] font-semibold">
-                                                                    <span className="text-slate-500">Pindah Tab <span className={bd.pindah_tab > 0 ? 'text-red-600 font-bold' : 'text-[#030C4D]'}>{bd.pindah_tab}x</span></span>
-                                                                    <span className="text-slate-500">Close Tab <span className={bd.close_tab > 0 ? 'text-red-600 font-bold' : 'text-[#030C4D]'}>{bd.close_tab}x</span></span>
-                                                                    <span className="text-slate-500">Lainnya <span className={bd.lainnya > 0 ? 'text-red-600 font-bold' : 'text-[#030C4D]'}>{bd.lainnya}x</span></span>
+                                                                    <span className="text-slate-500">Pindah Tab <span className={bd.pindah_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.pindah_tab}x</span></span>
+                                                                    <span className="text-slate-500">Close Tab <span className={bd.close_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.close_tab}x</span></span>
+                                                                    <span className="text-slate-500">Lainnya <span className={bd.lainnya > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.lainnya}x</span></span>
                                                                     <span className="text-slate-500 flex items-center gap-1">
                                                                         <Clock size={10} />
-                                                                        <span className="text-[#030C4D]">{duration}</span>
+                                                                        <span className="text-[#3083FF]">{duration}</span>
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -586,7 +586,7 @@ function MonitoringContent() {
                                                             <div className="mt-3 flex gap-2">
                                                                 <button
                                                                     onClick={() => router.push(`/dashboard/admin/monitoring/${att.id}`)}
-                                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#030C4D] hover:bg-[#030C4D]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
+                                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
                                                                 >
                                                                     <Eye size={11} /> Detail
                                                                 </button>
@@ -594,7 +594,7 @@ function MonitoringContent() {
                                                                     <button
                                                                         onClick={() => handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa')}
                                                                         disabled={resettingAttemptId === att.id}
-                                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#0038A8] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                     >
                                                                         {resettingAttemptId === att.id ? (
                                                                             <Loader2 size={11} className="animate-spin" />
@@ -619,18 +619,18 @@ function MonitoringContent() {
                                         <div className="hidden md:block overflow-x-auto">
                                             <table className="w-full min-w-[980px]">
                                                 <thead>
-                                                    <tr className="bg-[#030C4D]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                        <th className="p-3 text-center font-bold text-[#030C4D] w-12">No</th>
-                                                        <th className="p-3 text-left font-bold text-[#030C4D]">Nama Peserta</th>
-                                                        <th className="p-3 text-left font-bold text-[#030C4D]">Kelas</th>
-                                                        <th className="p-3 text-left font-bold text-[#030C4D]">Status</th>
-                                                        <th className="p-3 text-center font-bold text-[#030C4D]">Pelanggaran</th>
-                                                        <th className="p-3 text-center font-bold text-[#030C4D]">Pindah Tab</th>
-                                                        <th className="p-3 text-center font-bold text-[#030C4D]">Close Tab</th>
-                                                        <th className="p-3 text-center font-bold text-[#030C4D]">Lainnya</th>
-                                                        <th className="p-3 text-left font-bold text-[#030C4D]">Durasi</th>
-                                                        <th className="p-3 text-left font-bold text-[#030C4D]">Mulai</th>
-                                                        <th className="p-3 text-center font-bold text-[#030C4D]">Aksi</th>
+                                                    <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                        <th className="p-3 text-center font-bold text-[#3083FF] w-12">No</th>
+                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Nama Peserta</th>
+                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Kelas</th>
+                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Status</th>
+                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Pelanggaran</th>
+                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Pindah Tab</th>
+                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Close Tab</th>
+                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Lainnya</th>
+                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Durasi</th>
+                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Mulai</th>
+                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Aksi</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -655,19 +655,19 @@ function MonitoringContent() {
                                                         }
 
                                                         return (
-                                                            <tr key={att.id} className={`border-b border-[#0038A8]/10 last:border-0 transition-colors ${
-                                                                isTerminated ? 'bg-pink-50/40' : hasViolations && isInProgress ? 'bg-red-50/40' : 'hover:bg-[#030C4D]/5'
+                                                            <tr key={att.id} className={`border-b border-[#3083FF]/10 last:border-0 transition-colors ${
+                                                                isTerminated ? 'bg-pink-50/40' : hasViolations && isInProgress ? 'bg-red-50/40' : 'hover:bg-[#3083FF]/5'
                                                             }`}>
                                                                 <td className="p-3 text-center text-xs font-bold text-slate-400">{idx + 1}</td>
                                                                 <td className="p-3">
                                                                     <div className="flex items-center gap-2.5">
                                                                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${
-                                                                            isTerminated ? 'bg-pink-400' : isInProgress ? (hasViolations ? 'bg-red-400' : 'bg-[#030C4D]') : 'bg-slate-400'
+                                                                            isTerminated ? 'bg-pink-400' : isInProgress ? (hasViolations ? 'bg-red-400' : 'bg-[#3083FF]') : 'bg-slate-400'
                                                                         }`}>
                                                                             {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                         </div>
-                                                                        <span className="font-bold text-[#030C4D] text-sm">{att.profiles?.full_name || 'Tanpa Nama'}</span>
-                                                                        {isInProgress && <span className="w-2 h-2 bg-[#0038A8] rounded-full animate-pulse shrink-0" />}
+                                                                        <span className="font-bold text-[#3083FF] text-sm">{att.profiles?.full_name || 'Tanpa Nama'}</span>
+                                                                        {isInProgress && <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse shrink-0" />}
                                                                     </div>
                                                                 </td>
                                                                 <td className="p-3 text-[11px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
@@ -676,7 +676,7 @@ function MonitoringContent() {
                                                                         isTerminated
                                                                             ? 'bg-pink-100 text-pink-700 border-pink-300'
                                                                             : isInProgress
-                                                                            ? 'bg-[#0038A8]/10 text-[#0038A8] border-[#0038A8]/30'
+                                                                            ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
                                                                             : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                                     }`}>
                                                                         {isTerminated ? 'Terminated' : isInProgress ? (att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan') : 'Selesai'}
@@ -696,7 +696,7 @@ function MonitoringContent() {
                                                                 <td className="p-3 text-center text-xs">
                                                                     <span className={bd.lainnya > 0 ? 'font-bold text-red-500' : 'text-slate-400'}>{bd.lainnya}x</span>
                                                                 </td>
-                                                                <td className="p-3 text-[11px] font-semibold text-[#030C4D]">{duration}</td>
+                                                                <td className="p-3 text-[11px] font-semibold text-[#3083FF]">{duration}</td>
                                                                 <td className="p-3 text-[11px] font-mono text-slate-500">
                                                                     {att.started_at ? new Date(att.started_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                                                                 </td>
@@ -704,7 +704,7 @@ function MonitoringContent() {
                                                                     <div className="flex items-center justify-center gap-1.5">
                                                                         <button
                                                                             onClick={() => router.push(`/dashboard/admin/monitoring/${att.id}`)}
-                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#030C4D] hover:bg-[#030C4D]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
+                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
                                                                         >
                                                                             <Eye size={11} /> Detail
                                                                         </button>
@@ -712,7 +712,7 @@ function MonitoringContent() {
                                                                             <button
                                                                                 onClick={() => handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa')}
                                                                                 disabled={resettingAttemptId === att.id}
-                                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#0038A8] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
                                                                                 {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                                                                                 Reset
@@ -737,19 +737,19 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#0038A8]/30 rounded-lg shadow-sm overflow-hidden"
+                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="px-5 py-4 border-b border-[#0038A8]/20 flex flex-wrap items-center justify-between gap-2 bg-[#030C4D]/5">
-                                    <h3 className="font-bold text-[#030C4D]">Rekap Hasil</h3>
+                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
+                                    <h3 className="font-bold text-[#3083FF]">Rekap Hasil</h3>
                                     <div className="flex gap-2">
                                         {hasIRTScoring && (
                                             <button onClick={handleCalculateIRT} disabled={isRefreshing}
-                                                className="flex items-center gap-2 bg-[#030C4D] text-white hover:bg-[#030C4D]/90 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50">
+                                                className="flex items-center gap-2 bg-[#3083FF] text-white hover:bg-[#3083FF]/90 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50">
                                                 <Calculator size={14} /> Kalkulasi IRT
                                             </button>
                                         )}
                                         <button onClick={exportResultsToExcel}
-                                            className="flex items-center gap-2 bg-[#0038A8]/10 text-[#0038A8] hover:bg-[#0038A8]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#0038A8]/30">
+                                            className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
                                             <FileSpreadsheet size={14} /> Export
                                         </button>
                                     </div>
@@ -757,20 +757,20 @@ function MonitoringContent() {
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[900px]">
                                         <thead>
-                                            <tr className="bg-[#030C4D]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Nama Peserta</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Kelas</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Status</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Pelanggaran</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Mulai</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Selesai</th>
-                                                <th className="p-4 text-right font-bold text-[#030C4D]">Skor Klasik</th>
-                                                {has1PL && <th className="p-4 text-right font-bold text-[#030C4D]">IRT 1PL</th>}
-                                                {has2PL && <th className="p-4 text-right font-bold text-[#030C4D]">IRT 2PL</th>}
-                                                {has3PL && <th className="p-4 text-right font-bold text-[#030C4D]">IRT 3PL</th>}
-                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-[#030C4D]">Skor IRT</th>}
-                                                <th className="p-4 text-center font-bold text-[#030C4D]">Aksi</th>
+                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Nama Peserta</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Kelas</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Status</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Pelanggaran</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Durasi</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Mulai</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Selesai</th>
+                                                <th className="p-4 text-right font-bold text-[#3083FF]">Skor Klasik</th>
+                                                {has1PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 1PL</th>}
+                                                {has2PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 2PL</th>}
+                                                {has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 3PL</th>}
+                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">Skor IRT</th>}
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -805,9 +805,9 @@ function MonitoringContent() {
                                                                 if (isBelum) return;
                                                                 router.push(`/dashboard/admin/monitoring/${att.id}`);
                                                             }}
-                                                            className={`border-b border-[#0038A8]/10 last:border-0 hover:bg-[#030C4D]/5 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
+                                                            className={`border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
                                                         >
-                                                            <td className="p-4 font-bold text-[#030C4D]">{att.profiles?.full_name || 'Tanpa Nama'}</td>
+                                                            <td className="p-4 font-bold text-[#3083FF]">{att.profiles?.full_name || 'Tanpa Nama'}</td>
                                                             <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
@@ -817,7 +817,7 @@ function MonitoringContent() {
                                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                                         : isBelum
                                                                         ? 'bg-slate-50 text-slate-500 border-slate-200'
-                                                                        : 'bg-[#0038A8]/10 text-[#0038A8] border-[#0038A8]/30'
+                                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
                                                                 }`}>
                                                                     {statusLabel}
                                                                 </span>
@@ -830,7 +830,7 @@ function MonitoringContent() {
                                                                     Tab {bd.pindah_tab} · Close {bd.close_tab} · Lain {bd.lainnya}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-4 text-[10px] font-semibold text-[#030C4D]">{duration}</td>
+                                                            <td className="p-4 text-[10px] font-semibold text-[#3083FF]">{duration}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-right">
@@ -838,22 +838,22 @@ function MonitoringContent() {
                                                             </td>
                                                             {has1PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#0038A8]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has2PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#0038A8]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#0038A8]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {!has1PL && !has2PL && !has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#0038A8]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             <td className="p-4">
@@ -865,7 +865,7 @@ function MonitoringContent() {
                                                                             router.push(`/dashboard/admin/monitoring/${att.id}`);
                                                                         }}
                                                                         disabled={isBelum}
-                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-[#030C4D] hover:bg-[#030C4D]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                                                     >
                                                                         <Eye size={11} /> Detail
                                                                     </button>
@@ -876,7 +876,7 @@ function MonitoringContent() {
                                                                                 handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa');
                                                                             }}
                                                                             disabled={resettingAttemptId === att.id}
-                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#0038A8] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                         >
                                                                             {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                                                                             Reset
@@ -899,26 +899,26 @@ function MonitoringContent() {
                             <motion.div
                                 key="analysis"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#0038A8]/30 rounded-lg shadow-sm overflow-hidden"
+                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="px-5 py-4 border-b border-[#0038A8]/20 flex flex-wrap items-center justify-between gap-2 bg-[#030C4D]/5">
-                                    <h3 className="font-bold text-[#030C4D]">Analisis Butir Soal</h3>
+                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
+                                    <h3 className="font-bold text-[#3083FF]">Analisis Butir Soal</h3>
                                     <button onClick={exportResultsToExcel}
-                                        className="flex items-center gap-2 bg-[#0038A8]/10 text-[#0038A8] hover:bg-[#0038A8]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#0038A8]/30">
+                                        className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
                                         <FileSpreadsheet size={14} /> Export
                                     </button>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[600px]">
                                         <thead>
-                                            <tr className="bg-[#030C4D]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="p-4 text-center font-bold text-[#030C4D] w-14">No</th>
-                                                <th className="p-4 text-left font-bold text-[#030C4D]">Soal</th>
-                                                <th className="p-4 text-center font-bold text-[#030C4D]">Menjawab</th>
-                                                <th className="p-4 text-center font-bold text-[#030C4D]">Benar</th>
-                                                <th className="p-4 text-center font-bold text-[#030C4D]">Salah</th>
-                                                <th className="p-4 text-center font-bold text-[#030C4D]">Belum Ternilai</th>
-                                                <th className="p-4 text-right font-bold text-[#030C4D]">% Salah</th>
+                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Menjawab</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Benar</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Salah</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF]">Belum Ternilai</th>
+                                                <th className="p-4 text-right font-bold text-[#3083FF]">% Salah</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -928,8 +928,8 @@ function MonitoringContent() {
                                                 pagedAnalysis.map((anl) => {
                                                     const isCritical = anl.incorrectPercentage > 50;
                                                     return (
-                                                        <tr key={anl.id} className={`border-b border-[#0038A8]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
-                                                            <td className="p-4 text-center font-bold text-[#030C4D]">{anl.number}</td>
+                                                        <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
+                                                            <td className="p-4 text-center font-bold text-[#3083FF]">{anl.number}</td>
                                                             <td className="p-4">
                                                                 <div className="flex items-start gap-2">
                                                                     {isCritical && <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />}
@@ -939,7 +939,7 @@ function MonitoringContent() {
                                                                         </div>
                                                                         <button
                                                                             onClick={() => setViewQuestion(anl)}
-                                                                            className="mt-2 text-xs font-semibold text-[#0038A8] hover:text-[#0038A8] flex items-center gap-1 transition-colors"
+                                                                            className="mt-2 text-xs font-semibold text-[#3083FF] hover:text-[#3083FF] flex items-center gap-1 transition-colors"
                                                                         >
                                                                             <Eye size={12} /> Lihat Soal & Siapa yang Salah
                                                                         </button>
@@ -952,9 +952,9 @@ function MonitoringContent() {
                                                             <td className="p-4 text-center"><span className="font-bold text-slate-400">{anl.ungraded ?? 0}</span></td>
                                                             <td className="p-4 text-right">
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className={`font-bold text-lg ${isCritical ? 'text-red-600' : 'text-[#030C4D]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
+                                                                    <span className={`font-bold text-lg ${isCritical ? 'text-red-600' : 'text-[#3083FF]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
                                                                     <div className="w-20 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                                                                        <div className={`h-full rounded-full ${isCritical ? 'bg-red-500' : 'bg-[#0038A8]'}`} style={{ width: `${anl.incorrectPercentage}%` }} />
+                                                                        <div className={`h-full rounded-full ${isCritical ? 'bg-red-500' : 'bg-[#3083FF]'}`} style={{ width: `${anl.incorrectPercentage}%` }} />
                                                                     </div>
                                                                 </div>
                                                             </td>
@@ -966,7 +966,7 @@ function MonitoringContent() {
                                     </table>
                                 </div>
                                 {analysis.length > ANALYSIS_PAGE_SIZE && (
-                                    <div className="px-5 py-3 border-t border-[#0038A8]/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div className="px-5 py-3 border-t border-[#3083FF]/10 flex flex-wrap items-center justify-between gap-2 text-xs">
                                         <span className="text-slate-500 font-semibold">
                                             Menampilkan {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, analysis.length)} dari {analysis.length} soal
                                         </span>
@@ -974,15 +974,15 @@ function MonitoringContent() {
                                             <button
                                                 onClick={() => setAnalysisPage(p => Math.max(1, p - 1))}
                                                 disabled={safeAnalysisPage <= 1}
-                                                className="px-3 py-1.5 rounded-lg border border-[#0038A8]/30 text-[#0038A8] font-semibold disabled:opacity-40 hover:bg-[#0038A8]/5 transition-all"
+                                                className="px-3 py-1.5 rounded-lg border border-[#3083FF]/30 text-[#3083FF] font-semibold disabled:opacity-40 hover:bg-[#3083FF]/5 transition-all"
                                             >
                                                 Sebelumnya
                                             </button>
-                                            <span className="font-bold text-[#030C4D]">{safeAnalysisPage}/{analysisTotalPages}</span>
+                                            <span className="font-bold text-[#3083FF]">{safeAnalysisPage}/{analysisTotalPages}</span>
                                             <button
                                                 onClick={() => setAnalysisPage(p => Math.min(analysisTotalPages, p + 1))}
                                                 disabled={safeAnalysisPage >= analysisTotalPages}
-                                                className="px-3 py-1.5 rounded-lg border border-[#0038A8]/30 text-[#0038A8] font-semibold disabled:opacity-40 hover:bg-[#0038A8]/5 transition-all"
+                                                className="px-3 py-1.5 rounded-lg border border-[#3083FF]/30 text-[#3083FF] font-semibold disabled:opacity-40 hover:bg-[#3083FF]/5 transition-all"
                                             >
                                                 Berikutnya
                                             </button>
@@ -990,7 +990,7 @@ function MonitoringContent() {
                                     </div>
                                 )}
                                 {analysis.length > 0 && (
-                                    <div className="px-5 py-3 bg-[#0038A8]/10 border-t border-[#0038A8]/20 text-[10px] text-[#0038A8] font-semibold uppercase tracking-wider flex items-center gap-2">
+                                    <div className="px-5 py-3 bg-[#3083FF]/10 border-t border-[#3083FF]/20 text-[10px] text-[#3083FF] font-semibold uppercase tracking-wider flex items-center gap-2">
                                         <AlertTriangle size={11} /> Baris merah menunjukkan soal dengan persentase kesalahan &gt; 50%
                                     </div>
                                 )}

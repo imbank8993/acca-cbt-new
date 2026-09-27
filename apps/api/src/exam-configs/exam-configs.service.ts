@@ -8,8 +8,13 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { wibDateTimeToUtc } from '../common/wib-time';
-import { DbService } from '../prisma/prisma-db-adapter';
-import { insertIdempotently } from '../common/idempotent-create';
+import { deleteExamsWithoutHistory } from '../common/exam-deletion';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
+import {
+    deriveRequestUuid,
+    insertIdempotently,
+    insertIdempotentlyWithStatus,
+} from '../common/idempotent-create';
 import type {
     AddExamConfigBankDto,
     AddExamConfigExamDto,
@@ -181,28 +186,23 @@ export class ExamConfigsService {
     async remove(user: AuthUser, configId: string) {
         await this.authz.assertProktorByRecord(user, 'exam_configs', configId);
 
-        const { data: config } = await this.db
-            .from('exam_configs')
-            .select('is_locked')
-            .eq('id', configId)
-            .maybeSingle();
+        return this.db.transaction(async (db) => {
+            await this.lockConfig(db, configId);
+            await this.assertUnlocked(configId, '', db);
 
-        if (!config) throw new NotFoundException('Konfigurasi ujian tidak ditemukan.');
-        if ((config as { is_locked: boolean }).is_locked) {
-            throw new ConflictException('Konfigurasi yang terkunci tidak bisa dihapus.');
-        }
+            const schedules = await this.configSchedules(db, 'exam_config_id', configId);
+            await this.lockConfigSchedules(db, schedules.map((row) => row.id));
+            const current = await this.configSchedules(db, 'exam_config_id', configId);
+            await deleteExamsWithoutHistory(
+                db,
+                current.map((row) => row.exam_id).filter((id): id is string => Boolean(id)),
+            );
 
-        // Baris `exam_config_*` ikut terhapus lewat ON DELETE CASCADE, tetapi
-        // `cbt_exams` TIDAK: relasinya ON DELETE SET NULL, tepat supaya menghapus
-        // satu ujian tidak menghapus jadwalnya. Jadi ujian hasil generate harus
-        // dihapus lebih dulu di sini, kalau tidak ia tertinggal sebagai ujian
-        // yatim yang masih terlihat siswa.
-        await this.deleteGeneratedExams('exam_config_id', configId);
+            const { error } = await db.from('exam_configs').delete().eq('id', configId);
+            if (error) throw new BadRequestException(`Gagal menghapus konfigurasi: ${error.message}`);
 
-        const { error } = await this.db.from('exam_configs').delete().eq('id', configId);
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: configId };
+            return { id: configId };
+        });
     }
 
     // ── Bank soal di dalam konfigurasi ───────────────────────────────────────
@@ -211,13 +211,21 @@ export class ExamConfigsService {
         await this.authz.assertProktorByRecord(user, 'exam_configs', dto.exam_config_id);
         await this.assertUnlocked(dto.exam_config_id, 'Tidak bisa menambah bank soal.');
 
+        const { data: config } = await this.db
+            .from('exam_configs')
+            .select('organization_id')
+            .eq('id', dto.exam_config_id)
+            .maybeSingle();
+        if (!config) throw new NotFoundException('Konfigurasi ujian tidak ditemukan.');
+
         const { data: bank } = await this.db
             .from('cbt_question_banks')
             .select('id')
             .eq('id', dto.bank_id)
+            .eq('organization_id', (config as { organization_id: string }).organization_id)
             .maybeSingle();
 
-        if (!bank) throw new NotFoundException('Bank soal tidak ditemukan.');
+        if (!bank) throw new NotFoundException('Bank soal tidak ditemukan pada sekolah ini.');
 
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'exam_config_banks',
@@ -275,12 +283,29 @@ export class ExamConfigsService {
             'exam_configs',
         );
 
-        await this.deleteGeneratedExams('exam_config_bank_id', bankRowId);
+        const { data: bankRow } = await this.db.from('exam_config_banks')
+            .select('exam_config_id').eq('id', bankRowId).maybeSingle();
+        if (!bankRow) throw new NotFoundException('Bank konfigurasi tidak ditemukan.');
+        const configId = (bankRow as { exam_config_id: string }).exam_config_id;
 
-        const { error } = await this.db.from('exam_config_banks').delete().eq('id', bankRowId);
-        if (error) throw new BadRequestException(error.message);
+        return this.db.transaction(async (db) => {
+            await this.lockConfig(db, configId);
+            await this.assertUnlocked(configId, 'Tidak bisa menghapus bank soal.', db);
 
-        return { id: bankRowId };
+            const schedules = await this.configSchedules(db, 'exam_config_bank_id', bankRowId);
+            await this.lockConfigSchedules(db, schedules.map((row) => row.id));
+            const current = await this.configSchedules(db, 'exam_config_bank_id', bankRowId);
+            await deleteExamsWithoutHistory(
+                db,
+                current.map((row) => row.exam_id).filter((id): id is string => Boolean(id)),
+            );
+
+            const { error } = await db.from('exam_config_banks').delete()
+                .eq('id', bankRowId).eq('exam_config_id', configId);
+            if (error) throw new BadRequestException(`Gagal menghapus bank konfigurasi: ${error.message}`);
+
+            return { id: bankRowId };
+        });
     }
 
     // ── Jadwal per kelas ─────────────────────────────────────────────────────
@@ -288,6 +313,20 @@ export class ExamConfigsService {
     async addSchedule(user: AuthUser, dto: AddExamConfigExamDto) {
         await this.authz.assertProktorByRecord(user, 'exam_configs', dto.exam_config_id);
         await this.assertUnlocked(dto.exam_config_id);
+
+        const [{ data: config }, { data: bankRow }] = await Promise.all([
+            this.db.from('exam_configs').select('organization_id').eq('id', dto.exam_config_id).maybeSingle(),
+            this.db.from('exam_config_banks').select('id').eq('id', dto.exam_config_bank_id)
+                .eq('exam_config_id', dto.exam_config_id).maybeSingle(),
+        ]);
+        if (!config) throw new NotFoundException('Konfigurasi ujian tidak ditemukan.');
+        if (!bankRow) throw new NotFoundException('Bank soal tidak berada dalam konfigurasi ini.');
+
+        const { data: cls } = await this.db.from('cbt_classes').select('id')
+            .eq('id', dto.class_id)
+            .eq('organization_id', (config as { organization_id: string }).organization_id)
+            .maybeSingle();
+        if (!cls) throw new NotFoundException('Kelas tidak ditemukan pada sekolah ini.');
 
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'exam_config_exams',
@@ -323,23 +362,31 @@ export class ExamConfigsService {
 
         const { data: schedule } = await this.db
             .from('exam_config_exams')
-            .select('exam_id')
+            .select('exam_config_id')
             .eq('id', configExamId)
             .maybeSingle();
+        if (!schedule) throw new NotFoundException('Jadwal konfigurasi tidak ditemukan.');
+        const configId = (schedule as { exam_config_id: string }).exam_config_id;
 
-        const examId = (schedule as { exam_id: string | null } | null)?.exam_id;
-        if (examId) {
-            await this.db.from('cbt_exams').delete().eq('id', examId);
-        }
+        return this.db.transaction(async (db) => {
+            await this.lockConfig(db, configId);
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `config-exam-generation:${configExamId}`,
+            );
+            await this.assertUnlocked(configId, 'Tidak bisa menghapus jadwal.', db);
 
-        const { error } = await this.db
-            .from('exam_config_exams')
-            .delete()
-            .eq('id', configExamId);
+            const { data: current } = await db.from('exam_config_exams')
+                .select('exam_id').eq('id', configExamId).eq('exam_config_id', configId).maybeSingle();
+            if (!current) throw new NotFoundException('Jadwal konfigurasi tidak ditemukan.');
+            const examId = (current as { exam_id: string | null }).exam_id;
+            await deleteExamsWithoutHistory(db, examId ? [examId] : []);
 
-        if (error) throw new BadRequestException(error.message);
+            const { error } = await db.from('exam_config_exams').delete().eq('id', configExamId);
+            if (error) throw new BadRequestException(`Gagal menghapus jadwal: ${error.message}`);
 
-        return { id: configExamId };
+            return { id: configExamId };
+        });
     }
 
     // ── Pembangkitan ujian ───────────────────────────────────────────────────
@@ -356,7 +403,7 @@ export class ExamConfigsService {
         let created = 0;
         const skipped: string[] = [];
 
-        for (const configExamId of configExamIds) {
+        for (const configExamId of [...new Set(configExamIds)]) {
             try {
                 // Diperiksa per id, bukan hanya id pertama seperti versi lama:
                 // satu daftar bisa saja memuat jadwal milik organisasi lain.
@@ -381,48 +428,72 @@ export class ExamConfigsService {
 
     /** Mengembalikan alasan jika dilewati, atau `null` bila ujian berhasil dibuat. */
     private async generateOne(configExamId: string): Promise<string | null> {
-        const { data } = await this.db
-            .from('exam_config_exams')
-            .select(
-                `*,
-                 exam_configs!inner(id, organization_id, name, school_year, semester, is_locked),
-                 exam_config_banks!inner(id, bank_id, subject_id, duration_minutes),
-                 classes:cbt_classes!inner(id, name)`,
-            )
-            .eq('id', configExamId)
-            .maybeSingle();
+        const { data: source } = await this.db.from('exam_config_exams')
+            .select('exam_config_id').eq('id', configExamId).maybeSingle();
+        if (!source) return `${configExamId}: jadwal tidak ditemukan`;
+        const sourceConfigId = (source as { exam_config_id: string }).exam_config_id;
 
-        if (!data) return `${configExamId}: jadwal tidak ditemukan`;
+        return this.db.transaction(async (db) => {
+            await this.lockConfig(db, sourceConfigId);
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `config-exam-generation:${configExamId}`,
+            );
 
-        const schedule = data as any;
+            const { data } = await db
+                .from('exam_config_exams')
+                .select(
+                    `*,
+                     exam_configs!inner(id, organization_id, name, school_year, semester, is_locked),
+                     exam_config_banks!inner(id, exam_config_id, bank_id, subject_id, duration_minutes),
+                     classes:cbt_classes!inner(id, name, organization_id)`,
+                )
+                .eq('id', configExamId)
+                .maybeSingle();
 
-        if (schedule.exam_id) return `${configExamId}: ujian sudah pernah dibangkitkan`;
-        if (schedule.exam_configs?.is_locked) return `${configExamId}: konfigurasi terkunci`;
+            if (!data) return `${configExamId}: jadwal tidak ditemukan`;
 
-        const bankId = schedule.exam_config_banks?.bank_id;
-        if (!bankId) return `${configExamId}: bank soal belum dipilih`;
+            const schedule = data as any;
+            if (schedule.exam_id) return `${configExamId}: ujian sudah pernah dibangkitkan`;
+            if (schedule.exam_configs?.is_locked) return `${configExamId}: konfigurasi terkunci`;
+            if (schedule.exam_config_banks?.exam_config_id !== schedule.exam_config_id) {
+                return `${configExamId}: bank soal bukan bagian dari konfigurasi`;
+            }
 
-        const { data: bank } = await this.db
-            .from('cbt_question_banks')
-            .select('title')
-            .eq('id', bankId)
-            .maybeSingle();
+            const organizationId = schedule.exam_configs?.organization_id;
+            if (!organizationId || schedule.classes?.organization_id !== organizationId) {
+                return `${configExamId}: kelas bukan milik sekolah konfigurasi`;
+            }
 
-        const className = schedule.classes?.name || 'N/A';
-        const configName = schedule.exam_configs?.name;
-        const schoolYear = schedule.exam_configs?.school_year;
+            const bankId = schedule.exam_config_banks?.bank_id;
+            if (!bankId) return `${configExamId}: bank soal belum dipilih`;
 
-        const { data: exam, error } = await this.db
-            .from('cbt_exams')
-            .insert({
-                organization_id: schedule.exam_configs?.organization_id,
+            const { data: bank } = await db
+                .from('cbt_question_banks')
+                .select('title')
+                .eq('id', bankId)
+                .eq('organization_id', organizationId)
+                .maybeSingle();
+            if (!bank) return `${configExamId}: bank soal bukan milik sekolah konfigurasi`;
+
+            const startTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time);
+            const endTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.window_end_time);
+            if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
+                return `${configExamId}: jendela waktu ujian tidak valid`;
+            }
+
+            const className = schedule.classes?.name || 'N/A';
+            const configName = schedule.exam_configs?.name;
+            const schoolYear = schedule.exam_configs?.school_year;
+            const payload = {
+                organization_id: organizationId,
                 question_bank_id: bankId,
                 subject_id: schedule.exam_config_banks?.subject_id || null,
-                title: (bank as { title?: string } | null)?.title || 'Ujian',
+                title: (bank as { title?: string }).title || 'Ujian',
                 description: `Kelas ${className} | ${configName}${schoolYear ? ` | ${schoolYear}` : ''}`,
                 duration_minutes: schedule.exam_config_banks?.duration_minutes || 90,
-                start_time: wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time),
-                end_time: wibDateTimeToUtc(schedule.scheduled_date, schedule.window_end_time),
+                start_time: startTime,
+                end_time: endTime,
                 randomize_questions: true,
                 randomize_options: true,
                 show_results: false,
@@ -436,32 +507,54 @@ export class ExamConfigsService {
                     exam_config_bank_id: schedule.exam_config_bank_id,
                     exam_config_exam_id: configExamId,
                 },
-            })
-            .select()
-            .maybeSingle();
+            };
 
-        if (error || !exam) {
-            return `${configExamId}: gagal membuat ujian — ${error?.message ?? 'tidak diketahui'}`;
-        }
+            const { data: exam } = await insertIdempotentlyWithStatus<{ id: string }>(db, {
+                table: 'cbt_exams',
+                organizationId,
+                clientRequestId: deriveRequestUuid(configExamId, 2902),
+                fingerprint: payload,
+                payload,
+                select: 'id',
+            });
 
-        const examId = (exam as { id: string }).id;
+            const { data: existingTarget, error: targetReadError } = await db
+                .from('cbt_exam_targets')
+                .select('id')
+                .eq('exam_id', exam.id)
+                .eq('class_id', schedule.class_id)
+                .limit(1)
+                .maybeSingle();
+            if (targetReadError) {
+                throw new BadRequestException(`Gagal memeriksa target kelas: ${targetReadError.message}`);
+            }
+            if (!existingTarget) {
+                const { error: targetError } = await db
+                    .from('cbt_exam_targets')
+                    .insert({ exam_id: exam.id, class_id: schedule.class_id });
+                if (targetError) {
+                    throw new BadRequestException(`Gagal menetapkan kelas: ${targetError.message}`);
+                }
+            }
 
-        await this.db
-            .from('exam_config_exams')
-            .update({ exam_id: examId })
-            .eq('id', configExamId);
+            const { error: linkError } = await db
+                .from('exam_config_exams')
+                .update({ exam_id: exam.id })
+                .eq('id', configExamId);
+            if (linkError) throw new BadRequestException(`Gagal menautkan ujian: ${linkError.message}`);
 
-        await this.db
-            .from('cbt_exam_targets')
-            .upsert({ exam_id: examId, class_id: schedule.class_id });
-
-        return null;
+            return null;
+        });
     }
 
     // ── Pembantu ─────────────────────────────────────────────────────────────
 
-    private async assertUnlocked(configId: string, detail = ''): Promise<void> {
-        const { data } = await this.db
+    private async assertUnlocked(
+        configId: string,
+        detail = '',
+        db: Pick<DbService, 'from'> | DbSession = this.db,
+    ): Promise<void> {
+        const { data } = await db
             .from('exam_configs')
             .select('is_locked')
             .eq('id', configId)
@@ -475,20 +568,33 @@ export class ExamConfigsService {
         }
     }
 
-    /** Hapus `cbt_exams` yang dibangkitkan dari jadwal yang cocok dengan filter. */
-    private async deleteGeneratedExams(column: string, value: string): Promise<void> {
-        const { data } = await this.db
-            .from('exam_config_exams')
-            .select('exam_id')
-            .eq(column, value);
+    private lockConfig(db: DbSession, configId: string): Promise<unknown> {
+        return db.raw(
+            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+            `exam-config:${configId}`,
+        );
+    }
 
-        const examIds = ((data as Array<{ exam_id: string | null }>) || [])
-            .map((row) => row.exam_id)
-            .filter((id): id is string => Boolean(id));
-
-        if (examIds.length > 0) {
-            await this.db.from('cbt_exams').delete().in('id', examIds);
+    private async lockConfigSchedules(db: DbSession, ids: string[]): Promise<void> {
+        for (const id of [...new Set(ids)].sort()) {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `config-exam-generation:${id}`,
+            );
         }
+    }
+
+    private async configSchedules(
+        db: DbSession,
+        column: 'exam_config_id' | 'exam_config_bank_id',
+        value: string,
+    ): Promise<Array<{ id: string; exam_id: string | null }>> {
+        const { data, error } = await db
+            .from('exam_config_exams')
+            .select('id, exam_id')
+            .eq(column, value);
+        if (error) throw new BadRequestException(`Gagal membaca jadwal konfigurasi: ${error.message}`);
+        return (data as Array<{ id: string; exam_id: string | null }>) || [];
     }
 
 }

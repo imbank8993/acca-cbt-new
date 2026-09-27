@@ -54,6 +54,16 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
+    const assignedStudentIds = new Set<string>(
+        selectedRoom?.pas_room_students?.map((student: any) => student.user_id) || [],
+    );
+    const remainingCapacity = selectedRoom
+        ? Math.max(0, Number(selectedRoom.capacity || 0) - assignedStudentIds.size)
+        : 0;
+    const newStudentCount = [...new Set(selectedStudentIds)]
+        .filter((id) => !assignedStudentIds.has(id)).length;
+    const exceedsCapacity = newStudentCount > remainingCapacity;
+
     useEffect(() => {
         loadData();
     }, [period.id]);
@@ -140,6 +150,10 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     const handleAddStudentsToRoom = async () => {
         if (!selectedRoom || selectedStudentIds.length === 0) return;
+        if (exceedsCapacity) {
+            alert(`Kapasitas ruang tidak cukup. Tersedia ${remainingCapacity} tempat.`);
+            return;
+        }
         setIsSaving(true);
         const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
         if (result.success) {
@@ -353,7 +367,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-slate-700 text-sm">Daftar Siswa di Ruang Ini</h4>
                                     <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-full text-slate-600">
-                                        Total: {selectedRoom.pas_room_students?.length || 0}
+                                        Total: {assignedStudentIds.size} / {selectedRoom.capacity} · Sisa {remainingCapacity}
                                     </span>
                                 </div>
                                 
@@ -394,11 +408,16 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             </div>
                                             <button
                                                 onClick={handleAddStudentsToRoom}
-                                                disabled={selectedStudentIds.length === 0 || isSaving}
+                                                disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving}
                                                 className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
                                             >
                                                 Tambahkan {selectedStudentIds.length} Siswa ke Ruang
                                             </button>
+                                            {exceedsCapacity && (
+                                                <p className="text-xs text-red-600">
+                                                    Pilihan melebihi sisa kapasitas {remainingCapacity} tempat.
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>

@@ -6,12 +6,14 @@ import {
     IsBoolean,
     IsHexColor,
     IsIn,
+    IsInt,
     IsNotEmpty,
     IsNumber,
     IsObject,
     IsOptional,
     IsString,
     IsUUID,
+    Min,
     ValidateIf,
     ValidateNested,
 } from 'class-validator';
@@ -74,6 +76,12 @@ export class SaveQuestionDto {
     @ValidateIf((dto: SaveQuestionDto) => !dto.id)
     @IsUUID('4', { message: 'clientRequestId tidak valid' })
     clientRequestId?: string;
+
+    @ApiPropertyOptional({ description: 'Wajib saat edit untuk mendeteksi perubahan dari tab lain.' })
+    @ValidateIf((dto: SaveQuestionDto) => Boolean(dto.id))
+    @IsInt({ message: 'expectedRevision tidak valid' })
+    @Min(1, { message: 'expectedRevision tidak valid' })
+    expectedRevision?: number;
 
     @ApiProperty()
     @IsUUID('4', { message: 'bankId tidak valid' })

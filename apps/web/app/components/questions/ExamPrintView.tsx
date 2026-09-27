@@ -82,15 +82,15 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
             <tbody><tr><td style={{ padding: 0, border: 'none' }}>
 
             {/* ── Header (Kop Surat) ── */}
-            <div style={{ display: 'flex', alignItems: 'center', borderBottom: '2px solid #1e3a8a', paddingBottom: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', borderBottom: '2px solid #3083FF', paddingBottom: '12px', marginBottom: '16px' }}>
                 <img src="/logo-icon.png" alt="ACCA Logo" style={{ height: '45px', objectFit: 'contain', marginRight: '16px' }} />
-                <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', fontSize: '16px', fontWeight: 800, color: '#1e3a8a' }}>ACCA</div>
+                <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', fontSize: '16px', fontWeight: 800, color: '#3083FF' }}>ACCA</div>
             </div>
 
             {/* ── Judul Ujian (Di Bawah Garis) ── */}
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>LEMBAR SOAL UJIAN</div>
-                <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '14px', color: '#1e3a8a', marginTop: '4px', fontWeight: 600 }}>{bankInfo?.title || bankInfo?.name || 'Bank Soal'}</div>
+                <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '14px', color: '#3083FF', marginTop: '4px', fontWeight: 600 }}>{bankInfo?.title || bankInfo?.name || 'Bank Soal'}</div>
             </div>
 
             {/* ── Info Siswa (Proporsional & Seimbang) ── */}
@@ -99,14 +99,14 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                     <tr>
                         <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', width: '70%' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                <strong style={{ color: '#1e3a8a', width: '70px' }}>NAMA</strong>
+                                <strong style={{ color: '#3083FF', width: '70px' }}>NAMA</strong>
                                 <span style={{ marginRight: '8px', fontWeight: 'bold' }}>:</span>
                                 <div style={{ flex: 1, borderBottom: '2px dotted #cbd5e1', marginBottom: '3px' }}></div>
                             </div>
                         </td>
                         <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', width: '30%' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                <strong style={{ color: '#1e3a8a', width: '50px' }}>NISN</strong>
+                                <strong style={{ color: '#3083FF', width: '50px' }}>NISN</strong>
                                 <span style={{ marginRight: '8px', fontWeight: 'bold' }}>:</span>
                                 <div style={{ flex: 1, borderBottom: '2px dotted #cbd5e1', marginBottom: '3px' }}></div>
                             </div>
@@ -115,14 +115,14 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                     <tr>
                         <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                <strong style={{ color: '#1e3a8a', width: '70px' }}>SEKOLAH</strong>
+                                <strong style={{ color: '#3083FF', width: '70px' }}>SEKOLAH</strong>
                                 <span style={{ marginRight: '8px', fontWeight: 'bold' }}>:</span>
                                 <div style={{ flex: 1, borderBottom: '2px dotted #cbd5e1', marginBottom: '3px' }}></div>
                             </div>
                         </td>
                         <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                                <strong style={{ color: '#1e3a8a', width: '50px' }}>KELAS</strong>
+                                <strong style={{ color: '#3083FF', width: '50px' }}>KELAS</strong>
                                 <span style={{ marginRight: '8px', fontWeight: 'bold' }}>:</span>
                                 <div style={{ flex: 1, borderBottom: '2px dotted #cbd5e1', marginBottom: '3px' }}></div>
                             </div>
@@ -132,8 +132,8 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
             </table>
 
             {/* ── Petunjuk Umum ── */}
-            <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', background: '#f1f5f9', borderLeft: '4px solid #1e3a8a', padding: '8px 12px', fontSize: '12px', color: '#475569', marginBottom: '20px' }}>
-                <strong style={{ color: '#1e3a8a' }}>Petunjuk Umum:</strong><br/>
+            <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', background: '#f1f5f9', borderLeft: '4px solid #3083FF', padding: '8px 12px', fontSize: '12px', color: '#475569', marginBottom: '20px' }}>
+                <strong style={{ color: '#3083FF' }}>Petunjuk Umum:</strong><br/>
                 1. Berdoalah sebelum mengerjakan soal.<br/>
                 2. Bacalah setiap soal dengan seksama.<br/>
                 3. Total soal: {questions.length} butir | Nilai Total: {totalScore} poin.
@@ -176,7 +176,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                         {/* Render Stimulus */}
                         {showStimulus && (
                             <div className="eqc-stimulus">
-                                <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e3a8a' }}>Bacalah teks/informasi berikut untuk menjawab soal nomor {idx + 1} {
+                                <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#3083FF' }}>Bacalah teks/informasi berikut untuk menjawab soal nomor {idx + 1} {
                                     // Cari soal ke berapa stimulus ini berakhir
                                     (() => {
                                         let endIdx = idx;
@@ -219,7 +219,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             borderRadius: '6px',
                                             background: '#eff6ff',
                                             border: '1px solid #bfdbfe',
-                                            color: '#1e3a8a',
+                                            color: '#3083FF',
                                             fontSize: '12px',
                                             fontWeight: 700,
                                             fontFamily: '"Plus Jakarta Sans", sans-serif',
@@ -448,7 +448,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                 <div>
                     Dicetak dari {bankInfo?.title || bankInfo?.name || 'Bank Soal'}
                 </div>
-                <div style={{ fontWeight: 'bold', color: '#1e3a8a' }}>
+                <div style={{ fontWeight: 'bold', color: '#3083FF' }}>
                     acca-cbt.icgowa.sch.id
                 </div>
             </div>

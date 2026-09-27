@@ -130,7 +130,7 @@ export default function Home() {
                     <button
                         onClick={async () => { setResetting(true); await resetAndRetrySso(); }}
                         disabled={resetting}
-                        className="w-full bg-[#030C4D] hover:bg-[#020510] disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-all shadow-sm"
+                        className="w-full bg-[#3083FF] hover:bg-[#2563EB] disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-all shadow-sm"
                     >
                         {resetting ? 'Membersihkan…' : 'Bersihkan Sesi & Coba Lagi'}
                     </button>

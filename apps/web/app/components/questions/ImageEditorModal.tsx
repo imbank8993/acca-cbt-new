@@ -219,7 +219,7 @@ function ImageEditorModalContent({
                       onClick={() => setImgWidth(item.key)}
                       className={`py-1.5 text-xs font-semibold rounded-lg transition-all border cursor-pointer text-center ${
                         imgWidth === item.key
-                          ? 'bg-[#030C4D] text-white border-[#030C4D] shadow-xs'
+                          ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
                           : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
@@ -380,7 +380,7 @@ function ImageEditorModalContent({
               <button
                 type="button"
                 onClick={handleFinalApply}
-                className="px-5 py-2 text-sm font-semibold bg-[#030C4D] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-sm flex items-center gap-2 cursor-pointer"
               >
                 <Check size={16} /> Sisipkan ke Soal
               </button>

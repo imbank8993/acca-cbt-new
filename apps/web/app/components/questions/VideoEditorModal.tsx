@@ -188,7 +188,7 @@ function VideoEditorModalContent({
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 transition-all">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-[#030C4D] to-[#020826] text-white flex items-center justify-between">
+        <div className="px-6 py-4 bg-gradient-to-r from-[#3083FF] to-[#020826] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
               <Youtube size={18} />
@@ -227,7 +227,7 @@ function VideoEditorModalContent({
                   setError('');
                 }}
                 placeholder="Contoh: https://www.youtube.com/watch?v=... atau https://youtu.be/..."
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#030C4D] focus:ring-2 focus:ring-[#030C4D]/10 transition-all pr-10"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:bg-white focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/10 transition-all pr-10"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSubmit();
@@ -297,8 +297,8 @@ function VideoEditorModalContent({
                   }}
                   className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
                     width === w && !customWidth
-                      ? 'bg-[#030C4D] text-white border-[#030C4D] shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-[#030C4D]/40 hover:bg-slate-50'
+                      ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-[#3083FF]/40 hover:bg-slate-50'
                   }`}
                 >
                   {w}
@@ -319,7 +319,7 @@ function VideoEditorModalContent({
                   setWidth('custom');
                 }}
                 placeholder="misal: 600px, 80%, atau auto"
-                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:bg-white focus:border-[#030C4D]"
+                className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:bg-white focus:border-[#3083FF]"
               />
             </div>
           </div>
@@ -367,7 +367,7 @@ function VideoEditorModalContent({
               type="button"
               onClick={handleSubmit}
               disabled={!url.trim()}
-              className="px-5 py-2.5 bg-[#030C4D] hover:bg-[#0a1a6e] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+              className="px-5 py-2.5 bg-[#3083FF] hover:bg-[#0a1a6e] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <Check size={15} />
               {isEdit ? 'Simpan Perubahan' : 'Sisipkan Video'}

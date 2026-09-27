@@ -150,7 +150,7 @@ export default function StudentAnalyticsPage() {
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-32 space-y-3">
-                <Loader2 size={36} className="text-[#0038A8] animate-spin" />
+                <Loader2 size={36} className="text-[#3083FF] animate-spin" />
                 <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat analisis performa...</p>
             </div>
         );
@@ -177,13 +177,13 @@ export default function StudentAnalyticsPage() {
         datasets: [{
             label: 'Skor',
             data: performanceTrend.map(p => p.score),
-            borderColor: '#0038A8',
+            borderColor: '#3083FF',
             backgroundColor: 'rgba(0, 56, 168, 0.06)',
             fill: true,
             tension: 0.4,
             pointRadius: 5,
             pointHoverRadius: 7,
-            pointBackgroundColor: '#0038A8',
+            pointBackgroundColor: '#3083FF',
             pointBorderColor: '#fff',
             pointBorderWidth: 2
         }]
@@ -324,14 +324,14 @@ export default function StudentAnalyticsPage() {
                         transition={{ delay: 0.25 }}
                         className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm flex flex-col text-left relative overflow-hidden pl-7"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1.5 bg-[#0038A8]" />
+                        <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                         <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-                            <Zap size={16} className="text-[#0038A8]" />
+                            <Zap size={16} className="text-[#3083FF]" />
                             Perbandingan dengan Rata-rata Kelas
                         </h3>
                         <div className="grid grid-cols-3 gap-6">
                             <div className="text-center">
-                                <p className="text-4xl font-black text-[#0038A8] font-mono">{comparison.studentAverage}%</p>
+                                <p className="text-4xl font-black text-[#3083FF] font-mono">{comparison.studentAverage}%</p>
                                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Skor Anda</p>
                             </div>
                             <div className="text-center flex flex-col items-center justify-center">
@@ -365,7 +365,7 @@ export default function StudentAnalyticsPage() {
                         className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm text-left"
                     >
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <TrendingUp size={16} className="text-[#0038A8]" />
+                            <TrendingUp size={16} className="text-[#3083FF]" />
                             Tren Performa
                         </h3>
                         <div className="h-64">
@@ -381,7 +381,7 @@ export default function StudentAnalyticsPage() {
                         className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm text-left"
                     >
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <BookOpen size={16} className="text-[#0038A8]" />
+                            <BookOpen size={16} className="text-[#3083FF]" />
                             Performa per Mata Pelajaran
                         </h3>
                         <div className="h-64">
@@ -414,7 +414,7 @@ export default function StudentAnalyticsPage() {
                 >
                     <div className="px-6 py-4 border-b border-slate-100">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <PieChart size={16} className="text-[#0038A8]" />
+                            <PieChart size={16} className="text-[#3083FF]" />
                             Detail per Mata Pelajaran
                         </h3>
                     </div>
@@ -469,9 +469,9 @@ export default function StudentAnalyticsPage() {
                         transition={{ delay: 0.45 }}
                         className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm text-left relative overflow-hidden pl-7"
                     >
-                        <div className="absolute left-0 top-0 h-full w-1.5 bg-[#0038A8]" />
+                        <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                         <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-                            <Brain size={16} className="text-[#0038A8]" />
+                            <Brain size={16} className="text-[#3083FF]" />
                             Kesulitan Soal
                         </h3>
                         <div className="space-y-4">
@@ -582,14 +582,14 @@ export default function StudentAnalyticsPage() {
                     transition={{ delay: 0.6 }}
                     className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm text-left relative overflow-hidden pl-7"
                 >
-                    <div className="absolute left-0 top-0 h-full w-1.5 bg-[#0038A8]" />
+                    <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                     <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
-                        <Clock size={16} className="text-[#0038A8]" />
+                        <Clock size={16} className="text-[#3083FF]" />
                         Kebiasaan Belajar
                     </h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-[#0038A8] font-mono leading-none">{formatDuration(studyHabits.averageTimePerExam)}</p>
+                            <p className="text-xl font-bold text-[#3083FF] font-mono leading-none">{formatDuration(studyHabits.averageTimePerExam)}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Rata-rata / Ujian</p>
                         </div>
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
@@ -616,7 +616,7 @@ export default function StudentAnalyticsPage() {
                 >
                     <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <Calendar size={16} className="text-[#0038A8]" />
+                            <Calendar size={16} className="text-[#3083FF]" />
                             Riwayat Ujian
                         </h3>
                     </div>

@@ -37,11 +37,9 @@ export default function Sidebar({
     const pathname = usePathname();
     const router = useRouter();
 
-    const [search, setSearch] = useState('');
     const [pinned, setPinned] = useState<string[]>([]);
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
 
     const [userData, setUserData] = useState<any>(null);
     const [dbUserRole, setDbUserRole] = useState<string | null>(null);
@@ -168,13 +166,6 @@ export default function Sidebar({
         }
     };
 
-    const searching = !isCollapsed && search.trim().length > 0;
-    const searchResults = useMemo(() => {
-        if (!searching) return [];
-        const q = search.toLowerCase();
-        return menuItems.filter(item => item.label.toLowerCase().includes(q));
-    }, [searching, search, menuItems]);
-
     const pinnedItems = useMemo(() => {
         return menuItems.filter(item => pinned.includes(item.href));
     }, [menuItems, pinned]);
@@ -224,66 +215,11 @@ export default function Sidebar({
                             {!isCollapsed && <span className="btn-label">TOOLS</span>}
                         </a>
                     </div>
-
-                    {/* SEARCH */}
-                    {!isCollapsed && (
-                        <div className="sidebar-search-box">
-                            <i className="fa-solid fa-magnifying-glass"></i>
-                            <input
-                                ref={searchRef}
-                                type="text"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                placeholder="Cari menu…"
-                                aria-label="Cari menu"
-                                className="sidebar-search-input"
-                            />
-                            {search && (
-                                <button className="search-clear" onClick={() => setSearch('')} aria-label="Hapus pencarian" type="button">
-                                    <i className="fa-solid fa-xmark"></i>
-                                </button>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 <nav className="sidebar-nav">
-                    {/* SEARCH RESULTS */}
-                    {searching ? (
-                        <div className="search-results">
-                            {searchResults.length === 0 ? (
-                                <div className="search-empty">Tidak ada menu yang cocok</div>
-                            ) : (
-                                searchResults.map(item => {
-                                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                                    return (
-                                        <div key={item.href} className="submenu-row">
-                                            <Link
-                                                href={item.href}
-                                                className={`submenu-btn ${isActive ? 'active' : ''}`}
-                                                onClick={handleItemClick}
-                                            >
-                                                <i className={`fa-solid ${item.icon} menu-icon`} style={{ marginRight: 10, fontSize: '0.95rem' }}></i>
-                                                <span className="menu-label">{item.label}</span>
-                                            </Link>
-                                            <button
-                                                className={`pin-star ${pinned.includes(item.href) ? 'active' : ''}`}
-                                                title={pinned.includes(item.href) ? 'Lepas dari pinned' : 'Sematkan'}
-                                                aria-label={pinned.includes(item.href) ? 'Lepas dari pinned' : 'Sematkan'}
-                                                type="button"
-                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); togglePin(item.href); }}
-                                            >
-                                                <i className="fa-solid fa-star"></i>
-                                            </button>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    ) : (
-                        <>
-                            {/* PINNED */}
-                            {!isCollapsed && pinnedItems.length > 0 && (
+                    {/* PINNED */}
+                    {!isCollapsed && pinnedItems.length > 0 && (
                                 <>
                                     <div className="nav-section-label">Disematkan</div>
                                     {pinnedItems.map(p => {
@@ -367,8 +303,6 @@ export default function Sidebar({
                                     </div>
                                 );
                             })}
-                        </>
-                    )}
                 </nav>
             </aside>
         </>

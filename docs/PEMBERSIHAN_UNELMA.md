@@ -158,6 +158,30 @@ ujian juga memakai kunci retry-safe. Indeks database menutup race pada aturan
 jadwal yang sebelumnya hanya diperiksa service. Rinciannya ada di
 [Tahap 27](perbaikan-2026-09-19/TAHAP-27-IDEMPOTENSI-DATA-TURUNAN.md).
 
+Soal baru beserta opsi dan seluruh isi pendamping bank kini aman diulang setelah
+respons hilang. Edit soal memakai nomor revisi agar dua tab tidak saling menimpa
+tanpa peringatan. Migrasinya sudah diterapkan permanen. Rinciannya ada di
+[Tahap 28](perbaikan-2026-09-19/TAHAP-28-INTEGRITAS-ISI-BANK-SOAL.md).
+
+Pembangkitan ujian dari jadwal PAS dan konfigurasi kini memakai lock per sumber
+dan satu transaksi untuk ujian, target kelas, serta tautan jadwal. Retry aman,
+kegagalan sebagian di-rollback, dan relasi bank/kelas/sekolah diperiksa ulang.
+Rinciannya ada di
+[Tahap 29](perbaikan-2026-09-19/TAHAP-29-INTEGRITAS-PEMBANGKITAN-UJIAN.md).
+
+Penugasan siswa dan pengawas ruang PAS kini atomik, dibatasi kapasitas, dan
+memvalidasi periode, sekolah, keanggotaan aktif, serta peran. UI menampilkan
+sisa tempat. Constraint database ruang–periode sudah diterapkan permanen.
+Rinciannya ada di
+[Tahap 30](perbaikan-2026-09-19/TAHAP-30-INTEGRITAS-PENUGASAN-RUANG-PAS.md).
+
+Penghapusan ujian biasa kini mempertahankan seluruh rekam siswa dan menolak
+ujian yang sudah mempunyai attempt/sertifikat. Jadwal, periode, dan konfigurasi
+dihapus atomik bersama ujian kosongnya. Admin/Proktor mempunyai purge khusus
+untuk data uji coba yang sudah tidak dipublikasikan dengan konfirmasi judul.
+Rinciannya ada di
+[Tahap 31](perbaikan-2026-09-19/TAHAP-31-INTEGRITAS-PENGHAPUSAN-UJIAN.md).
+
 **Kata "expired" untuk habisnya waktu ujian** tetap ada dan tidak ada
 hubungannya dengan langganan — mis. `autoFinishExpiredAttemptsAction` dan
 `expiredAttemptId`.

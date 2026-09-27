@@ -105,7 +105,7 @@ export default function BackupRestorePage() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-[#030C4D]/30 rounded-lg p-6 shadow-sm relative overflow-hidden"
+          className="bg-white border border-[#3083FF]/30 rounded-lg p-6 shadow-sm relative overflow-hidden"
         >
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 shrink-0 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center border border-emerald-200">
@@ -127,7 +127,7 @@ export default function BackupRestorePage() {
           <button 
             onClick={handleExport}
             disabled={isExporting}
-            className="w-full flex items-center justify-center gap-2 bg-[#030C4D] hover:bg-[#030C4D]/90 text-white py-3 rounded-lg font-bold transition-all disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 bg-[#3083FF] hover:bg-[#3083FF]/90 text-white py-3 rounded-lg font-bold transition-all disabled:opacity-50"
           >
             {isExporting ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
             {isExporting ? 'Memproses Data & Mengunduh Gambar...' : 'Generate Backup Data'}

@@ -100,6 +100,8 @@ export default function Header({
     const displayRole = displayRoles[0] || 'User';
     const displayNip = user?.nip || 'N/A';
     const avatarImg = user?.photoUrl || user?.avatar_url;
+    const isSiswa = displayRoles.some(r => r.toLowerCase() === 'siswa');
+    const idLabel = isSiswa ? 'NISN' : 'NIP';
 
     const isDashboard = !pageTitle || pageTitle === 'Dashboard' || pathname.endsWith('/dashboard') || pathname === '/dashboard/admin' || pathname === '/dashboard/proktor' || pathname === '/dashboard/guru' || pathname === '/dashboard/siswa' || pathname === '/dashboard/pengawas';
 
@@ -218,7 +220,7 @@ export default function Header({
                             </div>
                             <div className="user-info-header">
                                 <span className="user-name-header">{displayName}</span>
-                                <span className="user-role-header">{displayNip} • {displayRole}</span>
+                                <span className="user-role-header">{displayNip && displayNip !== 'N/A' ? `${idLabel} ${displayNip} • ` : ''}{displayRole}</span>
                             </div>
                         </button>
 
@@ -256,8 +258,8 @@ export default function Header({
                                         </div>
                                         <div style={{ minWidth: 0, flex: 1 }}>
                                             <div className="user-menu-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
-                                            <div className="user_menu_nip" style={{ fontSize: '0.75rem', color: 'var(--n-muted, rgba(255,255,255,0.7))', margin: '2px 0' }}>
-                                                NIP/NISN: {displayNip}
+                                            <div className="user_menu_nip">
+                                                {idLabel}: {displayNip && displayNip !== 'N/A' ? displayNip : '-'}
                                             </div>
                                             <div className="user-menu-role">{displayRoles.join(', ')}</div>
                                         </div>
@@ -277,7 +279,7 @@ export default function Header({
                                     <span>{isDark ? "Mode Terang" : "Mode Gelap"}</span>
                                 </button>
 
-                                <div style={{ borderTop: '1px solid var(--header-border)', margin: '4px 0' }}></div>
+                                <div className="user-menu-divider" />
                                 <button className="user-menu-item" onClick={handleLogout} style={{ color: '#ef4444' }}>
                                     <LogOut size={16} style={{ flexShrink: 0 }} />
                                     <span>Sign Out</span>

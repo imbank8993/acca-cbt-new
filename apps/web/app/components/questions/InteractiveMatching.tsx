@@ -156,7 +156,7 @@ export const InteractiveMatching = ({
                                 className={`w-full text-left px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
                                   isLinkedToOther
                                     ? 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed'
-                                    : 'border-slate-200 bg-white hover:border-[#0038A8] hover:bg-blue-50/30 text-slate-700'
+                                    : 'border-slate-200 bg-white hover:border-[#3083FF] hover:bg-blue-50/30 text-slate-700'
                                 }`}
                               >
                                 <LatexRenderer text={cleanHtml(item)} />
@@ -175,7 +175,7 @@ export const InteractiveMatching = ({
                       !showFeedback && (
                         <button
                           onClick={() => setMobileSelectOptId(opt.id)}
-                          className="w-full flex items-center justify-center gap-1.5 border border-dashed border-indigo-200 bg-indigo-50/20 text-[#0038A8] hover:bg-indigo-50/40 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
+                          className="w-full flex items-center justify-center gap-1.5 border border-dashed border-indigo-200 bg-indigo-50/20 text-[#3083FF] hover:bg-indigo-50/40 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
                         >
                           <Sparkles size={13} /> Hubungkan Jawaban
                         </button>

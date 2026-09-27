@@ -70,7 +70,7 @@ const SchedulePage = () => {
         }
 
         // Window open — student can start
-        return { label: 'Kerjakan Sekarang', color: 'text-white', bg: 'bg-[#0038A8] hover:bg-[#020510]', icon: ArrowRight, enabled: true };
+        return { label: 'Kerjakan Sekarang', color: 'text-white', bg: 'bg-[#3083FF] hover:bg-[#2563EB]', icon: ArrowRight, enabled: true };
     };
 
     const formatDay = formatSchoolDate;
@@ -88,10 +88,14 @@ const SchedulePage = () => {
         return `${minutes}m lagi`;
     };
 
-    // Sort exams: published/open first, then by start_time
+    const isOpenNow = (exam: any) => exam.is_published && !exam.isCompleted &&
+        (!exam.start_time || now >= new Date(exam.start_time)) &&
+        (!exam.end_time || now <= new Date(exam.end_time));
+
+    // Sort exams: yang benar-benar sedang terbuka lebih dulu, lalu waktu mulai.
     const sortedExams = [...exams].sort((a, b) => {
-        const aOpen = a.is_published && !a.isCompleted && (!a.end_time || now <= new Date(a.end_time));
-        const bOpen = b.is_published && !b.isCompleted && (!b.end_time || now <= new Date(b.end_time));
+        const aOpen = isOpenNow(a);
+        const bOpen = isOpenNow(b);
         if (aOpen && !bOpen) return -1;
         if (!aOpen && bOpen) return 1;
         const aStart = a.start_time ? new Date(a.start_time).getTime() : Infinity;
@@ -99,31 +103,29 @@ const SchedulePage = () => {
         return aStart - bStart;
     });
 
-    const openExams = sortedExams.filter(e => e.is_published && !e.isCompleted && (!e.end_time || now <= new Date(e.end_time)));
+    const openExams = sortedExams.filter(isOpenNow);
     const upcomingExams = sortedExams.filter(e => e.is_published && !e.isCompleted && e.start_time && now < new Date(e.start_time));
     const closedExams = sortedExams.filter(e => e.isCompleted || (e.is_published && e.end_time && now > new Date(e.end_time)));
-    const draftExams = sortedExams.filter(e => !e.is_published);
-
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
 
             {/* Stats bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-emerald-600 font-mono">{openExams.length}</p>
+                    <p className="text-2xl font-black text-emerald-600 font-mono">{loadError ? '—' : openExams.length}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Tersedia</p>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-blue-600 font-mono">{upcomingExams.length}</p>
+                    <p className="text-2xl font-black text-blue-600 font-mono">{loadError ? '—' : upcomingExams.length}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Akan Datang</p>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-[#0038A8] font-mono">{sortedExams.filter(e => e.isCompleted).length}</p>
+                    <p className="text-2xl font-black text-[#3083FF] font-mono">{loadError ? '—' : sortedExams.filter(e => e.isCompleted).length}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Selesai</p>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-slate-400 font-mono">{draftExams.length}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Draft</p>
+                    <p className="text-2xl font-black text-slate-500 font-mono">{loadError ? '—' : sortedExams.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Jadwal</p>
                 </div>
             </div>
 
@@ -146,12 +148,12 @@ const SchedulePage = () => {
                                     <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
                                     
                                     <div className="flex items-center gap-4 flex-1 w-full min-w-0 pl-1.5">
-                                        <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#0038A8] group-hover:border-[#0038A8] transition-all text-emerald-600 group-hover:text-white">
+                                        <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-all text-emerald-600 group-hover:text-white">
                                             <Clock size={18} />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-[#0038A8] transition-colors">{exam.title}</h3>
+                                                <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-[#3083FF] transition-colors">{exam.title}</h3>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
                                                     <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{exam.exam_type}</span>
                                                 )}
@@ -160,14 +162,14 @@ const SchedulePage = () => {
                                                 <span className="flex items-center gap-1">
                                                     <Clock size={12} className="text-slate-400" /> {formatTimeRange(exam.start_time, exam.end_time)}
                                                 </span>
-                                                <span className="flex items-center gap-1 text-[#0038A8] font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/30">
+                                                <span className="flex items-center gap-1 text-[#3083FF] font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/30">
                                                     <RefreshCw size={11} /> {exam.duration_minutes || 60} menit
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="w-full md:w-auto">
-                                        <div className="bg-[#0038A8] text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-[#0038A8]/10 group-hover:bg-[#020510] group-hover:shadow-lg group-hover:shadow-[#0038A8]/20 transition-all active:scale-95">
+                                        <div className="bg-[#3083FF] text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-[#3083FF]/10 group-hover:bg-[#2563EB] group-hover:shadow-lg group-hover:shadow-[#3083FF]/20 transition-all active:scale-95">
                                             Kerjakan <ArrowRight size={14} />
                                         </div>
                                     </div>
@@ -273,7 +275,7 @@ const SchedulePage = () => {
             {/* Empty state */}
             {loading ? (
                 <div className="p-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col items-center justify-center space-y-3">
-                    <Loader2 className="animate-spin text-[#0038A8]" size={36} />
+                    <Loader2 className="animate-spin text-[#3083FF]" size={36} />
                     <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat jadwal ujian...</p>
                 </div>
             ) : loadError ? (
@@ -284,7 +286,7 @@ const SchedulePage = () => {
                     <h3 className="text-lg font-bold text-slate-700 mb-1">Jadwal Belum Dapat Dimuat</h3>
                     <p className="text-slate-600 text-sm max-w-sm mb-5">{loadError}</p>
                     <button type="button" onClick={loadData}
-                        className="px-5 py-2.5 bg-[#0038A8] text-white rounded-xl font-bold text-xs hover:bg-[#002d87] flex items-center gap-2 transition-all">
+                        className="px-5 py-2.5 bg-[#3083FF] text-white rounded-xl font-bold text-xs hover:bg-[#2563EB] flex items-center gap-2 transition-all">
                         <RefreshCw size={13} /> Coba Lagi
                     </button>
                 </div>

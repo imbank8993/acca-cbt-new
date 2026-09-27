@@ -37,8 +37,8 @@ const MenuButton = ({ onClick, active, disabled, children, title }: {
         title={title}
         className={`p-2 rounded-lg transition-all ${
             active
-                ? 'bg-[#030C4D] text-white'
-                : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#030C4D]'
+                ? 'bg-[#3083FF] text-white'
+                : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#3083FF]'
         } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
         {children}
@@ -93,11 +93,11 @@ function MathField({
         <div className="absolute top-full left-0 mt-1 bg-white border border-[#e2e8f0] rounded-xl shadow-xl z-50 p-4 w-80">
             <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-[#64748b]">Equation Editor</span>
-                <button onClick={() => setShowMath(false)} className="text-[#94a3b8] hover:text-[#030C4D]">×</button>
+                <button onClick={() => setShowMath(false)} className="text-[#94a3b8] hover:text-[#3083FF]">×</button>
             </div>
             <div id="math-field" style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.5rem', minHeight: '48px', background: '#f8fafc' }} />
             <div className="flex gap-2 mt-2">
-                <button onClick={handleInsert} className="flex-1 py-1.5 bg-[#030C4D] text-white text-sm rounded-lg font-semibold">
+                <button onClick={handleInsert} className="flex-1 py-1.5 bg-[#3083FF] text-white text-sm rounded-lg font-semibold">
                     Insert
                 </button>
                 <button onClick={() => setShowMath(false)} className="px-3 py-1.5 bg-[#f1f5f9] text-[#64748b] text-sm rounded-lg">
@@ -122,7 +122,7 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
             }),
             TiptapLink.configure({
                 openOnClick: false,
-                HTMLAttributes: { class: 'text-[#030C4D] underline hover:text-[#0038A8]' },
+                HTMLAttributes: { class: 'text-[#3083FF] underline hover:text-[#3083FF]' },
             }),
             TiptapTextAlign.configure({ types: ['heading', 'paragraph', 'listItem'] }),
             TiptapUnderline,
@@ -296,13 +296,13 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
                 .tiptap-editor .ProseMirror h2 {
                     font-size: 1.5rem;
                     font-weight: 700;
-                    color: #030C4D;
+                    color: #3083FF;
                     margin: 1.5rem 0 0.75rem;
                 }
                 .tiptap-editor .ProseMirror h3 {
                     font-size: 1.25rem;
                     font-weight: 600;
-                    color: #030C4D;
+                    color: #3083FF;
                     margin: 1rem 0 0.5rem;
                 }
                 .tiptap-editor .ProseMirror p {
@@ -332,10 +332,10 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
                     position: absolute;
                     left: 0;
                     font-weight: 600;
-                    color: #030C4D;
+                    color: #3083FF;
                 }
                 .tiptap-editor .ProseMirror blockquote {
-                    border-left: 4px solid #0038A8;
+                    border-left: 4px solid #3083FF;
                     padding-left: 1rem;
                     margin: 1rem 0;
                     font-style: italic;
@@ -373,7 +373,7 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
                     margin: 1rem 0;
                 }
                 .tiptap-editor .ProseMirror a {
-                    color: #030C4D;
+                    color: #3083FF;
                     text-decoration: underline;
                 }
                 /* Math equation in post content */
@@ -387,7 +387,7 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
                     border-radius: 0.375rem;
                     font-family: monospace;
                     font-size: 0.875rem;
-                    color: #030C4D;
+                    color: #3083FF;
                 }
                 /* Justify text */
                 .tiptap-editor .ProseMirror p,

@@ -335,7 +335,7 @@ function TableEditorModalContent({
                         }}
                         className={`py-1 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
                           tableWidthPreset === p.key && !tableWidthCustom
-                            ? 'bg-[#030C4D] text-white border-[#030C4D] shadow-xs'
+                            ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
                             : 'border-slate-200 text-slate-600 hover:border-slate-300'
                         }`}
                       >
@@ -422,7 +422,7 @@ function TableEditorModalContent({
             <button
               type="button"
               onClick={handleInsert}
-              className="px-5 py-2 text-sm font-semibold bg-[#030C4D] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Check size={16} /> Sisipkan Tabel
             </button>

@@ -35,7 +35,7 @@ const ICONS = {
 };
 
 const COLORS = {
-  success: { border: 'border-[#030C4D]/20 shadow-[#030C4D]/5', icon: 'text-[#0038A8]', title: 'text-[#030C4D]', msg: 'text-[#030C4D]/80', bar: 'bg-gradient-to-r from-[#030C4D] to-[#0038A8]' },
+  success: { border: 'border-[#3083FF]/20 shadow-[#3083FF]/5', icon: 'text-[#3083FF]', title: 'text-[#3083FF]', msg: 'text-[#3083FF]/80', bar: 'bg-gradient-to-r from-[#3083FF] to-[#3083FF]' },
   error: { border: 'border-red-200', icon: 'text-red-500', title: 'text-red-800', msg: 'text-red-600', bar: 'bg-red-500' },
   warning: { border: 'border-amber-200', icon: 'text-amber-500', title: 'text-amber-800', msg: 'text-amber-600', bar: 'bg-amber-500' },
   info: { border: 'border-blue-200', icon: 'text-blue-500', title: 'text-blue-800', msg: 'text-blue-600', bar: 'bg-blue-500' },

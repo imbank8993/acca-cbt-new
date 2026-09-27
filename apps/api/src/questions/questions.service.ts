@@ -131,8 +131,27 @@ export class QuestionsService {
             let questionId: string;
 
             if (dto.id) {
+                await db.raw(
+                    'SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid FOR UPDATE',
+                    dto.id,
+                );
+                const { data: current, error: currentError } = await db
+                    .from('cbt_bank_questions')
+                    .select('id, revision')
+                    .eq('id', dto.id)
+                    .eq('bank_id', dto.bankId)
+                    .maybeSingle();
+                if (currentError) throw new BadRequestException(currentError.message);
+                if (!current) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
+                const currentRevision = (current as { revision: number }).revision;
+                if (currentRevision !== dto.expectedRevision) {
+                    throw new ConflictException(
+                        'Soal telah diubah dari halaman atau tab lain. Muat ulang sebelum menyimpan lagi.',
+                    );
+                }
                 const { data, error } = await db.from('cbt_bank_questions')
-                    .update(payload).eq('id', dto.id).eq('bank_id', dto.bankId)
+                    .update({ ...payload, revision: currentRevision + 1 })
+                    .eq('id', dto.id).eq('bank_id', dto.bankId)
                     .select('id').single();
                 if (error) throw new BadRequestException(error.message);
                 questionId = (data as { id: string }).id;

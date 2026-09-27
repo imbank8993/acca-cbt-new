@@ -53,7 +53,7 @@ mjx-container svg {
 
 .acca-hero-gradient {
   display: none !important;
-  background: linear-gradient(135deg, #0038A8 0%, #c2185b 100%) !important;
+  background: linear-gradient(135deg, #3083FF 0%, #c2185b 100%) !important;
 }
 
 /* ============================================
@@ -68,16 +68,16 @@ mjx-container svg {
   --card: #ffffff;
   --card-foreground: #0f172a;
 
-  /* Brand Colors - Navy Blue */
-  --primary: #030C4D;
+  /* Brand Colors - Primary Blue (ACCA Main Blue) */
+  --primary: #3083FF;
   --primary-foreground: #ffffff;
-  --primary-light: #0a1a5c;
-  --primary-hover: #020510;
+  --primary-light: #60a5fa;
+  --primary-hover: #2563eb;
 
-  /* Brand Colors - Magenta Accent (ACCA-inspired) */
-  --accent: #0038A8;
-  --accent-light: #1e56d3;
-  --accent-hover: #00287a;
+  /* Brand Colors - Accent */
+  --accent: #3083FF;
+  --accent-light: #60a5fa;
+  --accent-hover: #2563eb;
   --accent-foreground: #ffffff;
 
   /* Neutral Colors */
@@ -90,7 +90,7 @@ mjx-container svg {
   --border: #e2e8f0;
   --border-light: #f1f5f9;
   --input: #e2e8f0;
-  --ring: #030C4D;
+  --ring: #3083FF;
 
   /* Status Colors */
   --success: #10b981;
@@ -119,15 +119,15 @@ mjx-container svg {
   --sidebar-text-active: #ffffff;
   --sidebar-accent: #0f172a;
   --sidebar-hover: #f1f5f9;
-  --sidebar-border: rgba(0, 56, 168, 0.16);
+  --sidebar-border: rgba(48, 131, 255, 0.16);
   --header-bg: #ffffff;
-  --header-border: rgba(0, 56, 168, 0.16);
+  --header-border: rgba(48, 131, 255, 0.16);
   --header-text: #1e293b;
   --n-bg: #ebecf1;
   --n-card: #ffffff;
   --n-surface: #ffffff;
   --n-primary: #3083ff;
-  --n-border: rgba(0, 56, 168, 0.16);
+  --n-border: rgba(48, 131, 255, 0.16);
 }
 
 /* Theme Variables */
@@ -149,12 +149,12 @@ mjx-container svg {
   --color-info: var(--info);
 
   /* Brand Colors */
-  --color-acca-navy: #030C4D;
-  --color-acca-orange: #0038A8;          /* Brand accent (kept name for compat) — now magenta */
-  --color-acca-orange-light: #1e56d3;    /* Light magenta (kept name for compat) */
-  --color-acca-magenta: #0038A8;
-  --color-acca-magenta-light: #1e56d3;
-  --color-acca-navy-light: #0a1a5c;
+  --color-acca-navy: #3083FF;
+  --color-acca-orange: #3083FF;          /* Brand accent (kept name for compat) — now magenta */
+  --color-acca-orange-light: #60a5fa;    /* Light brand blue */
+  --color-acca-magenta: #3083FF;
+  --color-acca-magenta-light: #60a5fa;
+  --color-acca-navy-light: #60a5fa;
 
   /* Fonts */
   --font-sans: var(--font-open-sans), system-ui, -apple-system, sans-serif;
@@ -1981,14 +1981,17 @@ html body .option-text .katex-display {
 
 
 /* Hardcoded hex brand colors overrides */
+.dark [class*="text-[#3083FF]"],
 .dark [class*="text-[#030C4D]"],
 .dark [class*="text-[#0038A8]"] {
   color: #f1f5f9 !important;
 }
+.dark [class*="bg-[#3083FF]/"],
 .dark [class*="bg-[#030C4D]/"],
 .dark [class*="bg-[#0038A8]/"] {
-  background-color: rgba(99, 102, 241, 0.15) !important;
+  background-color: rgba(48, 131, 255, 0.18) !important;
 }
+.dark [class*="border-[#3083FF]"],
 .dark [class*="border-[#030C4D]"],
 .dark [class*="border-[#0038A8]"] {
   border-color: rgba(255, 255, 255, 0.12) !important;
@@ -2519,6 +2522,7 @@ html body .option-text .katex-display {
   color: #ffffff !important;
 }
 .dark .editor-toolbar button.active,
+.dark .editor-toolbar button[class*="bg-[#3083FF]"],
 .dark .editor-toolbar button[class*="bg-[#030C4D]"] {
   background-color: #4f8ef7 !important;
   color: #ffffff !important;

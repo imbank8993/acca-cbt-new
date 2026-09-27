@@ -140,7 +140,7 @@ export default function AssignmentReviewPage() {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 size={32} className="animate-spin text-[#030C4D]" />
+                    <Loader2 size={32} className="animate-spin text-[#3083FF]" />
                     <p className="text-slate-500 text-sm">Memuat data tugas...</p>
                 </div>
             </div>
@@ -224,7 +224,7 @@ export default function AssignmentReviewPage() {
                             placeholder="Cari nama atau NIS..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none bg-white"
+                            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none bg-white"
                         />
                     </div>
                     <div className="flex gap-2 flex-wrap">
@@ -238,8 +238,8 @@ export default function AssignmentReviewPage() {
                                 key={f.id}
                                 onClick={() => setFilterStatus(f.id as any)}
                                 className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${filterStatus === f.id
-                                    ? 'bg-[#030C4D] text-white border-[#030C4D]'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:border-[#030C4D]/30'
+                                    ? 'bg-[#3083FF] text-white border-[#3083FF]'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-[#3083FF]/30'
                                     }`}
                             >
                                 {f.label}
@@ -279,7 +279,7 @@ export default function AssignmentReviewPage() {
                                         >
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-full bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center text-xs font-bold shrink-0">
+                                                    <div className="w-8 h-8 rounded-full bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center text-xs font-bold shrink-0">
                                                         {s.fullName.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span className="font-medium text-slate-900 truncate max-w-[120px]">{s.fullName}</span>
@@ -419,7 +419,7 @@ export default function AssignmentReviewPage() {
                                                                         <button
                                                                             onClick={() => handleSaveGrade(s)}
                                                                             disabled={savingAttemptId === s.attemptId}
-                                                                            className="w-full py-2.5 bg-[#030C4D] text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors flex items-center justify-center gap-2"
+                                                                            className="w-full py-2.5 bg-[#3083FF] text-white rounded-xl font-semibold text-sm disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors flex items-center justify-center gap-2"
                                                                         >
                                                                             {savingAttemptId === s.attemptId ? (
                                                                                 <><Loader2 size={14} className="animate-spin" />Menyimpan...</>

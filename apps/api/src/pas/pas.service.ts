@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { insertIdempotently } from '../common/idempotent-create';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
 
@@ -130,21 +131,53 @@ export class PasService {
     async removePeriod(user: AuthUser, periodId: string) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const { data: period } = await this.db
-            .from('cbt_pas_periods')
-            .select('is_locked')
-            .eq('id', periodId)
-            .maybeSingle();
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-period:${periodId}`,
+            );
 
-        if (!period) throw new NotFoundException('Periode tidak ditemukan.');
-        if ((period as { is_locked: boolean }).is_locked) {
-            throw new ConflictException('Periode yang terkunci tidak bisa dihapus.');
-        }
+            const { data: period } = await db.from('cbt_pas_periods')
+                .select('is_locked').eq('id', periodId).maybeSingle();
+            if (!period) throw new NotFoundException('Periode tidak ditemukan.');
+            if ((period as { is_locked: boolean }).is_locked) {
+                throw new ConflictException('Periode yang terkunci tidak bisa dihapus.');
+            }
 
-        const { error } = await this.db.from('cbt_pas_periods').delete().eq('id', periodId);
-        if (error) throw new BadRequestException(error.message);
+            const { data: scheduleData, error: scheduleError } = await db
+                .from('cbt_pas_class_schedules')
+                .select('id, exam_id')
+                .eq('pas_period_id', periodId);
+            if (scheduleError) throw new BadRequestException(`Gagal membaca jadwal: ${scheduleError.message}`);
+            const schedules = (scheduleData as Array<{ id: string; exam_id: string | null }>) || [];
+            for (const scheduleId of schedules.map((row) => row.id).sort()) {
+                await db.raw(
+                    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                    `pas-exam-generation:${scheduleId}`,
+                );
+            }
 
-        return { id: periodId };
+            const { data: currentData, error: currentError } = await db
+                .from('cbt_pas_class_schedules')
+                .select('exam_id')
+                .eq('pas_period_id', periodId);
+            if (currentError) throw new BadRequestException(`Gagal membaca ujian periode: ${currentError.message}`);
+            const examIds = ((currentData as Array<{ exam_id: string | null }>) || [])
+                .map((row) => row.exam_id)
+                .filter((id): id is string => Boolean(id));
+            await lockExamsForDeletion(db, examIds);
+            await assertExamsHaveNoHistory(db, examIds);
+
+            const { error } = await db.from('cbt_pas_periods').delete().eq('id', periodId);
+            if (error) throw new BadRequestException(`Gagal menghapus periode: ${error.message}`);
+
+            if (examIds.length > 0) {
+                const { error: examError } = await db.from('cbt_exams').delete().in('id', examIds);
+                if (examError) throw new BadRequestException(`Gagal menghapus ujian periode: ${examError.message}`);
+            }
+
+            return { id: periodId };
+        });
     }
 
     // ── Data pendukung ───────────────────────────────────────────────────────
@@ -264,7 +297,8 @@ export class PasService {
                     .filter(Boolean) as string[],
             }))
             .filter(
-                (member) => member.roles.includes('Guru') || member.roles.includes('Pengawas'),
+                (member) => ['Guru', 'Pengawas', 'Proktor', 'Admin']
+                    .some((role) => member.roles.includes(role)),
             );
     }
 }

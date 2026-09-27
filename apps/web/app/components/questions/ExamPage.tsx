@@ -995,7 +995,7 @@ export default function ExamPage() {
                     </p>
                     <button 
                         onClick={() => router.push('/dashboard/siswa')}
-                        className="w-full bg-[#030C4D] hover:bg-[#020510] text-white font-bold py-3 rounded-lg transition-all shadow-sm"
+                        className="w-full bg-[#3083FF] hover:bg-[#2563EB] text-white font-bold py-3 rounded-lg transition-all shadow-sm"
                     >
                         Kembali ke Dashboard
                     </button>
@@ -1015,7 +1015,7 @@ export default function ExamPage() {
                     <p className="text-slate-500 mb-6 text-sm">Jawaban Anda telah berhasil direkam. Anda tidak dapat melihat soal lagi untuk alasan keamanan.</p>
                     <button 
                         onClick={() => router.push('/dashboard/siswa')}
-                        className="w-full bg-[#030C4D] hover:bg-[#020510] text-white font-bold py-3 rounded-lg transition-all shadow-sm"
+                        className="w-full bg-[#3083FF] hover:bg-[#2563EB] text-white font-bold py-3 rounded-lg transition-all shadow-sm"
                     >
                         Kembali ke Dashboard
                     </button>

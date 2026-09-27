@@ -120,11 +120,11 @@ export default function ProktorDashboard() {
             label: 'Total Anggota',
             value: stats.totalMembers,
             icon: Users,
-            gradient: 'from-[#030C4D] to-[#1a246b]',
-            iconBg: 'bg-[#030C4D]/10',
-            iconColor: 'text-[#030C4D]',
-            borderColor: 'border-[#030C4D]/40',
-            valueColor: 'text-[#0038A8]',
+            gradient: 'from-[#3083FF] to-[#2563EB]',
+            iconBg: 'bg-[#3083FF]/10',
+            iconColor: 'text-[#3083FF]',
+            borderColor: 'border-[#3083FF]/40',
+            valueColor: 'text-[#3083FF]',
             description: 'Guru & Siswa aktif',
             onClick: openMembers,
         },
@@ -132,11 +132,11 @@ export default function ProktorDashboard() {
             label: 'Bank Soal',
             value: stats.totalBanks,
             icon: BookOpen,
-            gradient: 'from-[#0038A8] to-[#0038A8]',
-            iconBg: 'bg-[#030C4D]/10',
-            iconColor: 'text-[#030C4D]',
-            borderColor: 'border-[#030C4D]/40',
-            valueColor: 'text-[#0038A8]',
+            gradient: 'from-[#3083FF] to-[#3083FF]',
+            iconBg: 'bg-[#3083FF]/10',
+            iconColor: 'text-[#3083FF]',
+            borderColor: 'border-[#3083FF]/40',
+            valueColor: 'text-[#3083FF]',
             description: 'Koleksi soal tersedia',
             onClick: () => router.push('/dashboard/proktor/questions'),
         },
@@ -144,11 +144,11 @@ export default function ProktorDashboard() {
             label: 'Ujian Mendatang',
             value: stats.draftExams,
             icon: Layers,
-            gradient: 'from-[#030C4D] to-[#1a246b]',
-            iconBg: 'bg-[#030C4D]/10',
-            iconColor: 'text-[#030C4D]',
-            borderColor: 'border-[#030C4D]/40',
-            valueColor: 'text-[#0038A8]',
+            gradient: 'from-[#3083FF] to-[#2563EB]',
+            iconBg: 'bg-[#3083FF]/10',
+            iconColor: 'text-[#3083FF]',
+            borderColor: 'border-[#3083FF]/40',
+            valueColor: 'text-[#3083FF]',
             description: 'Ujian terjadwal',
             onClick: () => router.push('/dashboard/proktor/exams'),
         },
@@ -156,11 +156,11 @@ export default function ProktorDashboard() {
             label: 'Ujian Aktif',
             value: stats.ongoingExams,
             icon: Clock,
-            gradient: 'from-[#0038A8] to-[#0038A8]',
-            iconBg: 'bg-[#030C4D]/10',
-            iconColor: 'text-[#030C4D]',
-            borderColor: 'border-[#030C4D]/40',
-            valueColor: 'text-[#0038A8]',
+            gradient: 'from-[#3083FF] to-[#3083FF]',
+            iconBg: 'bg-[#3083FF]/10',
+            iconColor: 'text-[#3083FF]',
+            borderColor: 'border-[#3083FF]/40',
+            valueColor: 'text-[#3083FF]',
             description: 'Sedang berlangsung',
             onClick: () => router.push('/dashboard/proktor/exams'),
         },
@@ -168,27 +168,27 @@ export default function ProktorDashboard() {
             label: 'Selesai',
             value: stats.finishedExams,
             icon: CheckCircle2,
-            gradient: 'from-[#030C4D] to-[#020510]',
-            iconBg: 'bg-[#030C4D]/10',
-            iconColor: 'text-[#030C4D]',
-            borderColor: 'border-[#030C4D]/40',
-            valueColor: 'text-[#0038A8]',
+            gradient: 'from-[#3083FF] to-[#1D4ED8]',
+            iconBg: 'bg-[#3083FF]/10',
+            iconColor: 'text-[#3083FF]',
+            borderColor: 'border-[#3083FF]/40',
+            valueColor: 'text-[#3083FF]',
             description: 'Telah selesai dikerjakan',
             onClick: () => router.push('/dashboard/proktor/exams'),
         },
     ];
 
     const quickActions = [
-        { label: 'Buat Ujian Baru', icon: Plus, color: 'text-[#030C4D]', bg: 'bg-[#030C4D]/5', border: 'border-[#030C4D]/20', hoverBg: 'hover:bg-[#030C4D]/10', to: '/dashboard/proktor/exams' },
-        { label: 'Monitoring Ujian', icon: Eye, color: 'text-[#0038A8]', bg: 'bg-[#0038A8]/5', border: 'border-[#0038A8]/20', hoverBg: 'hover:bg-[#0038A8]/10', to: '/dashboard/proktor/monitoring' },
-        { label: 'Kelola Anggota', icon: Users, color: 'text-[#030C4D]', bg: 'bg-[#030C4D]/5', border: 'border-[#030C4D]/20', hoverBg: 'hover:bg-[#030C4D]/10', to: '/dashboard/proktor/members' },
-        { label: 'Bank Soal', icon: BookOpen, color: 'text-[#0038A8]', bg: 'bg-[#0038A8]/5', border: 'border-[#0038A8]/20', hoverBg: 'hover:bg-[#0038A8]/10', to: '/dashboard/proktor/banks' },
+        { label: 'Buat Ujian Baru', icon: Plus, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/exams' },
+        { label: 'Monitoring Ujian', icon: Eye, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/monitoring' },
+        { label: 'Kelola Anggota', icon: Users, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/members' },
+        { label: 'Bank Soal', icon: BookOpen, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/banks' },
     ];
 
     const activitySummary = [
-        { label: 'Mendatang', value: stats.draftExams, color: 'bg-[#0038A8]', textColor: 'text-[#0038A8]' },
+        { label: 'Mendatang', value: stats.draftExams, color: 'bg-[#3083FF]', textColor: 'text-[#3083FF]' },
         { label: 'Aktif', value: stats.ongoingExams, color: 'bg-emerald-500', textColor: 'text-emerald-600' },
-        { label: 'Selesai', value: stats.finishedExams, color: 'bg-[#030C4D]', textColor: 'text-[#030C4D]' },
+        { label: 'Selesai', value: stats.finishedExams, color: 'bg-[#3083FF]', textColor: 'text-[#3083FF]' },
     ];
 
     const totalExams = stats.draftExams + stats.ongoingExams + stats.finishedExams;
@@ -196,7 +196,7 @@ export default function ProktorDashboard() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#030C4D]"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3083FF]"></div>
             </div>
         );
     }
@@ -238,13 +238,13 @@ export default function ProktorDashboard() {
                         aria-label={`${item.label}: ${item.value} — ${item.description}`}
                         onClick={() => item.onClick?.()}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick?.(); } }}
-                        className="group relative bg-white rounded-lg px-4 py-4 border border-[#030C4D]/20 hover:border-[#030C4D] hover:shadow-lg hover:shadow-[#030C4D]/10 transition-all duration-300 cursor-pointer overflow-hidden text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#030C4D] focus-visible:ring-offset-2"
+                        className="group relative bg-white rounded-lg px-4 py-4 border border-[#3083FF]/20 hover:border-[#3083FF] hover:shadow-lg hover:shadow-[#3083FF]/10 transition-all duration-300 cursor-pointer overflow-hidden text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2"
                     >
                         {/* Top accent line */}
                         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${item.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
 
                         {/* Affordance: panah muncul saat hover/focus (menandakan bisa diklik) */}
-                        <ChevronRight size={14} className="absolute top-2.5 right-2.5 text-[#030C4D]/0 group-hover:text-[#030C4D]/40 transition-colors duration-300" />
+                        <ChevronRight size={14} className="absolute top-2.5 right-2.5 text-[#3083FF]/0 group-hover:text-[#3083FF]/40 transition-colors duration-300" />
 
                         <div className="relative flex flex-col items-center">
                             {/* Icon dan Label berdampingan */}
@@ -268,8 +268,8 @@ export default function ProktorDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
                 {/* ── Left: Exam List (3/5 width - mengikuti 3 card di atas) ── */}
-                <div className="md:col-span-3 bg-white rounded-lg border border-[#0038A8]/30 overflow-hidden shadow-sm">
-                    <div className="px-6 py-4 border-b border-[#0038A8]/20 bg-gradient-to-r from-[#030C4D]/[.02] to-transparent">
+                <div className="md:col-span-3 bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
+                    <div className="px-6 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent">
                         <div>
                             <h2 className="text-base font-bold text-slate-900">Ujian</h2>
                             <p className="text-xs text-slate-400 mt-0.5">{exams.length} total ujian</p>
@@ -300,27 +300,27 @@ export default function ProktorDashboard() {
                                         {/* Icon */}
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-all ${
                                             isOngoing
-                                                ? 'bg-[#0038A8]/10 group-hover:bg-[#0038A8]/15'
+                                                ? 'bg-[#3083FF]/10 group-hover:bg-[#3083FF]/15'
                                                 : isPublished
-                                                ? 'bg-[#030C4D]/10 group-hover:bg-[#030C4D]/15'
+                                                ? 'bg-[#3083FF]/10 group-hover:bg-[#3083FF]/15'
                                                 : 'bg-slate-50 group-hover:bg-slate-100'
                                         }`}>
                                             <ClipboardCheck size={18} className={
-                                                isOngoing ? 'text-[#0038A8]'
-                                                : isPublished ? 'text-[#030C4D]' : 'text-slate-400'
+                                                isOngoing ? 'text-[#3083FF]'
+                                                : isPublished ? 'text-[#3083FF]' : 'text-slate-400'
                                             } />
                                         </div>
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-[#030C4D] transition-colors">{exam.title}</p>
+                                            <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-[#3083FF] transition-colors">{exam.title}</p>
                                             <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                                 <span className="text-[11px] font-medium text-slate-600 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md">
                                                     <Clock size={12} />
                                                     {exam.duration_minutes} mnt
                                                 </span>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="text-[10px] text-[#030C4D] font-bold bg-[#030C4D]/10 px-2 py-1 rounded-md">
+                                                    <span className="text-[10px] text-[#3083FF] font-bold bg-[#3083FF]/10 px-2 py-1 rounded-md">
                                                         {exam.exam_type.toUpperCase()}
                                                     </span>
                                                 )}
@@ -337,21 +337,21 @@ export default function ProktorDashboard() {
                                             <div className="flex items-center gap-3">
                                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
                                                     isOngoing
-                                                        ? 'bg-[#0038A8]/10 text-[#0038A8] border-[#0038A8]/30'
+                                                        ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
                                                         : isDraft
-                                                        ? 'bg-[#030C4D]/5 text-[#030C4D] border-[#030C4D]/20'
+                                                        ? 'bg-[#3083FF]/5 text-[#3083FF] border-[#3083FF]/20'
                                                         : isFinished
                                                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                                        : 'bg-[#030C4D]/10 text-[#030C4D] border-[#030C4D]/20'
+                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/20'
                                                 }`}>
                                                     <span className={`w-1.5 h-1.5 rounded-full ${
-                                                        isOngoing ? 'bg-[#0038A8] animate-pulse shadow-lg shadow-[#0038A8]/50'
-                                                        : isDraft ? 'bg-[#030C4D]'
-                                                        : isFinished ? 'bg-emerald-500' : 'bg-[#030C4D]'
+                                                        isOngoing ? 'bg-[#3083FF] animate-pulse shadow-lg shadow-[#3083FF]/50'
+                                                        : isDraft ? 'bg-[#3083FF]'
+                                                        : isFinished ? 'bg-emerald-500' : 'bg-[#3083FF]'
                                                     }`} />
                                                     {isOngoing ? 'Aktif' : isDraft ? 'Draft' : isFinished ? 'Selesai' : 'Terjadwal'}
                                                 </span>
-                                                <ArrowRight size={14} className="text-slate-300 group-hover:text-[#030C4D] group-hover:translate-x-0.5 transition-all" />
+                                                <ArrowRight size={14} className="text-slate-300 group-hover:text-[#3083FF] group-hover:translate-x-0.5 transition-all" />
                                             </div>
                                             
                                             {exam.creatorName && exam.creatorName !== 'Unknown' && (
@@ -366,14 +366,14 @@ export default function ProktorDashboard() {
                         </div>
                     ) : (
                         <div className="py-16 text-center">
-                            <div className="w-16 h-16 bg-[#030C4D]/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <Activity size={22} className="text-[#030C4D]/40" />
+                            <div className="w-16 h-16 bg-[#3083FF]/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <Activity size={22} className="text-[#3083FF]/40" />
                             </div>
                             <p className="font-bold text-slate-700 mb-1">Belum Ada Ujian</p>
                             <p className="text-xs text-slate-400 mb-4">Mulai buat ujian pertama Anda</p>
                             <button
                                 onClick={() => router.push('/dashboard/proktor/exams')}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#030C4D] bg-[#030C4D]/5 hover:bg-[#030C4D]/10 px-4 py-2 rounded-lg transition-colors"
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3083FF] bg-[#3083FF]/5 hover:bg-[#3083FF]/10 px-4 py-2 rounded-lg transition-colors"
                             >
                                 <Plus size={12} /> Buat Ujian
                             </button>
@@ -390,7 +390,7 @@ export default function ProktorDashboard() {
                     {announcements.length > 0 && (
                         <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
                             <div className="px-5 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-transparent flex justify-between items-center">
-                                <h2 className="text-sm font-bold text-[#030C4D] flex items-center gap-2">
+                                <h2 className="text-sm font-bold text-[#3083FF] flex items-center gap-2">
                                     <AlertCircle size={16} /> Informasi
                                 </h2>
                                 {announcements.length > 2 && (
@@ -407,7 +407,7 @@ export default function ProktorDashboard() {
                                     {announcements.slice(0, 2).map((ann, idx) => (
                                         <div key={ann.id || idx} className="bg-blue-50/50 border border-blue-100 rounded-lg p-3">
                                             <div className="flex justify-between items-start gap-2 mb-1">
-                                                <h3 className="font-semibold text-[#030C4D] text-xs line-clamp-1">{ann.title}</h3>
+                                                <h3 className="font-semibold text-[#3083FF] text-xs line-clamp-1">{ann.title}</h3>
                                                 {ann.created_at && (
                                                     <span className="text-[9px] text-slate-400 shrink-0 whitespace-nowrap">
                                                         {new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
@@ -436,7 +436,7 @@ export default function ProktorDashboard() {
                     >
                         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-[#f8fafc]">
                             <div>
-                                <h2 className="text-lg font-bold text-[#030C4D] flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-[#3083FF] flex items-center gap-2">
                                     <AlertCircle size={20} className="text-blue-600" /> Pusat Informasi
                                 </h2>
                                 <p className="text-xs text-slate-500 mt-0.5">Semua pengumuman yang sedang tayang.</p>
@@ -457,7 +457,7 @@ export default function ProktorDashboard() {
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start gap-2 mb-2">
-                                                <h3 className="font-bold text-[#030C4D] text-sm">{ann.title}</h3>
+                                                <h3 className="font-bold text-[#3083FF] text-sm">{ann.title}</h3>
                                                 {ann.created_at && (
                                                     <span className="text-xs text-slate-400 shrink-0 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                                                         {new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -473,7 +473,7 @@ export default function ProktorDashboard() {
                         <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
                             <button 
                                 onClick={() => setShowAnnouncementsPopup(false)}
-                                className="px-5 py-2.5 bg-[#030C4D] text-white text-sm font-semibold rounded-xl hover:bg-[#0a1a6e] transition-colors"
+                                className="px-5 py-2.5 bg-[#3083FF] text-white text-sm font-semibold rounded-xl hover:bg-[#0a1a6e] transition-colors"
                             >
                                 Tutup
                             </button>
@@ -493,8 +493,8 @@ export default function ProktorDashboard() {
                     >
                         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-[#f8fafc]">
                             <div>
-                                <h2 className="text-lg font-bold text-[#030C4D] flex items-center gap-2">
-                                    <Users size={20} className="text-[#030C4D]" /> Anggota Pernah Login
+                                <h2 className="text-lg font-bold text-[#3083FF] flex items-center gap-2">
+                                    <Users size={20} className="text-[#3083FF]" /> Anggota Pernah Login
                                 </h2>
                                 <p className="text-xs text-slate-500 mt-0.5">{membersList.length} anggota sudah pernah masuk ke ACCA CBT.</p>
                             </div>
@@ -508,7 +508,7 @@ export default function ProktorDashboard() {
                         <div className="p-4 overflow-y-auto bg-slate-50 flex-1">
                             {membersLoading ? (
                                 <div className="py-12 flex justify-center">
-                                    <div className="w-8 h-8 border-4 border-[#030C4D] border-t-transparent rounded-full animate-spin" />
+                                    <div className="w-8 h-8 border-4 border-[#3083FF] border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : membersList.length === 0 ? (
                                 <div className="py-12 text-center text-sm text-slate-400">Belum ada anggota yang login.</div>
@@ -516,7 +516,7 @@ export default function ProktorDashboard() {
                                 <div className="space-y-2">
                                     {membersList.map((m) => (
                                         <div key={m.id} className="flex items-center gap-3 bg-white border border-slate-100 rounded-xl p-3">
-                                            <div className="w-9 h-9 rounded-full bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center font-bold shrink-0 uppercase">
+                                            <div className="w-9 h-9 rounded-full bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center font-bold shrink-0 uppercase">
                                                 {(m.fullName?.[0] || 'U')}
                                             </div>
                                             <div className="flex-1 min-w-0">

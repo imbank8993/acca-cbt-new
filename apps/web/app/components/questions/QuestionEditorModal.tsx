@@ -388,6 +388,7 @@ export default function QuestionEditorModal({
 
         const result = await saveQuestionAction({
             id: editingQuestion?.id,
+            expectedRevision: editingQuestion?.revision,
             bankId: bankId,
             type: selectedType,
             questionText,

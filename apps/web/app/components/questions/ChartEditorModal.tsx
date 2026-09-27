@@ -23,8 +23,8 @@ function ChartEditorModalContent({
     datasets: [{
       label: 'Data',
       data: [12, 19, 8, 15],
-      backgroundColor: ['#030C4D', '#0038A8', '#10b981', '#ef4444'],
-      borderColor: ['#030C4D', '#0038A8', '#10b981', '#ef4444'],
+      backgroundColor: ['#3083FF', '#3083FF', '#10b981', '#ef4444'],
+      borderColor: ['#3083FF', '#3083FF', '#10b981', '#ef4444'],
       borderWidth: 1,
     }],
   });
@@ -37,7 +37,7 @@ function ChartEditorModalContent({
         <div style="display:flex;align-items:flex-end;justify-content:center;gap:0.75rem;height:140px;padding:0.5rem;background:#ffffff;border-radius:0.5rem;border:1px dashed #cbd5e1">
           ${chartData.labels.map((l, i) => `
             <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;flex:1;max-width:44px">
-              <div style="width:100%;height:${Math.max(8, (chartData.datasets[0].data[i] / maxVal) * 100)}%;background:${chartData.datasets[0].backgroundColor[i] || '#030C4D'};border-radius:3px"></div>
+              <div style="width:100%;height:${Math.max(8, (chartData.datasets[0].data[i] / maxVal) * 100)}%;background:${chartData.datasets[0].backgroundColor[i] || '#3083FF'};border-radius:3px"></div>
               <span style="font-size:10px;font-weight:600;color:#64748b">${l}</span>
             </div>
           `).join('')}
@@ -67,7 +67,7 @@ function ChartEditorModalContent({
   const addDataPoint = () => {
     if (chartData.labels.length >= 8) return;
     const nextChar = String.fromCharCode(65 + chartData.labels.length);
-    const colors = ['#030C4D', '#0038A8', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
+    const colors = ['#3083FF', '#3083FF', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
     setChartData({
       labels: [...chartData.labels, nextChar],
       datasets: [{
@@ -146,7 +146,7 @@ function ChartEditorModalContent({
                     onClick={() => setChartType(ct.type as typeof chartType)}
                     className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
                       isActive
-                        ? 'bg-[#030C4D] text-white border-[#030C4D] shadow-xs'
+                        ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -178,7 +178,7 @@ function ChartEditorModalContent({
                 <div key={i} className="flex items-center gap-2">
                   <div
                     className="w-4 h-4 rounded-full shrink-0 shadow-xs"
-                    style={{ backgroundColor: chartData.datasets[0].backgroundColor[i] || '#030C4D' }}
+                    style={{ backgroundColor: chartData.datasets[0].backgroundColor[i] || '#3083FF' }}
                   />
                   <input
                     type="text"
@@ -228,7 +228,7 @@ function ChartEditorModalContent({
                   <div key={i} className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
                     <div
                       className="w-2.5 h-2.5 rounded-xs"
-                      style={{ backgroundColor: chartData.datasets[0].backgroundColor[i] || '#030C4D' }}
+                      style={{ backgroundColor: chartData.datasets[0].backgroundColor[i] || '#3083FF' }}
                     />
                     <span>{l}: {chartData.datasets[0].data[i]}</span>
                   </div>
@@ -243,7 +243,7 @@ function ChartEditorModalContent({
                     className="flex-1 rounded-t-sm max-w-10 transition-all duration-300"
                     style={{
                       height: `${Math.max(8, (v / maxVal) * 100)}%`,
-                      backgroundColor: chartData.datasets[0].backgroundColor[i] || '#030C4D',
+                      backgroundColor: chartData.datasets[0].backgroundColor[i] || '#3083FF',
                     }}
                   />
                 ))}
@@ -264,7 +264,7 @@ function ChartEditorModalContent({
           <button
             type="button"
             onClick={handleInsert}
-            className="px-5 py-2 text-sm font-semibold bg-[#030C4D] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Check size={16} /> Sisipkan Grafik
           </button>

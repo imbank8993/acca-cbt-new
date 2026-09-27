@@ -292,32 +292,32 @@ export default function SettingsClassesPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-4 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
-                        <School size={18} className="text-[#030C4D]" />
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
+                        <School size={18} className="text-[#3083FF]" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.length}</p>
                     <p className="text-xs text-slate-500">Total</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <Check size={18} className="text-emerald-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.filter(c => c.type === 'reguler').length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'reguler').length}</p>
                     <p className="text-xs text-slate-500">Utama</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <School size={18} className="text-amber-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{classes.filter(c => c.type === 'tambahan').length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{classes.filter(c => c.type === 'tambahan').length}</p>
                     <p className="text-xs text-slate-500">Tambahan</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#030C4D]/30 text-center px-4 py-3">
-                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#030C4D]/10 border border-[#030C4D]/30">
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center bg-[#3083FF]/10 border border-[#3083FF]/30">
                         <CalendarDays size={18} className="text-violet-500" />
                     </div>
-                    <p className="text-2xl font-bold text-[#0038A8]">{yearOptions.length}</p>
+                    <p className="text-2xl font-bold text-[#3083FF]">{yearOptions.length}</p>
                     <p className="text-xs text-slate-500">Thn Ajaran</p>
                 </div>
             </div>
@@ -388,7 +388,7 @@ export default function SettingsClassesPage() {
                     <Spinner variant="buble" size={32} />
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="py-16 text-center bg-white border border-[#030C4D]/30 rounded-lg">
+                <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">
                     <School size={40} className="mx-auto mb-3 text-slate-300" />
                     <p className="text-slate-500 font-medium">Tidak ada kelas ditemukan</p>
                     <p className="text-sm text-slate-400 mt-1">Klik &quot;Buat Kelas&quot; untuk menambah kelas baru</p>
@@ -396,22 +396,22 @@ export default function SettingsClassesPage() {
             ) : (
                 <>
                     {/* Desktop: Table */}
-                    <div className="hidden lg:block bg-white border border-[#030C4D]/30 rounded-lg overflow-hidden shadow-sm">
+                    <div className="hidden lg:block bg-white border border-[#3083FF]/30 rounded-lg overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
-                                    <tr className="border-b border-[#030C4D]/20 bg-[#030C4D]/5">
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Nama Kelas</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Tahun Ajaran</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Tipe</th>
-                                        <th className="text-left text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Kode</th>
-                                        <th className="text-center text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Siswa</th>
-                                        <th className="text-right text-[10px] font-bold text-[#030C4D] uppercase tracking-wider px-6 py-4">Aksi</th>
+                                    <tr className="border-b border-[#3083FF]/20 bg-[#3083FF]/5">
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Nama Kelas</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Tahun Ajaran</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Tipe</th>
+                                        <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Kode</th>
+                                        <th className="text-center text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Siswa</th>
+                                        <th className="text-right text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[#030C4D]/10">
+                                <tbody className="divide-y divide-[#3083FF]/10">
                                     {filtered.map((cls) => (
-                                        <tr key={cls.id} className="hover:bg-[#030C4D]/5 transition-colors group">
+                                        <tr key={cls.id} className="hover:bg-[#3083FF]/5 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">
                                                     <span className="font-semibold text-slate-800 text-sm">{cls.name}</span>
@@ -425,7 +425,7 @@ export default function SettingsClassesPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
-                                                    cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#030C4D]/30'
+                                                    cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
                                                 </span>
@@ -439,7 +439,7 @@ export default function SettingsClassesPage() {
                                             <td className="px-6 py-4 text-center">
                                                 <button
                                                     onClick={() => handleViewStudents(cls)}
-                                                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#030C4D] bg-[#030C4D]/10 hover:bg-[#030C4D]/20 transition-all px-3 py-1 rounded-lg border border-[#030C4D]/20 cursor-pointer"
+                                                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-3 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer"
                                                 >
                                                     <Users size={13} />
                                                     {cls.studentCount || 0}
@@ -488,9 +488,9 @@ export default function SettingsClassesPage() {
                         {Object.entries(classesByYear).map(([year, yearClasses]) => (
                             <div key={year}>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <Bookmark size={14} className="text-[#030C4D]" />
+                                    <Bookmark size={14} className="text-[#3083FF]" />
                                     <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{year}</h3>
-                                    <span className="text-xs text-slate-400 bg-[#0038A8]/10 px-2 py-0.5 rounded-lg border border-[#030C4D]/30">{(yearClasses as any[]).length} kelas</span>
+                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{(yearClasses as any[]).length} kelas</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {(yearClasses as any[]).map((cls: any, i: number) => (
@@ -499,10 +499,10 @@ export default function SettingsClassesPage() {
                                             initial={{ opacity: 0, y: 12 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: i * 0.05 }}
-                                            className="bg-white border border-[#030C4D]/30 rounded-lg p-4 hover:shadow-md transition-all"
+                                            className="bg-white border border-[#3083FF]/30 rounded-lg p-4 hover:shadow-md transition-all"
                                         >
                                             <div className="flex items-start justify-between mb-3">
-                                                <span className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#0038A8]/10 text-[#0038A8] border border-[#030C4D]/30'}`}>
+                                                <span className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
                                                 </span>
                                                 <div className="flex items-center gap-1">
@@ -527,7 +527,7 @@ export default function SettingsClassesPage() {
                                                 <span className="text-xs text-slate-400">Kode: <span className={`font-mono font-medium ${copiedCode === cls.join_code ? 'text-emerald-500' : 'text-slate-600'}`}>{cls.join_code || '—'}</span></span>
                                                 <button
                                                     onClick={() => handleViewStudents(cls)}
-                                                    className="text-xs font-medium text-[#030C4D] bg-[#030C4D]/10 hover:bg-[#030C4D]/20 transition-all px-2 py-1 rounded-lg border border-[#030C4D]/20 cursor-pointer"
+                                                    className="text-xs font-medium text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-2 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer"
                                                 >
                                                     <Users size={10} className="inline mr-1" />{cls.studentCount || 0} siswa
                                                 </button>
@@ -717,7 +717,7 @@ export default function SettingsClassesPage() {
                         </div>
                     ) : classStudents.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                            <Users size={36} className="mb-2 opacity-30 text-[#0038A8]" />
+                            <Users size={36} className="mb-2 opacity-30 text-[#3083FF]" />
                             <p className="text-sm font-medium">Belum ada siswa di kelas ini.</p>
                         </div>
                     ) : (

@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
-import { insertIdempotently } from '../common/idempotent-create';
+import {
+    deriveRequestUuid,
+    insertIdempotently,
+    insertIdempotentlyWithStatus,
+} from '../common/idempotent-create';
+import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { wibDateTimeToUtc } from '../common/wib-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
@@ -48,6 +53,10 @@ export class PasSchedulesService {
     async createSession(user: AuthUser, periodId: string, dto: CreatePASSessionDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
+        if (dto.end_time <= dto.start_time) {
+            throw new BadRequestException('Jam selesai sesi harus setelah jam mulai.');
+        }
+
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'cbt_pas_sessions',
             scope: { column: 'pas_period_id', value: periodId },
@@ -87,13 +96,18 @@ export class PasSchedulesService {
 
         const { data: period } = await this.db
             .from('cbt_pas_periods')
-            .select('is_locked, start_date, end_date')
+            .select('organization_id, is_locked, start_date, end_date')
             .eq('id', dto.pas_period_id)
             .maybeSingle();
 
         if (!period) throw new NotFoundException('Periode tidak ditemukan.');
 
-        const row = period as { is_locked: boolean; start_date: string; end_date: string };
+        const row = period as {
+            organization_id: string;
+            is_locked: boolean;
+            start_date: string;
+            end_date: string;
+        };
         if (row.is_locked) throw new ConflictException('Periode sudah dikunci.');
 
         // Tanggal harus di dalam rentang periode. Batas akhirnya inklusif: kolomnya
@@ -115,9 +129,28 @@ export class PasSchedulesService {
             .from('cbt_pas_sessions')
             .select('start_time, end_time')
             .eq('id', dto.session_id)
+            .eq('pas_period_id', dto.pas_period_id)
             .maybeSingle();
 
-        if (!session) throw new NotFoundException('Sesi tidak ditemukan.');
+        if (!session) throw new NotFoundException('Sesi tidak ditemukan pada periode ini.');
+
+        const [{ data: bank }, { data: cls }] = await Promise.all([
+            this.db
+                .from('cbt_question_banks')
+                .select('id')
+                .eq('id', dto.bank_id)
+                .eq('organization_id', row.organization_id)
+                .maybeSingle(),
+            this.db
+                .from('cbt_classes')
+                .select('id')
+                .eq('id', dto.class_id)
+                .eq('organization_id', row.organization_id)
+                .maybeSingle(),
+        ]);
+
+        if (!bank) throw new NotFoundException('Bank soal tidak ditemukan pada sekolah ini.');
+        if (!cls) throw new NotFoundException('Kelas tidak ditemukan pada sekolah ini.');
 
         const times = session as { start_time: string; end_time: string };
 
@@ -157,31 +190,53 @@ export class PasSchedulesService {
             'cbt_pas_periods',
         );
 
-        const { data: schedule } = await this.db
+        const { data: source } = await this.db
             .from('cbt_pas_class_schedules')
-            .select('status, exam_id')
+            .select('pas_period_id')
             .eq('id', scheduleId)
             .maybeSingle();
+        if (!source) throw new NotFoundException('Jadwal tidak ditemukan.');
+        const periodId = (source as { pas_period_id: string }).pas_period_id;
 
-        if (!schedule) throw new NotFoundException('Jadwal tidak ditemukan.');
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-period:${periodId}`,
+            );
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-exam-generation:${scheduleId}`,
+            );
 
-        const row = schedule as { status: string | null; exam_id: string | null };
-        if (row.status === 'active') {
-            throw new ConflictException('Jadwal sedang aktif. Tidak bisa dihapus.');
-        }
+            const { data: schedule } = await db
+                .from('cbt_pas_class_schedules')
+                .select('status, exam_id')
+                .eq('id', scheduleId)
+                .eq('pas_period_id', periodId)
+                .maybeSingle();
+            if (!schedule) throw new NotFoundException('Jadwal tidak ditemukan.');
 
-        if (row.exam_id) {
-            await this.db.from('cbt_exams').delete().eq('id', row.exam_id);
-        }
+            const row = schedule as { status: string | null; exam_id: string | null };
+            if (row.status === 'active') {
+                throw new ConflictException('Jadwal sedang aktif. Tidak bisa dihapus.');
+            }
 
-        const { error } = await this.db
-            .from('cbt_pas_class_schedules')
-            .delete()
-            .eq('id', scheduleId);
+            if (row.exam_id) {
+                await lockExamsForDeletion(db, [row.exam_id]);
+                await assertExamsHaveNoHistory(db, [row.exam_id]);
+            }
 
-        if (error) throw new BadRequestException(error.message);
+            const { error } = await db.from('cbt_pas_class_schedules')
+                .delete().eq('id', scheduleId);
+            if (error) throw new BadRequestException(`Gagal menghapus jadwal: ${error.message}`);
 
-        return { id: scheduleId };
+            if (row.exam_id) {
+                const { error: examError } = await db.from('cbt_exams').delete().eq('id', row.exam_id);
+                if (examError) throw new BadRequestException(`Gagal menghapus ujian: ${examError.message}`);
+            }
+
+            return { id: scheduleId };
+        });
     }
 
     // ── Pembangkitan ujian ───────────────────────────────────────────────────
@@ -198,7 +253,7 @@ export class PasSchedulesService {
         let created = 0;
         const skipped: string[] = [];
 
-        for (const scheduleId of scheduleIds) {
+        for (const scheduleId of [...new Set(scheduleIds)]) {
             try {
                 await this.authz.assertProktorByParent(
                     user,
@@ -221,60 +276,74 @@ export class PasSchedulesService {
 
     /** Mengembalikan alasan jika dilewati, atau `null` bila ujian berhasil dibuat. */
     private async generateOne(scheduleId: string): Promise<string | null> {
-        const { data } = await this.db
-            .from('cbt_pas_class_schedules')
-            .select('*')
-            .eq('id', scheduleId)
-            .maybeSingle();
+        const { data: source } = await this.db.from('cbt_pas_class_schedules')
+            .select('pas_period_id').eq('id', scheduleId).maybeSingle();
+        if (!source) return `${scheduleId}: jadwal tidak ditemukan`;
+        const sourcePeriodId = (source as { pas_period_id: string }).pas_period_id;
 
-        if (!data) return `${scheduleId}: jadwal tidak ditemukan`;
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-period:${sourcePeriodId}`,
+            );
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-exam-generation:${scheduleId}`,
+            );
 
-        const schedule = data as any;
-        if (schedule.exam_id) return `${scheduleId}: ujian sudah pernah dibangkitkan`;
+            const { data } = await db
+                .from('cbt_pas_class_schedules')
+                .select('*')
+                .eq('id', scheduleId)
+                .maybeSingle();
 
-        const [{ data: period }, { data: bank }, { data: cls }] = await Promise.all([
-            this.db
+            if (!data) return `${scheduleId}: jadwal tidak ditemukan`;
+
+            const schedule = data as any;
+            if (schedule.exam_id) return `${scheduleId}: ujian sudah pernah dibangkitkan`;
+
+            const { data: period } = await db
                 .from('cbt_pas_periods')
                 .select('organization_id, name, type, school_year, semester')
                 .eq('id', schedule.pas_period_id)
-                .maybeSingle(),
-            schedule.bank_id
-                ? this.db
-                      .from('cbt_question_banks')
-                      .select('title')
-                      .eq('id', schedule.bank_id)
-                      .maybeSingle()
-                : Promise.resolve({ data: null }),
-            schedule.class_id
-                ? this.db
-                      .from('cbt_classes')
-                      .select('name')
-                      .eq('id', schedule.class_id)
-                      .maybeSingle()
-                : Promise.resolve({ data: null }),
-        ]);
+                .maybeSingle();
 
-        if (!period) return `${scheduleId}: periode tidak ditemukan`;
+            if (!period) return `${scheduleId}: periode tidak ditemukan`;
 
-        const periodRow = period as any;
-        const duration = schedule.duration_minutes || 90;
-        const closeTime = schedule.window_end_time || schedule.scheduled_time;
+            const periodRow = period as any;
+            const [{ data: bank }, { data: cls }] = await Promise.all([
+                schedule.bank_id
+                    ? db.from('cbt_question_banks').select('title').eq('id', schedule.bank_id)
+                        .eq('organization_id', periodRow.organization_id).maybeSingle()
+                    : Promise.resolve({ data: null }),
+                schedule.class_id
+                    ? db.from('cbt_classes').select('name').eq('id', schedule.class_id)
+                        .eq('organization_id', periodRow.organization_id).maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ]);
 
-        const { data: exam, error } = await this.db
-            .from('cbt_exams')
-            .insert({
+            if (!bank) return `${scheduleId}: bank soal bukan milik sekolah periode`;
+            if (!cls) return `${scheduleId}: kelas bukan milik sekolah periode`;
+
+            const duration = schedule.duration_minutes || 90;
+            const closeTime = schedule.window_end_time || schedule.scheduled_time;
+            const startTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time);
+            const endTime = wibDateTimeToUtc(schedule.scheduled_date, closeTime);
+            if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
+                return `${scheduleId}: jendela waktu ujian tidak valid`;
+            }
+
+            const payload = {
                 organization_id: periodRow.organization_id,
                 question_bank_id: schedule.bank_id,
                 subject_id: schedule.subject_id || null,
-                title: (bank as { title?: string } | null)?.title || 'Ujian',
+                title: (bank as { title?: string }).title || 'Ujian',
                 description:
-                    `Kelas ${(cls as { name?: string } | null)?.name || 'N/A'} | ` +
+                    `Kelas ${(cls as { name?: string }).name || 'N/A'} | ` +
                     `${periodRow.school_year} | ${String(periodRow.type || '').toUpperCase()} ${periodRow.semester}`,
                 duration_minutes: duration,
-                // Ujian PAS memakai jendela fleksibel: start/end adalah batas
-                // jendelanya, bukan jam mulai serentak.
-                start_time: wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time),
-                end_time: wibDateTimeToUtc(schedule.scheduled_date, closeTime),
+                start_time: startTime,
+                end_time: endTime,
                 randomize_questions: true,
                 randomize_options: true,
                 show_results: false,
@@ -289,26 +358,44 @@ export class PasSchedulesService {
                     window_close: closeTime,
                     exam_duration: duration,
                 },
-            })
-            .select('id')
-            .maybeSingle();
+            };
 
-        if (error || !exam) {
-            return `${scheduleId}: gagal membuat ujian — ${error?.message ?? 'tidak diketahui'}`;
-        }
+            const { data: exam } = await insertIdempotentlyWithStatus<{ id: string }>(db, {
+                table: 'cbt_exams',
+                organizationId: periodRow.organization_id,
+                clientRequestId: deriveRequestUuid(scheduleId, 2901),
+                fingerprint: payload,
+                payload,
+                select: 'id',
+            });
 
-        const examId = (exam as { id: string }).id;
+            const { data: existingTarget, error: targetReadError } = await db
+                .from('cbt_exam_targets')
+                .select('id')
+                .eq('exam_id', exam.id)
+                .eq('class_id', schedule.class_id)
+                .limit(1)
+                .maybeSingle();
+            if (targetReadError) {
+                throw new BadRequestException(`Gagal memeriksa target kelas: ${targetReadError.message}`);
+            }
+            if (!existingTarget) {
+                const { error: targetError } = await db
+                    .from('cbt_exam_targets')
+                    .insert({ exam_id: exam.id, class_id: schedule.class_id });
+                if (targetError) {
+                    throw new BadRequestException(`Gagal menetapkan kelas: ${targetError.message}`);
+                }
+            }
 
-        await this.db
-            .from('cbt_pas_class_schedules')
-            .update({ exam_id: examId })
-            .eq('id', scheduleId);
+            const { error: linkError } = await db
+                .from('cbt_pas_class_schedules')
+                .update({ exam_id: exam.id })
+                .eq('id', scheduleId);
+            if (linkError) throw new BadRequestException(`Gagal menautkan ujian: ${linkError.message}`);
 
-        await this.db
-            .from('cbt_exam_targets')
-            .upsert({ exam_id: examId, class_id: schedule.class_id });
-
-        return null;
+            return null;
+        });
     }
 
 }

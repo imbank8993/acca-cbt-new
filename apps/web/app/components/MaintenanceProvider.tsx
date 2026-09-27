@@ -40,7 +40,7 @@ export default function MaintenanceProvider({
                     <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <AlertCircle className="w-10 h-10 text-rose-500" />
                     </div>
-                    <h1 className="text-3xl font-extrabold text-[#030C4D] mb-4">Under Maintenance</h1>
+                    <h1 className="text-3xl font-extrabold text-[#3083FF] mb-4">Under Maintenance</h1>
                     <p className="text-slate-500 mb-8 leading-relaxed">
                         Sistem kami saat ini sedang dalam pemeliharaan rutin untuk meningkatkan layanan. Silakan kembali beberapa saat lagi.
                     </p>

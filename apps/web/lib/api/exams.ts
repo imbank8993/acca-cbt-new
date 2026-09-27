@@ -10,3 +10,11 @@ import { apiSend } from './client';
 export function deleteExam(examId: string) {
     return apiSend<{ id: string }>(`/api/exams/${encodeURIComponent(examId)}`, undefined, 'DELETE');
 }
+
+/** Hapus eksplisit ujian uji coba yang sudah tidak dipublikasikan beserta hasilnya. */
+export function purgeTrialExam(examId: string, confirmationTitle: string) {
+    return apiSend<{ id: string; purgedAttempts: number }>(
+        `/api/exams/${encodeURIComponent(examId)}/purge-trial`,
+        { confirmationTitle },
+    );
+}

@@ -78,6 +78,48 @@ function parseListLiteral(raw: unknown): unknown[] {
     .filter((part) => part.length > 0);
 }
 
+/** Pisahkan cabang OR hanya pada koma tingkat terluar, bukan koma `in.(a,b)`. */
+export function splitPostgrestOrExpression(expression: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (const char of expression || '') {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+    if (char === '\\' && quote) {
+      current += char;
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === '(') depth += 1;
+    if (char === ')' && depth > 0) depth -= 1;
+    if (char === ',' && depth === 0) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
 type Operation = 'select' | 'insert' | 'update' | 'upsert' | 'delete';
 
 /**
@@ -286,10 +328,7 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
 
   /** Sintaks OR PostgREST: `.or('status.eq.draft,status.eq.published')`. */
   or(expression: string): this {
-    const parts = (expression || '')
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
+    const parts = splitPostgrestOrExpression(expression);
 
     const branches: Array<{ column: string; op: string; value: unknown }> = [];
     for (const part of parts) {

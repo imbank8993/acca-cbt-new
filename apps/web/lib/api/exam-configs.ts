@@ -97,6 +97,8 @@ export async function generateExamsFromConfigAction(configExamIds: string[]) {
     const res = await apiSend<{ created: number; skipped: string[] }>(
         '/api/exam-configs/generate',
         { configExamIds },
+        'POST',
+        { timeoutMs: 120_000 },
     );
     return res.success
         ? { success: true as const, created: res.created, skipped: res.skipped }

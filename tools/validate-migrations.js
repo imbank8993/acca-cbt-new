@@ -30,6 +30,8 @@ const FILES = [
     '20260927_01_idempotent_creates.sql',
     '20260927_02_idempotent_child_creates.sql',
     '20260927_03_idempotent_question_content.sql',
+    '20260927_04_question_revision.sql',
+    '20260927_05_pas_room_integrity.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
@@ -85,6 +87,7 @@ const EXPECTED_COLUMNS = [
     ['cbt_question_instructions', 'client_request_id'],
     ['cbt_question_dimensions', 'client_request_id'],
     ['cbt_dimension_interpretations', 'client_request_id'],
+    ['cbt_bank_questions', 'revision'],
 ];
 
 const EXPECTED_INDEXES = [
@@ -115,6 +118,7 @@ const EXPECTED_INDEXES = [
     'cbt_question_instructions_client_request_unique',
     'cbt_question_dimensions_client_request_unique',
     'cbt_dimension_interpretations_client_request_unique',
+    'cbt_pas_rooms_id_period_unique',
 ];
 
 function resolveDatabaseUrl() {

@@ -70,8 +70,8 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                 {/* Editor Mode Toggle */}
                 <div className="px-6 pt-4">
                     <div className="flex gap-2 mb-2">
-                        <button onClick={() => setEditorMode('visual')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${editorMode === 'visual' ? 'bg-[#030C4D] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>Visual (Word)</button>
-                        <button onClick={() => setEditorMode('latex')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${editorMode === 'latex' ? 'bg-[#030C4D] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>Kode LaTeX</button>
+                        <button onClick={() => setEditorMode('visual')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${editorMode === 'visual' ? 'bg-[#3083FF] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>Visual (Word)</button>
+                        <button onClick={() => setEditorMode('latex')} className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${editorMode === 'latex' ? 'bg-[#3083FF] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>Kode LaTeX</button>
                     </div>
                 </div>
 
@@ -179,7 +179,7 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                         Batal
                     </button>
                     <button onClick={handleInsert} disabled={!input.trim()}
-                        className="px-5 py-2 text-sm font-semibold bg-[#030C4D] text-white rounded-lg hover:bg-[#020735] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm">
+                        className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#020735] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm">
                         Sisipkan
                     </button>
                 </div>

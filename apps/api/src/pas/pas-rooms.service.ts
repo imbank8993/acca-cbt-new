@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    Logger,
+    NotFoundException,
+} from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { insertIdempotently } from '../common/idempotent-create';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
 /**
@@ -73,17 +79,53 @@ export class PasRoomsService {
      */
     async assignInvigilators(user: AuthUser, roomId: string, userIds: string[]) {
         await this.assertRoomAccess(user, roomId);
+        const uniqueUserIds = [...new Set(userIds)];
 
-        await this.db.from('cbt_pas_room_invigilators').delete().eq('pas_room_id', roomId);
-
-        if (userIds.length > 0) {
-            const { error } = await this.db.from('cbt_pas_room_invigilators').insert(
-                userIds.map((userId) => ({ pas_room_id: roomId, user_id: userId })),
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-room-invigilators:${roomId}`,
             );
-            if (error) throw new BadRequestException(error.message);
-        }
 
-        return { roomId, assigned: userIds.length };
+            const { data: room } = await db
+                .from('cbt_pas_rooms')
+                .select('pas_period_id')
+                .eq('id', roomId)
+                .maybeSingle();
+            if (!room) throw new NotFoundException('Ruang ujian tidak ditemukan.');
+
+            const { data: period } = await db
+                .from('cbt_pas_periods')
+                .select('organization_id')
+                .eq('id', (room as { pas_period_id: string }).pas_period_id)
+                .maybeSingle();
+            if (!period) throw new NotFoundException('Periode ujian tidak ditemukan.');
+
+            await this.assertOrganizationUsers(
+                db,
+                (period as { organization_id: string }).organization_id,
+                uniqueUserIds,
+                ['Guru', 'Pengawas', 'Proktor', 'Admin'],
+                'Pengawas',
+            );
+
+            const { error: deleteError } = await db
+                .from('cbt_pas_room_invigilators')
+                .delete()
+                .eq('pas_room_id', roomId);
+            if (deleteError) {
+                throw new BadRequestException(`Gagal mengganti pengawas: ${deleteError.message}`);
+            }
+
+            if (uniqueUserIds.length > 0) {
+                const { error } = await db.from('cbt_pas_room_invigilators').insert(
+                    uniqueUserIds.map((userId) => ({ pas_room_id: roomId, user_id: userId })),
+                );
+                if (error) throw new BadRequestException(`Gagal menyimpan pengawas: ${error.message}`);
+            }
+
+            return { roomId, assigned: uniqueUserIds.length };
+        });
     }
 
     /**
@@ -95,25 +137,76 @@ export class PasRoomsService {
      */
     async assignStudents(user: AuthUser, periodId: string, roomId: string, userIds: string[]) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
-        if (userIds.length === 0) return { roomId, assigned: 0 };
+        const uniqueUserIds = [...new Set(userIds)];
+        if (uniqueUserIds.length === 0) return { roomId, assigned: 0 };
 
-        await this.db
-            .from('cbt_pas_room_students')
-            .delete()
-            .eq('pas_period_id', periodId)
-            .in('user_id', userIds);
+        return this.db.transaction(async (db) => {
+            // Semua pemindahan siswa dalam satu periode berbagi lock agar dua
+            // admin tidak sama-sama melihat sisa kapasitas yang sama.
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-room-students:${periodId}`,
+            );
 
-        const { error } = await this.db.from('cbt_pas_room_students').insert(
-            userIds.map((userId) => ({
-                pas_period_id: periodId,
-                pas_room_id: roomId,
-                user_id: userId,
-            })),
-        );
+            const [{ data: period }, { data: room }] = await Promise.all([
+                db.from('cbt_pas_periods').select('organization_id').eq('id', periodId).maybeSingle(),
+                db.from('cbt_pas_rooms').select('pas_period_id, capacity').eq('id', roomId)
+                    .eq('pas_period_id', periodId).maybeSingle(),
+            ]);
+            if (!period) throw new NotFoundException('Periode ujian tidak ditemukan.');
+            if (!room) throw new NotFoundException('Ruang tidak berada pada periode yang dipilih.');
 
-        if (error) throw new BadRequestException(error.message);
+            await this.assertOrganizationUsers(
+                db,
+                (period as { organization_id: string }).organization_id,
+                uniqueUserIds,
+                ['Siswa'],
+                'Siswa',
+            );
 
-        return { roomId, assigned: userIds.length };
+            const { data: currentRows, error: currentError } = await db
+                .from('cbt_pas_room_students')
+                .select('user_id')
+                .eq('pas_room_id', roomId);
+            if (currentError) {
+                throw new BadRequestException(`Gagal membaca isi ruang: ${currentError.message}`);
+            }
+
+            const currentIds = new Set(
+                ((currentRows as Array<{ user_id: string }>) || []).map((row) => row.user_id),
+            );
+            const movingIds = uniqueUserIds.filter((id) => !currentIds.has(id));
+            const capacity = Number((room as { capacity: number | null }).capacity) || 0;
+            if (currentIds.size + movingIds.length > capacity) {
+                throw new ConflictException(
+                    `Kapasitas ruang tidak cukup. Tersedia ${Math.max(0, capacity - currentIds.size)} tempat.`,
+                );
+            }
+
+            if (movingIds.length > 0) {
+                const { error: deleteError } = await db
+                    .from('cbt_pas_room_students')
+                    .delete()
+                    .eq('pas_period_id', periodId)
+                    .in('user_id', movingIds);
+                if (deleteError) {
+                    throw new BadRequestException(`Gagal memindahkan siswa: ${deleteError.message}`);
+                }
+
+                const { error: insertError } = await db.from('cbt_pas_room_students').insert(
+                    movingIds.map((userId) => ({
+                        pas_period_id: periodId,
+                        pas_room_id: roomId,
+                        user_id: userId,
+                    })),
+                );
+                if (insertError) {
+                    throw new BadRequestException(`Gagal menempatkan siswa: ${insertError.message}`);
+                }
+            }
+
+            return { roomId, assigned: uniqueUserIds.length };
+        });
     }
 
     async removeStudent(user: AuthUser, periodId: string, userId: string) {
@@ -138,5 +231,39 @@ export class PasRoomsService {
             'pas_period_id',
             'cbt_pas_periods',
         );
+    }
+
+    /** Pastikan seluruh ID adalah anggota aktif organisasi dengan peran yang diizinkan. */
+    private async assertOrganizationUsers(
+        db: DbSession,
+        organizationId: string,
+        userIds: string[],
+        allowedRoles: string[],
+        label: string,
+    ): Promise<void> {
+        if (userIds.length === 0) return;
+
+        const { data, error } = await db
+            .from('cbt_organization_members')
+            .select('user_id, member_roles:cbt_member_roles(roles:cbt_roles(name))')
+            .eq('organization_id', organizationId)
+            .eq('is_active', true)
+            .in('user_id', userIds);
+        if (error) throw new BadRequestException(`Gagal memvalidasi ${label.toLowerCase()}: ${error.message}`);
+
+        const allowed = new Set(allowedRoles.map((role) => role.toLowerCase()));
+        const validIds = new Set(
+            ((data as Array<{ user_id: string; member_roles?: Array<{ roles?: { name?: string } }> }>) || [])
+                .filter((member) => (member.member_roles || []).some(
+                    (entry) => allowed.has(String(entry.roles?.name || '').toLowerCase()),
+                ))
+                .map((member) => member.user_id),
+        );
+
+        if (validIds.size !== userIds.length) {
+            throw new BadRequestException(
+                `${label} yang dipilih harus merupakan anggota aktif sekolah dengan peran yang sesuai.`,
+            );
+        }
     }
 }

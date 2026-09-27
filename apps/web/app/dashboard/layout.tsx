@@ -240,7 +240,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <h1 className="text-lg font-bold text-slate-900">Dashboard belum dapat dibuka</h1>
                     <p className="mt-2 text-sm text-slate-600">{authError || 'Peran akun tidak tersedia.'}</p>
                     <div className="mt-5 flex justify-center gap-3">
-                        <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-[#0038A8] text-white text-sm font-semibold">Coba Lagi</button>
+                        <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-[#3083FF] text-white text-sm font-semibold">Coba Lagi</button>
                         <button type="button" onClick={() => router.replace('/')} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Ke Login</button>
                     </div>
                 </div>

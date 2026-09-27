@@ -1,10 +1,19 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Users, LogIn, School, Loader2, Check, LogOut, Info, Sparkles, Building, User } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    School,
+    Check,
+    LogOut,
+    Loader2,
+    KeyRound,
+    AlertCircle,
+    GraduationCap
+} from 'lucide-react';
 import { getSessionUser } from '@/lib/session';
 import { listStudentClasses, joinClassAction, leaveClassAction } from '@/lib/api/students';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { useToast } from '@/app/components/ui/Toast';
 
 export default function SiswaClassesPage() {
     const [classes, setClasses] = useMemoryState<any[]>('siswa_classes_classes', []);
@@ -12,226 +21,258 @@ export default function SiswaClassesPage() {
     const [joinCode, setJoinCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
-    const [fullName, setFullName] = useState<string>('');
+    const [leavingClassId, setLeavingClassId] = useState<string | null>(null);
+    const [classToLeave, setClassToLeave] = useState<{ id: string; name: string } | null>(null);
+
+    const toast = useToast();
 
     useEffect(() => {
         loadData();
-        // Auto-injected smart sync (Window Focus)
         const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
     }, []);
 
     const loadData = async () => {
-        // setIsLoading(true); // Disabled for silent background sync
         const user = await getSessionUser();
         if (user) {
             setUserId(user.id);
             setClasses(await listStudentClasses());
-            setFullName(user.fullName ?? '');
         }
         setIsLoading(false);
     };
 
     const handleJoinClass = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!userId || !joinCode.trim()) return;
+        const code = joinCode.trim();
+        if (!userId || !code) return;
 
         setIsSubmitting(true);
-        const result = await joinClassAction(joinCode);
-        if (result.success) {
-            alert(`Berhasil bergabung dengan kelas: ${result.className}`);
-            setJoinCode('');
-            loadData();
-        } else {
-            alert('Gagal bergabung: ' + result.error);
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleLeaveClass = async (classId: string, className: string, type: string) => {
-        if (type === 'reguler') {
-            alert('Anda tidak bisa keluar dari kelas reguler. Hubungi proktor.');
-            return;
-        }
-
-        if (confirm(`Apakah Anda yakin ingin keluar dari kelas tambahan "${className}"?`)) {
-            setIsLoading(true);
-            const result = await leaveClassAction(classId);
+        try {
+            const result = await joinClassAction(code);
             if (result.success) {
-                alert(`Berhasil keluar dari kelas: ${result.className}`);
+                toast.success('Berhasil Bergabung', `Anda telah masuk ke kelas: ${result.className}`);
+                setJoinCode('');
                 loadData();
             } else {
-                alert(`Gagal keluar: ${result.error}`);
-                setIsLoading(false);
+                toast.error('Gagal Bergabung', result.error || 'Kode kelas tidak valid.');
             }
+        } catch (err: any) {
+            toast.error('Terjadi Kesalahan', err?.message || 'Gagal menghubungi server.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleConfirmLeave = async () => {
+        if (!classToLeave) return;
+        setLeavingClassId(classToLeave.id);
+        try {
+            const result = await leaveClassAction(classToLeave.id);
+            if (result.success) {
+                toast.success('Berhasil Keluar', `Anda telah keluar dari kelas: ${result.className}`);
+                loadData();
+            } else {
+                toast.error('Gagal Keluar', result.error || 'Tidak dapat keluar dari kelas.');
+            }
+        } catch (err: any) {
+            toast.error('Terjadi Kesalahan', err?.message || 'Gagal menghubungi server.');
+        } finally {
+            setLeavingClassId(null);
+            setClassToLeave(null);
         }
     };
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
 
-            {/* Gabung Kelas Section */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col lg:flex-row items-center justify-between gap-5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-[#030C4D]/5 rounded-bl-full pointer-events-none" />
-                
-                <div className="flex gap-4 items-start flex-1 w-full text-left">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#0038A8] shrink-0">
-                        <LogIn size={18} />
+            {/* ── Gabung Kelas Baru (Compact & Sleek) ── */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+                <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center shrink-0 border border-blue-100/60 dark:border-[#3083FF]/20 shadow-2xs">
+                        <KeyRound size={18} />
                     </div>
-                    <div className="space-y-1">
-                        <h3 className="text-lg font-bold text-slate-800 tracking-tight">
-                            Gabung Kelas Baru
-                        </h3>
-                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
-                            Masukkan kode akses unik dari Guru atau Proktor Anda untuk masuk ke kelas tambahan.
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                            Gabung Kelas Tambahan
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            Punya kode akses dari Guru atau Proktor? Masukkan di sini untuk mendaftar.
                         </p>
                     </div>
                 </div>
 
-                <form onSubmit={handleJoinClass} className="flex flex-col sm:flex-row gap-2.5 w-full lg:w-auto z-10 shrink-0">
-                    <div className="relative w-full sm:w-[260px]">
+                <form onSubmit={handleJoinClass} className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto shrink-0">
+                    <div className="relative w-full sm:w-64">
                         <input
                             required
                             type="text"
                             placeholder="KODE KELAS (MISAL: X9A)"
                             value={joinCode}
                             onChange={e => setJoinCode(e.target.value)}
-                            className="w-full bg-slate-50 hover:bg-slate-100/70 border border-slate-200 focus:bg-white rounded-xl py-2.5 px-4 focus:ring-4 focus:ring-indigo-500/10 focus:border-[#0038A8] outline-none font-bold text-slate-800 placeholder:text-slate-400 font-mono tracking-wider uppercase transition-all text-xs shadow-inner"
+                            className="w-full bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 rounded-xl py-2 px-3.5 focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono tracking-wider uppercase transition-all text-xs"
                         />
                     </div>
                     <button
                         type="submit"
                         disabled={isSubmitting || !joinCode.trim()}
-                        className="bg-[#0038A8] hover:bg-[#020510] text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-[#0038A8]/20 transition-all duration-300 flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 text-xs whitespace-nowrap"
+                        className="w-full sm:w-auto bg-[#3083FF] hover:bg-[#2563EB] text-white font-semibold px-4 py-2 rounded-xl shadow-xs shadow-[#3083FF]/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 text-xs shrink-0"
                     >
                         {isSubmitting ? (
-                            <Loader2 size={15} className="animate-spin" />
+                            <Loader2 size={14} className="animate-spin" />
                         ) : (
-                            <Check size={15} />
+                            <Check size={14} />
                         )}
-                        Bergabung
+                        <span>Bergabung</span>
                     </button>
                 </form>
             </div>
 
-            {/* Daftar Kelas */}
-            <div className="space-y-5">
-                <div className="flex justify-between items-center px-1">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-2.5 h-5 bg-[#030C4D] rounded-full" />
-                        <h3 className="text-lg font-bold text-slate-800">Kelas Aktif</h3>
+            {/* ── Daftar Kelas Aktif ── */}
+            <div className="space-y-4 text-left">
+                <div className="flex items-center justify-between px-0.5">
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                            Kelas Terdaftar
+                        </h2>
+                        {classes.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3083FF]/10 text-[#3083FF]">
+                                {classes.length}
+                            </span>
+                        )}
                     </div>
-                    <button 
-                        onClick={loadData} 
-                        className="text-xs font-bold text-indigo-600 hover:text-[#030C4D] hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all flex items-center gap-2 active:scale-95"
-                    >
-                        <Loader2 size={14} className={isLoading ? 'animate-spin' : ''} />
-                        Segarkan Data
-                    </button>
                 </div>
 
                 {isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-24 space-y-4">
-                        <div className="w-12 h-12 border-4 border-slate-100 border-t-[#030C4D] rounded-full animate-spin"></div>
-                        <p className="text-slate-400 font-bold text-xs tracking-widest uppercase">Memuat kelas Anda...</p>
+                    <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                        <Loader2 size={24} className="animate-spin text-[#3083FF]" />
+                        <p className="text-slate-400 font-semibold text-xs tracking-wide uppercase">Memuat kelas Anda...</p>
+                    </div>
+                ) : classes.length === 0 ? (
+                    /* ── Empty State ── */
+                    <div className="py-16 px-6 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs max-w-md mx-auto w-full flex flex-col items-center">
+                        <div className="w-12 h-12 bg-blue-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3.5 text-[#3083FF]">
+                            <GraduationCap size={24} />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">
+                            Belum Terdaftar di Kelas
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-normal max-w-xs leading-relaxed">
+                            Anda belum terdaftar di kelas manapun. Masukkan kode akses kelas tambahan yang diberikan guru atau hubungi proktor Anda.
+                        </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                         {classes.map((cls, index) => {
                             const isReguler = cls.type === 'reguler';
-                            
+
                             return (
                                 <motion.div
-                                    key={cls.id}
+                                    key={cls.id || index}
                                     layout
-                                    initial={{ opacity: 0, y: 12 }}
+                                    initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.3, delay: index * 0.04 }}
-                                    className="group bg-white border border-slate-100 rounded-2xl p-5 hover:border-indigo-100/80 transition-all duration-300 hover:shadow-xl hover:shadow-[#030C4D]/5 relative overflow-hidden flex flex-col h-full"
+                                    transition={{ duration: 0.2, delay: index * 0.03 }}
+                                    className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-[#3083FF]/40 dark:hover:border-[#3083FF]/50 rounded-2xl p-5 hover:shadow-md transition-all duration-200 relative overflow-hidden flex flex-col justify-between"
                                 >
-                                    {/* Top Accent Line */}
-                                    <div className={`absolute top-0 left-0 w-full h-1 transition-all duration-300 ${
-                                        isReguler 
-                                            ? 'bg-gradient-to-r from-[#0038A8] to-[#c2185b] group-hover:h-1.5' 
-                                            : 'bg-gradient-to-r from-amber-500 to-pink-500 group-hover:h-1.5'
-                                    }`}></div>
+                                    {/* Subtle Top Accent */}
+                                    <div
+                                        className={`absolute top-0 left-0 right-0 h-1 ${
+                                            isReguler ? 'bg-[#3083FF]' : 'bg-indigo-500'
+                                        }`}
+                                    />
 
-                                    {/* Card Header */}
-                                    <div className="flex justify-between items-center mb-4 pt-1">
-                                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
-                                            isReguler 
-                                                ? 'bg-blue-50 text-[#0038A8] border-blue-100/60' 
-                                                : 'bg-amber-50/50 text-amber-700 border-amber-500/10'
-                                        }`}>
-                                            {isReguler ? `Kelas Utama • ${cls.program || 'REGULER'}` : 'Kelas Tambahan'}
-                                        </span>
-                                        <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-[#0038A8] group-hover:border-indigo-100/50 transition-all duration-300">
-                                            <School size={16} />
-                                        </div>
-                                    </div>
-
-                                    {/* Class Title */}
-                                    <h3 className="text-lg font-bold text-slate-800 tracking-tight mb-4 group-hover:text-[#0038A8] transition-colors line-clamp-2 leading-snug">
-                                        {cls.name}
-                                    </h3>
-
-                                    {/* Class Details Container */}
-                                    <div className="mt-auto space-y-2.5 pt-4 border-t border-slate-100/60">
-                                        {/* Creator */}
-                                        <div className="flex items-center gap-3 py-1 px-1.5 rounded-xl hover:bg-slate-50 transition-colors">
-                                            <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                                                <User size={13} className="stroke-[2.5]" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Dibuat Oleh</span>
-                                                <span className="block text-xs font-semibold text-slate-700 truncate leading-none">{isReguler ? 'Proktor Pusat' : 'Guru / Proktor'}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Organization */}
-                                        <div className="flex items-center gap-3 py-1 px-1.5 rounded-xl hover:bg-slate-50 transition-colors">
-                                            <div className="w-7 h-7 rounded-lg bg-emerald-50/80 flex items-center justify-center text-emerald-600 shrink-0">
-                                                <Building size={13} className="stroke-[2.5]" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Sekolah</span>
-                                                <span className="block text-xs font-semibold text-slate-700 truncate leading-none">{cls.orgName || 'Sekolah'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Leave Class Action for additional classes */}
-                                    {!isReguler && (
-                                        <div className="mt-4 pt-3 border-t border-slate-100">
-                                            <button
-                                                onClick={() => handleLeaveClass(cls.id, cls.name, cls.type)}
-                                                className="w-full bg-rose-50/50 hover:bg-rose-50 text-rose-500 border border-rose-100/50 hover:border-rose-200 font-bold text-xs py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                                    <div>
+                                        {/* Meta Header */}
+                                        <div className="flex justify-between items-center mb-3 pt-0.5">
+                                            <span
+                                                className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border tracking-wide uppercase ${
+                                                    isReguler
+                                                        ? 'bg-blue-50 text-[#3083FF] border-blue-200/60 dark:bg-[#3083FF]/10 dark:text-[#3083FF] dark:border-[#3083FF]/20'
+                                                        : 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/40'
+                                                }`}
                                             >
-                                                <LogOut size={13} /> Keluar Kelas
+                                                {isReguler ? `Kelas Utama • ${cls.program || 'REGULER'}` : 'Kelas Tambahan'}
+                                            </span>
+
+                                            <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-[#3083FF] transition-colors">
+                                                <School size={15} />
+                                            </div>
+                                        </div>
+
+                                        {/* Class Name */}
+                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#3083FF] dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug">
+                                            {cls.name}
+                                        </h3>
+                                    </div>
+
+                                    {/* Action Footer for Non-Reguler */}
+                                    {!isReguler && (
+                                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                            <button
+                                                type="button"
+                                                onClick={() => setClassToLeave({ id: cls.id, name: cls.name })}
+                                                className="w-full py-1.5 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-98"
+                                            >
+                                                <LogOut size={12} />
+                                                <span>Keluar Kelas</span>
                                             </button>
                                         </div>
                                     )}
                                 </motion.div>
                             );
                         })}
-
-                        {/* Empty State */}
-                        {classes.length === 0 && (
-                            <div className="col-span-full py-20 px-6 text-center bg-white border border-dashed border-slate-200 rounded-[32px] shadow-sm max-w-xl mx-auto w-full flex flex-col items-center">
-                                <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6 relative">
-                                    <School size={36} className="text-[#030C4D]" />
-                                    <Sparkles size={18} className="text-amber-400 absolute -top-1 -right-1 animate-pulse" />
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-800 mb-2">Wah, Kelasmu Masih Kosong! 🎒</h3>
-                                <p className="text-slate-500 text-sm font-medium max-w-sm mb-0">
-                                    Kamu belum terdaftar di kelas manapun. Yuk, hubungi Wali Kelas atau Proktor untuk mendapatkan kode kelas tambahan Anda, lalu masukkan pada formulir di atas.
-                                </p>
-                            </div>
-                        )}
                     </div>
                 )}
             </div>
+
+            {/* ── Modal Konfirmasi Keluar Kelas (Elegan & Tanpa Alert Bawaan) ── */}
+            <AnimatePresence>
+                {classToLeave && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-xs">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4 text-left"
+                        >
+                            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 flex items-center justify-center border border-rose-100 dark:border-rose-800/40">
+                                <AlertCircle size={20} />
+                            </div>
+
+                            <div>
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                                    Keluar dari Kelas?
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    Anda akan keluar dari kelas tambahan <strong className="text-slate-700 dark:text-slate-200 font-semibold">"{classToLeave.name}"</strong>. Ujian yang ditugaskan ke kelas ini tidak akan muncul lagi di daftar ujian Anda.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setClassToLeave(null)}
+                                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={leavingClassId === classToLeave.id}
+                                    onClick={handleConfirmLeave}
+                                    className="px-4 py-2 text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                                >
+                                    {leavingClassId === classToLeave.id && <Loader2 size={13} className="animate-spin" />}
+                                    <span>Keluar Kelas</span>
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 }

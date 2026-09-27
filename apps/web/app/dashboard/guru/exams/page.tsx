@@ -393,10 +393,11 @@ const ExamsPage = () => {
     };
 
     const handleDeleteExam = async (examId: string) => {
-        if (!confirm('Yakin ingin menghapus ujian ini? Semua data pengerjaan akan ikut terhapus.')) return;
+        if (!confirm('Hapus ujian ini? Ujian hanya dapat dihapus jika belum pernah dikerjakan siswa.')) return;
         setIsLoading(true);
         const result = await deleteExam(examId);
         if (result.success) await loadData();
+        else alert(result.error || 'Ujian gagal dihapus.');
         setIsLoading(false);
     };
 
@@ -683,6 +684,7 @@ const ExamsPage = () => {
         if (!confirm('Hapus jadwal ini?')) return;
         const result = await removeExamConfigExamAction(configExamId);
         if (result.success && selectedConfigId) await openConfigDetail(selectedConfigId);
+        else if (!result.success) alert('Gagal: ' + result.error);
     };
 
     const handleGenerateConfigExams = async () => {
@@ -748,12 +750,12 @@ const ExamsPage = () => {
                             onClick={() => setTypeFilter(type.id as any)}
                             className={`bg-white rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 ${
                                 isSelected 
-                                ? 'border-2 border-[#030C4D] shadow-md ring-4 ring-[#030C4D]/10' 
-                                : 'border border-[#030C4D]/20 shadow-sm hover:shadow-md'
+                                ? 'border-2 border-[#3083FF] shadow-md ring-4 ring-[#3083FF]/10' 
+                                : 'border border-[#3083FF]/20 shadow-sm hover:shadow-md'
                             }`}
                         >
-                            <h3 className={`font-bold text-[10px] xl:text-[11px] uppercase tracking-wider mb-1 ${isSelected ? 'text-[#030C4D]' : 'text-slate-500'}`}>{type.label}</h3>
-                            <span className="text-3xl font-black text-[#030C4D] leading-none mb-2.5">{total}</span>
+                            <h3 className={`font-bold text-[10px] xl:text-[11px] uppercase tracking-wider mb-1 ${isSelected ? 'text-[#3083FF]' : 'text-slate-500'}`}>{type.label}</h3>
+                            <span className="text-3xl font-black text-[#3083FF] leading-none mb-2.5">{total}</span>
                             
                         </div>
                     );
@@ -790,8 +792,8 @@ const ExamsPage = () => {
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-lg font-medium text-xs sm:text-sm transition-all whitespace-nowrap shrink-0 ${
                                 isActive
-                                    ? 'bg-[#030C4D] text-white shadow-lg'
-                                    : 'bg-white text-slate-600 border border-[#030C4D]/30 hover:border-[#030C4D] hover:bg-[#030C4D]/5'
+                                    ? 'bg-[#3083FF] text-white shadow-lg'
+                                    : 'bg-white text-slate-600 border border-[#3083FF]/30 hover:border-[#3083FF] hover:bg-[#3083FF]/5'
                             }`}
                         >
                             <Icon size={16} className={isActive ? 'text-white' : tab.color} />
@@ -799,7 +801,7 @@ const ExamsPage = () => {
                             <span className={`ml-auto lg:ml-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                                 isActive
                                     ? 'bg-white/20 text-white'
-                                    : 'bg-[#030C4D]/10 text-[#030C4D]'
+                                    : 'bg-[#3083FF]/10 text-[#3083FF]'
                             }`}>
                                 {count}
                             </span>
@@ -818,14 +820,14 @@ const ExamsPage = () => {
                             placeholder="Cari ujian..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-[#030C4D]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#030C4D]/20 focus:border-[#030C4D] outline-none"
+                            className="w-full bg-white border border-[#3083FF]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none"
                         />
                     </div>
                     <div className="relative w-full sm:w-auto">
                         <select
                             value={typeFilter}
                             onChange={e => setTypeFilter(e.target.value as any)}
-                            className="w-full appearance-none bg-white border border-[#030C4D]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 cursor-pointer"
+                            className="w-full appearance-none bg-white border border-[#3083FF]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none text-slate-600 cursor-pointer"
                         >
                             <option value="all">Semua Jenis Ujian</option>
                             <option value="daily">Ulangan Harian</option>
@@ -838,7 +840,7 @@ const ExamsPage = () => {
                         <select
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value as SortBy)}
-                            className="w-full appearance-none bg-white border border-[#030C4D]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none text-slate-600 cursor-pointer"
+                            className="w-full appearance-none bg-white border border-[#3083FF]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none text-slate-600 cursor-pointer"
                         >
                             <option value="newest">Terbaru</option>
                             <option value="oldest">Terlama</option>
@@ -848,7 +850,7 @@ const ExamsPage = () => {
                     </div>
                     <button
                         onClick={() => setIsAddModalOpen(true)}
-                        className="px-5 py-3 text-sm bg-[#030C4D] text-white rounded-lg hover:bg-[#020510] flex items-center justify-center gap-2 font-semibold shadow-lg shadow-[#030C4D]/20 whitespace-nowrap cursor-pointer"
+                        className="px-5 py-3 text-sm bg-[#3083FF] text-white rounded-lg hover:bg-[#2563EB] flex items-center justify-center gap-2 font-semibold shadow-lg shadow-[#3083FF]/20 whitespace-nowrap cursor-pointer"
                     >
                         <Plus size={16} /> Buat Ujian Baru
                     </button>
@@ -864,13 +866,13 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#030C4D]/30"
+                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30"
                         >
                             <button onClick={() => setIsConfigModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <FolderOpen size={18} />
                                 </div>
                                 <div>
@@ -885,7 +887,7 @@ const ExamsPage = () => {
                                         required type="text" placeholder="Contoh: PAS Genap 2024/2025"
                                         value={configForm.name}
                                         onChange={e => setConfigForm(p => ({ ...p, name: e.target.value }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                     />
                                 </div>
                                 <div>
@@ -900,7 +902,7 @@ const ExamsPage = () => {
                                                 setIsYearDropdownOpen(true);
                                             }}
                                             onFocus={() => setIsYearDropdownOpen(true)}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                         />
                                         {isYearDropdownOpen && (
                                             <>
@@ -908,7 +910,7 @@ const ExamsPage = () => {
                                                     className="fixed inset-0 z-10" 
                                                     onClick={() => setIsYearDropdownOpen(false)}
                                                 />
-                                                <div className="absolute z-20 w-full mt-1 bg-white border border-[#030C4D]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                                <div className="absolute z-20 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                                                     {schoolYears.length > 0 ? (
                                                         (() => {
                                                             const filtered = schoolYears.filter(sy => 
@@ -919,7 +921,7 @@ const ExamsPage = () => {
                                                                     <button
                                                                         key={i}
                                                                         type="button"
-                                                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#030C4D]/5 text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#3083FF]/5 text-slate-700 transition-colors border-b border-slate-100 last:border-0"
                                                                         onClick={() => {
                                                                             setConfigForm(p => ({ ...p, school_year: sy.year }));
                                                                             setIsYearDropdownOpen(false);
@@ -948,7 +950,7 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Semester</label>
                                     <select value={configForm.semester}
                                         onChange={e => setConfigForm(p => ({ ...p, semester: e.target.value }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none">
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
                                         <option value="">Pilih Semester (Opsional)</option>
                                         <option value="semua">Semua</option>
                                         <option value="ganjil">Ganjil</option>
@@ -960,17 +962,17 @@ const ExamsPage = () => {
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Mulai</label>
                                         <input type="date" value={configForm.start_date}
                                             onChange={e => setConfigForm(p => ({ ...p, start_date: e.target.value }))}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Selesai</label>
                                         <input type="date" value={configForm.end_date}
                                             onChange={e => setConfigForm(p => ({ ...p, end_date: e.target.value }))}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                 </div>
                                 <button type="submit" disabled={isSubmittingConfig}
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
                                     {isSubmittingConfig ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                                     Buat Folder
                                 </button>
@@ -988,13 +990,13 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#030C4D]/30"
+                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30"
                         >
                             <button onClick={() => setIsAddBankModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <BookOpen size={18} />
                                 </div>
                                 <div>
@@ -1007,7 +1009,7 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
                                     <select required value={addBankForm.bank_id}
                                         onChange={e => setAddBankForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm">
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
                                         <option value="">— Pilih Bank Soal —</option>
                                         {qBanks.filter(b => b.is_published).map(bank => (
                                             <option key={bank.id} value={bank.id}>{bank.title}</option>
@@ -1018,7 +1020,7 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Mata Pelajaran</label>
                                     <select value={addBankForm.subject_id || ''}
                                         onChange={e => setAddBankForm(p => ({ ...p, subject_id: e.target.value }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm">
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
                                         <option value="">— Pilih (opsional) —</option>
                                         {subjects.map(sub => (
                                             <option key={sub.id} value={sub.id}>{sub.name}</option>
@@ -1029,10 +1031,10 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Durasi (menit)</label>
                                     <input type="number" min="5" max="300" value={addBankForm.duration_minutes}
                                         onChange={e => setAddBankForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 90 }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                 </div>
                                 <button type="submit"
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors">
                                     <Plus size={16} /> Simpan
                                 </button>
                             </form>
@@ -1049,13 +1051,13 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative border border-[#030C4D]/30"
+                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative border border-[#3083FF]/30"
                         >
                             <button onClick={() => setIsAddClassModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <Calendar size={18} />
                                 </div>
                                 <div>
@@ -1068,7 +1070,7 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
                                     <select required value={addClassForm.bank_id}
                                         onChange={e => setAddClassForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm">
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
                                         <option value="">— Pilih Bank Soal —</option>
                                         {configBanks.map(bank => (
                                             <option key={bank.id} value={bank.id}>{bank.question_banks?.title || 'Bank soal'}</option>
@@ -1077,7 +1079,7 @@ const ExamsPage = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Kelas *</label>
-                                    <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto p-2 bg-slate-50 rounded-xl border border-[#030C4D]/20">
+                                    <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto p-2 bg-slate-50 rounded-xl border border-[#3083FF]/20">
                                         {classes.length === 0 ? (
                                             <p className="text-xs text-slate-400 px-2">Belum ada kelas.</p>
                                         ) : classes.map(cls => (
@@ -1088,7 +1090,7 @@ const ExamsPage = () => {
                                                         : [...addClassForm.class_ids, cls.id];
                                                     setAddClassForm(p => ({ ...p, class_ids: ids }));
                                                 }}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${addClassForm.class_ids.includes(cls.id) ? 'bg-[#030C4D] text-white border border-[#030C4D]' : 'bg-white text-slate-600 border border-[#030C4D]/30 hover:border-[#030C4D]/60'}`}>
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${addClassForm.class_ids.includes(cls.id) ? 'bg-[#3083FF] text-white border border-[#3083FF]' : 'bg-white text-slate-600 border border-[#3083FF]/30 hover:border-[#3083FF]/60'}`}>
                                                 {cls.name}
                                             </button>
                                         ))}
@@ -1099,23 +1101,23 @@ const ExamsPage = () => {
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal *</label>
                                         <input type="date" required value={addClassForm.scheduled_date}
                                             onChange={e => setAddClassForm(p => ({ ...p, scheduled_date: e.target.value }))}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Jam Mulai *</label>
                                         <input type="time" required value={addClassForm.scheduled_time}
                                             onChange={e => setAddClassForm(p => ({ ...p, scheduled_time: e.target.value }))}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Window Tutup *</label>
                                         <input type="time" required value={addClassForm.window_end_time}
                                             onChange={e => setAddClassForm(p => ({ ...p, window_end_time: e.target.value }))}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                 </div>
                                 <button type="submit"
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors">
                                     <Plus size={16} /> Simpan Jadwal
                                 </button>
                             </form>
@@ -1129,10 +1131,10 @@ const ExamsPage = () => {
             {typeFilter !== 'pas' && (
                 isLoading ? (
                 <div className="flex justify-center py-16">
-                    <div className="w-8 h-8 border-3 border-[#030C4D]/20 border-t-[#030C4D] rounded-full animate-spin" />
+                    <div className="w-8 h-8 border-3 border-[#3083FF]/20 border-t-[#3083FF] rounded-full animate-spin" />
                 </div>
             ) : filteredExams.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 border-2 border-dashed border-[#030C4D]/30 rounded-lg">
+                <div className="py-16 text-center text-slate-400 border-2 border-dashed border-[#3083FF]/30 rounded-lg">
                     <ClipboardCheck size={40} className="mx-auto mb-3 opacity-40" />
                     <p className="font-medium">Tidak ada ujian{activeTab === 'draft' ? ' draft' : activeTab === 'active' ? ' aktif' : ''}</p>
                     <p className="text-sm mt-1">Klik "Buat Ujian Baru" untuk memulai</p>
@@ -1146,14 +1148,14 @@ const ExamsPage = () => {
                         const isPublic = exam.metadata?.is_public === true;
                         const canPublish = isAssigned || isPublic;
                         return (
-                            <div key={exam.id} className="bg-white border border-[#030C4D]/30 rounded-xl overflow-hidden hover:border-[#030C4D] hover:shadow-lg transition-all">
+                            <div key={exam.id} className="bg-white border border-[#3083FF]/30 rounded-xl overflow-hidden hover:border-[#3083FF] hover:shadow-lg transition-all">
                                 {/* Card Header */}
                                 <div className="p-4 sm:p-5">
                                     <div className="flex items-start gap-3">
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 border ${
                                             exam.is_published
                                                 ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                                : 'bg-[#030C4D]/10 text-[#030C4D] border-[#030C4D]/40'
+                                                : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/40'
                                         }`}>
                                             {exam.is_published ? <Globe size={18} /> : <GlobeLock size={18} />}
                                         </div>
@@ -1162,12 +1164,12 @@ const ExamsPage = () => {
                                                 <span className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-semibold ${
                                                     exam.is_published
                                                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                                        : 'bg-[#030C4D]/10 text-[#030C4D] border border-[#030C4D]/30'
+                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
                                                     {exam.is_published ? 'Dipublikasikan' : 'Draft'}
                                                 </span>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="px-2 py-0.5 bg-[#030C4D]/5 text-[#030C4D] text-[10px] sm:text-xs font-bold rounded-lg border border-[#030C4D]/20">
+                                                    <span className="px-2 py-0.5 bg-[#3083FF]/5 text-[#3083FF] text-[10px] sm:text-xs font-bold rounded-lg border border-[#3083FF]/20">
                                                         {exam.exam_type.toUpperCase()}
                                                     </span>
                                                 )}
@@ -1177,8 +1179,8 @@ const ExamsPage = () => {
                                     </div>
 
                                     {/* Bank info badge */}
-                                    <div className="mt-3 px-3 py-2 bg-[#030C4D]/5 rounded-lg border border-[#030C4D]/20">
-                                        <p className="text-xs text-[#030C4D] font-medium truncate">
+                                    <div className="mt-3 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20">
+                                        <p className="text-xs text-[#3083FF] font-medium truncate">
                                             <BookOpen size={11} className="inline mr-1.5" />
                                             {bank?.title || 'Bank soal dihapus'}
                                         </p>
@@ -1234,7 +1236,7 @@ const ExamsPage = () => {
                                         disabled={isSubmitting || publishingId === exam.id}
                                         className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait ${
                                             exam.is_published
-                                                ? 'bg-[#030C4D]/10 text-[#030C4D] hover:bg-[#030C4D]/20 border border-[#030C4D]/30'
+                                                ? 'bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 border border-[#3083FF]/30'
                                                 : canPublish
                                                     ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
                                                     : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
@@ -1257,7 +1259,7 @@ const ExamsPage = () => {
                                     {/* Monitor */}
                                     <button
                                         onClick={() => router.push('/dashboard/guru/monitoring?exam=' + exam.id)}
-                                        className="flex-1 sm:flex-none px-3 py-2 text-xs bg-[#030C4D] text-white hover:bg-[#030C4D]/90 rounded-lg transition-all font-medium flex items-center justify-center gap-1.5"
+                                        className="flex-1 sm:flex-none px-3 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#3083FF]/90 rounded-lg transition-all font-medium flex items-center justify-center gap-1.5"
                                     >
                                         <Eye size={12} />
                                         Monitor
@@ -1277,7 +1279,7 @@ const ExamsPage = () => {
                                     {/* Edit */}
                                     <button
                                         onClick={() => openEdit(exam)}
-                                        className="p-2 text-slate-400 hover:text-[#030C4D] hover:bg-[#030C4D]/10 rounded-lg transition-all border border-slate-200 hover:border-[#030C4D]/30"
+                                        className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all border border-slate-200 hover:border-[#3083FF]/30"
                                     >
                                         <Settings size={14} />
                                     </button>
@@ -1288,7 +1290,7 @@ const ExamsPage = () => {
                                         className={`p-2 rounded-lg transition-all border ${
                                             isAssigned
                                                 ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200 hover:border-emerald-300'
-                                                : 'text-[#030C4D] hover:text-[#030C4D] hover:bg-[#030C4D]/10 border-[#030C4D]/30 hover:border-[#030C4D]'
+                                                : 'text-[#3083FF] hover:text-[#3083FF] hover:bg-[#3083FF]/10 border-[#3083FF]/30 hover:border-[#3083FF]'
                                         }`}
                                         title={isAssigned ? 'Ubah penugasan kelas' : 'Tugaskan ke kelas'}
                                     >
@@ -1317,14 +1319,14 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#030C4D]/30"
+                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#3083FF]/30"
                         >
                             <button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <Plus size={18} />
                                 </div>
                                 <div>
@@ -1341,7 +1343,7 @@ const ExamsPage = () => {
                                         <select
                                             value={formData.examType}
                                             onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                         >
                                             <option value="daily">Ulangan Harian</option>
                                             <option value="assignment">Tugas</option>
@@ -1353,7 +1355,7 @@ const ExamsPage = () => {
                                         <div className="relative">
                                             <div 
                                                 onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                                className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
+                                                className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
                                             >
                                                 <span className="truncate">
                                                     {formData.scoringTypes.length > 0 
@@ -1364,7 +1366,7 @@ const ExamsPage = () => {
                                             </div>
                                             
                                             {isScoringDropdownOpen && (
-                                                <div className="absolute z-50 w-full mt-1 bg-white border border-[#030C4D]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
+                                                <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
                                                     {SCORING_OPTIONS.map(option => (
                                                         <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
                                                             <div className="flex items-center gap-2">
@@ -1384,7 +1386,7 @@ const ExamsPage = () => {
                                                                             setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
                                                                         }
                                                                     }}
-                                                                    className="rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]"
+                                                                    className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
                                                                 />
                                                                 <span className="text-sm text-slate-700">{option.label}</span>
                                                             </div>
@@ -1407,7 +1409,7 @@ const ExamsPage = () => {
                                             required type="text" placeholder={formData.examType === 'assignment' ? "Contoh: Tugas Matematika" : "Contoh: UTS Matematika"}
                                             value={formData.title}
                                             onChange={e => setFormData({ ...formData, title: e.target.value })}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                         />
                                     </div>
                                     <div>
@@ -1416,7 +1418,7 @@ const ExamsPage = () => {
                                             type="text" placeholder="Deskripsi singkat..."
                                             value={formData.description}
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                         />
                                     </div>
                                 </div>
@@ -1427,14 +1429,14 @@ const ExamsPage = () => {
                                         <div>
                                             <label className="block text-sm font-medium text-slate-700 mb-1">Bank Soal *</label>
                                             {publishedBanks.length === 0 ? (
-                                                <div className="p-2.5 bg-[#030C4D]/10 border border-[#030C4D]/30 rounded-xl text-xs text-[#030C4D] flex items-center gap-1.5">
+                                                <div className="p-2.5 bg-[#3083FF]/10 border border-[#3083FF]/30 rounded-xl text-xs text-[#3083FF] flex items-center gap-1.5">
                                                     <AlertCircle size={14} /> Belum ada bank soal.
                                                 </div>
                                             ) : (
                                                 <select
                                                     required value={formData.bankId}
                                                     onChange={e => setFormData({ ...formData, bankId: e.target.value })}
-                                                    className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                                 >
                                                     <option value="">— Pilih Bank Soal —</option>
                                                     {publishedBanks.map(bank => (
@@ -1449,16 +1451,16 @@ const ExamsPage = () => {
                                                 required type="number" min="5" max="300"
                                                 value={formData.duration}
                                                 onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-                                                className="w-full border border-[#030C4D]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                                className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                             />
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Waktu */}
-                                <div className="bg-slate-50 p-2.5 rounded-xl border border-[#030C4D]/20 flex flex-col gap-2">
+                                <div className="bg-slate-50 p-2.5 rounded-xl border border-[#3083FF]/20 flex flex-col gap-2">
                                     <label className="flex items-center gap-2 cursor-pointer w-max">
-                                        <input type="checkbox" checked={formData.isForever} onChange={e => setFormData({ ...formData, isForever: e.target.checked, startTime: e.target.checked ? '' : formData.startTime, endTime: e.target.checked ? '' : formData.endTime })} className="w-4 h-4 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                        <input type="checkbox" checked={formData.isForever} onChange={e => setFormData({ ...formData, isForever: e.target.checked, startTime: e.target.checked ? '' : formData.startTime, endTime: e.target.checked ? '' : formData.endTime })} className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-sm font-medium text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
                                     </label>
                                     {!formData.isForever && (
@@ -1469,7 +1471,7 @@ const ExamsPage = () => {
                                                     <input
                                                         required={!formData.isForever} type="datetime-local" step="60"
                                                         value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                                        className="w-full border border-[#030C4D]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                                        className="w-full border border-[#3083FF]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                                     />
                                                 </div>
                                             )}
@@ -1478,7 +1480,7 @@ const ExamsPage = () => {
                                                 <input
                                                     required={!formData.isForever} type="datetime-local" step="60"
                                                     value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                                    className="w-full border border-[#030C4D]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#030C4D]/20 outline-none"
+                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                                 />
                                             </div>
                                         </div>
@@ -1524,7 +1526,7 @@ const ExamsPage = () => {
                                                 <div>
                                                     <label className="block text-sm font-medium text-slate-700 mb-1">Bank Soal *</label>
                                                     {publishedBanks.length === 0 ? (
-                                                        <div className="p-2.5 bg-[#030C4D]/10 border border-[#030C4D]/30 rounded-xl text-xs text-[#030C4D] flex items-center gap-1.5">
+                                                        <div className="p-2.5 bg-[#3083FF]/10 border border-[#3083FF]/30 rounded-xl text-xs text-[#3083FF] flex items-center gap-1.5">
                                                             <AlertCircle size={14} /> Belum ada bank soal.
                                                         </div>
                                                     ) : (
@@ -1618,7 +1620,7 @@ const ExamsPage = () => {
 
                                 {/* Kelas Target */}
                                 {formData.examType === 'lainnya' && (
-                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-[#030C4D]/20 flex flex-col gap-2">
+                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-[#3083FF]/20 flex flex-col gap-2">
                                         <label className="flex items-center gap-2 cursor-pointer w-max">
                                             <input type="checkbox" checked={formData.isPublic} onChange={e => setFormData({ ...formData, isPublic: e.target.checked, selectedClassIds: e.target.checked ? [] : formData.selectedClassIds })} className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500/20" />
                                             <span className="text-sm font-medium text-slate-700">Ujian Umum (Bisa diakses semua siswa)</span>
@@ -1638,8 +1640,8 @@ const ExamsPage = () => {
                                                         }}
                                                         className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
                                                             formData.selectedClassIds.includes(cls.id)
-                                                                ? 'bg-[#030C4D] text-white'
-                                                                : 'bg-white text-slate-600 border border-[#030C4D]/20'
+                                                                ? 'bg-[#3083FF] text-white'
+                                                                : 'bg-white text-slate-600 border border-[#3083FF]/20'
                                                         }`}
                                                     >
                                                         {cls.name}
@@ -1653,15 +1655,15 @@ const ExamsPage = () => {
                                 {/* Options */}
                                 <div className="flex flex-wrap gap-x-4 gap-y-2 px-1 py-1">
                                     <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.randomizeQuestions} onChange={e => setFormData({ ...formData, randomizeQuestions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                        <input type="checkbox" checked={formData.randomizeQuestions} onChange={e => setFormData({ ...formData, randomizeQuestions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-xs font-medium text-slate-700">Acak Soal</span>
                                     </label>
                                     <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.randomizeOptions} onChange={e => setFormData({ ...formData, randomizeOptions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                        <input type="checkbox" checked={formData.randomizeOptions} onChange={e => setFormData({ ...formData, randomizeOptions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-xs font-medium text-slate-700">Acak Opsi</span>
                                     </label>
                                     <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.isSafeMode} onChange={e => setFormData({ ...formData, isSafeMode: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                        <input type="checkbox" checked={formData.isSafeMode} onChange={e => setFormData({ ...formData, isSafeMode: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-xs font-medium text-slate-700">Mode Aman (Proctoring)</span>
                                     </label>
                                     <label className={`flex items-center gap-1.5 ${formData.scoringTypes.some(t => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -1669,7 +1671,7 @@ const ExamsPage = () => {
                                             checked={formData.showResults} 
                                             disabled={formData.scoringTypes.some(t => t.startsWith('irt_'))}
                                             onChange={e => setFormData({ ...formData, showResults: e.target.checked })} 
-                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20 disabled:bg-slate-200" />
+                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200" />
                                         <span className="text-xs font-medium text-slate-700">
                                             Tampilkan Nilai
                                             {formData.scoringTypes.some(t => t.startsWith('irt_')) && " (Nonaktif untuk IRT)"}
@@ -1679,7 +1681,7 @@ const ExamsPage = () => {
 
 
                                 <button type="submit" disabled={isSubmitting || publishedBanks.length === 0}
-                                    className="w-full py-2.5 mt-1 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors">
+                                    className="w-full py-2.5 mt-1 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
                                     {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                                     Simpan sebagai Draft
                                 </button>
@@ -1697,14 +1699,14 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#030C4D]/30"
+                            className="bg-white w-full max-w-md rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#3083FF]/30"
                         >
                             <button onClick={() => setIsEditModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <Settings size={18} />
                                 </div>
                                 <div>
@@ -1716,7 +1718,7 @@ const ExamsPage = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Jenis Ujian</label>
                                     <select value={formData.examType} onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none">
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
                                         <option value="daily">Ulangan Harian</option>
                                         <option value="assignment">Tugas</option>
                                         <option value="lainnya">Ujian Lainnya</option>
@@ -1727,7 +1729,7 @@ const ExamsPage = () => {
                                     <div className="relative">
                                         <div 
                                             onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
                                         >
                                             <span className="truncate">
                                                 {formData.scoringTypes.length > 0 
@@ -1738,7 +1740,7 @@ const ExamsPage = () => {
                                         </div>
                                         
                                         {isScoringDropdownOpen && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-[#030C4D]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
                                                 {SCORING_OPTIONS.map(option => (
                                                     <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
                                                         <div className="flex items-center gap-2">
@@ -1758,7 +1760,7 @@ const ExamsPage = () => {
                                                                         setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
                                                                     }
                                                                 }}
-                                                                className="rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]"
+                                                                className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
                                                             />
                                                             <span className="text-sm text-slate-700">{option.label}</span>
                                                         </div>
@@ -1775,18 +1777,18 @@ const ExamsPage = () => {
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Judul {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}</label>
                                     <input required type="text" value={formData.title}
                                         onChange={e => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none" />
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Deskripsi</label>
                                     <textarea rows={2} value={formData.description}
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none resize-none" />
+                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none resize-none" />
                                 </div>
                                 <div className="space-y-3">
                                     <label className="flex items-center gap-2 cursor-pointer group mb-1">
                                         <input type="checkbox" checked={formData.isForever} onChange={e => setFormData({ ...formData, isForever: e.target.checked, startTime: e.target.checked ? '' : formData.startTime, endTime: e.target.checked ? '' : formData.endTime })} className="hidden" />
-                                        <div className={`w-4 h-4 rounded border ${formData.isForever ? 'bg-[#030C4D] border-[#030C4D]' : 'bg-white border-slate-300'} flex items-center justify-center transition-all`}>
+                                        <div className={`w-4 h-4 rounded border ${formData.isForever ? 'bg-[#3083FF] border-[#3083FF]' : 'bg-white border-slate-300'} flex items-center justify-center transition-all`}>
                                             {formData.isForever && <Check size={12} className="text-white" />}
                                         </div>
                                         <span className="text-sm font-medium text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
@@ -1798,13 +1800,13 @@ const ExamsPage = () => {
                                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Mulai (WIB)</label>
                                                 <input required={!formData.isForever} type="datetime-local" step="60" value={formData.startTime}
                                                     onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                                    className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none" />
+                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Selesai (WIB)</label>
                                                 <input required={!formData.isForever} type="datetime-local" step="60" value={formData.endTime}
                                                     onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                                    className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none" />
+                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
                                             </div>
                                         </div>
                                     )}
@@ -1814,7 +1816,7 @@ const ExamsPage = () => {
                                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Durasi (menit)</label>
                                         <input required type="number" min="5" max="300" value={formData.duration}
                                             onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-                                            className="w-full border border-[#030C4D]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#030C4D]/20 outline-none" />
+                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
                                     </div>
                                 )}
 
@@ -1925,29 +1927,29 @@ const ExamsPage = () => {
                                     </div>
                                 )}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#030C4D]/20 hover:bg-slate-100 transition-colors">
+                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
                                         <input type="checkbox" checked={formData.randomizeQuestions}
                                             onChange={e => setFormData({ ...formData, randomizeQuestions: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-sm text-slate-600">Acak Soal</span>
                                     </label>
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#030C4D]/20 hover:bg-slate-100 transition-colors">
+                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
                                         <input type="checkbox" checked={formData.randomizeOptions}
                                             onChange={e => setFormData({ ...formData, randomizeOptions: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-sm text-slate-600">Acak Opsi</span>
                                     </label>
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#030C4D]/20 hover:bg-slate-100 transition-colors">
+                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
                                         <input type="checkbox" checked={formData.isSafeMode}
                                             onChange={e => setFormData({ ...formData, isSafeMode: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20" />
+                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
                                         <span className="text-sm text-slate-600">Mode Aman</span>
                                     </label>
-                                    <label className={`flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-[#030C4D]/20 transition-colors ${formData.scoringTypes.some(t => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-100'}`}>
+                                    <label className={`flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-[#3083FF]/20 transition-colors ${formData.scoringTypes.some(t => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-100'}`}>
                                         <input type="checkbox" checked={formData.showResults}
                                             disabled={formData.scoringTypes.some(t => t.startsWith('irt_'))}
                                             onChange={e => setFormData({ ...formData, showResults: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#030C4D] focus:ring-[#030C4D]/20 disabled:bg-slate-200" />
+                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200" />
                                         <span className="text-sm text-slate-600">
                                             Tampilkan Nilai
                                             {formData.scoringTypes.some(t => t.startsWith('irt_')) && " (Nonaktif)"}
@@ -1967,7 +1969,7 @@ const ExamsPage = () => {
                                     </label>
                                 )}
                                 <button type="submit" disabled={isSubmitting}
-                                    className="w-full py-3 bg-[#030C4D] text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-[#030C4D]/90 transition-colors flex items-center justify-center gap-2">
+                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors flex items-center justify-center gap-2">
                                     {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                     Simpan Perubahan
                                 </button>
@@ -1985,14 +1987,14 @@ const ExamsPage = () => {
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-xl rounded-2xl p-6 relative border border-[#030C4D]/30 max-h-[90vh] overflow-y-auto"
+                            className="bg-white w-full max-w-xl rounded-2xl p-6 relative border border-[#3083FF]/30 max-h-[90vh] overflow-y-auto"
                         >
                             <button onClick={() => setIsAssignModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <X size={20} />
                             </button>
                             {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#030C4D]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#030C4D]/10 text-[#030C4D] flex items-center justify-center border border-[#030C4D]/30">
+                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
+                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
                                     <Users size={18} />
                                 </div>
                                 <div>
@@ -2009,7 +2011,7 @@ const ExamsPage = () => {
                                     <button
                                         type="button"
                                         onClick={() => setIsAssignModalOpen(false)}
-                                        className="w-full mt-6 py-3 bg-[#030C4D] text-white rounded-xl font-semibold flex items-center justify-center hover:bg-[#030C4D]/90 transition-colors"
+                                        className="w-full mt-6 py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center hover:bg-[#3083FF]/90 transition-colors"
                                     >
                                         Tutup
                                     </button>
@@ -2017,8 +2019,8 @@ const ExamsPage = () => {
                             ) : (
                                 <>
                                     {/* Info banner */}
-                                    <div className="flex items-start gap-2 p-3 bg-[#030C4D]/5 border border-[#030C4D]/20 rounded-xl text-sm text-slate-600 mb-4">
-                                        <Info size={14} className="text-[#030C4D] shrink-0 mt-0.5" />
+                                    <div className="flex items-start gap-2 p-3 bg-[#3083FF]/5 border border-[#3083FF]/20 rounded-xl text-sm text-slate-600 mb-4">
+                                        <Info size={14} className="text-[#3083FF] shrink-0 mt-0.5" />
                                         <p>Pilih kelas dan tentukan siswa yang boleh mengerjakan. Cocok untuk ujian susulan — pilih siswa tertentu dari kelas terkait.</p>
                                     </div>
 
@@ -2035,8 +2037,8 @@ const ExamsPage = () => {
                                     return (
                                         <div key={cls.id} className={`rounded-xl border transition-all overflow-hidden ${
                                             isSelected
-                                                ? 'border-[#030C4D] bg-[#030C4D]/5'
-                                                : 'border-[#030C4D]/30 bg-white'
+                                                ? 'border-[#3083FF] bg-[#3083FF]/5'
+                                                : 'border-[#3083FF]/30 bg-white'
                                         }`}>
                                             {/* Class row */}
                                             <div className="flex items-center gap-3 p-3.5">
@@ -2054,7 +2056,7 @@ const ExamsPage = () => {
                                                             [cls.id]: { mode: 'all', studentIds: [] }
                                                         }));
                                                     }}
-                                                    className="w-4.5 h-4.5 rounded border-slate-300 text-[#030C4D] shrink-0"
+                                                    className="w-4.5 h-4.5 rounded border-slate-300 text-[#3083FF] shrink-0"
                                                 />
                                                 <div className="flex-1 min-w-0 cursor-pointer"
                                                     onClick={() => {
@@ -2076,8 +2078,8 @@ const ExamsPage = () => {
                                                         onClick={() => setSelectedClassForStudents(isExpanded ? null : cls.id)}
                                                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all shrink-0 shadow-sm ${
                                                             isExpanded
-                                                                ? 'bg-[#030C4D] text-white border-[#030C4D] shadow-[#030C4D]/20'
-                                                                : 'bg-indigo-50 text-[#030C4D] border-[#030C4D]/40 hover:bg-[#030C4D] hover:text-white hover:border-[#030C4D]'
+                                                                ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-[#3083FF]/20'
+                                                                : 'bg-indigo-50 text-[#3083FF] border-[#3083FF]/40 hover:bg-[#3083FF] hover:text-white hover:border-[#3083FF]'
                                                         }`}
                                                     >
                                                         {isExpanded ? '✕ Tutup' : '👤 Pilih Siswa'}
@@ -2092,7 +2094,7 @@ const ExamsPage = () => {
 
                                             {/* Student selection (expandable) */}
                                             {isSelected && isExpanded && students.length > 0 && (
-                                                <div className="border-t border-[#030C4D]/20 px-4 py-3 space-y-2 bg-white">
+                                                <div className="border-t border-[#3083FF]/20 px-4 py-3 space-y-2 bg-white">
                                                     {/* Mode selector */}
                                                     <div className="flex gap-3 mb-2">
                                                         <button
@@ -2103,7 +2105,7 @@ const ExamsPage = () => {
                                                             }))}
                                                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                                                                 assignment.mode === 'all'
-                                                                    ? 'bg-[#030C4D] text-white border-[#030C4D]'
+                                                                    ? 'bg-[#3083FF] text-white border-[#3083FF]'
                                                                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
                                                             }`}
                                                         >
@@ -2117,7 +2119,7 @@ const ExamsPage = () => {
                                                             }))}
                                                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                                                                 assignment.mode === 'selected'
-                                                                    ? 'bg-[#030C4D] text-white border-[#030C4D]'
+                                                                    ? 'bg-[#3083FF] text-white border-[#3083FF]'
                                                                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
                                                             }`}
                                                         >
@@ -2144,7 +2146,7 @@ const ExamsPage = () => {
                                                                                     [cls.id]: { ...assignment, studentIds: ids }
                                                                                 }));
                                                                             }}
-                                                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#030C4D]"
+                                                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF]"
                                                                         />
                                                                         <div className="min-w-0 flex-1">
                                                                             <p className="text-xs font-medium text-slate-700 truncate">{student.full_name || 'Tanpa nama'}</p>
@@ -2160,7 +2162,7 @@ const ExamsPage = () => {
                                                                         ...prev,
                                                                         [cls.id]: { ...assignment, studentIds: [] }
                                                                     }))}
-                                                                    className="w-full text-xs text-slate-400 hover:text-[#030C4D] py-1 border-t border-slate-200 mt-1 pt-2"
+                                                                    className="w-full text-xs text-slate-400 hover:text-[#3083FF] py-1 border-t border-slate-200 mt-1 pt-2"
                                                                 >
                                                                     Hapus semua pilihan
                                                                 </button>
@@ -2181,7 +2183,7 @@ const ExamsPage = () => {
                             </div>
 
                             {/* Summary */}
-                            <div className="mt-4 pt-4 border-t border-[#030C4D]/20">
+                            <div className="mt-4 pt-4 border-t border-[#3083FF]/20">
                                 {assignData.classIds.length === 0 ? (
                                     <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl">
                                         Belum ada kelas dipilih. Ujian tidak akan muncul di jadwal siswa manapun.
@@ -2205,7 +2207,7 @@ const ExamsPage = () => {
                                 type="button"
                                 onClick={handleAssignExam}
                                 disabled={isSubmitting || assignData.classIds.length === 0}
-                                className="w-full mt-4 py-3 bg-[#030C4D] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#030C4D]/90 transition-colors"
+                                className="w-full mt-4 py-3 bg-[#3083FF] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors"
                             >
                                 {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                 Tetapkan

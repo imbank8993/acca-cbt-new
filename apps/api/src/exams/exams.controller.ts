@@ -1,9 +1,12 @@
-import { Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { ExamsService } from './exams.service';
+import { PurgeExamDto } from './dto/purge-exam.dto';
 
 @ApiTags('exams')
 @ApiBearerAuth()
@@ -24,5 +27,18 @@ export class ExamsController {
         // menegakkannya — lihat assertExamStaff.
         await this.exams.remove(user, id);
         return { id };
+    }
+
+    @Post(':id/purge-trial')
+    @HttpCode(HttpStatus.OK)
+    @UseGuards(RolesGuard)
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Hapus permanen ujian uji coba yang sudah tidak dipublikasikan' })
+    purgeTrial(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: PurgeExamDto,
+    ) {
+        return this.exams.purgeTrial(user, id, dto.confirmationTitle);
     }
 }

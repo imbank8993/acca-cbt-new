@@ -201,7 +201,7 @@ export default function NotificationsPage() {
                         onClick={() => setFilter(option.value)}
                         className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border ${
                             filter === option.value
-                                ? 'bg-[#0038A8] text-white border-[#0038A8] shadow-md shadow-[#0038A8]/10'
+                                ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-md shadow-[#3083FF]/10'
                                 : 'bg-white text-slate-600 border-slate-100 hover:border-slate-200 hover:bg-slate-50'
                         }`}
                     >
@@ -224,7 +224,7 @@ export default function NotificationsPage() {
                         <button
                             onClick={handleBulkMarkAsRead}
                             disabled={isProcessing}
-                            className="px-3 py-1.5 text-xs font-bold text-[#0038A8] bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
+                            className="px-3 py-1.5 text-xs font-bold text-[#3083FF] bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
                         >
                             <CheckCheck size={14} />
                             Tandai Baca ({selectedNotifications.size})
@@ -245,7 +245,7 @@ export default function NotificationsPage() {
             <div className="space-y-4">
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                        <Loader2 size={36} className="animate-spin text-[#0038A8]" />
+                        <Loader2 size={36} className="animate-spin text-[#3083FF]" />
                         <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat notifikasi...</p>
                     </div>
                 ) : loadError ? (
@@ -254,7 +254,7 @@ export default function NotificationsPage() {
                         <h3 className="text-lg font-bold text-slate-700 mb-1">Notifikasi Belum Dapat Dimuat</h3>
                         <p className="text-slate-600 text-sm max-w-sm mb-5">{loadError}</p>
                         <button type="button" onClick={() => loadNotifications()}
-                            className="px-5 py-2.5 rounded-xl bg-[#0038A8] text-white text-xs font-bold hover:bg-[#002d87]">
+                            className="px-5 py-2.5 rounded-xl bg-[#3083FF] text-white text-xs font-bold hover:bg-[#2563EB]">
                             Coba Lagi
                         </button>
                     </div>
@@ -291,7 +291,7 @@ export default function NotificationsPage() {
                                 >
                                     {/* Unread Indicator Bar */}
                                     {!notif.is_read && (
-                                        <div className="absolute top-0 left-0 w-1 h-full bg-[#0038A8] rounded-l-2xl"></div>
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-[#3083FF] rounded-l-2xl"></div>
                                     )}
 
                                     <div className="p-4 sm:p-5 flex items-start gap-4 pl-5">
@@ -300,8 +300,8 @@ export default function NotificationsPage() {
                                             onClick={() => toggleSelect(notif.id)}
                                             className={`mt-1 w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
                                                 selectedNotifications.has(notif.id)
-                                                    ? 'bg-[#0038A8] border-[#0038A8] shadow-inner text-white'
-                                                    : 'border-slate-200 bg-slate-50/50 opacity-0 group-hover:opacity-100 hover:border-[#0038A8]'
+                                                    ? 'bg-[#3083FF] border-[#3083FF] shadow-inner text-white'
+                                                    : 'border-slate-200 bg-slate-50/50 opacity-0 group-hover:opacity-100 hover:border-[#3083FF]'
                                             }`}
                                         >
                                             {selectedNotifications.has(notif.id) && (
@@ -368,7 +368,7 @@ export default function NotificationsPage() {
                                                                 window.location.href = notif.action_url;
                                                             }
                                                         }}
-                                                        className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0038A8] rounded-xl text-xs font-bold transition-colors"
+                                                        className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#3083FF] rounded-xl text-xs font-bold transition-colors"
                                                     >
                                                         Lihat Detail
                                                         <ChevronRight size={13} />

@@ -220,7 +220,7 @@ export default function BulkScheduleGrid({ periodId, period, classes, subjects, 
                 <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="px-5 py-2 text-sm font-bold text-white bg-[#030C4D] rounded-xl hover:bg-[#020510] flex items-center gap-2 transition-colors disabled:opacity-50"
+                    className="px-5 py-2 text-sm font-bold text-white bg-[#3083FF] rounded-xl hover:bg-[#2563EB] flex items-center gap-2 transition-colors disabled:opacity-50"
                 >
                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     Simpan Semua Jadwal

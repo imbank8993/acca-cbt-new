@@ -174,6 +174,7 @@ export async function getBankQuestions(bankId: string): Promise<any[]> {
 
 export async function saveQuestionAction(data: {
     id?: string;
+    expectedRevision?: number;
     bankId: string;
     type: QuestionType;
     questionText: string;

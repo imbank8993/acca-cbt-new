@@ -222,8 +222,8 @@
 
 .dark .uimsel-item:hover,
 .dark .uimsel-item.is-selected {
-    background-color: #1e3a8a;
-    border-color: #3b82f6;
+    background-color: rgba(48, 131, 255, 0.2);
+    border-color: #3083FF;
 }
 
 .dark .uimsel-item.is-selected .uimsel-item-label {

@@ -11,7 +11,7 @@
 
   --header-bg: #ffffff;
   /* Solid White */
-  --header-border: rgba(0, 56, 168, 0.16);
+  --header-border: rgba(48, 131, 255, 0.16);
   --header-shadow: none;
   --header-text: #1e293b;
 }
@@ -615,6 +615,19 @@ html.dark .header-collapse-toggle:hover {
   margin-bottom: 2px;
 }
 
+.user_menu_nip {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 2px 0;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.dark .user_menu_nip,
+html.dark .user_menu_nip {
+  color: #94a3b8;
+}
+
 .user-menu-role {
   font-size: 0.75rem;
   color: var(--n-primary);
@@ -638,6 +651,17 @@ html.dark .header-collapse-toggle:hover {
 
 .user-menu-item:hover {
   background: var(--n-surface);
+}
+
+/* Sembunyikan toggle mode gelap dan pembatas di menu profil pada desktop (karena sudah ada tombol langsung di header bar) */
+.user-menu-theme-btn {
+  display: none !important;
+}
+
+.user-menu-divider {
+  display: none !important;
+  border-top: 1px solid var(--header-border);
+  margin: 4px 0;
 }
 /* =========================================================
    HEADER MOBILE — melayang transparan, tanpa container
@@ -782,7 +806,7 @@ html.dark .header-collapse-toggle:hover {
     font-family: 'Poppins', sans-serif !important;
     font-size: 0.96rem !important;
     font-weight: 800 !important;
-    color: #0437A6 !important;
+    color: #3083FF !important;
     letter-spacing: -0.015em !important;
     line-height: 1.1 !important;
     white-space: nowrap !important;
@@ -1125,10 +1149,30 @@ html.dark .header-collapse-toggle:hover {
     color: #f1f5f9 !important;
   }
 
-  /* Hilangkan info role dan NIP pada modal profil mobile */
-  .user-menu-role,
   .user_menu_nip {
-    display: none !important;
+    display: block !important;
+    font-size: 0.72rem !important;
+    color: #64748b !important;
+    margin: 1px 0 !important;
+  }
+
+  .dark .user_menu_nip,
+  html.dark .user_menu_nip {
+    color: #94a3b8 !important;
+  }
+
+  .user-menu-role {
+    display: block !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* Tampilkan toggle mode gelap dan pembatas di menu profil pada mobile (karena toggle di header bar mobile disembunyikan) */
+  .user-menu-theme-btn {
+    display: flex !important;
+  }
+
+  .user-menu-divider {
+    display: block !important;
   }
 
   .user-menu-item {

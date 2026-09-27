@@ -82,10 +82,10 @@ export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: Logi
             >
                 {/* Avatar */}
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    login.isActive ? 'bg-[#030C4D]/10' : 'bg-slate-100'
+                    login.isActive ? 'bg-[#3083FF]/10' : 'bg-slate-100'
                 }`}>
                     <span className={`text-xs font-bold ${
-                        login.isActive ? 'text-[#030C4D]' : 'text-slate-400'
+                        login.isActive ? 'text-[#3083FF]' : 'text-slate-400'
                     }`}>
                         {login.fullName.charAt(0).toUpperCase()}
                     </span>
@@ -110,12 +110,12 @@ export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: Logi
     };
 
     return (
-        <div className="bg-white rounded-lg border border-[#0038A8]/30 overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-[#0038A8]/20 bg-gradient-to-r from-[#030C4D]/[.02] to-transparent flex items-center justify-between">
+        <div className="bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent flex items-center justify-between">
                 <h2 className="text-sm font-bold text-slate-900">Aktivitas Login</h2>
                 <button
                     onClick={openAllModal}
-                    className="text-[11px] font-bold text-[#0038A8] hover:text-[#030C4D] px-2.5 py-1 rounded-lg border border-[#0038A8]/30 hover:bg-[#0038A8]/5 transition-colors"
+                    className="text-[11px] font-bold text-[#3083FF] hover:text-[#3083FF] px-2.5 py-1 rounded-lg border border-[#3083FF]/30 hover:bg-[#3083FF]/5 transition-colors"
                 >
                     Lihat Semua
                 </button>
@@ -164,13 +164,13 @@ export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: Logi
                                 value={searchAll}
                                 onChange={(e) => setSearchAll(e.target.value)}
                                 placeholder="Cari nama..."
-                                className="w-full bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#0038A8]/40 outline-none px-3 py-2 rounded-lg text-sm"
+                                className="w-full bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/40 outline-none px-3 py-2 rounded-lg text-sm"
                             />
                         </div>
                         <div className="p-3 overflow-y-auto flex-1">
                             {allLoading ? (
                                 <div className="py-10 flex items-center justify-center">
-                                    <Loader2 size={24} className="text-[#0038A8] animate-spin" />
+                                    <Loader2 size={24} className="text-[#3083FF] animate-spin" />
                                 </div>
                             ) : filteredAll.length > 0 ? (
                                 <div className="space-y-1.5">

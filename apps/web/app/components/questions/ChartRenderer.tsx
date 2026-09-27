@@ -95,9 +95,9 @@ export default function ChartRenderer({ data, type, height = 300 }: ChartRendere
         datasets: data.datasets.map((ds) => ({
             ...ds,
             backgroundColor: ds.backgroundColor || [
-                '#030C4D', '#0038A8', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16',
+                '#3083FF', '#3083FF', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16',
             ],
-            borderColor: ds.borderColor || ds.backgroundColor || '#030C4D',
+            borderColor: ds.borderColor || ds.backgroundColor || '#3083FF',
             borderWidth: ds.borderWidth ?? (type === 'line' ? 2 : 1),
             tension: ds.tension ?? 0.4,
             fill: ds.fill ?? false,
