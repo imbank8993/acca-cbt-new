@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getProctorOrganization } from '@/lib/api/proctor';
@@ -333,7 +334,7 @@ export default function QuestionEditPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <Spinner variant="buble" size={32} />
                     <p className="text-sm text-slate-500">Memuat data...</p>
                 </div>
             </div>

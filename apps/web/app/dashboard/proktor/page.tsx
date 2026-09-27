@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -196,7 +197,7 @@ export default function ProktorDashboard() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3083FF]"></div>
+                <Spinner variant="buble" size={32} />
             </div>
         );
     }
@@ -508,7 +509,7 @@ export default function ProktorDashboard() {
                         <div className="p-4 overflow-y-auto bg-slate-50 flex-1">
                             {membersLoading ? (
                                 <div className="py-12 flex justify-center">
-                                    <div className="w-8 h-8 border-4 border-[#3083FF] border-t-transparent rounded-full animate-spin" />
+                                    <Spinner variant="buble" size={32} />
                                 </div>
                             ) : membersList.length === 0 ? (
                                 <div className="py-12 text-center text-sm text-slate-400">Belum ada anggota yang login.</div>

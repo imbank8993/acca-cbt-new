@@ -1,4 +1,5 @@
 'use client';
+import { Spinner } from '@/app/components/ui/Spinner';
 
 import React, { useState, useEffect } from 'react';
 import { Activity, Loader2, X } from 'lucide-react';

@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -324,10 +325,7 @@ export default function PengawasDashboard() {
                 </div>
 
                 {isLoading ? (
-                    <div className="p-8 text-center text-slate-400">
-                        <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-primary" />
-                        <p className="text-xs font-bold">Memuat log pengawasan...</p>
-                    </div>
+                    <div className="p-8 flex flex-col items-center justify-center gap-2"><Spinner variant="buble" size={32} /><p className="text-xs font-bold text-slate-400">Memuat log pengawasan...</p></div>
                 ) : violations.length === 0 ? (
                     <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
                         <CheckCircle2 size={32} className="mx-auto mb-2 text-emerald-500" />

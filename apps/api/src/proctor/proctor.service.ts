@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
+import { listOperationalSubjects } from '../common/subject-catalog';
 import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 
@@ -357,27 +358,9 @@ export class ProctorService {
         ];
     }
 
-    /**
-     * Mata pelajaran dari master data acca-app.
-     *
-     * Sama persis dengan `PasService.listSubjects` — keduanya membaca
-     * `master_mapel`. Tetap ada di dua tempat karena halaman yang memanggilnya
-     * berbeda; bila suatu saat salah satunya berubah, yang berubah harus
-     * keduanya.
-     */
+    /** Master data diselaraskan ke UUID operasional yang dipakai foreign key CBT. */
     async listSubjects(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgStaff(user, organizationId);
-
-        const { data, error } = await this.db
-            .from('master_mapel')
-            .select('id, kode, name:nama, kelompok, aktif')
-            .eq('aktif', true)
-            .order('nama', { ascending: true });
-
-        if (error) {
-            this.logger.error(`Gagal membaca master mapel: ${error.message}`);
-            return [];
-        }
-        return (data as any[]) || [];
+        return listOperationalSubjects(this.db, organizationId);
     }
 }

@@ -283,7 +283,7 @@ export class ProctorController {
             user,
             examId,
             dto.classIds,
-            dto.userIds,
+            dto.participantAssignments,
             dto.activate ?? true,
         );
     }

@@ -183,6 +183,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleCreateSession = async () => {
+        if (period.is_locked) return;
         if (!newSessionName.trim() || !newSessionStart || !newSessionEnd) return;
         setIsSaving(true);
         const result = await createPASSessionAction(period.id, newSessionName, newSessionStart, newSessionEnd);
@@ -197,6 +198,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleDeleteSession = async (sessionId: string) => {
+        if (period.is_locked) return;
         if (!confirm('Yakin ingin menghapus sesi ini?')) return;
         setIsSaving(true);
         const result = await deletePASSessionAction(sessionId);
@@ -453,15 +455,21 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                     <h3 className="font-semibold text-slate-700">Daftar Sesi Ujian</h3>
                                     <p className="text-xs text-slate-500">Pilih sesi saat membuat jadwal kelas.</p>
                                 </div>
-                                <button
-                                    onClick={() => setIsCreatingSession(!isCreatingSession)}
-                                    className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
-                                >
-                                    <Plus size={16} /> Tambah Sesi
-                                </button>
+                                {period.is_locked ? (
+                                    <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                        Periode terkunci
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsCreatingSession(!isCreatingSession)}
+                                        className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
+                                    >
+                                        <Plus size={16} /> Tambah Sesi
+                                    </button>
+                                )}
                             </div>
 
-                            {isCreatingSession && (
+                            {!period.is_locked && isCreatingSession && (
                                 <div className="p-4 mb-4 bg-indigo-50 border border-indigo-100 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                                     <div className="sm:col-span-2">
                                         <label className="block text-xs font-medium text-slate-600 mb-1">Nama Sesi</label>
@@ -528,13 +536,15 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                     {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}
                                                 </div>
                                             </div>
-                                            <button
-                                                onClick={() => handleDeleteSession(session.id)}
-                                                className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                title="Hapus Sesi"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {!period.is_locked && (
+                                                <button
+                                                    onClick={() => handleDeleteSession(session.id)}
+                                                    className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    title="Hapus Sesi"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

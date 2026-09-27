@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Award, BookOpen, Clock, Loader2, RefreshCw, ChevronRight, Sparkles } from 'lucide-react';

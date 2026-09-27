@@ -32,6 +32,9 @@ const FILES = [
     '20260927_03_idempotent_question_content.sql',
     '20260927_04_question_revision.sql',
     '20260927_05_pas_room_integrity.sql',
+    '20260927_06_exam_participant_class_source.sql',
+    '20260927_07_pas_session_integrity.sql',
+    '20260927_08_subject_catalog_bridge.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
@@ -88,6 +91,10 @@ const EXPECTED_COLUMNS = [
     ['cbt_question_dimensions', 'client_request_id'],
     ['cbt_dimension_interpretations', 'client_request_id'],
     ['cbt_bank_questions', 'revision'],
+    ['cbt_exam_participants', 'regular_class_id'],
+    ['cbt_exam_participants', 'additional_class_id'],
+    ['cbt_subjects', 'master_mapel_id'],
+    ['cbt_subjects', 'is_active'],
 ];
 
 const EXPECTED_INDEXES = [
@@ -119,6 +126,12 @@ const EXPECTED_INDEXES = [
     'cbt_question_dimensions_client_request_unique',
     'cbt_dimension_interpretations_client_request_unique',
     'cbt_pas_rooms_id_period_unique',
+    'cbt_exam_participants_regular_class_idx',
+    'cbt_exam_participants_additional_class_idx',
+    'cbt_pas_sessions_id_period_unique',
+    'cbt_pas_schedules_session_period_idx',
+    'cbt_subjects_org_master_unique',
+    'cbt_subjects_org_active_idx',
 ];
 
 function resolveDatabaseUrl() {

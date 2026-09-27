@@ -180,16 +180,28 @@ export default function Sidebar({
             <aside className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
                 <div className="sidebar-header">
                     <div className="brand-wrapper">
-                        <div className="brand-logo">
-                            {!isCollapsed ? (
-                                <>
-                                    <img src="/logo-sidebar.png" alt="ACCA Logo" className="brand-logo-img light-logo" />
-                                    <img src="/logo-sidebar-dark.png" alt="ACCA Logo" className="brand-logo-img dark-logo" />
-                                </>
-                            ) : (
-                                <img src="/logo-sidebar-kecil.webp" alt="ACCA Logo" className="brand-logo-img" />
-                            )}
-                        </div>
+                        <button
+                            type="button"
+                            className="brand-logo-btn"
+                            onClick={() => {
+                                if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                                    setIsCollapsed(!isCollapsed);
+                                }
+                            }}
+                            title={isCollapsed ? 'Bentangkan sidebar' : 'Kecilkan sidebar'}
+                            aria-label={isCollapsed ? 'Bentangkan sidebar' : 'Kecilkan sidebar'}
+                        >
+                            <div className="brand-logo">
+                                {!isCollapsed ? (
+                                    <>
+                                        <img src="/logo-sidebar.png" alt="ACCA Logo" className="brand-logo-img light-logo" />
+                                        <img src="/logo-sidebar-dark.png" alt="ACCA Logo" className="brand-logo-img dark-logo" />
+                                    </>
+                                ) : (
+                                    <img src="/logo-sidebar-kecil.webp" alt="ACCA Logo" className="brand-logo-img" />
+                                )}
+                            </div>
+                        </button>
                     </div>
                 </div>
 

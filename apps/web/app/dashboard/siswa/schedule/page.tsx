@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -275,7 +276,7 @@ const SchedulePage = () => {
             {/* Empty state */}
             {loading ? (
                 <div className="p-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col items-center justify-center space-y-3">
-                    <Loader2 className="animate-spin text-[#3083FF]" size={36} />
+                    <Spinner variant="buble" size={32} />
                     <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat jadwal ujian...</p>
                 </div>
             ) : loadError ? (

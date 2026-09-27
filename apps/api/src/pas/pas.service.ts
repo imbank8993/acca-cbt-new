@@ -10,6 +10,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { insertIdempotently } from '../common/idempotent-create';
+import { listOperationalSubjects } from '../common/subject-catalog';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
 
 /**
@@ -118,14 +119,22 @@ export class PasService {
     async setPeriodLock(user: AuthUser, periodId: string, lock: boolean) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const { error } = await this.db
-            .from('cbt_pas_periods')
-            .update({ is_locked: lock })
-            .eq('id', periodId);
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `pas-period:${periodId}`,
+            );
+            const { data: period, error: readError } = await db.from('cbt_pas_periods')
+                .select('id').eq('id', periodId).maybeSingle();
+            if (readError) throw new BadRequestException(`Gagal membaca periode: ${readError.message}`);
+            if (!period) throw new NotFoundException('Periode tidak ditemukan.');
 
-        if (error) throw new BadRequestException(error.message);
+            const { error } = await db.from('cbt_pas_periods')
+                .update({ is_locked: lock }).eq('id', periodId);
+            if (error) throw new BadRequestException(`Gagal mengubah kunci periode: ${error.message}`);
 
-        return { id: periodId, is_locked: lock };
+            return { id: periodId, is_locked: lock };
+        });
     }
 
     async removePeriod(user: AuthUser, periodId: string) {
@@ -182,28 +191,10 @@ export class PasService {
 
     // ── Data pendukung ───────────────────────────────────────────────────────
 
-    /**
-     * Mata pelajaran dari `master_mapel` milik acca-app.
-     *
-     * Tabel ini memang tidak punya kolom organisasi: ia master data satu
-     * instansi, dipakai bersama seluruh sekolah. Karena itu pemanggilnya hanya
-     * perlu berstatus staf di suatu organisasi, dan tidak ada penyaringan
-     * per-organisasi yang bisa dilakukan di sini.
-     */
+    /** Master data diselaraskan ke UUID operasional yang dipakai foreign key CBT. */
     async listSubjects(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgStaff(user, organizationId);
-
-        const { data, error } = await this.db
-            .from('master_mapel')
-            .select('id, kode, name:nama, kelompok, aktif')
-            .eq('aktif', true)
-            .order('nama', { ascending: true });
-
-        if (error) {
-            this.logger.error(`Gagal membaca master mapel: ${error.message}`);
-            return [];
-        }
-        return (data as any[]) || [];
+        return listOperationalSubjects(this.db, organizationId);
     }
 
     /**

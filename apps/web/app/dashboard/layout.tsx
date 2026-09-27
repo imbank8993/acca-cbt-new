@@ -7,6 +7,7 @@ import { getAccountProfile } from '@/lib/api/account';
 import { getSetting, type AppConfig } from '@/lib/api/settings';
 import Sidebar from '@/app/components/Sidebar';
 import Header, { type HeaderUser } from '@/app/components/Header';
+import BottomNav from '@/app/components/BottomNav';
 import DashboardLoading from '@/app/components/DashboardLoading';
 import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
 import {
@@ -201,6 +202,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return () => window.removeEventListener('acca:signout', onSignOut);
     }, []);
 
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [pathname]);
+
     // Automatic global modal detection: whenever any modal overlay is active anywhere in the dashboard
     useEffect(() => {
         const checkModal = () => {
@@ -261,7 +266,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     return (
-        <div className="dashboard-layout min-h-screen bg-[#EBECF1] dark:bg-[#020718] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+        <div className={`dashboard-layout min-h-screen bg-[#EBECF1] dark:bg-[#020718] text-slate-900 dark:text-slate-100 transition-colors duration-200 ${mobileOpen ? 'sidebar-mobile-open' : ''}`}>
             <Sidebar
                 isCollapsed={isCollapsed}
                 setIsCollapsed={setIsCollapsed}
@@ -269,30 +274,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 setIsOpen={setMobileOpen}
                 activeRole={activeRoleCtx}
             />
-            <Header
-                user={{
-                    id: currentUser?.id,
-                    nama: currentUser?.nama,
-                    email: currentUser?.email,
-                    nip: currentUser?.nip,
-                    roles: activeRoleCtx?.role ? [activeRoleCtx.role] : (currentUser?.roles || ['User']),
-                    photoUrl: currentUser?.photoUrl,
-                }}
-                onMenuToggle={() => setMobileOpen(!mobileOpen)}
-                isCollapsed={isCollapsed}
-                onCollapse={() => setIsCollapsed(!isCollapsed)}
-                pageTitle={pageTitle}
-                pageSubtitle={appSubtitle}
-            />
-            <main
-                className={`dashboard-main min-h-screen pt-[var(--app-header-h,70px)] transition-all duration-300 ${
-                    isCollapsed ? 'collapsed' : ''
-                }`}
-            >
-                <div className="px-3 sm:px-4 lg:px-6 py-6 print:p-0!">
-                    {children}
-                </div>
-            </main>
+            <div className="dashboard-content-wrapper">
+                <Header
+                    user={{
+                        id: currentUser?.id,
+                        nama: currentUser?.nama,
+                        email: currentUser?.email,
+                        nip: currentUser?.nip,
+                        roles: activeRoleCtx?.role ? [activeRoleCtx.role] : (currentUser?.roles || ['User']),
+                        photoUrl: currentUser?.photoUrl,
+                    }}
+                    onMenuToggle={() => setMobileOpen(!mobileOpen)}
+                    isCollapsed={isCollapsed}
+                    onCollapse={() => setIsCollapsed(!isCollapsed)}
+                    pageTitle={pageTitle}
+                    pageSubtitle={appSubtitle}
+                />
+                <main
+                    className={`dashboard-main min-h-screen pt-[var(--app-header-h,70px)] transition-all duration-300 ${
+                        isCollapsed ? 'collapsed' : ''
+                    }`}
+                >
+                    <div className="px-3 sm:px-4 lg:px-6 py-6 print:p-0!">
+                        {children}
+                    </div>
+                </main>
+                <BottomNav
+                    activeRole={activeRoleCtx?.role}
+                    onOpenMenu={() => setMobileOpen(true)}
+                />
+                {mobileOpen && (
+                    <div
+                        className="sidebar-mobile-backdrop"
+                        onClick={() => setMobileOpen(false)}
+                        aria-label="Tutup Menu"
+                    />
+                )}
+            </div>
             <style jsx global>{`
                 :root {
                     --app-sidebar-w: 258px;
@@ -302,9 +320,126 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 @media (max-width: 767.98px) {
                     :root {
                         --app-header-h: 56px;
+                        --app-sidebar-mobile-w: min(calc(100vw - 64px), 320px);
+                    }
+
+                    .dashboard-layout {
+                        position: relative !important;
+                        inset: auto !important;
+                        width: 100% !important;
+                        min-height: 100vh !important;
+                        min-height: 100dvh !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                        overflow-x: clip !important;
+                        background: transparent !important;
+                        z-index: 1 !important;
+                    }
+
+                    .dashboard-content-wrapper {
+                        position: relative;
+                        width: 100%;
+                        min-height: 100vh;
+                        min-height: 100dvh;
+                        background: #EBECF1;
+                        transform: none !important;
+                        border-radius: 0;
+                        overflow: visible;
+                        z-index: 100;
+                        transition: transform .35s cubic-bezier(0.32, 0.72, 0, 1),
+                                    border-radius .35s cubic-bezier(0.32, 0.72, 0, 1),
+                                    box-shadow .35s cubic-bezier(0.32, 0.72, 0, 1);
+                    }
+
+                    :global(.dark) .dashboard-content-wrapper {
+                        background: #020718;
+                    }
+
+                    /* Push effect (Twitter/X style drawer) */
+                    .dashboard-layout.sidebar-mobile-open {
+                        position: fixed !important;
+                        inset: 0 !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        right: 0 !important;
+                        bottom: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        height: 100dvh !important;
+                        overflow: hidden !important;
+                        background: #ffffff !important;
+                        touch-action: none;
+                        z-index: 1000 !important;
+                    }
+
+                    :global(.dark) .dashboard-layout.sidebar-mobile-open {
+                        background: #000000 !important;
+                    }
+
+                    .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
+                        position: absolute !important;
+                        inset: 0 !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        right: 0 !important;
+                        bottom: 0 !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        height: 100dvh !important;
+                        transform: translate3d(var(--app-sidebar-mobile-w, min(calc(100vw - 64px), 320px)), 0, 0) !important;
+                        border-top-left-radius: 28px !important;
+                        border-bottom-left-radius: 28px !important;
+                        border: 1px solid rgba(0, 0, 0, 0.08) !important;
+                        border-right: none !important;
+                        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.16), -1px 0 0 rgba(0, 0, 0, 0.06) !important;
+                        overflow: hidden !important;
+                        pointer-events: none;
+                    }
+
+                    :global(.dark) .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
+                        background: #000000 !important;
+                        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+                        border-right: none !important;
+                        box-shadow: -12px 0 32px rgba(0, 0, 0, 0.8), -1px 0 0 rgba(255, 255, 255, 0.12) !important;
+                    }
+
+                    .sidebar-mobile-backdrop {
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(15, 23, 42, 0.18);
+                        z-index: 1200;
+                        cursor: pointer;
+                        pointer-events: auto !important;
+                        border-top-left-radius: 28px;
+                        border-bottom-left-radius: 28px;
+                        opacity: 0;
+                        animation: fadeInBackdrop 0.25s forwards;
+                        -webkit-tap-highlight-color: transparent;
+                        touch-action: none;
+                    }
+
+                    :global(.dark) .sidebar-mobile-backdrop {
+                        background: rgba(0, 0, 0, 0.35);
+                    }
+
+                    @keyframes fadeInBackdrop {
+                        to {
+                            opacity: 1;
+                        }
+                    }
+
+                    .dashboard-main {
+                        padding-bottom: calc(var(--app-bottomnav-h, 62px) + env(safe-area-inset-bottom) + 16px) !important;
                     }
                 }
+
                 @media (min-width: 768px) {
+                    .dashboard-content-wrapper {
+                        display: contents;
+                    }
+                    .sidebar-mobile-backdrop {
+                        display: none;
+                    }
                     .dashboard-main {
                         margin-left: var(--app-sidebar-w, 258px);
                         transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);

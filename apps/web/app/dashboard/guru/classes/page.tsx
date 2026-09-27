@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -316,7 +317,7 @@ export default function GuruClassesPage() {
             {/* Grid grouped by year — Mobile */}
             {isLoading ? (
                 <div className="flex justify-center py-16">
-                    <div className="w-8 h-8 border-3 border-[#3083FF]/20 border-t-[#3083FF] rounded-full animate-spin" />
+                    <Spinner variant="buble" size={32} />
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">

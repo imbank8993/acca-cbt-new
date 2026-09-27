@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { clearCbtSession, resetAndRetrySso } from '@/lib/session-reset';
 import { getDashboardPath, setActiveRoleInStorage, lockActiveRole, clearActiveRoleInStorage, type Role } from '@/lib/rbac';
 import { clearMemoryCache } from '@/lib/useMemoryState';
+import { Spinner } from '@/app/components/ui/Spinner';
 
 type SsoFailure = { title: string; message: string };
 
@@ -147,8 +148,8 @@ export default function Home() {
 
     return (
         <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
-            <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-            <p className="text-slate-600 font-medium animate-pulse">Memeriksa akses...</p>
+            <Spinner variant="buble" size={32} />
+            <p className="text-slate-600 font-medium mt-4">Memeriksa akses...</p>
         </main>
     );
 }

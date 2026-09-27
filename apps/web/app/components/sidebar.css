@@ -147,6 +147,28 @@
   width: 100%;
 }
 
+.brand-logo-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  border-radius: 8px;
+}
+
+.brand-logo-btn:hover {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+.brand-logo-btn:active {
+  transform: scale(0.94);
+}
+
 .brand-logo {
   display: flex;
   align-items: center;
@@ -269,7 +291,7 @@
   html.dark .sidebar {
     width: var(--app-sidebar-mobile-w) !important;
     max-width: var(--app-sidebar-mobile-w) !important;
-    z-index: 40 !important;
+    z-index: 90 !important;
     box-shadow: none !important;
     border: none !important;
     border-right: none !important;

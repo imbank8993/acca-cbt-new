@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -343,7 +344,7 @@ const ExamsPage = () => {
 
         // Determine which class-level targets vs individual participants
         const targetClassIds: string[] = [];
-        const participantUserIds: string[] = [];
+        const participantAssignments: { userId: string; classId: string }[] = [];
 
         for (const clsId of assignData.classIds) {
             const assignment = classAssignments[clsId] || { mode: 'all', studentIds: [] };
@@ -351,12 +352,20 @@ const ExamsPage = () => {
                 targetClassIds.push(clsId);
             } else {
                 // Individual students only
-                participantUserIds.push(...assignment.studentIds);
+                participantAssignments.push(...assignment.studentIds.map((userId) => ({
+                    userId,
+                    classId: clsId,
+                })));
             }
         }
 
         const activate = !selectedExam.is_published;
-        const result = await assignExamAction(selectedExam.id, targetClassIds, participantUserIds, activate);
+        const result = await assignExamAction(
+            selectedExam.id,
+            targetClassIds,
+            participantAssignments,
+            activate,
+        );
         if (result.success) {
             setIsAssignModalOpen(false);
             setSelectedExam(null);
@@ -1158,7 +1167,7 @@ const ExamsPage = () => {
             {typeFilter !== 'pas' && (
                 isLoading ? (
                 <div className="flex justify-center py-16">
-                    <div className="w-8 h-8 border-3 border-[#3083FF]/20 border-t-[#3083FF] rounded-full animate-spin" />
+                    <Spinner variant="buble" size={32} />
                 </div>
             ) : filteredExams.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 border-2 border-dashed border-[#3083FF]/30 rounded-lg">

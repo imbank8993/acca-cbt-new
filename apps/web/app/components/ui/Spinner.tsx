@@ -36,14 +36,14 @@ interface SpinnerProps {
  * Spinner — Loader dengan beberapa varian animasi (trace, buble, dots).
  */
 export function Spinner({
-    size = 30,
+    size = 32,
     color,
     label,
     className = '',
     dotsOnly = false,
-    variant,
+    variant = 'buble',
 }: SpinnerProps) {
-    const resolvedVariant: SpinnerVariant = variant ?? (dotsOnly ? 'buble' : 'trace');
+    const resolvedVariant: SpinnerVariant = variant ?? 'buble';
     const traceSize = TRACE_SIZE;
 
     return (
@@ -280,7 +280,7 @@ export function Spinner({
 /**
  * PageLoader — loader area/halaman penuh, default variant trace.
  */
-export function PageLoader({ label, minHeight, dotsOnly = false, variant, size }: { label?: string; minHeight?: string; dotsOnly?: boolean; variant?: SpinnerVariant; size?: number }) {
+export function PageLoader({ label, minHeight, dotsOnly = false, variant = 'buble', size = 32 }: { label?: string; minHeight?: string; dotsOnly?: boolean; variant?: SpinnerVariant; size?: number }) {
     return (
         <div className="app-page-loader" style={minHeight ? { minHeight } : undefined}>
             <Spinner size={size} label={label} dotsOnly={dotsOnly} variant={variant} />

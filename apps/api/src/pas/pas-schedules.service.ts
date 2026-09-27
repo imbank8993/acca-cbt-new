@@ -14,7 +14,7 @@ import {
 } from '../common/idempotent-create';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { wibDateTimeToUtc } from '../common/wib-time';
-import { DbService } from '../prisma/prisma-db-adapter';
+import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
 
 /**
@@ -57,21 +57,29 @@ export class PasSchedulesService {
             throw new BadRequestException('Jam selesai sesi harus setelah jam mulai.');
         }
 
-        const data = await insertIdempotently<{ id: string }>(this.db, {
-            table: 'cbt_pas_sessions',
-            scope: { column: 'pas_period_id', value: periodId },
-            clientRequestId: dto.clientRequestId,
-            fingerprint: dto,
-            select: 'id',
-            payload: {
-                pas_period_id: periodId,
-                name: dto.name,
-                start_time: dto.start_time,
-                end_time: dto.end_time,
-            },
-        });
+        return this.db.transaction(async (db) => {
+            await this.lockPeriod(db, periodId);
+            await this.assertPeriodUnlocked(db, periodId);
 
-        return { id: data.id };
+            const name = dto.name.trim();
+            if (!name) throw new BadRequestException('Nama sesi wajib diisi.');
+
+            const data = await insertIdempotently<{ id: string }>(db, {
+                table: 'cbt_pas_sessions',
+                scope: { column: 'pas_period_id', value: periodId },
+                clientRequestId: dto.clientRequestId,
+                fingerprint: { ...dto, name },
+                select: 'id',
+                payload: {
+                    pas_period_id: periodId,
+                    name,
+                    start_time: dto.start_time,
+                    end_time: dto.end_time,
+                },
+            });
+
+            return { id: data.id };
+        });
     }
 
     async removeSession(user: AuthUser, sessionId: string) {
@@ -83,10 +91,41 @@ export class PasSchedulesService {
             'cbt_pas_periods',
         );
 
-        const { error } = await this.db.from('cbt_pas_sessions').delete().eq('id', sessionId);
-        if (error) throw new BadRequestException(error.message);
+        const { data: source } = await this.db.from('cbt_pas_sessions')
+            .select('pas_period_id').eq('id', sessionId).maybeSingle();
+        if (!source) throw new NotFoundException('Sesi tidak ditemukan.');
+        const periodId = (source as { pas_period_id: string }).pas_period_id;
 
-        return { id: sessionId };
+        return this.db.transaction(async (db) => {
+            await this.lockPeriod(db, periodId);
+            await this.assertPeriodUnlocked(db, periodId);
+
+            const { data: session, error: sessionError } = await db.from('cbt_pas_sessions')
+                .select('id').eq('id', sessionId).eq('pas_period_id', periodId).maybeSingle();
+            if (sessionError) throw new BadRequestException(`Gagal membaca sesi: ${sessionError.message}`);
+            if (!session) throw new NotFoundException('Sesi tidak ditemukan.');
+
+            const { data: schedule, error: scheduleError } = await db
+                .from('cbt_pas_class_schedules')
+                .select('id')
+                .eq('session_id', sessionId)
+                .limit(1)
+                .maybeSingle();
+            if (scheduleError) {
+                throw new BadRequestException(`Gagal memeriksa pemakaian sesi: ${scheduleError.message}`);
+            }
+            if (schedule) {
+                throw new ConflictException(
+                    'Sesi masih dipakai oleh jadwal. Hapus jadwal terkait terlebih dahulu.',
+                );
+            }
+
+            const { error } = await db.from('cbt_pas_sessions')
+                .delete().eq('id', sessionId).eq('pas_period_id', periodId);
+            if (error) throw new BadRequestException(`Gagal menghapus sesi: ${error.message}`);
+
+            return { id: sessionId };
+        });
     }
 
     // ── Jadwal kelas ─────────────────────────────────────────────────────────
@@ -94,91 +133,105 @@ export class PasSchedulesService {
     async addSchedule(user: AuthUser, dto: CreatePASScheduleDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', dto.pas_period_id);
 
-        const { data: period } = await this.db
-            .from('cbt_pas_periods')
-            .select('organization_id, is_locked, start_date, end_date')
-            .eq('id', dto.pas_period_id)
-            .maybeSingle();
+        return this.db.transaction(async (db) => {
+            await this.lockPeriod(db, dto.pas_period_id);
+            const { data: period, error: periodError } = await db
+                .from('cbt_pas_periods')
+                .select('organization_id, is_locked, start_date, end_date')
+                .eq('id', dto.pas_period_id)
+                .maybeSingle();
 
-        if (!period) throw new NotFoundException('Periode tidak ditemukan.');
+            if (periodError) throw new BadRequestException(`Gagal membaca periode: ${periodError.message}`);
+            if (!period) throw new NotFoundException('Periode tidak ditemukan.');
 
-        const row = period as {
-            organization_id: string;
-            is_locked: boolean;
-            start_date: string;
-            end_date: string;
-        };
-        if (row.is_locked) throw new ConflictException('Periode sudah dikunci.');
+            const row = period as {
+                organization_id: string;
+                is_locked: boolean;
+                start_date: string;
+                end_date: string;
+            };
+            if (row.is_locked) throw new ConflictException('Periode sudah dikunci.');
 
-        // Tanggal harus di dalam rentang periode. Batas akhirnya inklusif: kolomnya
-        // bertipe `date`, jadi jadwal pada hari terakhir periode tetap sah.
-        const scheduled = new Date(dto.scheduled_date);
-        const end = new Date(row.end_date);
-        end.setHours(23, 59, 59, 999);
+            // Tanggal harus di dalam rentang periode. Batas akhirnya inklusif:
+            // kolomnya bertipe `date`, jadi hari terakhir periode tetap sah.
+            const scheduled = new Date(dto.scheduled_date);
+            const end = new Date(row.end_date);
+            end.setHours(23, 59, 59, 999);
 
-        if (scheduled < new Date(row.start_date) || scheduled > end) {
-            throw new BadRequestException(
-                `Tanggal harus dalam rentang periode (${row.start_date} s/d ${row.end_date}).`,
-            );
-        }
+            if (scheduled < new Date(row.start_date) || scheduled > end) {
+                throw new BadRequestException(
+                    `Tanggal harus dalam rentang periode (${row.start_date} s/d ${row.end_date}).`,
+                );
+            }
 
-        // Jam jadwal diturunkan dari sesinya, bukan diterima dari formulir: satu
-        // sesi dipakai banyak kelas sekaligus, dan menyalin jamnya di sisi klien
-        // membuat keduanya bisa menyimpang.
-        const { data: session } = await this.db
-            .from('cbt_pas_sessions')
-            .select('start_time, end_time')
-            .eq('id', dto.session_id)
-            .eq('pas_period_id', dto.pas_period_id)
-            .maybeSingle();
+            // Jam diturunkan dari sesi. Menyalinnya dari browser membuat sesi
+            // dan jadwal dapat menyimpang.
+            const { data: session, error: sessionError } = await db
+                .from('cbt_pas_sessions')
+                .select('start_time, end_time')
+                .eq('id', dto.session_id)
+                .eq('pas_period_id', dto.pas_period_id)
+                .maybeSingle();
 
-        if (!session) throw new NotFoundException('Sesi tidak ditemukan pada periode ini.');
+            if (sessionError) throw new BadRequestException(`Gagal membaca sesi: ${sessionError.message}`);
+            if (!session) throw new NotFoundException('Sesi tidak ditemukan pada periode ini.');
 
-        const [{ data: bank }, { data: cls }] = await Promise.all([
-            this.db
-                .from('cbt_question_banks')
-                .select('id')
-                .eq('id', dto.bank_id)
-                .eq('organization_id', row.organization_id)
-                .maybeSingle(),
-            this.db
-                .from('cbt_classes')
-                .select('id')
-                .eq('id', dto.class_id)
-                .eq('organization_id', row.organization_id)
-                .maybeSingle(),
-        ]);
+            const [{ data: bank }, { data: cls }, { data: subject }] = await Promise.all([
+                db
+                    .from('cbt_question_banks')
+                    .select('id')
+                    .eq('id', dto.bank_id)
+                    .eq('organization_id', row.organization_id)
+                    .maybeSingle(),
+                db
+                    .from('cbt_classes')
+                    .select('id')
+                    .eq('id', dto.class_id)
+                    .eq('organization_id', row.organization_id)
+                    .maybeSingle(),
+                dto.subject_id
+                    ? db.from('cbt_subjects').select('id')
+                        .eq('id', dto.subject_id)
+                        .eq('organization_id', row.organization_id)
+                        .eq('is_active', true)
+                        .maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ]);
 
-        if (!bank) throw new NotFoundException('Bank soal tidak ditemukan pada sekolah ini.');
-        if (!cls) throw new NotFoundException('Kelas tidak ditemukan pada sekolah ini.');
+            if (!bank) throw new NotFoundException('Bank soal tidak ditemukan pada sekolah ini.');
+            if (!cls) throw new NotFoundException('Kelas tidak ditemukan pada sekolah ini.');
+            if (dto.subject_id && !subject) {
+                throw new NotFoundException('Mata pelajaran aktif tidak ditemukan pada sekolah ini.');
+            }
 
-        const times = session as { start_time: string; end_time: string };
+            const times = session as { start_time: string; end_time: string };
 
-        const data = await insertIdempotently<{ id: string }>(this.db, {
-            table: 'cbt_pas_class_schedules',
-            scope: { column: 'pas_period_id', value: dto.pas_period_id },
-            clientRequestId: dto.clientRequestId,
-            fingerprint: dto,
-            select: 'id',
-            payload: {
-                pas_period_id: dto.pas_period_id,
-                bank_id: dto.bank_id,
-                subject_id: dto.subject_id || null,
-                class_id: dto.class_id,
-                scheduled_date: dto.scheduled_date,
-                session_id: dto.session_id,
-                scheduled_time: times.start_time,
-                window_end_time: times.end_time,
-                duration_minutes: dto.duration_override || 90,
-                room: dto.room || null,
-                status: 'scheduled',
-            },
-            mapError: (error) => error.code === '23505'
-                ? new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.')
-                : new BadRequestException(`Gagal menyimpan jadwal: ${error.message}`),
+            const data = await insertIdempotently<{ id: string }>(db, {
+                table: 'cbt_pas_class_schedules',
+                scope: { column: 'pas_period_id', value: dto.pas_period_id },
+                clientRequestId: dto.clientRequestId,
+                fingerprint: dto,
+                select: 'id',
+                payload: {
+                    pas_period_id: dto.pas_period_id,
+                    bank_id: dto.bank_id,
+                    subject_id: dto.subject_id || null,
+                    class_id: dto.class_id,
+                    scheduled_date: dto.scheduled_date,
+                    session_id: dto.session_id,
+                    scheduled_time: times.start_time,
+                    window_end_time: times.end_time,
+                    duration_minutes: dto.duration_override || 90,
+                    room: dto.room || null,
+                    status: 'scheduled',
+                },
+                mapError: (error) => error.code === '23505'
+                    ? new ConflictException('Kelas sudah punya jadwal untuk bank soal ini.')
+                    : new BadRequestException(`Gagal menyimpan jadwal: ${error.message}`),
+            });
+
+            return { id: data.id };
         });
-
-        return { id: data.id };
     }
 
     async removeSchedule(user: AuthUser, scheduleId: string) {
@@ -199,14 +252,13 @@ export class PasSchedulesService {
         const periodId = (source as { pas_period_id: string }).pas_period_id;
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-period:${periodId}`,
-            );
+            await this.lockPeriod(db, periodId);
             await db.raw(
                 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
                 `pas-exam-generation:${scheduleId}`,
             );
+
+            await this.assertPeriodUnlocked(db, periodId);
 
             const { data: schedule } = await db
                 .from('cbt_pas_class_schedules')
@@ -282,10 +334,7 @@ export class PasSchedulesService {
         const sourcePeriodId = (source as { pas_period_id: string }).pas_period_id;
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-period:${sourcePeriodId}`,
-            );
+            await this.lockPeriod(db, sourcePeriodId);
             await db.raw(
                 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
                 `pas-exam-generation:${scheduleId}`,
@@ -304,13 +353,14 @@ export class PasSchedulesService {
 
             const { data: period } = await db
                 .from('cbt_pas_periods')
-                .select('organization_id, name, type, school_year, semester')
+                .select('organization_id, name, type, school_year, semester, is_locked')
                 .eq('id', schedule.pas_period_id)
                 .maybeSingle();
 
             if (!period) return `${scheduleId}: periode tidak ditemukan`;
 
             const periodRow = period as any;
+            if (periodRow.is_locked) return `${scheduleId}: periode terkunci`;
             const [{ data: bank }, { data: cls }] = await Promise.all([
                 schedule.bank_id
                     ? db.from('cbt_question_banks').select('title').eq('id', schedule.bank_id)
@@ -396,6 +446,23 @@ export class PasSchedulesService {
 
             return null;
         });
+    }
+
+    private lockPeriod(db: DbSession, periodId: string): Promise<unknown> {
+        return db.raw(
+            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+            `pas-period:${periodId}`,
+        );
+    }
+
+    private async assertPeriodUnlocked(db: DbSession, periodId: string): Promise<void> {
+        const { data: period, error } = await db.from('cbt_pas_periods')
+            .select('is_locked').eq('id', periodId).maybeSingle();
+        if (error) throw new BadRequestException(`Gagal membaca periode: ${error.message}`);
+        if (!period) throw new NotFoundException('Periode tidak ditemukan.');
+        if ((period as { is_locked: boolean }).is_locked) {
+            throw new ConflictException('Periode sudah dikunci.');
+        }
     }
 
 }

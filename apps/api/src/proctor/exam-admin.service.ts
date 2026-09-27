@@ -273,49 +273,199 @@ export class ExamAdminService {
         user: AuthUser,
         examId: string,
         classIds: string[],
-        userIds: string[],
+        participantAssignments: Array<{ userId: string; classId: string }>,
         activate: boolean,
     ) {
         await this.authz.assertExamStaff(user, examId);
-
-        await this.db.from('cbt_exam_targets').delete().eq('exam_id', examId);
-        await this.db.from('cbt_exam_participants').delete().eq('exam_id', examId);
-
-        if (classIds.length > 0) {
-            // Kelas reguler dan kelas tambahan disimpan di kolom yang BERBEDA
-            // pada tabel sasaran, jadi id-nya harus dipilah lebih dulu.
-            const { data: regular } = await this.db
-                .from('cbt_classes')
-                .select('id')
-                .in('id', classIds);
-
-            const regularIds = new Set(
-                ((regular as Array<{ id: string }>) || []).map((c) => c.id),
+        const uniqueClassIds = [...new Set(classIds)];
+        const uniqueParticipantAssignments = [
+            ...new Map(
+                participantAssignments.map((assignment) => [
+                    `${assignment.userId}:${assignment.classId}`,
+                    assignment,
+                ]),
+            ).values(),
+        ];
+        const uniqueUserIds = [...new Set(uniqueParticipantAssignments.map((item) => item.userId))];
+        if (uniqueUserIds.length !== uniqueParticipantAssignments.length) {
+            throw new BadRequestException(
+                'Satu siswa tidak boleh dipilih dari lebih dari satu kelas pada ujian yang sama.',
             );
-
-            const targets = classIds.map((classId) =>
-                regularIds.has(classId)
-                    ? { exam_id: examId, class_id: classId }
-                    : { exam_id: examId, additional_class_id: classId },
-            );
-
-            const { error } = await this.db.from('cbt_exam_targets').insert(targets);
-            if (error) throw new BadRequestException(error.message);
         }
+        const participantClassIds = [
+            ...new Set(uniqueParticipantAssignments.map((item) => item.classId)),
+        ];
+        const allClassIds = [...new Set([...uniqueClassIds, ...participantClassIds])];
 
-        if (userIds.length > 0) {
-            const { error } = await this.db
+        return this.db.transaction(async (db) => {
+            // Satu ujian hanya boleh mempunyai satu proses penggantian target
+            // pada satu waktu. Lock juga membuat validasi dan delete/insert
+            // berikutnya menjadi satu keputusan atomik.
+            await db.raw(
+                'SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE',
+                [examId],
+            );
+
+            const { data: exam, error: examError } = await db
+                .from('cbt_exams')
+                .select('id, organization_id')
+                .eq('id', examId)
+                .maybeSingle();
+            if (examError) throw new BadRequestException(examError.message);
+            if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+            const organizationId = (exam as { organization_id: string }).organization_id;
+
+            const [
+                regular,
+                additional,
+                activeYears,
+                participants,
+                regularMemberships,
+                additionalMemberships,
+            ] = await Promise.all([
+                allClassIds.length
+                    ? db.from('cbt_classes').select('id, organization_id, school_year').in('id', allClassIds)
+                    : Promise.resolve({ data: [], error: null }),
+                allClassIds.length
+                    ? db.from('cbt_additional_classes').select('id, organization_id').in('id', allClassIds)
+                    : Promise.resolve({ data: [], error: null }),
+                allClassIds.length
+                    ? db.from('master_tahun_ajaran').select('tahun_ajaran').eq('is_active', true)
+                    : Promise.resolve({ data: [], error: null }),
+                uniqueUserIds.length
+                    ? db.from('cbt_organization_members')
+                        .select('user_id')
+                        .eq('organization_id', organizationId)
+                        .eq('is_active', true)
+                        .in('user_id', uniqueUserIds)
+                    : Promise.resolve({ data: [], error: null }),
+                uniqueParticipantAssignments.length
+                    ? db.from('cbt_class_members')
+                        .select('class_id, user_id')
+                        .in('class_id', participantClassIds)
+                        .in('user_id', uniqueUserIds)
+                    : Promise.resolve({ data: [], error: null }),
+                uniqueParticipantAssignments.length
+                    ? db.from('cbt_additional_class_members')
+                        .select('class_id, user_id')
+                        .in('class_id', participantClassIds)
+                        .in('user_id', uniqueUserIds)
+                    : Promise.resolve({ data: [], error: null }),
+            ]);
+
+            for (const result of [
+                regular,
+                additional,
+                activeYears,
+                participants,
+                regularMemberships,
+                additionalMemberships,
+            ]) {
+                if (result.error) throw new BadRequestException(result.error.message);
+            }
+
+            const regularRows = (regular.data as Array<{
+                id: string;
+                organization_id: string;
+                school_year: string | null;
+            }>) || [];
+            const additionalRows = (additional.data as Array<{
+                id: string;
+                organization_id: string;
+            }>) || [];
+            const regularIds = new Set(regularRows.map((row) => row.id));
+            const additionalIds = new Set(additionalRows.map((row) => row.id));
+            const foundClassIds = new Set([...regularIds, ...additionalIds]);
+
+            if (allClassIds.some((id) => !foundClassIds.has(id))) {
+                throw new BadRequestException('Satu atau lebih kelas tidak ditemukan.');
+            }
+            if ([...regularRows, ...additionalRows].some(
+                (row) => row.organization_id !== organizationId,
+            )) {
+                throw new BadRequestException('Kelas harus berasal dari sekolah yang sama dengan ujian.');
+            }
+
+            const activeYearSet = new Set(
+                ((activeYears.data as Array<{ tahun_ajaran: string | null }>) || [])
+                    .map((row) => row.tahun_ajaran)
+                    .filter((year): year is string => Boolean(year)),
+            );
+            if (activeYearSet.size > 0 && regularRows.some(
+                (row) => !row.school_year || !activeYearSet.has(row.school_year),
+            )) {
+                throw new BadRequestException('Kelas reguler harus berasal dari tahun ajaran aktif.');
+            }
+
+            const validParticipantIds = new Set(
+                ((participants.data as Array<{ user_id: string }>) || []).map((row) => row.user_id),
+            );
+            if (uniqueUserIds.some((id) => !validParticipantIds.has(id))) {
+                throw new BadRequestException(
+                    'Satu atau lebih peserta bukan anggota aktif sekolah ujian.',
+                );
+            }
+
+            const validMembershipPairs = new Set(
+                [
+                    ...((regularMemberships.data as Array<{ class_id: string; user_id: string }>) || []),
+                    ...((additionalMemberships.data as Array<{ class_id: string; user_id: string }>) || []),
+                ].map((row) => `${row.class_id}:${row.user_id}`),
+            );
+            if (uniqueParticipantAssignments.some(
+                (item) => !validMembershipPairs.has(`${item.classId}:${item.userId}`),
+            )) {
+                throw new BadRequestException(
+                    'Satu atau lebih peserta bukan anggota kelas tempat ia dipilih.',
+                );
+            }
+
+            const deleteTargets = await db.from('cbt_exam_targets').delete().eq('exam_id', examId);
+            if (deleteTargets.error) throw new BadRequestException(deleteTargets.error.message);
+            const deleteParticipants = await db
                 .from('cbt_exam_participants')
-                .insert(userIds.map((userId) => ({ exam_id: examId, user_id: userId })));
+                .delete()
+                .eq('exam_id', examId);
+            if (deleteParticipants.error) {
+                throw new BadRequestException(deleteParticipants.error.message);
+            }
 
-            if (error) throw new BadRequestException(error.message);
-        }
+            if (uniqueClassIds.length > 0) {
+                const targets = uniqueClassIds.map((classId) =>
+                    regularIds.has(classId)
+                        ? { exam_id: examId, class_id: classId }
+                        : { exam_id: examId, additional_class_id: classId },
+                );
+                const { error } = await db.from('cbt_exam_targets').insert(targets);
+                if (error) throw new BadRequestException(error.message);
+            }
 
-        if (activate) {
-            await this.db.from('cbt_exams').update({ status: 'active' }).eq('id', examId);
-        }
+            if (uniqueParticipantAssignments.length > 0) {
+                const { error } = await db
+                    .from('cbt_exam_participants')
+                    .insert(uniqueParticipantAssignments.map((item) => ({
+                        exam_id: examId,
+                        user_id: item.userId,
+                        regular_class_id: regularIds.has(item.classId) ? item.classId : null,
+                        additional_class_id: additionalIds.has(item.classId) ? item.classId : null,
+                    })));
+                if (error) throw new BadRequestException(error.message);
+            }
 
-        return { examId, classes: classIds.length, participants: userIds.length };
+            if (activate) {
+                const { error } = await db
+                    .from('cbt_exams')
+                    .update({ status: 'active' })
+                    .eq('id', examId);
+                if (error) throw new BadRequestException(error.message);
+            }
+
+            return {
+                examId,
+                classes: uniqueClassIds.length,
+                participants: uniqueParticipantAssignments.length,
+            };
+        });
     }
 
     /**
@@ -337,35 +487,25 @@ export class ExamAdminService {
                 .from('cbt_exam_targets')
                 .select('exam_id, class_id, additional_class_id')
                 .in('exam_id', examIds),
-            this.db.from('cbt_exam_participants').select('exam_id, user_id').in('exam_id', examIds),
+            this.db
+                .from('cbt_exam_participants')
+                .select('exam_id, user_id, regular_class_id, additional_class_id')
+                .in('exam_id', examIds),
         ]);
 
-        const participantRows =
-            (participants.data as Array<{ exam_id: string; user_id: string }>) || [];
-
-        const userIds = [...new Set(participantRows.map((p) => p.user_id).filter(Boolean))];
-        const classByUser = new Map<string, string>();
-
-        if (userIds.length > 0) {
-            const { data: memberships } = await this.db
-                .from('cbt_class_members')
-                .select('user_id, class_id')
-                .in('user_id', userIds);
-
-            for (const row of (memberships as Array<{
-                user_id: string;
-                class_id: string;
-            }>) || []) {
-                if (!classByUser.has(row.user_id)) classByUser.set(row.user_id, row.class_id);
-            }
-        }
+        const participantRows = (participants.data as Array<{
+            exam_id: string;
+            user_id: string;
+            regular_class_id: string | null;
+            additional_class_id: string | null;
+        }>) || [];
 
         return {
             targets: (targets.data as any[]) || [],
             participants: participantRows.map((p) => ({
                 exam_id: p.exam_id,
                 user_id: p.user_id,
-                class_id: classByUser.get(p.user_id) ?? null,
+                class_id: p.regular_class_id || p.additional_class_id || null,
             })),
         };
     }

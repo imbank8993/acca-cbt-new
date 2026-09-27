@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -279,7 +280,7 @@ export default function SiswaDashboard() {
                         <div className="p-4 space-y-3">
                             {loading ? (
                                 <div className="py-12 flex flex-col items-center justify-center gap-3">
-                                    <Loader2 className="animate-spin text-[#3083FF]" size={24} />
+                                    <Spinner variant="buble" size={32} />
                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Memuat daftar ujian...</p>
                                 </div>
                             ) : exams.length === 0 ? (

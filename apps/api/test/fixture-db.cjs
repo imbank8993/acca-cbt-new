@@ -40,6 +40,10 @@ exports.fixtureDb = function fixtureDb(initial = {}, failedTables = [], options 
                                 if (input.attempt_id && input.question_id) {
                                     return row.attempt_id === input.attempt_id && row.question_id === input.question_id;
                                 }
+                                if (input.organization_id && input.master_mapel_id !== undefined) {
+                                    return row.organization_id === input.organization_id &&
+                                        String(row.master_mapel_id) === String(input.master_mapel_id);
+                                }
                                 return input.user_id && row.user_id === input.user_id;
                             });
                             if (found) return Object.assign(found, input);

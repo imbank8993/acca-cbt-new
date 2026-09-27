@@ -12,12 +12,28 @@ const REQUIRED_COLUMNS = [
     ['cbt_exam_attempts', 'last_seen_at'],
     ['cbt_question_banks', 'updated_at'],
     ['bank_folders', 'updated_at'],
+    ['cbt_exam_participants', 'regular_class_id'],
+    ['cbt_exam_participants', 'additional_class_id'],
+    ['cbt_subjects', 'master_mapel_id'],
+    ['cbt_subjects', 'is_active'],
 ];
 const REQUIRED_INDEXES = [
     'cbt_exam_attempts_one_active_per_user_exam',
     'cbt_exam_attempts_active_last_seen',
     'cbt_security_logs_client_event_unique',
     'cbt_organizations_singleton',
+    'cbt_exam_participants_regular_class_idx',
+    'cbt_exam_participants_additional_class_idx',
+    'cbt_pas_sessions_id_period_unique',
+    'cbt_pas_schedules_session_period_idx',
+    'cbt_subjects_org_master_unique',
+    'cbt_subjects_org_active_idx',
+];
+const REQUIRED_CONSTRAINTS = [
+    'cbt_pas_sessions_valid_time',
+    'cbt_pas_schedules_valid_time',
+    'cbt_pas_schedules_duration_positive',
+    'cbt_pas_schedules_session_period_fkey',
 ];
 
 function resolveDatabaseUrl() {
@@ -80,6 +96,19 @@ async function scalar(client, sql) {
         report('BLOCKER', `index hilang ${index}`, installedIndexes.includes(index) ? 0 : 1);
     }
 
+    const installedConstraints = (await client.query(
+        `SELECT conname FROM pg_constraint
+          WHERE conname = ANY($1::text[]) AND convalidated`,
+        [REQUIRED_CONSTRAINTS],
+    )).rows.map(row => row.conname);
+    for (const constraint of REQUIRED_CONSTRAINTS) {
+        report(
+            'BLOCKER',
+            `constraint hilang/belum valid ${constraint}`,
+            installedConstraints.includes(constraint) ? 0 : 1,
+        );
+    }
+
     const schoolCount = await scalar(client, `
         SELECT COUNT(*)::int AS count FROM public.cbt_organizations
     `);
@@ -118,6 +147,33 @@ async function scalar(client, sql) {
         SELECT COUNT(*)::int AS count FROM public.cbt_answers answer
         LEFT JOIN public.cbt_bank_question_options option_row ON option_row.id = answer.selected_option_id
         WHERE answer.selected_option_id IS NOT NULL AND option_row.id IS NULL
+    `));
+    report('BLOCKER', 'jadwal PAS tanpa sesi', await scalar(client, `
+        SELECT COUNT(*)::int AS count FROM public.cbt_pas_class_schedules
+        WHERE session_id IS NULL
+    `));
+    report('BLOCKER', 'jadwal PAS memakai sesi periode lain', await scalar(client, `
+        SELECT COUNT(*)::int AS count
+        FROM public.cbt_pas_class_schedules schedule
+        JOIN public.cbt_pas_sessions session_row ON session_row.id = schedule.session_id
+        WHERE session_row.pas_period_id <> schedule.pas_period_id
+    `));
+    report('BLOCKER', 'master mapel aktif tanpa UUID operasional', await scalar(client, `
+        SELECT COUNT(*)::int AS count
+        FROM public.master_mapel master
+        CROSS JOIN public.cbt_organizations organization_row
+        LEFT JOIN public.cbt_subjects subject
+          ON subject.organization_id = organization_row.id
+         AND subject.master_mapel_id = master.id
+        WHERE master.aktif AND subject.id IS NULL
+    `));
+    report('BLOCKER', 'status/nama katalog mapel tidak sinkron', await scalar(client, `
+        SELECT COUNT(*)::int AS count
+        FROM public.cbt_subjects subject
+        JOIN public.master_mapel master ON master.id = subject.master_mapel_id
+        WHERE subject.name IS DISTINCT FROM master.nama
+           OR subject.code IS DISTINCT FROM master.kode
+           OR subject.is_active IS DISTINCT FROM COALESCE(master.aktif, true)
     `));
     report('WARNING', 'attempt aktif tanpa kunci perangkat', await scalar(client, `
         SELECT COUNT(*)::int AS count FROM public.cbt_exam_attempts

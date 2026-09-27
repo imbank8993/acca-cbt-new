@@ -239,12 +239,12 @@ export function publishExamAction(examId: string, publish: boolean) {
 export function assignExamAction(
     examId: string,
     classIds: string[],
-    userIds: string[],
+    participantAssignments: { userId: string; classId: string }[],
     activate = true,
 ) {
     return apiSend<{ examId: string }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/assignments`,
-        { classIds, userIds, activate },
+        { classIds, participantAssignments, activate },
         'PUT',
     );
 }

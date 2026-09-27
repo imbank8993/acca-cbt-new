@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Spinner } from '@/app/components/ui/Spinner';
 
 interface LoadingSpinnerProps {
     size?: 'sm' | 'md' | 'lg';
@@ -7,34 +8,11 @@ interface LoadingSpinnerProps {
 }
 
 export default function LoadingSpinner({ size = 'md', text }: LoadingSpinnerProps) {
-    const sizeClasses = {
-        sm: 'w-6 h-6',
-        md: 'w-10 h-10',
-        lg: 'w-14 h-14'
-    };
+    const pixelSize = size === 'sm' ? 20 : size === 'lg' ? 40 : 32;
 
     return (
         <div className="flex flex-col items-center justify-center gap-4">
-            <div className={`relative flex items-center justify-center ${sizeClasses[size]}`}>
-                <motion.div
-                    className="absolute inset-0 rounded-full border-[2.5px] border-[#3083FF]/10"
-                />
-                <motion.div
-                    className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#3083FF]"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.div
-                    className="absolute inset-[4px] rounded-full border-[2.5px] border-transparent border-b-[#3083FF]"
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.div 
-                    className="absolute bg-[#3083FF] rounded-full w-1.5 h-1.5"
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                />
-            </div>
+            <Spinner variant="buble" size={pixelSize} />
             {text && (
                 <motion.p 
                     className="text-sm font-medium text-slate-500 tracking-wide"

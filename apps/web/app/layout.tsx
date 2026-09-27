@@ -23,9 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description: "Platform CBT " + appName,
     icons: {
-      icon: "/favicon.ico?v=2",
-      apple: "/favicon.ico?v=2",
-    }
+      icon: [
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/logo-icon.png", type: "image/png" },
+      ],
+      shortcut: "/icon.svg",
+      apple: "/logo-icon.png",
+    },
   };
 }
 

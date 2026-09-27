@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Sun, Moon, Menu, User as UserIcon, LogOut } from 'lucide-react';
+import { Sun, Moon, Menu, User as UserIcon, LogOut, ArrowLeft } from 'lucide-react';
 import { clearSessionCache } from '@/lib/session';
 import { NotificationBell } from './ui/NotificationBell';
 import './header.css';
@@ -113,18 +113,23 @@ export default function Header({
                         <Menu size={19} />
                     </button>
 
-                    {onCollapse && (
-                        <button
-                            type="button"
-                            className="header-collapse-toggle"
-                            onClick={onCollapse}
-                            title={isCollapsed ? 'Bentangkan menu samping' : 'Lipat menu samping'}
-                            aria-label={isCollapsed ? 'Bentangkan menu samping' : 'Lipat menu samping'}
-                            aria-expanded={!isCollapsed}
-                        >
-                            <i className={`fa-solid fa-chevron-${isCollapsed ? 'right' : 'left'}`} />
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        className="header-back-btn"
+                        onClick={() => {
+                            if (typeof window !== 'undefined') {
+                                if (window.history.length > 1) {
+                                    router.back();
+                                } else {
+                                    router.push('/dashboard');
+                                }
+                            }
+                        }}
+                        title="Kembali ke halaman sebelumnya"
+                        aria-label="Kembali ke halaman sebelumnya"
+                    >
+                        <ArrowLeft size={16} />
+                    </button>
 
                     <div className="header-title-wrapper">
                         <h1 className="header-title" title={isDashboard ? 'Selamat Datang 👋' : pageTitle}>

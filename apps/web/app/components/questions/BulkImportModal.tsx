@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 import { optionLabel } from '@/lib/option-label';
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -557,7 +558,7 @@ export default function BulkImportModal({
                                     {/* Questions List */}
                                     {sourceLoading && (
                                         <div className="flex justify-center py-8">
-                                            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                                            <Spinner variant="buble" size={28} />
                                         </div>
                                     )}
 

@@ -139,16 +139,30 @@ export class PublishExamDto {
     publish!: boolean;
 }
 
+export class ParticipantAssignmentDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'userId peserta tidak valid' })
+    userId!: string;
+
+    @ApiProperty()
+    @IsUUID('4', { message: 'classId asal peserta tidak valid' })
+    classId!: string;
+}
+
 export class AssignExamDto {
     @ApiProperty({ type: [String], description: 'Kelas reguler maupun tambahan.' })
     @IsArray()
     @IsUUID('4', { each: true, message: 'classIds memuat id yang tidak valid' })
     classIds!: string[];
 
-    @ApiProperty({ type: [String], description: 'Peserta perorangan di luar kelas.' })
+    @ApiProperty({
+        type: [ParticipantAssignmentDto],
+        description: 'Peserta terpilih beserta kelas tempat ia dipilih.',
+    })
     @IsArray()
-    @IsUUID('4', { each: true, message: 'userIds memuat id yang tidak valid' })
-    userIds!: string[];
+    @ValidateNested({ each: true })
+    @Type(() => ParticipantAssignmentDto)
+    participantAssignments!: ParticipantAssignmentDto[];
 
     @ApiPropertyOptional({ default: true, description: 'Sekaligus mengaktifkan ujiannya.' })
     @IsOptional()

@@ -1,4 +1,5 @@
 "use client";
+import { Spinner } from '@/app/components/ui/Spinner';
 
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -324,10 +325,7 @@ function MonitoringContent() {
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={6} className="py-8 text-center text-slate-400">
-                                                <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-primary" />
-                                                <span>Memuat daftar peserta...</span>
-                                            </td>
+                                            <td colSpan={6} className="py-8 text-center text-slate-400"><div className="flex flex-col items-center justify-center gap-2"><Spinner variant="buble" size={32} /><span>Memuat daftar peserta...</span></div></td>
                                         </tr>
                                     ) : filteredAttempts.length === 0 ? (
                                         <tr>
@@ -482,10 +480,7 @@ export default function PengawasMonitoringPage() {
     return (
         <Suspense
             fallback={
-                <div className="p-8 text-center text-slate-400">
-                    <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-primary" />
-                    <p className="text-xs font-bold">Menyiapkan layar monitoring pengawas...</p>
-                </div>
+                <div className="p-8 flex flex-col items-center justify-center gap-2"><Spinner variant="buble" size={32} /><p className="text-xs font-bold text-slate-400">Menyiapkan layar monitoring pengawas...</p></div>
             }
         >
             <MonitoringContent />
