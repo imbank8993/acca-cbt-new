@@ -11,6 +11,14 @@ export function deleteExam(examId: string) {
     return apiSend<{ id: string }>(`/api/exams/${encodeURIComponent(examId)}`, undefined, 'DELETE');
 }
 
+/** Arsipkan tanpa menghapus riwayat, atau pulihkan arsip menjadi draft. */
+export function setExamArchived(examId: string, archived: boolean) {
+    return apiSend<{ id: string; archived: boolean }>(
+        `/api/exams/${encodeURIComponent(examId)}/archive`,
+        { archived },
+    );
+}
+
 /** Hapus eksplisit ujian uji coba yang sudah tidak dipublikasikan beserta hasilnya. */
 export function purgeTrialExam(examId: string, confirmationTitle: string) {
     return apiSend<{ id: string; purgedAttempts: number }>(

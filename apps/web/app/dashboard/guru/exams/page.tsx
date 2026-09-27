@@ -7,7 +7,7 @@ import {
     Trash2, Clock, Loader2, X, Check, Users,
     Settings, ChevronRight, CheckCircle2, Globe, GlobeLock,
     Info, BookOpen, AlertCircle, Eye, EyeOff, Filter,
-    CalendarDays, FolderOpen, GraduationCap, Lock, Unlock, Zap, Shield, ChevronDown, FileText
+    CalendarDays, FolderOpen, GraduationCap, Lock, Unlock, Zap, Shield, ChevronDown, FileText, Archive
 } from 'lucide-react';
 import {
     getProctorOrganization,
@@ -22,7 +22,7 @@ import {
     createSchoolYearAction,
     listExamAssignmentsAction
 } from '@/lib/api/proctor';
-import { deleteExam } from '@/lib/api/exams';
+import { deleteExam, setExamArchived } from '@/lib/api/exams';
 import { listQuestionBanks, listOrganizationLabels, createOrganizationLabel } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -31,7 +31,7 @@ import { listSubjects } from '@/lib/api/pas';
 import { useRouter } from 'next/navigation';
 import { useMemoryState } from '@/lib/useMemoryState';
 
-type TabId = 'all' | 'draft' | 'active' | 'finished' | 'pas';
+type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
 type SortBy = 'newest' | 'oldest' | 'name';
 
 // Helper: Convert UTC ISO string to WIB datetime-local format for input display
@@ -410,7 +410,21 @@ const ExamsPage = () => {
         setIsLoading(false);
     };
 
+    const handleArchiveExam = async (exam: any) => {
+        const archive = exam.status !== 'archived';
+        const message = archive
+            ? 'Arsipkan ujian ini? Jawaban dan nilai tetap disimpan.'
+            : 'Pulihkan ujian ini sebagai draft?';
+        if (!confirm(message)) return;
+        setIsLoading(true);
+        const result = await setExamArchived(exam.id, archive);
+        if (result.success) await loadData();
+        else alert(result.error || 'Status arsip gagal diubah.');
+        setIsLoading(false);
+    };
+
     const getExamStatus = (e: any) => {
+        if (e.status === 'archived') return 'archived';
         const now = new Date();
         const start = e.start_time ? new Date(e.start_time) : null;
         const end = e.end_time ? new Date(e.end_time) : null;
@@ -424,7 +438,7 @@ const ExamsPage = () => {
 
     const getExamTabFilter = (e: any, tabId: TabId): boolean => {
         if (typeFilter !== 'all' && e.exam_type !== typeFilter) return false;
-        if (tabId === 'all') return true;
+        if (tabId === 'all') return getExamStatus(e) !== 'archived';
         return getExamStatus(e) === tabId;
     };
 
@@ -451,6 +465,7 @@ const ExamsPage = () => {
         { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-amber-500' },
         { id: 'active', label: 'Aktif', icon: Zap, color: 'text-emerald-500' },
         { id: 'finished', label: 'Selesai', icon: CheckCircle2, color: 'text-slate-400' },
+        { id: 'archived', label: 'Arsip', icon: Archive, color: 'text-violet-500' },
     ];
 
     const openEdit = (exam: any) => {
@@ -1175,7 +1190,7 @@ const ExamsPage = () => {
                                                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                                         : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
-                                                    {exam.is_published ? 'Dipublikasikan' : 'Draft'}
+                                                    {exam.status === 'archived' ? 'Diarsipkan' : exam.is_published ? 'Dipublikasikan' : 'Draft'}
                                                 </span>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
                                                     <span className="px-2 py-0.5 bg-[#3083FF]/5 text-[#3083FF] text-[10px] sm:text-xs font-bold rounded-lg border border-[#3083FF]/20">
@@ -1242,7 +1257,7 @@ const ExamsPage = () => {
                                     {/* Publish Toggle */}
                                     <button
                                         onClick={() => handlePublishToggle(exam)}
-                                        disabled={isSubmitting || publishingId === exam.id}
+                                        disabled={isSubmitting || publishingId === exam.id || exam.status === 'archived'}
                                         className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait ${
                                             exam.is_published
                                                 ? 'bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 border border-[#3083FF]/30'
@@ -1304,6 +1319,15 @@ const ExamsPage = () => {
                                         title={isAssigned ? 'Ubah penugasan kelas' : 'Tugaskan ke kelas'}
                                     >
                                         <Users size={14} />
+                                    </button>
+
+                                    {/* Delete */}
+                                    <button
+                                        onClick={() => handleArchiveExam(exam)}
+                                        className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all border border-slate-200 hover:border-violet-200"
+                                        title={exam.status === 'archived' ? 'Pulihkan sebagai draft' : 'Arsipkan tanpa menghapus hasil'}
+                                    >
+                                        {exam.status === 'archived' ? <Unlock size={14} /> : <Archive size={14} />}
                                     </button>
 
                                     {/* Delete */}

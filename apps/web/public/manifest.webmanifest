@@ -1,0 +1,17 @@
+{
+  "name": "ACCA CBT",
+  "short_name": "ACCA CBT",
+  "description": "Aplikasi ujian ACCA CBT",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3083ff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

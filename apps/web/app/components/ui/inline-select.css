@@ -4,8 +4,13 @@
  * Dua hal yang jadi alasan komponen ini ada:
  * 1. Tingginya dikunci ke --uisel-h (default 34px = tinggi .ui-action di
  *    action-buttons.css), supaya select dan tombol aksi di sebelahnya rata.
- * 2. Panahnya memakai ikon drop-down yang berputar saat fokus, bukan
- *    background-image bawaan select biasa.
+ * 2. Panahnya memakai ikon yang sama dengan dropdown sidebar
+ *    (RiArrowDropDownFill yang berputar saat fokus), bukan background-image
+ *    bawaan select biasa.
+ *
+ * Karena globals.css memaksa panahnya dengan !important, aturan di sini ditulis
+ * dengan selector berlapis + !important, dan `.uisel-input` sengaja
+ * dikecualikan dari rantai `:not()` panah dark mode di globals.css.
  */
 .uisel {
     --uisel-h: 34px;
@@ -61,9 +66,14 @@
 }
 
 .dark .uisel select.uisel-input {
-    background-color: #000000 !important;
-    border: 1.5px solid rgba(59, 130, 246, 0.75) !important;
+    background-color: #0b1329 !important;
+    border: 1.5px solid rgba(59, 130, 246, 0.45) !important;
     color: #e2e8f0 !important;
+}
+
+.dark .uisel select.uisel-input option {
+    background-color: #0b1329 !important;
+    color: #ffffff !important;
 }
 
 .dark .uisel select.uisel-input:focus {

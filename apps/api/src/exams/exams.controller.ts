@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ExamsService } from './exams.service';
 import { PurgeExamDto } from './dto/purge-exam.dto';
+import { ArchiveExamDto } from './dto/archive-exam.dto';
 
 @ApiTags('exams')
 @ApiBearerAuth()
@@ -14,6 +15,17 @@ import { PurgeExamDto } from './dto/purge-exam.dto';
 @UseGuards(JwtAuthGuard)
 export class ExamsController {
     constructor(private readonly exams: ExamsService) {}
+
+    @Post(':id/archive')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Arsipkan ujian atau pulihkan sebagai draft' })
+    setArchived(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: ArchiveExamDto,
+    ) {
+        return this.exams.setArchived(user, id, dto.archived);
+    }
 
     @Delete(':id')
     @HttpCode(HttpStatus.OK)

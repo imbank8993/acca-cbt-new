@@ -1,6 +1,6 @@
 # Tahap 37 — Katalog mata pelajaran operasional
 
-Diperbarui 27 September 2026. Tahap ini menyatukan ID mata pelajaran yang ditampilkan di browser dengan foreign key UUID yang disimpan oleh CBT.
+Diperbarui 28 September 2026. Tahap ini menyatukan ID mata pelajaran yang ditampilkan di browser dengan foreign key UUID yang disimpan oleh CBT.
 
 ## Temuan
 
@@ -39,6 +39,8 @@ Tujuh tes `SUBJECT-01` sampai `SUBJECT-07` mencakup pemetaan ID, kestabilan UUID
 
 Seluruh 15 migrasi lulus dry run dan pengulangan idempoten.
 
+Regresi lengkap menghasilkan 245 tes Node pada 36 berkas tanpa kegagalan. Pemeriksaan TypeScript frontend dan build produksi backend juga lulus.
+
 ## Berkas utama
 
 - `apps/api/src/common/subject-catalog.ts`
@@ -48,4 +50,3 @@ Seluruh 15 migrasi lulus dry run dan pengulangan idempoten.
 - `apps/api/src/exam-configs/exam-configs.service.ts`
 - `database/migrations/20260927_08_subject_catalog_bridge.sql`
 - `apps/api/test/subject-catalog-stage37.test.cjs`
-

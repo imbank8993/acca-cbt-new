@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  async headers() {
+    return [
+      {
+        source: '/exam-sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+    ];
+  },
   serverExternalPackages: ['mammoth', 'pdfjs-dist', 'docx', 'jszip', 'openai', 'mathjax-full'],
   typescript: {
     ignoreBuildErrors: false,

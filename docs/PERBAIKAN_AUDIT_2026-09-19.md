@@ -1,10 +1,10 @@
 # Catatan perbaikan audit ACCA CBT
 
-Dimulai 19 September 2026; diperbarui 27 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
+Dimulai 19 September 2026; diperbarui 28 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
 
 ## Status pekerjaan
 
-Tiga puluh enam tahap implementasi telah diselesaikan dan diuji. **Seluruh 45 ID audit awal, temuan tambahan IMP-01, delapan temuan audit jawaban/jaringan, tiga temuan lifecycle, serta temuan lanjutan sampai Tahap 36 sudah ditangani.** “Selesai” berarti perubahan kode dan tes lokal lulus; validasi browser dan deployment produksi masih dicatat terpisah. SEC-14 selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada Tahap 4.
+Empat puluh dua tahap implementasi telah diselesaikan dan diuji. **Seluruh 45 ID audit awal, temuan tambahan IMP-01, delapan temuan audit jawaban/jaringan, tiga temuan lifecycle, serta temuan lanjutan sampai Tahap 42 sudah ditangani.** “Selesai” berarti perubahan kode dan tes lokal lulus; validasi browser dan deployment produksi masih dicatat terpisah. SEC-14 selesai setelah jalur perubahan jawaban pascapenutupan ditutup pada Tahap 4.
 
 Audit lanjutan terhadap perekaman jawaban dan gangguan jaringan menemukan delapan area hardening baru. ANS-01, ANS-02, dan ANS-08 diperbaiki pada tahap 13; ANS-04 pada tahap 14; ANS-05 pada tahap 15; ANS-03 pada tahap 16; ANS-06 pada tahap 17; dan ANS-07 pada tahap 18. Temuan ini berada di luar 45 ID awal dan dicatat terpisah dalam [audit perekaman jawaban dan jaringan](perbaikan-2026-09-19/AUDIT-PEREKAMAN-JAWABAN-DAN-JARINGAN.md).
 
@@ -48,6 +48,10 @@ Migrasi yang dinyatakan permanen pada catatan tiap tahap telah diterapkan ke `ac
 | 34 | Pemulihan peserta terpilih per kelas | RESTORE-01–05 | 5 tes dan migrasi permanen |
 | 35 | Sinkronisasi ujian hasil generate | SYNC-01–09 | 9 tes dan audit database tanpa temuan |
 | 36 | Integritas sesi dan jadwal PAS | SESSION-01–08 | 8 tes, migrasi permanen, dan audit tanpa temuan |
+| 37 | Katalog mata pelajaran operasional | SUBJECT-01–07 | 7 tes, 41 mata pelajaran terpetakan, dan migrasi permanen |
+| 38 | Penyimpanan massal jadwal PAS | BULK-01–07 | 7 tes dan status/retry per baris |
+| 39 | Jawaban lokal saat jaringan terputus | OFFLINE-01–05 | 5 tes local-first dan sinkronisasi otomatis |
+| 40 | Arsip ujian tanpa menghapus hasil | ARCHIVE-01–06 | 6 tes dan paritas tiga peran |
 
 Daftar 45 ID audit awal serta temuan tambahan IMP-01 beserta statusnya tersedia dalam [tracker perbaikan](perbaikan-2026-09-19/STATUS_TEMUAN.md).
 
@@ -323,7 +327,7 @@ Nilai kronologis dibagi menjadi kelompok lama dan baru yang keduanya tidak koson
 
 ### QA-01: utang lint lama dibedakan dari pelanggaran baru
 
-Pemindaian penuh frontend saat ini menghasilkan 1.214 error dan 640 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline menyimpan jumlah aktual per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik. Penurunan pada tahap 12 sudah dikunci sebagai baseline baru.
+Pemindaian penuh frontend saat ini menghasilkan 1.194 error dan 607 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline menyimpan jumlah maksimum per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik.
 
 Workflow deployment menjalankan pemeriksaan ini setelah typecheck frontend dan sebelum build/deploy. Dengan demikian, pelanggaran berisiko runtime tidak lagi tenggelam tanpa pagar hanya karena seluruh backlog belum dapat dibereskan dalam satu perubahan.
 
@@ -607,6 +611,50 @@ Tambah/hapus sesi, tambah/hapus jadwal, generate, penguncian, dan penghapusan pe
 
 Migrasi Tahap 36 mewajibkan periode, sesi, serta durasi pada jadwal; memvalidasi waktu; dan menambahkan foreign key gabungan sesi–periode dengan `ON DELETE RESTRICT`. Audit sebelum migrasi menemukan nol data yang perlu dibersihkan. Migrasi diterapkan permanen ke `acca_db`; audit setelahnya menghasilkan nol blocker dan nol warning. **Lokasi:** [layanan jadwal PAS](../apps/api/src/pas/pas-schedules.service.ts), [migrasi integritas sesi](../database/migrations/20260927_07_pas_session_integrity.sql), [pas-session-integrity-stage36.test.cjs](../apps/api/test/pas-session-integrity-stage36.test.cjs), dan [dokumentasi tahap 36](perbaikan-2026-09-19/TAHAP-36-INTEGRITAS-SESI-DAN-JADWAL-PAS.md).
 
+## Tahap 37 — Katalog mata pelajaran operasional
+
+### SUBJECT-01–07: satu ID UUID untuk tampilan dan penyimpanan
+
+Dropdown PAS dan konfigurasi sebelumnya membaca `master_mapel.id` bertipe angka, sedangkan jadwal serta bank konfigurasi mewajibkan `cbt_subjects.id` bertipe UUID. Browser dapat menampilkan mata pelajaran yang kemudian selalu ditolak ketika disimpan. Kedua endpoint sekarang memakai helper katalog bersama yang menyinkronkan data master dan mengembalikan UUID operasional yang stabil.
+
+Migrasi Tahap 37 menambahkan relasi ke data master, status aktif, indeks unik per sekolah, dan backfill. Migrasi telah diterapkan permanen ke `acca_db`: 41 dari 41 mata pelajaran aktif terpetakan dan tidak ada data aktif yang tertinggal. Server juga menolak UUID sekolah lain serta mata pelajaran nonaktif pada jadwal dan bank konfigurasi. Audit akhir menghasilkan nol blocker dan nol warning. **Lokasi:** [helper katalog mata pelajaran](../apps/api/src/common/subject-catalog.ts), [migrasi katalog](../database/migrations/20260927_08_subject_catalog_bridge.sql), [subject-catalog-stage37.test.cjs](../apps/api/test/subject-catalog-stage37.test.cjs), dan [dokumentasi tahap 37](perbaikan-2026-09-19/TAHAP-37-KATALOG-MATA-PELAJARAN.md).
+
+## Tahap 38 — Penyimpanan massal jadwal PAS
+
+### BULK-01–07: hasil dan retry dipisahkan per baris
+
+Input massal sebelumnya menganggap `Promise.all` berhasil meskipun helper HTTP mengembalikan `{ success: false }`. Form dapat tertutup setelah kegagalan sebagian, sedangkan jadwal yang berhasil sudah masuk database. Percobaan ulang kemudian berisiko bertabrakan dengan data yang sudah tersimpan. Baris yang terisi sebagian juga dilewati tanpa penjelasan.
+
+Komponen bersama Admin/Proktor sekarang memeriksa setiap hasil, menampilkan status dan pesan pada baris terkait, mengunci baris berhasil, serta hanya mengirim ulang baris yang belum tersimpan. Baris sebagian ditandai dan duplikat bank–kelas dalam satu batch ditolak sebelum request. Retry jaringan tetap memakai kunci idempoten yang sudah dilindungi indeks database. Tahap ini tidak memerlukan migrasi. **Lokasi:** [komponen input massal](../apps/web/app/components/pas/BulkScheduleGrid.tsx), [helper penyimpanan](../apps/web/lib/pas/bulk-schedule.ts), [pas-bulk-schedule-stage38.test.cjs](../apps/api/test/pas-bulk-schedule-stage38.test.cjs), dan [dokumentasi tahap 38](perbaikan-2026-09-19/TAHAP-38-PENYIMPANAN-MASSAL-JADWAL-PAS.md).
+
+## Tahap 39 — Jawaban lokal saat jaringan terputus
+
+### OFFLINE-01–05: penyimpanan lokal selesai sebelum request server
+
+Setiap perubahan jawaban dan tanda ragu sekarang menunggu snapshot IndexedDB selesai sebelum mencoba server. Saat browser offline, request HTTP dilewati dan jawaban langsung masuk antrean lokal. Sinkronisasi menunggu penulisan terbaru, mengirim snapshot massal saat jaringan pulih, dan mengizinkan auto-submit hanya setelah server mengonfirmasi jawaban. Retry 15 detik menutup kondisi ketika event `online` tidak muncul. Banner menampilkan jumlah jawaban lokal. **Lokasi:** [halaman ujian](../apps/web/app/components/questions/ExamPage.tsx), [penyimpanan durable](../apps/web/lib/exam-durable-storage.ts), [offline-local-first-stage39.test.cjs](../apps/api/test/offline-local-first-stage39.test.cjs), dan [dokumentasi tahap 39](perbaikan-2026-09-19/TAHAP-39-JAWABAN-LOKAL-SAAT-OFFLINE.md).
+
+## Tahap 40 — Arsip ujian
+
+### ARCHIVE-01–06: sembunyikan ujian tanpa menghapus rekam akademik
+
+Admin, Proktor, dan Guru sekarang memiliki tab Arsip. Pengarsipan mematikan publikasi dan menyembunyikan ujian dari daftar aktif tanpa menghapus attempt, jawaban, nilai, log, atau sertifikat. Ujian dengan attempt aktif ditolak. Pemulihan selalu menjadi draft belum terpublikasi, dan ujian arsip tidak dapat diedit, diterbitkan, atau ditugaskan sebelum dipulihkan. Status `archived` sudah tersedia pada skema sehingga tidak memerlukan migrasi. **Lokasi:** [layanan arsip](../apps/api/src/exams/exams.service.ts), [API browser](../apps/web/lib/api/exams.ts), [exam-archive-stage40.test.cjs](../apps/api/test/exam-archive-stage40.test.cjs), dan [dokumentasi tahap 40](perbaikan-2026-09-19/TAHAP-40-ARSIP-UJIAN.md).
+
+## Tahap 41 — Pemulihan reload ujian saat offline
+
+### RECLOAD-01–07: cache sesi terikat siswa, perangkat, attempt, dan deadline
+
+Setelah pembukaan ujian berhasil diverifikasi server, IndexedDB menyimpan paket soal siswa, identitas, attempt, deadline absolut, dan nomor soal terakhir. Reload atau browser yang tertutup ketika jaringan putus dapat memulihkan data pengerjaan pada perangkat yang sama tanpa menambah waktu, selama halaman dan aset aplikasi masih tersedia di cache HTTP browser. Cache kedaluwarsa atau yang tidak cocok dengan siswa/perangkat/ujian ditolak.
+
+Mode recovery tidak mengirim autosave, heartbeat, event pengawasan, maupun submit sampai server mengakui kembali ID attempt yang sama. Fallback hanya dipakai pada galat jaringan yang retryable; penolakan HTTP atau status ujian dari server tetap final. Paket soal dibersihkan setelah submit, penolakan eksplisit server, atau logout. **Lokasi:** [halaman ujian](../apps/web/app/components/questions/ExamPage.tsx), [penyimpanan recovery](../apps/web/lib/exam-durable-storage.ts), [offline-reload-recovery-stage41.test.cjs](../apps/api/test/offline-reload-recovery-stage41.test.cjs), dan [dokumentasi tahap 41](perbaikan-2026-09-19/TAHAP-41-PEMULIHAN-RELOAD-UJIAN-OFFLINE.md).
+
+## Tahap 42 — PWA shell ujian offline
+
+### PWA-01–06: route ujian dan aset tersedia tanpa menyimpan API
+
+Service worker produksi menyimpan shell route ujian siswa dan aset same-origin yang dipakai ketika ujian terbuka. Navigasi memakai network-first; cache hanya menjadi fallback ketika host tidak dapat dijangkau. Endpoint API, route staf, hasil, respons redirect/login, dan respons non-HTML tidak pernah disimpan sebagai shell ujian.
+
+PWA tetap tunduk pada validasi cache Tahap 41. Cache shell dibersihkan setelah submit, penolakan attempt, ketidakcocokan attempt, dan logout. Manifest, scope worker, serta kebijakan pembaruan tanpa cache sudah dipasang. **Lokasi:** [service worker ujian](../apps/web/public/exam-sw.js), [helper PWA](../apps/web/lib/exam-pwa.ts), [pwa-exam-shell-stage42.test.cjs](../apps/api/test/pwa-exam-shell-stage42.test.cjs), dan [dokumentasi tahap 42](perbaikan-2026-09-19/TAHAP-42-PWA-SHELL-UJIAN-OFFLINE.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -615,14 +663,14 @@ Migrasi Tahap 36 mewajibkan periode, sesi, serta durasi pada jadwal; memvalidasi
 | Tahap 3, Node test runner | 3 lulus, 0 gagal |
 | Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
-| Seluruh regresi Node termasuk integrasi HTTP | 238 lulus, 0 gagal sampai Tahap 36 |
+| Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus sampai perubahan tahap 36 |
+| TypeScript API dan frontend | Lulus sampai perubahan tahap 42 |
 | Build produksi frontend | Lulus; 92 halaman berhasil diproses |
-| Dry run migrasi dalam transaksi rollback | 14 migrasi, 30 kolom, 32 indeks; lulus dan idempoten |
-| ESLint baseline penuh | Lulus: 1.212 error/635 warning lama, tanpa kenaikan per aturan |
+| Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
+| ESLint baseline penuh | Lulus: 1.194 error/607 warning lama, tanpa kenaikan per aturan |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
-| Database nyata | Audit lifecycle dan sinkronisasi ujian hasil generate lulus tanpa temuan |
+| Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |
 
 Dari root repositori:
@@ -640,17 +688,17 @@ Dari `apps/scoring`:
 & '.\.venv\Scripts\python.exe' -m pytest tests -q -p no:cacheprovider
 ```
 
-Node test runner paralel membutuhkan child process. Sandbox Windows lokal menolak spawn dengan `EPERM`, sehingga berkas tes dijalankan satu per satu. Seluruh 238 tes sampai Tahap 36 lulus dalam 35 proses terisolasi. Mode satu proses gabungan tidak dipakai sebagai hasil karena dua tes ZIP membutuhkan isolasi modul. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
+Node test runner paralel membutuhkan child process. Sandbox Windows lokal menolak spawn dengan `EPERM`, sehingga berkas tes dijalankan satu per satu. Seluruh 276 tes sampai Tahap 42 lulus dalam 41 proses terisolasi. Mode satu proses gabungan tidak dipakai sebagai hasil karena dua tes ZIP membutuhkan isolasi modul. Dua kegagalan awal tes Python tambahan berasal dari fixture matching/kategori yang tidak mempunyai kunci; fixture diperbaiki dengan kunci nyata untuk membedakan input malformed dari soal tanpa kunci. Setelah koreksi, semua 98 tes lulus.
 
-Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [read-timeout-stage25.test.cjs](../apps/api/test/read-timeout-stage25.test.cjs), [idempotent-create-stage26.test.cjs](../apps/api/test/idempotent-create-stage26.test.cjs), [idempotent-child-create-stage27.test.cjs](../apps/api/test/idempotent-child-create-stage27.test.cjs), [question-content-idempotency-stage28.test.cjs](../apps/api/test/question-content-idempotency-stage28.test.cjs), [exam-generation-stage29.test.cjs](../apps/api/test/exam-generation-stage29.test.cjs), [pas-room-integrity-stage30.test.cjs](../apps/api/test/pas-room-integrity-stage30.test.cjs), [pas-session-integrity-stage36.test.cjs](../apps/api/test/pas-session-integrity-stage36.test.cjs), [exam-deletion-stage31.test.cjs](../apps/api/test/exam-deletion-stage31.test.cjs), [student-schedule-stage32.test.cjs](../apps/api/test/student-schedule-stage32.test.cjs), [exam-assignment-stage33.test.cjs](../apps/api/test/exam-assignment-stage33.test.cjs), [exam-assignment-restore-stage34.test.cjs](../apps/api/test/exam-assignment-restore-stage34.test.cjs), [generated-exam-sync-stage35.test.cjs](../apps/api/test/generated-exam-sync-stage35.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs), [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs), [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), [exam-lifecycle-stage19.test.cjs](../apps/api/test/exam-lifecycle-stage19.test.cjs), [single-school-stage20.test.cjs](../apps/api/test/single-school-stage20.test.cjs), [single-school-transport-stage22.test.cjs](../apps/api/test/single-school-transport-stage22.test.cjs), [single-school-role-context-stage23.test.cjs](../apps/api/test/single-school-role-context-stage23.test.cjs), [single-school-session-profile-stage24.test.cjs](../apps/api/test/single-school-session-profile-stage24.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan. Tes konkurensi tahap 15 menambahkan serialisasi transaksi khusus untuk meniru efek advisory lock; index unik tetap perlu divalidasi pada PostgreSQL staging.
+Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.test.cjs), [security-stage2.test.cjs](../apps/api/test/security-stage2.test.cjs), [grading-stage3.test.cjs](../apps/api/test/grading-stage3.test.cjs), [exam-integrity-stage4.test.cjs](../apps/api/test/exam-integrity-stage4.test.cjs), [backup-integrity-stage5.test.cjs](../apps/api/test/backup-integrity-stage5.test.cjs), [backup-archive-stage5.test.cjs](../apps/api/test/backup-archive-stage5.test.cjs), [analytics-trend-stage6.test.cjs](../apps/api/test/analytics-trend-stage6.test.cjs), [ui-quality-stage6.test.cjs](../apps/api/test/ui-quality-stage6.test.cjs), [question-sources-stage10.test.cjs](../apps/api/test/question-sources-stage10.test.cjs), [read-timeout-stage25.test.cjs](../apps/api/test/read-timeout-stage25.test.cjs), [idempotent-create-stage26.test.cjs](../apps/api/test/idempotent-create-stage26.test.cjs), [idempotent-child-create-stage27.test.cjs](../apps/api/test/idempotent-child-create-stage27.test.cjs), [question-content-idempotency-stage28.test.cjs](../apps/api/test/question-content-idempotency-stage28.test.cjs), [exam-generation-stage29.test.cjs](../apps/api/test/exam-generation-stage29.test.cjs), [pas-room-integrity-stage30.test.cjs](../apps/api/test/pas-room-integrity-stage30.test.cjs), [pas-session-integrity-stage36.test.cjs](../apps/api/test/pas-session-integrity-stage36.test.cjs), [subject-catalog-stage37.test.cjs](../apps/api/test/subject-catalog-stage37.test.cjs), [pas-bulk-schedule-stage38.test.cjs](../apps/api/test/pas-bulk-schedule-stage38.test.cjs), [offline-local-first-stage39.test.cjs](../apps/api/test/offline-local-first-stage39.test.cjs), [exam-archive-stage40.test.cjs](../apps/api/test/exam-archive-stage40.test.cjs), [offline-reload-recovery-stage41.test.cjs](../apps/api/test/offline-reload-recovery-stage41.test.cjs), [pwa-exam-shell-stage42.test.cjs](../apps/api/test/pwa-exam-shell-stage42.test.cjs), [exam-deletion-stage31.test.cjs](../apps/api/test/exam-deletion-stage31.test.cjs), [student-schedule-stage32.test.cjs](../apps/api/test/student-schedule-stage32.test.cjs), [exam-assignment-stage33.test.cjs](../apps/api/test/exam-assignment-stage33.test.cjs), [exam-assignment-restore-stage34.test.cjs](../apps/api/test/exam-assignment-restore-stage34.test.cjs), [generated-exam-sync-stage35.test.cjs](../apps/api/test/generated-exam-sync-stage35.test.cjs), [workflow-integration-stage11.test.cjs](../apps/api/test/workflow-integration-stage11.test.cjs), [role-page-parity-stage12.test.cjs](../apps/api/test/role-page-parity-stage12.test.cjs), [answer-resilience-stage13.test.cjs](../apps/api/test/answer-resilience-stage13.test.cjs), [answer-integrity-stage14.test.cjs](../apps/api/test/answer-integrity-stage14.test.cjs), [attempt-start-stage15.test.cjs](../apps/api/test/attempt-start-stage15.test.cjs), [offline-recovery-stage16.test.cjs](../apps/api/test/offline-recovery-stage16.test.cjs), [offline-storage-stage17.test.cjs](../apps/api/test/offline-storage-stage17.test.cjs), [offline-proctoring-stage18.test.cjs](../apps/api/test/offline-proctoring-stage18.test.cjs), [exam-lifecycle-stage19.test.cjs](../apps/api/test/exam-lifecycle-stage19.test.cjs), [single-school-stage20.test.cjs](../apps/api/test/single-school-stage20.test.cjs), [single-school-transport-stage22.test.cjs](../apps/api/test/single-school-transport-stage22.test.cjs), [single-school-role-context-stage23.test.cjs](../apps/api/test/single-school-role-context-stage23.test.cjs), [single-school-session-profile-stage24.test.cjs](../apps/api/test/single-school-session-profile-stage24.test.cjs), dan [test_grading_integrity.py](../apps/scoring/tests/test_grading_integrity.py). Fixture database menghormati filter dasar, mencatat mutasi, dan meniru lock/transaksi/rollback yang dibutuhkan tes, tetapi tidak meniru FK, isolasi transaksi PostgreSQL, R2 nyata, ataupun latensi jaringan. Tes konkurensi tahap 15 menambahkan serialisasi transaksi khusus untuk meniru efek advisory lock; index unik tetap perlu divalidasi pada PostgreSQL staging.
 
 ## Prioritas tahap berikutnya
 
 1. **Validasi staging:** jalankan paket integrasi terhadap PostgreSQL dan storage sekali pakai, lalu uji matriks browser untuk admin, guru, proktor, dan siswa.
 2. **Simulasi jaringan/pengawasan:** jalankan checklist tahap 19 untuk heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
-3. **Sumber mata pelajaran PAS:** samakan ID `master_mapel` bertipe angka dengan `cbt_subjects` bertipe UUID; saat ini dropdown dan kontrak penyimpanan memakai dua sumber berbeda.
-4. **Arsip ujian nyata:** tambahkan status arsip agar ujian selesai dapat disembunyikan dari daftar aktif tanpa menghapus rekam akademik.
-5. **Pengurangan utang lint:** lanjutkan perbaikan kelompok aturan terbesar secara bertahap tanpa melonggarkan baseline 1.214 error/640 warning yang sudah tercatat.
+3. **Uji PWA di perangkat nyata:** validasi install/update worker, reload offline, soal bergambar, dan pembersihan cache setelah logout pada Chrome/Edge perangkat sekolah.
+4. **Upload tugas tahan gangguan:** pastikan daftar berkas yang sudah terunggah tidak hilang dan submit tugas dapat dilanjutkan setelah request gagal.
+5. **Pembersihan alur PAS dan utang lint:** hapus kode penjadwalan lama lalu lanjutkan perbaikan lint bertahap tanpa melonggarkan baseline.
 
 ## Verifikasi sebelum rollout
 

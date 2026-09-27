@@ -3,6 +3,7 @@ import { Open_Sans } from "next/font/google";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import MaintenanceProvider from "@/app/components/MaintenanceProvider";
+import { ExamPwaRegistration } from "@/app/components/ExamPwaRegistration";
 import { getSettingServer } from "@/lib/api/settings.server";
 import "./globals.css";
 
@@ -22,6 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
       default: appName,
     },
     description: "Platform CBT " + appName,
+    manifest: "/manifest.webmanifest",
     icons: {
       icon: [
         { url: "/icon.svg", type: "image/svg+xml" },
@@ -65,6 +67,7 @@ export default async function RootLayout({
       <body
         className={`${openSans.variable} antialiased`}
       >
+        <ExamPwaRegistration />
         <ErrorBoundary>
           <ToastProvider>
             <MaintenanceProvider isMaintenance={isMaintenance}>

@@ -188,7 +188,7 @@ test('QA-02: HTTP contract validates DTOs and takes identity from the guard', as
     assert.equal(submittedArgs[4], attemptId);
 });
 
-test('QA-02 / BUG-09: storage failure cannot precede or suppress server autosave', () => {
+test('QA-02 / BUG-09: snapshot lokal selesai sebelum server autosave', () => {
     const source = fs.readFileSync(
         path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'),
         'utf8',
@@ -197,13 +197,10 @@ test('QA-02 / BUG-09: storage failure cannot precede or suppress server autosave
         source.indexOf('const handleAnswerSelect'),
         source.indexOf('const toggleDoubtful'),
     );
-    assert.match(handler, /void writeExamSnapshot\(att\.id/);
+    assert.match(handler, /const localWrite = await writeExamSnapshot\(att\.id/);
     assert.match(handler, /await saveAnswerAction\(/);
-    assert.ok(handler.indexOf('await saveAnswerAction(') > handler.indexOf('void writeExamSnapshot('));
-    assert.doesNotMatch(
-        handler.slice(0, handler.indexOf('await saveAnswerAction(')),
-        /await\s+writeExamSnapshot/,
-    );
+    assert.ok(handler.indexOf('await saveAnswerAction(') > handler.indexOf('await writeExamSnapshot('));
+    assert.match(handler, /if \(!localWrite\.saved\)/);
 });
 
 test('QA-02: every P1 audit finding is linked to an existing regression test', () => {

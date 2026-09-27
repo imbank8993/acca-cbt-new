@@ -7,10 +7,11 @@
  */
 
 const DATABASE_NAME = 'acca-cbt-exam';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const SNAPSHOT_STORE = 'answer-snapshots';
 const SETTINGS_STORE = 'settings';
 const SECURITY_EVENT_STORE = 'security-events';
+const RECOVERY_SESSION_STORE = 'recovery-sessions';
 const MIN_FREE_BYTES = 5 * 1024 * 1024;
 
 export interface ExamAnswerSnapshot {
@@ -37,6 +38,30 @@ export interface QueuedSecurityEvent {
     metadata: Record<string, unknown>;
     createdAt: string;
 }
+
+/**
+ * Paket minimum yang sudah diverifikasi server untuk membuka ulang satu attempt
+ * ketika perangkat tidak dapat menjangkau server. Paket ini tidak pernah
+ * membuat attempt baru dan hanya berisi DTO soal siswa (tanpa kunci jawaban).
+ */
+export interface ExamRecoverySession {
+    examId: string;
+    attemptId: string;
+    userId: string;
+    deviceId: string;
+    user: Record<string, unknown>;
+    profile: { full_name: string | null; identity_number: string | null } | null;
+    exam: Record<string, unknown>;
+    attempt: Record<string, unknown>;
+    questions: Array<Record<string, unknown>>;
+    deadlineAt: number;
+    lastQuestionIndex: number;
+    cachedAt: string;
+}
+
+export type RecoverySessionValidation =
+    | { valid: true; session: ExamRecoverySession }
+    | { valid: false; reason: 'missing' | 'exam' | 'user' | 'device' | 'expired' | 'invalid' };
 
 interface StoredSnapshot extends ExamAnswerSnapshot {
     attemptId: string;
@@ -90,6 +115,9 @@ function openDatabase(): Promise<IDBDatabase> {
                 const store = db.createObjectStore(SECURITY_EVENT_STORE, { keyPath: 'id' });
                 store.createIndex('attemptId', 'attemptId', { unique: false });
             }
+            if (!db.objectStoreNames.contains(RECOVERY_SESSION_STORE)) {
+                db.createObjectStore(RECOVERY_SESSION_STORE, { keyPath: 'examId' });
+            }
         };
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error || new Error('IndexedDB gagal dibuka'));
@@ -101,6 +129,129 @@ function openDatabase(): Promise<IDBDatabase> {
     });
     databasePromise = guarded;
     return guarded;
+}
+
+function normalizeRecoverySession(value: unknown): ExamRecoverySession | null {
+    if (!value || typeof value !== 'object') return null;
+    const row = value as Partial<ExamRecoverySession>;
+    if (
+        typeof row.examId !== 'string' || !row.examId ||
+        typeof row.attemptId !== 'string' || !row.attemptId ||
+        typeof row.userId !== 'string' || !row.userId ||
+        typeof row.deviceId !== 'string' || !row.deviceId ||
+        typeof row.deadlineAt !== 'number' || !Number.isFinite(row.deadlineAt) ||
+        !row.user || typeof row.user !== 'object' ||
+        !row.exam || typeof row.exam !== 'object' ||
+        !row.attempt || typeof row.attempt !== 'object' ||
+        !Array.isArray(row.questions) ||
+        (row.user as Record<string, unknown>).id !== row.userId ||
+        (row.exam as Record<string, unknown>).id !== row.examId ||
+        (row.attempt as Record<string, unknown>).id !== row.attemptId
+    ) return null;
+
+    return {
+        examId: row.examId,
+        attemptId: row.attemptId,
+        userId: row.userId,
+        deviceId: row.deviceId,
+        user: row.user as Record<string, unknown>,
+        profile: row.profile && typeof row.profile === 'object'
+            ? {
+                full_name: typeof row.profile.full_name === 'string' ? row.profile.full_name : null,
+                identity_number: typeof row.profile.identity_number === 'string' ? row.profile.identity_number : null,
+            }
+            : null,
+        exam: row.exam as Record<string, unknown>,
+        attempt: row.attempt as Record<string, unknown>,
+        questions: row.questions.filter((question): question is Record<string, unknown> =>
+            Boolean(question) && typeof question === 'object' && !Array.isArray(question)),
+        deadlineAt: row.deadlineAt,
+        lastQuestionIndex: Number.isInteger(row.lastQuestionIndex) && (row.lastQuestionIndex as number) >= 0
+            ? row.lastQuestionIndex as number
+            : 0,
+        cachedAt: typeof row.cachedAt === 'string' ? row.cachedAt : new Date(0).toISOString(),
+    };
+}
+
+async function recoveryStoreRequest<T>(
+    mode: IDBTransactionMode,
+    run: (store: IDBObjectStore, resolve: (value: T) => void, reject: (reason?: unknown) => void) => void,
+): Promise<T> {
+    const db = await openDatabase();
+    return new Promise<T>((resolve, reject) => {
+        const transaction = db.transaction(RECOVERY_SESSION_STORE, mode);
+        const store = transaction.objectStore(RECOVERY_SESSION_STORE);
+        transaction.onabort = () => reject(transaction.error || new Error('Cache pemulihan dibatalkan'));
+        transaction.onerror = () => reject(transaction.error || new Error('Cache pemulihan gagal'));
+        run(store, resolve, reject);
+    });
+}
+
+export async function writeExamRecoverySession(
+    session: Omit<ExamRecoverySession, 'cachedAt'> & { cachedAt?: string },
+): Promise<void> {
+    const value: ExamRecoverySession = {
+        ...session,
+        cachedAt: session.cachedAt || new Date().toISOString(),
+    };
+    await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
+        const request = store.put(value);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function readExamRecoverySession(examId: string): Promise<ExamRecoverySession | null> {
+    return recoveryStoreRequest<ExamRecoverySession | null>('readonly', (store, resolve, reject) => {
+        const request = store.get(examId);
+        request.onsuccess = () => resolve(normalizeRecoverySession(request.result));
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function updateExamRecoveryPosition(examId: string, lastQuestionIndex: number): Promise<void> {
+    const current = await readExamRecoverySession(examId);
+    if (!current) return;
+    await writeExamRecoverySession({
+        ...current,
+        lastQuestionIndex: Math.max(0, Math.floor(lastQuestionIndex)),
+        // Memindahkan nomor soal tidak memperbarui umur/verifikasi paket.
+        cachedAt: current.cachedAt,
+    });
+}
+
+export async function removeExamRecoverySession(examId: string): Promise<void> {
+    await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
+        const request = store.delete(examId);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+/** Hapus paket soal offline saat pengguna memilih logout pada perangkat bersama. */
+export async function clearExamRecoverySessions(): Promise<void> {
+    await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export function validateExamRecoverySession(
+    session: ExamRecoverySession | null,
+    expected: { examId: string; deviceId: string; userId?: string | null; now?: number },
+): RecoverySessionValidation {
+    if (!session) return { valid: false, reason: 'missing' };
+    if (!normalizeRecoverySession(session)) return { valid: false, reason: 'invalid' };
+    if (session.examId !== expected.examId) return { valid: false, reason: 'exam' };
+    if (expected.userId && session.userId !== expected.userId) return { valid: false, reason: 'user' };
+    if (!expected.deviceId || session.deviceId !== expected.deviceId) {
+        return { valid: false, reason: 'device' };
+    }
+    if (session.deadlineAt <= (expected.now ?? Date.now())) {
+        return { valid: false, reason: 'expired' };
+    }
+    return { valid: true, session };
 }
 
 function readLegacySecurityQueue(attemptId: string): QueuedSecurityEvent[] {
@@ -326,6 +477,11 @@ export async function writeExamSnapshot(
 }
 
 export async function readExamSnapshot(attemptId: string): Promise<ExamAnswerSnapshot | null> {
+    // Sinkronisasi yang dipicu event `online` dapat berimpit dengan klik jawaban
+    // terakhir. Tunggu antrean tulis agar pembacaan tidak mengambil snapshot lama.
+    const pendingWrite = snapshotTails.get(attemptId);
+    if (pendingWrite) await pendingWrite;
+
     try {
         const durable = await idbGet(attemptId);
         if (durable) return durable;

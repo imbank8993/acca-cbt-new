@@ -14,6 +14,85 @@ export class ExamsService {
         private readonly authz: AuthorizationService,
     ) {}
 
+    /** Sembunyikan ujian dari daftar aktif tanpa menghapus hasil atau jawaban. */
+    async setArchived(user: AuthUser, examId: string, archived: boolean) {
+        await this.authz.assertExamStaff(user, examId);
+
+        return this.db.transaction(async (db) => {
+            await db.raw(
+                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+                `exam-archive:${examId}`,
+            );
+
+            const { data: exam, error: examError } = await db.from('cbt_exams')
+                .select('id, status, is_published, metadata')
+                .eq('id', examId)
+                .maybeSingle();
+            if (examError) throw new BadRequestException(`Gagal membaca ujian: ${examError.message}`);
+            if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+
+            const row = exam as {
+                status: string;
+                is_published: boolean | null;
+                metadata: Record<string, unknown> | null;
+            };
+            if ((row.status === 'archived') === archived) {
+                return { id: examId, archived };
+            }
+
+            if (archived) {
+                const { data: activeAttempt, error: attemptError } = await db
+                    .from('cbt_exam_attempts')
+                    .select('id')
+                    .eq('exam_id', examId)
+                    .eq('status', 'in_progress')
+                    .limit(1)
+                    .maybeSingle();
+                if (attemptError) {
+                    throw new BadRequestException(`Gagal memeriksa pengerjaan aktif: ${attemptError.message}`);
+                }
+                if (activeAttempt) {
+                    throw new ConflictException(
+                        'Ujian masih sedang dikerjakan. Tunggu seluruh pengerjaan selesai sebelum mengarsipkan.',
+                    );
+                }
+
+                const metadata = {
+                    ...(row.metadata || {}),
+                    archive_previous_status: row.status,
+                    archive_previous_published: row.is_published === true,
+                    archived_at: new Date().toISOString(),
+                    archived_by: user.id,
+                };
+                const { error } = await db.from('cbt_exams').update({
+                    status: 'archived',
+                    is_published: false,
+                    metadata,
+                }).eq('id', examId);
+                if (error) throw new BadRequestException(`Gagal mengarsipkan ujian: ${error.message}`);
+            } else {
+                const metadata = { ...(row.metadata || {}) };
+                metadata.last_archived_at = metadata.archived_at;
+                metadata.last_archived_by = metadata.archived_by;
+                delete metadata.archive_previous_status;
+                delete metadata.archive_previous_published;
+                delete metadata.archived_at;
+                delete metadata.archived_by;
+
+                // Pemulihan selalu menjadi draft. Operator harus meninjau jadwal
+                // dan penugasan sebelum menerbitkannya kembali.
+                const { error } = await db.from('cbt_exams').update({
+                    status: 'draft',
+                    is_published: false,
+                    metadata,
+                }).eq('id', examId);
+                if (error) throw new BadRequestException(`Gagal memulihkan arsip: ${error.message}`);
+            }
+
+            return { id: examId, archived };
+        });
+    }
+
     /**
      * Hapus ujian permanen beserta data terkaitnya.
      *

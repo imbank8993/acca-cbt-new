@@ -276,4 +276,8 @@ export function MultiSelectDropdown<T extends string | number = string>({
     );
 }
 
+export const MultiSelect = MultiSelectDropdown;
+export type MultiSelectProps<T extends string | number = string> = MultiSelectDropdownProps<T>;
+export type MultiSelectDropdownOption<T extends string | number = string> = MultiSelectOption<T>;
+
 export default MultiSelectDropdown;

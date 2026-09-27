@@ -7,6 +7,9 @@ import {
     Users, AlertTriangle, Eye, Radio, ShieldAlert,
     CheckCircle2, Activity, TrendingUp, AlertOctagon, RotateCcw, Clock, X, ChevronDown
 } from 'lucide-react';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { MultiSelect } from '@/components/ui/MultiSelect';
+import { InlineSelect } from '@/components/ui/InlineSelect';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { getProctorOrganization, listOrganizationExams, getExamAttemptsAction, getExamAnswersForAnalysisAction, getRecentViolationsAction } from '@/lib/api/proctor';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
@@ -35,7 +38,8 @@ function MonitoringContent() {
     const [resettingAttemptId, setResettingAttemptId] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<any | null>(null);
     const [searchName, setSearchName] = useState('');
-    const [filterKelas, setFilterKelas] = useState('');
+    const [filterKelas, setFilterKelas] = useState<string[]>([]);
+    const [filterStatus, setFilterStatus] = useState<string>('all');
     const [analysisPage, setAnalysisPage] = useState(1);
 
     useEffect(() => { loadInitialData(); }, []);
@@ -211,7 +215,19 @@ function MonitoringContent() {
     const deferredSearchName = useDeferredValue(searchName);
     const filteredAttempts = attempts
         .filter((a: any) => !deferredSearchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(deferredSearchName.trim().toLowerCase()))
-        .filter((a: any) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
+        .filter((a: any) => {
+            if (!filterKelas || filterKelas.length === 0) return true;
+            const studentClasses = String(a.kelas_name || '').split(',').map((s: string) => s.trim());
+            return filterKelas.some((k: string) => studentClasses.includes(k));
+        })
+        .filter((a: any) => {
+            if (filterStatus === 'all') return true;
+            if (filterStatus === 'in_progress') return a.status === 'in_progress';
+            if (filterStatus === 'submitted') return a.status === 'submitted';
+            if (filterStatus === 'auto_submitted') return a.status === 'auto_submitted';
+            if (filterStatus === 'belum') return a.status === 'belum';
+            return true;
+        })
         .sort((a: any, b: any) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
 
     const totalStudents = attempts.length;
@@ -375,38 +391,48 @@ function MonitoringContent() {
                                 value={searchName}
                                 onChange={(e) => setSearchName(e.target.value)}
                                 placeholder="Cari nama peserta..."
-                                className="bg-white border border-[#3083FF]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/50 outline-none px-4 py-2.5 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px]"
+                                className="bg-white border border-[#3083FF]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/50 outline-none px-4 py-2 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px] h-[38px]"
                             />
-                            <div className="relative flex-1 min-w-0 sm:max-w-[200px]">
-                                <select
+                            <div className="w-full sm:w-auto min-w-[170px]">
+                                <MultiSelect
+                                    placeholder="Semua Kelas"
+                                    allSelectedText="Semua Kelas Terpilih"
+                                    options={kelasOptions.map(k => ({ value: k, label: k }))}
                                     value={filterKelas}
-                                    onChange={(e) => setFilterKelas(e.target.value)}
-                                    className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
-                                >
-                                    <option value="">Semua Kelas</option>
-                                    {kelasOptions.map(k => (
-                                        <option key={k} value={k}>{k}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                                    onChange={(vals) => setFilterKelas(vals)}
+                                    height="38px"
+                                />
+                            </div>
+                            <div className="w-full sm:w-auto min-w-[145px]">
+                                <InlineSelect
+                                    value={filterStatus}
+                                    onChange={(val) => setFilterStatus(val)}
+                                    options={[
+                                        { value: 'all', label: 'Semua Status' },
+                                        { value: 'in_progress', label: 'Sedang Ujian' },
+                                        { value: 'submitted', label: 'Selesai' },
+                                        { value: 'auto_submitted', label: 'Terminated' },
+                                        { value: 'belum', label: 'Belum Mulai' },
+                                    ]}
+                                    height="38px"
+                                />
                             </div>
                         </>
                     )}
-                    <div className="relative flex-1 min-w-0">
-                        <select
+                    <div className="flex-1 min-w-[220px]">
+                        <SearchableSelect
+                            options={exams.map(exam => ({
+                                value: exam.id,
+                                label: exam.title,
+                                subLabel: `${exam.exam_type?.toUpperCase() || 'UJIAN'} • ${exam.duration_minutes || 0} menit`,
+                            }))}
                             value={selectedExamId}
-                            onChange={(e) => setSelectedExamId(e.target.value)}
-                            className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
-                        >
-                            <option value="" className="text-slate-500">-- Pilih Ujian --</option>
-                            {exams.map(exam => (
-                                <option key={exam.id} value={exam.id} className="text-slate-800">{exam.title}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                            onChange={(val) => setSelectedExamId(String(val || ''))}
+                            placeholder="-- Cari & Pilih Ujian --"
+                        />
                     </div>
                     <button onClick={handleRefresh} disabled={isRefreshing || !selectedExamId}
-                        className="shrink-0 bg-[#3083FF] hover:bg-[#3083FF] text-white px-5 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer">
+                        className="shrink-0 bg-[#3083FF] hover:bg-[#3083FF]/90 text-white px-5 py-2 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer h-[38px]">
                         <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
                     </button>
                 </div>

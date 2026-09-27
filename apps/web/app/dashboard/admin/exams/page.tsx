@@ -7,8 +7,11 @@ import {
     Trash2, Clock, Loader2, X, Check, Users,
     Settings, ChevronRight, CheckCircle2, Globe, GlobeLock,
     Info, BookOpen, AlertCircle, Eye, EyeOff, Filter,
-    CalendarDays, FolderOpen, GraduationCap, Lock, Unlock, Zap, Shield, ChevronDown, FileText
+    CalendarDays, FolderOpen, GraduationCap, Lock, Unlock, Zap, Shield, ChevronDown, FileText, Archive
 } from 'lucide-react';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { MultiSelect } from '@/components/ui/MultiSelect';
+import { InlineSelect } from '@/components/ui/InlineSelect';
 import {
     getProctorOrganization,
     listOrganizationExams,
@@ -22,7 +25,7 @@ import {
     createSchoolYearAction,
     listExamAssignmentsAction
 } from '@/lib/api/proctor';
-import { deleteExam, purgeTrialExam } from '@/lib/api/exams';
+import { deleteExam, purgeTrialExam, setExamArchived } from '@/lib/api/exams';
 import { listQuestionBanks, listOrganizationLabels, createOrganizationLabel } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -32,7 +35,7 @@ import ProctorPASPage from '../pas/page';
 import { useRouter } from 'next/navigation';
 import { useMemoryState } from '@/lib/useMemoryState';
 
-type TabId = 'all' | 'draft' | 'active' | 'finished' | 'pas';
+type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
 type SortBy = 'newest' | 'oldest' | 'name';
 
 // Helper: Convert UTC ISO string to WIB datetime-local format for input display
@@ -143,7 +146,6 @@ const ExamsPage = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-    const [isScoringDropdownOpen, setIsScoringDropdownOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<any>(null);
 
     const SCORING_OPTIONS = [
@@ -427,7 +429,21 @@ const ExamsPage = () => {
         setIsLoading(false);
     };
 
+    const handleArchiveExam = async (exam: any) => {
+        const archive = exam.status !== 'archived';
+        const message = archive
+            ? 'Arsipkan ujian ini? Jawaban dan nilai tetap disimpan.'
+            : 'Pulihkan ujian ini sebagai draft?';
+        if (!confirm(message)) return;
+        setIsLoading(true);
+        const result = await setExamArchived(exam.id, archive);
+        if (result.success) await loadData();
+        else alert(result.error || 'Status arsip gagal diubah.');
+        setIsLoading(false);
+    };
+
     const getExamStatus = (e: any) => {
+        if (e.status === 'archived') return 'archived';
         const now = new Date();
         const start = e.start_time ? new Date(e.start_time) : null;
         const end = e.end_time ? new Date(e.end_time) : null;
@@ -441,7 +457,7 @@ const ExamsPage = () => {
 
     const getExamTabFilter = (e: any, tabId: TabId): boolean => {
         if (typeFilter !== 'all' && e.exam_type !== typeFilter) return false;
-        if (tabId === 'all') return true;
+        if (tabId === 'all') return getExamStatus(e) !== 'archived';
         return getExamStatus(e) === tabId;
     };
 
@@ -468,6 +484,7 @@ const ExamsPage = () => {
         { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-amber-500' },
         { id: 'active', label: 'Aktif', icon: Zap, color: 'text-emerald-500' },
         { id: 'finished', label: 'Selesai', icon: CheckCircle2, color: 'text-slate-400' },
+        { id: 'archived', label: 'Arsip', icon: Archive, color: 'text-violet-500' },
     ];
 
     const openEdit = (exam: any) => {
@@ -851,33 +868,33 @@ const ExamsPage = () => {
                             className="w-full bg-white border border-[#3083FF]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none"
                         />
                     </div>
-                    <div className="relative w-full sm:w-auto">
-                        <select
-                            value={typeFilter}
-                            onChange={e => setTypeFilter(e.target.value as any)}
-                            className="w-full appearance-none bg-white border border-[#3083FF]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none text-slate-600 cursor-pointer"
-                        >
-                            <option value="all">Semua Jenis Ujian</option>
-                            <option value="daily">Ulangan Harian</option>
-                            <option value="pas">ASAS/PAS</option>
-                            <option value="pat">ASAT/PAT</option>
-                            <option value="assignment">Tugas</option>
-                            <option value="lainnya">Ujian Lainnya</option>
-                        </select>
-                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
-                    <div className="relative w-full sm:w-auto">
-                        <select
-                            value={sortBy}
-                            onChange={e => setSortBy(e.target.value as SortBy)}
-                            className="w-full appearance-none bg-white border border-[#3083FF]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none text-slate-600 cursor-pointer"
-                        >
-                            <option value="newest">Terbaru</option>
-                            <option value="oldest">Terlama</option>
-                            <option value="name">Nama</option>
-                        </select>
-                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                    </div>
+                    <InlineSelect
+                        value={typeFilter}
+                        onChange={val => setTypeFilter(val as any)}
+                        height="44px"
+                        minWidth="160px"
+                        className="w-full sm:w-auto"
+                        options={[
+                            { value: 'all', label: 'Semua Jenis Ujian' },
+                            { value: 'daily', label: 'Ulangan Harian' },
+                            { value: 'pas', label: 'ASAS/PAS' },
+                            { value: 'pat', label: 'ASAT/PAT' },
+                            { value: 'assignment', label: 'Tugas' },
+                            { value: 'lainnya', label: 'Ujian Lainnya' },
+                        ]}
+                    />
+                    <InlineSelect
+                        value={sortBy}
+                        onChange={val => setSortBy(val as SortBy)}
+                        height="44px"
+                        minWidth="120px"
+                        className="w-full sm:w-auto"
+                        options={[
+                            { value: 'newest', label: 'Terbaru' },
+                            { value: 'oldest', label: 'Terlama' },
+                            { value: 'name', label: 'Nama' },
+                        ]}
+                    />
                     <button
                         onClick={() => setIsAddModalOpen(true)}
                         className="px-5 py-3 text-sm bg-[#3083FF] text-white rounded-lg hover:bg-[#2563EB] flex items-center justify-center gap-2 font-semibold shadow-lg shadow-[#3083FF]/20 whitespace-nowrap cursor-pointer"
@@ -984,14 +1001,18 @@ const ExamsPage = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Semester</label>
-                                    <select value={configForm.semester}
-                                        onChange={e => setConfigForm(p => ({ ...p, semester: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
-                                        <option value="">Pilih Semester (Opsional)</option>
-                                        <option value="semua">Semua</option>
-                                        <option value="ganjil">Ganjil</option>
-                                        <option value="genap">Genap</option>
-                                    </select>
+                                    <InlineSelect
+                                        value={configForm.semester}
+                                        onChange={val => setConfigForm(p => ({ ...p, semester: val }))}
+                                        height="42px"
+                                        className="w-full"
+                                        options={[
+                                            { value: '', label: 'Pilih Semester (Opsional)' },
+                                            { value: 'semua', label: 'Semua' },
+                                            { value: 'ganjil', label: 'Ganjil' },
+                                            { value: 'genap', label: 'Genap' },
+                                        ]}
+                                    />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
@@ -1043,25 +1064,28 @@ const ExamsPage = () => {
                             <form onSubmit={handleAddBankToConfig} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
-                                    <select required value={addBankForm.bank_id}
-                                        onChange={e => setAddBankForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih Bank Soal —</option>
-                                        {qBanks.filter(b => b.is_published).map(bank => (
-                                            <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect
+                                        options={qBanks.filter(b => b.is_published).map(bank => ({
+                                            value: bank.id,
+                                            label: bank.title,
+                                            subLabel: `${bank.total_questions || 0} Soal`,
+                                        }))}
+                                        value={addBankForm.bank_id}
+                                        onChange={val => setAddBankForm(p => ({ ...p, bank_id: String(val || '') }))}
+                                        placeholder="— Cari & Pilih Bank Soal —"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Mata Pelajaran</label>
-                                    <select value={addBankForm.subject_id || ''}
-                                        onChange={e => setAddBankForm(p => ({ ...p, subject_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih (opsional) —</option>
-                                        {subjects.map(sub => (
-                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect
+                                        options={subjects.map(sub => ({
+                                            value: sub.id,
+                                            label: sub.name,
+                                        }))}
+                                        value={addBankForm.subject_id || ''}
+                                        onChange={val => setAddBankForm(p => ({ ...p, subject_id: String(val || '') }))}
+                                        placeholder="— Cari & Pilih (opsional) —"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Durasi (menit)</label>
@@ -1104,33 +1128,28 @@ const ExamsPage = () => {
                             <form onSubmit={handleAddClassExam} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
-                                    <select required value={addClassForm.bank_id}
-                                        onChange={e => setAddClassForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih Bank Soal —</option>
-                                        {configBanks.map(bank => (
-                                            <option key={bank.id} value={bank.id}>{bank.question_banks?.title || 'Bank soal'}</option>
-                                        ))}
-                                    </select>
+                                    <SearchableSelect
+                                        options={configBanks.map(bank => ({
+                                            value: bank.id,
+                                            label: bank.question_banks?.title || 'Bank soal',
+                                        }))}
+                                        value={addClassForm.bank_id}
+                                        onChange={val => setAddClassForm(p => ({ ...p, bank_id: String(val || '') }))}
+                                        placeholder="— Cari & Pilih Bank Soal —"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Kelas *</label>
-                                    <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto p-2 bg-slate-50 rounded-xl border border-[#3083FF]/20">
-                                        {classes.length === 0 ? (
-                                            <p className="text-xs text-slate-400 px-2">Belum ada kelas.</p>
-                                        ) : classes.map(cls => (
-                                            <button key={cls.id} type="button"
-                                                onClick={() => {
-                                                    const ids = addClassForm.class_ids.includes(cls.id)
-                                                        ? addClassForm.class_ids.filter(id => id !== cls.id)
-                                                        : [...addClassForm.class_ids, cls.id];
-                                                    setAddClassForm(p => ({ ...p, class_ids: ids }));
-                                                }}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${addClassForm.class_ids.includes(cls.id) ? 'bg-[#3083FF] text-white border border-[#3083FF]' : 'bg-white text-slate-600 border border-[#3083FF]/30 hover:border-[#3083FF]/60'}`}>
-                                                {cls.name}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <MultiSelect
+                                        options={classes.map(cls => ({
+                                            value: cls.id,
+                                            label: cls.name,
+                                        }))}
+                                        value={addClassForm.class_ids}
+                                        onChange={val => setAddClassForm(p => ({ ...p, class_ids: val }))}
+                                        placeholder="Pilih kelas..."
+                                        allSelectedText="Semua Kelas Terpilih"
+                                    />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
@@ -1202,7 +1221,7 @@ const ExamsPage = () => {
                                                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                                         : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
-                                                    {exam.is_published ? 'Dipublikasikan' : 'Draft'}
+                                                    {exam.status === 'archived' ? 'Diarsipkan' : exam.is_published ? 'Dipublikasikan' : 'Draft'}
                                                 </span>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
                                                     <span className="px-2 py-0.5 bg-[#3083FF]/5 text-[#3083FF] text-[10px] sm:text-xs font-bold rounded-lg border border-[#3083FF]/20">
@@ -1269,7 +1288,7 @@ const ExamsPage = () => {
                                     {/* Publish Toggle */}
                                     <button
                                         onClick={() => handlePublishToggle(exam)}
-                                        disabled={isSubmitting || publishingId === exam.id}
+                                        disabled={isSubmitting || publishingId === exam.id || exam.status === 'archived'}
                                         className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait ${
                                             exam.is_published
                                                 ? 'bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 border border-[#3083FF]/30'
@@ -1335,6 +1354,15 @@ const ExamsPage = () => {
 
                                     {/* Delete */}
                                     <button
+                                        onClick={() => handleArchiveExam(exam)}
+                                        className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all border border-slate-200 hover:border-violet-200"
+                                        title={exam.status === 'archived' ? 'Pulihkan sebagai draft' : 'Arsipkan tanpa menghapus hasil'}
+                                    >
+                                        {exam.status === 'archived' ? <Unlock size={14} /> : <Archive size={14} />}
+                                    </button>
+
+                                    {/* Delete */}
+                                    <button
                                         onClick={() => handleDeleteExam(exam)}
                                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200"
                                     >
@@ -1376,66 +1404,40 @@ const ExamsPage = () => {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Ujian</label>
-                                        <select
+                                        <InlineSelect
                                             value={formData.examType}
-                                            onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                        >
-                                            <option value="daily">Ulangan Harian</option>
-                                            <option value="pas">ASAS/PAS</option>
-                                            <option value="pat">ASAT/PAT</option>
-                                            <option value="assignment">Tugas</option>
-                                            <option value="lainnya">Ujian Lainnya</option>
-                                        </select>
+                                            onChange={val => setFormData({ ...formData, examType: val as any })}
+                                            height="42px"
+                                            className="w-full"
+                                            options={[
+                                                { value: 'daily', label: 'Ulangan Harian' },
+                                                { value: 'pas', label: 'ASAS/PAS' },
+                                                { value: 'pat', label: 'ASAT/PAT' },
+                                                { value: 'assignment', label: 'Tugas' },
+                                                { value: 'lainnya', label: 'Ujian Lainnya' },
+                                            ]}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1">Sistem Penilaian</label>
-                                        <div className="relative">
-                                            <div 
-                                                onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                                className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
-                                            >
-                                                <span className="truncate">
-                                                    {formData.scoringTypes.length > 0 
-                                                        ? formData.scoringTypes.map(v => SCORING_OPTIONS.find(o => o.value === v)?.label).join(', ') 
-                                                        : 'Pilih Sistem Penilaian'}
-                                                </span>
-                                                <ChevronDown size={16} className={`text-slate-400 transition-transform ${isScoringDropdownOpen ? 'rotate-180' : ''}`} />
-                                            </div>
-                                            
-                                            {isScoringDropdownOpen && (
-                                                <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
-                                                    {SCORING_OPTIONS.map(option => (
-                                                        <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                                                            <div className="flex items-center gap-2">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    checked={formData.scoringTypes.includes(option.value)}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.checked) {
-                                                                            const newScoringTypes = [...formData.scoringTypes, option.value];
-                                                                            const hasIRT = newScoringTypes.some(type => type.startsWith('irt_'));
-                                                                            setFormData({ 
-                                                                                ...formData, 
-                                                                                scoringTypes: newScoringTypes,
-                                                                                ...(hasIRT ? { showResults: false } : {}) 
-                                                                            });
-                                                                        } else {
-                                                                            setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
-                                                                        }
-                                                                    }}
-                                                                    className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
-                                                                />
-                                                                <span className="text-sm text-slate-700">{option.label}</span>
-                                                            </div>
-                                                            {option.info && (
-                                                                <span className="text-[10px] text-slate-500 ml-6 mt-0.5 leading-tight">{option.info}</span>
-                                                            )}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <MultiSelect
+                                            options={SCORING_OPTIONS.map(opt => ({
+                                                value: opt.value,
+                                                label: opt.label,
+                                            }))}
+                                            value={formData.scoringTypes}
+                                            onChange={(selectedVals) => {
+                                                const hasIRT = selectedVals.some(type => type.startsWith('irt_'));
+                                                setFormData({
+                                                    ...formData,
+                                                    scoringTypes: selectedVals,
+                                                    ...(hasIRT ? { showResults: false } : {})
+                                                });
+                                            }}
+                                            placeholder="Pilih Sistem Penilaian..."
+                                            allSelectedText="Semua Terpilih"
+                                            height="42px"
+                                        />
                                     </div>
                                 </div>
 
@@ -1471,16 +1473,16 @@ const ExamsPage = () => {
                                                     <AlertCircle size={14} /> Belum ada bank soal.
                                                 </div>
                                             ) : (
-                                                <select
-                                                    required value={formData.bankId}
-                                                    onChange={e => setFormData({ ...formData, bankId: e.target.value })}
-                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                                >
-                                                    <option value="">— Pilih Bank Soal —</option>
-                                                    {publishedBanks.map(bank => (
-                                                        <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                                    ))}
-                                                </select>
+                                                <SearchableSelect
+                                                    options={publishedBanks.map(bank => ({
+                                                        value: bank.id,
+                                                        label: bank.title,
+                                                        subLabel: `${bank.total_questions || 0} Soal`,
+                                                    }))}
+                                                    value={formData.bankId}
+                                                    onChange={val => setFormData({ ...formData, bankId: String(val || '') })}
+                                                    placeholder="— Cari & Pilih Bank Soal —"
+                                                />
                                             )}
                                         </div>
                                         <div>
@@ -1568,16 +1570,16 @@ const ExamsPage = () => {
                                                             <AlertCircle size={14} /> Belum ada bank soal.
                                                         </div>
                                                     ) : (
-                                                        <select
-                                                            required value={formData.bankId}
-                                                            onChange={e => setFormData({ ...formData, bankId: e.target.value })}
-                                                            className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                        >
-                                                            <option value="">— Pilih Bank Soal —</option>
-                                                            {publishedBanks.map(bank => (
-                                                                <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                                            ))}
-                                                        </select>
+                                                        <SearchableSelect
+                                                            options={publishedBanks.map(bank => ({
+                                                                value: bank.id,
+                                                                label: bank.title,
+                                                                subLabel: `${bank.total_questions || 0} Soal`,
+                                                            }))}
+                                                            value={formData.bankId}
+                                                            onChange={val => setFormData({ ...formData, bankId: String(val || '') })}
+                                                            placeholder="— Cari & Pilih Bank Soal —"
+                                                        />
                                                     )}
                                                 </div>
                                                 <div>
@@ -1611,26 +1613,23 @@ const ExamsPage = () => {
                                         {/* File Types - shown when allowFileUpload is true */}
                                         {formData.allowFileUpload && (
                                             <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200">
-                                                <p className="text-xs font-semibold text-slate-600 mb-2">Jenis File yang Diizinkan:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['pdf', 'docx', 'jpg', 'png', 'zip', 'xlsx', 'pptx'].map(ft => (
-                                                        <label key={ft} className="flex items-center gap-1.5 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={formData.allowedFileTypes.includes(ft)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setFormData({ ...formData, allowedFileTypes: [...formData.allowedFileTypes, ft] });
-                                                                    } else {
-                                                                        setFormData({ ...formData, allowedFileTypes: formData.allowedFileTypes.filter(t => t !== ft) });
-                                                                    }
-                                                                }}
-                                                                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600"
-                                                            />
-                                                            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">.{ft}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
+                                                <MultiSelect
+                                                    label="Jenis File yang Diizinkan:"
+                                                    options={[
+                                                        { value: 'pdf', label: '.pdf (Dokumen PDF)' },
+                                                        { value: 'docx', label: '.docx (Microsoft Word)' },
+                                                        { value: 'jpg', label: '.jpg (Gambar JPEG)' },
+                                                        { value: 'png', label: '.png (Gambar PNG)' },
+                                                        { value: 'zip', label: '.zip (Arsip ZIP)' },
+                                                        { value: 'xlsx', label: '.xlsx (Excel Spreadsheet)' },
+                                                        { value: 'pptx', label: '.pptx (PowerPoint)' },
+                                                    ]}
+                                                    value={formData.allowedFileTypes}
+                                                    onChange={vals => setFormData({ ...formData, allowedFileTypes: vals })}
+                                                    placeholder="Pilih jenis file..."
+                                                    allSelectedText="Semua Jenis File"
+                                                    columns={2}
+                                                />
                                             </div>
                                         )}
 
@@ -1664,27 +1663,17 @@ const ExamsPage = () => {
                                             <span className="text-sm font-medium text-slate-700">Ujian Umum (Bisa diakses semua siswa)</span>
                                         </label>
                                         {!formData.isPublic && (
-                                            <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto mt-1">
-                                                {classes.length === 0 ? (
-                                                    <p className="text-[11px] text-slate-400">Belum ada kelas.</p>
-                                                ) : classes.map(cls => (
-                                                    <button
-                                                        key={cls.id} type="button"
-                                                        onClick={() => {
-                                                            const ids = formData.selectedClassIds.includes(cls.id)
-                                                                ? formData.selectedClassIds.filter(id => id !== cls.id)
-                                                                : [...formData.selectedClassIds, cls.id];
-                                                            setFormData({ ...formData, selectedClassIds: ids });
-                                                        }}
-                                                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                                                            formData.selectedClassIds.includes(cls.id)
-                                                                ? 'bg-[#3083FF] text-white'
-                                                                : 'bg-white text-slate-600 border border-[#3083FF]/20'
-                                                        }`}
-                                                    >
-                                                        {cls.name}
-                                                    </button>
-                                                ))}
+                                            <div className="mt-1">
+                                                <MultiSelect
+                                                    options={classes.map(cls => ({
+                                                        value: cls.id,
+                                                        label: cls.name,
+                                                    }))}
+                                                    value={formData.selectedClassIds}
+                                                    onChange={ids => setFormData({ ...formData, selectedClassIds: ids })}
+                                                    placeholder="Pilih kelas target..."
+                                                    allSelectedText="Semua Kelas Terpilih"
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -1755,63 +1744,40 @@ const ExamsPage = () => {
                             <form onSubmit={handleEditExam} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Jenis Ujian</label>
-                                    <select value={formData.examType} onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
-                                        <option value="daily">Ulangan Harian</option>
-                                        <option value="pas">ASAS/PAS</option>
-                                        <option value="pat">ASAT/PAT</option>
-                                        <option value="assignment">Tugas</option>
-                                        <option value="lainnya">Ujian Lainnya</option>
-                                    </select>
+                                    <InlineSelect
+                                        value={formData.examType}
+                                        onChange={val => setFormData({ ...formData, examType: val as any })}
+                                        height="42px"
+                                        className="w-full"
+                                        options={[
+                                            { value: 'daily', label: 'Ulangan Harian' },
+                                            { value: 'pas', label: 'ASAS/PAS' },
+                                            { value: 'pat', label: 'ASAT/PAT' },
+                                            { value: 'assignment', label: 'Tugas' },
+                                            { value: 'lainnya', label: 'Ujian Lainnya' },
+                                        ]}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Sistem Penilaian</label>
-                                    <div className="relative">
-                                        <div 
-                                            onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
-                                        >
-                                            <span className="truncate">
-                                                {formData.scoringTypes.length > 0 
-                                                    ? formData.scoringTypes.map(v => SCORING_OPTIONS.find(o => o.value === v)?.label).join(', ') 
-                                                    : 'Pilih Sistem Penilaian'}
-                                            </span>
-                                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isScoringDropdownOpen ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        
-                                        {isScoringDropdownOpen && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
-                                                {SCORING_OPTIONS.map(option => (
-                                                    <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                                                        <div className="flex items-center gap-2">
-                                                            <input 
-                                                                type="checkbox" 
-                                                                checked={formData.scoringTypes.includes(option.value)}
-                                                                onChange={(e) => {
-                                                                    if (e.target.checked) {
-                                                                        const newScoringTypes = [...formData.scoringTypes, option.value];
-                                                                        const hasIRT = newScoringTypes.some(type => type.startsWith('irt_'));
-                                                                        setFormData({ 
-                                                                            ...formData, 
-                                                                            scoringTypes: newScoringTypes,
-                                                                            ...(hasIRT ? { showResults: false } : {}) 
-                                                                        });
-                                                                    } else {
-                                                                        setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
-                                                                    }
-                                                                }}
-                                                                className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
-                                                            />
-                                                            <span className="text-sm text-slate-700">{option.label}</span>
-                                                        </div>
-                                                        {option.info && (
-                                                            <span className="text-[10px] text-slate-500 ml-6 mt-0.5 leading-tight">{option.info}</span>
-                                                        )}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <MultiSelect
+                                        options={SCORING_OPTIONS.map(opt => ({
+                                            value: opt.value,
+                                            label: opt.label,
+                                        }))}
+                                        value={formData.scoringTypes}
+                                        onChange={(selectedVals) => {
+                                            const hasIRT = selectedVals.some(type => type.startsWith('irt_'));
+                                            setFormData({
+                                                ...formData,
+                                                scoringTypes: selectedVals,
+                                                ...(hasIRT ? { showResults: false } : {})
+                                            });
+                                        }}
+                                        placeholder="Pilih Sistem Penilaian..."
+                                        allSelectedText="Semua Terpilih"
+                                        height="42px"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Judul {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}</label>
@@ -1923,26 +1889,23 @@ const ExamsPage = () => {
 
                                         {formData.allowFileUpload && (
                                             <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200">
-                                                <p className="text-xs font-semibold text-slate-600 mb-2">Jenis File yang Diizinkan:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['pdf', 'docx', 'jpg', 'png', 'zip', 'xlsx', 'pptx'].map(ft => (
-                                                        <label key={ft} className="flex items-center gap-1.5 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={formData.allowedFileTypes.includes(ft)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setFormData({ ...formData, allowedFileTypes: [...formData.allowedFileTypes, ft] });
-                                                                    } else {
-                                                                        setFormData({ ...formData, allowedFileTypes: formData.allowedFileTypes.filter(t => t !== ft) });
-                                                                    }
-                                                                }}
-                                                                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600"
-                                                            />
-                                                            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">.{ft}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
+                                                <MultiSelect
+                                                    label="Jenis File yang Diizinkan:"
+                                                    options={[
+                                                        { value: 'pdf', label: '.pdf (Dokumen PDF)' },
+                                                        { value: 'docx', label: '.docx (Microsoft Word)' },
+                                                        { value: 'jpg', label: '.jpg (Gambar JPEG)' },
+                                                        { value: 'png', label: '.png (Gambar PNG)' },
+                                                        { value: 'zip', label: '.zip (Arsip ZIP)' },
+                                                        { value: 'xlsx', label: '.xlsx (Excel Spreadsheet)' },
+                                                        { value: 'pptx', label: '.pptx (PowerPoint)' },
+                                                    ]}
+                                                    value={formData.allowedFileTypes}
+                                                    onChange={vals => setFormData({ ...formData, allowedFileTypes: vals })}
+                                                    placeholder="Pilih jenis file..."
+                                                    allSelectedText="Semua Jenis File"
+                                                    columns={2}
+                                                />
                                             </div>
                                         )}
 

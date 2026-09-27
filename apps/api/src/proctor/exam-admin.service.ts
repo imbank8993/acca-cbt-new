@@ -1,5 +1,6 @@
 import {
     BadRequestException,
+    ConflictException,
     ForbiddenException,
     Injectable,
     Logger,
@@ -149,7 +150,7 @@ export class ExamAdminService {
 
         const { data } = await this.db
             .from('cbt_exams')
-            .select('metadata, exam_type, organization_id')
+            .select('metadata, exam_type, organization_id, status')
             .eq('id', examId)
             .maybeSingle();
 
@@ -159,7 +160,11 @@ export class ExamAdminService {
             metadata: Record<string, any> | null;
             exam_type: string | null;
             organization_id: string;
+            status: string;
         };
+        if (existing.status === 'archived') {
+            throw new ConflictException('Pulihkan ujian dari arsip sebelum mengubahnya.');
+        }
 
         // `examType` kosong berarti PERTAHANKAN tipe lama. Nilai bawaan 'pas'
         // pernah membuat penyuntingan biasa diam-diam mengubah ujian menjadi PAS.
@@ -220,11 +225,14 @@ export class ExamAdminService {
 
         const { data } = await this.db
             .from('cbt_exams')
-            .select('metadata')
+            .select('metadata, status')
             .eq('id', examId)
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
+        if ((data as { status?: string }).status === 'archived') {
+            throw new ConflictException('Pulihkan ujian dari arsip sebelum menerbitkannya.');
+        }
 
         const isPublic = (data as { metadata: Record<string, any> | null }).metadata
             ?.is_public === true;
@@ -308,11 +316,14 @@ export class ExamAdminService {
 
             const { data: exam, error: examError } = await db
                 .from('cbt_exams')
-                .select('id, organization_id')
+                .select('id, organization_id, status')
                 .eq('id', examId)
                 .maybeSingle();
             if (examError) throw new BadRequestException(examError.message);
             if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+            if ((exam as { status?: string }).status === 'archived') {
+                throw new ConflictException('Pulihkan ujian dari arsip sebelum mengubah penugasan.');
+            }
             const organizationId = (exam as { organization_id: string }).organization_id;
 
             const [

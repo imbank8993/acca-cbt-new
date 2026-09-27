@@ -111,7 +111,7 @@ export async function getExamForAttempt(examId: string) {
     );
     return res.success
         ? { success: true as const, exam: res.exam, profile: res.profile }
-        : { success: false as const, error: res.error };
+        : { success: false as const, error: res.error, retryable: res.retryable === true };
 }
 
 export async function getExamQuestionsAction(examId: string) {
@@ -120,7 +120,7 @@ export async function getExamQuestionsAction(examId: string) {
     );
     return res.success
         ? { success: true as const, questions: res.questions }
-        : { success: false as const, error: res.error };
+        : { success: false as const, error: res.error, retryable: res.retryable === true };
 }
 
 /**
@@ -141,7 +141,9 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
     }>(`/api/students/exams/${encodeURIComponent(examId)}/attempts`, { deviceId });
 
     // Permintaannya sendiri gagal — sesi habis, jaringan putus, backend mati.
-    if (!res.success) return { success: false as const, error: res.error };
+    if (!res.success) {
+        return { success: false as const, error: res.error, retryable: res.retryable === true };
+    }
 
     // Permintaan berhasil tetapi ujian menolak dibuka: belum waktunya, sudah
     // lewat, atau sudah pernah dikerjakan. Penandanya `started`, terpisah dari
@@ -153,6 +155,7 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
             success: false as const,
             error: res.error || 'Ujian tidak dapat dimulai.',
             expiredAttemptId: res.expiredAttemptId,
+            retryable: false as const,
         };
     }
 

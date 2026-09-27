@@ -8,16 +8,22 @@ import { clearCbtSession } from '@/lib/session-reset';
 import { submitExamAction, startExamAttemptAction, saveAnswerAction, syncAnswersBulkAction, getExamQuestionsAction, getExamForAttempt, type StudentProfile } from '@/lib/api/students';
 import { PerKeyQueue } from '@/lib/per-key-queue';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
+import { cacheExamOfflineShell, isExamPwaEnabled, removeExamOfflineShell } from '@/lib/exam-pwa';
 import {
     createSecurityEventId,
     enqueueSecurityEvent,
     inspectExamStorage,
     readExamSnapshot,
+    readExamRecoverySession,
     readSecurityEvents,
     removeExamSnapshot,
+    removeExamRecoverySession,
     removeSecurityEvent,
     resolveDurableDeviceId,
+    updateExamRecoveryPosition,
+    validateExamRecoverySession,
     writeExamSnapshot,
+    writeExamRecoverySession,
 } from '@/lib/exam-durable-storage';
 import { heartbeatExamAttempt, logSecurityViolation, forceTerminateAttempt } from '@/lib/api/proctoring';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
@@ -126,6 +132,12 @@ export default function ExamPage() {
     // remaining time at load. The countdown is derived from this so that
     // backgrounding/throttling the tab cannot "pause" the timer to gain time.
     const deadlineRef = useRef<number | null>(null);
+    // True bila halaman dibuka dari paket IndexedDB karena server tidak dapat
+    // dijangkau. Tidak ada request jawaban/submit/heartbeat yang boleh dikirim
+    // sebelum endpoint start memvalidasi ulang attempt, siswa, perangkat, dan
+    // waktu ujian.
+    const offlineRecoveryRef = useRef(false);
+    const [usingOfflineRecovery, setUsingOfflineRecovery] = useState(false);
     const toast = useToast();
 
     // ── Sinkronisasi ref ──────────────────────────────────────
@@ -162,7 +174,7 @@ export default function ExamPage() {
     const retryFailedAnswers = useCallback(async () => {
         const att = attemptRef.current;
         if (!att?.id || failedSyncRef.current.size === 0) return;
-        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        if (offlineRecoveryRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
 
         const ids = Array.from(failedSyncRef.current);
         const rows = ids.map(qId => answerRow(
@@ -212,36 +224,9 @@ export default function ExamPage() {
             setRecoverySummary(null);
             setStorageWarning(null);
             try {
-                const authUser = await getSessionUser();
-                if (!authUser) {
-                    setAccessDenied(true);
-                    setAccessError('Silakan login terlebih dahulu.');
-                    setLoading(false);
-                    return;
-                }
-                setUser(authUser);
-
-                // Keterangan ujian dan identitas peserta datang bersama dalam
-                // satu permintaan. Kepala layar menampilkan "Nama • NISN", jadi
-                // profilnya memang dibutuhkan di sini — dan mengambil keduanya
-                // sekaligus menghemat satu putaran jaringan di awal ujian.
-                const detail = await getExamForAttempt(examId);
-
-                if (!detail.success) {
-                    setAccessDenied(true);
-                    setAccessError(detail.error || 'Ujian tidak ditemukan.');
-                    setLoading(false);
-                    return;
-                }
-
-                if (detail.profile) setProfile(detail.profile);
-
-                const examData = detail.exam;
-                setExam(examData);
-
-                // Attempt baru tidak boleh dibuka tanpa tempat menyimpan
-                // snapshot jawaban. Uji tulis nyata menangkap mode privat,
-                // kebijakan perangkat, dan quota penuh sebelum siswa mulai.
+                // Penyimpanan dan ID perangkat harus siap sebelum jaringan
+                // diperiksa, karena keduanya juga menjadi pagar pemulihan
+                // ketika seluruh endpoint sedang tidak dapat dijangkau.
                 const storageHealth = await inspectExamStorage();
                 if (!storageHealth.available) {
                     setAccessDenied(true);
@@ -250,7 +235,100 @@ export default function ExamPage() {
                     return;
                 }
                 setStorageWarning(storageHealth.warning || null);
-                setDeviceId(await resolveDurableDeviceId(getDeviceId()));
+                const durableDeviceId = await resolveDurableDeviceId(getDeviceId());
+                setDeviceId(durableDeviceId);
+
+                const restoreOfflineSession = async (knownUserId?: string | null): Promise<boolean> => {
+                    let cached;
+                    try {
+                        cached = await readExamRecoverySession(examId);
+                    } catch {
+                        return false;
+                    }
+                    const checked = validateExamRecoverySession(cached, {
+                        examId,
+                        deviceId: durableDeviceId,
+                        userId: knownUserId,
+                    });
+                    if (!checked.valid) {
+                        if (checked.reason === 'expired') {
+                            setAccessDenied(true);
+                            setAccessError(
+                                'Batas waktu pada sesi lokal sudah berakhir. Jawaban tetap tersimpan; ' +
+                                'sambungkan internet agar status ujian dapat diverifikasi dan dikumpulkan.',
+                            );
+                            setLoading(false);
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    const session = checked.session;
+                    const local = await readExamSnapshot(session.attemptId).catch(() => null);
+                    const restoredAnswers = local?.answers || {};
+                    const restoredDoubtful = new Set(local?.doubtfulAnswers || []);
+                    const restoredQuestions = session.questions as any[];
+                    const remaining = Math.max(0, Math.floor((session.deadlineAt - Date.now()) / 1000));
+
+                    offlineRecoveryRef.current = true;
+                    setUsingOfflineRecovery(true);
+                    setIsOffline(true);
+                    setUser(session.user);
+                    setProfile(session.profile);
+                    setExam(session.exam);
+                    setQuestions(restoredQuestions);
+                    setAttempt(session.attempt);
+                    setViolationCount(Number((session.attempt as any).warning_count || 0));
+                    setAnswers(restoredAnswers);
+                    setDoubtfulAnswers(restoredDoubtful);
+                    Object.keys(restoredAnswers).forEach(id => failedSyncRef.current.add(id));
+                    setFailedSyncCount(failedSyncRef.current.size);
+                    deadlineRef.current = session.deadlineAt;
+                    setTimeLeft(remaining);
+                    setCurrentQIndex(Math.min(
+                        Math.max(0, session.lastQuestionIndex),
+                        Math.max(0, restoredQuestions.length - 1),
+                    ));
+                    setStorageWarning(
+                        'Ujian dipulihkan dari perangkat ini. Akses server akan diverifikasi sebelum jawaban dikirim.',
+                    );
+                    setLoading(false);
+                    return true;
+                };
+
+                const authUser = await getSessionUser();
+                if (authUser) setUser(authUser);
+                if (!authUser && !navigator.onLine && await restoreOfflineSession(null)) return;
+
+                // Keterangan ujian dan identitas peserta datang bersama dalam
+                // satu permintaan. Kepala layar menampilkan "Nama • NISN", jadi
+                // profilnya memang dibutuhkan di sini — dan mengambil keduanya
+                // sekaligus menghemat satu putaran jaringan di awal ujian.
+                const detail = await getExamForAttempt(examId);
+
+                if (!detail.success) {
+                    if (detail.retryable && await restoreOfflineSession(authUser?.id)) return;
+                    setAccessDenied(true);
+                    setAccessError(
+                        !authUser && !detail.retryable
+                            ? 'Silakan login terlebih dahulu.'
+                            : detail.error || 'Ujian tidak ditemukan.',
+                    );
+                    setLoading(false);
+                    return;
+                }
+
+                if (!authUser) {
+                    setAccessDenied(true);
+                    setAccessError('Identitas siswa belum dapat diverifikasi. Silakan muat ulang halaman.');
+                    setLoading(false);
+                    return;
+                }
+
+                if (detail.profile) setProfile(detail.profile);
+
+                const examData = detail.exam;
+                setExam(examData);
 
                 // Get questions from the bank — WAJIB lewat server action.
                 // Query langsung dari browser (anon key) membuat RLS bisa
@@ -261,6 +339,7 @@ export default function ExamPage() {
                 // sumber hanya dari kolom bank langsung.
                 const qRes = await getExamQuestionsAction(examId);
                 if (!qRes.success) {
+                    if (qRes.retryable && await restoreOfflineSession(authUser.id)) return;
                     console.error('[ExamPage] Failed to load questions:', qRes.error);
                     setAccessDenied(true);
                     setAccessError(qRes.error || 'Gagal memuat soal. Silakan muat ulang halaman.');
@@ -296,8 +375,14 @@ export default function ExamPage() {
                 }
 
                 // Start or resume attempt (bound to this device — see device lock)
-                const result = await startExamAttemptAction(examId, getDeviceId());
+                const result = await startExamAttemptAction(examId, durableDeviceId);
                 if (!result.success) {
+                    if (result.retryable && await restoreOfflineSession(authUser.id)) return;
+                    // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
+                    // atau perangkat berbeda) mengalahkan paket lama. Snapshot
+                    // jawaban tetap dipertahankan untuk pemulihan proktor.
+                    await removeExamRecoverySession(examId).catch(() => undefined);
+                    await removeExamOfflineShell(examId).catch(() => undefined);
                     const expiredId = (result as any).expiredAttemptId;
                     let localCount = 0;
                     if (expiredId) {
@@ -442,6 +527,36 @@ export default function ExamPage() {
                 const remaining = Math.max(0, result.remainingSeconds ?? examData.duration_minutes * 60);
                 deadlineRef.current = Date.now() + remaining * 1000;
                 setTimeLeft(remaining);
+
+                // Tulis paket hanya setelah semua pemeriksaan server berhasil.
+                // Jika langkah ini gagal, ujian tetap boleh berjalan karena
+                // snapshot jawaban masih tersedia; hanya pemulihan reload penuh
+                // yang tidak dapat dijamin.
+                try {
+                    await writeExamRecoverySession({
+                        examId,
+                        attemptId: result.attempt.id,
+                        userId: authUser.id,
+                        deviceId: durableDeviceId,
+                        user: authUser as any,
+                        profile: detail.profile || null,
+                        exam: examData,
+                        attempt: result.attempt,
+                        questions: loadedQuestions,
+                        deadlineAt: deadlineRef.current,
+                        lastQuestionIndex: 0,
+                    });
+                    const shellCached = await cacheExamOfflineShell(examId);
+                    if (isExamPwaEnabled() && !shellCached) {
+                        setStorageWarning(
+                            'Data jawaban tersimpan, tetapi halaman offline belum selesai disiapkan. Jangan tutup browser saat jaringan terputus.',
+                        );
+                    }
+                } catch {
+                    setStorageWarning(
+                        'Paket pemulihan offline tidak dapat disimpan. Jangan memuat ulang halaman saat jaringan terputus.',
+                    );
+                }
             } catch (err: any) {
                 console.error("[ExamPage] Error fetching exam:", err);
                 setAccessDenied(true);
@@ -462,6 +577,17 @@ export default function ExamPage() {
             );
         } catch { /* storage penuh / mode privat — abaikan */ }
     }, [attempt?.id, assignmentFileUrls, assignmentTextNote]);
+
+    // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
+    // Sedikit debounce menghindari penulisan beruntun saat siswa menekan tombol
+    // navigasi dengan cepat.
+    useEffect(() => {
+        if (!attempt?.id || isCompleted) return;
+        const timer = setTimeout(() => {
+            void updateExamRecoveryPosition(examId, currentQIndex).catch(() => undefined);
+        }, 200);
+        return () => clearTimeout(timer);
+    }, [examId, attempt?.id, currentQIndex, isCompleted]);
 
     // Auto-submit terus mencoba sampai server mengonfirmasi status final.
     // Backoff berhenti naik pada 30 detik dan hanya satu timer boleh aktif.
@@ -484,10 +610,10 @@ export default function ExamPage() {
 
         const isAssignment = exam?.exam_type === 'assignment';
 
-        // Offline: jangan tembak request yang pasti gagal — masuk mode tunggu;
-        // handler 'online' akan sync jawaban lokal lalu submit otomatis.
-        // (Tugas/assignment dikecualikan: unggahannya butuh jaringan aktif.)
-        if (!navigator.onLine && !isAssignment) {
+        // Offline atau sesi hasil recovery: jangan tembak request sebelum
+        // jaringan pulih dan attempt yang sama diverifikasi server. Ini berlaku
+        // juga untuk tugas; lampiran memang membutuhkan koneksi aktif.
+        if (!navigator.onLine || offlineRecoveryRef.current) {
             setWaitingForSyncAndSubmit(true);
             return;
         }
@@ -530,6 +656,8 @@ export default function ExamPage() {
                         localStorage.removeItem(`exam_assignment_${attempt.id}`);
                     } catch { /* Server has confirmed the commit; cache cleanup must not change its outcome. */ }
                 }
+                await removeExamRecoverySession(examId).catch(() => undefined);
+                await removeExamOfflineShell(examId).catch(() => undefined);
                 router.push('/dashboard/siswa/results');
                 // keep submitInFlightRef = true so nothing re-submits after success
             } else {
@@ -562,9 +690,9 @@ export default function ExamPage() {
         if (autoRetryTimerRef.current) clearTimeout(autoRetryTimerRef.current);
     }, []);
 
-    const syncPendingAnswers = useCallback(async () => {
+    const syncPendingAnswers = useCallback(async (): Promise<boolean> => {
         const att = attemptRef.current;
-        if (!att?.id) return;
+        if (!att?.id || offlineRecoveryRef.current) return false;
         try {
             const parsed = await readExamSnapshot(att.id);
             if (parsed) {
@@ -578,24 +706,93 @@ export default function ExamPage() {
                     ));
 
                 if (answersArray.length > 0) {
+                    const hadPendingAnswers = failedSyncRef.current.size > 0;
                     const res = await syncAnswersBulkAction(att.id, answersArray);
                     if (res.success) {
                         // Seluruh snapshot durable baru saja dikirim ulang.
                         failedSyncRef.current.clear();
                         setFailedSyncCount(0);
-                        toast.success('Tersinkronisasi', 'Jawaban offline telah dikirim.');
+                        if (hadPendingAnswers) {
+                            toast.success('Tersinkronisasi', 'Jawaban offline telah dikirim.');
+                        }
+                        return true;
                     }
+                    answersArray.forEach((row) => failedSyncRef.current.add(row.questionId));
+                    setFailedSyncCount(failedSyncRef.current.size);
+                    return false;
                 }
             }
+            return true;
         } catch(e) {
             console.error('Failed to sync answers', e);
+            return false;
         }
     }, [toast]);
+
+    /**
+     * Paket offline hanya memberi hak untuk tetap mengerjakan sampai deadline
+     * yang telah disahkan. Begitu jaringan kembali, server harus mengakui
+     * attempt yang sama sebelum satu pun jawaban, heartbeat, atau submit keluar.
+     */
+    const revalidateOfflineSession = useCallback(async (): Promise<boolean> => {
+        if (!offlineRecoveryRef.current) return true;
+        const localAttempt = attemptRef.current;
+        if (!localAttempt?.id || !navigator.onLine) return false;
+
+        const result = await startExamAttemptAction(examId, getDeviceId());
+        if (!result.success) {
+            if (result.retryable) {
+                setIsOffline(true);
+                return false;
+            }
+            await removeExamRecoverySession(examId).catch(() => undefined);
+            await removeExamOfflineShell(examId).catch(() => undefined);
+            setAccessDenied(true);
+            setAccessError(
+                `${result.error || 'Sesi ujian tidak lagi aktif.'} ` +
+                'Jawaban lokal tetap tersimpan. Hubungi proktor bila perlu pemulihan.',
+            );
+            return false;
+        }
+        if (result.attempt?.id !== localAttempt.id) {
+            await removeExamRecoverySession(examId).catch(() => undefined);
+            await removeExamOfflineShell(examId).catch(() => undefined);
+            setAccessDenied(true);
+            setAccessError('Sesi yang diverifikasi server berbeda dari sesi lokal. Jawaban tidak dikirim untuk mencegah tertukar.');
+            return false;
+        }
+
+        const remaining = Math.max(0, result.remainingSeconds || 0);
+        const serverDeadline = Date.now() + remaining * 1000;
+        deadlineRef.current = serverDeadline;
+        setTimeLeft(remaining);
+        setAttempt(result.attempt);
+        setViolationCount(Number(result.attempt.warning_count || 0));
+        offlineRecoveryRef.current = false;
+        setUsingOfflineRecovery(false);
+        setIsOffline(false);
+
+        try {
+            const cached = await readExamRecoverySession(examId);
+            if (cached) {
+                await writeExamRecoverySession({
+                    ...cached,
+                    attempt: result.attempt,
+                    deadlineAt: serverDeadline,
+                    cachedAt: new Date().toISOString(),
+                });
+            }
+        } catch {
+            // Validasi server sudah berhasil; kegagalan menyegarkan cache tidak
+            // boleh membatalkan sinkronisasi jawaban yang sedang menunggu.
+        }
+        return true;
+    }, [examId]);
 
     /** Tutup UI hanya setelah server benar-benar mengonfirmasi terminasi. */
     const confirmPendingTermination = useCallback(async (reason: string): Promise<boolean> => {
         const att = attemptRef.current;
-        if (!att?.id || terminationInFlightRef.current || !navigator.onLine) return false;
+        if (!att?.id || offlineRecoveryRef.current || terminationInFlightRef.current || !navigator.onLine) return false;
         terminationInFlightRef.current = true;
         try {
             await retryFailedAnswers();
@@ -616,7 +813,7 @@ export default function ExamPage() {
     /** Kirim antrean satu per satu; hapus hanya sesudah server mengakuinya. */
     const flushSecurityEvents = useCallback(async (): Promise<number | null> => {
         const att = attemptRef.current;
-        if (!att?.id || !navigator.onLine) return null;
+        if (!att?.id || offlineRecoveryRef.current || !navigator.onLine) return null;
         const events = await readSecurityEvents(att.id);
         let serverCount: number | null = null;
         for (const event of events) {
@@ -646,9 +843,11 @@ export default function ExamPage() {
     // ── Network Detection ────────────────────────────────────
     useEffect(() => {
         const handleOnline = () => {
-            setIsOffline(false);
-            if (attempt?.id) {
-                Promise.all([syncPendingAnswers(), flushSecurityEvents()]).then(([, securityCount]) => {
+            void (async () => {
+                if (!await revalidateOfflineSession()) return;
+                setIsOffline(false);
+                if (!attemptRef.current?.id) return;
+                Promise.all([syncPendingAnswers(), flushSecurityEvents()]).then(([answersSynced, securityCount]) => {
                     if (securityCount !== null && securityCount >= MAX_VIOLATIONS) {
                         requireTermination(terminationReasonRef.current || 'Batas pelanggaran keamanan terlampaui');
                         return;
@@ -657,11 +856,11 @@ export default function ExamPage() {
                         void confirmPendingTermination(terminationReasonRef.current);
                         return;
                     }
-                    if (waitingForSyncAndSubmit) {
+                    if (waitingForSyncAndSubmit && answersSynced) {
                         handleSubmitExam(undefined, { isAuto: true });
                     }
                 });
-            }
+            })();
         };
         const handleOffline = () => setIsOffline(true);
         window.addEventListener('online', handleOnline);
@@ -670,7 +869,49 @@ export default function ExamPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [attempt, syncPendingAnswers, flushSecurityEvents, requireTermination, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam]);
+    }, [attempt, syncPendingAnswers, flushSecurityEvents, requireTermination, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
+
+    // `online` tidak selalu ditembakkan bila Wi-Fi tetap terhubung tetapi API
+    // sempat mati. Paket recovery memeriksa ulang server secara berkala; setelah
+    // valid, jawaban langsung disusulkan melalui jalur yang sama.
+    useEffect(() => {
+        if (!usingOfflineRecovery || !attempt?.id || isCompleted || accessDenied) return;
+        let active = true;
+        const retry = async () => {
+            if (!navigator.onLine) return;
+            const valid = await revalidateOfflineSession();
+            if (!active || !valid) return;
+            await Promise.all([syncPendingAnswers(), flushSecurityEvents()]);
+        };
+        void retry();
+        const interval = setInterval(() => { void retry(); }, 15_000);
+        return () => {
+            active = false;
+            clearInterval(interval);
+        };
+    }, [usingOfflineRecovery, attempt?.id, isCompleted, accessDenied, revalidateOfflineSession, syncPendingAnswers, flushSecurityEvents]);
+
+    // Event `online` tidak selalu muncul ketika Wi-Fi tetap tersambung tetapi
+    // backend sempat tidak dapat dijangkau. Selama submit menunggu, periksa ulang
+    // snapshot dan server secara berkala tanpa menghapus salinan lokal.
+    useEffect(() => {
+        if (!waitingForSyncAndSubmit || !attempt?.id || isCompleted) return;
+        let active = true;
+        const retry = async () => {
+            if (!navigator.onLine || submitInFlightRef.current) return;
+            if (!await revalidateOfflineSession()) return;
+            const synced = await syncPendingAnswers();
+            if (active && synced && !submitInFlightRef.current) {
+                await handleSubmitExam(undefined, { isAuto: true });
+            }
+        };
+        void retry();
+        const interval = setInterval(() => { void retry(); }, 15_000);
+        return () => {
+            active = false;
+            clearInterval(interval);
+        };
+    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, syncPendingAnswers, handleSubmitExam, revalidateOfflineSession]);
 
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {
@@ -802,7 +1043,7 @@ export default function ExamPage() {
         const key = `exam_lastseen_${attempt.id}`;
         const pulse = async () => {
             try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
-            if (!navigator.onLine) return;
+            if (!navigator.onLine || offlineRecoveryRef.current) return;
             await heartbeatExamAttempt(attempt.id).catch(() => undefined);
             const securityCount = await flushSecurityEvents().catch(() => null);
             if (securityCount !== null && securityCount >= MAX_VIOLATIONS) {
@@ -879,16 +1120,22 @@ export default function ExamPage() {
         const att = attemptRef.current;
         if (!att) return;
 
-        void writeExamSnapshot(att.id, {
+        const localWrite = await writeExamSnapshot(att.id, {
             answers: updatedAnswers,
             doubtfulAnswers: Array.from(doubtfulRef.current),
-        }).then(result => {
-            if (!result.saved) {
-                setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
-            } else if (result.mode === 'localstorage') {
-                setStorageWarning('IndexedDB tidak tersedia. Jangan tutup atau memuat ulang browser saat offline.');
-            }
         });
+        if (!localWrite.saved) {
+            setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
+        } else if (localWrite.mode === 'localstorage') {
+            setStorageWarning('IndexedDB tidak tersedia. Jangan tutup atau memuat ulang browser saat offline.');
+        }
+
+        // Saat browser sudah mendeteksi offline, jangan menunggu timeout HTTP.
+        // Snapshot lokal adalah sumber antrean dan akan disinkronkan saat online.
+        if (!navigator.onLine || offlineRecoveryRef.current) {
+            markFailed(questionId, true);
+            return;
+        }
 
         const q = questionsRef.current.find((x: any) => x.id === questionId);
         // Hasil autosave WAJIB diperiksa. Kegagalan (sesi kedaluwarsa, attempt
@@ -921,16 +1168,20 @@ export default function ExamPage() {
         const att = attemptRef.current;
         if (!att) return;
 
-        void writeExamSnapshot(att.id, {
+        const localWrite = await writeExamSnapshot(att.id, {
             answers: answersRef.current,
             doubtfulAnswers: Array.from(newDoubtful),
-        }).then(result => {
-            if (!result.saved) {
-                setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
-            } else if (result.mode === 'localstorage') {
-                setStorageWarning('IndexedDB tidak tersedia. Jangan tutup atau memuat ulang browser saat offline.');
-            }
         });
+        if (!localWrite.saved) {
+            setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
+        } else if (localWrite.mode === 'localstorage') {
+            setStorageWarning('IndexedDB tidak tersedia. Jangan tutup atau memuat ulang browser saat offline.');
+        }
+
+        if (!navigator.onLine || offlineRecoveryRef.current) {
+            markFailed(questionId, true);
+            return;
+        }
 
         const q = questionsRef.current.find((x: any) => x.id === questionId);
         inFlightRef.current.add(questionId);
@@ -1075,7 +1326,10 @@ export default function ExamPage() {
             {isOffline && !waitingForSyncAndSubmit && (
                 <div className="fixed top-0 left-0 right-0 z-[10005] bg-rose-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
                     <AlertTriangle size={16} />
-                    <span>Koneksi terputus. Jawaban otomatis disimpan di perangkat. Jangan tutup browser.</span>
+                    <span>
+                        {usingOfflineRecovery ? 'Ujian dipulihkan setelah halaman dibuka ulang. ' : 'Koneksi terputus. '}
+                        {Object.keys(answers).length} jawaban tersimpan di perangkat dan akan dikirim setelah sesi diverifikasi saat jaringan pulih.
+                    </span>
                 </div>
             )}
             {!isOffline && !waitingForSyncAndSubmit && failedSyncCount > 0 && (

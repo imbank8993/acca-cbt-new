@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sun, Moon, Menu, User as UserIcon, LogOut, ArrowLeft } from 'lucide-react';
 import { clearSessionCache } from '@/lib/session';
+import { clearExamRecoverySessions } from '@/lib/exam-durable-storage';
+import { clearExamOfflineShells } from '@/lib/exam-pwa';
 import { NotificationBell } from './ui/NotificationBell';
 import './header.css';
 
@@ -88,6 +90,8 @@ export default function Header({
 
     const handleLogout = async () => {
         clearSessionCache();
+        await clearExamRecoverySessions().catch(() => undefined);
+        await clearExamOfflineShells().catch(() => undefined);
         window.dispatchEvent(new Event('acca:signout'));
         try {
             await fetch('/api/auth/logout', { method: 'POST' });
