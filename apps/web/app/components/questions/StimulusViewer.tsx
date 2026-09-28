@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import { LatexRenderer } from './LatexRenderer';
 
 export const StimulusViewer = ({ stimulus }: { stimulus: any }) => {

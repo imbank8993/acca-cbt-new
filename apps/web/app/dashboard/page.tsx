@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { resolveActiveRole, getDashboardPath } from '@/lib/rbac';
 import DashboardLoading from '@/app/components/DashboardLoading';
+import { getDashboardPath,resolveActiveRole } from '@/lib/rbac';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 /**
  * Pengarah rute root /dashboard.

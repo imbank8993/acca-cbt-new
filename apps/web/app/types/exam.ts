@@ -3,7 +3,7 @@
  * Centralized type definitions for exam domain
  */
 
-import type { Question, AnswerValue } from './question';
+import type { AnswerValue } from './question';
 
 // ─── Exam Status ────────────────────────────────────────────
 

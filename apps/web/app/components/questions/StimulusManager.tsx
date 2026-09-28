@@ -1,13 +1,17 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
-import {
-    getStimuliByBank, createStimulus, updateStimulus, deleteStimulus,
-    importStimuliFromXlsAction
-} from '@/lib/api/questions';
-import { Plus, Edit3, Trash2, X, Check, Upload, Download, AlertCircle } from 'lucide-react';
+import { getErrorMessage } from '@/lib/errors';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
+import {
+createStimulus,
+deleteStimulus,
+getStimuliByBank,
+importStimuliFromXlsAction,
+updateStimulus
+} from '@/lib/api/questions';
 import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
+import { AlertCircle,Check,Download,Edit3,Plus,Trash2,Upload,X } from 'lucide-react';
+import React,{ useEffect,useRef,useState } from 'react';
 
 interface StimulusManagerProps {
     bankId: string;
@@ -68,8 +72,8 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
             } else {
                 setPreviewRows(rows);
             }
-        } catch (err: any) {
-            setImportErrors(['Gagal membaca file: ' + err.message]);
+        } catch (err) {
+            setImportErrors(['Gagal membaca file: ' + getErrorMessage(err)]);
         } finally {
             setIsImporting(false);
         }
@@ -88,8 +92,8 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
             } else {
                 setImportErrors(result.errors);
             }
-        } catch (err: any) {
-            setImportErrors(['Gagal import: ' + err.message]);
+        } catch (err) {
+            setImportErrors(['Gagal import: ' + getErrorMessage(err)]);
         } finally {
             setIsImporting(false);
         }

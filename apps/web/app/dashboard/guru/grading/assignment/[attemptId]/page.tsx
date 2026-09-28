@@ -1,11 +1,9 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getAttemptDetailsForGrading, submitEssayGrades } from '@/lib/api/teachers';
-import { Loader2, ArrowLeft, Save, User, CheckCircle2, FileText, ChevronLeft, ChevronRight, MessageSquare, GraduationCap } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { safeExternalUrl, attachmentLabel } from '@/lib/safe-url';
+import { getAttemptDetailsForGrading,submitEssayGrades } from '@/lib/api/teachers';
+import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
+import { ArrowLeft,ChevronLeft,ChevronRight,FileText,GraduationCap,Loader2,MessageSquare,Save,User } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 export default function AssignmentReviewerPage() {
     const params = useParams();
@@ -16,7 +14,7 @@ export default function AssignmentReviewerPage() {
     const [submitting, setSubmitting] = useState(false);
     const [details, setDetails] = useState<any>(null);
     const [grades, setGrades] = useState<Record<string, number>>({});
-    const [feedbacks, setFeedbacks] = useState<Record<string, string>>({}); // Future proofing for feedback
+    const [] = useState<Record<string, string>>({}); // Future proofing for feedback
     const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
     useEffect(() => {
@@ -135,11 +133,8 @@ export default function AssignmentReviewerPage() {
     const isPdf = activeFile.toLowerCase().split('?')[0].endsWith('.pdf');
     
     // Attempt details
-    /* @ts-ignore */
     const studentName = details.attempt.profiles?.full_name || 'Tanpa Nama';
-    /* @ts-ignore */
     const examTitle = details.attempt.exams?.title || 'Tugas / Ujian';
-    /* @ts-ignore */
     const submittedAt = details.attempt.finished_at ? new Date(details.attempt.finished_at).toLocaleString('id-ID') : 'Belum Selesai';
 
     return (

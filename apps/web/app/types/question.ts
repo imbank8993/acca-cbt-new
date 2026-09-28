@@ -158,7 +158,7 @@ export function getQuestionTypeColor(type: QuestionType | string) {
 
 // ─── Answer Types ────────────────────────────────────────────
 
-export type AnswerValue = string | string[] | Record<string, any> | null | undefined;
+export type AnswerValue = string | string[] | Record<string, unknown> | null | undefined;
 
 export interface StudentAnswer {
   question_id: string;

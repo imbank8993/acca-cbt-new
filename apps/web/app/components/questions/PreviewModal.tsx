@@ -1,8 +1,6 @@
 "use client";
-import React, { Suspense, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Eye, Flag, Check, User, Rows3, Columns2, CheckCircle2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import React,{ Suspense,useEffect } from 'react';
 import { ExamViewer } from './ExamViewer';
 
 interface PreviewModalProps {
@@ -28,29 +26,14 @@ interface PreviewModalProps {
     studentClass?: string;
 }
 
-const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    mcq: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
-    mcq_complex: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
-    true_false: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
-    matching: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200' },
-    categorization: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200' },
-    short_answer: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200' },
-    essay: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
-    esay: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
-    uraian: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
-};
 
-function getTypeStyle(type: string) {
-    return TYPE_COLORS[type] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
-}
 
 function PreviewModalInner(props: PreviewModalProps) {
     // ══ ALL HOOKS AT THE TOP — Rules of Hooks ══
     const searchParams = useSearchParams();
-    const [localOpen, setLocalOpen] = useState(false);
 
     const {
-        isOpen, onClose, bankInfo, viewingQuestion, setViewingQuestion,
+        isOpen, onClose, bankInfo, setViewingQuestion,
         filteredQuestions, currentPreviewIndex, setCurrentPreviewIndex,
         matchingAnswers, setMatchingAnswers,
         doubtfulPreviews, setDoubtfulPreviews,
@@ -58,12 +41,9 @@ function PreviewModalInner(props: PreviewModalProps) {
         studentName, studentClass,
     } = props;
 
-    // Sync with isOpen
-    useEffect(() => { setLocalOpen(isOpen); }, [isOpen]);
-
     // Scroll lock
     useEffect(() => {
-        if (!localOpen) return;
+        if (!isOpen) return;
         const scrollY = window.scrollY;
         document.documentElement.classList.add('scroll-locked');
         document.body.classList.add('scroll-locked');
@@ -75,7 +55,7 @@ function PreviewModalInner(props: PreviewModalProps) {
             delete document.body.dataset.scrollY;
             window.scrollTo(0, sy);
         };
-    }, [localOpen]);
+    }, [isOpen]);
 
 
     // ══ Derived values (after all hooks, before any return) ══
@@ -84,7 +64,6 @@ function PreviewModalInner(props: PreviewModalProps) {
     const safeCurrentIndex = safeFilteredQuestions.length > 0
         ? Math.max(0, Math.min(currentPreviewIndex, safeFilteredQuestions.length - 1))
         : 0;
-    const displayQ = viewingQuestion ?? (safeFilteredQuestions.length > 0 ? safeFilteredQuestions[safeCurrentIndex] : null);
 
     const calcScore = (q: any, studentAnswer: any) => {
         if (!q || studentAnswer == null) return 0;
@@ -116,7 +95,8 @@ function PreviewModalInner(props: PreviewModalProps) {
         if (!setDoubtfulPreviews) return;
         setDoubtfulPreviews(prev => {
             const next = new Set(prev);
-            next.has(qId) ? next.delete(qId) : next.add(qId);
+            if (next.has(qId)) next.delete(qId);
+            else next.add(qId);
             return next;
         });
     };
@@ -136,7 +116,7 @@ function PreviewModalInner(props: PreviewModalProps) {
     };
 
     // ══ Render ══
-    if (!localOpen) return null;
+    if (!isOpen) return null;
 
     return (
         <ExamViewer

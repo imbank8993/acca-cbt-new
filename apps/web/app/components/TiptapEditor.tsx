@@ -1,21 +1,37 @@
 "use client";
-import React, { useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import TiptapHighlight from '@tiptap/extension-highlight';
 import TiptapImage from '@tiptap/extension-image';
 import TiptapLink from '@tiptap/extension-link';
-import TiptapTextAlign from '@tiptap/extension-text-align';
-import TiptapUnderline from '@tiptap/extension-underline';
 import TiptapPlaceholder from '@tiptap/extension-placeholder';
-import TiptapHighlight from '@tiptap/extension-highlight';
 import TiptapSubscript from '@tiptap/extension-subscript';
 import TiptapSuperscript from '@tiptap/extension-superscript';
+import TiptapTextAlign from '@tiptap/extension-text-align';
+import TiptapUnderline from '@tiptap/extension-underline';
+import { EditorContent,useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import {
-    Bold, Italic, Underline, Strikethrough,
-    List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-    Link, Image, Undo, Redo, Code, Quote, Heading2, Minus,
-    Highlighter, Sigma, Subscript, Superscript
+AlignCenter,
+AlignJustify,
+AlignLeft,
+AlignRight,
+Bold,
+Code,
+Heading2,
+Highlighter,
+Image as ImageIcon,
+Italic,
+Link,
+List,ListOrdered,
+Minus,
+Quote,
+Redo,
+Sigma,
+Strikethrough,
+Subscript,Superscript,
+Underline,
+Undo
 } from 'lucide-react';
+import React,{ useState } from 'react';
 
 interface TiptapEditorProps {
     content: string;
@@ -53,7 +69,7 @@ function MathField({
 }: {
     onInsert: (latex: string) => void
 }) {
-    const [latex, setLatex] = useState('');
+    const [, setLatex] = useState('');
     const [showMath, setShowMath] = useState(false);
 
     React.useEffect(() => {
@@ -258,7 +274,7 @@ export default function TiptapEditor({ content, onChange, placeholder = 'Tulis k
                     <Link size={16} />
                 </MenuButton>
                 <MenuButton onClick={addImage} title="Add Image">
-                    <Image size={16} />
+                    <ImageIcon size={16} />
                 </MenuButton>
 
                 <ToolbarDivider />

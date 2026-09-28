@@ -1,44 +1,42 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Bell,
-    Check,
-    CheckCheck,
-    Trash2,
-    X,
-    Clock,
-    ChevronRight,
-    Loader2
-} from 'lucide-react';
-import {
-    getUserNotifications,
-    getUnreadNotificationCount,
-    markNotificationRead,
-    markAllNotificationsRead,
-    deleteNotification
-} from '@/lib/api/notifications';
 import type { Notification } from '@/app/types/notification';
 import { getNotificationTimeAgo } from '@/app/types/notification';
+import {
+deleteNotification,
+getUnreadNotificationCount,
+getUserNotifications,
+markAllNotificationsRead,
+markNotificationRead
+} from '@/lib/api/notifications';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+Bell,
+Check,
+CheckCheck,
+ChevronRight,
+Clock,
+Loader2,
+Trash2,
+X
+} from 'lucide-react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 interface NotificationBellProps {
     userId?: string;
 }
 
-export function NotificationBell({ userId }: NotificationBellProps = {}) {
+export function NotificationBell({ }: NotificationBellProps = {}) {
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Fetch notifications
     const fetchNotifications = useCallback(async () => {
-        setIsLoading(true);
         try {
             const [notifs, count] = await Promise.all([
                 getUserNotifications({ limit: 10 }),
@@ -54,9 +52,12 @@ export function NotificationBell({ userId }: NotificationBellProps = {}) {
 
     // Initial fetch + interval refresh
     useEffect(() => {
-        fetchNotifications();
+        const initialFetch = window.setTimeout(() => void fetchNotifications(), 0);
         const interval = setInterval(fetchNotifications, REFRESH_INTERVAL.notifications);
-        return () => clearInterval(interval);
+        return () => {
+            window.clearTimeout(initialFetch);
+            clearInterval(interval);
+        };
     }, [fetchNotifications]);
 
     // Close dropdown when clicking outside

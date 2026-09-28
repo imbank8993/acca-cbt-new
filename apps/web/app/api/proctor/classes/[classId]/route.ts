@@ -1,5 +1,5 @@
+import { proxy,proxyJson } from '@/lib/nest-proxy';
 import { NextRequest } from 'next/server';
-import { proxy, proxyJson } from '@/lib/nest-proxy';
 
 type Context = { params: Promise<{ classId: string }> };
 

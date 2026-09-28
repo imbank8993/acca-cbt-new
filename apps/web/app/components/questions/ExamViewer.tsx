@@ -1,9 +1,9 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Rows3, Columns2, Flag, User, X, Check, ShieldAlert, Maximize2, ChevronLeft, ChevronRight, CheckCircle2, Loader2, Eye, Grid3X3, FileText, BookOpen } from 'lucide-react';
-import { ExamQuestionCard } from './ExamQuestionCard';
+import { AnimatePresence,motion } from 'framer-motion';
+import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye,FileText,Flag,Grid3X3,Loader2,Maximize2,Rows3,ShieldAlert,User,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 import AssignmentUploader from './AssignmentUploader';
+import { ExamQuestionCard } from './ExamQuestionCard';
 
 const getAnswerStatus = (q: any, ans: any) => {
     if (!ans) return 'unanswered';
@@ -182,14 +182,14 @@ export function ExamViewer({
     const [studentDocUrl, setStudentDocUrl] = useState('');
     const [studentVidUrl, setStudentVidUrl] = useState('');
 
-    const navigateTo = (index: number) => {
+    const navigateTo = useCallback((index: number) => {
         if (index < 0 || index >= questions.length) return;
         if (onNavigate) {
             onNavigate(index);
         } else {
             setInternalIndex(index);
         }
-    };
+    }, [onNavigate, questions.length]);
 
     // Clear updated status when question becomes active
     useEffect(() => {
@@ -238,7 +238,7 @@ export function ExamViewer({
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isFirstQuestion, isLastQuestion, currentQIndex]);
+    }, [isFirstQuestion, isLastQuestion, currentQIndex, navigateTo]);
 
     if (!isAssignment && (!questions || questions.length === 0 || !currentQ)) {
         return (

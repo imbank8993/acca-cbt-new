@@ -1,19 +1,24 @@
 "use client";
-import React, { useEffect } from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  BarChart3, Users, Clock, FileText, ChevronRight,
-  CheckCircle2, Target, Award,
+Award,
+BarChart3,
+CheckCircle2,
+ChevronRight,
+Clock,FileText,
+Target,
+Users,
 } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect } from 'react';
 
 // Dynamic import untuk komponen berat
-import dynamic from 'next/dynamic';
+import { CardSkeleton,ListSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { getExamsWithStats } from '@/lib/api/analytics';
 import { getProctorOrganization } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
-import { CardSkeleton, ListSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useMemoryState } from '@/lib/useMemoryState';
+import dynamic from 'next/dynamic';
 
 const StatsGrid = dynamic(
   () => import('@/app/components/ui/Charts').then(mod => ({ default: mod.StatsGrid })),

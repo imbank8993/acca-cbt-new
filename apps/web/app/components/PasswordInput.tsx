@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, InputHTMLAttributes } from 'react';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Eye,EyeOff,Lock } from 'lucide-react';
+import { InputHTMLAttributes,useState } from 'react';
 
 interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
     iconSize?: number;

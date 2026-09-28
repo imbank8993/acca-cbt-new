@@ -1,11 +1,8 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import type { ChartRendererProps } from './ChartRenderer';
 
-interface DynamicChartProps {
-    data: any;
-    type: 'bar' | 'pie' | 'line';
-    height?: number;
-}
+type DynamicChartProps = ChartRendererProps;
 
 // Skeleton loading component
 function ChartSkeleton({ height = 300 }: { height?: number }) {
@@ -26,23 +23,11 @@ function ChartSkeleton({ height = 300 }: { height?: number }) {
     );
 }
 
+const ChartComponent = dynamic<ChartRendererProps>(() => import('./ChartRenderer'), {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+});
+
 export default function DynamicChart(props: DynamicChartProps) {
-    const [ChartComponent, setChartComponent] = useState<React.ComponentType<any> | null>(null);
-    const [isClient, setIsClient] = useState(false);
-
-    useEffect(() => {
-        setIsClient(true);
-        // Lazy load ChartRenderer only when needed
-        import('./ChartRenderer').then(module => {
-            setChartComponent(() => module.default);
-        }).catch(err => {
-            console.error('Failed to load ChartRenderer:', err);
-        });
-    }, []);
-
-    if (!isClient || !ChartComponent) {
-        return <ChartSkeleton height={props.height} />;
-    }
-
     return <ChartComponent {...props} />;
 }

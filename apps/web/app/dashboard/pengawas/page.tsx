@@ -1,33 +1,29 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
-    ShieldAlert,
-    Eye,
-    Activity,
-    AlertTriangle,
-    Radio,
-    RefreshCw,
-    Clock,
-    Users,
-    CheckCircle2,
-    Calendar,
-    ArrowRight,
-    Layers
+getExamAttemptsAction,
+getProctorOrganization,
+getRecentViolationsAction,
+listOrganizationExams,
+type ProctorOrganization,
+type ViolationEvent
+} from '@/lib/api/proctor';
+import { getSessionUser } from '@/lib/session';
+import {
+Activity,
+AlertTriangle,
+ArrowRight,
+CheckCircle2,
+Eye,
+Layers,
+Radio,
+RefreshCw,
+ShieldAlert
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import {
-    getProctorOrganization,
-    listOrganizationExams,
-    getExamAttemptsAction,
-    getRecentViolationsAction,
-    type ViolationEvent,
-    type ProctorOrganization
-} from '@/lib/api/proctor';
-import { useAutoRefresh, REFRESH_INTERVAL } from '@/hooks/useAutoRefresh';
-import { getSessionUser } from '@/lib/session';
+import { useCallback,useEffect,useState } from 'react';
 
 export default function PengawasDashboard() {
     const router = useRouter();

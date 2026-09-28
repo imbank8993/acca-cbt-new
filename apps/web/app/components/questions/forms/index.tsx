@@ -11,15 +11,15 @@
  * Usage: Replace the inline form conditionals in QuestionEditorModal
  * with this wrapper component.
  */
-import React, { useCallback } from 'react';
+import React,{ useCallback } from 'react';
 import {
-  QuestionForms,
-  useQuestionForms,
-} from './QuestionForms';
-import {
-  type QuestionType,
-  type BaseOption,
+type BaseOption,
+type QuestionType,
 } from '../schema';
+import {
+QuestionForms,
+useQuestionForms,
+} from './QuestionForms';
 
 interface QuestionFormsWrapperProps {
   selectedType: QuestionType;
@@ -46,12 +46,6 @@ export const QuestionFormsWrapper = React.memo(({
   scoreDefault,
   kisiKisi,
   pembahasan,
-  setOptions,
-  setMetadata,
-  setCategories,
-  setScoreDefault,
-  setKisiKisi,
-  setPembahasan,
 }: QuestionFormsWrapperProps) => {
   // Initialize reducer state from props
   const { state, dispatch } = useQuestionForms({

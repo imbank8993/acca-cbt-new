@@ -3,7 +3,7 @@
  * Used across exam, results, and review pages
  */
 
-export type AnswerValue = string | string[] | Record<string, any> | null | undefined;
+export type AnswerValue = string | string[] | Record<string, unknown> | null | undefined;
 
 /**
  * Safely parse JSON answer with fallback

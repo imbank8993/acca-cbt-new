@@ -1,35 +1,55 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { getErrorMessage } from '@/lib/errors';
+import { getProctorOrganization,type ProctorOrganization } from '@/lib/api/proctor';
 import {
-    Plus, Search, ChevronLeft, BookOpen, Eye,
-    Trash2, Edit3, Upload, Download, FileDown, FileText, Printer, FileSearch,
-    Clock, ShieldCheck, Sparkles, Loader2, ChevronUp, ChevronDown, Check, MoreVertical, X,
-    CheckSquare, Square, ChevronRight, Target
-} from 'lucide-react';
-import {
-    getBankQuestions, saveQuestionAction, deleteQuestionAction,
-    getQuestionBankAction, updateQuestionsOrderAction,
-    toggleQuestionBankPublishAction, updateQuestionMetadataAction,
-    getStimuliByBank, getInstructionsByBank, getDimensionsByBank, getKisiKisiByBank
+deleteQuestionAction,
+getBankQuestions,
+getDimensionsByBank,
+getInstructionsByBank,
+getKisiKisiByBank,
+getQuestionBankAction,
+getStimuliByBank,
+toggleQuestionBankPublishAction,
+updateQuestionsOrderAction
 } from '@/lib/api/questions';
-import { generateKisiKisi } from '@/lib/api/ai';
-import { getProctorOrganization } from '@/lib/api/proctor';
+import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionBank,QuestionMetadata,QuestionOptionDraft,QuestionRecord,QuestionType } from '@/lib/api/questions';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+BookOpen,
+Check,
+CheckSquare,
+ChevronDown,
+ChevronLeft,
+ChevronUp,
+Edit3,
+Eye,
+FileDown,
+FileSearch,
+FileText,
+Loader2,
+Plus,
+Printer,
+Search,
+Square,Target,
+Trash2,
+Upload
+} from 'lucide-react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 // docx is lazy-loaded inside export handlers
-import { getSessionUser } from '@/lib/session';
-import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation';
-import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
-const StimulusManager = dynamic(() => import('@/app/components/questions/StimulusManager'), { ssr: false });
-const InstructionManager = dynamic(() => import('@/app/components/questions/InstructionManager'), { ssr: false });
 import DimensionManager from '@/app/components/questions/DimensionManager';
 import KisiKisiTab from '@/app/components/questions/KisiKisiTab';
+import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useParams,usePathname,useRouter,useSearchParams } from 'next/navigation';
+const StimulusManager = dynamic(() => import('@/app/components/questions/StimulusManager'), { ssr: false });
+const InstructionManager = dynamic(() => import('@/app/components/questions/InstructionManager'), { ssr: false });
 const QuestionEditorModal = dynamic(() => import('@/app/components/questions/QuestionEditorModal'), { ssr: false });
 const BulkImportModal = dynamic(() => import('@/app/components/questions/BulkImportModal'), { ssr: false });
 const PreviewModal = dynamic(() => import('@/app/components/questions/PreviewModal'), { ssr: false });
-const ExamPrintView = (dynamic as any)(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
+const ExamPrintView = dynamic(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
 
 type QuestionBankRole = 'admin' | 'guru' | 'proktor';
 
@@ -47,23 +67,23 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const cachePrefix = `${role}_questions_${bankId}`;
     const questionsBasePath = `/dashboard/${role}/questions`;
 
-    const [questions, setQuestions] = useMemoryState<any[]>(`${cachePrefix}_questions`, []);
+    const [questions, setQuestions] = useMemoryState<QuestionRecord[]>(`${cachePrefix}_questions`, []);
     const [isLoading, setIsLoading] = useMemoryState(`${cachePrefix}_isLoading`, true);
-    const [org, setOrg] = useState<any>(null);
-    const [bankInfo, setBankInfo] = useState<any>(null);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi'>('questions');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [editingQuestion, setEditingQuestion] = useState<any>(null);
-    const [selectedType, setSelectedType] = useState<any>('mcq');
+    const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
+    const [selectedType, setSelectedType] = useState<QuestionType>('mcq');
 
     const [questionText, setQuestionText] = useState('');
     const [scoreDefault, setScoreDefault] = useState(1);
-    const [options, setOptions] = useMemoryState<any[]>(`${cachePrefix}_options`, []);
-    const [metadata, setMetadata] = useState<any>({});
+    const [options, setOptions] = useMemoryState<QuestionOptionDraft[]>(`${cachePrefix}_options`, []);
+    const [metadata, setMetadata] = useState<QuestionMetadata>({});
     const [categories, setCategories] = useMemoryState<string[]>(`${cachePrefix}_categories`, []);
     const [kisiKisi, setKisiKisi] = useState('');
     const [pembahasan, setPembahasan] = useState('');
@@ -73,10 +93,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [kisiKisiId, setKisiKisiId] = useState<string | null>(null);
     const [pembLatexInput, setPembLatexInput] = useState('');
     const [openMathBuilder, setOpenMathBuilder] = useState(false);
-    const [isGeneratingAI, setIsGeneratingAI] = useState<string | null>(null);
 
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-    const [viewingQuestion, setViewingQuestion] = useState<any>(null);
+    const [viewingQuestion, setViewingQuestion] = useState<QuestionRecord | null>(null);
     const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
     const [matchingAnswers, setMatchingAnswers] = useState<Record<string, string>>({});
     const [doubtfulPreviews, setDoubtfulPreviews] = useState<Set<string>>(new Set());
@@ -87,28 +106,24 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean, type: 'single' | 'bulk', id?: string } | null>(null);
 
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isImportDropdownOpen, setIsImportDropdownOpen] = useState(false);
-    const [userId, setUserId] = useState<string>('');
-    const importDropdownRef = useRef<HTMLDivElement>(null);
     const [isExportOpen, setIsExportOpen] = useState(false);
     const exportDropdownRef = useRef<HTMLDivElement>(null);
-    const [stimuliList, setStimuliList] = useMemoryState<any[]>(`${cachePrefix}_stimuliList`, []);
-    const [instructionsList, setInstructionsList] = useMemoryState<any[]>(`${cachePrefix}_instructionsList`, []);
-    const [dimensionsList, setDimensionsList] = useMemoryState<any[]>(`${cachePrefix}_dimensionsList`, []);
-    const [kisiKisiList, setKisiKisiList] = useMemoryState<any[]>(`${cachePrefix}_kisiKisiList`, []);
+    const [stimuliList, setStimuliList] = useMemoryState<BankTextItem[]>(`${cachePrefix}_stimuliList`, []);
+    const [instructionsList, setInstructionsList] = useMemoryState<BankTextItem[]>(`${cachePrefix}_instructionsList`, []);
+    const [dimensionsList, setDimensionsList] = useMemoryState<DimensionItem[]>(`${cachePrefix}_dimensionsList`, []);
+    const [kisiKisiList, setKisiKisiList] = useMemoryState<KisiKisiItem[]>(`${cachePrefix}_kisiKisiList`, []);
 
-    // Cross-bank import
-    const [quillInstance, setQuillInstance] = useState<any>(null);
-    const [isCropperOpen, setIsCropperOpen] = useState(false);
-    const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-    const [cropperContext, setCropperContext] = useState<any>({ type: 'question' });
-    const [isEquationBuilderOpen, setIsEquationBuilderOpen] = useState(false);
-    const [isSymbolPickerOpen, setIsSymbolPickerOpen] = useState(false);
-    const [isTableConfigOpen, setIsTableConfigOpen] = useState(false);
-    const [tableRows, setTableRows] = useState(2);
-    const [tableCols, setTableCols] = useState(2);
-    const [isPrintOpen, setIsPrintOpen] = useState(false);
+    // Editor modal owns the visible state; this page supplies its setters.
+    const [, setQuillInstance] = useState<unknown>(null);
+    const [, setIsCropperOpen] = useState(false);
+    const [, setImageToCrop] = useState<string | null>(null);
+    const [, setCropperContext] = useState<{ type: 'question' | 'option'; index?: number }>({ type: 'question' });
+    const [, setIsEquationBuilderOpen] = useState(false);
+    const [, setIsSymbolPickerOpen] = useState(false);
+    const [, setIsTableConfigOpen] = useState(false);
+
     const isFirstRender = useRef(true);
+    const loadGenerationRef = useRef(0);
 
     const filteredQuestions = questions.filter(q => {
         const matchSearch = (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -127,12 +142,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         isEditorOpenRef.current = isEditorOpen;
     }, [filteredQuestions, editingQuestion, isEditorOpen]);
 
-    useEffect(() => { loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus); }, [bankId]);
-
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
@@ -143,98 +152,62 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    useEffect(() => {
-        // Skip SSR/hydration: only run after component mounts (second render)
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
-        if (isLoading || questions.length === 0) return;
-        const previewParam = searchParams.get('preview');
-        const indexParam = searchParams.get('index');
-        const filtered = (questions || []).filter(q => (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase()));
-
-        if (previewParam) {
-            if (previewParam === 'all') {
-                setIsViewModalOpen(true);
-                setViewingQuestion(null);
-                const idx = indexParam ? Math.min(parseInt(indexParam) || 0, filtered.length - 1) : 0;
-                setCurrentPreviewIndex(Math.max(0, idx));
-            } else {
-                const q = questions.find(q => q.id === previewParam);
-                if (q) {
-                    setViewingQuestion(q);
-                    setIsViewModalOpen(true);
-                    const qIdx = filtered.findIndex(fq => fq.id === q.id);
-                    if (qIdx >= 0) setCurrentPreviewIndex(qIdx);
-                }
-            }
-        } else if (indexParam !== null) {
-            setIsViewModalOpen(false);
-            const parsedIdx = parseInt(indexParam, 10);
-            if (!isNaN(parsedIdx) && filtered.length > 0) {
-                const targetIdx = Math.max(0, Math.min(parsedIdx, filtered.length - 1));
-                const targetQuestion = filtered[targetIdx];
-                if (targetQuestion && (!isEditorOpenRef.current || editingQuestionRef.current?.id !== targetQuestion.id)) {
-                    handleOpenEditor(targetQuestion);
-                }
-            }
-        } else {
-            setIsViewModalOpen(false);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchQuery, searchParams, isLoading, questions, bankId]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
+        const generation = ++loadGenerationRef.current;
         // setIsLoading(true); // Disabled for silent background sync
         const user = await getSessionUser();
-        if (user) {
-            const organization = await getProctorOrganization();
-            setUserId(user.id);
-            if (organization) {
-                setOrg(organization);
-                const [qList, bDetail, stimList, instList, dimList, kkList] = await Promise.all([
-                    getBankQuestions(bankId),
-                    getQuestionBankAction(bankId),
-                    getStimuliByBank(bankId),
-                    getInstructionsByBank(bankId),
-                    getDimensionsByBank(bankId),
-                    getKisiKisiByBank(bankId)
-                ]);
-                setQuestions(qList || []);
-                setBankInfo(bDetail);
-                setStimuliList(stimList || []);
-                setInstructionsList(instList || []);
-                setDimensionsList(dimList || []);
-                setKisiKisiList(kkList || []);
-            }
+        if (!user) {
+            if (generation === loadGenerationRef.current) setIsLoading(false);
+            return;
         }
+
+        const organization = await getProctorOrganization();
+        if (!organization) {
+            if (generation === loadGenerationRef.current) setIsLoading(false);
+            return;
+        }
+
+        const [qList, bDetail, stimList, instList, dimList, kkList] = await Promise.all([
+            getBankQuestions(bankId),
+            getQuestionBankAction(bankId),
+            getStimuliByBank(bankId),
+            getInstructionsByBank(bankId),
+            getDimensionsByBank(bankId),
+            getKisiKisiByBank(bankId)
+        ]);
+        if (generation !== loadGenerationRef.current) return;
+
+        setOrg(organization);
+        setQuestions(qList || []);
+        setBankInfo(bDetail);
+        setStimuliList(stimList || []);
+        setInstructionsList(instList || []);
+        setDimensionsList(dimList || []);
+        setKisiKisiList(kkList || []);
         setIsLoading(false);
-    };
+    }, [bankId, setDimensionsList, setInstructionsList, setIsLoading, setKisiKisiList, setQuestions, setStimuliList]);
 
-    const generateKisiForQuestion = async (qId: string, text: string, opts: any[]) => {
-        setIsGeneratingAI(qId);
-        try {
-            const optTexts = opts.map(o => o.option_text || o.text);
-            const res = await generateKisiKisi(text, optTexts);
-            if (res.success && res.kisi) {
-                setQuestions(prev => prev.map(q => q.id === qId ? { ...q, metadata: { ...q.metadata, kisi_kisi: res.kisi } } : q));
-                await updateQuestionMetadataAction(qId, { kisi_kisi: res.kisi });
-                alert("Kisi-kisi berhasil di-generate!");
-            }
-        } catch (err) { console.error(err); }
-        finally { setIsGeneratingAI(null); }
-    };
+    useEffect(() => {
+        void loadData();
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            loadGenerationRef.current += 1;
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
-    const handleOpenEditor = (q: any = null) => {
+    const handleOpenEditor = useCallback((q: QuestionRecord | null = null) => {
         if (q && q.id) {
             // Deduplicate options before loading into editor
             const rawOptions = q.bank_question_options || q.options || [];
             const uniqueOptions = rawOptions;
 
-            const loadedOptions = uniqueOptions.map((opt: any) => ({
+            const loadedOptions = uniqueOptions.map((opt, index) => ({
                 ...opt, text: opt.option_text || opt.text || '',
                 isCorrect: opt.is_correct || opt.isCorrect || false,
+                order: opt.order ?? index,
+                weight: opt.weight ?? 0,
                 match_texts: opt.metadata?.match_texts || opt.match_texts || [],
                 category_names: opt.metadata?.category_names || opt.category_names || [],
                 dimension_id: opt.metadata?.dimension_id || opt.dimension_id || null
@@ -275,10 +248,10 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             setDimensionId(null);
             setKisiKisiId(null);
             setOptions([
-                { text: '', isCorrect: true, order: 0, weight: 1 },
-                { text: '', isCorrect: false, order: 1, weight: 0 },
-                { text: '', isCorrect: false, order: 2, weight: 0 },
-                { text: '', isCorrect: false, order: 3, weight: 0 },
+                { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
+                { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] },
+                { text: '', isCorrect: false, order: 2, weight: 0, match_texts: [], category_names: [] },
+                { text: '', isCorrect: false, order: 3, weight: 0, match_texts: [], category_names: [] },
             ]);
             const p = new URLSearchParams(window.location.search);
             p.delete("index");
@@ -287,54 +260,52 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             window.history.replaceState({}, "", `${window.location.pathname}${p.toString() ? "?" + p.toString() : ""}`);
         }
         setIsEditorOpen(true);
-    };
+    }, [setCategories, setOptions]);
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!org) return;
-        setIsSubmitting(true);
-        const result = await saveQuestionAction({
-            id: editingQuestion?.id,
-            expectedRevision: editingQuestion?.revision,
-            bankId: bankId,
-            type: selectedType,
-            questionText,
-            difficulty: 'medium',
-            scoreDefault,
-            stimulusId: stimulusId || null,
-            instructionId: instructionId || null,
-            dimensionId: dimensionId || null,
-            kisi_kisi_id: kisiKisiId || null,
-            metadata: {
-                ...metadata,
-                categories: selectedType === 'categorization' ? categories : [],
-                kisi_kisi: kisiKisi,
-                pembahasan: pembahasan
-            },
-            options: selectedType === 'essay' ? [] : options.map((opt, i) => ({
-                id: opt.id, text: opt.text, isCorrect: opt.isCorrect, order: i, weight: 1,
-                metadata: { match_texts: opt.match_texts || [], category_names: opt.category_names || [] }
-            }))
-        });
-        if (result.success) {
-            setIsEditorOpen(false);
-            const p = new URLSearchParams(window.location.search);
-            p.delete("index");
-            p.delete("preview");
-            p.delete("edit");
-            window.history.replaceState({}, "", `${window.location.pathname}${p.toString() ? "?" + p.toString() : ""}`);
-            await loadData();
+    useEffect(() => {
+        // Skip SSR/hydration: only run after component mounts (second render)
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
         }
-        setIsSubmitting(false);
-    };
+        if (isLoading || questions.length === 0) return;
+        const previewParam = searchParams.get('preview');
+        const indexParam = searchParams.get('index');
+        const filtered = (questions || []).filter(q => (q.question_text || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const addOption = () => setOptions([...options, { text: '', isCorrect: false, order: options.length, weight: 0 }]);
-    const removeOption = (idx: number) => setOptions(options.filter((_, i) => i !== idx));
-    const updateOption = (idx: number, fields: any) => {
-        const newOpts = [...options];
-        newOpts[idx] = { ...newOpts[idx], ...fields };
-        setOptions(newOpts);
-    };
+        const syncFromUrl = () => {
+        if (previewParam) {
+            if (previewParam === 'all') {
+                setIsViewModalOpen(true);
+                setViewingQuestion(null);
+                const idx = indexParam ? Math.min(parseInt(indexParam) || 0, filtered.length - 1) : 0;
+                setCurrentPreviewIndex(Math.max(0, idx));
+            } else {
+                const q = questions.find(q => q.id === previewParam);
+                if (q) {
+                    setViewingQuestion(q);
+                    setIsViewModalOpen(true);
+                    const qIdx = filtered.findIndex(fq => fq.id === q.id);
+                    if (qIdx >= 0) setCurrentPreviewIndex(qIdx);
+                }
+            }
+        } else if (indexParam !== null) {
+            setIsViewModalOpen(false);
+            const parsedIdx = parseInt(indexParam, 10);
+            if (!isNaN(parsedIdx) && filtered.length > 0) {
+                const targetIdx = Math.max(0, Math.min(parsedIdx, filtered.length - 1));
+                const targetQuestion = filtered[targetIdx];
+                if (targetQuestion && (!isEditorOpenRef.current || editingQuestionRef.current?.id !== targetQuestion.id)) {
+                    handleOpenEditor(targetQuestion);
+                }
+            }
+        } else {
+            setIsViewModalOpen(false);
+        }
+        };
+        const timer = window.setTimeout(syncFromUrl, 0);
+        return () => window.clearTimeout(timer);
+    }, [searchQuery, searchParams, isLoading, questions, handleOpenEditor]);
 
     const requestDelete = (qId: string) => {
         setDeleteConfirm({ isOpen: true, type: 'single', id: qId });
@@ -392,7 +363,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         }
     };
 
-    const handleOpenView = (q: any) => {
+    const handleOpenView = (q: QuestionRecord) => {
         setMatchingAnswers({});
         setIsViewModalOpen(true);
         const idx = filteredQuestions.findIndex(fq => fq.id === q.id);
@@ -420,7 +391,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         try {
             const result = await exportQuestionsToWord(
                 questions,
-                bankInfo,
+                bankInfo || { title: 'Bank Soal' },
                 stimuliList,
                 instructionsList,
                 kisiKisiList,
@@ -434,9 +405,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-        } catch (err: any) {
+        } catch (err) {
             console.error('Export failed:', err);
-            alert('Gagal mengexport dokumen: ' + (err?.message || String(err)));
+            alert('Gagal mengexport dokumen: ' + (getErrorMessage(err) || String(err)));
         }
     };
 
@@ -445,7 +416,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     };
 
     const totalQuestions = questions.length;
-    const lastUpdated = bankInfo?.updated_at ? new Date(bankInfo.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
 
     // In-editor navigation: keep latest list/editing in refs to avoid stale
     // closures when jumping to the adjacent question right after a save.
@@ -481,7 +451,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 </div>
                 <div className="flex-1 p-8 print:p-0 overflow-y-auto">
                     <div className="max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none print:max-w-none print:mx-0">
-                        <ExamPrintView bankInfo={bankInfo as any} questions={questions} />
+                        <ExamPrintView bankInfo={bankInfo} questions={questions} />
                     </div>
                 </div>
             </div>
@@ -690,12 +660,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 ) : (
                     <div className="space-y-3">
                         {filteredQuestions.map((q, idx) => {
-                            const meta = typeof q.metadata === 'string' ? JSON.parse(q.metadata || '{}') : (q.metadata || {});
+                            const meta = q.metadata || {};
                             
-                            const stim = Array.isArray(q.stimulus) ? q.stimulus[0] : q.stimulus;
+                            const stim = q.stimulus;
                             const hasStimulus = !!(stim?.content || meta.import_stimulus);
                             
-                            const inst = Array.isArray(q.instruction) ? q.instruction[0] : q.instruction;
+                            const inst = q.instruction;
                             const hasInstruction = !!(inst?.content || meta.import_instruction);
                             
                             const hasKisi = !!(q.kisi_kisi_id || meta.kisi_kisi);
@@ -784,27 +754,27 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     <div className="px-5 py-4 bg-white">
                                         <div className="text-sm text-slate-800 leading-relaxed" style={{overflow: 'visible'}}><QuestionContent content={q.question_text} /></div>
                                     </div>
-                                    {q.type === 'true_false' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'true_false' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => (
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt) => (
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
                                                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? 'B' : 'S'}</span>
-                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'matching' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'matching' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => {
                                                     const matches = opt.metadata?.match_texts || [];
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
                                                             <span className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] bg-primary text-white">{String.fromCharCode(65 + oIdx)}</span>
-                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             <span className="text-slate-400 text-[10px]">→</span>
                                                             <span className="text-primary font-medium">{matches.join(', ') || '-'}</span>
                                                         </div>
@@ -813,15 +783,15 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'categorization' && (q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'categorization' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(q.bank_question_options || []).filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => {
                                                     const cats = opt.metadata?.category_names || [];
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
                                                             <span className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] bg-primary text-white">{String.fromCharCode(65 + oIdx)}</span>
-                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             <span className="text-slate-400 text-[10px]">→</span>
                                                             <span className="text-purple-600 font-medium">{cats.join(', ') || '-'}</span>
                                                         </div>
@@ -833,7 +803,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     {q.type === 'short_answer' && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {(meta.blanks || []).map((blank: any, bIdx: number) => (
+                                                {(meta.blanks || []).map((blank, bIdx: number) => (
                                                     <div key={bIdx} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-blue-50 border-blue-200 text-xs text-blue-800">
                                                         <span className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold leading-none pt-[1px] bg-blue-500 text-white shrink-0">{bIdx + 1}</span>
                                                         <div className="flex-1 min-w-0">
@@ -859,30 +829,30 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                         </div>
                                     )}
-                                    {(q.type === 'mcq' || q.type === 'mcq_complex') && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {(q.type === 'mcq' || q.type === 'mcq_complex') && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => (
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => (
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
                                                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
-                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                         {opt.is_correct && <Check size={13} className="text-green-500 shrink-0" />}
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'sjt' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'sjt' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
-                                                    const isHighest = opt.weight === Math.max(...(q.bank_question_options || []).map((o: any) => o.weight || 0));
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => {
+                                                    const isHighest = opt.weight === Math.max(...(q.bank_question_options || []).map((o) => o.weight || 0));
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
-                                                    const dimName = dimensionsList?.find((d: any) => d.id === dimId)?.name;
+                                                    const dimName = dimensionsList?.find((d) => d.id === dimId)?.name;
                                                     return (
                                                         <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${isHighest ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
                                                             <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${isHighest ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
-                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             {dimName && (
                                                                 <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-[10px] font-bold border border-indigo-100 whitespace-nowrap shrink-0 flex items-center gap-1">
                                                                     <Target size={10} /> {dimName}
@@ -897,28 +867,28 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'ordering' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'ordering' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).sort((a: any, b: any) => a.order - b.order).map((opt: any, oIdx: number) => (
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((opt, oIdx: number) => (
                                                     <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
                                                         <span className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold leading-none pt-[1px] bg-blue-500 text-white shrink-0">{oIdx + 1}</span>
-                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                        <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    {['forced_choice', 'checklist', 'ranking'].includes(q.type) && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {['forced_choice', 'checklist', 'ranking'].includes(q.type) && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => {
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
-                                                    const dimName = dimensionsList?.find((d: any) => d.id === dimId)?.name;
+                                                    const dimName = dimensionsList?.find((d) => d.id === dimId)?.name;
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-slate-50 border-slate-100 text-xs text-slate-600">
                                                             <span className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold leading-none pt-[1px] bg-indigo-500 text-white shrink-0">P{oIdx + 1}</span>
-                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             {dimName && (
                                                                 <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-[10px] font-bold border border-indigo-100 whitespace-nowrap shrink-0 flex items-center gap-1">
                                                                     <Target size={10} /> {dimName}
@@ -930,16 +900,16 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'paired_comparison' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'paired_comparison' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).map((opt: any, oIdx: number) => {
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt, oIdx: number) => {
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
-                                                    const dimName = dimensionsList?.find((d: any) => d.id === dimId)?.name;
+                                                    const dimName = dimensionsList?.find((d) => d.id === dimId)?.name;
                                                     return (
                                                         <div key={opt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md border bg-pink-50/50 border-pink-100 text-xs text-slate-600">
                                                             <span className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold leading-none pt-[1px] bg-pink-500 text-white shrink-0">{oIdx === 0 ? 'A' : 'B'}</span>
-                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                            <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             {dimName && (
                                                                 <div className="bg-pink-100/50 text-pink-700 px-2 py-1 rounded text-[10px] font-bold border border-pink-200 whitespace-nowrap shrink-0 flex items-center gap-1">
                                                                     <Target size={10} /> {dimName}
@@ -951,12 +921,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                         </div>
                                     )}
-                                    {q.type === 'likert' && q.bank_question_options?.filter((o: any) => (o.option_text || o.text || '').trim()).length > 0 && (
+                                    {q.type === 'likert' && (q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).length > 0 && (
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-wrap gap-2">
-                                                {q.bank_question_options.filter((o: any) => (o.option_text || o.text || '').trim()).sort((a: any, b: any) => a.order - b.order).map((opt: any, oIdx: number) => (
+                                                {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((opt) => (
                                                     <div key={opt.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-emerald-50/50 border-emerald-100 text-xs text-emerald-800">
-                                                        <span className="font-medium"><QuestionContent content={opt.option_text || opt.text} /></span>
+                                                        <span className="font-medium"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                         <span className="text-[10px] bg-emerald-200/50 text-emerald-700 px-1.5 rounded font-semibold whitespace-nowrap">Skor: {opt.weight || 0}</span>
                                                     </div>
                                                 ))}
@@ -986,6 +956,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             {/* Modals */}
             {isEditorOpen && (
                 <QuestionEditorModal
+                    key={editingQuestion?.id ?? 'new-question'}
                     isOpen={isEditorOpen}
                     editingQuestion={editingQuestion}
                     bankId={bankId}
@@ -1074,14 +1045,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 setSimulatedResults={setSimulatedResults}
                 onFinish={() => setIsViewModalOpen(false)}
                 studentName={org?.name}
-                studentClass={org?.title}
             />
 
             <BulkImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 bankId={bankId}
-                userId={userId}
                 onImportComplete={loadData}
             />
 

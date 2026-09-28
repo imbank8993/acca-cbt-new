@@ -1,18 +1,26 @@
 "use client";
-import React, { useState, useEffect } from 'react';
 import {
-    getDimensionsByBank, createDimension, updateDimension, deleteDimension,
-    getDimensionInterpretationsByBank, createDimensionInterpretation, updateDimensionInterpretation, deleteDimensionInterpretation
+createDimension,
+createDimensionInterpretation,
+deleteDimension,
+deleteDimensionInterpretation,
+DimensionInterpretationItem,
+DimensionItem,
+getDimensionInterpretationsByBank,
+getDimensionsByBank,
+updateDimension,
+updateDimensionInterpretation,
 } from '@/lib/api/questions';
-import { Plus, Edit3, Trash2, X, Check, Settings2, BarChart2 } from 'lucide-react';
+import { BarChart2,Edit3,Plus,Settings2,Trash2,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 interface DimensionManagerProps {
     bankId: string;
 }
 
 export default function DimensionManager({ bankId }: DimensionManagerProps) {
-    const [dimensions, setDimensions] = useState<any[]>([]);
-    const [interpretations, setInterpretations] = useState<any[]>([]);
+    const [dimensions, setDimensions] = useState<DimensionItem[]>([]);
+    const [interpretations, setInterpretations] = useState<DimensionInterpretationItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     
     const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -30,12 +38,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
     const [iTitle, setITitle] = useState('');
     const [iDesc, setIDesc] = useState('');
 
-    useEffect(() => {
-        loadData();
-    }, [bankId]);
-
-    const loadData = async () => {
-        setIsLoading(true);
+    const loadData = useCallback(async () => {
         const [dimData, interpData] = await Promise.all([
             getDimensionsByBank(bankId),
             getDimensionInterpretationsByBank(bankId)
@@ -43,9 +46,27 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
         setDimensions(dimData || []);
         setInterpretations(interpData || []);
         setIsLoading(false);
-    };
+    }, [bankId]);
 
-    const handleOpenEditor = (d: any = null) => {
+    useEffect(() => {
+        let active = true;
+
+        void Promise.all([
+            getDimensionsByBank(bankId),
+            getDimensionInterpretationsByBank(bankId),
+        ]).then(([dimData, interpData]) => {
+            if (!active) return;
+            setDimensions(dimData || []);
+            setInterpretations(interpData || []);
+            setIsLoading(false);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [bankId]);
+
+    const handleOpenEditor = (d: DimensionItem | null = null) => {
         if (d) {
             setEditingId(d.id);
             setName(d.name || '');
@@ -68,18 +89,18 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
         }
         setIsSubmitting(false);
         setIsEditorOpen(false);
-        loadData();
+        void loadData();
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Yakin ingin menghapus dimensi ini? Soal yang terhubung akan kehilangan dimensi ini.')) return;
         await deleteDimension(id);
-        loadData();
+        void loadData();
     };
 
     // --- Interpretations ---
 
-    const handleOpenInterpEditor = (dimId: string, i: any = null) => {
+    const handleOpenInterpEditor = (dimId: string, i: DimensionInterpretationItem | null = null) => {
         setInterpDimensionId(dimId);
         if (i) {
             setEditingInterpId(i.id);
@@ -108,13 +129,13 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
         }
         setIsSubmitting(false);
         setIsInterpEditorOpen(false);
-        loadData();
+        void loadData();
     };
 
     const handleDeleteInterp = async (id: string) => {
         if (!confirm('Hapus interpretasi ini?')) return;
         await deleteDimensionInterpretation(id);
-        loadData();
+        void loadData();
     };
 
     if (isLoading) {

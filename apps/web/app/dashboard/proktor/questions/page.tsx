@@ -1,45 +1,49 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Plus, Search, BookOpen, Trash2, Edit3,
-    ArrowRight, Loader2, X, Upload, Check, ChevronDown, Eye,
-    FolderOpen, Folder, ChevronRight, MoreHorizontal, FolderPlus
-} from 'lucide-react';
-import { createQuestionBank, listQuestionBanks, deleteQuestionBank, toggleQuestionBankPublishAction, updateQuestionBankAction, listOrganizationLabels, listBankFolders, createBankFolder, updateBankFolder, deleteBankFolder, moveBankToFolder, bulkMoveBanksToFolder, createOrganizationLabel } from '@/lib/api/questions';
-import { getProctorOrganization, isUserProctor, hasUserDualRole, listSubjects } from '@/lib/api/proctor';
+import { getErrorMessage } from '@/lib/errors';
+import { ActionButton } from '@/app/components/ui/actionbutton';
+import { Button } from '@/app/components/ui/button';
+import { FilterActions,FilterSearch,FilterSelect,FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { Modal,ModalBody,ModalField,ModalFooter } from '@/app/components/ui/modal';
+import { Spinner } from '@/app/components/ui/Spinner';
+import { getProctorOrganization,hasUserDualRole,isUserProctor,listSubjects } from '@/lib/api/proctor';
+import type { ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
+import { bulkMoveBanksToFolder,createBankFolder,createOrganizationLabel,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBanks,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder,updateQuestionBankAction } from '@/lib/api/questions';
+import type { BankFolder,OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { uploadToHosting } from '@/lib/uploader';
-import Link from 'next/link';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { Button } from '@/app/components/ui/button';
-import { ActionButton } from '@/app/components/ui/actionbutton';
-import { Modal, ModalHeader, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
-import { FilterToolbar, FilterSearch, FilterSelect, FilterActions } from '@/app/components/ui/filtertoolbar';
-import { Spinner } from '@/app/components/ui/Spinner';
+import {
+ArrowRight,
+BookOpen,
+Check,ChevronDown,
+ChevronRight,
+Edit3,
+Folder,
+FolderOpen,
+FolderPlus,
+MoreHorizontal,
+Plus,
+Trash2,
+Upload
+} from 'lucide-react';
+import Link from 'next/link';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
-const AVAILABLE_ICONS = [
-    { id: 'BookOpen', icon: BookOpen, label: 'Buku' },
-    { id: 'Calculator', icon: BookOpen, label: 'Matematika' },
-    { id: 'Languages', icon: BookOpen, label: 'Bahasa' },
-    { id: 'Atom', icon: BookOpen, label: 'Sains' },
-    { id: 'Globe', icon: BookOpen, label: 'Sosial' },
-];
 
 export default function ProktorQuestionBankPage() {
-    const [banks, setBanks] = useMemoryState<any[]>('proktor_questions_banks', []);
+    const [banks, setBanks] = useMemoryState<QuestionBank[]>('proktor_questions_banks', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_questions_isLoading', true);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [bankToDelete, setBankToDelete] = useState<any>(null);
+    const [bankToDelete, setBankToDelete] = useState<QuestionBank | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [org, setOrg] = useState<any>(null);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [isProctor, setIsProctor] = useState(false);
     const [isDualRole, setIsDualRole] = useState(false);
-    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [, setCurrentUserId] = useState<string | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'all' | 'draft' | 'published'>('all');
-    const [editingBank, setEditingBank] = useState<any>(null);
+    const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
+    const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [uploadingImage, setUploadingImage] = useState(false);
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
@@ -52,24 +56,24 @@ export default function ProktorQuestionBankPage() {
         title: '', description: '', subject: '', classLevel: '',
         iconIdentifier: 'BookOpen', imageUrl: '', tags: [] as string[], folderId: undefined as string | undefined
     });
-    const [labels, setLabels] = useMemoryState<any[]>('proktor_questions_labels', []);
-    const [orgSubjects, setOrgSubjects] = useMemoryState<any[]>('proktor_questions_orgSubjects', []);
+    const [labels, setLabels] = useMemoryState<OrganizationLabel[]>('proktor_questions_labels', []);
+    const [orgSubjects, setOrgSubjects] = useMemoryState<SchoolSubject[]>('proktor_questions_orgSubjects', []);
     const [newCustomLabel, setNewCustomLabel] = useState('');
-    const [isLabelDropdownOpen, setIsLabelDropdownOpen] = useState(false);
-    const [labelSearchQuery, setLabelSearchQuery] = useState('');
+    const [, setIsLabelDropdownOpen] = useState(false);
+    const [] = useState('');
     const labelDropdownRef = useRef<HTMLDivElement>(null);
 
-    const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
-    const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
+    const [, setIsSubjectDropdownOpen] = useState(false);
+    const [] = useState('');
     const subjectDropdownRef = useRef<HTMLDivElement>(null);
 
-    const [isCreatorDropdownOpen, setIsCreatorDropdownOpen] = useState(false);
-    const [creatorSearchQuery, setCreatorSearchQuery] = useState('');
+    const [, setIsCreatorDropdownOpen] = useState(false);
+    const [] = useState('');
     const creatorDropdownRef = useRef<HTMLDivElement>(null);
 
     const [activeClassFilter, setActiveClassFilter] = useState<string | null>(null);
-    const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
-    const [classSearchQuery, setClassSearchQuery] = useState('');
+    const [, setIsClassDropdownOpen] = useState(false);
+    const [] = useState('');
     const classDropdownRef = useRef<HTMLDivElement>(null);
 
     const CLASS_LEVELS = [
@@ -105,18 +109,18 @@ export default function ProktorQuestionBankPage() {
     }, []);
 
     // Folder state
-    const [folders, setFolders] = useMemoryState<any[]>('proktor_questions_folders', []);
+    const [folders, setFolders] = useMemoryState<BankFolder[]>('proktor_questions_folders', []);
     const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
-    const [editingFolder, setEditingFolder] = useState<any>(null);
+    const [editingFolder, setEditingFolder] = useState<BankFolder | null>(null);
     const [newFolderName, setNewFolderName] = useState('');
-    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [] = useState<string | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-    const [bankToMove, setBankToMove] = useState<any>(null);
+    const [bankToMove, setBankToMove] = useState<QuestionBank | null>(null);
 
     // Bulk selection state
-    const [bulkMode, setBulkMode] = useState(false);
+    const [, setBulkMode] = useState(false);
     const [selectedBankIds, setSelectedBankIds] = useState<Set<string>>(new Set());
 
     // Bulk move modal
@@ -124,16 +128,10 @@ export default function ProktorQuestionBankPage() {
 
     // Add to folder modal (select existing banks)
     const [isAddToFolderModalOpen, setIsAddToFolderModalOpen] = useState(false);
-    const [targetFolder, setTargetFolder] = useState<any>(null);
+    const [targetFolder, setTargetFolder] = useState<BankFolder | null>(null);
     const [selectedAddToFolderIds, setSelectedAddToFolderIds] = useState<Set<string>>(new Set());
 
-    useEffect(() => { loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus); }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
         try {
             const user = await getSessionUser();
@@ -165,7 +163,17 @@ export default function ProktorQuestionBankPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [setBanks, setFolders, setIsLoading, setLabels, setOrgSubjects]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -176,11 +184,11 @@ export default function ProktorQuestionBankPage() {
             if (result.success && result.url) {
                 setFormData(prev => ({ ...prev, imageUrl: result.url || '', iconIdentifier: '' }));
             }
-        } catch (error: any) { alert('Gagal upload: ' + error.message); }
+        } catch (error) { alert('Gagal upload: ' + getErrorMessage(error)); }
         finally { setUploadingImage(false); }
     };
 
-    const handleOpenEdit = (bank: any) => {
+    const handleOpenEdit = (bank: QuestionBank) => {
         setEditingBank(bank);
         setFormData({
             title: bank.title, description: bank.description || '',
@@ -199,7 +207,7 @@ export default function ProktorQuestionBankPage() {
             const user = await getSessionUser();
             if (!user) return;
 
-            let result: any;
+            let result: Awaited<ReturnType<typeof createQuestionBank>>;
             if (editingBank) {
                 result = await updateQuestionBankAction(editingBank.id, {
                     title: formData.title, description: formData.description,
@@ -226,7 +234,7 @@ export default function ProktorQuestionBankPage() {
                 setFormData({ title: '', description: '', subject: '', classLevel: '', iconIdentifier: 'BookOpen', imageUrl: '', tags: [], folderId: undefined });
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
@@ -237,11 +245,11 @@ export default function ProktorQuestionBankPage() {
             const result = await deleteQuestionBank(bankToDelete.id);
             if (result.success) { setIsDeleteModalOpen(false); setBankToDelete(null); await loadData(); }
             else { alert('Gagal: ' + result.error); }
-        } catch (err) { alert('Error.'); }
+        } catch { alert('Error.'); }
         finally { setIsSubmitting(false); }
     };
 
-    const handleTogglePublish = async (bank: any) => {
+    const handleTogglePublish = async (bank: QuestionBank) => {
         if (!org) return;
         const newStatus = !bank.is_published;
         const result = await toggleQuestionBankPublishAction(bank.id, newStatus);
@@ -285,8 +293,8 @@ export default function ProktorQuestionBankPage() {
             } else {
                 alert('Gagal membuat label: ' + result.error);
             }
-        } catch (err: any) {
-            alert('Error: ' + err.message);
+        } catch (err) {
+            alert('Error: ' + getErrorMessage(err));
         }
     };
 
@@ -297,7 +305,7 @@ export default function ProktorQuestionBankPage() {
         setIsFolderModalOpen(true);
     };
 
-    const handleOpenEditFolder = (folder: any) => {
+    const handleOpenEditFolder = (folder: BankFolder) => {
         setNewFolderName(folder.name);
         setEditingFolder(folder);
         setIsFolderModalOpen(true);
@@ -312,7 +320,7 @@ export default function ProktorQuestionBankPage() {
             const user = await getSessionUser();
             if (!user) return;
 
-            let result: any;
+            let result: Awaited<ReturnType<typeof createQuestionBank>>;
             if (editingFolder) {
                 result = await updateBankFolder(editingFolder.id, newFolderName);
             } else {
@@ -325,11 +333,11 @@ export default function ProktorQuestionBankPage() {
                 setEditingFolder(null);
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
-    const handleDeleteFolder = async (folder: any) => {
+    const handleDeleteFolder = async (folder: BankFolder) => {
         if (!org) return;
         setIsSubmitting(true);
         try {
@@ -338,11 +346,11 @@ export default function ProktorQuestionBankPage() {
                 setFolderMenuId(null);
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
-    const handleOpenAddToFolder = (folder: any) => {
+    const handleOpenAddToFolder = (folder: BankFolder) => {
         setTargetFolder(folder);
         setSelectedAddToFolderIds(new Set());
         setIsAddToFolderModalOpen(true);
@@ -360,11 +368,11 @@ export default function ProktorQuestionBankPage() {
                 setSelectedAddToFolderIds(new Set());
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
-    const handleOpenMoveBank = (bank: any) => {
+    const handleOpenMoveBank = (bank: QuestionBank) => {
         setBankToMove(bank);
         setIsMoveModalOpen(true);
         setFolderMenuId(null);
@@ -380,17 +388,11 @@ export default function ProktorQuestionBankPage() {
                 setBankToMove(null);
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
     // Bulk selection functions
-    const toggleBulkMode = () => {
-        setBulkMode(prev => !prev);
-        if (bulkMode) {
-            setSelectedBankIds(new Set());
-        }
-    };
 
     const toggleSelectBank = (bankId: string) => {
         setSelectedBankIds(prev => {
@@ -401,7 +403,7 @@ export default function ProktorQuestionBankPage() {
         });
     };
 
-    const toggleSelectAllInFolder = (folderBanks: any[]) => {
+    const toggleSelectAllInFolder = (folderBanks: QuestionBank[]) => {
         const allSelected = folderBanks.every(b => selectedBankIds.has(b.id));
         setSelectedBankIds(prev => {
             const next = new Set(prev);
@@ -414,18 +416,6 @@ export default function ProktorQuestionBankPage() {
         });
     };
 
-    const toggleSelectAllUnfoldered = () => {
-        const allSelected = banksByFolder.unfoldered.every(b => selectedBankIds.has(b.id));
-        setSelectedBankIds(prev => {
-            const next = new Set(prev);
-            if (allSelected) {
-                banksByFolder.unfoldered.forEach(b => next.delete(b.id));
-            } else {
-                banksByFolder.unfoldered.forEach(b => next.add(b.id));
-            }
-            return next;
-        });
-    };
 
     const handleBulkMove = async (folderId: string | null) => {
         if (!org || selectedBankIds.size === 0) return;
@@ -438,7 +428,7 @@ export default function ProktorQuestionBankPage() {
                 setBulkMode(false);
                 await loadData();
             } else { alert('Gagal: ' + result.error); }
-        } catch (err: any) { alert('Error: ' + err.message); }
+        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
         finally { setIsSubmitting(false); }
     };
 
@@ -451,72 +441,47 @@ export default function ProktorQuestionBankPage() {
         });
     };
 
-    const subjects = useMemo(() => {
-        const set = new Set<string>();
-        banks.forEach(b => { if (b.subject) set.add(b.subject); });
-        return Array.from(set).sort();
-    }, [banks]);
+    const subjects = Array.from(new Set(banks.map(bank => bank.subject).filter((subject): subject is string => Boolean(subject)))).sort();
+    const creators = Array.from(new Set(banks.map(bank => bank.creator_name).filter((creator): creator is string => Boolean(creator)))).sort();
 
-    const creators = useMemo(() => {
-        const set = new Set<string>();
-        banks.forEach(b => { set.add(b.creator_name); });
-        return Array.from(set).sort();
-    }, [banks]);
-
-    const filteredBanks = useMemo(() => {
-        let filtered = banks.filter(bank => {
-            const matchesTab = activeTab === 'all' ? true : (activeTab === 'published' ? bank.is_published : !bank.is_published);
-            const matchesSearch = (bank.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (bank.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesTag = !activeTagFilter || (bank.tags && bank.tags.includes(activeTagFilter));
+    const filteredBanks = banks
+        .filter(bank => {
+            const matchesTab = activeTab === 'all' || (activeTab === 'published' ? bank.is_published : !bank.is_published);
+            const matchesSearch = bank.title.toLowerCase().includes(searchQuery.toLowerCase()) || (bank.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesTag = !activeTagFilter || bank.tags?.includes(activeTagFilter);
             const matchesSubject = !activeSubjectFilter || bank.subject === activeSubjectFilter;
-            const matchesCreator = !activeCreatorFilter || (bank.creator_name) === activeCreatorFilter;
+            const matchesCreator = !activeCreatorFilter || bank.creator_name === activeCreatorFilter;
             const matchesClass = !activeClassFilter || bank.class_level === activeClassFilter;
             return matchesTab && matchesSearch && matchesTag && matchesSubject && matchesCreator && matchesClass;
-        });
+        })
+        .toSorted((a, b) => (b.created_at ? new Date(b.created_at).getTime() : 0) - (a.created_at ? new Date(a.created_at).getTime() : 0));
 
-        // Sort: newest to oldest by created_at
-        filtered.sort((a, b) => {
-            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return dateB - dateA;
-        });
-
-        return filtered;
-    }, [banks, searchQuery, activeTab, activeTagFilter, activeSubjectFilter, activeCreatorFilter, activeClassFilter]);
-
-    // Group banks by folder - handles dual role logic
-    const banksByFolder = useMemo(() => {
-        const folderMap = new Map<string, any[]>();
-        let unfoldered: any[] = [];
-
+    const banksByFolder = (() => {
+        const folderMap = new Map<string, QuestionBank[]>();
+        const unfoldered: QuestionBank[] = [];
         for (const bank of filteredBanks) {
-            // In the Proktor dashboard, if a bank has a folder_id, it should ALWAYS appear in that folder.
             if (isProctor && bank.folder_id) {
-                if (!folderMap.has(bank.folder_id)) {
-                    folderMap.set(bank.folder_id, []);
-                }
-                folderMap.get(bank.folder_id)!.push(bank);
+                const entries = folderMap.get(bank.folder_id) || [];
+                folderMap.set(bank.folder_id, [...entries, bank]);
             } else {
                 unfoldered.push(bank);
             }
         }
-
         return { folderMap, unfoldered };
-    }, [filteredBanks, folders, isProctor]);
+    })();
 
-    // Reset page when filters change
-    useEffect(() => { setCurrentPage(1); }, [activeTab, searchQuery, activeTagFilter, activeSubjectFilter, activeCreatorFilter, activeClassFilter]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setCurrentPage(1), 0);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, searchQuery, activeTagFilter, activeSubjectFilter, activeCreatorFilter, activeClassFilter]);
 
     const totalPages = Math.max(1, Math.ceil(filteredBanks.length / PAGE_SIZE));
     const safePage = Math.min(currentPage, totalPages);
-    const paginatedBanks = useMemo(() => {
-        const start = (safePage - 1) * PAGE_SIZE;
-        return filteredBanks.slice(start, start + PAGE_SIZE);
-    }, [filteredBanks, safePage]);
-
-    const draftCount = useMemo(() => banks.filter(b => !b.is_published).length, [banks]);
-    const publishedCount = useMemo(() => banks.filter(b => b.is_published).length, [banks]);
-    const allCount = useMemo(() => banks.length, [banks]);
+    const startIndex = (safePage - 1) * PAGE_SIZE;
+    const paginatedBanks = filteredBanks.slice(startIndex, startIndex + PAGE_SIZE);
+    const draftCount = banks.filter(bank => !bank.is_published).length;
+    const publishedCount = banks.filter(bank => bank.is_published).length;
+    const allCount = banks.length;
 
     const getLabelColor = (name: string) => labels.find(l => l.name === name)?.color || '#6366f1';
 
@@ -527,7 +492,7 @@ export default function ProktorQuestionBankPage() {
     };
 
     // Render bank card for desktop
-    const renderBankCard = (bank: any) => (
+    const renderBankCard = (bank: QuestionBank) => (
         <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 flex items-center justify-between hover:border-[#3083FF] transition-all">
             <div className="flex items-center gap-4 min-w-0">
                 <input
@@ -1332,7 +1297,7 @@ export default function ProktorQuestionBankPage() {
             >
                 <ModalBody>
                     <p className="text-sm text-slate-600">
-                        Yakin ingin menghapus <strong className="text-slate-900">"{bankToDelete?.title}"</strong> beserta seluruh soal di dalamnya?
+                        Yakin ingin menghapus <strong className="text-slate-900">&quot;{bankToDelete?.title}&quot;</strong> beserta seluruh soal di dalamnya?
                     </p>
                 </ModalBody>
                 <ModalFooter align="between">

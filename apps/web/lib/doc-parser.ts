@@ -3,26 +3,26 @@
  * Membaca word/document.xml langsung dari dalam DOCX, bypass mammoth.
  * Dijalankan di server-side (Next.js "use server" / Server Actions).
  */
-import * as JSZip from 'jszip';
 import { QuestionType } from '@/lib/api/questions';
+import { DOMParser as XMLDOMParser,XMLSerializer as XMLXMLSerializer } from '@xmldom/xmldom';
+import * as JSZip from 'jszip';
 import { readQuestionArchive } from './question-archive';
-// @ts-ignore
 import omml2mathml from 'omml2mathml';
 
 const getDOMParser = () => {
-    if (typeof window !== 'undefined' && (window as any).DOMParser) {
-        return new (window as any).DOMParser();
+    if (typeof globalThis.DOMParser !== 'undefined') {
+        return new globalThis.DOMParser();
     }
-    const { DOMParser } = require('@xmldom/xmldom');
-    return new DOMParser();
+    const ServerDOMParser = XMLDOMParser as unknown as typeof DOMParser;
+    return new ServerDOMParser();
 };
 
 const getXMLSerializer = () => {
-    if (typeof window !== 'undefined' && (window as any).XMLSerializer) {
-        return new (window as any).XMLSerializer();
+    if (typeof globalThis.XMLSerializer !== 'undefined') {
+        return new globalThis.XMLSerializer();
     }
-    const { XMLSerializer } = require('@xmldom/xmldom');
-    return new XMLSerializer();
+    const ServerXMLSerializer = XMLXMLSerializer as unknown as typeof XMLSerializer;
+    return new ServerXMLSerializer();
 };
 
 async function preprocessDocx(file: File): Promise<ArrayBuffer> {
@@ -37,9 +37,9 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
     const doc = parser.parseFromString(docXml, 'application/xml');
     
     // Find all oMath elements
-    let oMaths = Array.from(doc.getElementsByTagName('m:oMath')) as any[];
+    let oMaths = Array.from(doc.getElementsByTagName('m:oMath'));
     if (oMaths.length === 0) {
-        oMaths = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/officeDocument/2006/math', 'oMath')) as any[];
+        oMaths = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/officeDocument/2006/math', 'oMath'));
     }
     
     for (const oMath of oMaths) {
@@ -64,7 +64,7 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
     }
     
     // Process paragraph alignments
-    const paragraphs = Array.from(doc.getElementsByTagName('w:p')) as any[];
+    const paragraphs = Array.from(doc.getElementsByTagName('w:p'));
     for (const p of paragraphs) {
         const jc = p.getElementsByTagName('w:jc')[0];
         if (jc) {
@@ -186,32 +186,7 @@ export interface ParsedQuestion {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Ambil semua teks dari XML element (recursive, termasuk nested runs) */
-function getXmlText(node: Element | null): string {
-    if (!node) return '';
-    let text = '';
-    const children = node.childNodes;
-    for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (child.nodeType === 3) {
-            text += child.textContent || '';
-        } else if (child.nodeType === 1) {
-            text += getXmlText(child as Element);
-        }
-    }
-    return text;
-}
 
-/** Extract text from all <w:t> elements in a cell (most reliable) */
-function getCellText(cell: Element): string {
-    const wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-    const tElements = cell.getElementsByTagNameNS(wNs, 't');
-    let text = '';
-    for (let i = 0; i < tElements.length; i++) {
-        text += tElements[i].textContent || '';
-    }
-    return text.trim();
-}
 
 function isBlank(s: string | undefined | null): boolean {
     if (!s) return true;
@@ -230,7 +205,6 @@ function normalize(s: string): string {
 }
 
 function parseQuestionType(raw: string): QuestionType {
-    const s = normalize(raw);
     if (/^(PG|PILIHAN\s*GANDA|MCQ)$/i.test(raw)) return 'mcq';
     if (/PGK|COMPLEX|KOMPLEKS/i.test(raw)) return 'mcq_complex';
     if (/^BS|BENAR\s*SALAH|B\/S|TF|TRUEFALSE$/i.test(raw)) return 'true_false';
@@ -287,7 +261,7 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
         const tbl = tblElements[t];
         const rows: RowData[] = [];
         
-        let trList: HTMLTableRowElement[] = [];
+        const trList: HTMLTableRowElement[] = [];
         // Cari baris utama secara dangkal agar tidak mengambil baris dari tabel bersarang
         Array.from(tbl.children || []).forEach((child: any) => {
             if (child.tagName.toLowerCase() === 'tr') {
@@ -401,7 +375,7 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
                     console.log(`[doc-parser]   ✓ Soal ${numbers.join(', ')} (JSON): "${kisiObj.nomor_kd} - ${kisiObj.materi}"`);
                 } else {
                     // Fallback to old text parsing
-                    let parts = [];
+                    const parts = [];
                     for (let c = 1; c < cells.length; c++) {
                         const header = headers[c] || `Kolom ${c}`;
                         const val = stripHtml(cells[c]);
@@ -680,7 +654,6 @@ function parseQuestionTable(
             console.log(`[doc-parser] Q${questionNumber} type=${type}: "${soalRaw.substring(0, 60)}"`);
 
         } else if (current) {
-            const tipeUpper = tipeRaw.toUpperCase().trim();
             // Kunci untuk sub-row: jika kolom Kunci sub-row kosong, gunakan kunci baris utama
             // (untuk BS: kunci baris utama seperti "B|S"; untuk MJ/CAT: kolom Kunci sub-row TERISI)
             const effectiveKunci = (!isBlank(kunciRaw)) ? kunciRaw : currentKunci;
@@ -817,7 +790,7 @@ export async function parseDocxToQuestions(file: File): Promise<ParsedQuestion[]
         }
         const { questions } = parseAllTables(tables, tableHeaders);
         return questions;
-    } catch (err: any) {
+    } catch (err) {
         console.error('[doc-parser] Error:', err);
         throw err;
     }
@@ -945,7 +918,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
         }
 
         return items;
-    } catch (err: any) {
+    } catch (err) {
         console.error('[doc-parser] Error parsing stimuli/instructions from docx:', err);
         return [];
     }

@@ -1,5 +1,5 @@
-import { apiGet, apiSend } from './client';
 import { getDeviceId } from '../device-id';
+import { apiGet,apiSend } from './client';
 
 /**
  * Semua yang dilakukan siswa atas dirinya sendiri.

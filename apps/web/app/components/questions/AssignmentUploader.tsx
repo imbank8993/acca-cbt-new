@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Upload, X, FileText, Image, File, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { uploadToHosting, deleteFromHosting } from '@/lib/uploader';
+import { deleteFromHosting,uploadToHosting } from '@/lib/uploader';
+import { AlertCircle,CheckCircle2,File,FileText,Image as ImageIcon,Loader2,Upload,X } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 type UploadedFile = {
     id: string;
@@ -72,7 +72,10 @@ export default function AssignmentUploader({
     // Callback selalu dipanggil lewat ref: prop `onFilesChange` dibuat ulang
     // tiap render induk, dan versi lama membawa nilai jawaban yang basi.
     const onFilesChangeRef = useRef(onFilesChange);
-    onFilesChangeRef.current = onFilesChange;
+
+    useEffect(() => {
+        onFilesChangeRef.current = onFilesChange;
+    }, [onFilesChange]);
 
     // Sinkronisasi dari induk. Tanpa ini, komponen yang di-mount ulang (pindah
     // soal lalu kembali, atau jawaban tersimpan yang baru tiba setelah render
@@ -101,7 +104,7 @@ export default function AssignmentUploader({
 
     const getFileIcon = (name: string) => {
         const ext = name.split('.').pop()?.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return <Image size={16} className="text-blue-500" />;
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return <ImageIcon size={16} className="text-blue-500" />;
         if (ext === 'pdf') return <FileText size={16} className="text-red-500" />;
         return <File size={16} className="text-slate-500" />;
     };
@@ -113,7 +116,7 @@ export default function AssignmentUploader({
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     };
 
-    const validateFile = (file: File): string | null => {
+    const validateFile = useCallback((file: File): string | null => {
         const ext = file.name.split('.').pop()?.toLowerCase();
         if (!allowedFileTypes.includes(ext || '')) {
             return `Jenis file .${ext} tidak diizinkan. Gunakan: ${allowedFileTypes.map(t => `.${t}`).join(', ')}`;
@@ -122,7 +125,7 @@ export default function AssignmentUploader({
             return `File terlalu besar. Maksimum ${maxFileSizeMb}MB.`;
         }
         return null;
-    };
+    }, [allowedFileTypes, maxFileSizeMb, maxSizeBytes]);
 
     const processFiles = useCallback(async (files: FileList | File[]) => {
         const newErrors: string[] = [];
@@ -155,8 +158,11 @@ export default function AssignmentUploader({
             let result: Awaited<ReturnType<typeof uploadToHosting>>;
             try {
                 result = await uploadToHosting(file, folder);
-            } catch (err: any) {
-                result = { success: false, error: err?.message || 'Kesalahan tidak diketahui' };
+            } catch (err: unknown) {
+                result = {
+                    success: false,
+                    error: err instanceof Error ? err.message : 'Kesalahan tidak diketahui',
+                };
             } finally {
                 inFlightRef.current -= 1;
                 setUploadingFiles(prev => prev.filter(entry => !entry.startsWith(`${tempId}::`)));
@@ -177,7 +183,7 @@ export default function AssignmentUploader({
                 setErrors(prev => [...prev, `Gagal mengunggah ${file.name}: ${result.error}`]);
             }
         }
-    }, [examId, userId, allowedFileTypes, maxFileSizeMb, maxFiles, commit]);
+    }, [examId, userId, maxFiles, commit, validateFile]);
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();

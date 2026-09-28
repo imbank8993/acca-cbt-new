@@ -1,8 +1,8 @@
 "use client";
-import React, { useCallback } from 'react';
-import { Target, GitCompare, FileText } from 'lucide-react';
-import { AnswerOptionCard } from './AnswerOptionCard';
+import { FileText,Target } from 'lucide-react';
+import React,{ useCallback } from 'react';
 import { BaseOption } from '../schema';
+import { AnswerOptionCard } from './AnswerOptionCard';
 
 interface PairedComparisonFormProps {
     options: BaseOption[];

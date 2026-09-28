@@ -1,6 +1,7 @@
-import { optionLabel, optionIndex } from './option-label';
-import * as XLSX from 'xlsx';
+import { getErrorMessage } from '@/lib/errors';
 import { QuestionType } from '@/lib/api/questions';
+import * as XLSX from 'xlsx';
+import { optionIndex,optionLabel } from './option-label';
 
 export interface ParsedQuestion {
     question_text: string;
@@ -174,7 +175,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         // Get headers (case-insensitive)
         const headers = Object.keys(rawData[0]).map(h => h.toLowerCase().trim());
         const headerMap: Record<string, string> = {};
-        Object.keys(rawData[0]).forEach((h, idx) => {
+        Object.keys(rawData[0]).forEach((h) => {
             headerMap[h.toLowerCase().trim()] = h; // Map lowercase to actual header
         });
 
@@ -263,7 +264,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             }
 
             // Parse type
-            const { type, label: typeLabel } = parseQuestionType(typeRaw);
+            const { type } = parseQuestionType(typeRaw);
 
             // Parse difficulty
             const difficulty = parseDifficulty(diffRaw);
@@ -441,8 +442,8 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         });
         result.success = result.questions.length > 0 || result.errors.length === 0;
 
-    } catch (error: any) {
-        result.errors.push({ row: 0, message: `Gagal membaca file: ${error.message}` });
+    } catch (error) {
+        result.errors.push({ row: 0, message: `Gagal membaca file: ${getErrorMessage(error)}` });
     }
 
     return result;

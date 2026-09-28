@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { Sun, Moon, Menu, User as UserIcon, LogOut, ArrowLeft } from 'lucide-react';
-import { clearSessionCache } from '@/lib/session';
+import Image from 'next/image';
+
 import { clearExamRecoverySessions } from '@/lib/exam-durable-storage';
 import { clearExamOfflineShells } from '@/lib/exam-pwa';
-import { NotificationBell } from './ui/NotificationBell';
+import { clearSessionCache } from '@/lib/session';
+import { ArrowLeft,LogOut,Menu,Moon,Sun,User as UserIcon } from 'lucide-react';
+import { usePathname,useRouter } from 'next/navigation';
+import { useEffect,useRef,useState } from 'react';
 import './header.css';
+import { NotificationBell } from './ui/NotificationBell';
 
 export interface HeaderUser {
     id?: string;
@@ -34,10 +36,8 @@ export default function Header({
     user,
     onMenuToggle,
     isCollapsed,
-    onCollapse,
     pageTitle,
     pageSubtitle,
-    onScrollHiddenChange,
 }: HeaderProps) {
     const router = useRouter();
     const pathname = usePathname();
@@ -201,9 +201,12 @@ export default function Header({
                         <button className="user-menu-trigger" onClick={() => setShowUserMenu(!showUserMenu)} type="button">
                             <div className="user-avatar-small">
                                 {avatarImg ? (
-                                    <img
+                                    <Image
                                         src={avatarImg}
                                         alt={displayName}
+                                        width={40}
+                                        height={40}
+                                        unoptimized
                                         onError={(e) => {
                                             e.currentTarget.style.display = 'none';
                                             const parent = e.currentTarget.parentElement;
@@ -239,9 +242,12 @@ export default function Header({
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                                         <div className="user-avatar-small" style={{ width: '40px', height: '40px', minWidth: '40px', flexShrink: 0 }}>
                                             {avatarImg ? (
-                                                <img
+                                                <Image
                                                     src={avatarImg}
                                                     alt={displayName}
+                                                    width={40}
+                                                    height={40}
+                                                    unoptimized
                                                     onError={(e) => {
                                                         e.currentTarget.style.display = 'none';
                                                         const parent = e.currentTarget.parentElement;

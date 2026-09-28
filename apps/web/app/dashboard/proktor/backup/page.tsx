@@ -1,8 +1,9 @@
 "use client";
+import { getErrorMessage } from '@/lib/errors';
 
-import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Database, Download, UploadCloud, AlertTriangle, CheckCircle2, XCircle, Loader2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle,CheckCircle2,Database,Download,Loader2,ShieldAlert,UploadCloud,XCircle } from 'lucide-react';
+import React,{ useRef,useState } from 'react';
 
 export default function BackupRestorePage() {
   const [isExporting, setIsExporting] = useState(false);
@@ -43,9 +44,9 @@ export default function BackupRestorePage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      alert(error.message || 'Terjadi kesalahan saat memproses backup.');
+      alert(getErrorMessage(error) || 'Terjadi kesalahan saat memproses backup.');
     } finally {
       setIsExporting(false);
     }
@@ -86,10 +87,10 @@ export default function BackupRestorePage() {
       }
 
       setImportStatus('success');
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
       setImportStatus('error');
-      setErrorMessage(error.message || 'Terjadi kesalahan saat memulihkan data.');
+      setErrorMessage(getErrorMessage(error) || 'Terjadi kesalahan saat memulihkan data.');
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

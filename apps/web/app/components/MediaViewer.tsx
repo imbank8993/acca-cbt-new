@@ -1,7 +1,9 @@
-"use client";
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, ZoomIn, Play, Pause, Maximize2 } from 'lucide-react';
+'use client';
+
+import Image from 'next/image';
+import { AnimatePresence,motion } from 'framer-motion';
+import { Maximize2,X,ZoomIn } from 'lucide-react';
+import React,{ useState } from 'react';
 
 interface MediaViewerProps {
     src: string;
@@ -12,15 +14,18 @@ interface MediaViewerProps {
 
 export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewerProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(true);
+    const [, setIsPlaying] = useState(true);
 
     if (type === 'image') {
         return (
             <>
                 <div className={`relative inline-block cursor-zoom-in group ${className}`} onClick={() => setIsOpen(true)}>
-                    <img
+                    <Image
                         src={src}
                         alt={alt}
+                        width={1600}
+                        height={900}
+                        unoptimized
                         className="max-w-full h-auto rounded-lg border border-slate-200 hover:opacity-90 transition-opacity"
                     />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg">
@@ -113,7 +118,6 @@ export function parseMediaContent(html: string): React.ReactNode[] {
 
     // Parse images
     const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi;
-    let imgMatch;
     const processedHtml = html.replace(imgRegex, (match, src, alt) => {
         result.push(
             <MediaViewer key={`img-${result.length}`} src={src} alt={alt} type="image" className="my-2" />

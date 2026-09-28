@@ -4,8 +4,8 @@
  * Auto-detects blanks from question text (..... separators)
  * and renders one answer variation field per blank.
  */
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus } from 'lucide-react';
+import { Plus,Trash2 } from 'lucide-react';
+import React,{ useEffect,useState } from 'react';
 
 interface Blank {
   answer: string;

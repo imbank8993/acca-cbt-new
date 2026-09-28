@@ -3,7 +3,7 @@
  * Centralized type definitions for analytics domain
  */
 
-import type { Question, QuestionType } from './question';
+import type { QuestionType } from './question';
 
 // ─── Score Statistics ────────────────────────────────────────
 

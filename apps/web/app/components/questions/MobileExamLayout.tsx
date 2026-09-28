@@ -1,12 +1,17 @@
 "use client";
-import React, { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence,motion } from 'framer-motion';
 import {
-    Clock, AlertTriangle, CheckCircle2, Check, Ghost, Loader2,
-    Maximize2, ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight, Ban,
-    X, Info, RefreshCw, List, Grid3X3, Flag, ChevronUp, ChevronDown,
-    Home, Send, Fingerprint
+Check,
+ChevronLeft,ChevronRight,
+Clock,
+Grid3X3,
+Loader2,
+Maximize2,
+Send,
+ShieldAlert,ShieldCheck,
+X
 } from 'lucide-react';
+import React,{ useState } from 'react';
 
 interface Question {
     id: string;
@@ -68,18 +73,15 @@ export default function MobileExamLayout({
     showConfirmModal,
     confirmText,
     onSetCurrentQIndex,
-    onAnswerSelect,
-    onToggleDoubtful,
     onSetConfirmText,
     onSetShowConfirmModal,
     onSetShowViolationModal,
-    onSetIsFullScreen,
     onRequestFullscreen,
     onSubmitExam,
     renderQuestionCard
 }: MobileExamLayoutProps) {
     const [showNavSheet, setShowNavSheet] = useState(false);
-    const [showNavFab, setShowNavFab] = useState(false);
+    const [] = useState(false);
 
     // Stats
     const answeredCount = Object.keys(answers).filter(k => answers[k]).length;
@@ -408,7 +410,7 @@ export default function MobileExamLayout({
                                         const { isAnswered, isCurrent, isDoubtful } = getQuestionStatus(q, i);
 
                                         let bgClass = 'bg-white text-slate-400 border border-slate-200 hover:border-slate-300 hover:text-slate-600';
-                                        let ringClass = '';
+                                        const ringClass = '';
 
                                         if (isCurrent) {
                                             bgClass = 'bg-blue-600 text-white shadow-md shadow-blue-300/30';

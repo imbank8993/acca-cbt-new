@@ -1,20 +1,20 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    School,
-    Check,
-    LogOut,
-    Loader2,
-    KeyRound,
-    AlertCircle,
-    GraduationCap
-} from 'lucide-react';
-import { getSessionUser } from '@/lib/session';
-import { listStudentClasses, joinClassAction, leaveClassAction } from '@/lib/api/students';
-import { useMemoryState } from '@/lib/useMemoryState';
+import { getErrorMessage } from '@/lib/errors';
 import { useToast } from '@/app/components/ui/Toast';
+import { joinClassAction,leaveClassAction,listStudentClasses } from '@/lib/api/students';
+import { getSessionUser } from '@/lib/session';
+import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+AlertCircle,
+Check,
+GraduationCap,
+KeyRound,
+Loader2,
+LogOut,
+School
+} from 'lucide-react';
+import React,{ useEffect,useState } from 'react';
 
 export default function SiswaClassesPage() {
     const [classes, setClasses] = useMemoryState<any[]>('siswa_classes_classes', []);
@@ -58,8 +58,8 @@ export default function SiswaClassesPage() {
             } else {
                 toast.error('Gagal Bergabung', result.error || 'Kode kelas tidak valid.');
             }
-        } catch (err: any) {
-            toast.error('Terjadi Kesalahan', err?.message || 'Gagal menghubungi server.');
+        } catch (err) {
+            toast.error('Terjadi Kesalahan', getErrorMessage(err) || 'Gagal menghubungi server.');
         } finally {
             setIsSubmitting(false);
         }
@@ -76,8 +76,8 @@ export default function SiswaClassesPage() {
             } else {
                 toast.error('Gagal Keluar', result.error || 'Tidak dapat keluar dari kelas.');
             }
-        } catch (err: any) {
-            toast.error('Terjadi Kesalahan', err?.message || 'Gagal menghubungi server.');
+        } catch (err) {
+            toast.error('Terjadi Kesalahan', getErrorMessage(err) || 'Gagal menghubungi server.');
         } finally {
             setLeavingClassId(null);
             setClassToLeave(null);

@@ -8,8 +8,8 @@
  * are HTML-stripped and escaped. Uses the shared extractMathExpressions, so
  * every `$...$` pair is treated as a math delimiter here too.
  */
-import React, { useState, useEffect } from 'react';
-import { extractMathExpressions, renderLatex } from './math-utils';
+import React,{ useEffect,useState } from 'react';
+import { extractMathExpressions,renderLatex } from './math-utils';
 
 function escapeText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

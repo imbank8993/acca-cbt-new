@@ -1,21 +1,30 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Loader2, ArrowLeft, Save, User, CheckCircle2,
-    Shield, Clock, Calendar, BarChart3, AlertTriangle,
-    CheckCircle, XCircle, HelpCircle, Activity,
-    Link as LinkIcon, ExternalLink, RotateCcw, MousePointerClick
-} from 'lucide-react';
-import { getAttemptFullDetailsAction } from '@/lib/api/proctor';
-import { submitEssayGrades } from '@/lib/api/teachers';
-import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import { useMemoryState } from '@/lib/useMemoryState';
 import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
+import { getAttemptFullDetailsAction } from '@/lib/api/proctor';
+import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
+import { submitEssayGrades } from '@/lib/api/teachers';
+import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+Activity,
+AlertTriangle,
+ArrowLeft,
+BarChart3,
+CheckCircle,
+CheckCircle2,
+Clock,
+HelpCircle,
+Loader2,
+MousePointerClick,
+RotateCcw,
+Save,
+Shield,
+User,
+XCircle
+} from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useMemo,useState } from 'react';
 
 export default function AttemptAnalyticsPage() {
     const params = useParams();

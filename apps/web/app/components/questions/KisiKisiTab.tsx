@@ -1,16 +1,20 @@
 "use client";
-import React, { useState, useEffect } from 'react';
 import {
-    getKisiKisiByBank, createKisiKisi, updateKisiKisi, deleteKisiKisi
+createKisiKisi,
+deleteKisiKisi,
+getKisiKisiByBank,
+KisiKisiItem,
+updateKisiKisi,
 } from '@/lib/api/questions';
-import { Plus, Edit3, Trash2, X, Check, Search } from 'lucide-react';
+import { Check,Edit3,Plus,Search,Trash2,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 interface KisiKisiTabProps {
     bankId: string;
 }
 
 export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
-    const [kisiKisi, setKisiKisi] = useState<any[]>([]);
+    const [kisiKisi, setKisiKisi] = useState<KisiKisiItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,18 +28,27 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     const [indikatorSoal, setIndikatorSoal] = useState('');
     const [levelKognitif, setLevelKognitif] = useState('L1');
 
-    useEffect(() => {
-        loadKisiKisi();
-    }, [bankId]);
-
-    const loadKisiKisi = async () => {
-        setIsLoading(true);
+    const loadKisiKisi = useCallback(async () => {
         const data = await getKisiKisiByBank(bankId);
         setKisiKisi(data || []);
         setIsLoading(false);
-    };
+    }, [bankId]);
 
-    const handleOpenEditor = (k: any = null) => {
+    useEffect(() => {
+        let active = true;
+
+        void getKisiKisiByBank(bankId).then(data => {
+            if (!active) return;
+            setKisiKisi(data || []);
+            setIsLoading(false);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [bankId]);
+
+    const handleOpenEditor = (k: KisiKisiItem | null = null) => {
         if (k) {
             setEditingId(k.id);
             setNomorKd(k.nomor_kd || '');
@@ -75,13 +88,13 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
         }
         setIsSubmitting(false);
         setIsEditorOpen(false);
-        loadKisiKisi();
+        void loadKisiKisi();
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Yakin ingin menghapus kisi-kisi ini? Soal yang merujuk pada kisi-kisi ini akan kehilangan relasinya.')) return;
         await deleteKisiKisi(id);
-        loadKisiKisi();
+        void loadKisiKisi();
     };
 
     const filteredData = kisiKisi.filter(k => 

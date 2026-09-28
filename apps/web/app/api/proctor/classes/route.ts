@@ -1,5 +1,5 @@
+import { proxyGet,proxyJson } from '@/lib/nest-proxy';
 import { NextRequest } from 'next/server';
-import { proxyGet, proxyJson } from '@/lib/nest-proxy';
 
 export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;

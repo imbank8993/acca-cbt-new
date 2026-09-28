@@ -9,11 +9,11 @@
  * supaya tetap berlaku saat dipakai sebagai subkomponen).
  */
 
-import React, { CSSProperties, ReactNode, useState } from 'react';
-import { SlidersHorizontal, Check } from 'lucide-react';
-import { Modal, ModalBody, ModalFooter } from './modal';
+import { Check,SlidersHorizontal } from 'lucide-react';
+import React,{ CSSProperties,ReactNode,useState } from 'react';
 import { Button } from './button';
 import './filter-toolbar.css';
+import { Modal,ModalBody,ModalFooter } from './modal';
 
 export interface FilterOption {
     value: string;

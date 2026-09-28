@@ -4,10 +4,10 @@
  * Pilihan ganda di mana setiap opsi memiliki bobot poin.
  * Mirip MCQForm tapi tiap opsi punya weight input.
  */
-import React, { useCallback } from 'react';
 import { Plus } from 'lucide-react';
-import { AnswerOptionCard, OptionList } from './AnswerOptionCard';
+import React,{ useCallback } from 'react';
 import { BaseOption } from '../schema';
+import { AnswerOptionCard,OptionList } from './AnswerOptionCard';
 
 interface SJTFormProps {
   options: BaseOption[];

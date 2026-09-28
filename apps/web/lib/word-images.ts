@@ -1,4 +1,4 @@
-import { ImageRun, TextRun } from 'docx';
+import { ImageRun,TextRun } from 'docx';
 
 export type WordImages = Map<string, { data: Uint8Array; width: number; height: number }>;
 const imageTag = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;

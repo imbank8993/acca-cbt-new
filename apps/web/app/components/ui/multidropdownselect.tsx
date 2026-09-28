@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useClientMounted } from '@/hooks/useClientMounted';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
 import './multi-select-dropdown.css';
 
@@ -57,7 +58,7 @@ export function MultiSelectDropdown<T extends string | number = string>({
     showQuickActions = true,
 }: MultiSelectDropdownProps<T>) {
     const [isOpen, setIsOpen] = useState(false);
-    const [mounted, setMounted] = useState(false);
+    const mounted = useClientMounted();
     const [coords, setCoords] = useState<{
         top: number;
         left: number;
@@ -70,10 +71,6 @@ export function MultiSelectDropdown<T extends string | number = string>({
     const triggerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
     const updateCoords = useCallback(() => {
         if (!triggerRef.current) return;
         const rect = triggerRef.current.getBoundingClientRect();
@@ -81,9 +78,9 @@ export function MultiSelectDropdown<T extends string | number = string>({
         const spaceAbove = rect.top;
         const isUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
 
-        let top = isUpward ? rect.top - 4 : rect.bottom + 4;
+        const top = isUpward ? rect.top - 4 : rect.bottom + 4;
         let left = rect.left;
-        let width = rect.width;
+        const width = rect.width;
 
         // Horizontally stay within screen
         if (left + width > window.innerWidth - 8) {

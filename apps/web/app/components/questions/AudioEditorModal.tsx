@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, UploadCloud, Link as LinkIcon, Square, RotateCcw, Volume2, X, Check, Loader2, Music } from 'lucide-react';
+import { Check,Link as LinkIcon,Loader2,Mic,Music,RotateCcw,Square,UploadCloud,Volume2,X } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
 
 export interface AudioEditorModalProps {
   isOpen: boolean;

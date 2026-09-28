@@ -1,15 +1,22 @@
-import { optionLabel } from './option-label';
 import {
-    Document, Packer, Paragraph, Table, TableRow, TableCell, TableLayoutType,
-    WidthType, BorderStyle, TextRun, AlignmentType, VerticalAlign, ImageRun,
-    Header, Footer, ITableCellOptions
+AlignmentType,
+BorderStyle,
+Document,
+Footer,
+Header,
+ImageRun,
+Packer,Paragraph,Table,
+TableCell,TableLayoutType,
+TableRow,
+TextRun,
+VerticalAlign,
+WidthType
 } from 'docx';
-import * as JSZipNS from 'jszip';
-import { portableQuestion } from './question-transfer';
+import JSZip from 'jszip';
+import { optionLabel } from './option-label';
 import { attachQuestionArchive } from './question-archive';
-import { loadWordImages, wordRuns, type WordImages } from './word-images';
-const JSZip = (JSZipNS as any).default || JSZipNS;
-
+import { portableQuestion } from './question-transfer';
+import { loadWordImages,wordRuns,type WordImages } from './word-images';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'] as const;
@@ -19,6 +26,72 @@ export type QuestionTypeAny =
     | 'likert' | 'forced_choice' | 'checklist' | 'ranking' | 'paired_comparison';
 
 export type Variant = 'akademik' | 'kepribadian';
+
+interface ExportOptionMetadata {
+    match_texts?: string[];
+    category_names?: string[];
+    dimension_id?: string | null;
+}
+
+interface ExportOption {
+    id?: string;
+    option_text?: string;
+    text?: string;
+    is_correct?: boolean;
+    isCorrect?: boolean;
+    order?: number;
+    weight?: number;
+    dimension_id?: string | null;
+    metadata?: ExportOptionMetadata;
+}
+
+interface ExportQuestionMetadata {
+    blanks?: { answer?: string; variations?: string[] }[];
+    correct_order?: string[];
+    import_stimulus?: string;
+    import_instruction?: string;
+    [key: string]: unknown;
+}
+
+interface ExportQuestion {
+    id?: string;
+    type: QuestionTypeAny;
+    question_text?: string;
+    score_default?: number;
+    scoreDefault?: number;
+    stimulus_id?: string | null;
+    instruction_id?: string | null;
+    kisi_kisi_id?: string | null;
+    bank_question_options?: ExportOption[];
+    options?: ExportOption[];
+    metadata?: ExportQuestionMetadata;
+    question_dimensions?: { name?: string } | null;
+    stimulus?: ExportContentItem | null;
+    instruction?: ExportContentItem | null;
+}
+
+interface ExportContentItem {
+    id: string;
+    title?: string | null;
+    content?: string | null;
+}
+
+interface ExportKisiKisiItem extends ExportContentItem {
+    nomor_kd?: string | null;
+    kd_cp?: string | null;
+    materi?: string | null;
+    indikator_soal?: string | null;
+    level_kognitif?: string | null;
+}
+
+interface ExportDimension {
+    id: string;
+    name?: string | null;
+}
+
+interface ExportBankInfo {
+    title?: string | null;
+}
 
 const TYPE_LABEL: Record<string, string> = {
     mcq: 'PG',
@@ -67,7 +140,7 @@ const LOGO_URL = '/logo-icon.png';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function sanitizeText(val: any): string {
+function sanitizeText(val: unknown): string {
     if (val == null) return '';
     let text = String(val);
     
@@ -116,7 +189,7 @@ function headerCell(text: string, widthPct: number, color: string) {
     });
 }
 
-function dataCell(text: any, widthPct: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT', images: WordImages = new Map()) {
+function dataCell(text: unknown, widthPct: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT', images: WordImages = new Map()) {
     return new TableCell({
         children: [new Paragraph({
             children: wordRuns(text, images, sanitizeText),
@@ -130,19 +203,19 @@ function dataCell(text: any, widthPct: number, fill: string, align: 'LEFT' | 'CE
     });
 }
 
-const imageCells = (images: WordImages) => (text: any, width: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT') => dataCell(text, width, fill, align, images);
+const imageCells = (images: WordImages) => (text: unknown, width: number, fill: string, align: 'LEFT' | 'CENTER' = 'LEFT') => dataCell(text, width, fill, align, images);
 
 const hRow = (cells: TableCell[]) => new TableRow({ tableHeader: true, children: cells, cantSplit: true });
 const dRow = (cells: TableCell[]) => new TableRow({ children: cells, cantSplit: false });
 
 // ─── Question-row builders (per type) ─────────────────────────────────────────
 
-type RowSpec = any[];             // one row = array of cells
+type RowSpec = TableCell[];             // one row = array of cells
 type RowsForOneQuestion = RowSpec[]; // one question produces N rows
 
-function buildAkademikRows(question: any, idx: number, images: WordImages = new Map()): RowsForOneQuestion[] {
+function buildAkademikRows(question: ExportQuestion, idx: number, images: WordImages = new Map()): RowsForOneQuestion {
     const dataCell = imageCells(images);
-    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => a.order - b.order);
+    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const typeLabel = TYPE_LABEL[question.type] || 'PG';
     const qNo = String(idx + 1);
     const score = String(question.score_default ?? question.scoreDefault ?? 1);
@@ -152,8 +225,8 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
     let row = 0;
 
     if (question.type === 'mcq' || question.type === 'mcq_complex') {
-        const correctOpts = opts.filter((o: any) => o.is_correct || o.isCorrect);
-        const correctIdx = correctOpts.map((o: any) => opts.indexOf(o));
+        const correctOpts = opts.filter((o) => o.is_correct || o.isCorrect);
+        const correctIdx = correctOpts.map((o) => opts.indexOf(o));
         const kunci = correctIdx.map((i: number) => optionLabel(i)).join(',') || '';
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -162,7 +235,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             const letter = optionLabel(oi);
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
@@ -174,7 +247,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             row++;
         });
     } else if (question.type === 'true_false') {
-        const kunciArr = opts.map((o: any) => (o.is_correct || o.isCorrect) ? 'B' : 'S');
+        const kunciArr = opts.map((o) => (o.is_correct || o.isCorrect) ? 'B' : 'S');
         const kunci = kunciArr.join('|');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -183,7 +256,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             const key = (opt.is_correct || opt.isCorrect) ? 'B' : 'S';
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
@@ -195,7 +268,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             row++;
         });
     } else if (question.type === 'matching') {
-        const kunciArr = opts.map((o: any) => (o.metadata?.match_texts || []).join(' | '));
+        const kunciArr = opts.map((o) => (o.metadata?.match_texts || []).join(' | '));
         const kunci = kunciArr.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -204,7 +277,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             dataCell(kunci, 13, fill(row - 1)),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             const match = (opt.metadata?.match_texts || []).join(' | ');
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
@@ -216,7 +289,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             row++;
         });
     } else if (question.type === 'categorization') {
-        const kunciArr = opts.map((o: any) => (o.metadata?.category_names || []).join(', '));
+        const kunciArr = opts.map((o) => (o.metadata?.category_names || []).join(', '));
         const kunci = kunciArr.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
@@ -225,7 +298,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             dataCell(kunci, 13, fill(row - 1)),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             const cat = (opt.metadata?.category_names || []).join(', ');
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
@@ -238,7 +311,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
         });
     } else if (question.type === 'short_answer') {
         const blanks = question.metadata?.blanks || [];
-        const kunci = blanks.map((b: any) => {
+        const kunci = blanks.map((b) => {
             let ans = b.answer || '';
             if (b.variations && b.variations.length > 0) {
                 ans += ', ' + b.variations.join(', ');
@@ -270,7 +343,7 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
             dataCell(kunci, 13, fill(row - 1), 'CENTER'),
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
@@ -284,9 +357,9 @@ function buildAkademikRows(question: any, idx: number, images: WordImages = new 
     return out;
 }
 
-function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] = [], images: WordImages = new Map()): RowsForOneQuestion[] {
+function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsList: ExportDimension[] = [], images: WordImages = new Map()): RowsForOneQuestion {
     const dataCell = imageCells(images);
-    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => a.order - b.order);
+    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const typeLabel = TYPE_LABEL[question.type] || 'SJT';
     const qNo = String(idx + 1);
     const fill = (row: number) => (row % 2 === 0 ? 'FFFFFF' : 'F1F0FB');
@@ -303,9 +376,9 @@ function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] 
             dataCell(question.question_dimensions?.name || '-', 20, fill(row - 1), 'CENTER'),
             dataCell('', 15, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any, oi: number) => {
+        opts.forEach((opt, oi) => {
             const dimId = opt.metadata?.dimension_id || opt.dimension_id;
-            const dimName = dimensionsList.find((d: any) => d.id === dimId)?.name || '-';
+            const dimName = dimensionsList.find((d) => d.id === dimId)?.name || '-';
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(optionLabel(oi), 10, fill(row)),
@@ -325,9 +398,9 @@ function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] 
             dataCell(question.question_dimensions?.name || '-', 20, fill(row - 1), 'CENTER'),
             dataCell('', 15, fill(row - 1), 'CENTER'),
         ]);
-        opts.forEach((opt: any) => {
+        opts.forEach((opt) => {
             const dimId = opt.metadata?.dimension_id || opt.dimension_id;
-            const dimName = dimensionsList.find((d: any) => d.id === dimId)?.name || '-';
+            const dimName = dimensionsList.find((d) => d.id === dimId)?.name || '-';
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell('', 10, fill(row)),
@@ -343,7 +416,7 @@ function buildKepribadianRows(question: any, idx: number, dimensionsList: any[] 
 
 // ─── Section builders (Stimulus, Petunjuk) ────────────────────────────────────
 
-function buildStimulusSection(stimuli: any[], questions: any[], images: WordImages = new Map()): any[] {
+function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!stimuli || stimuli.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -399,7 +472,7 @@ function buildStimulusSection(stimuli: any[], questions: any[], images: WordImag
     ];
 }
 
-function buildInstructionSection(instructions: any[], questions: any[], images: WordImages = new Map()): any[] {
+function buildInstructionSection(instructions: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!instructions || instructions.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -455,7 +528,7 @@ function buildInstructionSection(instructions: any[], questions: any[], images: 
     ];
 }
 
-function buildKisiKisiSection(kisiKisiList: any[], questions: any[], images: WordImages = new Map()): any[] {
+function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!kisiKisiList || kisiKisiList.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -509,14 +582,15 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
     const color = THEME[variant].header;
     const logoImage: ImageRun | null = logoBuffer
         ? new ImageRun({
-            data: logoBuffer as any,
+            type: 'png',
+            data: logoBuffer,
             transformation: { width: 56, height: 56 },
-        } as any)
+        })
         : null;
 
     const logoCell = new TableCell({
         children: [new Paragraph({
-            children: logoImage ? [logoImage as any] : [new TextRun({ text: 'ACCA', bold: true, size: 24, color, font: 'Calibri' })],
+            children: logoImage ? [logoImage] : [new TextRun({ text: 'ACCA', bold: true, size: 24, color, font: 'Calibri' })],
             alignment: AlignmentType.LEFT,
         })],
         width: { size: 15, type: WidthType.PERCENTAGE },
@@ -581,7 +655,7 @@ function makeTitleParagraph(variant: Variant, bankTitle: string): Paragraph[] {
 
 // ─── Document factory ─────────────────────────────────────────────────────────
 
-function buildQuestionTable(variant: Variant, questions: any[], dimensionsList: any[] = [], images: WordImages = new Map()): Table {
+function buildQuestionTable(variant: Variant, questions: ExportQuestion[], dimensionsList: ExportDimension[] = [], images: WordImages = new Map()): Table {
     const color = THEME[variant].header;
     const headerCols = variant === 'akademik'
         ? [
@@ -602,7 +676,7 @@ function buildQuestionTable(variant: Variant, questions: any[], dimensionsList: 
     const rows: TableRow[] = [hRow(headerCols)];
 
     questions.forEach((q, idx) => {
-        const produced: RowsForOneQuestion[] = variant === 'akademik'
+        const produced: RowsForOneQuestion = variant === 'akademik'
             ? buildAkademikRows(q, idx, images)
             : buildKepribadianRows(q, idx, dimensionsList, images);
         produced.forEach((cells: RowSpec) => {
@@ -630,11 +704,11 @@ async function fetchLogoBuffer(): Promise<ArrayBuffer | null> {
 }
 
 export async function buildAkademikDoc(
-    questions: any[],
-    bankInfo: any,
-    stimuli: any[] = [],
-    instructions: any[] = [],
-    kisiKisiList: any[] = []
+    questions: ExportQuestion[],
+    bankInfo: ExportBankInfo,
+    stimuli: ExportContentItem[] = [],
+    instructions: ExportContentItem[] = [],
+    kisiKisiList: ExportKisiKisiItem[] = []
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
     const images = await loadWordImages([questions, stimuli, instructions, kisiKisiList]);
@@ -662,9 +736,9 @@ export async function buildAkademikDoc(
 }
 
 export async function buildKepribadianDoc(
-    questions: any[],
-    bankInfo: any,
-    dimensionsList: any[] = []
+    questions: ExportQuestion[],
+    bankInfo: ExportBankInfo,
+    dimensionsList: ExportDimension[] = []
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
     const images = await loadWordImages(questions);
@@ -695,12 +769,12 @@ export type ExportResult = {
 };
 
 export async function exportQuestionsToWord(
-    questions: any[],
-    bankInfo: any,
-    stimuli: any[] = [],
-    instructions: any[] = [],
-    kisiKisiList: any[] = [],
-    dimensionsList: any[] = []
+    questions: ExportQuestion[],
+    bankInfo: ExportBankInfo,
+    stimuli: ExportContentItem[] = [],
+    instructions: ExportContentItem[] = [],
+    kisiKisiList: ExportKisiKisiItem[] = [],
+    dimensionsList: ExportDimension[] = []
 ): Promise<ExportResult> {
     // Group questions by variant
     const akademikQuestions = questions.filter(q => TYPE_MAP_QUESTION_KIND[q.type] === 'akademik');

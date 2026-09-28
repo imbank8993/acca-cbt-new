@@ -1,23 +1,29 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Calendar, Plus, Search, Clock, Loader2, Lock, Unlock,
-    BookOpen, AlertCircle, Check, X, Trash2,
-    ChevronRight, Shield, CalendarClock, Users, BarChart3, ArrowLeft
-} from 'lucide-react';
-import { getProctorOrganization, getActiveSchoolYear } from '@/lib/api/proctor';
-import {
-    listPASPeriods,
-    listSubjects,
-    createPASPeriodAction,
-    lockPASPeriodAction,
-    deletePASPeriodAction,
+createPASPeriodAction,
+deletePASPeriodAction,
+listPASPeriods,
+listSubjects,
+lockPASPeriodAction,
 } from '@/lib/api/pas';
+import { getActiveSchoolYear,getProctorOrganization } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
-import { useRouter } from 'next/navigation';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+BookOpen,
+Calendar,
+Check,
+ChevronRight,
+Loader2,Lock,
+Plus,Search,
+Shield,
+Trash2,
+Unlock,
+X
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import React,{ useEffect,useState } from 'react';
 
 type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn';
 type Semester = 'ganjil' | 'genap';
@@ -27,7 +33,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
     const [user, setUser] = useState<any>(null);
     const [org, setOrg] = useState<any>(null);
     const [periods, setPeriods] = useMemoryState<any[]>('proktor_pas_periods', []);
-    const [subjects, setSubjects] = useMemoryState<any[]>('proktor_pas_subjects', []);
+    const [, setSubjects] = useMemoryState<any[]>('proktor_pas_subjects', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_pas_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,7 +189,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
                 <div className="py-16 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
                     <Shield size={40} className="mx-auto mb-3 opacity-40" />
                     <p className="font-medium">Belum ada periode PAS/PAT</p>
-                    <p className="text-sm mt-1">Klik "Tambah PAS" untuk memulai</p>
+                    <p className="text-sm mt-1">Klik &quot;Tambah PAS&quot; untuk memulai</p>
                 </div>
             ) : (
                 <div className="space-y-4">

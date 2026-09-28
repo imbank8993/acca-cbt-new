@@ -1,10 +1,10 @@
+import { ExamPwaRegistration } from "@/app/components/ExamPwaRegistration";
+import MaintenanceProvider from "@/app/components/MaintenanceProvider";
+import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
+import { ToastProvider } from "@/app/components/ui/Toast";
+import { getSettingServer } from "@/lib/api/settings.server";
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
-import { ToastProvider } from "@/app/components/ui/Toast";
-import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
-import MaintenanceProvider from "@/app/components/MaintenanceProvider";
-import { ExamPwaRegistration } from "@/app/components/ExamPwaRegistration";
-import { getSettingServer } from "@/lib/api/settings.server";
 import "./globals.css";
 
 const openSans = Open_Sans({
@@ -58,9 +58,6 @@ export default async function RootLayout({
             `,
           }}
         />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet" />
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
       </head>

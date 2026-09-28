@@ -1,17 +1,22 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useCallback, useEffect, useState } from 'react';
+import { getStudentExamsResult } from '@/lib/api/students';
+import { formatSchoolDate,formatSchoolTimeRange } from '@/lib/school-time';
+import { getSessionUser } from '@/lib/session';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
+import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import {
-    CalendarDays, Clock, CheckCircle2, ArrowRight,
-    Ghost, Loader2, AlertCircle, Lock, RefreshCw
+AlertCircle,
+ArrowRight,
+CalendarDays,
+CheckCircle2,
+Clock,
+Ghost,
+Lock,RefreshCw
 } from 'lucide-react';
-import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
-import { getSessionUser } from '@/lib/session';
-import { getStudentExamsResult } from '@/lib/api/students';
 import { useRouter } from 'next/navigation';
-import { useMemoryState } from '@/lib/useMemoryState';
-import { formatSchoolDate, formatSchoolTimeRange } from '@/lib/school-time';
+import { useCallback,useEffect,useState } from 'react';
 
 const SchedulePage = () => {
     const [exams, setExams] = useMemoryState<any[]>('siswa_schedule_exams', []);

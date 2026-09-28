@@ -3,8 +3,8 @@
  * RichInput — Simple textarea for option inputs.
  * Plain text input with auto-resize.
  */
-import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect, useCallback } from 'react';
-import { extractMathExpressions, renderLatex } from '../math-utils';
+import React,{ forwardRef,useCallback,useEffect,useImperativeHandle,useRef,useState } from 'react';
+import { extractMathExpressions,renderLatex } from '../math-utils';
 
 export interface RichInputHandle {
     focus: () => void;
@@ -86,12 +86,12 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(({
         onChange(e.target.value);
     }, [onChange]);
 
-    const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const handleFocus = () => {
         setIsFocused(true);
         onFocus?.();
     };
 
-    const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const handleBlur = () => {
         setIsFocused(false);
         setEditing(false);
         onBlur?.();

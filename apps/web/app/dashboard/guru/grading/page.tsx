@@ -1,15 +1,13 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FileSpreadsheet, Loader2, RefreshCw, Calculator, BarChart3, Users, Clock, AlertTriangle } from 'lucide-react';
-import { listOrganizationExams, getExamAttemptsAction, getExamAnswersForAnalysisAction } from '@/lib/api/proctor';
+import { InlineMath } from '@/app/components/questions/InlineMath';
+import { getExamAnswersForAnalysisAction,getExamAttemptsAction,listOrganizationExams } from '@/lib/api/proctor';
 import { getGuruOrganization } from '@/lib/api/teachers';
 import { getSessionUser } from '@/lib/session';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { InlineMath } from '@/app/components/questions/InlineMath';
+import { AnimatePresence,motion } from 'framer-motion';
+import { AlertTriangle,BarChart3,Calculator,FileSpreadsheet,Loader2,RefreshCw,Users } from 'lucide-react';
+import { useRouter,useSearchParams } from 'next/navigation';
+import { Suspense,useEffect,useState } from 'react';
 
 function GradingContent() {
     const searchParams = useSearchParams();
@@ -325,7 +323,6 @@ function GradingContent() {
                                                         const isCritical = anl.incorrectPercentage > 50;
 
                                                         // bersihkan HTML tag utk preview
-                                                        const plainText = anl.qText.replace(/<[^>]+>/g, '');
 
                                                         return (
                                                             <tr key={anl.id} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 ${isCritical ? 'bg-rose-50/20' : ''}`}>

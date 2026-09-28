@@ -1,59 +1,81 @@
 "use client";
-import React, { useState, useEffect, useMemo, Dispatch, SetStateAction } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
+import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionMetadata,QuestionOptionDraft,QuestionRecord } from '@/lib/api/questions';
+import type { ProctorOrganization } from '@/lib/api/proctor';
+import { uploadToHosting } from '@/lib/uploader';
+import { AnimatePresence,motion } from 'framer-motion';
 import {
-    Save, X, Check, Loader2, Eye, Layers,
-    ChevronDown, Plus, Target, Trash2, FileQuestion,
-    CheckCircle2, ArrowRightLeft, ListChecks, ToggleLeft,
-    Edit3, ChevronLeft, ChevronRight, AlertCircle, FunctionSquare, BookOpen, Lightbulb, Info,
-    Scale, ArrowUpDown, BarChartHorizontal, Columns, CheckSquare, ListOrdered, GitCompare, FileSearch
+AlertCircle,
+ArrowRightLeft,
+ArrowUpDown,BarChartHorizontal,
+BookOpen,
+Check,
+CheckCircle2,
+CheckSquare,
+ChevronDown,
+ChevronLeft,ChevronRight,
+Columns,
+Edit3,
+Eye,
+FileQuestion,
+FileSearch,
+GitCompare,
+Info,
+Layers,
+ListChecks,
+ListOrdered,
+Loader2,
+Plus,
+Save,
+Scale,
+Target,
+ToggleLeft,
+X
 } from 'lucide-react';
-import { QuestionType, saveQuestionAction, getStimuliByBank, getInstructionsByBank } from '@/lib/api/questions';
+import React,{ Dispatch,SetStateAction,useEffect,useState } from 'react';
 import { LatexRenderer } from './LatexRenderer';
 import { MathToolbar } from './MathToolbar';
-import { stripDelimiters } from './math-utils';
-import { MCQForm } from './forms/MCQForm';
-import { TrueFalseForm } from './forms/TrueFalseForm';
-import { MatchingForm } from './forms/MatchingForm';
-import { CategorizationForm } from './forms/CategorizationForm';
-import { ShortAnswerForm } from './forms/ShortAnswerForm';
-import { EssayForm } from './forms/EssayForm';
-import { SJTForm } from './forms/SJTForm';
-import { OrderingForm } from './forms/OrderingForm';
-import { LikertForm } from './forms/LikertForm';
-import { ForcedChoiceForm } from './forms/ForcedChoiceForm';
-import { ChecklistForm } from './forms/ChecklistForm';
-import { RankingForm } from './forms/RankingForm';
-import { PairedComparisonForm } from './forms/PairedComparisonForm';
-import { uploadToHosting } from '@/lib/uploader';
 import { TipTapEditor } from './TipTapEditor';
+import { CategorizationForm } from './forms/CategorizationForm';
+import { ChecklistForm } from './forms/ChecklistForm';
+import { EssayForm } from './forms/EssayForm';
+import { ForcedChoiceForm } from './forms/ForcedChoiceForm';
+import { LikertForm } from './forms/LikertForm';
+import { MCQForm } from './forms/MCQForm';
+import { MatchingForm } from './forms/MatchingForm';
+import { OrderingForm } from './forms/OrderingForm';
+import { PairedComparisonForm } from './forms/PairedComparisonForm';
+import { RankingForm } from './forms/RankingForm';
+import { SJTForm } from './forms/SJTForm';
+import { ShortAnswerForm } from './forms/ShortAnswerForm';
+import { TrueFalseForm } from './forms/TrueFalseForm';
 
 interface QuestionEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    editingQuestion: any;
+    editingQuestion: QuestionRecord | null;
     bankId: string;
-    org: any;
+    org: ProctorOrganization | null;
     onSaveSuccess: () => Promise<void>;
     /* In-editor question navigation (save current, then move to sibling). */
     onNavigate?: (dir: 'prev' | 'next') => void;
     editorIndex?: number;
     editorTotal?: number;
-    handleOpenPreview: (tempQ: any) => void;
+    handleOpenPreview: (tempQ: QuestionRecord) => void;
     setIsEquationBuilderOpen: (open: boolean) => void;
     setIsSymbolPickerOpen: (open: boolean) => void;
     setIsTableConfigOpen: (open: boolean) => void;
-    setQuillInstance: (quill: any) => void;
+    setQuillInstance: (quill: unknown) => void;
     questionText: string;
     setQuestionText: (text: string) => void;
-    options: any[];
-    setOptions: (options: any[]) => void;
+    options: QuestionOptionDraft[];
+    setOptions: (options: QuestionOptionDraft[]) => void;
     selectedType: QuestionType;
     setSelectedType: (type: QuestionType) => void;
     scoreDefault: number;
     setScoreDefault: (score: number) => void;
-    metadata: any;
-    setMetadata: (meta: any) => void;
+    metadata: QuestionMetadata;
+    setMetadata: (meta: QuestionMetadata) => void;
     categories: string[];
     setCategories: (cats: string[]) => void;
     kisiKisi: string;
@@ -62,7 +84,7 @@ interface QuestionEditorModalProps {
     setIsSubmitting: (sub: boolean) => void;
     setIsCropperOpen: (open: boolean) => void;
     setImageToCrop: (src: string | null) => void;
-    setCropperContext: (ctx: any) => void;
+    setCropperContext: (ctx: { type: 'question' | 'option'; index?: number }) => void;
     pembahasan: string;
     setPembahasan: Dispatch<SetStateAction<string>>;
     pembLatexInput: string;
@@ -76,10 +98,10 @@ interface QuestionEditorModalProps {
     setInstructionId: Dispatch<SetStateAction<string | null>>;
     dimensionId: string | null;
     setDimensionId: Dispatch<SetStateAction<string | null>>;
-    dimensions: any[];
+    dimensions: DimensionItem[];
     kisiKisiId: string | null;
     setKisiKisiId: Dispatch<SetStateAction<string | null>>;
-    kisiKisiList: any[];
+    kisiKisiList: KisiKisiItem[];
     isBulkImportPreview?: boolean;
 }
 
@@ -120,7 +142,6 @@ export const TYPE_COLORS: Record<string, { bg: string; text: string; border: str
 };
 
 export default function QuestionEditorModal({
-    isOpen,
     onClose,
     editingQuestion,
     bankId,
@@ -130,10 +151,6 @@ export default function QuestionEditorModal({
     editorIndex,
     editorTotal,
     handleOpenPreview,
-    setIsEquationBuilderOpen,
-    setIsSymbolPickerOpen,
-    setIsTableConfigOpen,
-    setQuillInstance,
     questionText,
     setQuestionText,
     options,
@@ -147,19 +164,9 @@ export default function QuestionEditorModal({
     categories,
     setCategories,
     kisiKisi,
-    setKisiKisi,
     isSubmitting,
     setIsSubmitting,
-    setIsCropperOpen,
-    setImageToCrop,
-    setCropperContext,
     pembahasan,
-    setPembahasan,
-    pembLatexInput,
-    setPembLatexInput,
-    onInsertPembMath,
-    openMathBuilder,
-    setOpenMathBuilder,
     stimulusId,
     setStimulusId,
     instructionId,
@@ -186,8 +193,8 @@ export default function QuestionEditorModal({
         };
     }, []);
 
-    const [stimuliList, setStimuliList] = useState<any[]>([]);
-    const [instructionsList, setInstructionsList] = useState<any[]>([]);
+    const [stimuliList, setStimuliList] = useState<BankTextItem[]>([]);
+    const [instructionsList, setInstructionsList] = useState<BankTextItem[]>([]);
 
     useEffect(() => {
         getStimuliByBank(bankId).then(data => {
@@ -203,14 +210,6 @@ export default function QuestionEditorModal({
         ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(selectedType) ? 'personality' : 'knowledge'
     );
 
-    // Sync typeTab when selectedType changes (e.g. when editing an existing question)
-    useEffect(() => {
-        if (['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(selectedType)) {
-            setTypeTab('personality');
-        } else {
-            setTypeTab('knowledge');
-        }
-    }, [selectedType]);
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [showHintPopup, setShowHintPopup] = useState(false);
 
@@ -223,20 +222,6 @@ export default function QuestionEditorModal({
     const [tableRows, setTableRows] = useState(2);
     const [tableCols, setTableCols] = useState(2);
 
-    const openLatexEditor = (optIdx: number) => {
-        let initialValue = '';
-        if (optIdx === -1) {
-            // Question text mode
-            initialValue = '';
-            setLatexModeQuill(true);
-        } else {
-            initialValue = stripDelimiters(options[optIdx]?.text || '');
-            setLatexModeQuill(false);
-        }
-        setLatexEditorOptIdx(optIdx);
-        setLatexEditorValue(initialValue);
-        setLatexEditorOpen(true);
-    };
 
     const closeLatexEditor = () => {
         setLatexEditorOpen(false);
@@ -259,20 +244,6 @@ export default function QuestionEditorModal({
         }
         closeLatexEditor();
     };
-
-    useEffect(() => {
-        if (selectedType === 'true_false') {
-            const tfOptions = [
-                { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
-                { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] }
-            ];
-            const looksLikeTF = options.length >= 2 &&
-                options.every((o: any) => o.isCorrect === true || o.isCorrect === false);
-            if (!looksLikeTF) {
-                setOptions(tfOptions);
-            }
-        }
-    }, [selectedType]);
 
     const isEmptyHtml = (text: string) => {
         if (!text) return true;
@@ -300,7 +271,7 @@ export default function QuestionEditorModal({
 
         // Esai multi-topik tanpa satu pun topik = soal buntu: siswa wajib
         // memilih topik dulu, padahal tidak ada yang bisa dipilih.
-        if (selectedType === 'essay' && (metadata as any)?.is_multi_topic) {
+        if (selectedType === 'essay' && metadata?.is_multi_topic) {
             const validTopics = options.filter(o => !isEmptyHtml(o.text));
             if (validTopics.length === 0) {
                 errors.push('Tambahkan minimal satu topik, atau matikan opsi "Jadikan Multi-Topik"');
@@ -352,7 +323,7 @@ export default function QuestionEditorModal({
             const activeBlanksCount = Math.max(1, blankCountInText);
             const blanks = metadata.blanks || [];
             const activeBlanks = blanks.slice(0, activeBlanksCount);
-            const emptyBlanks = activeBlanks.filter((b: any) => !b.answer || b.answer.trim() === '');
+            const emptyBlanks = activeBlanks.filter((b) => !b.answer || b.answer.trim() === '');
             if (emptyBlanks.length > 0) {
                 errors.push('Semua jawaban benar harus diisi');
             }
@@ -410,7 +381,7 @@ export default function QuestionEditorModal({
             // seluruh tipe 'essay' selalu mengirim [] sehingga topik yang sudah
             // diisi guru terbuang diam-diam, dan siswa mendapat soal tanpa
             // satu pun kolom jawaban.
-            options: (selectedType === 'short_answer' || (selectedType === 'essay' && !(metadata as any)?.is_multi_topic)) ? [] : options.map((opt, i) => ({
+            options: (selectedType === 'short_answer' || (selectedType === 'essay' && !metadata?.is_multi_topic)) ? [] : options.map((opt, i) => ({
                 id: opt.id,
                 text: opt.text,
                 isCorrect: opt.isCorrect,
@@ -441,9 +412,9 @@ export default function QuestionEditorModal({
         setIsSubmitting(false);
     };
 
-    const addOption = () => setOptions([...options, { text: '', isCorrect: false, order: options.length, weight: 0 }]);
+    const addOption = () => setOptions([...options, { text: '', isCorrect: false, order: options.length, weight: 0, match_texts: [], category_names: [] }]);
     const removeOption = (idx: number) => setOptions(options.filter((_, i) => i !== idx));
-    const updateOption = (idx: number, fields: any) => {
+    const updateOption = (idx: number, fields: Partial<QuestionOptionDraft>) => {
         const newOpts = [...options];
         newOpts[idx] = { ...newOpts[idx], ...fields };
         setOptions(newOpts);
@@ -459,7 +430,7 @@ export default function QuestionEditorModal({
     const removeRightItem = (idx: number) => {
         setMetadata({
             ...metadata,
-            right_items: (metadata.right_items || []).filter((_: any, i: number) => i !== idx)
+            right_items: (metadata.right_items || []).filter((_, i) => i !== idx)
         });
     };
 
@@ -536,12 +507,13 @@ export default function QuestionEditorModal({
                                         id: editingQuestion?.id || 'preview',
                                         type: selectedType,
                                         question_text: questionText,
+                                        score_default: scoreDefault,
                                         metadata: { ...metadata, categories },
                                         stimulus_id: stimulusId,
                                         instruction_id: instructionId,
                                         kisi_kisi_id: kisiKisiId,
-                                        stimulus: stimuliList.find(s => s.id === stimulusId) ? [stimuliList.find(s => s.id === stimulusId)] : undefined,
-                                        instruction: instructionsList.find(i => i.id === instructionId) ? [instructionsList.find(i => i.id === instructionId)] : undefined,
+                                        stimulus: stimuliList.find(s => s.id === stimulusId),
+                                        instruction: instructionsList.find(i => i.id === instructionId),
                                         bank_question_options: options.map((opt, i) => ({
                                             id: opt.id || `temp-${i}`,
                                             option_text: opt.text,
@@ -673,7 +645,18 @@ export default function QuestionEditorModal({
                                                         <button
                                                             key={type.value}
                                                             onClick={() => {
-                                                                setSelectedType(type.value as QuestionType);
+                                                                const nextType = type.value as QuestionType;
+                                                                setSelectedType(nextType);
+                                                                if (nextType === 'true_false') {
+                                                                    const looksLikeTrueFalse = options.length >= 2
+                                                                        && options.every(option => typeof option.isCorrect === 'boolean');
+                                                                    if (!looksLikeTrueFalse) {
+                                                                        setOptions([
+                                                                            { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
+                                                                            { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] },
+                                                                        ]);
+                                                                    }
+                                                                }
                                                                 setShowTypeDropdown(false);
                                                             }}
                                                             className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-all hover:bg-slate-50 ${isActive ? `${tc.bg} border-l-4 ${tc.border}` : ''}`}
@@ -910,7 +893,7 @@ export default function QuestionEditorModal({
                                     <TrueFalseForm
                                         options={options}
                                         onAddOption={addOption}
-                                        onInsertOption={(idx) => {}}
+                                        onInsertOption={() => {}}
                                         onRemoveOption={removeOption}
                                         onUpdateOption={updateOption}
                                     />
@@ -922,7 +905,7 @@ export default function QuestionEditorModal({
                                         options={options}
                                         isComplex={selectedType === 'mcq_complex'}
                                         onAddOption={addOption}
-                                        onInsertOption={(idx) => {}}
+                                        onInsertOption={() => {}}
                                         onRemoveOption={removeOption}
                                         onUpdateOption={updateOption}
                                         onSetAllCorrect={(idx) => {
@@ -954,7 +937,7 @@ export default function QuestionEditorModal({
                                         options={options}
                                         categories={categories}
                                         onAddItem={addOption}
-                                        onInsertItem={(idx) => {}}
+                                        onInsertItem={() => {}}
                                         onRemoveItem={removeOption}
                                         onUpdateItem={(idx, text) => updateOption(idx, { text })}
                                         onSetCategories={setCategories}
@@ -965,18 +948,18 @@ export default function QuestionEditorModal({
                                 {/* Short Answer */}
                                 {selectedType === 'short_answer' && (
                                     <ShortAnswerForm
-                                        blanks={(metadata as any).blanks || []}
+                                        blanks={metadata.blanks || []}
                                         questionText={questionText}
                                         onAddBlank={() => {
-                                            const blanks = [...((metadata as any).blanks || []), { answer: '', variations: [] }];
+                                            const blanks = [...(metadata.blanks || []), { answer: '', variations: [] }];
                                             setMetadata({ ...metadata, blanks });
                                         }}
                                         onRemoveBlank={(idx) => {
-                                            const blanks = ((metadata as any).blanks || []).filter((_: any, i: number) => i !== idx);
+                                            const blanks = (metadata.blanks || []).filter((_, i) => i !== idx);
                                             setMetadata({ ...metadata, blanks });
                                         }}
                                         onUpdateBlank={(idx, fields) => {
-                                            const blanks = [...((metadata as any).blanks || [])];
+                                            const blanks = [...(metadata.blanks || [])];
                                             blanks[idx] = { ...blanks[idx], ...fields };
                                             setMetadata({ ...metadata, blanks });
                                         }}
@@ -991,7 +974,7 @@ export default function QuestionEditorModal({
                                             onUpdateMetadata={(updates) => setMetadata({ ...metadata, ...updates })}
                                         />
                                         
-                                        {(metadata as any)?.is_multi_topic && (
+                                        {metadata?.is_multi_topic && (
                                             <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
                                                 <div className="flex items-center justify-between mb-4">
                                                     <div>
@@ -1042,7 +1025,7 @@ export default function QuestionEditorModal({
                                     <SJTForm
                                         options={options}
                                         onAddOption={addOption}
-                                        onInsertOption={(idx) => {}}
+                                        onInsertOption={() => {}}
                                         onRemoveOption={removeOption}
                                         onUpdateOption={updateOption}
                                         onSetOptionWeight={(idx, weight) => updateOption(idx, { weight })}
@@ -1053,7 +1036,7 @@ export default function QuestionEditorModal({
                                 {selectedType === 'ordering' && (
                                     <OrderingForm
                                         options={options}
-                                        correctOrder={((metadata as any).correct_order as string[]) || []}
+                                        correctOrder={(metadata.correct_order as string[]) || []}
                                         onAddItem={addOption}
                                         onRemoveItem={removeOption}
                                         onUpdateItem={(idx, fields) => updateOption(idx, fields)}

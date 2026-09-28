@@ -1,35 +1,31 @@
 "use client";
+import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
-    Activity,
-    AlertTriangle,
-    Eye,
-    Radio,
-    ShieldAlert,
-    CheckCircle2,
-    RotateCcw,
-    Clock,
-    Search,
-    RefreshCw,
-    Filter,
-    X,
-    ChevronDown,
-    AlertOctagon,
-    ArrowLeft
-} from 'lucide-react';
-import {
-    getProctorOrganization,
-    listOrganizationExams,
-    getExamAttemptsAction,
-    getRecentViolationsAction,
-    type ViolationEvent
+getExamAttemptsAction,
+getProctorOrganization,
+getRecentViolationsAction,
+listOrganizationExams,
+type ViolationEvent
 } from '@/lib/api/proctor';
-import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
-import { useAutoRefresh, REFRESH_INTERVAL } from '@/hooks/useAutoRefresh';
+import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import {
+AlertTriangle,
+ArrowLeft,
+CheckCircle2,
+ChevronDown,
+Radio,
+RefreshCw,
+RotateCcw,
+Search,
+ShieldAlert,
+X
+} from 'lucide-react';
+import { useRouter,useSearchParams } from 'next/navigation';
+import { Suspense,useCallback,useEffect,useState } from 'react';
 
 function MonitoringContent() {
     const searchParams = useSearchParams();
@@ -116,8 +112,8 @@ function MonitoringContent() {
             } else {
                 alert(`Gagal mereset ujian: ${res.error}`);
             }
-        } catch (err: any) {
-            alert(`Terjadi kesalahan: ${err.message || 'Gagal mereset'}`);
+        } catch (err) {
+            alert(`Terjadi kesalahan: ${getErrorMessage(err) || 'Gagal mereset'}`);
         } finally {
             setResettingId(null);
         }
@@ -144,7 +140,6 @@ function MonitoringContent() {
     const activeCount = attempts.filter((a) => a.status === 'in_progress' || a.status === 'sedang').length;
     const finishedCount = attempts.filter((a) => a.status === 'finished' || a.status === 'selesai').length;
     const unstartedCount = attempts.filter((a) => a.status === 'belum' || !a.status).length;
-    const selectedExam = exams.find((e) => e.id === selectedExamId);
 
     const formatTime = (ts: string | null) => {
         if (!ts) return '-';

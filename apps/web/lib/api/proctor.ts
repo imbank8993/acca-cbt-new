@@ -1,5 +1,6 @@
-import { apiCreate, apiGet, apiSend } from './client';
 import { getSessionUser } from '../session';
+import { apiCreate,apiGet,apiSend } from './client';
+import type { QuestionRecord } from './questions';
 
 /**
  * Dasbor staf sekolah. Menggantikan `app/actions/proktor.ts`.
@@ -21,6 +22,152 @@ import { getSessionUser } from '../session';
 export interface ProctorOrganization {
     id: string;
     name: string;
+}
+
+export interface RecentLogin {
+    id: string;
+    userId: string;
+    isActive: boolean;
+    lastLoginAt: string | null;
+    fullName: string;
+    avatarUrl: string | null;
+    role: string;
+}
+
+export interface SchoolYear {
+    id: string;
+    year: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_active?: boolean;
+}
+
+export interface SchoolSubject {
+    id: string;
+    name: string;
+    code?: string | null;
+}
+
+export interface OrganizationClass {
+    id: string;
+    name: string;
+    type: 'reguler' | 'tambahan';
+    school_year?: string | null;
+    member_count?: number;
+    student_count?: number;
+    studentCount?: number;
+}
+
+export interface ClassStudent {
+    id: string;
+    user_id?: string;
+    full_name?: string | null;
+    identity_number?: string | null;
+    avatar_url?: string | null;
+    email?: string | null;
+    profiles?: {
+        id?: string;
+        full_name?: string | null;
+        identity_number?: string | null;
+        avatar_url?: string | null;
+    } | null;
+}
+
+export interface OrganizationExam {
+    id: string;
+    organization_id?: string;
+    title: string;
+    description?: string | null;
+    duration?: number;
+    duration_minutes?: number;
+    exam_type?: string | null;
+    status?: string | null;
+    is_published?: boolean;
+    start_time?: string | null;
+    end_time?: string | null;
+    created_at?: string;
+    subject_id?: string | null;
+    question_bank_id?: string | null;
+    randomize_questions?: boolean;
+    randomize_options?: boolean;
+    show_results?: boolean;
+    scoring_type?: string | null;
+    metadata?: {
+        assignment_description?: string;
+        allow_file_upload?: boolean;
+        allowed_file_types?: string[];
+        document_url?: string;
+        is_public?: boolean;
+        is_safe_mode?: boolean;
+        require_bank?: boolean;
+        video_url?: string;
+        [key: string]: unknown;
+    } | null;
+}
+
+export interface ExamAttemptRecord {
+    id: string;
+    exam_id: string;
+    user_id: string;
+    status: string;
+    started_at?: string | null;
+    finished_at?: string | null;
+    last_heartbeat_at?: string | null;
+    total_score?: number | null;
+    kelas_name?: string | null;
+    warning_count?: number;
+    tab_switch_count?: number;
+    violation_breakdown?: {
+        pindah_tab: number;
+        close_tab: number;
+        lainnya: number;
+    } | null;
+    detailed_scores?: {
+        classical?: number;
+        irt_1pl?: number;
+        irt_2pl?: number;
+        irt_3pl?: number;
+    } | null;
+    connection_status?: string | null;
+    score_irt?: number | null;
+    needs_manual_grading?: boolean;
+    metadata?: Record<string, unknown> | null;
+    profiles?: { id?: string; full_name?: string | null; identity_number?: string | null } | null;
+    exams?: OrganizationExam | null;
+}
+
+export interface ExamAnswerRecord {
+    id: string;
+    attempt_id?: string;
+    question_id: string;
+    selected_option_id?: string | null;
+    essay_answer?: unknown;
+    score?: number | null;
+    is_correct?: boolean | null;
+    questions?: QuestionRecord | null;
+}
+
+export interface SecurityLogRecord {
+    id: string;
+    attempt_id?: string;
+    event_type?: string;
+    created_at?: string;
+    metadata?: Record<string, unknown> | null;
+}
+
+export interface AssignmentSubmission {
+    userId: string;
+    fullName: string;
+    identityNumber: string;
+    attemptId: string | null;
+    status: 'belum_mulai' | 'sedang_dikerjakan' | 'sudah_kumpul';
+    score: number | null;
+    submittedAt: string | null;
+    needsGrading: boolean;
+    fileUrls: string[];
+    textSubmission: string;
+    teacherFeedback: string;
+    teacherScore: number | null;
 }
 
 export async function getProctorOrganization(): Promise<ProctorOrganization | null> {
@@ -69,21 +216,21 @@ export async function hasUserDualRole(): Promise<boolean> {
     return (await resolveRoles()).hasDualRole;
 }
 
-export async function getRecentLogins(limit = 10): Promise<any[]> {
+export async function getRecentLogins(limit = 10): Promise<RecentLogin[]> {
     const query = new URLSearchParams({ limit: String(limit) });
-    const res = await apiGet<{ logins: any[] }>(`/api/proctor/recent-logins?${query}`);
+    const res = await apiGet<{ logins: RecentLogin[] }>(`/api/proctor/recent-logins?${query}`);
     return res.success ? res.logins : [];
 }
 
 // ── Tahun ajaran & mata pelajaran ────────────────────────────────────────────
 
-export async function listSchoolYears(): Promise<any[]> {
-    const res = await apiGet<{ schoolYears: any[] }>('/api/proctor/school-years');
+export async function listSchoolYears(): Promise<SchoolYear[]> {
+    const res = await apiGet<{ schoolYears: SchoolYear[] }>('/api/proctor/school-years');
     return res.success ? res.schoolYears : [];
 }
 
-export async function getActiveSchoolYear(): Promise<any | null> {
-    const res = await apiGet<{ schoolYear: any }>('/api/proctor/school-years/active');
+export async function getActiveSchoolYear(): Promise<SchoolYear | null> {
+    const res = await apiGet<{ schoolYear: SchoolYear }>('/api/proctor/school-years/active');
     return res.success ? res.schoolYear : null;
 }
 
@@ -100,8 +247,8 @@ export async function listOrganizationSchoolYears(): Promise<string[]> {
     return res.success ? res.years : [];
 }
 
-export async function listSubjects(): Promise<any[]> {
-    const res = await apiGet<{ subjects: any[] }>('/api/proctor/subjects');
+export async function listSubjects(): Promise<SchoolSubject[]> {
+    const res = await apiGet<{ subjects: SchoolSubject[] }>('/api/proctor/subjects');
     return res.success ? res.subjects : [];
 }
 
@@ -109,11 +256,11 @@ export async function listSubjects(): Promise<any[]> {
 
 export async function listOrganizationClasses(
     opts?: { activeYearOnly?: boolean },
-): Promise<any[]> {
+): Promise<OrganizationClass[]> {
     const query = new URLSearchParams();
     if (opts?.activeYearOnly) query.set('activeYearOnly', 'true');
 
-    const res = await apiGet<{ classes: any[] }>(`/api/proctor/classes?${query}`);
+    const res = await apiGet<{ classes: OrganizationClass[] }>(`/api/proctor/classes?${query}`);
     return res.success ? res.classes : [];
 }
 
@@ -168,10 +315,10 @@ export async function importClassesAction(
           };
 }
 
-export async function listClassStudents(classIds: string[]): Promise<Record<string, any[]>> {
+export async function listClassStudents(classIds: string[]): Promise<Record<string, ClassStudent[]>> {
     if (classIds.length === 0) return {};
 
-    const res = await apiSend<{ members: Record<string, any[]> }>(
+    const res = await apiSend<{ members: Record<string, ClassStudent[]> }>(
         '/api/proctor/classes/members',
         { classIds },
     );
@@ -181,8 +328,8 @@ export async function listClassStudents(classIds: string[]): Promise<Record<stri
 export async function getStudentsByClassAction(
     classId: string,
     isAdditional = false,
-): Promise<any[]> {
-    const res = await apiGet<{ students: any[] }>(
+): Promise<ClassStudent[]> {
+    const res = await apiGet<{ students: ClassStudent[] }>(
         `/api/proctor/classes/${encodeURIComponent(classId)}/students?additional=${isAdditional}`,
     );
     return res.success ? res.students : [];
@@ -190,8 +337,8 @@ export async function getStudentsByClassAction(
 
 // ── Ujian ────────────────────────────────────────────────────────────────────
 
-export async function listOrganizationExams(): Promise<any[]> {
-    const res = await apiGet<{ exams: any[] }>('/api/proctor/exams');
+export async function listOrganizationExams(): Promise<OrganizationExam[]> {
+    const res = await apiGet<{ exams: OrganizationExam[] }>('/api/proctor/exams');
     return res.success ? res.exams : [];
 }
 
@@ -256,8 +403,8 @@ export async function listExamAssignmentsAction(examIds: string[]): Promise<{
     if (examIds.length === 0) return { targets: [], participants: [] };
 
     const res = await apiSend<{
-        targets: any[];
-        participants: any[];
+        targets: { exam_id: string; class_id: string | null; additional_class_id: string | null }[];
+        participants: { exam_id: string; user_id: string; class_id: string | null }[];
     }>('/api/proctor/exams/assignments', { examIds });
 
     return res.success
@@ -267,8 +414,8 @@ export async function listExamAssignmentsAction(examIds: string[]): Promise<{
 
 // ── Pemantauan & hasil ───────────────────────────────────────────────────────
 
-export async function getExamAttemptsAction(examId: string): Promise<any[]> {
-    const res = await apiGet<{ attempts: any[] }>(
+export async function getExamAttemptsAction(examId: string): Promise<ExamAttemptRecord[]> {
+    const res = await apiGet<{ attempts: ExamAttemptRecord[] }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/attempts`,
     );
     return res.success ? res.attempts : [];
@@ -303,15 +450,15 @@ export async function getRecentViolationsAction(
 
 export async function getExamAnswersForAnalysisAction(
     examId: string,
-): Promise<{ questions: any[]; answers: any[] }> {
-    const res = await apiGet<{ questions: any[]; answers: any[] }>(
+): Promise<{ questions: QuestionRecord[]; answers: ExamAnswerRecord[] }> {
+    const res = await apiGet<{ questions: QuestionRecord[]; answers: ExamAnswerRecord[] }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis`,
     );
     return res.success ? { questions: res.questions, answers: res.answers } : { questions: [], answers: [] };
 }
 
 export async function getAttemptFullDetailsAction(attemptId: string) {
-    const res = await apiGet<{ attempt: any; answers: any[]; securityLogs: any[] }>(
+    const res = await apiGet<{ attempt: ExamAttemptRecord; answers: ExamAnswerRecord[]; securityLogs: SecurityLogRecord[] }>(
         `/api/proctor/attempts/${encodeURIComponent(attemptId)}`,
     );
 
@@ -323,7 +470,7 @@ export async function getAttemptFullDetailsAction(attemptId: string) {
 }
 
 export async function getAssignmentSubmissionsAction(examId: string) {
-    const res = await apiGet<{ exam: any; submissions: any[]; classes: any[] }>(
+    const res = await apiGet<{ exam: OrganizationExam; submissions: AssignmentSubmission[]; classes: OrganizationClass[] }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/submissions`,
     );
 
@@ -338,8 +485,8 @@ export async function getAssignmentSubmissionsAction(examId: string) {
               success: false as const,
               error: res.error,
               exam: null,
-              submissions: [] as any[],
-              classes: [] as any[],
+              submissions: [] as AssignmentSubmission[],
+              classes: [] as OrganizationClass[],
           };
 }
 

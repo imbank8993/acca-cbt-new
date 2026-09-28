@@ -1,40 +1,39 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { getErrorMessage } from '@/lib/errors';
+import { InlineMath } from '@/app/components/questions/InlineMath';
+import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
+import type { Question,QuestionOption,QuestionType } from '@/app/types/question';
+import type {
+ExamReview,
+QuestionReview,
+ReviewFilter
+} from '@/app/types/review';
 import {
-    ArrowLeft,
-    Check,
-    X,
-    Clock,
-    ChevronLeft,
-    ChevronRight,
-    CheckCircle2,
-    XCircle,
-    AlertCircle,
-    Loader2,
-    Lightbulb,
-    FileText
-} from 'lucide-react';
+formatDuration,
+getGradeFromPercentage,
+getStatusColor
+} from '@/app/types/review';
+import { AnswerValue,parseAnswer,parseMCQComplexAnswer } from '@/lib/answer-parser';
 import { getExamReview } from '@/lib/api/exam-review';
 import { getSessionUser } from '@/lib/session';
-import type {
-    ExamReview,
-    QuestionReview,
-    ReviewFilter,
-    ReviewSummary
-} from '@/app/types/review';
-import {
-    getStatusColor,
-    formatDuration,
-    getGradeFromPercentage
-} from '@/app/types/review';
-import { parseAnswer, parseMCQComplexAnswer, AnswerValue } from '@/lib/answer-parser';
-import type { QuestionType, Question, QuestionOption } from '@/app/types/question';
-import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import { InlineMath } from '@/app/components/questions/InlineMath';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { motion } from 'framer-motion';
+import {
+AlertCircle,
+ArrowLeft,
+Check,
+CheckCircle2,
+ChevronLeft,
+ChevronRight,
+Clock,
+FileText,
+Lightbulb,
+Loader2,
+X,
+XCircle
+} from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 
 export default function ExamReviewPage() {
     const params = useParams();
@@ -65,8 +64,8 @@ export default function ExamReviewPage() {
             } else {
                 setReview(data);
             }
-        } catch (err: any) {
-            setError(err.message || 'Terjadi kesalahan saat memuat review.');
+        } catch (err) {
+            setError(getErrorMessage(err) || 'Terjadi kesalahan saat memuat review.');
         }
         setIsLoading(false);
     }, [attemptId]);
@@ -153,7 +152,7 @@ export default function ExamReviewPage() {
         );
     }
 
-    const { summary, questions } = review;
+    const { summary } = review;
     const gradeInfo = getGradeFromPercentage(summary.percentage);
 
     return (
@@ -769,7 +768,6 @@ function MatchingReview({
                     {options.filter((opt) => (opt.option_text || opt.text || '').trim().length > 0).map((opt, idx) => {
                         const studentAnswers = answer[opt.id] || [];
                         const correctMatch = opt.metadata?.match_text || opt.metadata?.match_texts?.[0] || '';
-                        const isCorrect = showFeedback && studentAnswers.includes(correctMatch) && studentAnswers.length === 1;
 
                         return (
                             <tr key={opt.id} className="border-t border-slate-100">
@@ -964,7 +962,6 @@ function CategorizationReview({
 // ─── Short Answer Review Component ────────────────────────────────────────────
 
 function ShortAnswerReview({
-    options,
     answer,
     metadata,
     showFeedback

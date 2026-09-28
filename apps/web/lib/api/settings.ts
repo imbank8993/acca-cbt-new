@@ -1,4 +1,4 @@
-import { apiGet, apiSend, type ApiResult } from './client';
+import { apiGet,apiSend,type ApiResult } from './client';
 
 export interface SettingRow {
     id: string;

@@ -1,17 +1,17 @@
 "use client";
-import React, { useMemo, useEffect, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
 import { OrderedList } from '@tiptap/extension-list';
+import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import Placeholder from '@tiptap/extension-placeholder';
-import { VideoEmbed } from './video-embed';
-import { AudioEmbed } from './audio-embed';
-import { createRoot, Root } from 'react-dom/client';
-import { CustomVideoPlayer } from './CustomVideoPlayer';
+import { EditorContent,useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import DOMPurify from 'dompurify';
+import { useEffect,useMemo,useRef } from 'react';
+import { createRoot,Root } from 'react-dom/client';
+import { AudioEmbed } from './audio-embed';
+import { CustomVideoPlayer } from './CustomVideoPlayer';
+import { VideoEmbed } from './video-embed';
 
 // Pure HTML renderer without contenteditable - for preview only
 // Parses HTML and applies proper alignment styles
@@ -80,7 +80,7 @@ export function TipTapPreviewRenderer({ content, className = '' }: TipTapPreview
     useEffect(() => {
         if (!contentRef.current) return;
         const roots: { root: Root, el: Element }[] = [];
-        
+
         const mountPoints = contentRef.current.querySelectorAll('.cbt-custom-video-mount');
         mountPoints.forEach(el => {
             const url = el.getAttribute('data-video-url');
@@ -96,7 +96,7 @@ export function TipTapPreviewRenderer({ content, className = '' }: TipTapPreview
         return () => {
             roots.forEach(({ root, el }) => {
                 setTimeout(() => {
-                    try { root.unmount(); } catch (e) {}
+                    try { root.unmount(); } catch {}
                 }, 0);
                 el.removeAttribute('data-mounted');
             });
@@ -127,7 +127,7 @@ export function TipTapPreviewEditor({ content, className = '' }: TipTapPreviewEd
                 heading: { levels: [1, 2, 3] },
                 orderedList: false,
             }),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
             OrderedList.configure({
                 addAttributes() {
                     return {

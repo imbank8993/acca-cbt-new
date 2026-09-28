@@ -3,8 +3,8 @@
  * EssayForm — Essay / Uraian
  * Minimal UI — essay answers are written by students, not pre-defined by teacher.
  */
+import { FileText,Info,Upload,Video } from 'lucide-react';
 import React from 'react';
-import { FileText, Info, Upload, Video } from 'lucide-react';
 import type { EssayMetadata } from '../schema';
 
 interface EssayFormProps {

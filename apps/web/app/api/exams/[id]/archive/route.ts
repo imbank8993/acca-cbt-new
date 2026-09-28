@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server';
 import { proxyJson } from '@/lib/nest-proxy';
+import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 

@@ -1,33 +1,34 @@
 "use client";
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
-import { getSessionUser } from '@/lib/session';
-import { getDeviceId, setDeviceId } from '@/lib/device-id';
-import { clearCbtSession } from '@/lib/session-reset';
-import { submitExamAction, startExamAttemptAction, saveAnswerAction, syncAnswersBulkAction, getExamQuestionsAction, getExamForAttempt, type StudentProfile } from '@/lib/api/students';
-import { PerKeyQueue } from '@/lib/per-key-queue';
-import { examAutoRetryDelay } from '@/lib/exam-retry';
-import { cacheExamOfflineShell, isExamPwaEnabled, removeExamOfflineShell } from '@/lib/exam-pwa';
-import {
-    createSecurityEventId,
-    enqueueSecurityEvent,
-    inspectExamStorage,
-    readExamSnapshot,
-    readExamRecoverySession,
-    readSecurityEvents,
-    removeExamSnapshot,
-    removeExamRecoverySession,
-    removeSecurityEvent,
-    resolveDurableDeviceId,
-    updateExamRecoveryPosition,
-    validateExamRecoverySession,
-    writeExamSnapshot,
-    writeExamRecoverySession,
-} from '@/lib/exam-durable-storage';
-import { heartbeatExamAttempt, logSecurityViolation, forceTerminateAttempt } from '@/lib/api/proctoring';
+import { getErrorMessage } from '@/lib/errors';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
+import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
+import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentProfile } from '@/lib/api/students';
+import { getDeviceId,setDeviceId } from '@/lib/device-id';
+import {
+createSecurityEventId,
+enqueueSecurityEvent,
+inspectExamStorage,
+readExamRecoverySession,
+readExamSnapshot,
+readSecurityEvents,
+removeExamRecoverySession,
+removeExamSnapshot,
+removeSecurityEvent,
+resolveDurableDeviceId,
+updateExamRecoveryPosition,
+validateExamRecoverySession,
+writeExamRecoverySession,
+writeExamSnapshot,
+} from '@/lib/exam-durable-storage';
+import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
+import { examAutoRetryDelay } from '@/lib/exam-retry';
+import { PerKeyQueue } from '@/lib/per-key-queue';
+import { getSessionUser } from '@/lib/session';
+import { clearCbtSession } from '@/lib/session-reset';
+import { AlertTriangle,CheckCircle2,Loader2,RefreshCw,ShieldCheck } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { ExamViewer } from './ExamViewer';
 
 const MAX_VIOLATIONS = 3;
@@ -557,10 +558,10 @@ export default function ExamPage() {
                         'Paket pemulihan offline tidak dapat disimpan. Jangan memuat ulang halaman saat jaringan terputus.',
                     );
                 }
-            } catch (err: any) {
+            } catch (err) {
                 console.error("[ExamPage] Error fetching exam:", err);
                 setAccessDenied(true);
-                setAccessError(err?.message || 'Terjadi kesalahan saat memuat ujian.');
+                setAccessError(getErrorMessage(err) || 'Terjadi kesalahan saat memuat ujian.');
             }
             setLoading(false);
         }
@@ -669,9 +670,9 @@ export default function ExamPage() {
                 submitInFlightRef.current = false;
                 scheduleAutoRetry(opts);
             }
-        } catch (err: any) {
+        } catch (err) {
             if (!opts?.isAuto || autoRetryCountRef.current === 0) {
-                toast.error('Gagal submit ujian', err?.message || 'Terjadi kesalahan');
+                toast.error('Gagal submit ujian', getErrorMessage(err) || 'Terjadi kesalahan');
             }
             setSubmitting(false);
             setWaitingForSyncAndSubmit(Boolean(opts?.isAuto));

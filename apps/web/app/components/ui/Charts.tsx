@@ -1,6 +1,6 @@
 "use client";
+import { Award,Clock,FileText,Minus,Target,TrendingDown,TrendingUp,Users } from 'lucide-react';
 import React from 'react';
-import { TrendingUp, TrendingDown, Minus, Users, Clock, Target, Award, FileText } from 'lucide-react';
 import { Skeleton } from './Skeleton';
 
 // ─── Stat Card Component ─────────────────────────────────────
@@ -165,7 +165,6 @@ interface BarChartProps {
 export function BarChart({
   data,
   maxValue,
-  height = 200,
   showLabels = true,
   className = '',
 }: BarChartProps) {

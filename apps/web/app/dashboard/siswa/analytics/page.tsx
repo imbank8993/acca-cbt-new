@@ -1,60 +1,52 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useMemo } from 'react';
+import type {
+StudentAnalyticsData
+} from '@/lib/api/student-analytics';
+import {
+getStudentAnalytics,
+getStudentComparison,
+getStudentExamHistory
+} from '@/lib/api/student-analytics';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import {
+ArcElement,
+BarElement,
+CategoryScale,
+Chart as ChartJS,
+Filler,
+Legend,
+LinearScale,
+LineElement,
+PointElement,
+Title,
+Tooltip
+} from 'chart.js';
 import { motion } from 'framer-motion';
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    ArcElement,
-    Title,
-    Tooltip,
-    Legend,
-    Filler
-} from 'chart.js';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import {
-    TrendingUp,
-    TrendingDown,
-    Minus,
-    Trophy,
-    Target,
-    Clock,
-    BookOpen,
-    Award,
-    Brain,
-    AlertTriangle,
-    CheckCircle2,
-    Loader2,
-    Calendar,
-    Flame,
-    Zap,
-    ArrowUpRight,
-    ArrowDownRight,
-    Star,
-    BarChart3,
-    PieChart,
-    Sparkles
+AlertTriangle,
+ArrowDownRight,
+ArrowUpRight,
+Award,
+BarChart3,
+BookOpen,
+Brain,
+Calendar,
+CheckCircle2,
+Clock,
+Flame,
+Loader2,
+Minus,
+PieChart,
+Star,
+Target,
+TrendingDown,
+TrendingUp,
+Trophy,
+Zap
 } from 'lucide-react';
-import { getSessionUser } from '@/lib/session';
-import {
-    getStudentAnalytics,
-    getStudentExamHistory,
-    getStudentComparison
-} from '@/lib/api/student-analytics';
-import type {
-    StudentAnalyticsData,
-    ExamAttemptSummary,
-    PerformanceTrend,
-    SubjectPerformance,
-    DifficultyPerformance,
-    StrengthWeakness,
-    StudyHabitStats
-} from '@/lib/api/student-analytics';
+import { useEffect,useState } from 'react';
+import { Bar,Line } from 'react-chartjs-2';
 
 // Register ChartJS
 ChartJS.register(
@@ -77,9 +69,9 @@ export default function StudentAnalyticsPage() {
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
     const [examHistory, setExamHistory] = useMemoryState<any[]>('siswa_analytics_examHistory', []);
     const [comparison, setComparison] = useState<any>(null);
-    const [timeRange, setTimeRange] = useState<TimeRange>('all');
-    const [user, setUser] = useState<any>(null);
-    const [fullName, setFullName] = useState<string>('');
+    const [] = useState<TimeRange>('all');
+    const [, setUser] = useState<any>(null);
+    const [, setFullName] = useState<string>('');
 
     useEffect(() => {
         async function loadData() {
@@ -170,7 +162,6 @@ export default function StudentAnalyticsPage() {
     }
 
     const { overview, subjectPerformance, difficultyPerformance, strengthsWeaknesses, studyHabits, performanceTrend } = analytics;
-    const gradeInfo = getGradeInfo(overview.averageScore);
 
     // Chart data: Performance Trend
     const trendChartData = {

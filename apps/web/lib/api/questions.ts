@@ -1,4 +1,4 @@
-import { apiCreate, apiGet, apiIdempotentMutation, apiSend } from './client';
+import { apiCreate,apiGet,apiIdempotentMutation,apiSend } from './client';
 
 /**
  * Bank soal beserta isinya. Menggantikan `app/actions/question.ts`.
@@ -38,18 +38,149 @@ export interface ImportRow {
     Konten_HTML?: string;
 }
 
+export interface KisiKisiItem {
+    id: string;
+    nomor_kd: string;
+    kd_cp?: string | null;
+    materi?: string | null;
+    indikator_soal?: string | null;
+    level_kognitif?: string | null;
+}
+
+export interface BankTextItem {
+    id: string;
+    title?: string | null;
+    content: string;
+}
+
+export interface DimensionItem {
+    id: string;
+    name: string;
+    description?: string | null;
+}
+
+export interface DimensionInterpretationItem {
+    id: string;
+    dimension_id: string;
+    min_score: number;
+    max_score: number;
+    title?: string | null;
+    interpretation?: string | null;
+}
+
+export interface QuestionBank {
+    id: string;
+    title: string;
+    name?: string;
+    description?: string | null;
+    subject?: string | null;
+    class_level?: string | null;
+    classLevel?: string | null;
+    icon_identifier?: string | null;
+    image_url?: string | null;
+    tags?: string[];
+    folder_id?: string | null;
+    is_published?: boolean;
+    created_at?: string;
+    updated_at?: string;
+    question_count?: number;
+    total_questions?: number;
+    creator_name?: string | null;
+}
+
+export interface BankFolder {
+    id: string;
+    name: string;
+    order?: number;
+}
+
+export interface OrganizationLabel {
+    id: string;
+    name: string;
+    color: string;
+}
+
+export interface QuestionOptionMetadata {
+    match_text?: string;
+    match_texts?: string[];
+    category_name?: string;
+    category_names?: string[];
+    dimension_id?: string | null;
+    image_url?: string;
+    [key: string]: unknown;
+}
+
+export interface QuestionOptionRecord {
+    id?: string;
+    option_text?: string;
+    text?: string;
+    is_correct?: boolean;
+    isCorrect?: boolean;
+    order?: number;
+    weight?: number;
+    match_texts?: string[];
+    category_names?: string[];
+    dimension_id?: string | null;
+    metadata?: QuestionOptionMetadata;
+}
+
+export interface QuestionOptionDraft extends QuestionOptionRecord {
+    text: string;
+    isCorrect: boolean;
+    order: number;
+    weight: number;
+    match_texts: string[];
+    category_names: string[];
+}
+
+export interface QuestionMetadata {
+    categories?: string[];
+    kisi_kisi?: string;
+    pembahasan?: string;
+    correct_order?: string[];
+    blanks?: { answer: string; variations: string[] }[];
+    import_stimulus?: string;
+    import_instruction?: string;
+    is_multi_topic?: boolean;
+    right_items?: string[];
+    _stimulus_code?: string;
+    _instruction_code?: string;
+    [key: string]: unknown;
+}
+
+export interface QuestionRecord {
+    id: string;
+    number?: number;
+    type: QuestionType;
+    question_text: string;
+    score_default: number;
+    bank_question_options?: QuestionOptionRecord[];
+    options?: QuestionOptionRecord[];
+    metadata?: QuestionMetadata;
+    stimulus_id?: string | null;
+    instruction_id?: string | null;
+    dimension_id?: string | null;
+    kisi_kisi_id?: string | null;
+    stimulus?: BankTextItem | null;
+    instruction?: BankTextItem | null;
+    question_dimensions?: DimensionItem | null;
+    created_at?: string;
+    updated_at?: string;
+    revision?: number;
+}
+
 // ── Bank soal ────────────────────────────────────────────────────────────────
 
-export async function listQuestionBanks(onlyPublished?: boolean): Promise<any[]> {
+export async function listQuestionBanks(onlyPublished?: boolean): Promise<QuestionBank[]> {
     const query = new URLSearchParams();
     if (onlyPublished) query.set('onlyPublished', 'true');
 
-    const res = await apiGet<{ banks: any[] }>(`/api/question-banks?${query.toString()}`);
+    const res = await apiGet<{ banks: QuestionBank[] }>(`/api/question-banks?${query.toString()}`);
     return res.success ? res.banks : [];
 }
 
-export async function getQuestionBankAction(bankId: string): Promise<any | null> {
-    const res = await apiGet<{ bank: any }>(`/api/question-banks/${encodeURIComponent(bankId)}`);
+export async function getQuestionBankAction(bankId: string): Promise<QuestionBank | null> {
+    const res = await apiGet<{ bank: QuestionBank }>(`/api/question-banks/${encodeURIComponent(bankId)}`);
     return res.success ? res.bank : null;
 }
 
@@ -115,8 +246,8 @@ export async function toggleQuestionBankPublishAction(bankId: string, isPublishe
 
 // ── Folder ───────────────────────────────────────────────────────────────────
 
-export async function listBankFolders(): Promise<any[]> {
-    const res = await apiGet<{ folders: any[] }>('/api/question-banks/folders');
+export async function listBankFolders(): Promise<BankFolder[]> {
+    const res = await apiGet<{ folders: BankFolder[] }>('/api/question-banks/folders');
     return res.success ? res.folders : [];
 }
 
@@ -154,8 +285,8 @@ export function bulkMoveBanksToFolder(bankIds: string[], folderId: string | null
 
 // ── Label ────────────────────────────────────────────────────────────────────
 
-export async function listOrganizationLabels(): Promise<any[]> {
-    const res = await apiGet<{ labels: any[] }>('/api/question-banks/labels');
+export async function listOrganizationLabels(): Promise<OrganizationLabel[]> {
+    const res = await apiGet<{ labels: OrganizationLabel[] }>('/api/question-banks/labels');
     return res.success ? res.labels : [];
 }
 
@@ -165,8 +296,8 @@ export function createOrganizationLabel(name: string, color: string) {
 
 // ── Soal ─────────────────────────────────────────────────────────────────────
 
-export async function getBankQuestions(bankId: string): Promise<any[]> {
-    const res = await apiGet<{ questions: any[] }>(
+export async function getBankQuestions(bankId: string): Promise<QuestionRecord[]> {
+    const res = await apiGet<{ questions: QuestionRecord[] }>(
         `/api/question-banks/${encodeURIComponent(bankId)}/questions`,
     );
     return res.success ? res.questions : [];
@@ -180,7 +311,7 @@ export async function saveQuestionAction(data: {
     questionText: string;
     difficulty: 'easy' | 'medium' | 'hard';
     scoreDefault: number;
-    metadata?: any;
+    metadata?: QuestionMetadata;
     stimulusId?: string | null;
     instructionId?: string | null;
     dimensionId?: string | null;
@@ -191,7 +322,7 @@ export async function saveQuestionAction(data: {
         isCorrect: boolean;
         order: number;
         weight: number;
-        metadata?: any;
+        metadata?: QuestionOptionMetadata;
     }[];
 }) {
     const res = data.id
@@ -209,7 +340,7 @@ export async function saveQuestionAction(data: {
 
 export function updateQuestionMetadataAction(
     questionId: string,
-    metadataUpdates: Record<string, any>,
+    metadataUpdates: Record<string, unknown>,
 ) {
     return apiSend<{ id: string }>(
         `/api/question-banks/questions/${encodeURIComponent(questionId)}/metadata`,
@@ -258,12 +389,12 @@ function bankChild<T>(segment: string) {
             );
             return res.success ? res.items : [];
         },
-        create: (bankId: string, payload: Record<string, unknown>) =>
+        create: <P extends object>(bankId: string, payload: P) =>
             apiCreate<{ id: string }>(
                 `/api/question-banks/${encodeURIComponent(bankId)}/${segment}`,
                 payload,
             ),
-        update: (id: string, payload: Record<string, unknown>) =>
+        update: <P extends object>(id: string, payload: P) =>
             apiSend<{ id: string }>(
                 `/api/question-banks/${segment}/${encodeURIComponent(id)}`,
                 payload,
@@ -278,11 +409,11 @@ function bankChild<T>(segment: string) {
     };
 }
 
-const kisiKisi = bankChild<any>('kisi-kisi');
-const stimuli = bankChild<any>('stimuli');
-const instructions = bankChild<any>('instructions');
-const dimensions = bankChild<any>('dimensions');
-const interpretations = bankChild<any>('interpretations');
+const kisiKisi = bankChild<KisiKisiItem>('kisi-kisi');
+const stimuli = bankChild<BankTextItem>('stimuli');
+const instructions = bankChild<BankTextItem>('instructions');
+const dimensions = bankChild<DimensionItem>('dimensions');
+const interpretations = bankChild<DimensionInterpretationItem>('interpretations');
 
 export const getKisiKisiByBank = kisiKisi.list;
 export const deleteKisiKisi = kisiKisi.remove;

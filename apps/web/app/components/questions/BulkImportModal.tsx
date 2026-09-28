@@ -1,34 +1,45 @@
 "use client";
+import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
-import { optionLabel } from '@/lib/option-label';
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    X, Upload, FileText, Download, Check, AlertCircle,
-    Loader2, ChevronRight, ChevronLeft, Eye, CheckCircle2,
-    XCircle, AlertTriangle, FileSpreadsheet, RefreshCw,
-    Trash2, Edit3, Table, File, Columns, ArrowRight,
-    Database, Search
-} from 'lucide-react';
-import { portableQuestion } from '@/lib/question-transfer';
-import { LatexRenderer } from './LatexRenderer';
+import { QUESTION_TYPE_LABELS } from '@/app/types/question';
 import { bulkImportQuestions } from '@/lib/api/imports';
 import { listQuestionBanks } from '@/lib/api/questions';
-import {
-    parseExcelToQuestions,
-    downloadTemplate,
-    validateQuestions,
-    ParsedQuestion,
-    ImportResult
-} from '@/lib/excel-parser';
 import { parseDocxToQuestions } from '@/lib/doc-parser';
-import { QuestionType, QUESTION_TYPE_LABELS } from '@/app/types/question';
+import {
+ImportResult,
+ParsedQuestion,
+parseExcelToQuestions,
+validateQuestions
+} from '@/lib/excel-parser';
+import { optionLabel } from '@/lib/option-label';
+import { portableQuestion } from '@/lib/question-transfer';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+AlertTriangle,
+ArrowRight,
+Check,
+CheckCircle2,
+ChevronLeft,
+ChevronRight,
+Database,
+Download,
+File,
+FileSpreadsheet,
+FileText,
+Loader2,
+Search,
+Table,
+Upload,
+X,
+XCircle
+} from 'lucide-react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { LatexRenderer } from './LatexRenderer';
 
 interface BulkImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     bankId: string;
-    userId: string;
     onImportComplete: () => Promise<void>;
 }
 
@@ -52,7 +63,6 @@ export default function BulkImportModal({
     isOpen,
     onClose,
     bankId,
-    userId,
     onImportComplete
 }: BulkImportModalProps) {
     const [step, setStep] = useState<ImportStep>('upload');
@@ -63,7 +73,6 @@ export default function BulkImportModal({
     const [importProgress, setImportProgress] = useState(0);
     const [importError, setImportError] = useState<string | null>(null);
     const [selectedQuestions, setSelectedQuestions] = useState<Set<number>>(new Set());
-    const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
     const [editableQuestions, setEditableQuestions] = useState<ParsedQuestion[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,20 +85,12 @@ export default function BulkImportModal({
     const [selectedCrossQuestions, setSelectedCrossQuestions] = useState<Set<string>>(new Set());
     const [searchSourceQuery, setSearchSourceQuery] = useState('');
 
-    // ── Reset on open ─────────────────────────────────────────────────────────
-    useEffect(() => {
-        if (isOpen) {
-            resetState();
-        }
-    }, [isOpen]);
-
     const resetState = useCallback(() => {
         setStep('upload');
         setSelectedFile(null);
         setParseResult(null);
         setImportProgress(0);
         setSelectedQuestions(new Set());
-        setCurrentPreviewIndex(0);
         setEditableQuestions([]);
         setImportTab('file');
         setSelectedSourceBank('');
@@ -104,21 +105,23 @@ export default function BulkImportModal({
     }, [resetState, onClose]);
 
     // ── Load all banks when "Import dari Bank" tab is selected ────────────────
-    const loadAllBanks = useCallback(async () => {
-        if (allBanks.length > 0) return;
-        try {
-            const banks = await listQuestionBanks();
-            setAllBanks((banks || []).filter((b: any) => b.id !== bankId));
-        } catch (err) {
-            console.error('Failed to load banks:', err);
-        }
-    }, [allBanks.length, bankId]);
-
     useEffect(() => {
-        if (isOpen && importTab === 'bank') {
-            loadAllBanks();
-        }
-    }, [isOpen, importTab]);
+        if (!isOpen || importTab !== 'bank' || allBanks.length > 0) return;
+
+        let active = true;
+        void listQuestionBanks()
+            .then(banks => {
+                if (!active) return;
+                setAllBanks((banks || []).filter((b: any) => b.id !== bankId));
+            })
+            .catch(err => {
+                console.error('Failed to load banks:', err);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [allBanks.length, bankId, importTab, isOpen]);
 
     // ── Load questions from selected source bank ─────────────────────────────
     const loadSourceBankQuestions = useCallback(async (srcBankId: string) => {
@@ -197,9 +200,9 @@ export default function BulkImportModal({
                 const extra = (result.errors?.length || 0) > 1 ? ` (+${result.errors.length - 1} error lain)` : '';
                 setImportError(msg + extra);
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Cross-import error:', error);
-            setImportError(error?.message || 'Terjadi kesalahan saat mengimpor.');
+            setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
     }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose]);
 
@@ -274,12 +277,12 @@ export default function BulkImportModal({
             setParseResult(result);
             setEditableQuestions(result.questions);
             setSelectedQuestions(new Set(result.questions.map((_, i) => i)));
-        } catch (error: any) {
+        } catch (error) {
             console.error('Parse error:', error);
             setParseResult({
                 success: false,
                 questions: [],
-                errors: [{ row: 0, message: `Gagal memproses file: ${error.message}` }],
+                errors: [{ row: 0, message: `Gagal memproses file: ${getErrorMessage(error)}` }],
                 warnings: [],
                 totalRows: 0
             });
@@ -324,9 +327,9 @@ export default function BulkImportModal({
                 const extra = (result.errors?.length || 0) > 1 ? ` (+${result.errors.length - 1} error lain)` : '';
                 setImportError(msg + extra);
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Import error:', error);
-            setImportError(error?.message || 'Terjadi kesalahan saat mengimpor.');
+            setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
     }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose]);
 
@@ -424,7 +427,7 @@ export default function BulkImportModal({
                                     Import File
                                 </button>
                                 <button
-                                    onClick={() => { setImportTab('bank'); loadAllBanks(); }}
+                                    onClick={() => setImportTab('bank')}
                                     className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                                         importTab === 'bank'
                                             ? 'bg-primary text-white shadow-md'
@@ -748,7 +751,7 @@ export default function BulkImportModal({
                                             </h4>
                                             <div className="space-y-1 max-h-32 overflow-y-auto">
                                                 {parseResult.errors.slice(0, 5).map((err, idx) => (
-                                                    <p key={idx} className="text-xs text-red-600">{err.row > 0 ? `Baris ${err.row}: ` : ''}{err.message}</p>
+                                                    <p key={idx} className="text-xs text-red-600">{err.row > 0 ? `Baris ${err.row}: ` : ''}{getErrorMessage(err)}</p>
                                                 ))}
                                             </div>
                                         </div>

@@ -1,5 +1,5 @@
-import { optionIndex } from './option-label';
 import type { ParsedQuestion } from './excel-parser';
+import { optionIndex } from './option-label';
 
 /** Portable content: database IDs must never point back into the source bank. */
 export function portableQuestion(q: any, related: {

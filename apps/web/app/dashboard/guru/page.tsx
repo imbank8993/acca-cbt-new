@@ -1,20 +1,29 @@
 "use client";
+import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback } from 'react';
+import { getProctorOrganization,getRecentLogins,listOrganizationExams } from '@/lib/api/proctor';
+import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
+import { getGuruOrganizationStats } from '@/lib/api/teachers';
+import { getSessionUser } from '@/lib/session';
+import { linkifyText } from '@/lib/text-format';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
+import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import {
-    ClipboardCheck, Users, Clock, BookOpen, CheckCircle2,
-    ArrowRight, Activity, Layers, Eye, ChevronRight, AlertCircle
+Activity,
+AlertCircle,
+ArrowRight,
+BookOpen,CheckCircle2,
+ChevronRight,
+ClipboardCheck,
+Clock,
+Eye,
+Layers,
+Users
 } from 'lucide-react';
-import { listOrganizationExams, getRecentLogins, getProctorOrganization } from '@/lib/api/proctor';
-import { getGuruOrganizationStats } from '@/lib/api/teachers';
-import { getSetting, pickAnnouncements, type Announcement } from '@/lib/api/settings';
-import { getSessionUser } from '@/lib/session';
-import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useRouter } from 'next/navigation';
+import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from '../proktor/RecentLoginsCard';
-import { useMemoryState } from '@/lib/useMemoryState';
-import { linkifyText } from '@/lib/text-format';
 
 export default function GuruDashboard() {
     const router = useRouter();
@@ -35,7 +44,7 @@ export default function GuruDashboard() {
     const [showMembersModal, setShowMembersModal] = useState(false);
     const [membersList, setMembersList] = useState<any[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
-    const [fullName, setFullName] = useState<string>('');
+    const [, setFullName] = useState<string>('');
 
     const loadData = useCallback(async () => {
         try {
@@ -49,7 +58,6 @@ export default function GuruDashboard() {
                 return;
             }
 
-            const orgId = organization.id;
             setOrg({ id: organization.id, name: organization.name });
 
             const [statData, examData, loginData, announcementConfig] = await Promise.all([
@@ -66,9 +74,9 @@ export default function GuruDashboard() {
             setFullName(user?.fullName ?? '');
             
             setAnnouncements(pickAnnouncements(announcementConfig, 'show_proktor'));
-        } catch (error: any) {
+        } catch (error) {
             console.error('Load data error:', error);
-            setErrorMsg(error.message || 'Terjadi kesalahan saat memuat data');
+            setErrorMsg(getErrorMessage(error) || 'Terjadi kesalahan saat memuat data');
         } finally {
             setLoading(false);
         }
@@ -80,12 +88,6 @@ export default function GuruDashboard() {
         loadData();
     }, [loadData]);
 
-    const getDay = () => {
-        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const now = new Date();
-        return `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-    };
 
     const openMembers = async () => {
         if (!org?.id) return;

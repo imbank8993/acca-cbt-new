@@ -1,32 +1,24 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getProctorOrganization } from '@/lib/api/proctor';
-import { getBankQuestions, getQuestionBankAction, QuestionType, saveQuestionAction } from '@/lib/api/questions';
-import { getSessionUser } from '@/lib/session';
-import { X, ArrowLeft, Loader2, Save, Eye, Check, ListChecks, ToggleLeft, Layers, Edit3, FileQuestion, CheckCircle2, ArrowRightLeft } from 'lucide-react';
-import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
 import PreviewModal from '@/app/components/questions/PreviewModal';
-import { MCQForm } from '@/app/components/questions/forms/MCQForm';
-import { TrueFalseForm } from '@/app/components/questions/forms/TrueFalseForm';
-import { MatchingForm } from '@/app/components/questions/forms/MatchingForm';
+import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
 import { CategorizationForm } from '@/app/components/questions/forms/CategorizationForm';
-import { ShortAnswerForm } from '@/app/components/questions/forms/ShortAnswerForm';
 import { EssayForm } from '@/app/components/questions/forms/EssayForm';
+import { MCQForm } from '@/app/components/questions/forms/MCQForm';
+import { MatchingForm } from '@/app/components/questions/forms/MatchingForm';
+import { ShortAnswerForm } from '@/app/components/questions/forms/ShortAnswerForm';
+import { TrueFalseForm } from '@/app/components/questions/forms/TrueFalseForm';
+import { Spinner } from '@/app/components/ui/Spinner';
+import { getProctorOrganization } from '@/lib/api/proctor';
+import type { ProctorOrganization } from '@/lib/api/proctor';
+import { getBankQuestions,getQuestionBankAction,QuestionType,saveQuestionAction } from '@/lib/api/questions';
+import type { QuestionBank,QuestionMetadata,QuestionOptionDraft,QuestionRecord } from '@/lib/api/questions';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { ArrowLeft,Eye,Loader2,Save } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 
-const QUESTION_TYPES = [
-    { value: 'mcq', label: 'Pilihan Ganda', icon: ListChecks },
-    { value: 'mcq_complex', label: 'PG Kompleks', icon: CheckCircle2 },
-    { value: 'true_false', label: 'Benar / Salah', icon: ToggleLeft },
-    { value: 'matching', label: 'Penjodohan', icon: ArrowRightLeft },
-    { value: 'categorization', label: 'Kategori', icon: Layers },
-    { value: 'short_answer', label: 'Isian Singkat', icon: Edit3 },
-    { value: 'essay', label: 'Essay / Uraian', icon: FileQuestion },
-];
 
 // Strip $ delimiters from LaTeX text before saving
 function stripLatexDelimiters(text: string): string {
@@ -49,6 +41,18 @@ function stripHtmlLatexDelimiters(html: string): string {
                 .replace(/(?<!\$)\$(?!\$)([^$]*)\$(?!\$)/g, (_, content) => content.trim());
 }
 
+type EditorOption = QuestionOptionDraft;
+
+function deduplicateOptions(options: EditorOption[]): EditorOption[] {
+    const seen = new Set<string>();
+    return options.filter((option) => {
+        if (!option.id) return true;
+        if (seen.has(option.id)) return false;
+        seen.add(option.id);
+        return true;
+    });
+}
+
 export default function QuestionEditPage() {
     const params = useParams();
     const router = useRouter();
@@ -56,44 +60,31 @@ export default function QuestionEditPage() {
     const questionId = params.questionId as string;
     const isNewQuestion = !questionId || questionId === 'new';
 
-    const [org, setOrg] = useState<any>(null);
-    const [bankInfo, setBankInfo] = useState<any>(null);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
     const [isLoading, setIsLoading] = useMemoryState(`guru_questions_${bankId}_edit_isLoading`, true);
 
     // Editor state
-    const [editingQuestion, setEditingQuestion] = useState<any>(null);
+    const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
     const [questionText, setQuestionText] = useState('');
-    const [options, setOptions] = useMemoryState<any[]>(`guru_questions_${bankId}_edit_options`, []);
+    const [options, setOptions] = useMemoryState<EditorOption[]>(`guru_questions_${bankId}_edit_options`, []);
     const [selectedType, setSelectedType] = useState<QuestionType>('mcq');
     const [scoreDefault, setScoreDefault] = useState(1);
-    const [metadata, setMetadata] = useState<any>({});
+    const [metadata, setMetadata] = useState<QuestionMetadata>({});
     const [categories, setCategories] = useMemoryState<string[]>(`guru_questions_${bankId}_edit_categories`, []);
     const [kisiKisi, setKisiKisi] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-    const [validationErrors, setValidationErrors] = useMemoryState<string[]>(`guru_questions_${bankId}_edit_validationErrors`, []);
+    const [isSubmitting, setIsSubmitting] = useState(false);    const [validationErrors, setValidationErrors] = useMemoryState<string[]>(`guru_questions_${bankId}_edit_validationErrors`, []);
 
     // Preview modal
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-    const [viewingQuestion, setViewingQuestion] = useState<any>(null);
+    const [viewingQuestion, setViewingQuestion] = useState<QuestionRecord | null>(null);
     const [matchingAnswers, setMatchingAnswers] = useState<Record<string, string>>({});
-
-    // Deduplicate options by id
-    const deduplicateOptions = (opts: any[]) => {
-        const seen = new Set<string>();
-        return opts.filter(o => {
-            if (!o.id) return true;
-            if (seen.has(o.id)) return false;
-            seen.add(o.id);
-            return true;
-        });
-    };
 
     const addOption = () => {
         if (selectedType === 'true_false') {
-            setOptions([...options, { text: '', isCorrect: false, order: options.length }]);
+            setOptions([...options, { text: '', isCorrect: false, order: options.length, weight: 1, match_texts: [], category_names: [] }]);
         } else {
-            setOptions([...options, { text: '', isCorrect: false, order: options.length }]);
+            setOptions([...options, { text: '', isCorrect: false, order: options.length, weight: 1, match_texts: [], category_names: [] }]);
         }
     };
 
@@ -101,7 +92,7 @@ export default function QuestionEditPage() {
         setOptions(options.filter((_, i) => i !== idx));
     };
 
-    const updateOption = (idx: number, fields: any) => {
+    const updateOption = (idx: number, fields: Partial<EditorOption>) => {
         const newOpts = [...options];
         newOpts[idx] = { ...newOpts[idx], ...fields };
         setOptions(newOpts);
@@ -114,13 +105,13 @@ export default function QuestionEditPage() {
             errors.push('Pertanyaan tidak boleh kosong');
         }
         if (selectedType === 'mcq' || selectedType === 'mcq_complex') {
-            const emptyOptions = options.filter(o => !o.text || o.text.trim() === '');
+            const emptyOptions = options.filter(option => !option.text || option.text.trim() === '');
             if (emptyOptions.length > 0) errors.push('Semua opsi jawaban harus diisi');
             const hasCorrect = options.some(o => o.isCorrect === true);
             if (!hasCorrect) errors.push('Pilih jawaban yang benar');
         }
         if (selectedType === 'true_false') {
-            const emptyOptions = options.filter(o => !o.text || o.text.trim() === '');
+            const emptyOptions = options.filter(option => !option.text || option.text.trim() === '');
             if (emptyOptions.length > 0) errors.push('Semua pernyataan harus diisi');
         }
         if (selectedType === 'short_answer' || selectedType === 'essay') {
@@ -183,6 +174,7 @@ export default function QuestionEditPage() {
             type: selectedType,
             question_text: questionText,
             metadata: { ...metadata, categories },
+            score_default: scoreDefault,
             bank_question_options: deduplicateOptions(options).map((opt, i) => ({
                 id: opt.id || `temp-${i}`,
                 option_text: stripLatexDelimiters(opt.text || ''),
@@ -198,33 +190,6 @@ export default function QuestionEditPage() {
         setIsViewModalOpen(true);
     };
 
-    const handleTypeChange = (type: QuestionType) => {
-        setSelectedType(type);
-        if (type === 'true_false') {
-            setOptions([
-                { text: '', isCorrect: true, order: 0, weight: 1 },
-                { text: '', isCorrect: false, order: 1, weight: 0 }
-            ]);
-        } else if (type === 'mcq') {
-            setOptions([
-                { text: '', isCorrect: true, order: 0, weight: 1 },
-                { text: '', isCorrect: false, order: 1, weight: 0 },
-                { text: '', isCorrect: false, order: 2, weight: 0 },
-                { text: '', isCorrect: false, order: 3, weight: 0 }
-            ]);
-        } else if (type === 'matching') {
-            setOptions([
-                { text: '', isCorrect: false, order: 0, weight: 0, match_texts: [] },
-                { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [] }
-            ]);
-        } else if (type === 'categorization') {
-            setOptions([
-                { text: '', isCorrect: false, order: 0, weight: 0, metadata: { category_names: [] } }
-            ]);
-        } else {
-            setOptions([]);
-        }
-    };
 
     // Load initial data
     useEffect(() => {
@@ -242,7 +207,7 @@ export default function QuestionEditPage() {
 
                 if (!isNewQuestion) {
                     const questionsData = await getBankQuestions(bankId);
-                    const existingQuestion = (questionsData || []).find((q: any) => q.id === questionId);
+                    const existingQuestion = (questionsData || []).find((question) => question.id === questionId);
                     if (existingQuestion) {
                         setEditingQuestion(existingQuestion);
                         setQuestionText(existingQuestion.question_text || '');
@@ -253,29 +218,29 @@ export default function QuestionEditPage() {
                         setKisiKisi(existingQuestion.metadata?.kisi_kisi || '');
 
                         const loadedOpts = deduplicateOptions(
-                            (existingQuestion.bank_question_options || []).map((o: any) => ({
-                                id: o.id,
-                                text: o.option_text || o.text || '',
-                                isCorrect: o.is_correct,
-                                order: o.order,
-                                weight: o.weight,
-                                match_texts: o.metadata?.match_texts || [],
-                                category_names: o.metadata?.category_names || []
+                            (existingQuestion.bank_question_options || []).map((option) => ({
+                                id: option.id,
+                                text: option.option_text || option.text || '',
+                                isCorrect: option.is_correct ?? false,
+                                order: option.order ?? 0,
+                                weight: option.weight ?? 1,
+                                match_texts: option.metadata?.match_texts || [],
+                                category_names: option.metadata?.category_names || []
                             }))
                         );
 
                         if (existingQuestion.type === 'true_false') {
                             setOptions(loadedOpts);
                         } else if (existingQuestion.type === 'matching') {
-                            setMetadata((prev: any) => ({
+                            setMetadata((prev) => ({
                                 ...prev,
                                 right_items: existingQuestion.metadata?.right_items || []
                             }));
                             setOptions(loadedOpts);
                         } else if (existingQuestion.type === 'short_answer') {
-                            setMetadata((prev: any) => ({
+                            setMetadata((prev) => ({
                                 ...prev,
-                                blanks: existingQuestion.metadata?.blanks || [{}, {}, {}]
+                                blanks: existingQuestion.metadata?.blanks || [{ answer: '', variations: [] }, { answer: '', variations: [] }, { answer: '', variations: [] }]
                             }));
                             setOptions([]);
                         } else if (existingQuestion.type === 'categorization') {
@@ -286,10 +251,10 @@ export default function QuestionEditPage() {
                     }
                 } else {
                     setOptions([
-                        { text: '', isCorrect: true, order: 0, weight: 1 },
-                        { text: '', isCorrect: false, order: 1, weight: 0 },
-                        { text: '', isCorrect: false, order: 2, weight: 0 },
-                        { text: '', isCorrect: false, order: 3, weight: 0 }
+                        { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
+                        { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] },
+                        { text: '', isCorrect: false, order: 2, weight: 0, match_texts: [], category_names: [] },
+                        { text: '', isCorrect: false, order: 3, weight: 0, match_texts: [], category_names: [] }
                     ]);
                 }
             } catch (error) {
@@ -303,27 +268,26 @@ export default function QuestionEditPage() {
         const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
         window.addEventListener('focus', handleFocus);
         return () => window.removeEventListener('focus', handleFocus);
-    }, [bankId, questionId, isNewQuestion, router]);
+    }, [bankId, questionId, isNewQuestion, router, setCategories, setIsLoading, setOptions]);
 
-    const selectedTypeInfo = QUESTION_TYPES.find(t => t.value === selectedType) || QUESTION_TYPES[0];
 
     // Right item management (for matching)
     const addRightItem = () => {
-        setMetadata((prev: any) => ({
+        setMetadata((prev) => ({
             ...prev,
             right_items: [...(prev.right_items || []), '']
         }));
     };
 
     const removeRightItem = (idx: number) => {
-        setMetadata((prev: any) => ({
+        setMetadata((prev) => ({
             ...prev,
-            right_items: (prev.right_items || []).filter((_: any, i: number) => i !== idx)
+            right_items: (prev.right_items || []).filter((_, i) => i !== idx)
         }));
     };
 
     const updateRightItem = (idx: number, value: string) => {
-        setMetadata((prev: any) => {
+        setMetadata((prev) => {
             const newItems = [...(prev.right_items || [])];
             newItems[idx] = value;
             return { ...prev, right_items: newItems };
@@ -341,7 +305,6 @@ export default function QuestionEditPage() {
         );
     }
 
-    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -419,7 +382,7 @@ export default function QuestionEditPage() {
                                     {selectedType === 'essay' ? 'Opsi Topik' : 'Opsi Jawaban'}
                                 </span>
                             </div>
-                            {(selectedType !== 'short_answer' && (selectedType !== 'essay' || (metadata as any)?.is_multi_topic)) && (
+                            {(selectedType !== 'short_answer' && (selectedType !== 'essay' || metadata?.is_multi_topic)) && (
                                 <button
                                     type="button"
                                     onClick={addOption}
@@ -435,19 +398,19 @@ export default function QuestionEditPage() {
                             <TrueFalseForm
                                 options={deduplicateOptions(options)}
                                 onAddOption={addOption}
-                                onInsertOption={(idx) => {}}
+                                onInsertOption={() => {}}
                                 onRemoveOption={removeOption}
                                 onUpdateOption={updateOption}
                             />
                         )}
 
                         {/* MCQ / MCQ Complex / Essay Options */}
-                        {(selectedType === 'mcq' || selectedType === 'mcq_complex' || (selectedType === 'essay' && (metadata as any)?.is_multi_topic)) && (
+                        {(selectedType === 'mcq' || selectedType === 'mcq_complex' || (selectedType === 'essay' && metadata?.is_multi_topic)) && (
                             <MCQForm
                                 options={deduplicateOptions(options)}
                                 isComplex={selectedType === 'mcq_complex' || selectedType === 'essay'}
                                 onAddOption={addOption}
-                                onInsertOption={(idx) => {}}
+                                onInsertOption={() => {}}
                                 onRemoveOption={removeOption}
                                 onUpdateOption={updateOption}
                                 onSetAllCorrect={(idx) => {
@@ -466,7 +429,7 @@ export default function QuestionEditPage() {
                         {selectedType === 'matching' && (
                             <MatchingForm
                                 options={deduplicateOptions(options)}
-                                rightItems={(metadata as any).right_items || []}
+                                rightItems={metadata.right_items || []}
                                 onAddLeftItem={addOption}
                                 onRemoveLeftItem={removeOption}
                                 onUpdateLeftItem={(idx, text) => updateOption(idx, { text })}
@@ -483,7 +446,7 @@ export default function QuestionEditPage() {
                                 options={deduplicateOptions(options)}
                                 categories={categories}
                                 onAddItem={addOption}
-                                onInsertItem={(idx) => {}}
+                                onInsertItem={() => {}}
                                 onRemoveItem={removeOption}
                                 onUpdateItem={(idx, text) => updateOption(idx, { text })}
                                 onSetCategories={setCategories}
@@ -494,19 +457,19 @@ export default function QuestionEditPage() {
                         {/* Short Answer */}
                         {selectedType === 'short_answer' && (
                             <ShortAnswerForm
-                                blanks={(metadata as any).blanks || []}
+                                blanks={metadata.blanks || []}
                                 onAddBlank={() => {
-                                    const blanks = [...((metadata as any).blanks || []), { answer: '', variations: [] }];
-                                    setMetadata((prev: any) => ({ ...prev, blanks }));
+                                    const blanks = [...(metadata.blanks || []), { answer: '', variations: [] }];
+                                    setMetadata((prev) => ({ ...prev, blanks }));
                                 }}
                                 onRemoveBlank={(idx) => {
-                                    const blanks = ((metadata as any).blanks || []).filter((_: any, i: number) => i !== idx);
-                                    setMetadata((prev: any) => ({ ...prev, blanks }));
+                                    const blanks = (metadata.blanks || []).filter((_, i) => i !== idx);
+                                    setMetadata((prev) => ({ ...prev, blanks }));
                                 }}
                                 onUpdateBlank={(idx, fields) => {
-                                    const blanks = [...((metadata as any).blanks || [])];
+                                    const blanks = [...(metadata.blanks || [])];
                                     blanks[idx] = { ...blanks[idx], ...fields };
-                                    setMetadata((prev: any) => ({ ...prev, blanks }));
+                                    setMetadata((prev) => ({ ...prev, blanks }));
                                 }}
                             />
                         )}
@@ -515,7 +478,7 @@ export default function QuestionEditPage() {
                         {selectedType === 'essay' && (
                             <EssayForm 
                                 metadata={metadata} 
-                                onUpdateMetadata={(updates) => setMetadata((prev: any) => ({ ...prev, ...updates }))} 
+                                onUpdateMetadata={(updates) => setMetadata((prev) => ({ ...prev, ...updates }))} 
                             />
                         )}
                     </div>

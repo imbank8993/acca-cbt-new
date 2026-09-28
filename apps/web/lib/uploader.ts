@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/lib/errors';
 /**
  * Helper untuk upload dan delete file
  * Mendukung multiple storage provider (Supabase, Cloudflare R2)
@@ -62,9 +63,9 @@ export async function uploadToHosting(
             url: result.url,
             provider: result.provider,
         };
-    } catch (err: any) {
-        console.error('[uploadToHosting] Exception during upload:', err?.message);
-        return { success: false, error: err?.message || 'Koneksi terputus saat mengunggah file.' };
+    } catch (err) {
+        console.error('[uploadToHosting] Exception during upload:', getErrorMessage(err));
+        return { success: false, error: getErrorMessage(err) || 'Koneksi terputus saat mengunggah file.' };
     }
 }
 
@@ -88,8 +89,8 @@ export async function deleteFromHosting(fileUrl: string): Promise<{ success: boo
             return { success: false, error };
         }
         return { success: true };
-    } catch (err: any) {
+    } catch (err) {
         console.warn('[deleteFromHosting] Could not delete:', err);
-        return { success: false, error: err?.message };
+        return { success: false, error: getErrorMessage(err) };
     }
 }

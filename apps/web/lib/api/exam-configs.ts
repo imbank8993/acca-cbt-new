@@ -1,8 +1,8 @@
 import type {
-    AddExamConfigBankInput,
-    ExamConfig,
+AddExamConfigBankInput,
+ExamConfig,
 } from '@/app/types/pas';
-import { apiCreate, apiGet, apiSend } from './client';
+import { apiCreate,apiGet,apiSend } from './client';
 
 /**
  * Konfigurasi ujian massal ("ujian folder") PAS/PAT.

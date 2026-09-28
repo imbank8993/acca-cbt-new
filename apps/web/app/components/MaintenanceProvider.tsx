@@ -1,9 +1,10 @@
 "use client";
 
-import { usePathname } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useClientMounted } from '@/hooks/useClientMounted';
 import { AlertCircle } from 'lucide-react';
 import { Plus_Jakarta_Sans } from 'next/font/google';
+import { usePathname } from 'next/navigation';
+import React from 'react';
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '600', '800'] });
 
@@ -15,11 +16,7 @@ export default function MaintenanceProvider({
     children: React.ReactNode 
 }) {
     const pathname = usePathname() || '';
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const mounted = useClientMounted();
 
     // Prevent hydration mismatch by returning empty or children until mounted
     if (!mounted) {

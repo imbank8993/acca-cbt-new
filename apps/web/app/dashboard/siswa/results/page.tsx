@@ -1,18 +1,17 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Award, BookOpen, Clock, Loader2, RefreshCw, ChevronRight, Sparkles } from 'lucide-react';
 import { getStudentResultsResult } from '@/lib/api/students';
-import { getSessionUser } from '@/lib/session';
-import { useRouter } from 'next/navigation';
-import { useMemoryState } from '@/lib/useMemoryState';
 import { formatSchoolDateTime } from '@/lib/school-time';
+import { getSessionUser } from '@/lib/session';
+import { useMemoryState } from '@/lib/useMemoryState';
+import { motion } from 'framer-motion';
+import { Award,BookOpen,ChevronRight,Clock,Loader2,RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 export default function StudentResultsPage() {
     const [results, setResults] = useMemoryState<any[]>('siswa_results_results', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_results_isLoading', true);
-    const [fullName, setFullName] = useState<string>('');
+    const [, setFullName] = useState<string>('');
     const [loadError, setLoadError] = useState('');
     const router = useRouter();
 

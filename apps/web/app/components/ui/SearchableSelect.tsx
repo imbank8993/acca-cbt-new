@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React,{ useEffect,useMemo,useRef,useState } from 'react';
 import './searchable-select.css';
 
 export interface Option {
@@ -14,7 +14,7 @@ export type SearchableSelectOption = Option;
 export interface SearchableSelectProps {
   options: Option[];
   value: string | number | (string | number)[];
-  onChange: (value: any) => void;
+  onChange: (value: unknown) => void;
   placeholder?: string;
   label?: string;
   className?: string;

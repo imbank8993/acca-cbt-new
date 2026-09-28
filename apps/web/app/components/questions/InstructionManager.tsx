@@ -1,20 +1,25 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
-import {
-    getInstructionsByBank, createInstruction, updateInstruction, deleteInstruction,
-    importInstructionsFromXlsAction
-} from '@/lib/api/questions';
-import { Plus, Edit3, Trash2, X, Check, Upload, Download, AlertCircle } from 'lucide-react';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
+import {
+BankTextItem,
+createInstruction,
+deleteInstruction,
+getInstructionsByBank,
+importInstructionsFromXlsAction,
+ImportRow,
+updateInstruction,
+} from '@/lib/api/questions';
 import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
+import { AlertCircle,Check,Download,Edit3,Plus,Trash2,Upload,X } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 interface InstructionManagerProps {
     bankId: string;
 }
 
 export default function InstructionManager({ bankId }: InstructionManagerProps) {
-    const [instructions, setInstructions] = useState<any[]>([]);
+    const [instructions, setInstructions] = useState<BankTextItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -27,19 +32,28 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
     const [isImporting, setIsImporting] = useState(false);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [importSuccessCount, setImportSuccessCount] = useState(0);
-    const [previewRows, setPreviewRows] = useState<any[]>([]);
+    const [previewRows, setPreviewRows] = useState<ImportRow[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        loadInstructions();
-    }, [bankId]);
-
-    const loadInstructions = async () => {
-        setIsLoading(true);
+    const loadInstructions = useCallback(async () => {
         const data = await getInstructionsByBank(bankId);
         setInstructions(data || []);
         setIsLoading(false);
-    };
+    }, [bankId]);
+
+    useEffect(() => {
+        let active = true;
+
+        void getInstructionsByBank(bankId).then(data => {
+            if (!active) return;
+            setInstructions(data || []);
+            setIsLoading(false);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [bankId]);
 
     const downloadTemplateDocx = async () => {
         window.open('/template_soal_pengetahuan.docx', '_blank');
@@ -68,8 +82,8 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
             } else {
                 setPreviewRows(rows);
             }
-        } catch (err: any) {
-            setImportErrors(['Gagal membaca file: ' + err.message]);
+        } catch (err: unknown) {
+            setImportErrors(['Gagal membaca file: ' + (err instanceof Error ? err.message : 'Kesalahan tidak diketahui')]);
         } finally {
             setIsImporting(false);
         }
@@ -84,12 +98,12 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
             if (result.success) {
                 setImportSuccessCount(result.imported);
                 setPreviewRows([]);
-                loadInstructions();
+                void loadInstructions();
             } else {
                 setImportErrors(result.errors);
             }
-        } catch (err: any) {
-            setImportErrors(['Gagal import: ' + err.message]);
+        } catch (err: unknown) {
+            setImportErrors(['Gagal import: ' + (err instanceof Error ? err.message : 'Kesalahan tidak diketahui')]);
         } finally {
             setIsImporting(false);
         }
@@ -103,7 +117,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleOpenEditor = (s: any = null) => {
+    const handleOpenEditor = (s: BankTextItem | null = null) => {
         if (s) {
             setEditingId(s.id);
             setTitle(s.title || '');
@@ -126,13 +140,13 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
         }
         setIsSubmitting(false);
         setIsEditorOpen(false);
-        loadInstructions();
+        void loadInstructions();
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Yakin ingin menghapus petunjuk ini? Soal yang terhubung akan kehilangan petunjuk ini.')) return;
         await deleteInstruction(id);
-        loadInstructions();
+        void loadInstructions();
     };
 
     if (isLoading) {

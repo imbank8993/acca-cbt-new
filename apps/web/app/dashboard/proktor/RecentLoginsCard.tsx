@@ -1,29 +1,19 @@
 'use client';
-import { Spinner } from '@/app/components/ui/Spinner';
 
-import React, { useState, useEffect } from 'react';
-import { Activity, Loader2, X } from 'lucide-react';
 import { getRecentLogins } from '@/lib/api/proctor';
+import type { RecentLogin } from '@/lib/api/proctor';
+import { Activity,Loader2,X } from 'lucide-react';
+import { useState } from 'react';
 
-interface LoginUser {
-    id: string;
-    userId: string;
-    fullName: string;
-    role: string;
-    isActive: boolean; // refers to account status
-    lastLoginAt: string;
-}
+type LoginUser = RecentLogin & { lastLoginAt: string };
+const hasLoginAt = (login: RecentLogin): login is LoginUser => typeof login.lastLoginAt === 'string';
 
-export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: LoginUser[], orgId: string }) {
-    const [logins, setLogins] = useState<LoginUser[]>(initialLogins);
+export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[], orgId: string }) {
+    const logins = initialLogins;
     const [showAllModal, setShowAllModal] = useState(false);
     const [allLogins, setAllLogins] = useState<LoginUser[]>([]);
     const [allLoading, setAllLoading] = useState(false);
     const [searchAll, setSearchAll] = useState('');
-
-    useEffect(() => {
-        setLogins(initialLogins);
-    }, [initialLogins]);
 
     // Helper to format time ago for offline users
     const getTimeAgo = (dateString: string) => {
@@ -61,7 +51,7 @@ export function RecentLoginsCard({ initialLogins, orgId }: { initialLogins: Logi
         setAllLoading(true);
         try {
             const all = await getRecentLogins(1000);
-            setAllLogins((all || []).filter((m: any) => m.lastLoginAt) as LoginUser[]);
+            setAllLogins(all.filter(hasLoginAt));
         } catch (e) {
             console.error('Load all logins error:', e);
             setAllLogins([]);

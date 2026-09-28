@@ -10,7 +10,8 @@
  * supaya tetap berlaku saat dipakai sebagai subkomponen).
  */
 
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import { useClientMounted } from '@/hooks/useClientMounted';
+import React,{ ReactNode,useEffect,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './button';
 import './modal.css';
@@ -52,11 +53,7 @@ export function Modal({
     className?: string;
     closeOnOverlayClick?: boolean;
 }) {
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const mounted = useClientMounted();
 
     // Escape untuk menutup + kunci scroll body selama modal terbuka.
     useEffect(() => {
@@ -101,7 +98,6 @@ export function ModalHeader({
     icon,
     onClose,
     id,
-    variant,
 }: {
     title: ReactNode;
     subtitle?: ReactNode;

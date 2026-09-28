@@ -4,8 +4,8 @@
  * Pernyataan disusun dalam urutan benar menggunakan drag-and-drop.
  * Tabel dengan 2 kolom: kolom kiri = pernyataan, kolom kanan = urutan.
  */
-import React, { useCallback, useRef, useState, useEffect } from 'react';
-import { Plus, GripVertical, Trash2, ArrowUp, ArrowDown, Info } from 'lucide-react';
+import { Plus,Trash2 } from 'lucide-react';
+import React,{ useEffect,useRef,useState } from 'react';
 import { BaseOption } from '../schema';
 
 interface OrderingFormProps {
@@ -21,7 +21,6 @@ interface OrderingFormProps {
 
 const OrderingForm = React.memo(({
   options,
-  correctOrder,
   onAddItem,
   onBulkAdd,
   onRemoveItem,
@@ -59,7 +58,7 @@ const OrderingForm = React.memo(({
       <div className="space-y-2">
         {options.length === 0 && (
           <div className="text-center py-8 text-sm text-slate-400">
-            Belum ada pernyataan. Klik "Tambah Pernyataan" untuk menambahkan.
+            Belum ada pernyataan. Klik &quot;Tambah Pernyataan&quot; untuk menambahkan.
           </div>
         )}
 

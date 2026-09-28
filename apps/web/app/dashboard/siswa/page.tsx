@@ -1,38 +1,34 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useCallback, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import {
-    Ghost,
-    Award,
-    ArrowRight,
-    Clock,
-    Sparkles,
-    Loader2,
-    CheckCircle2,
-    BookOpen,
-    TrendingUp,
-    ChevronRight,
-    Timer,
-    FileText,
-    Zap,
-    Eye,
-    AlertCircle
-} from 'lucide-react';
-import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
+import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
+import { getStudentExams,getStudentResultsAction } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
-import { getStudentExams, getStudentResultsAction } from '@/lib/api/students';
-import { getSetting, pickAnnouncements, type Announcement } from '@/lib/api/settings';
-import { useRouter } from 'next/navigation';
-import { useMemoryState } from '@/lib/useMemoryState';
 import { linkifyText } from '@/lib/text-format';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
+import { useMemoryState } from '@/lib/useMemoryState';
+import {
+AlertCircle,
+ArrowRight,
+Award,
+BookOpen,
+CheckCircle2,
+ChevronRight,
+Clock,
+FileText,
+Ghost,
+Timer,
+TrendingUp,
+Zap
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback,useEffect,useState } from 'react';
 
 export default function SiswaDashboard() {
     const [exams, setExams] = useMemoryState<any[]>('siswa_exams', []);
     const [results, setResults] = useMemoryState<any[]>('siswa_results', []);
     const [loading, setLoading] = useMemoryState('siswa_loading', true);
-    const [user, setUser] = useState<any>(null);
-    const [fullName, setFullName] = useState<string>('');
+    const [, setUser] = useState<any>(null);
+    const [, setFullName] = useState<string>('');
     const [announcements, setAnnouncements] = useMemoryState<any[]>('siswa_announcements', []);
     const router = useRouter();
 

@@ -1,29 +1,28 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import {
-    Bell,
-    Mail,
-    Smartphone,
-    Clock,
-    Check,
-    AlertCircle,
-    Loader2,
-    Save,
-    RefreshCw
-} from 'lucide-react';
-import { getSessionUser } from '@/lib/session';
-import {
-    getNotificationPreferences,
-    updateNotificationPreferences
-} from '@/lib/api/notifications';
 import type { NotificationPreferences } from '@/app/types/notification';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from '@/app/types/notification';
+import {
+getNotificationPreferences,
+updateNotificationPreferences
+} from '@/lib/api/notifications';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { motion } from 'framer-motion';
+import {
+AlertCircle,
+Bell,
+Check,
+Clock,
+Loader2,
+Mail,
+RefreshCw,
+Save,
+Smartphone
+} from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 export default function NotificationSettingsPage() {
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<unknown>(null);
     const [preferences, setPreferences] = useState<Partial<NotificationPreferences>>({});
     const [isLoading, setIsLoading] = useMemoryState('notifications_settings_isLoading', true);
     const [isSaving, setIsSaving] = useState(false);
@@ -44,10 +43,11 @@ export default function NotificationSettingsPage() {
             }
         }
         setIsLoading(false);
-    }, []);
+    }, [setIsLoading]);
 
     useEffect(() => {
-        fetchData();
+        const initialLoad = window.setTimeout(() => void fetchData(), 0);
+        return () => window.clearTimeout(initialLoad);
     }, [fetchData]);
 
     // Handle toggle
@@ -82,8 +82,8 @@ export default function NotificationSettingsPage() {
             } else {
                 setError(result.error || 'Gagal menyimpan pengaturan');
             }
-        } catch (err: any) {
-            setError(err.message || 'Terjadi kesalahan');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
         }
 
         setIsSaving(false);

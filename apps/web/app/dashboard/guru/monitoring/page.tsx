@@ -1,21 +1,49 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    FileSpreadsheet, Loader2, RefreshCw, Calculator,
-    Users, AlertTriangle, Eye, Radio, ShieldAlert,
-    CheckCircle2, Activity, TrendingUp, AlertOctagon, RotateCcw, Clock, X, ChevronDown
-} from 'lucide-react';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import { getProctorOrganization, listOrganizationExams, getExamAttemptsAction, getExamAnswersForAnalysisAction, getRecentViolationsAction } from '@/lib/api/proctor';
-import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
-import { promptRecoveryReason, resetExamAttempt } from '@/lib/api/proctoring';
 import { calculateExamIRT } from '@/lib/api/grading';
+import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
+import type { ExamAttemptRecord,OrganizationExam,ViolationEvent } from '@/lib/api/proctor';
+import type { QuestionOptionRecord } from '@/lib/api/questions';
+import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Suspense } from 'react';
+import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+Activity,
+AlertOctagon,
+AlertTriangle,
+Calculator,
+CheckCircle2,
+ChevronDown,
+Clock,
+Eye,
+FileSpreadsheet,Loader2,
+Radio,
+RefreshCw,
+RotateCcw,
+ShieldAlert,
+TrendingUp,
+Users,
+X
+} from 'lucide-react';
+import { useRouter,useSearchParams } from 'next/navigation';
+import { Suspense,useCallback,useEffect,useState } from 'react';
+
+interface ItemAnalysis {
+    id: string;
+    number?: number;
+    qText: string;
+    type: string;
+    options: QuestionOptionRecord[];
+    total: number;
+    correct: number;
+    incorrect: number;
+    ungraded: number;
+    wrongStudents: string[];
+    correctStudents: string[];
+    incorrectPercentage: number;
+}
 
 function MonitoringContent() {
     const searchParams = useSearchParams();
@@ -24,30 +52,23 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('guru_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [exams, setExams] = useMemoryState<any[]>('guru_monitoring_exams', []);
+    const [exams, setExams] = useMemoryState<OrganizationExam[]>('guru_monitoring_exams', []);
     const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
 
-    const [attempts, setAttempts] = useMemoryState<any[]>('guru_monitoring_attempts', []);
-    const [analysis, setAnalysis] = useMemoryState<any[]>('guru_monitoring_analysis', []);
+    const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('guru_monitoring_attempts', []);
+    const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('guru_monitoring_analysis', []);
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
-    const [liveAlerts, setLiveAlerts] = useMemoryState<any[]>('guru_monitoring_liveAlerts', []);
+    const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('guru_monitoring_liveAlerts', []);
     const [resettingAttemptId, setResettingAttemptId] = useState<string | null>(null);
-    const [viewQuestion, setViewQuestion] = useState<any | null>(null);
+    const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState('');
     const [analysisPage, setAnalysisPage] = useState(1);
 
-    useEffect(() => { loadInitialData(); }, []);
 
-    useEffect(() => {
-        setAnalysisPage(1);
-        if (selectedExamId) loadExamData(selectedExamId);
-        else { setAttempts([]); setAnalysis([]); }
-    }, [selectedExamId]);
-
-    const loadInitialData = async () => {
+    const loadInitialData = useCallback(async () => {
         setIsLoading(true);
         const user = await getSessionUser();
         if (user) {
@@ -61,9 +82,9 @@ function MonitoringContent() {
             }
         }
         setIsLoading(false);
-    };
+    }, [initialExamId, setExams, setIsLoading]);
 
-    const loadExamData = async (examId: string, silent = false) => {
+    const loadExamData = useCallback(async (examId: string, silent = false) => {
         if (!silent) setIsRefreshing(true);
         try {
             const [attData, analysisData] = await Promise.all([
@@ -74,11 +95,11 @@ function MonitoringContent() {
 
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
-            (attData as any[]).forEach((att: any) => studentByAttempt.set(att.id, att.profiles?.full_name || 'Tanpa Nama'));
+            attData.forEach((att) => studentByAttempt.set(att.id, att.profiles?.full_name || 'Tanpa Nama'));
 
-            const { questions: bankQuestions, answers: ansRows } = analysisData as any;
+            const { questions: bankQuestions, answers: ansRows } = analysisData;
             const itemStats: Record<string, { total: number; correct: number; incorrect: number; ungraded: number; wrongStudents: string[]; correctStudents: string[] }> = {};
-            (ansRows || []).forEach((ans: any) => {
+            ansRows.forEach((ans) => {
                 const qId = ans.question_id;
                 if (!itemStats[qId]) itemStats[qId] = { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [], correctStudents: [] };
                 itemStats[qId].total += 1;
@@ -86,11 +107,11 @@ function MonitoringContent() {
                 // manual) — masuk hitungan "Menjawab" tapi bukan "Salah".
                 if (ans.is_correct === true) {
                     itemStats[qId].correct += 1;
-                    const nm = studentByAttempt.get(ans.attempt_id);
+                    const nm = studentByAttempt.get(ans.attempt_id ?? '');
                     if (nm) itemStats[qId].correctStudents.push(nm);
                 } else if (ans.is_correct === false) {
                     itemStats[qId].incorrect += 1;
-                    const nm = studentByAttempt.get(ans.attempt_id);
+                    const nm = studentByAttempt.get(ans.attempt_id ?? '');
                     if (nm) itemStats[qId].wrongStudents.push(nm);
                 } else {
                     itemStats[qId].ungraded += 1;
@@ -99,24 +120,38 @@ function MonitoringContent() {
 
             // SEMUA soal bank ditampilkan (termasuk yang belum dijawab), dengan
             // nomor sesuai urutan bank soal; tetap diurutkan % salah terbesar.
-            const analysisArray = ((bankQuestions || []) as any[]).map((q: any) => {
+            const analysisArray = bankQuestions.map((q) => {
                 const stat = itemStats[q.id] || { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [], correctStudents: [] };
                 const graded = stat.correct + stat.incorrect;
                 return {
-                    id: q.id, number: q.number, qText: q.question_text, type: q.type, options: q.options || [],
+                    id: q.id, number: q.number ?? 0, qText: q.question_text, type: q.type, options: q.options || [],
                     total: stat.total, correct: stat.correct, incorrect: stat.incorrect,
                     ungraded: stat.ungraded,
                     wrongStudents: [...stat.wrongStudents].sort((a, b) => a.localeCompare(b)),
                     correctStudents: [...stat.correctStudents].sort((a, b) => a.localeCompare(b)),
                     incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
                 };
-            }).sort((a: any, b: any) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
+            }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
         }
         if (!silent) setIsRefreshing(false);
-    };
+    }, [setAnalysis, setAttempts]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => void loadInitialData(), 0);
+        return () => window.clearTimeout(timer);
+    }, [loadInitialData]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setAnalysisPage(1);
+            if (selectedExamId) void loadExamData(selectedExamId);
+            else { setAttempts([]); setAnalysis([]); }
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [loadExamData, selectedExamId, setAnalysis, setAttempts]);
 
     const handleRefresh = () => { if (selectedExamId) loadExamData(selectedExamId); };
 
@@ -127,7 +162,7 @@ function MonitoringContent() {
             loadExamData(selectedExamId, true);
         }, 15000);
         return () => clearInterval(interval);
-    }, [selectedExamId]);
+    }, [loadExamData, selectedExamId]);
 
     const handleResetAttempt = async (attemptId: string, studentName: string) => {
         const reason = promptRecoveryReason(studentName);
@@ -157,7 +192,7 @@ function MonitoringContent() {
             } else {
                 alert(`Gagal mereset: ${result.error}`);
             }
-        } catch (error) {
+        } catch {
             alert('Terjadi kesalahan saat mereset ujian');
         }
         setResettingAttemptId(null);
@@ -182,7 +217,7 @@ function MonitoringContent() {
             } else {
                 alert(`Gagal kalkulasi: ${res.error}`);
             }
-        } catch (error) {
+        } catch {
             alert('Terjadi kesalahan saat kalkulasi IRT');
         }
         setIsRefreshing(false);
@@ -206,7 +241,7 @@ function MonitoringContent() {
             cancelled = true;
             clearInterval(interval);
         };
-    }, [selectedExamId]);
+    }, [selectedExamId, setLiveAlerts]);
 
     const totalStudents = attempts.length;
     const inProgress = attempts.filter(a => a.status === 'in_progress').length;
@@ -216,22 +251,22 @@ function MonitoringContent() {
     // mengerjakan (dari warning_count DB, bukan broadcast). Saat tidak ada
     // yang ujian, angka ini 0 — riwayat lengkap tetap ada di Rekap & Detail.
     const totalViolations = attempts
-        .filter((a: any) => a.status === 'in_progress')
-        .reduce((sum: number, a: any) => sum + (a.warning_count || 0), 0);
+        .filter((a) => a.status === 'in_progress')
+        .reduce((sum, a) => sum + (a.warning_count || 0), 0);
 
     // Filter kelas + pencarian nama, lalu urutkan pelanggaran terbanyak dulu —
     // peserta bermasalah (terminated) yang perlu di-reset naik ke atas.
     const kelasOptions = [...new Set(
-        attempts.flatMap((a: any) => String(a.kelas_name || '').split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== '-'))
+        attempts.flatMap((a) => String(a.kelas_name || '').split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== '-'))
     )].sort();
     const filteredAttempts = attempts
-        .filter((a: any) => !searchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(searchName.trim().toLowerCase()))
-        .filter((a: any) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
-        .sort((a: any, b: any) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
+        .filter((a) => !searchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(searchName.trim().toLowerCase()))
+        .filter((a) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
+        .sort((a, b) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
     // Pembagian tegas: tab "Aktif" = yang SEDANG mengerjakan (live), tab
     // "Rekap" = yang sudah selesai/terminated (info pelanggaran ada di sana).
-    const activeAttempts = filteredAttempts.filter((a: any) => a.status === 'in_progress');
-    const finishedAttempts = filteredAttempts.filter((a: any) => a.status !== 'in_progress');
+    const activeAttempts = filteredAttempts.filter((a) => a.status === 'in_progress');
+    const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
     const exportResultsToExcel = async () => {
         if (!attempts?.length && !analysis?.length) return alert('Tidak ada data');
@@ -1026,7 +1061,7 @@ function MonitoringContent() {
                                 {/* Opsi jawaban terurut; kunci ditandai hijau */}
                                 {(viewQuestion.options?.length ?? 0) > 0 && (
                                     <div className="mt-4 space-y-1.5">
-                                        {viewQuestion.options.map((opt: any, i: number) => (
+                                        {viewQuestion.options.map((opt, i) => (
                                             <div key={opt.id || i} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-sm ${
                                                 opt.is_correct ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'
                                             }`}>

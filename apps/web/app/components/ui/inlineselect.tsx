@@ -1,6 +1,6 @@
 'use client';
 
-import React, { type ReactNode, type CSSProperties } from 'react';
+import { type CSSProperties,type ReactNode } from 'react';
 import './inline-select.css';
 
 export type InlineSelectOption = { value: string; label: string; disabled?: boolean };

@@ -1,65 +1,65 @@
 "use client";
-import React, { useCallback, useRef, useState, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
-import { TextStyle } from '@tiptap/extension-text-style';
+import { Extension } from '@tiptap/core';
+import BulletList from '@tiptap/extension-bullet-list';
 import { Color } from '@tiptap/extension-color';
+import Highlight from '@tiptap/extension-highlight';
+import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
 import ListItem from '@tiptap/extension-list-item';
 import OrderedList from '@tiptap/extension-ordered-list';
-import Image from '@tiptap/extension-image';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
-import BulletList from '@tiptap/extension-bullet-list';
 import Placeholder from '@tiptap/extension-placeholder';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import Highlight from '@tiptap/extension-highlight';
-import { Extension } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Table } from '@tiptap/extension-table';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableRow } from '@tiptap/extension-table-row';
+import TextAlign from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import Underline from '@tiptap/extension-underline';
 import { DOMSerializer } from '@tiptap/pm/model';
+import { Plugin } from '@tiptap/pm/state';
+import { Decoration,DecorationSet } from '@tiptap/pm/view';
+import { EditorContent,useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import {
-  Undo2,
-  Redo2,
-  Bold as BoldIcon,
-  Italic as ItalicIcon,
-  Underline as UnderlineIcon,
-  Strikethrough,
-  Subscript as SubscriptIcon,
-  Superscript as SuperscriptIcon,
-  Highlighter,
-  RemoveFormatting,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  Indent,
-  Outdent,
-  List as ListIcon,
-  ListOrdered,
-  Minus,
-  ImageIcon,
-  Mic,
-  LinkIcon,
-  Table as TableIcon,
-  BarChart2,
-  Video,
-  Sigma,
+AlignCenter,
+AlignJustify,
+AlignLeft,
+AlignRight,
+BarChart2,
+Bold as BoldIcon,
+Highlighter,
+ImageIcon,
+Indent,
+Italic as ItalicIcon,
+LinkIcon,
+List as ListIcon,
+ListOrdered,
+Mic,
+Minus,
+Outdent,
+Redo2,
+RemoveFormatting,
+Sigma,
+Strikethrough,
+Subscript as SubscriptIcon,
+Superscript as SuperscriptIcon,
+Table as TableIcon,
+Underline as UnderlineIcon,
+Undo2,
+Video,
 } from 'lucide-react';
-import { renderLatex } from './math-utils';
-import { VideoEmbed } from './video-embed';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { AudioEmbed } from './audio-embed';
-import ImageEditorModal from './ImageEditorModal';
-import MathEditorModal from './MathEditorModal';
-import ChartEditorModal from './ChartEditorModal';
-import TableEditorModal, { TableWidthPreset } from './TableEditorModal';
-import VideoEditorModal, { VideoModalMode, VideoData } from './VideoEditorModal';
 import AudioEditorModal from './AudioEditorModal';
+import ChartEditorModal from './ChartEditorModal';
+import ImageEditorModal from './ImageEditorModal';
+import { renderLatex } from './math-utils';
+import MathEditorModal from './MathEditorModal';
+import TableEditorModal,{ TableWidthPreset } from './TableEditorModal';
+import { VideoEmbed } from './video-embed';
+import VideoEditorModal,{ VideoData,VideoModalMode } from './VideoEditorModal';
 
 // Ordered list style options
 const ORDERED_LIST_STYLES = [

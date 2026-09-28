@@ -271,7 +271,6 @@ export const QUESTION_TYPE_MAP = QUESTION_TYPE_INFO.reduce(
 // ---- Default state factory ----
 
 export function createDefaultState(type: QuestionType = 'mcq'): QuestionState {
-  const info = QUESTION_TYPE_MAP[type];
   return {
     type,
     questionText: '',

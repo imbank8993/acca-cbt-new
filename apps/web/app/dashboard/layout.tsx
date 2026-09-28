@@ -1,28 +1,28 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { getSessionUser } from '@/lib/session';
-import { getAccountProfile } from '@/lib/api/account';
-import { getSetting, type AppConfig } from '@/lib/api/settings';
-import Sidebar from '@/app/components/Sidebar';
-import Header, { type HeaderUser } from '@/app/components/Header';
 import BottomNav from '@/app/components/BottomNav';
 import DashboardLoading from '@/app/components/DashboardLoading';
-import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
+import Header,{ type HeaderUser } from '@/app/components/Header';
+import Sidebar from '@/app/components/Sidebar';
+import { getAccountProfile } from '@/lib/api/account';
+import { getSetting,type AppConfig } from '@/lib/api/settings';
 import {
-    resolveActiveRole,
-    getActiveRoleFromStorage,
-    setActiveRoleInStorage,
-    unlockActiveRole,
-    isActiveRoleLocked,
-    isRoleQualifiedFromList,
-    ROLE_TO_DASHBOARD_PATH,
-    getRoleFromPath,
-    getUserRoleContexts,
-    type UserRoleContext,
-    type DashboardRole,
+getActiveRoleFromStorage,
+getRoleFromPath,
+getUserRoleContexts,
+isActiveRoleLocked,
+isRoleQualifiedFromList,
+resolveActiveRole,
+ROLE_TO_DASHBOARD_PATH,
+setActiveRoleInStorage,
+unlockActiveRole,
+type DashboardRole,
+type UserRoleContext,
 } from '@/lib/rbac';
+import { getSessionUser } from '@/lib/session';
+import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
+import { usePathname,useRouter } from 'next/navigation';
+import React,{ useEffect,useMemo,useRef,useState } from 'react';
 
 interface ExtendedUser {
     nama?: string;

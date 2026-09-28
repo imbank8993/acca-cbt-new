@@ -2,12 +2,13 @@
 /**
  * AnswerOptionCard — Elegant MCQ option editor with insert toolbar.
  */
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Check, Trash2, Image as ImageIcon, Plus, Minus, Upload } from 'lucide-react';
-import { RichInput } from './RichInput';
-import { MathToolbar } from '../MathToolbar';
-import { renderLatex, sanitizeLatex } from '../math-utils';
 import { uploadToHosting } from '@/lib/uploader';
+import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload } from 'lucide-react';
+import type { MathfieldElement } from 'mathlive';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { MathToolbar } from '../MathToolbar';
+import { renderLatex,sanitizeLatex } from '../math-utils';
+import { RichInput } from './RichInput';
 
 // ─── Equation Dialog (with MathToolbar) ────────────────────────────────────
 
@@ -87,12 +88,11 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                                 --placeholder-opacity: 0.6;
                               }
                             `}</style>
-                            {/* @ts-ignore */}
                             <math-field 
                                 id="mf-option-editor"
                                 style={{ width: '100%', minHeight: '80px', fontSize: '1.25rem', padding: '12px', outline: 'none' }}
-                                onInput={(e: any) => {
-                                    let val = e.target.value;
+                                onInput={(e) => {
+                                    let val = e.currentTarget.value;
                                     const originalVal = val;
                                     // Force placeholders for extensible accents that natively drop them when empty
                                     val = val.replace(/\\overrightarrow\{\}/g, '\\overrightarrow{\\placeholder{}}')
@@ -102,18 +102,17 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                                              .replace(/\\underline\{\}/g, '\\underline{\\placeholder{}}');
                                     
                                     if (val !== originalVal) {
-                                      e.target.value = val;
-                                      e.target.executeCommand(['moveToNextPlaceholder']);
+                                      e.currentTarget.value = val;
+                                      e.currentTarget.executeCommand(['moveToNextPlaceholder']);
                                     }
                                     setInput(val);
                                 }}
-                                ref={(el: any) => {
+                                ref={(el: MathfieldElement | null) => {
                                   if (el && el.value !== input) {
                                     el.value = input;
                                   }
                                 }}
                             >
-                            {/* @ts-ignore */}
                             </math-field>
                         </div>
                     ) : (
@@ -149,7 +148,7 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                             if (editorMode === 'visual') {
                                 const mf = document.getElementById('mf-option-editor') as any;
                                 if (mf) {
-                                    let liveLatex = template.replace(/\?/g, '#?');
+                                    const liveLatex = template.replace(/\?/g, '#?');
                                     mf.executeCommand(['insert', liveLatex]);
                                     setInput(mf.value);
                                 }
@@ -542,7 +541,7 @@ export const AnswerOptionCard = React.memo(({
 
                                 {/* Equation */}
                                 <button type="button"
-                                    onClick={(e) => { setShowEquation(true); setShowToolsMenu(false); }}
+                                    onClick={() => { setShowEquation(true); setShowToolsMenu(false); }}
                                     className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-all"
                                     title="Sisipkan Rumus">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -552,7 +551,7 @@ export const AnswerOptionCard = React.memo(({
 
                                 {/* Table */}
                                 <button type="button"
-                                    onClick={(e) => { setShowTable(true); setShowToolsMenu(false); }}
+                                    onClick={() => { setShowTable(true); setShowToolsMenu(false); }}
                                     className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
                                     title="Sisipkan Tabel">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

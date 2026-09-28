@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
-import { renderLatex, sanitizeLatex } from './math-utils';
+import { useCallback,useEffect,useState } from 'react';
+import { renderLatex,sanitizeLatex } from './math-utils';
 
 const TEMPLATES = {
   structure: [

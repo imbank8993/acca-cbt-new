@@ -3,13 +3,13 @@
  * CategorizationForm — Kategorisasi
  * Clean table-style editor for assigning items to categories.
  */
-import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Plus, Image as ImageIcon, Upload } from 'lucide-react';
-import { BaseOption } from '../schema';
-import { RichInput } from './RichInput';
-import { EquationDialog, TableDialog, BulkAddModal, OptionList } from './AnswerOptionCard';
 import { uploadToHosting } from '@/lib/uploader';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence,motion } from 'framer-motion';
+import { Image as ImageIcon,Plus,Trash2 } from 'lucide-react';
+import React,{ useEffect,useRef,useState } from 'react';
+import { BaseOption } from '../schema';
+import { BulkAddModal,EquationDialog,TableDialog } from './AnswerOptionCard';
+import { RichInput } from './RichInput';
 
 interface CategorizationFormProps {
   options: BaseOption[];

@@ -1,25 +1,25 @@
-import React from 'react';
-import { Spinner } from './Spinner';
-import { 
-    Eye, 
-    FileText, 
-    Printer, 
-    Send, 
-    Plus, 
-    Pencil, 
-    Trash2, 
-    Check, 
-    X, 
-    Search, 
-    Download, 
-    Filter, 
-    RefreshCw, 
-    Clock, 
-    Mail, 
-    GalleryVerticalEnd,
-    FileSpreadsheet
+import {
+Check,
+Clock,
+Download,
+Eye,
+FileSpreadsheet,
+FileText,
+Filter,
+GalleryVerticalEnd,
+Mail,
+Pencil,
+Plus,
+Printer,
+RefreshCw,
+Search,
+Send,
+Trash2,
+X
 } from 'lucide-react';
+import React from 'react';
 import './button.css';
+import { Spinner } from './Spinner';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'cancel' | 'reset' | 'more' | 'activate' | 'edit' | 'add' | 'ajukan';
 export type ButtonSize = 'sm' | 'md' | 'lg';

@@ -2,11 +2,11 @@
 /**
  * TrueFalseForm — Benar / Salah statements
  */
-import React, { useState, useRef } from 'react';
-import { Trash2, Plus } from 'lucide-react';
+import { Plus,Trash2 } from 'lucide-react';
+import React,{ useRef,useState } from 'react';
 import { BaseOption } from '../schema';
+import { EquationDialog,OptionList,TableDialog } from './AnswerOptionCard';
 import { RichInput } from './RichInput';
-import { EquationDialog, TableDialog, OptionList } from './AnswerOptionCard';
 interface TrueFalseFormProps {
   options: BaseOption[];
   onAddOption: () => void;

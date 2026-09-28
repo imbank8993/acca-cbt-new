@@ -4,31 +4,24 @@
  * Uses useReducer + schema types for clean, scalable state management.
  * Replaces the monolithic inline conditionals in QuestionEditorModal.
  */
-import React, { useReducer, useCallback, useMemo } from 'react';
+import React,{ useCallback,useMemo,useReducer } from 'react';
 import {
-  questionReducer,
-  createDefaultState,
-  type QuestionState,
-  type QuestionAction,
-  type QuestionType,
-  type BaseOption,
+createDefaultState,
+questionReducer,
+type BaseOption,
+type QuestionAction,
+type QuestionState
 } from '../schema';
 
-import { MCQForm } from './MCQForm';
-import { TrueFalseForm } from './TrueFalseForm';
-import { MatchingForm } from './MatchingForm';
 import { CategorizationForm } from './CategorizationForm';
-import { ShortAnswerForm } from './ShortAnswerForm';
 import { EssayForm } from './EssayForm';
-import { SJTForm } from './SJTForm';
+import { MatchingForm } from './MatchingForm';
+import { MCQForm } from './MCQForm';
 import { OrderingForm } from './OrderingForm';
+import { ShortAnswerForm } from './ShortAnswerForm';
+import { SJTForm } from './SJTForm';
+import { TrueFalseForm } from './TrueFalseForm';
 
-interface QuestionFormsProps {
-  /** Initial state (e.g., editing an existing question) */
-  initial?: Partial<QuestionState>;
-  /** Called when the form state changes */
-  onChange?: (state: QuestionState) => void;
-}
 
 /**
  * Hook to manage question form state with useReducer.

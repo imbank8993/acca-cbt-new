@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import { Spinner } from '@/app/components/ui/Spinner';
 
 export default function DashboardLoading() {

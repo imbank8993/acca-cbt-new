@@ -84,7 +84,7 @@ export function renderLatex(math: string, displayMode = false): RenderResult {
 
     setCachedMath(norm, displayMode, html);
     return { html, error: false };
-  } catch (err) {
+  } catch {
     return { html: `<span style="color:#cc0000;font-family:monospace">${norm}</span>`, error: true };
   }
 }

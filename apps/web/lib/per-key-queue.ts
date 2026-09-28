@@ -10,9 +10,7 @@ export class PerKeyQueue {
 
     enqueue(key: string, task: () => Promise<void>): Promise<void> {
         const previous = this.tails.get(key) ?? Promise.resolve();
-        let current: Promise<void>;
-
-        current = previous
+        const current = previous
             .catch(() => undefined)
             .then(task)
             .finally(() => {

@@ -1,16 +1,25 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    School, Search, Plus, Trash2, X, Loader2, Check,
-    Copy, Users, ChevronRight, CalendarDays, Bookmark, Pencil, Download
-} from 'lucide-react';
-import { getProctorOrganization, editClassAction, getStudentsByClassAction } from '@/lib/api/proctor';
-import { listGuruClasses, createTambahanClass, deleteTambahanClass } from '@/lib/api/teachers';
+import { editClassAction,getProctorOrganization,getStudentsByClassAction } from '@/lib/api/proctor';
+import { createTambahanClass,deleteTambahanClass,listGuruClasses } from '@/lib/api/teachers';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+Bookmark,
+CalendarDays,
+Check,
+Copy,
+Download,
+Loader2,
+Pencil,
+Plus,
+School,Search,
+Trash2,
+Users,
+X
+} from 'lucide-react';
+import React,{ useEffect,useState } from 'react';
 
 const currentYear = new Date().getFullYear();
 const generateYearOptions = (): string[] => {
@@ -128,7 +137,7 @@ export default function GuruClassesPage() {
         setIsLoading(false);
     };
 
-    const [yearOptions, setYearOptions] = useState<string[]>(generateYearOptions());
+    const [yearOptions] = useState<string[]>(generateYearOptions());
 
     const handleCreateClass = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -323,7 +332,7 @@ export default function GuruClassesPage() {
                 <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">
                     <School size={40} className="mx-auto mb-3 text-slate-300" />
                     <p className="text-slate-500 font-medium">Tidak ada kelas ditemukan</p>
-                    <p className="text-sm text-slate-400 mt-1">Klik "Buat Kelas" untuk menambah kelas baru</p>
+                    <p className="text-sm text-slate-400 mt-1">Klik &quot;Buat Kelas&quot; untuk menambah kelas baru</p>
                 </div>
             ) : (
                 <>
@@ -342,7 +351,7 @@ export default function GuruClassesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#3083FF]/10">
-                                    {filtered.map((cls, i) => (
+                                    {filtered.map((cls) => (
                                         <tr key={cls.id} className="hover:bg-[#3083FF]/5 transition-colors group">
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col">

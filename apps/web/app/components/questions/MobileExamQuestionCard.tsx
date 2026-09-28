@@ -1,9 +1,8 @@
 "use client";
-import React from 'react';
+import type { AnswerValue,Question,QuestionType } from '@/app/types';
 import { motion } from 'framer-motion';
 import { Flag } from 'lucide-react';
 import { QuestionRenderer } from './QuestionRenderer';
-import type { Question, QuestionOption, QuestionType, AnswerValue } from '@/app/types';
 
 interface MobileExamQuestionCardProps {
     question: Question;

@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import { renderLatex, extractMathExpressions, normalizeLatex } from './math-utils';
+import React,{ useEffect,useState } from 'react';
+import { extractMathExpressions,renderLatex } from './math-utils';
 
 function escapeHtml(str: string): string {
   return str
@@ -85,7 +85,7 @@ interface LatexRendererProps {
   onChange?: (text: string) => void;
 }
 
-export const LatexRenderer = React.memo(({ text, className = '', editable, onChange }: LatexRendererProps) => {
+export const LatexRenderer = React.memo(({ text, className = '' }: LatexRendererProps) => {
   const [isClient, setIsClient] = useState(false);
   const [processedHtml, setProcessedHtml] = useState('');
 

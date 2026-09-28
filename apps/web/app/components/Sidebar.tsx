@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { getSessionUser } from '@/lib/session';
-import { getUserRole, type Role } from '@/lib/rbac';
+import Image from 'next/image';
+
 import { getAccountProfile } from '@/lib/api/account';
-import { getSetting, type AppConfig } from '@/lib/api/settings';
+import { getUserRole,type Role } from '@/lib/rbac';
+import { getSessionUser } from '@/lib/session';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect,useMemo,useRef,useState } from 'react';
 import './sidebar.css';
 
 const ACCA_URL = process.env.NEXT_PUBLIC_ACCA_URL || 'https://accav2.icgowa.sch.id';
@@ -35,7 +36,6 @@ export default function Sidebar({
     activeRole,
 }: SidebarProps) {
     const pathname = usePathname();
-    const router = useRouter();
 
     const [pinned, setPinned] = useState<string[]>([]);
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -194,11 +194,11 @@ export default function Sidebar({
                             <div className="brand-logo">
                                 {!isCollapsed ? (
                                     <>
-                                        <img src="/logo-sidebar.png" alt="ACCA Logo" className="brand-logo-img light-logo" />
-                                        <img src="/logo-sidebar-dark.png" alt="ACCA Logo" className="brand-logo-img dark-logo" />
+                                        <Image src="/logo-sidebar.png" alt="ACCA Logo" width={180} height={48} className="brand-logo-img light-logo" />
+                                        <Image src="/logo-sidebar-dark.png" alt="ACCA Logo" width={180} height={48} className="brand-logo-img dark-logo" />
                                     </>
                                 ) : (
-                                    <img src="/logo-sidebar-kecil.webp" alt="ACCA Logo" className="brand-logo-img" />
+                                    <Image src="/logo-sidebar-kecil.webp" alt="ACCA Logo" width={48} height={48} className="brand-logo-img" />
                                 )}
                             </div>
                         </button>

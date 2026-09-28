@@ -1,19 +1,18 @@
 "use client";
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-    LayoutDashboard,
-    ClipboardCheck,
-    Activity,
-    Settings,
-    BookOpen,
-    Users,
-    BarChart3,
-    Calendar,
-    Bell
+Activity,
+BarChart3,
+Bell,
+BookOpen,
+Calendar,
+ClipboardCheck,
+LayoutDashboard,
+Settings,
+Users
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const MobileNav = () => {
     const pathname = usePathname();

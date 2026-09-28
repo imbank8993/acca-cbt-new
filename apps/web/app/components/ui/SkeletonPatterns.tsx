@@ -1,6 +1,5 @@
 "use client";
-import React from 'react';
-import { Skeleton, SkeletonText, SkeletonAvatar } from './Skeleton';
+import { Skeleton,SkeletonAvatar,SkeletonText } from './Skeleton';
 
 // ─── Card Skeletons ─────────────────────────────────────────
 

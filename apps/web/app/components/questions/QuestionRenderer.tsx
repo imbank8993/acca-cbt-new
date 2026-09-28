@@ -1,17 +1,17 @@
 "use client";
+import type { Question,QuestionOption,QuestionType } from '@/app/types';
+import { AnswerValue,normalizeShortAnswer,parseAnswer,parseMCQComplexAnswer } from '@/lib/answer-parser';
 import { optionLabel } from '@/lib/option-label';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Check, AlertTriangle, Info, X } from 'lucide-react';
-import { LatexRenderer } from './LatexRenderer';
-import { InteractiveMatching } from './InteractiveMatching';
-import { StimulusViewer } from './StimulusViewer';
-import type { Question, QuestionOption, QuestionType } from '@/app/types';
-import { createRoot, Root } from 'react-dom/client';
-import { CustomVideoPlayer } from './CustomVideoPlayer';
-import { parseAnswer, parseMCQComplexAnswer, AnswerValue, normalizeShortAnswer } from '@/lib/answer-parser';
+import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
+import { AnimatePresence,motion } from 'framer-motion';
+import { AlertTriangle,Check,Info,X } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { createRoot,Root } from 'react-dom/client';
 import AssignmentUploader from './AssignmentUploader';
-import { safeExternalUrl, attachmentLabel } from '@/lib/safe-url';
+import { CustomVideoPlayer } from './CustomVideoPlayer';
+import { InteractiveMatching } from './InteractiveMatching';
+import { LatexRenderer } from './LatexRenderer';
+import { StimulusViewer } from './StimulusViewer';
 
 // In QuestionRenderer, we no longer string-replace the placeholder because it breaks SSR hydration.
 // Instead, the raw [data-video-embed] placeholder is rendered, and the useEffect mountNodes
@@ -88,7 +88,7 @@ export const QuestionContent = React.memo(({ content, className = '' }: { conten
             observer.disconnect();
             rootsMap.forEach((root, el) => {
                 setTimeout(() => {
-                    try { root.unmount(); } catch (e) {}
+                    try { root.unmount(); } catch {}
                 }, 0);
                 el.removeAttribute('data-mounted');
             });
@@ -186,20 +186,6 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
 
     // Helper to safely parse JSON answers (imported from lib/answer-parser.ts)
 
-    const getQuestionTypeLabel = (t: QuestionType | string) => {
-        switch (t) {
-            case 'mcq': return 'Pilihan Ganda';
-            case 'mcq_complex': return 'Pilihan Ganda Kompleks';
-            case 'true_false': return 'Benar / Salah';
-            case 'matching': return 'Menjodohkan';
-            case 'categorization': return 'Kategorisasi';
-            case 'short_answer': return 'Isian Singkat';
-            case 'essay': case 'esay': case 'uraian': return 'Uraian';
-            case 'sjt': return 'SJT (Situational Judgment)';
-            case 'ordering': return 'Pengurutan';
-            default: return 'Pertanyaan';
-        }
-    };
 
     return (
         <>
@@ -487,7 +473,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         });
                         return (
                             <div className="space-y-2">
-                                {uniqueOptions.map((opt, idx) => {
+                                {uniqueOptions.map((opt) => {
                                     const studentAnswers = parseAnswer(answer, {}) as Record<string, string>;
                                     const currentVal = studentAnswers[opt.id];
                                     const isCorrectAnswer = opt.is_correct;
@@ -969,7 +955,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         const colors = colorMap[type as keyof typeof colorMap];
                         const validOptions = options.filter(opt => (opt.option_text || opt.text || '').trim().length > 0);
 
-                        return validOptions.map((opt, idx) => {
+                        return validOptions.map((opt) => {
                             const isSelected = answer === opt.id;
 
                             let borderClass = 'border-slate-200 hover:border-slate-300';
@@ -1017,7 +1003,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {uniqueOptions.map((opt, idx) => {
+                                        {uniqueOptions.map((opt) => {
                                             const currentVal = studentAnswers[opt.id];
                                             return (
                                                 <tr key={opt.id} className="bg-white hover:bg-slate-50/50 transition-colors">

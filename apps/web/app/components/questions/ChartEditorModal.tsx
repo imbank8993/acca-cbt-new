@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart2, PieChart, LineChart, Plus, Trash2, X, Check } from 'lucide-react';
+import { BarChart2,Check,LineChart,PieChart,Plus,Trash2,X } from 'lucide-react';
+import { useCallback,useEffect,useState } from 'react';
 
 export interface ChartEditorModalProps {
   isOpen: boolean;

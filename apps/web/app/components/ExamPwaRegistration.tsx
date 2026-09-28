@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
 import { registerExamServiceWorker } from '@/lib/exam-pwa';
+import { useEffect } from 'react';
 
 /** Registrasi global; caching tetap dibatasi service worker ke route ujian. */
 export function ExamPwaRegistration() {

@@ -1,15 +1,14 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getSessionUser } from '@/lib/session';
-import { getAttemptDetailsAction } from '@/lib/api/students';
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, Info, Clock, BarChart3, BookOpen, Brain } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
+import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
+import { formatAnswerKey,formatStudentAnswer } from '@/lib/answer-display';
+import { getAttemptDetailsAction } from '@/lib/api/students';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { formatStudentAnswer, formatAnswerKey } from '@/lib/answer-display';
+import { AnimatePresence,motion } from 'framer-motion';
+import { ArrowLeft,BarChart3,BookOpen,Brain,CheckCircle2,Clock,Info,Loader2,XCircle } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
 
@@ -117,7 +116,7 @@ export default function StudentResultDetailsPage() {
                         <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight uppercase">
                             Detail Hasil Ujian
                         </h1>
-                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed"> {/* @ts-ignore */}
+                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
                             {attempt.exams?.title}
                         </p>
                     </div>

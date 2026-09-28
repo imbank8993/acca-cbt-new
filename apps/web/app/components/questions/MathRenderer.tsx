@@ -1,6 +1,6 @@
 "use client";
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { renderLatex, sanitizeLatex } from './math-utils';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { renderLatex,sanitizeLatex } from './math-utils';
 
 export const MathRenderer = React.memo(
   ({

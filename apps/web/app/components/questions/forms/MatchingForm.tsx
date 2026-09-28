@@ -3,12 +3,12 @@
  * MatchingForm — Menjodohkan (matching left items with right items)
  * Clean card-style columns.
  */
-import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Link2, ChevronDown } from 'lucide-react';
+import { ChevronDown,Link2,Trash2 } from 'lucide-react';
+import React,{ useEffect,useRef,useState } from 'react';
+import { extractMathExpressions,renderLatex } from '../math-utils';
 import { BaseOption } from '../schema';
+import { EquationDialog,TableDialog } from './AnswerOptionCard';
 import { RichInput } from './RichInput';
-import { EquationDialog, TableDialog } from './AnswerOptionCard';
-import { extractMathExpressions, renderLatex } from '../math-utils';
 
 /* ─── Inline math label: renders $...$ as KaTeX for the pairing UI ───
  * The KaTeX markup comes from our own renderLatex; the surrounding text
@@ -227,6 +227,7 @@ const MatchingColumn = React.memo(({ label, items, onTextChange, onDelete, onAdd
     </div>
   );
 });
+MatchingColumn.displayName = 'MatchingColumn';
 
 /* ─── MatchingItemRow — single line card ─── */
 interface MatchingItemRowProps {

@@ -13,13 +13,13 @@ export interface BulkQuestionData {
     type: string;
     difficulty: 'easy' | 'medium' | 'hard';
     score_default: number;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     options?: {
         option_text: string;
         is_correct: boolean;
         order: number;
         weight: number;
-        metadata?: Record<string, any>;
+        metadata?: Record<string, unknown>;
     }[];
 }
 

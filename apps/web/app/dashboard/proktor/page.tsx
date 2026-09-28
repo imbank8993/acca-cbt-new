@@ -1,19 +1,29 @@
 "use client";
+import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback } from 'react';
+import { getOrganizationStats,getProctorOrganization,getRecentLogins,listOrganizationExams } from '@/lib/api/proctor';
+import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
+import { getSessionUser } from '@/lib/session';
+import { linkifyText } from '@/lib/text-format';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
+import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import {
-    ClipboardCheck, Users, Clock, BookOpen, CheckCircle2,
-    ArrowRight, Plus, Activity, Shield, Layers, Eye, Settings, ChevronRight, Zap, AlertCircle, Crown, School, Building2
+Activity,
+AlertCircle,
+ArrowRight,
+BookOpen,CheckCircle2,
+ChevronRight,
+ClipboardCheck,
+Clock,
+Eye,
+Layers,
+Plus,
+Users
 } from 'lucide-react';
-import { getOrganizationStats, listOrganizationExams, getRecentLogins, getProctorOrganization } from '@/lib/api/proctor';
-import { getSetting, pickAnnouncements, type Announcement } from '@/lib/api/settings';
-import { getSessionUser } from '@/lib/session';
-import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useRouter } from 'next/navigation';
+import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from './RecentLoginsCard';
-import { useMemoryState } from '@/lib/useMemoryState';
-import { linkifyText } from '@/lib/text-format';
 
 export default function ProktorDashboard() {
     const router = useRouter();
@@ -50,7 +60,6 @@ export default function ProktorDashboard() {
                 return;
             }
 
-            const orgId = organization.id;
             setOrg({ id: organization.id, name: organization.name });
 
             const [statData, examData, loginData, announcementConfig] = await Promise.all([
@@ -64,9 +73,9 @@ export default function ProktorDashboard() {
             setLogins(loginData);
             
             setAnnouncements(pickAnnouncements(announcementConfig, 'show_proktor'));
-        } catch (error: any) {
+        } catch (error) {
             console.error('Load data error:', error);
-            setErrorMsg(error.message || 'Terjadi kesalahan saat memuat data');
+            setErrorMsg(getErrorMessage(error) || 'Terjadi kesalahan saat memuat data');
         } finally {
             setLoading(false);
         }
@@ -78,20 +87,7 @@ export default function ProktorDashboard() {
         loadData();
     }, [loadData]);
 
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 11) return "Selamat Pagi";
-        if (hour < 15) return "Selamat Siang";
-        if (hour < 18) return "Selamat Sore";
-        return "Selamat Malam";
-    };
 
-    const getDay = () => {
-        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const now = new Date();
-        return `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-    };
 
     // Buka daftar anggota yang sudah pernah login (punya last_login_at).
     const openMembers = async () => {
@@ -179,20 +175,8 @@ export default function ProktorDashboard() {
         },
     ];
 
-    const quickActions = [
-        { label: 'Buat Ujian Baru', icon: Plus, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/exams' },
-        { label: 'Monitoring Ujian', icon: Eye, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/monitoring' },
-        { label: 'Kelola Anggota', icon: Users, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/members' },
-        { label: 'Bank Soal', icon: BookOpen, color: 'text-[#3083FF]', bg: 'bg-[#3083FF]/5', border: 'border-[#3083FF]/20', hoverBg: 'hover:bg-[#3083FF]/10', to: '/dashboard/proktor/banks' },
-    ];
 
-    const activitySummary = [
-        { label: 'Mendatang', value: stats.draftExams, color: 'bg-[#3083FF]', textColor: 'text-[#3083FF]' },
-        { label: 'Aktif', value: stats.ongoingExams, color: 'bg-emerald-500', textColor: 'text-emerald-600' },
-        { label: 'Selesai', value: stats.finishedExams, color: 'bg-[#3083FF]', textColor: 'text-[#3083FF]' },
-    ];
 
-    const totalExams = stats.draftExams + stats.ongoingExams + stats.finishedExams;
 
     if (loading) {
         return (

@@ -1,34 +1,33 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { Notification,NotificationType } from '@/app/types/notification';
+import {
+NOTIFICATION_TYPE_COLORS,
+NOTIFICATION_TYPE_LABELS,
+getNotificationTimeAgo
+} from '@/app/types/notification';
+import {
+deleteAllReadNotifications,
+deleteNotification,
+getUnreadNotificationCount,
+getUserNotificationsResult,
+markAllNotificationsRead,
+markNotificationRead
+} from '@/lib/api/notifications';
+import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import {
-     Bell,
-    Check,
-    CheckCheck,
-    Trash2,
-    Clock,
-    CheckCircle2,
-    AlertCircle,
-    Loader2,
-    ChevronRight,
+AlertCircle,
+Bell,
+Check,
+CheckCheck,
+CheckCircle2,
+ChevronRight,
+Clock,
+Loader2,
+Trash2,
 } from 'lucide-react';
-import { getSessionUser } from '@/lib/session';
-import {
-    getUserNotificationsResult,
-    getUnreadNotificationCount,
-    markNotificationRead,
-    markAllNotificationsRead,
-    deleteNotification,
-    deleteAllReadNotifications
-} from '@/lib/api/notifications';
-import type { Notification, NotificationType } from '@/app/types/notification';
-import {
-    NOTIFICATION_TYPE_LABELS,
-    NOTIFICATION_TYPE_COLORS,
-    getNotificationTimeAgo
-} from '@/app/types/notification';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 type FilterType = 'all' | 'unread' | NotificationType;
 const PAGE_SIZE = 50;
@@ -93,7 +92,8 @@ export default function NotificationsPage() {
     }, [filter, user, setIsLoading, setNotifications]);
 
     useEffect(() => {
-        loadNotifications();
+        const initialLoad = window.setTimeout(() => void loadNotifications(), 0);
+        return () => window.clearTimeout(initialLoad);
     }, [loadNotifications]);
 
     // Filter notifications

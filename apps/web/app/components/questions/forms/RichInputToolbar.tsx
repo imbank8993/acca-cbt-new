@@ -4,9 +4,9 @@
  * Place this at the top of the options section.
  * Automatically targets the currently focused RichInput editor.
  */
-import React, { createContext, useContext, useRef, useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
 import { uploadToHosting } from '@/lib/uploader';
+import { motion } from 'framer-motion';
+import React,{ createContext,useCallback,useContext,useRef,useState } from 'react';
 
 // ─── Context ────────────────────────────────────────────────────────────────
 

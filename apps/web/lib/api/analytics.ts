@@ -1,4 +1,4 @@
-import type { ExamAnalyticsSummary, StudentPerformance } from '@/app/types';
+import type { ExamAnalyticsSummary,StudentPerformance } from '@/app/types';
 import { apiGet } from './client';
 
 /**
@@ -45,8 +45,12 @@ export async function getQuestionResponsesAction(examId: string, questionId: str
         `/api/analytics/exams/${encodeURIComponent(examId)}/questions/${encodeURIComponent(questionId)}/responses`,
     );
     if (!res.success) return null;
-    const { success: _success, ...detail } = res;
-    return detail;
+    return {
+        question: res.question,
+        optionCounts: res.optionCounts,
+        responses: res.responses,
+        unanswered: res.unanswered,
+    };
 }
 
 /**

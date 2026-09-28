@@ -1,8 +1,8 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { FunctionSquare, X } from 'lucide-react';
-import { MathToolbar } from './MathToolbar';
+import { FunctionSquare,X } from 'lucide-react';
+import React,{ useEffect,useState } from 'react';
 import { MathRenderer } from './MathRenderer';
+import { MathToolbar } from './MathToolbar';
 
 export interface MathEditorModalProps {
   isOpen: boolean;
@@ -182,7 +182,6 @@ function MathEditorModalContent({
                     #mf-editor-modal::part(prompt) { border: 1px dashed #94a3b8 !important; background-color: #f1f5f9 !important; border-radius: 2px !important; min-width: 0.8em; min-height: 1em; margin: 0 1px; }
                     #mf-editor-modal::part(placeholder) { border: 1px dashed #94a3b8 !important; background-color: #f1f5f9 !important; border-radius: 2px !important; }
                   `}</style>
-                  {/* @ts-expect-error math-field is a custom web component */}
                   <math-field
                     id="mf-editor-modal"
                     style={{ width: '100%', fontSize: '1.3rem', padding: '4px', outline: 'none' }}
@@ -210,7 +209,6 @@ function MathEditorModalContent({
                       }
                     }}
                   >
-                    {/* @ts-expect-error math-field close tag */}
                   </math-field>
                 </div>
               ) : (

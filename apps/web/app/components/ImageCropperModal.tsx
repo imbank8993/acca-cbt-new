@@ -1,8 +1,9 @@
 "use client";
-import React, { useState, useCallback } from 'react';
+import { AnimatePresence,motion } from 'framer-motion';
+import { Check,Crop,RotateCcw,X,ZoomIn,ZoomOut } from 'lucide-react';
+import React,{ useCallback,useState } from 'react';
+import type { Area,Point } from 'react-easy-crop';
 import Cropper from 'react-easy-crop';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Crop, Check, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface ImageCropperModalProps {
     isOpen: boolean;
@@ -11,17 +12,17 @@ interface ImageCropperModalProps {
     onCropComplete: (croppedImage: string) => void;
 }
 
+import { useClientMounted } from '@/hooks/useClientMounted';
 import { createPortal } from 'react-dom';
 
 const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageCropperModalProps) => {
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-    const [mounted, setMounted] = useState(false);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+    const mounted = useClientMounted();
 
     React.useEffect(() => {
-        setMounted(true);
         if (isOpen) {
             document.body.classList.add('scroll-locked');
         } else {
@@ -30,7 +31,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
         return () => document.body.classList.remove('scroll-locked');
     }, [isOpen]);
 
-    const onCropChange = (crop: any) => {
+    const onCropChange = (crop: Point) => {
         setCrop(crop);
     };
 
@@ -38,7 +39,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
         setZoom(zoom);
     };
 
-    const onCropAreaComplete = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
+    const onCropAreaComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
         setCroppedAreaPixels(croppedAreaPixels);
     }, []);
 
@@ -51,7 +52,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
             image.src = url;
         });
 
-    const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Promise<string> => {
+    const getCroppedImg = async (imageSrc: string, pixelCrop: Area, rotation = 0): Promise<string> => {
         const image = await createImage(imageSrc);
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -93,6 +94,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
     };
 
     const handleConfirm = async () => {
+        if (!croppedAreaPixels) return;
         try {
             const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels, rotation);
             onCropComplete(croppedImage);

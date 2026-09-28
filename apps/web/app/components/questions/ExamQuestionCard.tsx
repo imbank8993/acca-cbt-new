@@ -1,9 +1,8 @@
 "use client";
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import type { AnswerValue,Question } from '@/app/types';
+import { AnimatePresence,motion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { QuestionRenderer } from './QuestionRenderer';
-import type { Question, QuestionType, AnswerValue } from '@/app/types';
 
 interface ExamQuestionCardProps {
   question: Question;
@@ -36,7 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function ExamQuestionCard({
   question, answer, onAnswerChange, questionNumber,
-  showToggle = true, onToggleDoubtful, isDoubtful = false,
+  showToggle = true, isDoubtful = false,
   className = '', displayMode, isUpdated = false,
   examId, userId
 }: ExamQuestionCardProps) {

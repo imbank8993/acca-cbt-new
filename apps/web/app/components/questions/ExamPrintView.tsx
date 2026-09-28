@@ -1,15 +1,8 @@
 "use client";
-import React from 'react';
+
+import Image from 'next/image';
 import { LatexRenderer } from './LatexRenderer';
 
-const TYPE_LABELS: Record<string, string> = {
-    mcq: 'Pilihan Ganda', mcq_complex: 'PG Kompleks',
-    true_false: 'Benar/Salah', matching: 'Menjodohkan',
-    categorization: 'Kategorisasi', short_answer: 'Isian Singkat',
-    essay: 'Uraian', esay: 'Uraian', uraian: 'Uraian',
-    sjt: 'SJT', ordering: 'Pengurutan',
-    likert: 'Skala Likert', forced_choice: 'Pilihan Paksa'
-};
 
 interface ExamPrintViewProps {
     bankInfo: any;
@@ -83,7 +76,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
 
             {/* ── Header (Kop Surat) ── */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '2px solid #3083FF', paddingBottom: '12px', marginBottom: '16px' }}>
-                <img src="/logo-icon.png" alt="ACCA Logo" style={{ height: '45px', objectFit: 'contain', marginRight: '16px' }} />
+                <Image src="/logo-icon.png" alt="ACCA Logo" width={45} height={45} style={{ height: '45px', width: 'auto', objectFit: 'contain', marginRight: '16px' }} />
                 <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', fontSize: '16px', fontWeight: 800, color: '#3083FF' }}>ACCA</div>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { LATEX_TEMPLATES, renderLatex, type LatexTemplateKey } from './math-utils';
+import React,{ useMemo,useState } from 'react';
+import { LATEX_TEMPLATES,renderLatex,type LatexTemplateKey } from './math-utils';
 
 interface MathToolbarProps {
     onInsert: (template: string) => void;

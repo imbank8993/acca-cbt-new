@@ -1,6 +1,6 @@
 'use client';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle,Loader2,Maximize,Pause,Play,Volume2,VolumeX } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 interface CustomVideoPlayerProps {
     url: string;
@@ -156,7 +156,7 @@ export function CustomVideoPlayer({ url, width = '100%' }: CustomVideoPlayerProp
             destroyed = true;
             stopProgress();
             if (player) {
-                try { player.destroy(); } catch (e) {}
+                try { player.destroy(); } catch {}
             }
             playerRef.current = null;
         };

@@ -1,10 +1,10 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { clearCbtSession, resetAndRetrySso } from '@/lib/session-reset';
-import { getDashboardPath, setActiveRoleInStorage, lockActiveRole, clearActiveRoleInStorage, type Role } from '@/lib/rbac';
-import { clearMemoryCache } from '@/lib/useMemoryState';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { clearActiveRoleInStorage,getDashboardPath,lockActiveRole,setActiveRoleInStorage,type Role } from '@/lib/rbac';
+import { clearCbtSession,resetAndRetrySso } from '@/lib/session-reset';
+import { clearMemoryCache } from '@/lib/useMemoryState';
+import { useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 type SsoFailure = { title: string; message: string };
 

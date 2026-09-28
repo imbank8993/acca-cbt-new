@@ -1,19 +1,18 @@
 "use client";
-import React, { useEffect, useRef } from 'react';
 import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    LineElement,
-    PointElement,
-    ArcElement,
-    Title,
-    Tooltip,
-    Legend,
-    Filler,
+ArcElement,
+BarElement,
+CategoryScale,
+Chart as ChartJS,
+Filler,
+Legend,
+LinearScale,
+LineElement,
+PointElement,
+Title,
+Tooltip,
 } from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
+import { Bar,Line,Pie } from 'react-chartjs-2';
 
 ChartJS.register(
     CategoryScale,
@@ -28,7 +27,7 @@ ChartJS.register(
     Filler
 );
 
-interface ChartData {
+export interface ChartData {
     labels: string[];
     datasets: {
         label?: string;
@@ -41,7 +40,7 @@ interface ChartData {
     }[];
 }
 
-interface ChartRendererProps {
+export interface ChartRendererProps {
     data: ChartData;
     type: 'bar' | 'pie' | 'line';
     height?: number;

@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { Undo2, Home, ArrowUp, Activity } from 'lucide-react';
+import Image from 'next/image';
+
+import { Activity,ArrowUp,Home,Undo2 } from 'lucide-react';
+import { usePathname,useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import './bottom-nav.css';
 
 interface BottomNavProps {
@@ -116,7 +118,7 @@ export default function BottomNav({ onOpenMenu, activeRole }: BottomNavProps) {
                     aria-label="Buka Menu"
                     title="Buka Menu"
                 >
-                    <img src="/bottomnav.svg" alt="ACCA" className="bnav__fab-logo" />
+                    <Image src="/bottomnav.svg" alt="ACCA" width={48} height={48} className="bnav__fab-logo" />
                 </button>
             </div>
 

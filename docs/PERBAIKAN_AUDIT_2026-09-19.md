@@ -327,7 +327,7 @@ Nilai kronologis dibagi menjadi kelompok lama dan baru yang keduanya tidak koson
 
 ### QA-01: utang lint lama dibedakan dari pelanggaran baru
 
-Pemindaian penuh frontend saat ini menghasilkan 1.194 error dan 607 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline menyimpan jumlah maksimum per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun bertambah, jika muncul aturan baru, atau jika total error/warning naik.
+Pemindaian penuh frontend saat ini menghasilkan 1.195 error dan 609 warning. Jumlah ini masih merupakan utang teknis dan tidak dinyatakan bersih. Baseline menyimpan jumlah maksimum per aturan, termasuk `rules-of-hooks`, `immutability`, `refs`, `purity`, `set-state-in-effect`, `no-explicit-any`, dan aturan aksesibilitas. Pemeriksaan gagal bila jumlah aturan mana pun melampaui baseline, jika muncul aturan baru, atau jika total error/warning melampaui batas baseline.
 
 Workflow deployment menjalankan pemeriksaan ini setelah typecheck frontend dan sebelum build/deploy. Dengan demikian, pelanggaran berisiko runtime tidak lagi tenggelam tanpa pagar hanya karena seluruh backlog belum dapat dibereskan dalam satu perubahan.
 
@@ -655,6 +655,36 @@ Service worker produksi menyimpan shell route ujian siswa dan aset same-origin y
 
 PWA tetap tunduk pada validasi cache Tahap 41. Cache shell dibersihkan setelah submit, penolakan attempt, ketidakcocokan attempt, dan logout. Manifest, scope worker, serta kebijakan pembaruan tanpa cache sudah dipasang. **Lokasi:** [service worker ujian](../apps/web/public/exam-sw.js), [helper PWA](../apps/web/lib/exam-pwa.ts), [pwa-exam-shell-stage42.test.cjs](../apps/api/test/pwa-exam-shell-stage42.test.cjs), dan [dokumentasi tahap 42](perbaikan-2026-09-19/TAHAP-42-PWA-SHELL-UJIAN-OFFLINE.md).
 
+## Tahap 43 — Pembersihan lint hooks bank soal
+
+### LINT-01–06: lifecycle request dan callback tidak lagi memakai render lama
+
+Enam komponen alur soal kini bebas dari masalah `react-hooks/*`. Pengunggah tugas memakai callback dan konfigurasi validasi terbaru, navigasi keyboard ujian tidak menangkap handler lama, dan pemuatan data pendamping bank mengabaikan respons yang datang setelah pengguna berpindah halaman. Halaman detail bank juga menolak respons refresh lama, request ganda daftar bank pada modal impor dihilangkan, dan kode editor lama dibersihkan. Kontrak kisi-kisi, petunjuk, dimensi, dan interpretasi sekarang bertipe eksplisit. Pemindaian penuh turun 82 masalah tanpa melonggarkan aturan. **Lokasi:** [API bank soal](../apps/web/lib/api/questions.ts), [pengunggah tugas](../apps/web/app/components/questions/AssignmentUploader.tsx), [halaman detail bank](../apps/web/app/components/questions/QuestionBankDetailPage.tsx), dan [dokumentasi tahap 43](perbaikan-2026-09-19/TAHAP-43-PEMBERSIHAN-LINT-HOOKS-BANK-SOAL.md).
+
+## Tahap 44 — Pembersihan import dan hydration
+
+### LINT-07–12: import mati, portal SSR, media query, dan lazy chart
+
+Import frontend yang terbukti tidak dipakai dibersihkan melalui TypeScript Language Service. Modal, image cropper, multi-select, maintenance screen, dan matching interaktif tidak lagi memakai pola `setMounted(true)` dari effect; status hydration dan media query sekarang memakai external store yang aman untuk SSR. Dynamic chart memakai lazy component bawaan Next.js, preview modal tidak lagi menggandakan prop ke state, dan pemuatan awal notifikasi memiliki cleanup. Pemindaian penuh turun lagi sebanyak 276 masalah menjadi 1.128 error/318 warning. **Lokasi:** [hook hydration](../apps/web/hooks/useClientMounted.ts), [hook media query](../apps/web/hooks/useMediaQuery.ts), dan [dokumentasi tahap 44](perbaikan-2026-09-19/TAHAP-44-PEMBERSIHAN-IMPORT-DAN-HYDRATION.md).
+
+## Tahap 45 — Pembersihan tipe dan kode mati
+
+### LINT-13–20: kontrak bank soal, error unknown, dan deklarasi mati
+
+Sebanyak 207 deklarasi serta parameter mati dihapus dengan perbaikan TypeScript. Ekspor Word dan API bank soal kini mempunyai kontrak domain eksplisit; halaman detail bank serta editor soal memakai kontrak tersebut dan mencapai nol lint. Penanganan exception tidak lagi memakai `any`, komponen `math-field` memiliki tipe JSX, parser DOCX tidak lagi memakai `require` atau `@ts-ignore`, dan aturan kecil untuk gambar, teks JSX, font, serta display name sudah diselesaikan. Pemindaian penuh turun 523 masalah menjadi 871 error/52 warning. **Lokasi:** [kontrak API soal](../apps/web/lib/api/questions.ts), [halaman detail bank](../apps/web/app/components/questions/QuestionBankDetailPage.tsx), [editor soal](../apps/web/app/components/questions/QuestionEditorModal.tsx), [helper pesan error](../apps/web/lib/errors.ts), dan [dokumentasi tahap 45](perbaikan-2026-09-19/TAHAP-45-PEMBERSIHAN-TIPE-DAN-KODE-MATI.md).
+
+## Tahap 46 — Kontrak ujian dan halaman peran
+
+### LINT-21–27: API proktor, bank soal, tugas, dan daftar ujian
+
+Kontrak API proktor sekarang mencakup organisasi, kelas, siswa, ujian, attempt, jawaban, log keamanan, login terbaru, serta pengumpulan tugas. Kontrak ini dipakai pada halaman tugas, kartu login terbaru, daftar bank soal, dan daftar ujian milik Admin, Guru, serta Proktor. Pemuatan awal dan refresh dibuat stabil dengan cleanup, sedangkan filter serta pengelompokan tidak lagi bergantung pada memo manual yang ditolak React Compiler. Semua halaman yang disentuh mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 246 masalah menjadi 634 error/43 warning. **Lokasi:** [kontrak API proktor](../apps/web/lib/api/proctor.ts), [daftar ujian Admin](../apps/web/app/dashboard/admin/exams/page.tsx), [daftar bank soal Admin](../apps/web/app/dashboard/admin/questions/page.tsx), dan [dokumentasi tahap 46](perbaikan-2026-09-19/TAHAP-46-KONTRAK-UJIAN-DAN-HALAMAN-PERAN.md).
+
+## Tahap 47 — Monitoring ujian bertipe
+
+### LINT-28–32: attempt, analisis butir, dan lifecycle monitoring
+
+Halaman monitoring Admin, Guru, dan Proktor sekarang memakai kontrak attempt, rincian pelanggaran, status koneksi, skor, analisis butir, opsi jawaban, dan alert keamanan yang eksplisit. Pemuatan awal, pergantian ujian, refresh berkala, serta pembacaan pelanggaran memakai callback stabil dan cleanup. Perlindungan terhadap respons lama di halaman Proktor tetap dipertahankan. Ketiga halaman mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 91 masalah menjadi 555 error/31 warning. **Lokasi:** [kontrak attempt](../apps/web/lib/api/proctor.ts), [monitoring Proktor](../apps/web/app/dashboard/proktor/monitoring/page.tsx), dan [dokumentasi tahap 47](perbaikan-2026-09-19/TAHAP-47-MONITORING-UJIAN-BERTIPE.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -665,10 +695,10 @@ PWA tetap tunduk pada validasi cache Tahap 41. Cache shell dibersihkan setelah s
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
 | Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Lulus sampai perubahan tahap 42 |
-| Build produksi frontend | Lulus; 92 halaman berhasil diproses |
+| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 47; API terakhir lulus pada rangkaian audit sebelumnya |
+| Build produksi frontend | Lulus setelah Tahap 43; 92 halaman berhasil diproses |
 | Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
-| ESLint baseline penuh | Lulus: 1.194 error/607 warning lama, tanpa kenaikan per aturan |
+| ESLint frontend penuh | 555 error/31 warning; total turun 1.218 masalah sampai Tahap 47 |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |

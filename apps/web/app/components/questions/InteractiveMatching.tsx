@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useClientMounted } from '@/hooks/useClientMounted';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { motion } from "framer-motion";
-import Xarrow, { Xwrapper } from "react-xarrows";
+import { CheckCircle2,Sparkles,Trash2 } from "lucide-react";
+import { useMemo,useState } from "react";
+import Xarrow,{ Xwrapper } from "react-xarrows";
 import { LatexRenderer } from "./LatexRenderer";
-import { Trash2, CheckCircle2, Sparkles } from "lucide-react";
 
 // Deterministic seeded shuffle so the order is randomized ONCE per participant
 // (stable across re-renders / re-mounts / question navigation) instead of on every render.
@@ -54,8 +56,8 @@ export const InteractiveMatching = ({
   };
   const stripHtml = (html: string) => (html ? html.replace(/<[^>]*>/g, "").trim() : "");
 
-  const [mounted, setMounted] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const mounted = useClientMounted();
+  const isMobile = useMediaQuery('(max-width: 639px)');
   const [mobileSelectOptId, setMobileSelectOptId] = useState<string | null>(null);
 
   // Seed diacak SEKALI per peserta per soal — stabil di seluruh re-render, re-mount,
@@ -72,14 +74,6 @@ export const InteractiveMatching = ({
     () => seededShuffle(rightItems || [], seed ^ 0x9e3779b9),
     [rightItems, seed]
   );
-
-  useEffect(() => {
-    setMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const leftDomId = (i: number) => `mtch-l-${questionId}-${i}`;
   const rightDomId = (i: number) => `mtch-r-${questionId}-${i}`;

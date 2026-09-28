@@ -15,11 +15,11 @@
  */
 
 import {
-    DeleteObjectCommand,
-    GetObjectCommand,
-    HeadBucketCommand,
-    PutObjectCommand,
-    S3Client,
+DeleteObjectCommand,
+GetObjectCommand,
+HeadBucketCommand,
+PutObjectCommand,
+S3Client,
 } from '@aws-sdk/client-s3';
 
 // ─── Konfigurasi ─────────────────────────────────────────────────────────────

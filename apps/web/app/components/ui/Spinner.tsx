@@ -40,7 +40,6 @@ export function Spinner({
     color,
     label,
     className = '',
-    dotsOnly = false,
     variant = 'buble',
 }: SpinnerProps) {
     const resolvedVariant: SpinnerVariant = variant ?? 'buble';

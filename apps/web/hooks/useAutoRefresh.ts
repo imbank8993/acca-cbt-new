@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect,useRef } from 'react';
 
 /**
  * Muat ulang data secara berkala, dan segera saat tab kembali dibuka.

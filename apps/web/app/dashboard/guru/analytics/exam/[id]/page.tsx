@@ -1,22 +1,28 @@
 "use client";
-import React, { useEffect, useState, Suspense } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Users, Clock, Target, Award, Download,
-  ChevronDown, ChevronUp, Filter, Search, BarChart3,
-  CheckCircle2, XCircle, AlertTriangle, Eye, Loader2
+ArrowLeft,
+CheckCircle2,
+ChevronDown,ChevronUp,
+Clock,
+Download,
+Eye,Loader2,
+Search,
+Target,
+Users,
+XCircle
 } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 // Dynamic import untuk komponen berat
-import dynamic from 'next/dynamic';
-import { getExamAnalytics, getStudentPerformance, getAttemptReviewForStaff, getQuestionResponsesAction } from '@/lib/api/analytics';
-import { TableSkeleton, CardSkeleton } from '@/app/components/ui/SkeletonPatterns';
-import type { ExamAnalyticsSummary, StudentPerformance, QuestionAnalytics } from '@/app/types';
-import { useMemoryState } from '@/lib/useMemoryState';
-import { formatStudentAnswer, formatAnswerKey, stripHtml } from '@/lib/answer-display';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
+import { CardSkeleton,TableSkeleton } from '@/app/components/ui/SkeletonPatterns';
+import type { ExamAnalyticsSummary,StudentPerformance } from '@/app/types';
+import { formatAnswerKey,formatStudentAnswer,stripHtml } from '@/lib/answer-display';
+import { getAttemptReviewForStaff,getExamAnalytics,getQuestionResponsesAction,getStudentPerformance } from '@/lib/api/analytics';
+import { useMemoryState } from '@/lib/useMemoryState';
+import dynamic from 'next/dynamic';
 
 // Lazy load chart components
 const StatsGrid = dynamic(
@@ -431,7 +437,7 @@ export default function ExamResultsDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredStudents.map((student, index) => {
+                    {filteredStudents.map((student) => {
                       const grade = getGrade(student.average_score);
                       return (
                         <tr key={student.student_id} className="hover:bg-slate-50 transition-colors">

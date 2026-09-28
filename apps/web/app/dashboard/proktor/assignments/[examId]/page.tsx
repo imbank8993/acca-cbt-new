@@ -1,29 +1,26 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { getAssignmentSubmissionsAction,gradeAssignmentAction } from '@/lib/api/proctor';
+import type { AssignmentSubmission as Submission,OrganizationExam } from '@/lib/api/proctor';
+import { AnimatePresence,motion } from 'framer-motion';
 import {
-    ArrowLeft, FileText, Download, CheckCircle2, Clock, AlertCircle,
-    Users, Star, Save, X, Loader2, ChevronDown, ChevronUp,
-    ExternalLink, BookOpen, Filter, Search, RefreshCw
+AlertCircle,
+ArrowLeft,
+BookOpen,
+CheckCircle2,
+ChevronDown,ChevronUp,
+Clock,
+Download,
+ExternalLink,
+FileText,
+Loader2,
+RefreshCw,
+Save,
+Search,
+Star,
+Users
 } from 'lucide-react';
-import { getAssignmentSubmissionsAction, gradeAssignmentAction } from '@/lib/api/proctor';
-
-type Submission = {
-    userId: string;
-    fullName: string;
-    identityNumber: string;
-    attemptId: string | null;
-    status: 'belum_mulai' | 'sedang_dikerjakan' | 'sudah_kumpul';
-    score: number | null;
-    submittedAt: string | null;
-    needsGrading: boolean;
-    fileUrls: string[];
-    textSubmission: string;
-    teacherFeedback: string;
-    teacherScore: number | null;
-};
+import { useParams,useRouter } from 'next/navigation';
+import React,{ useCallback,useEffect,useState } from 'react';
 
 export default function AssignmentReviewPage() {
     const params = useParams();
@@ -31,9 +28,8 @@ export default function AssignmentReviewPage() {
     const examId = params.examId as string;
 
     const [isLoading, setIsLoading] = useState(true);
-    const [exam, setExam] = useState<any>(null);
+    const [exam, setExam] = useState<OrganizationExam | null>(null);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
-    const [classes, setClasses] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'belum_mulai' | 'sudah_kumpul' | 'belum_dinilai'>('all');
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -46,11 +42,10 @@ export default function AssignmentReviewPage() {
         const result = await getAssignmentSubmissionsAction(examId);
         if (result.success) {
             setExam(result.exam);
-            setSubmissions(result.submissions as Submission[]);
-            setClasses(result.classes);
+            setSubmissions(result.submissions);
             // Pre-fill grading data from existing values
             const initial: Record<string, { score: string; feedback: string }> = {};
-            result.submissions.forEach((s: any) => {
+            result.submissions.forEach((s) => {
                 if (s.attemptId) {
                     initial[s.attemptId] = {
                         score: s.teacherScore !== null ? String(s.teacherScore) : '',
@@ -63,7 +58,10 @@ export default function AssignmentReviewPage() {
         setIsLoading(false);
     }, [examId]);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(timer);
+    }, [loadData]);
 
     const handleSaveGrade = async (submission: Submission) => {
         if (!submission.attemptId) return;
@@ -237,7 +235,7 @@ export default function AssignmentReviewPage() {
                         ].map(f => (
                             <button
                                 key={f.id}
-                                onClick={() => setFilterStatus(f.id as any)}
+                                onClick={() => setFilterStatus(f.id as typeof filterStatus)}
                                 className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${filterStatus === f.id
                                     ? 'bg-[#3083FF] text-white border-[#3083FF]'
                                     : 'bg-white text-slate-600 border-slate-200 hover:border-[#3083FF]/30'

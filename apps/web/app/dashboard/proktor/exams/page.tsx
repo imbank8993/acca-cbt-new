@@ -1,39 +1,61 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    ClipboardCheck, Plus, Search, Calendar, Play,
-    Trash2, Clock, Loader2, X, Check, Users,
-    Settings, ChevronRight, CheckCircle2, Globe, GlobeLock,
-    Info, BookOpen, AlertCircle, Eye, EyeOff, Filter,
-    CalendarDays, FolderOpen, GraduationCap, Lock, Unlock, Zap, Shield, ChevronDown, FileText, Archive
-} from 'lucide-react';
-import {
-    getProctorOrganization,
-    listOrganizationExams,
-    createExamAction,
-    listOrganizationClasses,
-    listClassStudents,
-    assignExamAction,
-    editExamAction,
-    publishExamAction,
-    listSchoolYears,
-    createSchoolYearAction,
-    listExamAssignmentsAction
-} from '@/lib/api/proctor';
-import { deleteExam, purgeTrialExam, setExamArchived } from '@/lib/api/exams';
-import { listQuestionBanks, listOrganizationLabels, createOrganizationLabel } from '@/lib/api/questions';
-import { getSessionUser } from '@/lib/session';
-import { REFRESH_INTERVAL, useAutoRefresh } from '@/lib/useAutoRefresh';
-import { listExamConfigs, getExamConfig, createExamConfigAction, deleteExamConfigAction, lockExamConfigAction, addExamConfigBankAction, removeExamConfigBankAction, addExamConfigExamAction, removeExamConfigExamAction, generateExamsFromConfigAction  } from '@/lib/api/exam-configs';
+import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
+import { deleteExam,purgeTrialExam,setExamArchived } from '@/lib/api/exams';
+import type { ExamConfig,ExamConfigBank } from '@/app/types/pas';
 import { listSubjects } from '@/lib/api/pas';
-import ProctorPASPage from '../pas/page';
-import { useRouter } from 'next/navigation';
+import {
+assignExamAction,
+createExamAction,
+createSchoolYearAction,
+editExamAction,
+getProctorOrganization,
+listClassStudents,
+listExamAssignmentsAction,
+listOrganizationClasses,
+listOrganizationExams,
+listSchoolYears,
+publishExamAction
+} from '@/lib/api/proctor';
+import { listOrganizationLabels,listQuestionBanks } from '@/lib/api/questions';
+import type { OrganizationLabel,QuestionBank } from '@/lib/api/questions';
+import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject,SchoolYear } from '@/lib/api/proctor';
+import { getSessionUser } from '@/lib/session';
+import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { AnimatePresence,motion } from 'framer-motion';
+import {
+AlertCircle,
+Archive,
+BookOpen,
+Calendar,
+Check,
+CheckCircle2,
+ChevronDown,
+ClipboardCheck,
+Clock,
+Eye,EyeOff,
+FileText,
+FolderOpen,
+Globe,GlobeLock,
+Info,
+Loader2,
+Plus,Search,
+Settings,
+Trash2,
+Unlock,
+Users,
+X,
+Zap
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import React,{ useCallback,useEffect,useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import ProctorPASPage from '../pas/page';
 
 type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
 type SortBy = 'newest' | 'oldest' | 'name';
+type ExamType = 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya';
 
 // Helper: Convert UTC ISO string to WIB datetime-local format for input display
 // WIB = UTC+7
@@ -53,35 +75,32 @@ const utcToLocalDateTime = (utcStr: string): string => {
 };
 
 const ExamsPage = () => {
-    const [exams, setExams] = useMemoryState<any[]>('proktor_exams_exams', []);
-    const [qBanks, setQBanks] = useMemoryState<any[]>('proktor_exams_qBanks', []);
-    const [org, setOrg] = useState<any>(null);
-    const [classes, setClasses] = useMemoryState<any[]>('proktor_exams_classes', []);
+    const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_exams_exams', []);
+    const [qBanks, setQBanks] = useMemoryState<QuestionBank[]>('proktor_exams_qBanks', []);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [classes, setClasses] = useMemoryState<OrganizationClass[]>('proktor_exams_classes', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_exams_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
-    const [students, setStudents] = useMemoryState<any[]>('proktor_exams_students', []);
     const [activeTab, setActiveTab] = useState<TabId>('all');
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [sortBy, setSortBy] = useState<SortBy>('newest');
 
     // Labels state
-    const [labels, setLabels] = useMemoryState<any[]>('proktor_exams_labels', []);
-    const getLabelColor = (name: string) => labels.find(l => l.name === name)?.color || '#6366f1';
+    const [, setLabels] = useMemoryState<OrganizationLabel[]>('proktor_exams_labels', []);
 
     // Subjects state
-    const [subjects, setSubjects] = useMemoryState<any[]>('proktor_exams_subjects', []);
+    const [subjects, setSubjects] = useMemoryState<SchoolSubject[]>('proktor_exams_subjects', []);
 
     // FOLDER / Exam Config state
-    const [examConfigs, setExamConfigs] = useMemoryState<any[]>('proktor_exams_examConfigs', []);
+    const [examConfigs, setExamConfigs] = useMemoryState<ExamConfig[]>('proktor_exams_examConfigs', []);
     const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
-    const [selectedConfig, setSelectedConfig] = useState<any>(null);
-    const [configBanks, setConfigBanks] = useMemoryState<any[]>('proktor_exams_configBanks', []);
-    const [configExams, setConfigExams] = useMemoryState<any[]>('proktor_exams_configExams', []);
-    const [selectedConfigExamIds, setSelectedConfigExamIds] = useMemoryState<string[]>('proktor_exams_selectedConfigExamIds', []);
-    const [isLoadingConfig, setIsLoadingConfig] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [isConfigDetailOpen, setIsConfigDetailOpen] = useState(false);
+    const [selectedConfig, setSelectedConfig] = useState<ExamConfig | null>(null);
+    const [configBanks, setConfigBanks] = useMemoryState<ExamConfigBank[]>('proktor_exams_configBanks', []);
+    const [, setSelectedConfigExamIds] = useMemoryState<string[]>('proktor_exams_selectedConfigExamIds', []);
+    const [, setIsLoadingConfig] = useState(false);
+    const [] = useState(false);
+    const [, setIsConfigDetailOpen] = useState(false);
 
     // Folder config modal
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -89,7 +108,7 @@ const ExamsPage = () => {
         name: '', school_year: '', semester: '',
         start_date: '', end_date: ''
     });
-    const [schoolYears, setSchoolYears] = useMemoryState<any[]>('proktor_exams_schoolYears', []);
+    const [schoolYears, setSchoolYears] = useMemoryState<SchoolYear[]>('proktor_exams_schoolYears', []);
     const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
     const [isSubmittingConfig, setIsSubmittingConfig] = useState(false);
 
@@ -108,7 +127,7 @@ const ExamsPage = () => {
     const [formData, setFormData] = useState({
         title: '',
         description: '',
-        examType: 'daily' as 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya',
+        examType: 'daily' as ExamType,
         duration: 60,
         randomizeQuestions: true,
         randomizeOptions: true,
@@ -133,7 +152,7 @@ const ExamsPage = () => {
     const [classAssignments, setClassAssignments] = useState<Record<string, { mode: 'all' | 'selected', studentIds: string[] }>>({});
     const [assignData, setAssignData] = useState<{classIds: string[], userIds: string[]}>({ classIds: [], userIds: [] });
     const [examAssignments, setExamAssignments] = useState<Record<string, { classCount: number, studentCount: number }>>({});
-    const [classStudents, setClassStudents] = useState<Record<string, any[]>>({});
+    const [classStudents, setClassStudents] = useState<Record<string, ClassStudent[]>>({});
     const [selectedClassForStudents, setSelectedClassForStudents] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     // Per-exam publish/unpublish in-flight id, so ONLY the clicked card's button
@@ -144,7 +163,7 @@ const ExamsPage = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [isScoringDropdownOpen, setIsScoringDropdownOpen] = useState(false);
-    const [selectedExam, setSelectedExam] = useState<any>(null);
+    const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);
 
     const SCORING_OPTIONS = [
         { value: 'classical', label: 'Klasik (Total Benar)' },
@@ -153,9 +172,7 @@ const ExamsPage = () => {
         { value: 'irt_3pl', label: 'IRT (3 Parameter Logistic)', info: 'Ideal untuk >500 peserta.' }
     ];
 
-    useEffect(() => { loadData(); }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
         try {
             const user = await getSessionUser();
@@ -176,7 +193,7 @@ const ExamsPage = () => {
                     // Fetch existing exam assignments via SERVER ACTION — query
                     // langsung dari client memakai anon key sehingga RLS memblokir
                     // cbt_exam_targets/participants dan status selalu "belum ditugaskan".
-                    const examIds = examList.map((e: any) => e.id);
+                    const examIds = examList.map((exam) => exam.id);
                     const { targets: targetRows, participants: participantRows } =
                         await listExamAssignmentsAction(examIds);
 
@@ -202,7 +219,6 @@ const ExamsPage = () => {
                     setQBanks(bankList || []);
                     setClasses(classList || []);
                     setExamConfigs(pasPeriodList || []);
-                    setConfigBanks(bankList || []);
                     setClasses(classList || []);
                     setLabels(labelList || []);
                     setSubjects(subjectList || []);
@@ -212,7 +228,7 @@ const ExamsPage = () => {
                     // Pre-load students for all classes via SERVER ACTION.
                     // Query langsung dari client memakai anon key (service role tidak ada di browser)
                     // sehingga RLS memblokir cbt_class_members/cbt_profiles → siswa tampil 0.
-                    const studentMap = await listClassStudents(classList.map((c: any) => c.id));
+                    const studentMap = await listClassStudents(classList.map((item) => item.id));
                     setClassStudents(studentMap);
                 }
             }
@@ -221,26 +237,16 @@ const ExamsPage = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [setClasses, setExamConfigs, setExams, setIsLoading, setLabels, setQBanks, setSchoolYears, setSubjects]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(timer);
+    }, [loadData]);
 
     // Daftar ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
-    const refreshExamAssignment = async (examId: string) => {
-        const { targets, participants } = await listExamAssignmentsAction([examId]);
-
-        let studentCount = 0;
-        for (const t of targets) {
-            const clsKey = t.class_id || t.additional_class_id || '';
-            studentCount += (classStudents[clsKey] || []).length;
-        }
-        studentCount += participants.length;
-
-        setExamAssignments(prev => ({
-            ...prev,
-            [examId]: { classCount: targets.length, studentCount }
-        }));
-    };
 
     const handleCreateExam = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -287,7 +293,7 @@ const ExamsPage = () => {
             }
             setIsAddModalOpen(false);
             setFormData({
-                title: '', description: '', examType: 'daily' as any, duration: 60,
+                title: '', description: '', examType: 'daily' as ExamType, duration: 60,
                 randomizeQuestions: true, randomizeOptions: true,
                 showResults: false, isSafeMode: true, bankId: qBanks[0]?.id || '',
                 startTime: '', endTime: '', selectedClassIds: [],
@@ -377,7 +383,7 @@ const ExamsPage = () => {
         setIsSubmitting(false);
     };
 
-    const handlePublishToggle = async (exam: any) => {
+    const handlePublishToggle = async (exam: OrganizationExam) => {
         const assignment = examAssignments[exam.id] || { classCount: 0, studentCount: 0 };
         const isPublic = exam.metadata?.is_public === true;
         // Penugasan bisa berupa kelas penuh (classCount) ATAU siswa terpilih
@@ -402,7 +408,7 @@ const ExamsPage = () => {
         }
     };
 
-    const handleDeleteExam = async (exam: any) => {
+    const handleDeleteExam = async (exam: OrganizationExam) => {
         if (!confirm('Hapus ujian ini? Ujian hanya dapat dihapus jika belum pernah dikerjakan siswa.')) return;
         setIsLoading(true);
         const result = await deleteExam(exam.id);
@@ -427,7 +433,7 @@ const ExamsPage = () => {
         setIsLoading(false);
     };
 
-    const handleArchiveExam = async (exam: any) => {
+    const handleArchiveExam = async (exam: OrganizationExam) => {
         const archive = exam.status !== 'archived';
         const message = archive
             ? 'Arsipkan ujian ini? Jawaban dan nilai tetap disimpan.'
@@ -440,34 +446,34 @@ const ExamsPage = () => {
         setIsLoading(false);
     };
 
-    const getExamStatus = (e: any) => {
-        if (e.status === 'archived') return 'archived';
+    const getExamStatus = (exam: OrganizationExam) => {
+        if (exam.status === 'archived') return 'archived';
         const now = new Date();
-        const start = e.start_time ? new Date(e.start_time) : null;
-        const end = e.end_time ? new Date(e.end_time) : null;
-        const isFinished = e.status === 'finished' || (end ? end < now : false);
-        const isActive = !!e.is_published && (!start || start <= now) && (!end || end >= now) && !isFinished;
-        if (!e.is_published) return 'draft';
+        const start = exam.start_time ? new Date(exam.start_time) : null;
+        const end = exam.end_time ? new Date(exam.end_time) : null;
+        const isFinished = exam.status === 'finished' || (end ? end < now : false);
+        const isActive = !!exam.is_published && (!start || start <= now) && (!end || end >= now) && !isFinished;
+        if (!exam.is_published) return 'draft';
         if (isActive) return 'active';
         if (isFinished) return 'finished';
         return 'unknown';
     };
 
-    const getExamTabFilter = (e: any, tabId: TabId): boolean => {
+    const getExamTabFilter = (e: OrganizationExam, tabId: TabId): boolean => {
         if (typeFilter !== 'all' && e.exam_type !== typeFilter) return false;
         if (tabId === 'all') return getExamStatus(e) !== 'archived';
         return getExamStatus(e) === tabId;
     };
 
-    const filterByTab = (examList: any[]): any[] => {
+    const filterByTab = (examList: OrganizationExam[]): OrganizationExam[] => {
         return examList.filter(e => getExamTabFilter(e, activeTab));
     };
 
-    const sortExams = (list: any[]): any[] => {
+    const sortExams = (list: OrganizationExam[]): OrganizationExam[] => {
         return [...list].sort((a, b) => {
             if (sortBy === 'name') return (a.title || '').localeCompare(b.title || '');
-            if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            if (sortBy === 'oldest') return new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime();
+            return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
         });
     };
 
@@ -477,7 +483,7 @@ const ExamsPage = () => {
         )
     );
 
-    const tabs: { id: TabId; label: string; icon: any; color: string }[] = [
+    const tabs: { id: TabId; label: string; icon: LucideIcon; color: string }[] = [
         { id: 'all', label: 'Semua', icon: FolderOpen, color: 'text-slate-500' },
         { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-amber-500' },
         { id: 'active', label: 'Aktif', icon: Zap, color: 'text-emerald-500' },
@@ -485,12 +491,12 @@ const ExamsPage = () => {
         { id: 'archived', label: 'Arsip', icon: Archive, color: 'text-violet-500' },
     ];
 
-    const openEdit = (exam: any) => {
+    const openEdit = (exam: OrganizationExam) => {
         setSelectedExam(exam);
         setFormData({
             title: exam.title || '',
             description: exam.description || '',
-            examType: exam.exam_type || 'daily',
+            examType: (exam.exam_type as ExamType | null) || 'daily',
             duration: exam.duration_minutes || 60,
             randomizeQuestions: exam.randomize_questions ?? true,
             randomizeOptions: exam.randomize_options ?? true,
@@ -515,7 +521,7 @@ const ExamsPage = () => {
         setIsEditModalOpen(true);
     };
 
-    const openAssign = (exam: any) => {
+    const openAssign = (exam: OrganizationExam) => {
         setSelectedExam(exam);
         // Load existing assignment
         loadExamAssignments(exam.id).then(existing => {
@@ -525,8 +531,8 @@ const ExamsPage = () => {
             const defaults: Record<string, { mode: 'all' | 'selected', studentIds: string[] }> = {};
             for (const clsId of existing.classIds) {
                 const classParticipants = existingParticipants
-                    .filter((p: any) => p.class_id === clsId)
-                    .map((p: any) => p.user_id);
+                    .filter((participant) => participant.class_id === clsId)
+                    .map((participant) => participant.user_id);
                 defaults[clsId] = classParticipants.length > 0
                     ? { mode: 'selected', studentIds: classParticipants }
                     : { mode: 'all', studentIds: [] };
@@ -553,7 +559,7 @@ const ExamsPage = () => {
         return { classIds, participants };
     };
 
-    const formatDateTime = (str: string | null) => {
+    const formatDateTime = (str: string | null | undefined) => {
         if (!str) return '-';
         const date = new Date(str.match(/(Z|[+-]\d{2}:\d{2})$/) ? str : str + 'Z');
         if (isNaN(date.getTime())) return '-';
@@ -568,14 +574,13 @@ const ExamsPage = () => {
         return `${day} ${month} ${year} ${h}:${m} WIB`;
     };
 
-    const getExamWindow = (exam: any) => {
+    const getExamWindow = (exam: OrganizationExam) => {
         if (!exam.start_time && !exam.end_time) return 'Kapan saja';
         if (exam.start_time && !exam.end_time) return `Mulai ${formatDateTime(exam.start_time)}`;
         return `${formatDateTime(exam.start_time)} - ${formatDateTime(exam.end_time)}`;
     };
 
     const publishedBanks = qBanks.filter(b => b.is_published);
-    const draftBanks = qBanks.filter(b => !b.is_published);
 
 
     // ─── Folder / Exam Config helpers ─────────────────────────
@@ -587,8 +592,7 @@ const ExamsPage = () => {
         try {
             const data = await getExamConfig(configId);
             setSelectedConfig(data);
-            setConfigBanks((data as any)?.exam_config_banks || []);
-            setConfigExams((data as any)?.exam_config_exams || []);
+            setConfigBanks(data?.exam_config_banks || []);
             setIsConfigDetailOpen(true);
         } catch (err) { console.error(err); }
         setIsLoadingConfig(false);
@@ -601,7 +605,7 @@ const ExamsPage = () => {
         if (!configForm.name.trim()) { alert('Isi nama folder.'); return; }
         setIsSubmittingConfig(true);
 
-        let targetSchoolYear = configForm.school_year.trim();
+        const targetSchoolYear = configForm.school_year.trim();
         if (targetSchoolYear) {
             const yearPattern = /^\d{4}\/\d{4}$/;
             if (!yearPattern.test(targetSchoolYear)) {
@@ -641,31 +645,7 @@ const ExamsPage = () => {
         setSchoolYears(syList || []);
     };
 
-    const handleDeleteConfig = async (configId: string) => {
-        if (!confirm('Hapus folder ini beserta semua jadwal?')) return;
-        const result = await deleteExamConfigAction(configId);
-        if (result.success) {
-            const list = await listExamConfigs();
-            setExamConfigs(list);
-            if (selectedConfigId === configId) {
-                setSelectedConfigId(null);
-                setSelectedConfig(null);
-                setIsConfigDetailOpen(false);
-            }
-        } else { alert('Gagal: ' + (result.error || 'Unknown error')); }
-    };
 
-    const handleToggleConfigLock = async (configId: string, currentLock: boolean) => {
-        const result = await lockExamConfigAction(configId, !currentLock);
-        if (result.success) {
-            const list = await listExamConfigs();
-            setExamConfigs(list);
-            if (selectedConfigId === configId) {
-                const updated = await getExamConfig(configId);
-                setSelectedConfig(updated);
-            }
-        }
-    };
 
     const handleAddBankToConfig = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -681,18 +661,9 @@ const ExamsPage = () => {
             setIsAddBankModalOpen(false);
             setAddBankForm({ bank_id: '', subject_id: '' as string, duration_minutes: 90 });
             await openConfigDetail(selectedConfigId);
-        } else { alert('Gagal: ' + (result.error || 'Unknown error')); }
+        } else if (!result.success) alert('Gagal: ' + result.error);
     };
 
-    const handleRemoveBankFromConfig = async (bankId: string) => {
-        if (!confirm('Hapus bank soal dari folder?')) return;
-        const result = await removeExamConfigBankAction(bankId);
-        if (!result.success) {
-            alert('Gagal: ' + result.error);
-            return;
-        }
-        if (selectedConfigId) await openConfigDetail(selectedConfigId);
-    };
 
     const handleAddClassExam = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -721,31 +692,8 @@ const ExamsPage = () => {
         } else { alert('Gagal menyimpan jadwal.'); }
     };
 
-    const handleRemoveConfigExam = async (configExamId: string) => {
-        if (!confirm('Hapus jadwal ini?')) return;
-        const result = await removeExamConfigExamAction(configExamId);
-        if (result.success && selectedConfigId) await openConfigDetail(selectedConfigId);
-        else if (!result.success) alert('Gagal: ' + result.error);
-    };
 
-    const handleGenerateConfigExams = async () => {
-        if (selectedConfigExamIds.length === 0) { alert('Pilih jadwal terlebih dahulu.'); return; }
-        if (!confirm(`Generate ujian untuk ${selectedConfigExamIds.length} jadwal?`)) return;
-        setIsGenerating(true);
-        const result = await generateExamsFromConfigAction(selectedConfigExamIds);
-        setIsGenerating(false);
-        if (result.success) {
-            alert(`Berhasil membuat ${result.created} ujian!${result.skipped?.length ? '\nLewati: ' + result.skipped.join(', ') : ''}`);
-            setSelectedConfigExamIds([]);
-            if (selectedConfigId) await openConfigDetail(selectedConfigId);
-        } else { alert(result.error || 'Gagal generate.'); }
-    };
 
-    const toggleConfigExamSelection = (id: string) => {
-        setSelectedConfigExamIds(prev =>
-            prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-        );
-    };
     return (
         <div className="max-w-7xl mx-auto pb-24">
 
@@ -760,37 +708,16 @@ const ExamsPage = () => {
                     { id: 'assignment', label: 'Tugas' },
                     { id: 'lainnya', label: 'Ujian Lainnya' }
                 ].map(type => {
-                    let draft = 0;
-                    let active = 0;
-                    let finished = 0;
-                    let total = 0;
-
-                    if (type.id === 'pas') {
-                        total = examConfigs.length;
-                        examConfigs.forEach(p => {
-                            const now = new Date();
-                            const start = new Date(p.start_date);
-                            const end = new Date(p.end_date);
-                            const isActive = start <= now && end >= now && !p.is_locked;
-                            const isFinished = end < now;
-                            if (isActive) active++;
-                            else if (isFinished) finished++;
-                            else draft++;
-                        });
-                    } else {
-                        const typeExams = type.id === 'all' ? exams : exams.filter(e => e.exam_type === type.id);
-                        total = typeExams.length;
-                        draft = typeExams.filter(e => getExamStatus(e) === 'draft').length;
-                        active = typeExams.filter(e => getExamStatus(e) === 'active').length;
-                        finished = typeExams.filter(e => getExamStatus(e) === 'finished').length;
-                    }
+                    const total = type.id === 'pas'
+                        ? examConfigs.length
+                        : (type.id === 'all' ? exams : exams.filter(exam => exam.exam_type === type.id)).length;
                     
                     const isSelected = typeFilter === type.id;
                     
                     return (
                         <div 
                             key={type.id} 
-                            onClick={() => setTypeFilter(type.id as any)}
+                            onClick={() => setTypeFilter(type.id)}
                             className={`bg-white rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 ${
                                 isSelected 
                                 ? 'border-2 border-[#3083FF] shadow-md ring-4 ring-[#3083FF]/10' 
@@ -813,8 +740,8 @@ const ExamsPage = () => {
                     if (typeFilter === 'pas') {
                         count = examConfigs.filter(p => {
                             const now = new Date();
-                            const start = new Date(p.start_date);
-                            const end = new Date(p.end_date);
+                            const start = new Date(p.start_date ?? 0);
+                            const end = new Date(p.end_date ?? 0);
                             const isActive = start <= now && end >= now && !p.is_locked;
                             const isFinished = end < now;
                             const isDraft = !isActive && !isFinished;
@@ -869,7 +796,7 @@ const ExamsPage = () => {
                     <div className="relative w-full sm:w-auto">
                         <select
                             value={typeFilter}
-                            onChange={e => setTypeFilter(e.target.value as any)}
+                            onChange={e => setTypeFilter(e.target.value)}
                             className="w-full appearance-none bg-white border border-[#3083FF]/30 rounded-lg pl-4 pr-10 py-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none text-slate-600 cursor-pointer"
                         >
                             <option value="all">Semua Jenis Ujian</option>
@@ -1188,7 +1115,7 @@ const ExamsPage = () => {
                 <div className="py-16 text-center text-slate-400 border-2 border-dashed border-[#3083FF]/30 rounded-lg">
                     <ClipboardCheck size={40} className="mx-auto mb-3 opacity-40" />
                     <p className="font-medium">Tidak ada ujian{activeTab === 'draft' ? ' draft' : activeTab === 'active' ? ' aktif' : ''}</p>
-                    <p className="text-sm mt-1">Klik "Buat Ujian Baru" untuk memulai</p>
+                    <p className="text-sm mt-1">Klik &quot;Buat Ujian Baru&quot; untuk memulai</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
@@ -1402,7 +1329,7 @@ const ExamsPage = () => {
                                         <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Ujian</label>
                                         <select
                                             value={formData.examType}
-                                            onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
+                                            onChange={e => setFormData({ ...formData, examType: e.target.value as ExamType })}
                                             className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                                         >
                                             <option value="daily">Ulangan Harian</option>
@@ -1779,7 +1706,7 @@ const ExamsPage = () => {
                             <form onSubmit={handleEditExam} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Jenis Ujian</label>
-                                    <select value={formData.examType} onChange={e => setFormData({ ...formData, examType: e.target.value as any })}
+                                    <select value={formData.examType} onChange={e => setFormData({ ...formData, examType: e.target.value as ExamType })}
                                         className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
                                         <option value="daily">Ulangan Harian</option>
                                         <option value="pas">ASAS/PAS</option>
@@ -2063,7 +1990,7 @@ const ExamsPage = () => {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900">Tetapkan ke Kelas</h3>
-                                    <p className="text-xs text-slate-500 truncate">"{selectedExam?.title}"</p>
+                                    <p className="text-xs text-slate-500 truncate">&quot;{selectedExam?.title}&quot;</p>
                                 </div>
                             </div>
 
@@ -2262,7 +2189,7 @@ const ExamsPage = () => {
                                                 return total + (a?.mode === 'selected' ? a.studentIds.length : (classStudents[clsId] || []).length);
                                             }, 0)
                                         } siswa total yang bisa mengerjakan</p>
-                                        <p className="text-slate-500">• Klik "Pilih Siswa" pada kelas untuk membatasi siswa (misal: susulan)</p>
+                                        <p className="text-slate-500">• Klik &quot;Pilih Siswa&quot; pada kelas untuk membatasi siswa (misal: susulan)</p>
                                     </div>
                                 )}
                             </div>

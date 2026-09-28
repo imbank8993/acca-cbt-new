@@ -1,14 +1,12 @@
 "use client";
-import { Spinner } from '@/app/components/ui/Spinner';
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getAttemptDetailsForGrading, submitEssayGrades } from '@/lib/api/teachers';
-import { Loader2, ArrowLeft, Save, User, CheckCircle2, Hash } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
+import { getAttemptDetailsForGrading,submitEssayGrades } from '@/lib/api/teachers';
+import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { safeExternalUrl, attachmentLabel } from '@/lib/safe-url';
+import { motion } from 'framer-motion';
+import { ArrowLeft,CheckCircle2,Hash,Loader2,Save,User } from 'lucide-react';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 export default function GradeEssayPage() {
     const params = useParams();
@@ -76,9 +74,7 @@ export default function GradeEssayPage() {
         );
     }
 
-    /* @ts-ignore */
     const studentName = details.attempt.profiles?.full_name || 'Tanpa Nama';
-    /* @ts-ignore */
     const examTitle = details.attempt.exams?.title || 'Ujian';
 
     return (
