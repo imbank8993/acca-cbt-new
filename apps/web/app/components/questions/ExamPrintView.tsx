@@ -1,12 +1,14 @@
 "use client";
 
 import Image from 'next/image';
+import type { QuestionBank } from '@/lib/api/questions';
+import type { QuestionRecord } from '@/lib/api/questions';
 import { LatexRenderer } from './LatexRenderer';
 
 
 interface ExamPrintViewProps {
-    bankInfo: any;
-    questions: any[];
+    bankInfo: QuestionBank | null;
+    questions: QuestionRecord[];
 }
 
 function HtmlContent({ html, className = '' }: { html: string; className?: string }) {
@@ -16,7 +18,7 @@ function HtmlContent({ html, className = '' }: { html: string; className?: strin
 
 export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
     if (!questions || questions.length === 0) return null;
-    const totalScore = questions.reduce((s: number, q: any) => s + (q.score_default || 1), 0);
+    const totalScore = questions.reduce((sum, question) => sum + (question.score_default || 1), 0);
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
     return (
@@ -133,16 +135,16 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
             </div>
 
             {/* ── Soal ── */}
-            {questions.map((q: any, idx: number) => {
+            {questions.map((q, idx) => {
                 const opts = q.bank_question_options || q.options || [];
                 const sortedOpts = [...opts]
-                    .filter((o: any) => {
+                    .filter((o) => {
                         const t = (o.option_text || o.text || '').trim();
                         const clean = t.replace(/<p>(\s|<br>|&nbsp;)*<\/p>/gi, '').replace(/(\s|<br>|&nbsp;)+/g, '').trim();
                         if (!clean && !t.includes('<img') && !t.includes('<math')) return false;
                         return true;
                     })
-                    .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
                 
                 // Grouping Logic for Stimulus
                 const stim = Array.isArray(q.stimulus) ? q.stimulus[0] : q.stimulus;
@@ -229,7 +231,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                 {/* 1. MCQ (Pilihan Ganda) & SJT */}
                                 {['mcq', 'sjt'].includes(q.type) && (
                                     <div className="eqc-mc">
-                                        {sortedOpts.map((o: any, oi: number) => (
+                                        {sortedOpts.map((o, oi) => (
                                             <div key={oi} className="eqc-mc-row">
                                                 <div style={{ fontWeight: 'bold', width: '20px', flexShrink: 0 }}>{letters[oi] || '-'}.</div>
                                                 <HtmlContent html={o.option_text || o.text || ''} className="eqc-mc-content" />
@@ -241,7 +243,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                 {/* 2. MCQ Complex (Pilihan Ganda Kompleks) & Forced Choice */}
                                 {['mcq_complex', 'forced_choice', 'paired_comparison'].includes(q.type) && (
                                     <div className="eqc-mc">
-                                        {sortedOpts.map((o: any, oi: number) => (
+                                        {sortedOpts.map((o, oi) => (
                                             <div key={oi} className="eqc-mc-row">
                                                 <div className="eqc-checkbox" />
                                                 <HtmlContent html={o.option_text || o.text || ''} className="eqc-mc-content" />
@@ -282,7 +284,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedOpts.map((o: any, oi: number) => (
+                                            {sortedOpts.map((o, oi) => (
                                                 <tr key={oi}>
                                                     <td>
                                                         <HtmlContent html={o.option_text || o.text || ''} />
@@ -311,7 +313,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedOpts.map((o: any, oi: number) => (
+                                            {sortedOpts.map((o, oi) => (
                                                 <tr key={oi}>
                                                     <td>
                                                         <HtmlContent html={o.option_text || o.text || ''} />
@@ -332,7 +334,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                 {q.type === 'matching' && (
                                     <div style={{ marginTop: '12px', display: 'flex', gap: '24px' }}>
                                         <div style={{ flex: 1 }}>
-                                            {sortedOpts.map((o: any, oi: number) => (
+                                            {sortedOpts.map((o, oi) => (
                                                 <div key={`left-${oi}`} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                                                     <span style={{ fontWeight: 700, color: '#334155', minWidth: '16px' }}>{oi + 1}.</span>
                                                     <HtmlContent html={o.option_text || o.text || ''} />
@@ -340,10 +342,10 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             ))}
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            {(q.metadata?.right_items || []).map((item: any, idx: number) => (
+                                            {(q.metadata?.right_items || []).map((item, idx) => (
                                                 <div key={`right-${idx}`} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                                                     <span style={{ fontWeight: 700, color: '#334155', minWidth: '16px' }}>{String.fromCharCode(65 + idx)}.</span>
-                                                    <HtmlContent html={typeof item === 'string' ? item : (item?.text || item?.option_text || '')} />
+                                                    <HtmlContent html={item} />
                                                 </div>
                                             ))}
                                         </div>
@@ -356,15 +358,15 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                         <thead>
                                             <tr>
                                                 <th style={{ textAlign: 'left', width: 'auto' }}>Pernyataan / Item</th>
-                                                {(q.metadata?.categories || []).map((cat: any, cidx: number) => (
+                                                {(q.metadata?.categories || []).map((cat, cidx) => (
                                                     <th key={`cat-${cidx}`} style={{ width: '80px', textAlign: 'center' }}>
-                                                        {typeof cat === 'string' ? cat : (cat?.text || cat?.option_text || `Kategori ${cidx + 1}`)}
+                                                        {cat || `Kategori ${cidx + 1}`}
                                                     </th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedOpts.map((o: any, oi: number) => (
+                                            {sortedOpts.map((o, oi) => (
                                                 <tr key={oi}>
                                                     <td>
                                                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -372,7 +374,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                                             <HtmlContent html={o.option_text || o.text || ''} />
                                                         </div>
                                                     </td>
-                                                    {(q.metadata?.categories || []).map((cat: any, cidx: number) => (
+                                                    {(q.metadata?.categories || []).map((cat, cidx) => (
                                                         <td key={`cell-${oi}-${cidx}`} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                                                             <div className="eqc-checkbox" style={{ margin: '0 auto' }}></div>
                                                         </td>
@@ -392,7 +394,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedOpts.map((o: any, oi: number) => (
+                                            {sortedOpts.map((o, oi) => (
                                                 <tr key={oi}>
                                                     <td>
                                                         <HtmlContent html={o.option_text || o.text || ''} />
@@ -410,7 +412,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                 {q.type === 'short_answer' && (
                                     <div style={{ marginTop: '16px' }}>
                                         {(q.metadata?.blanks || []).length > 0 ? (
-                                            (q.metadata?.blanks || []).map((_: any, bi: number) => (
+                                            (q.metadata?.blanks || []).map((_, bi) => (
                                                 <div key={bi} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
                                                     <span style={{ fontSize: '11px', color: '#64748b' }}>({bi + 1})</span>
                                                     <div className="eqc-line" style={{ flex: 1, height: '14px' }} />

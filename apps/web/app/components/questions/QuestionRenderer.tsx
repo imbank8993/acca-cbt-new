@@ -135,6 +135,31 @@ interface QuestionRendererProps {
     userId?: string;
 }
 
+type QuestionMetadata = NonNullable<Question['metadata']>;
+
+function normalizeQuestionMetadata(raw: unknown): QuestionMetadata {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                ? parsed as QuestionMetadata
+                : {};
+        } catch {
+            return {};
+        }
+    }
+    return typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as QuestionMetadata
+        : {};
+}
+
+function firstContentItem(
+    value: Question['stimulus'] | Question['question_stimuli'] | Question['instruction'] | Question['question_instructions']
+) {
+    return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
 export const QuestionRenderer = React.memo<QuestionRendererProps>(({
     question,
     answer,
@@ -174,15 +199,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
     const type: QuestionType = question.type;
     const options: QuestionOption[] = question?.bank_question_options ?? [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const metadata: any = (() => {
-        const raw = question?.metadata;
-        if (!raw) return {};
-        if (typeof raw === 'string') {
-            try { return JSON.parse(raw); } catch { return {}; }
-        }
-        return raw;
-    })();
+    const metadata = normalizeQuestionMetadata(question.metadata);
 
     // Helper to safely parse JSON answers (imported from lib/answer-parser.ts)
 
@@ -291,16 +308,14 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
             <div className="w-full space-y-6">
             {/* STIMULUS VIEWER */}
             {(() => {
-                let stim = (question as any).stimulus || (question as any).question_stimuli;
-                if (Array.isArray(stim) && stim.length > 0) stim = stim[0];
+                const stim = firstContentItem(question.stimulus || question.question_stimuli);
                 return showQuestion && stim ? <StimulusViewer stimulus={stim} /> : null;
             })()}
 
             {/* INSTRUCTIONS MODAL */}
             <AnimatePresence>
                 {(() => {
-                    let inst = (question as any).instruction || (question as any).question_instructions;
-                    if (Array.isArray(inst) && inst.length > 0) inst = inst[0];
+                    const inst = firstContentItem(question.instruction || question.question_instructions);
                     const hasInst = metadata.instructions || inst?.content;
 
                     return showQuestion && showInstructions && hasInst ? (
@@ -352,8 +367,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         <QuestionContent content={question.question_text || ''} className="text-base leading-relaxed text-slate-800" />
                     </div>
                     {(() => {
-                        let inst = (question as any).instruction || (question as any).question_instructions;
-                        if (Array.isArray(inst) && inst.length > 0) inst = inst[0];
+                        const inst = firstContentItem(question.instruction || question.question_instructions);
                         const hasInst = metadata.instructions || inst?.content;
                         
                         return hasInst ? (
@@ -875,7 +889,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                 answer={answer}
                                 showFeedback={showFeedback}
                                 onAnswerChange={onAnswerChange}
-                                allVariations={metadata?.blanks?.map((b: any) => {
+                                allVariations={metadata.blanks?.map((b) => {
                                     const answer = typeof b.answer === 'string' && b.answer.trim() !== '' ? b.answer : null;
                                     const variations = Array.isArray(b.variations) ? b.variations : [];
                                     return answer ? [answer, ...variations] : variations;
@@ -1163,7 +1177,38 @@ interface ShortAnswerInlineProps {
     allVariations: string[][];
 }
 
-const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata, options, examId, userId }: any) => {
+interface EssayInputProps {
+    answer: AnswerValue;
+    showFeedback: boolean;
+    onAnswerChange: (answer: AnswerValue) => void;
+    metadata: QuestionMetadata;
+    options: QuestionOption[];
+    examId?: string;
+    userId?: string;
+}
+
+interface EssayAnswerPayload {
+    text?: unknown;
+    fileUrls?: unknown;
+    videoUrl?: unknown;
+    topicId?: unknown;
+}
+
+function readEssayAnswerPayload(value: unknown): { text: string; files: string[]; video: string; topic: string } | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const payload = value as EssayAnswerPayload;
+    const files = Array.isArray(payload.fileUrls)
+        ? payload.fileUrls.filter((item): item is string => typeof item === 'string')
+        : [];
+    return {
+        text: typeof payload.text === 'string' ? payload.text : '',
+        files,
+        video: typeof payload.videoUrl === 'string' ? payload.videoUrl : '',
+        topic: typeof payload.topicId === 'string' ? payload.topicId : '',
+    };
+}
+
+const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata, options, examId, userId }: EssayInputProps) => {
     // Parse json answer if it exists
     const [localEssay, setLocalEssay] = useState('');
     const [fileUrls, setFileUrls] = useState<string[]>([]);
@@ -1175,7 +1220,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
     // multi-topik tanpa mengisi topik, perlakukan sebagai esai biasa —
     // kalau tidak, soal tidak punya satu pun kolom jawaban.
     const topicOptions = React.useMemo(
-        () => (options || []).filter((o: any) => String(o?.option_text || o?.text || '').trim() !== ''),
+        () => options.filter((option) => String(option.option_text || option.text || '').trim() !== ''),
         [options]
     );
     const isMultiTopic = !!metadata?.is_multi_topic && topicOptions.length > 0;
@@ -1194,19 +1239,17 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
     // selesai belakangan menimpa teks yang diketik selama upload berjalan.
     const latestRef = useRef<{ text: string; files: string[]; video: string; topic: string; dirty: boolean }>({ text: '', files: [], video: '', topic: '', dirty: false });
 
-    const parseCurrentAnswer = (ans: any) => {
+    const parseCurrentAnswer = (ans: AnswerValue) => {
         let text = '';
         let files: string[] = [];
         let video = '';
         let topic = '';
         if (typeof ans === 'string') {
             try {
-                const parsed = JSON.parse(ans);
-                if (parsed.text !== undefined || parsed.topicId !== undefined || parsed.fileUrls !== undefined) {
-                    text = parsed.text || '';
-                    files = parsed.fileUrls || [];
-                    video = parsed.videoUrl || '';
-                    topic = parsed.topicId || '';
+                const parsed: unknown = JSON.parse(ans);
+                const payload = readEssayAnswerPayload(parsed);
+                if (payload) {
+                    ({ text, files, video, topic } = payload);
                 } else {
                     text = ans;
                 }
@@ -1214,10 +1257,8 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                 text = ans;
             }
         } else if (ans && typeof ans === 'object') {
-            text = ans.text || '';
-            files = ans.fileUrls || [];
-            video = ans.videoUrl || '';
-            topic = ans.topicId || '';
+            const payload = readEssayAnswerPayload(ans);
+            if (payload) ({ text, files, video, topic } = payload);
         }
         return { text, files, video, topic };
     };
@@ -1283,7 +1324,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-xs font-bold text-blue-800">Topik yang dipilih:</p>
                         <div className="mt-1 text-sm text-blue-900 font-medium">
-                            <QuestionContent content={topicOptions.find((o: any) => o.id === topicId)?.option_text || ''} />
+                            <QuestionContent content={topicOptions.find((option) => option.id === topicId)?.option_text || ''} />
                         </div>
                     </div>
                 )}
@@ -1339,7 +1380,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                 <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <p className="text-sm font-bold text-slate-700">Pilih Topik Tugas <span className="text-rose-500">*</span></p>
                     <div className="grid grid-cols-1 gap-3">
-                        {topicOptions.map((opt: any, idx: number) => {
+                        {topicOptions.map((opt, idx) => {
                             const isSelected = topicId === opt.id;
                             const label = String.fromCharCode(65 + idx);
                             

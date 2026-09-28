@@ -1,3 +1,6 @@
+import type { AuthUser } from '@acca-cbt/shared';
+import type { StudentExam,StudentExamAttempt,StudentExamQuestion } from './api/students';
+
 /**
  * Penyimpanan snapshot jawaban ujian.
  *
@@ -49,11 +52,11 @@ export interface ExamRecoverySession {
     attemptId: string;
     userId: string;
     deviceId: string;
-    user: Record<string, unknown>;
+    user: AuthUser;
     profile: { full_name: string | null; identity_number: string | null } | null;
-    exam: Record<string, unknown>;
-    attempt: Record<string, unknown>;
-    questions: Array<Record<string, unknown>>;
+    exam: StudentExam;
+    attempt: StudentExamAttempt;
+    questions: StudentExamQuestion[];
     deadlineAt: number;
     lastQuestionIndex: number;
     cachedAt: string;
@@ -144,9 +147,9 @@ function normalizeRecoverySession(value: unknown): ExamRecoverySession | null {
         !row.exam || typeof row.exam !== 'object' ||
         !row.attempt || typeof row.attempt !== 'object' ||
         !Array.isArray(row.questions) ||
-        (row.user as Record<string, unknown>).id !== row.userId ||
-        (row.exam as Record<string, unknown>).id !== row.examId ||
-        (row.attempt as Record<string, unknown>).id !== row.attemptId
+        row.user.id !== row.userId ||
+        row.exam.id !== row.examId ||
+        row.attempt.id !== row.attemptId
     ) return null;
 
     return {
@@ -154,16 +157,16 @@ function normalizeRecoverySession(value: unknown): ExamRecoverySession | null {
         attemptId: row.attemptId,
         userId: row.userId,
         deviceId: row.deviceId,
-        user: row.user as Record<string, unknown>,
+        user: row.user,
         profile: row.profile && typeof row.profile === 'object'
             ? {
                 full_name: typeof row.profile.full_name === 'string' ? row.profile.full_name : null,
                 identity_number: typeof row.profile.identity_number === 'string' ? row.profile.identity_number : null,
             }
             : null,
-        exam: row.exam as Record<string, unknown>,
-        attempt: row.attempt as Record<string, unknown>,
-        questions: row.questions.filter((question): question is Record<string, unknown> =>
+        exam: row.exam,
+        attempt: row.attempt,
+        questions: row.questions.filter((question) =>
             Boolean(question) && typeof question === 'object' && !Array.isArray(question)),
         deadlineAt: row.deadlineAt,
         lastQuestionIndex: Number.isInteger(row.lastQuestionIndex) && (row.lastQuestionIndex as number) >= 0

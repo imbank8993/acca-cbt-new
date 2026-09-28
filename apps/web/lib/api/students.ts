@@ -1,5 +1,6 @@
 import { getDeviceId } from '../device-id';
 import { apiGet,apiSend } from './client';
+import type { Question } from '@/app/types';
 
 /**
  * Semua yang dilakukan siswa atas dirinya sendiri.
@@ -26,8 +27,28 @@ export interface AnswerPayload {
 
 // ── Kelas ────────────────────────────────────────────────────────────────────
 
-export async function listStudentClasses(): Promise<any[]> {
-    const res = await apiGet<{ classes: any[] }>('/api/students/classes');
+export interface StudentClass {
+    id: string;
+    name: string;
+    program?: string | null;
+    type?: string | null;
+}
+
+export interface StudentScheduledExam {
+    id: string;
+    title: string;
+    exam_type?: string | null;
+    duration_minutes?: number | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    status?: string | null;
+    is_published: boolean;
+    isCompleted: boolean;
+    isInProgress?: boolean;
+}
+
+export async function listStudentClasses(): Promise<StudentClass[]> {
+    const res = await apiGet<{ classes: StudentClass[] }>('/api/students/classes');
     return res.success ? res.classes : [];
 }
 
@@ -45,25 +66,76 @@ export function leaveClassAction(classId: string) {
 
 // ── Jadwal & hasil ───────────────────────────────────────────────────────────
 
-export async function getStudentExams(): Promise<any[]> {
+export async function getStudentExams(): Promise<StudentScheduledExam[]> {
     const res = await getStudentExamsResult();
     return res.success ? res.exams : [];
 }
 
 export async function getStudentExamsResult() {
-    const res = await apiGet<{ exams: any[] }>('/api/students/exams');
+    const res = await apiGet<{ exams: StudentScheduledExam[] }>('/api/students/exams');
     return res.success
         ? { success: true as const, exams: res.exams }
         : { success: false as const, error: res.error };
 }
 
-export async function getStudentResultsAction(): Promise<any[]> {
+export interface StudentResultExam {
+    title: string;
+    duration_minutes?: number;
+    show_results: boolean;
+    scoring_type?: string | null;
+}
+
+export interface StudentResult {
+    id: string;
+    total_score: number | null;
+    score_irt: number | null;
+    finished_at: string | null;
+    status: string;
+    needs_manual_grading: boolean;
+    exams?: StudentResultExam | null;
+}
+
+export interface StudentResultQuestion extends Omit<Question, 'bank_question_options'> {
+    options: Question['bank_question_options'];
+    bank_question_options?: Question['bank_question_options'];
+}
+
+export interface StudentAttemptAnswer {
+    id: string;
+    questionId: string;
+    selectedOptionId?: string | null;
+    essayAnswer?: string | Record<string, unknown> | null;
+    isCorrect?: boolean | null;
+    score?: number | null;
+    metadata?: { dimension_scores?: Record<string, number>; [key: string]: unknown } | null;
+    question: StudentResultQuestion | null;
+}
+
+export interface StudentAttemptDetails {
+    attempt: {
+        id: string;
+        total_score?: number | null;
+        score_irt?: number | null;
+        status: string;
+        needs_manual_grading?: boolean;
+        started_at?: string | null;
+        finished_at?: string | null;
+        personal_end_time?: string | null;
+        metadata?: { dimension_scores?: Record<string, number>; [key: string]: unknown } | null;
+        exams?: { id: string; title: string; show_results: boolean; question_bank_id?: string | null; scoring_type?: string | null } | null;
+    };
+    dimensions: { id: string; name: string }[];
+    interpretations: { dimension_id: string; min_score: number; max_score: number; title?: string | null; interpretation?: string | null }[];
+    answers: StudentAttemptAnswer[];
+}
+
+export async function getStudentResultsAction(): Promise<StudentResult[]> {
     const res = await getStudentResultsResult();
     return res.success ? res.results : [];
 }
 
 export async function getStudentResultsResult() {
-    const res = await apiGet<{ results: any[] }>('/api/students/results');
+    const res = await apiGet<{ results: StudentResult[] }>('/api/students/results');
     return res.success
         ? { success: true as const, results: res.results }
         : { success: false as const, error: res.error };
@@ -74,12 +146,7 @@ export async function getStudentResultsResult() {
  * memakai itu untuk menampilkan "hasil belum dibuka" tanpa membedakan sebabnya.
  */
 export async function getAttemptDetailsAction(attemptId: string) {
-    const res = await apiGet<{
-        attempt: any;
-        dimensions: any[];
-        interpretations: any[];
-        answers: any[];
-    }>(`/api/students/attempts/${encodeURIComponent(attemptId)}`);
+    const res = await apiGet<StudentAttemptDetails>(`/api/students/attempts/${encodeURIComponent(attemptId)}`);
 
     if (!res.success) return null;
 
@@ -98,6 +165,38 @@ export interface StudentProfile {
     identity_number: string | null;
 }
 
+export interface StudentExam {
+    id: string;
+    title: string;
+    exam_type: string;
+    duration_minutes: number;
+    metadata?: {
+        is_safe_mode?: boolean;
+        assignment_description?: string;
+        videoUrl?: string;
+        documentUrl?: string;
+        allow_file_upload?: boolean;
+        allowed_file_types?: string[];
+        [key: string]: unknown;
+    } | null;
+}
+
+export type StudentExamQuestion = Question;
+
+export interface StudentExamAttempt {
+    id: string;
+    status: string;
+    warning_count?: number;
+    metadata?: { proctor_recovery_until?: string; [key: string]: unknown } | null;
+}
+
+export interface StudentSavedAnswer {
+    question_id: string;
+    selected_option_id?: string | null;
+    essay_answer?: string | null;
+    is_doubtful?: boolean;
+}
+
 /**
  * Keterangan ujian untuk layar pengerjaan, beserta identitas peserta.
  *
@@ -106,7 +205,7 @@ export interface StudentProfile {
  * NestJS.
  */
 export async function getExamForAttempt(examId: string) {
-    const res = await apiGet<{ exam: any; profile: StudentProfile | null }>(
+    const res = await apiGet<{ exam: StudentExam; profile: StudentProfile | null }>(
         `/api/students/exams/${encodeURIComponent(examId)}`,
     );
     return res.success
@@ -115,7 +214,7 @@ export async function getExamForAttempt(examId: string) {
 }
 
 export async function getExamQuestionsAction(examId: string) {
-    const res = await apiGet<{ questions: any[] }>(
+    const res = await apiGet<{ questions: StudentExamQuestion[] }>(
         `/api/students/exams/${encodeURIComponent(examId)}/questions`,
     );
     return res.success
@@ -135,8 +234,8 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
         started: boolean;
         error?: string;
         expiredAttemptId?: string;
-        attempt?: any;
-        answers?: any[];
+        attempt?: StudentExamAttempt;
+        answers?: StudentSavedAnswer[];
         remainingSeconds?: number;
     }>(`/api/students/exams/${encodeURIComponent(examId)}/attempts`, { deviceId });
 
@@ -150,7 +249,7 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
     // `success`, supaya `expiredAttemptId` tidak ikut terbuang oleh penanganan
     // galat umum — layar ujian memakainya untuk menyusulkan jawaban yang
     // tertinggal di perangkat.
-    if (!res.started) {
+    if (!res.started || !res.attempt) {
         return {
             success: false as const,
             error: res.error || 'Ujian tidak dapat dimulai.',

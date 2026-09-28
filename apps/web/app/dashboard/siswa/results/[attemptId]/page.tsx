@@ -2,15 +2,39 @@
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { formatAnswerKey,formatStudentAnswer } from '@/lib/answer-display';
-import { getAttemptDetailsAction } from '@/lib/api/students';
+import { getAttemptDetailsAction,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import { ArrowLeft,BarChart3,BookOpen,Brain,CheckCircle2,Clock,Info,Loader2,XCircle } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { useCallback,useEffect,useState } from 'react';
 
 const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
+
+function hasResultQuestion(
+    answer: StudentAttemptAnswer,
+): answer is StudentAttemptAnswer & { question: StudentResultQuestion } {
+    return answer.question !== null;
+}
+
+function summarizeEssayAnswer(value: StudentAttemptAnswer['essayAnswer']) {
+    let text = typeof value === 'string' ? value : '';
+    let fileCount = 0;
+    let hasVideo = false;
+    let parsed: unknown = value;
+
+    if (typeof value === 'string') {
+        try { parsed = JSON.parse(value); } catch { parsed = null; }
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const payload = parsed as Record<string, unknown>;
+        text = typeof payload.text === 'string' ? payload.text : '';
+        fileCount = Array.isArray(payload.fileUrls) ? payload.fileUrls.length : 0;
+        hasVideo = typeof payload.videoUrl === 'string' && payload.videoUrl.trim().length > 0;
+    }
+    return { text, fileCount, hasVideo };
+}
 
 export default function StudentResultDetailsPage() {
     const params = useParams();
@@ -18,14 +42,10 @@ export default function StudentResultDetailsPage() {
     const attemptId = params.attemptId as string;
 
     const [loading, setLoading] = useMemoryState('siswa_results__attemptId__loading', true);
-    const [details, setDetails] = useState<any>(null);
+    const [details, setDetails] = useState<StudentAttemptDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'pengetahuan' | 'kepribadian'>('pengetahuan');
 
-    useEffect(() => {
-        load();
-    }, [attemptId]);
-
-    async function load() {
+    const load = useCallback(async () => {
         setLoading(true);
         const user = await getSessionUser();
         if (user) {
@@ -34,7 +54,7 @@ export default function StudentResultDetailsPage() {
             // Auto-switch to kepribadian if no academic answers
             if (data) {
                 const pengetahuanAnswers = (data.answers || []).filter(
-                    (a: any) => !PERSONALITY_TYPES.includes(a.question?.type)
+                    (answer) => !PERSONALITY_TYPES.includes(answer.question?.type || '')
                 );
                 if (pengetahuanAnswers.length === 0 && data.attempt?.metadata?.dimension_scores) {
                     setActiveTab('kepribadian');
@@ -42,7 +62,12 @@ export default function StudentResultDetailsPage() {
             }
         }
         setLoading(false);
-    }
+    }, [attemptId, setLoading]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => void load(), 0);
+        return () => window.clearTimeout(timer);
+    }, [load]);
 
     const formatUTCDateTime = (str: string) => {
         if (!str) return 'N/A';
@@ -80,15 +105,17 @@ export default function StudentResultDetailsPage() {
     const { attempt, answers } = details;
 
     // Separate answers into pengetahuan and kepribadian
-    const pengetahuanAnswers = answers.filter((a: any) => !PERSONALITY_TYPES.includes(a.question?.type));
-    const kepribadianAnswers = answers.filter((a: any) => PERSONALITY_TYPES.includes(a.question?.type));
+    const answersWithQuestions = answers.filter(hasResultQuestion);
+    const pengetahuanAnswers = answersWithQuestions.filter((answer) => !PERSONALITY_TYPES.includes(answer.question.type));
+    const kepribadianAnswers = answersWithQuestions.filter((answer) => PERSONALITY_TYPES.includes(answer.question.type));
 
-    const correctCount = pengetahuanAnswers.filter((a: any) => a.isCorrect).length;
+    const correctCount = pengetahuanAnswers.filter((answer) => answer.isCorrect).length;
     const totalPengetahuanCount = pengetahuanAnswers.length;
     const totalScore = Number(attempt.total_score || 0);
     const scoreIrt = attempt.score_irt != null ? Number(attempt.score_irt) : null;
 
     const hasDimensionScores = attempt.metadata?.dimension_scores && Object.keys(attempt.metadata.dimension_scores).length > 0;
+    const dimensionScores = attempt.metadata?.dimension_scores || {};
     const hasKepribadian = kepribadianAnswers.length > 0 || hasDimensionScores;
     const hasPengetahuan = pengetahuanAnswers.length > 0;
 
@@ -220,9 +247,9 @@ export default function StudentResultDetailsPage() {
                                 <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Tidak ada soal pengetahuan</p>
                             </div>
                         ) : (
-                            pengetahuanAnswers.map((ans: any, idx: number) => {
+                            pengetahuanAnswers.map((ans, idx) => {
                                 const q = ans.question;
-                                const isEssay = ['essay', 'esay', 'uraian'].includes(q?.type?.toLowerCase());
+                                const isEssay = ['essay', 'esay', 'uraian'].includes(q.type.toLowerCase());
 
                                 return (
                                     <motion.div
@@ -250,9 +277,9 @@ export default function StudentResultDetailsPage() {
                                             {isEssay ? (
                                                 <div className="flex flex-col items-end gap-1">
                                                     <div className="text-primary font-bold text-[10px] uppercase tracking-widest bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/10">
-                                                        {ans.score > 0 ? `Nilai: ${ans.score}` : 'Menunggu Koreksi'}
+                                                        {Number(ans.score ?? 0) > 0 ? `Nilai: ${ans.score}` : 'Menunggu Koreksi'}
                                                     </div>
-                                                    {ans.score <= 0 && (
+                                                    {Number(ans.score ?? 0) <= 0 && (
                                                         <span className="text-[8px] font-bold text-slate-400 uppercase">Skor akan tampil setelah dinilai guru</span>
                                                     )}
                                                 </div>
@@ -273,11 +300,11 @@ export default function StudentResultDetailsPage() {
                                                 <QuestionRenderer
                                                     question={{
                                                         ...q,
-                                                        question_text: q?.question_text,
-                                                        type: q?.type,
-                                                        score_default: q?.score_default,
-                                                        metadata: q?.metadata,
-                                                        bank_question_options: q?.options
+                                                        question_text: q.question_text,
+                                                        type: q.type,
+                                                        score_default: q.score_default,
+                                                        metadata: q.metadata,
+                                                        bank_question_options: q.options
                                                     }}
                                                     answer={ans.selectedOptionId || ans.essayAnswer}
                                                     onAnswerChange={() => {}}
@@ -305,24 +332,7 @@ export default function StudentResultDetailsPage() {
                                                         {isEssay
                                                             ? (ans.essayAnswer ? (
                                                                 (() => {
-                                                                    let text = ans.essayAnswer;
-                                                                    let fileCount = 0;
-                                                                    let hasVideo = false;
-                                                                    if (typeof text === 'string') {
-                                                                        try {
-                                                                            const parsed = JSON.parse(text);
-                                                                            if (parsed.text !== undefined) {
-                                                                                text = parsed.text;
-                                                                                fileCount = (parsed.fileUrls || []).length;
-                                                                                hasVideo = !!parsed.videoUrl;
-                                                                            }
-                                                                        } catch {}
-                                                                    } else if (text && typeof text === 'object') {
-                                                                        const obj: any = text;
-                                                                        text = obj.text || '';
-                                                                        fileCount = (obj.fileUrls || []).length;
-                                                                        hasVideo = !!obj.videoUrl;
-                                                                    }
+                                                                    const { text, fileCount, hasVideo } = summarizeEssayAnswer(ans.essayAnswer);
                                                                     return (
                                                                         <div className="space-y-2">
                                                                             <LatexRenderer text={text || ''} />
@@ -341,7 +351,7 @@ export default function StudentResultDetailsPage() {
                                                                 // isian) menyimpan jawabannya di essayAnswer (JSON) — dulu
                                                                 // hanya selectedOptionId yang dicek sehingga tampil
                                                                 // "Tidak dijawab" padahal siswa menjawab.
-                                                                const lines = formatStudentAnswer({ ...q, options: q?.options }, ans.selectedOptionId, ans.essayAnswer);
+                                                                const lines = formatStudentAnswer({ ...q, options: q.options }, ans.selectedOptionId, ans.essayAnswer);
                                                                 return lines.length > 0
                                                                     ? (
                                                                         <div className="space-y-1">
@@ -357,7 +367,7 @@ export default function StudentResultDetailsPage() {
                                                 {/* Correct answer (only for wrong non-essay) — kunci lengkap
                                                     per tipe soal (bukan hanya satu opsi is_correct pertama) */}
                                                 {!isEssay && ans.isCorrect !== true && (() => {
-                                                    const keyLines = formatAnswerKey({ ...q, options: q?.options });
+                                                    const keyLines = formatAnswerKey({ ...q, options: q.options });
                                                     if (keyLines.length === 0) return null;
                                                     return (
                                                         <div className="p-5 rounded-xl border-2 border-emerald-100/50 bg-emerald-50/30">
@@ -408,14 +418,14 @@ export default function StudentResultDetailsPage() {
                                 {/* Dimension Interpretations (Professional) */}
                                 <div className="space-y-4 mb-6">
                                     {(() => {
-                                        const entries = Object.entries(attempt.metadata.dimension_scores as Record<string, number>);
+                                        const entries = Object.entries(dimensionScores);
                                         entries.sort((a, b) => b[1] - a[1]); // Sort by highest score first
                                         
                                         return entries.map(([dimId, score]) => {
-                                            const dimName = details.dimensions?.find((d: any) => d.id === dimId)?.name || 'Dimensi';
+                                            const dimName = details.dimensions.find((dimension) => dimension.id === dimId)?.name || 'Dimensi';
                                             
                                             // Find the matching interpretation for this score
-                                            const matchedInterp = details.interpretations?.find((interp: any) => 
+                                            const matchedInterp = details.interpretations.find((interp) =>
                                                 interp.dimension_id === dimId && 
                                                 score >= interp.min_score && 
                                                 score <= interp.max_score
@@ -453,11 +463,11 @@ export default function StudentResultDetailsPage() {
                                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 px-1">Ringkasan Spektrum</h3>
                                     <div className="space-y-3">
                                         {(() => {
-                                            const entries = Object.entries(attempt.metadata.dimension_scores as Record<string, number>);
+                                            const entries = Object.entries(dimensionScores);
                                             entries.sort((a, b) => b[1] - a[1]);
                                             const maxScore = entries[0]?.[1] || 1;
                                             return entries.map(([dimId, score], i) => {
-                                                const dimName = details.dimensions?.find((d: any) => d.id === dimId)?.name || 'Dimensi';
+                                                const dimName = details.dimensions.find((dimension) => dimension.id === dimId)?.name || 'Dimensi';
                                                 const pct = Math.round((Number(score) / Number(maxScore)) * 100);
                                                 return (
                                                     <div key={dimId}>
@@ -486,12 +496,12 @@ export default function StudentResultDetailsPage() {
                         {kepribadianAnswers.length > 0 && (
                             <div className="space-y-5">
                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">Detail Jawaban Kepribadian</p>
-                                {kepribadianAnswers.map((ans: any, idx: number) => {
+                                {kepribadianAnswers.map((ans, idx) => {
                                     const q = ans.question;
                                     const dimScores = ans.metadata?.dimension_scores || {};
                                     const topDimEntry = Object.entries(dimScores as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
                                     const topDimName = topDimEntry
-                                        ? details.dimensions?.find((d: any) => d.id === topDimEntry[0])?.name
+                                        ? details.dimensions.find((dimension) => dimension.id === topDimEntry[0])?.name
                                         : null;
 
                                     return (
@@ -523,11 +533,11 @@ export default function StudentResultDetailsPage() {
                                                 <QuestionRenderer
                                                     question={{
                                                         ...q,
-                                                        question_text: q?.question_text,
-                                                        type: q?.type,
-                                                        score_default: q?.score_default,
-                                                        metadata: q?.metadata,
-                                                        bank_question_options: q?.options
+                                                        question_text: q.question_text,
+                                                        type: q.type,
+                                                        score_default: q.score_default,
+                                                        metadata: q.metadata,
+                                                        bank_question_options: q.options
                                                     }}
                                                     answer={ans.selectedOptionId || ans.essayAnswer}
                                                     onAnswerChange={() => {}}

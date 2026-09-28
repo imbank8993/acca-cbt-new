@@ -3,7 +3,7 @@ import { getErrorMessage } from '@/lib/errors';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
 import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
-import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentProfile } from '@/lib/api/students';
+import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
 import { getDeviceId,setDeviceId } from '@/lib/device-id';
 import {
 createSecurityEventId,
@@ -29,6 +29,7 @@ import { clearCbtSession } from '@/lib/session-reset';
 import { AlertTriangle,CheckCircle2,Loader2,RefreshCw,ShieldCheck } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useRef,useState } from 'react';
+import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 
 const MAX_VIOLATIONS = 3;
@@ -41,7 +42,7 @@ const MAX_VIOLATIONS = 3;
 const COMPLEX_TYPES = ['essay', 'esay', 'uraian', 'mcq_complex', 'true_false', 'categorization', 'matching', 'short_answer', 'likert', 'checklist', 'ranking', 'ordering'];
 
 /** Petakan satu jawaban ke kolom cbt_answers yang benar untuk tipe soalnya. */
-function answerColumns(question: any, ansVal: string | undefined, isDoubtful: boolean) {
+function answerColumns(question: StudentExamQuestion | undefined, ansVal: string | undefined, isDoubtful: boolean) {
     const isComplex = question ? COMPLEX_TYPES.includes(question.type) : false;
     return {
         selected_option_id: isComplex ? undefined : (ansVal || undefined),
@@ -51,7 +52,7 @@ function answerColumns(question: any, ansVal: string | undefined, isDoubtful: bo
 }
 
 /** Bentuk baris untuk sinkronisasi jawaban massal. */
-function answerRow(question: any, questionId: string, ansVal: string | undefined, isDoubtful: boolean) {
+function answerRow(question: StudentExamQuestion | undefined, questionId: string, ansVal: string | undefined, isDoubtful: boolean) {
     return { questionId, ...answerColumns(question, ansVal, isDoubtful) };
 }
 
@@ -61,13 +62,13 @@ export default function ExamPage() {
     const examId = params.id as string;
 
     // Core State
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<AuthUser | null>(null);
     // Student identity for the exam header. The auth user only carries an email;
     // the real full_name + NISN (identity_number) live in cbt_profiles.
     const [profile, setProfile] = useState<StudentProfile | null>(null);
-    const [exam, setExam] = useState<any>(null);
+    const [exam, setExam] = useState<StudentExam | null>(null);
     const [isCompleted, setIsCompleted] = useState(false);
-    const [questions, setQuestions] = useState<any[]>([]);
+    const [questions, setQuestions] = useState<StudentExamQuestion[]>([]);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [doubtfulAnswers, setDoubtfulAnswers] = useState<Set<string>>(new Set());
@@ -79,8 +80,8 @@ export default function ExamPage() {
     // tidak boleh membaca closure state yang bisa basi.
     const answersRef = useRef<Record<string, string>>({});
     const doubtfulRef = useRef<Set<string>>(new Set());
-    const questionsRef = useRef<any[]>([]);
-    const attemptRef = useRef<any>(null);
+    const questionsRef = useRef<StudentExamQuestion[]>([]);
+    const attemptRef = useRef<StudentExamAttempt | null>(null);
     // Soal yang autosave-nya GAGAL terkirim, dan yang requestnya masih terbang.
     // Dulu kegagalan ditelan diam-diam (`.catch(() => {})`): centang terakhir
     // pada PGK bisa tidak pernah sampai ke server, dan jalur penutupan yang
@@ -92,7 +93,7 @@ export default function ExamPage() {
     const [failedSyncCount, setFailedSyncCount] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
-    const [attempt, setAttempt] = useState<any>(null);
+    const [attempt, setAttempt] = useState<StudentExamAttempt | null>(null);
     const [assignmentFileUrls, setAssignmentFileUrls] = useState<string[]>([]);
     const [assignmentTextNote, setAssignmentTextNote] = useState('');
 
@@ -159,7 +160,7 @@ export default function ExamPage() {
     const collectPendingRows = useCallback(() => {
         const ids = new Set<string>([...failedSyncRef.current, ...inFlightRef.current]);
         return Array.from(ids).map(qId => answerRow(
-            questionsRef.current.find((q: any) => q.id === qId),
+            questionsRef.current.find((question) => question.id === qId),
             qId,
             answersRef.current[qId],
             doubtfulRef.current.has(qId),
@@ -179,7 +180,7 @@ export default function ExamPage() {
 
         const ids = Array.from(failedSyncRef.current);
         const rows = ids.map(qId => answerRow(
-            questionsRef.current.find((q: any) => q.id === qId),
+            questionsRef.current.find((question) => question.id === qId),
             qId,
             answersRef.current[qId],
             doubtfulRef.current.has(qId),
@@ -268,7 +269,7 @@ export default function ExamPage() {
                     const local = await readExamSnapshot(session.attemptId).catch(() => null);
                     const restoredAnswers = local?.answers || {};
                     const restoredDoubtful = new Set(local?.doubtfulAnswers || []);
-                    const restoredQuestions = session.questions as any[];
+                    const restoredQuestions = session.questions;
                     const remaining = Math.max(0, Math.floor((session.deadlineAt - Date.now()) / 1000));
 
                     offlineRecoveryRef.current = true;
@@ -279,7 +280,7 @@ export default function ExamPage() {
                     setExam(session.exam);
                     setQuestions(restoredQuestions);
                     setAttempt(session.attempt);
-                    setViolationCount(Number((session.attempt as any).warning_count || 0));
+                    setViolationCount(Number(session.attempt.warning_count || 0));
                     setAnswers(restoredAnswers);
                     setDoubtfulAnswers(restoredDoubtful);
                     Object.keys(restoredAnswers).forEach(id => failedSyncRef.current.add(id));
@@ -334,7 +335,7 @@ export default function ExamPage() {
                 // Get questions from the bank — WAJIB lewat server action.
                 // Query langsung dari browser (anon key) membuat RLS bisa
                 // memblokir embed opsi secara diam-diam → "soal tanpa opsi".
-                let loadedQuestions: any[] = [];
+                let loadedQuestions: StudentExamQuestion[] = [];
                 // Endpoint backend menyatukan `question_bank_id` dan seluruh
                 // `cbt_exam_question_sources`; browser tidak boleh menebak
                 // sumber hanya dari kolom bank langsung.
@@ -349,22 +350,22 @@ export default function ExamPage() {
                 }
                 const qData = qRes.questions;
                 if (qData && qData.length > 0) {
-                    const deduplicatedData = qData.map((q: any) => ({
-                        ...q,
+                    const deduplicatedData = qData.map((question) => ({
+                        ...question,
                         // Dedup berdasarkan ID, bukan teks. Dedup teks dulu
                         // MENYEMBUNYIKAN opsi yang kebetulan berbunyi sama
                         // dari siswa, padahal grading tetap menghitungnya —
                         // kunci yang tersembunyi jadi mustahil dicentang.
                         bank_question_options: (() => {
-                            const opts = q.bank_question_options || [];
+                            const opts = question.bank_question_options || [];
                             const seen = new Set<string>();
-                            return opts.filter((o: any) => {
-                                if (!o?.id) return true;
-                                if (seen.has(o.id)) return false;
-                                seen.add(o.id);
+                            return opts.filter((option) => {
+                                if (!option.id) return true;
+                                if (seen.has(option.id)) return false;
+                                seen.add(option.id);
                                 return true;
                             });
-                        })().sort((a: any, b: any) => (a.order || 0) - (b.order || 0)),
+                        })().sort((a, b) => (a.order || 0) - (b.order || 0)),
                     }));
                     loadedQuestions = deduplicatedData;
                     setQuestions(deduplicatedData);
@@ -384,7 +385,7 @@ export default function ExamPage() {
                     // jawaban tetap dipertahankan untuk pemulihan proktor.
                     await removeExamRecoverySession(examId).catch(() => undefined);
                     await removeExamOfflineShell(examId).catch(() => undefined);
-                    const expiredId = (result as any).expiredAttemptId;
+                    const expiredId = 'expiredAttemptId' in result ? result.expiredAttemptId : undefined;
                     let localCount = 0;
                     if (expiredId) {
                         const cached = await readExamSnapshot(expiredId);
@@ -444,7 +445,7 @@ export default function ExamPage() {
                 const savedD = new Set<string>();
                 let localAnswerIds: string[] = [];
                 const serverAnswerIds = new Set<string>();
-                (result.answers || []).forEach((ans: any) => {
+                (result.answers || []).forEach((ans) => {
                     serverAnswerIds.add(ans.question_id);
                     if (ans.selected_option_id) savedA[ans.question_id] = ans.selected_option_id;
                     else if (ans.essay_answer) savedA[ans.question_id] = ans.essay_answer;
@@ -456,7 +457,7 @@ export default function ExamPage() {
                     if (parsed) {
                         if (parsed.answers) {
                             localAnswerIds = Object.keys(parsed.answers)
-                                .filter(qId => loadedQuestions.some((q: any) => q.id === qId));
+                                .filter(qId => loadedQuestions.some((question) => question.id === qId));
                             for (const qId of localAnswerIds) savedA[qId] = parsed.answers[qId];
                         }
                         if (parsed.doubtfulAnswers) {
@@ -499,7 +500,7 @@ export default function ExamPage() {
                 // biasa yang memeriksa perangkat dan batas waktu di server.
                 if (localAnswerIds.length > 0 && navigator.onLine) {
                     const rows = localAnswerIds.map(qId => answerRow(
-                        loadedQuestions.find((q: any) => q.id === qId),
+                        loadedQuestions.find((question) => question.id === qId),
                         qId,
                         savedA[qId],
                         savedD.has(qId),
@@ -539,7 +540,7 @@ export default function ExamPage() {
                         attemptId: result.attempt.id,
                         userId: authUser.id,
                         deviceId: durableDeviceId,
-                        user: authUser as any,
+                        user: authUser,
                         profile: detail.profile || null,
                         exam: examData,
                         attempt: result.attempt,
@@ -698,9 +699,9 @@ export default function ExamPage() {
             const parsed = await readExamSnapshot(att.id);
             if (parsed) {
                 const answersArray = Object.keys(parsed.answers || {})
-                    .filter(qId => questionsRef.current.some((x: any) => x.id === qId))
+                    .filter(qId => questionsRef.current.some((question) => question.id === qId))
                     .map(qId => answerRow(
-                        questionsRef.current.find((x: any) => x.id === qId),
+                        questionsRef.current.find((question) => question.id === qId),
                         qId,
                         parsed.answers[qId],
                         parsed.doubtfulAnswers ? parsed.doubtfulAnswers.includes(qId) : false,
@@ -1138,7 +1139,7 @@ export default function ExamPage() {
             return;
         }
 
-        const q = questionsRef.current.find((x: any) => x.id === questionId);
+        const q = questionsRef.current.find((question) => question.id === questionId);
         // Hasil autosave WAJIB diperiksa. Kegagalan (sesi kedaluwarsa, attempt
         // sudah bukan in_progress, 500 sekejap) ditandai supaya retry berkala
         // dan flush penutupan bisa menyusulkannya.
@@ -1184,7 +1185,7 @@ export default function ExamPage() {
             return;
         }
 
-        const q = questionsRef.current.find((x: any) => x.id === questionId);
+        const q = questionsRef.current.find((question) => question.id === questionId);
         inFlightRef.current.add(questionId);
         await saveQueueRef.current.enqueue(questionId, async () => {
             try {
@@ -1204,7 +1205,10 @@ export default function ExamPage() {
         // terjebak di layar "Aktifkan Layar Penuh". Fullscreen bersifat
         // best-effort; gerbang harus selalu terbuka setelah tombol ditekan.
         try {
-            const el: any = document.documentElement;
+            const el = document.documentElement as HTMLElement & {
+                webkitRequestFullscreen?: () => Promise<void> | void;
+                msRequestFullscreen?: () => Promise<void> | void;
+            };
             const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
             if (request) {
                 const p = request.call(el);
@@ -1361,7 +1365,7 @@ export default function ExamPage() {
             doubtfulAnswers={doubtfulAnswers}
             onAnswerChange={(qId, val) => handleAnswerSelect(qId, val as string | string[])}
             onToggleDoubtful={toggleDoubtful}
-            studentName={profile?.full_name || user?.user_metadata?.full_name || user?.email || 'Siswa'}
+            studentName={profile?.full_name || user?.fullName || user?.email || 'Siswa'}
             studentNisn={profile?.identity_number || ''}
             examTitle={exam?.title || ''}
             currentQIndex={currentQIndex}

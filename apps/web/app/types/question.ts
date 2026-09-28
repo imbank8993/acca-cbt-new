@@ -37,6 +37,7 @@ export interface QuestionOption {
   metadata?: {
     image_url?: string;
     explanation?: string;
+    topic?: string;
     // Matching questions
     match_text?: string;
     match_texts?: string[];
@@ -55,9 +56,9 @@ export interface QuestionOption {
 
 export interface QuestionStimulus {
   id: string;
-  organization_id: string;
-  bank_id: string;
-  title?: string;
+  organization_id?: string;
+  bank_id?: string;
+  title?: string | null;
   content: string;
   created_at?: string;
 }
@@ -70,23 +71,32 @@ export interface Question {
   question_text: string;
   score_default: number;
   bank_question_options: QuestionOption[];
+  options?: QuestionOption[];
   stimulus_id?: string | null;
-  stimulus?: QuestionStimulus;
+  stimulus?: QuestionStimulus | null;
+  instruction?: QuestionStimulus | null;
+  question_stimuli?: QuestionStimulus | QuestionStimulus[] | null;
+  question_instructions?: QuestionStimulus | QuestionStimulus[] | null;
   metadata?: {
     image_url?: string;
     difficulty?: 'easy' | 'medium' | 'hard';
     explanation?: string;
+    topic?: string;
     time_limit_seconds?: number;
     // Matching questions
     right_items?: string[];
     // Categorization
     categories?: string[];
     // Short answer
-    blanks?: { variations: string[] }[];
+    blanks?: { answer?: string; variations: string[] }[];
     // Instructions / hints
     instructions?: string;
     // Ordering
     correct_order?: string[];
+    is_multi_topic?: boolean;
+    allow_file_upload?: boolean;
+    allow_video_link?: boolean;
+    allowed_file_types?: string[];
   };
   created_at?: string;
   updated_at?: string;

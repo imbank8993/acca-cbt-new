@@ -2,16 +2,17 @@
 import { AnimatePresence,motion } from 'framer-motion';
 import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye,FileText,Flag,Grid3X3,Loader2,Maximize2,Rows3,ShieldAlert,User,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
+import type { AnswerValue,Question } from '@/app/types';
 import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
 
-const getAnswerStatus = (q: any, ans: any) => {
+const getAnswerStatus = (q: Question, ans: AnswerValue) => {
     if (!ans) return 'unanswered';
     const type = q.type;
     
     let optionsCount = 0;
     if (q.bank_question_options) {
-        optionsCount = q.bank_question_options.filter((opt: any) => (opt.option_text || opt.text || '').trim().length > 0).length;
+        optionsCount = q.bank_question_options.filter((option) => (option.option_text || option.text || '').trim().length > 0).length;
     }
     
     try {
@@ -26,7 +27,7 @@ const getAnswerStatus = (q: any, ans: any) => {
             const totalBlanks = blanksCount > 0 ? blanksCount : (optionsCount > 0 ? optionsCount : 1);
             
             if (Array.isArray(parsed)) {
-                const answeredCount = parsed.filter((val: any) => val && String(val).trim() !== '').length;
+                const answeredCount = parsed.filter((value: unknown) => value && String(value).trim() !== '').length;
                 if (answeredCount === 0) return 'unanswered';
                 if (answeredCount < totalBlanks) return 'partial';
                 return 'complete';
@@ -35,18 +36,21 @@ const getAnswerStatus = (q: any, ans: any) => {
         }
         
         if (type === 'true_false' || type === 'checklist' || type === 'ordering' || type === 'ranking') {
-            const keys = Object.keys(parsed || {});
+            const keys = parsed && typeof parsed === 'object' ? Object.keys(parsed) : [];
             if (keys.length === 0) return 'unanswered';
             if (keys.length < optionsCount) return 'partial';
             return 'complete';
         }
         
         if (type === 'matching' || type === 'categorization') {
-            const keys = Object.keys(parsed || {});
+            const record = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                ? parsed as Record<string, unknown>
+                : {};
+            const keys = Object.keys(record);
             if (keys.length === 0) return 'unanswered';
             let filledCount = 0;
             for (const key of keys) {
-                if (Array.isArray(parsed[key]) && parsed[key].length > 0) filledCount++;
+                if (Array.isArray(record[key]) && record[key].length > 0) filledCount++;
             }
             if (filledCount === 0) return 'unanswered';
             if (filledCount < optionsCount) return 'partial';
@@ -74,12 +78,12 @@ const getAnswerStatus = (q: any, ans: any) => {
 
 export interface ExamViewerProps {
     mode: 'exam' | 'preview';
-    questions: any[];
-    answers: Record<string, any>;
+    questions: Question[];
+    answers: Record<string, AnswerValue>;
     doubtfulAnswers: Set<string>;
     
     // Actions
-    onAnswerChange: (questionId: string, answer: any) => void;
+    onAnswerChange: (questionId: string, answer: AnswerValue) => void;
     onToggleDoubtful: (questionId: string) => void;
     
     // Info
@@ -111,7 +115,13 @@ export interface ExamViewerProps {
 
     // Assignment specific
     isAssignment?: boolean;
-    assignmentData?: any;
+    assignmentData?: {
+        assignment_description?: string;
+        videoUrl?: string;
+        documentUrl?: string;
+        allow_file_upload?: boolean;
+        allowed_file_types?: string[];
+    } | null;
     examId?: string;
     userId?: string;
     onAssignmentFilesChange?: (urls: string[]) => void;
@@ -366,7 +376,7 @@ export function ExamViewer({
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">
                         <div className="grid grid-cols-5 gap-2">
-                            {questions.map((q: any, idx: number) => {
+                    {questions.map((q, idx) => {
                                 const active = idx === currentQIndex;
                                 const status = getAnswerStatus(q, answers[q.id]);
                                 const doubtful = doubtfulAnswers.has(q.id);
@@ -804,7 +814,7 @@ export function ExamViewer({
                             </div>
                             <div className="flex-1 overflow-y-auto p-4">
                                 <div className="grid grid-cols-5 gap-2">
-                                    {questions.map((q: any, idx: number) => {
+                                    {questions.map((q, idx) => {
                                         const active = idx === currentQIndex;
                                         const status = getAnswerStatus(q, answers[q.id]);
                                         const doubtful = doubtfulAnswers.has(q.id);

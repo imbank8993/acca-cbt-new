@@ -1,21 +1,21 @@
 "use client";
-import { getStudentResultsResult } from '@/lib/api/students';
+import { getStudentResultsResult,type StudentResult } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
 import { Award,BookOpen,ChevronRight,Clock,Loader2,RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { useCallback,useEffect,useState } from 'react';
 
 export default function StudentResultsPage() {
-    const [results, setResults] = useMemoryState<any[]>('siswa_results_results', []);
+    const [results, setResults] = useMemoryState<StudentResult[]>('siswa_results_results', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_results_isLoading', true);
     const [, setFullName] = useState<string>('');
     const [loadError, setLoadError] = useState('');
     const router = useRouter();
 
-    const loadResults = async () => {
+    const loadResults = useCallback(async () => {
         setIsLoading(true);
         setLoadError('');
         const user = await getSessionUser();
@@ -28,11 +28,12 @@ export default function StudentResultsPage() {
             setLoadError('Sesi berakhir. Silakan login kembali.');
         }
         setIsLoading(false);
-    };
+    }, [setFullName, setIsLoading, setResults]);
 
     useEffect(() => {
-        loadResults();
-    }, []);
+        const timer = window.setTimeout(() => void loadResults(), 0);
+        return () => window.clearTimeout(timer);
+    }, [loadResults]);
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">

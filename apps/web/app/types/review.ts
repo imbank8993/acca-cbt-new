@@ -3,7 +3,7 @@
  * Types for exam review and answer analysis
  */
 
-import type { QuestionType } from './question';
+import type { Question,QuestionType } from './question';
 
 // ─── Review Types ─────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ export interface QuestionReview {
     // Student's answer
     selectedOptionId?: string;
     selectedOptionText?: string;
-    essayAnswer?: string;
+    essayAnswer?: string | Record<string, unknown>;
 
     // Correct answer
     correctOptionId?: string;
@@ -42,12 +42,7 @@ export interface QuestionReview {
     }[];
 
     // Metadata
-    metadata?: {
-        image_url?: string;
-        explanation?: string;
-        difficulty?: 'easy' | 'medium' | 'hard';
-        topic?: string;
-    };
+    metadata?: Question['metadata'];
 
     // Time spent
     timeSpentSeconds?: number;

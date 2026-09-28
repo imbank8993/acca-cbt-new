@@ -45,7 +45,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://accav2.icgowa.sch.id}
+        - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://acca.icgowa.sch.id}
         - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://accav2-cbt.icgowa.sch.id}
     container_name: cbt-web
     restart: unless-stopped
@@ -59,7 +59,7 @@ services:
       - HOSTNAME=0.0.0.0
       - NEST_API_URL=http://cbt-api:3009/api
       - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://accav2-cbt.icgowa.sch.id}
-      - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://accav2.icgowa.sch.id}
+      - NEXT_PUBLIC_ACCA_URL=${NEXT_PUBLIC_ACCA_URL:-https://acca.icgowa.sch.id}
     ports:
       # Hanya port ini yang diekspos ke host VPS untuk disambungkan ke Nginx/Reverse Proxy
       - "${CBT_WEB_PORT:-3008}:3008"

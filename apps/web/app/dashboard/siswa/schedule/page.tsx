@@ -1,6 +1,6 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import { getStudentExamsResult } from '@/lib/api/students';
+import { getStudentExamsResult,type StudentScheduledExam } from '@/lib/api/students';
 import { formatSchoolDate,formatSchoolTimeRange } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
 const SchedulePage = () => {
-    const [exams, setExams] = useMemoryState<any[]>('siswa_schedule_exams', []);
+    const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_schedule_exams', []);
     const [loading, setLoading] = useMemoryState('siswa_schedule_loading', true);
     const [now, setNow] = useState(new Date());
     const [loadError, setLoadError] = useState('');
@@ -40,16 +40,19 @@ const SchedulePage = () => {
     }, [setExams, setLoading]);
 
     useEffect(() => {
-        void loadData();
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
         // Jam dinding diperbarui tiap menit supaya hitung mundur tetap akurat.
         const interval = setInterval(() => setNow(new Date()), 60000);
-        return () => clearInterval(interval);
+        return () => {
+            window.clearTimeout(initialLoad);
+            clearInterval(interval);
+        };
     }, [loadData]);
 
     // Jadwal ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
-    const getStatus = (exam: any) => {
+    const getStatus = (exam: StudentScheduledExam) => {
         // Must be published
         if (!exam.is_published) {
             return { label: 'Belum Publikasi', color: 'text-slate-400', bg: 'bg-slate-50 border-slate-200', icon: Lock, enabled: false };
@@ -94,7 +97,7 @@ const SchedulePage = () => {
         return `${minutes}m lagi`;
     };
 
-    const isOpenNow = (exam: any) => exam.is_published && !exam.isCompleted &&
+    const isOpenNow = (exam: StudentScheduledExam) => exam.is_published && !exam.isCompleted &&
         (!exam.start_time || now >= new Date(exam.start_time)) &&
         (!exam.end_time || now <= new Date(exam.end_time));
 
@@ -195,7 +198,7 @@ const SchedulePage = () => {
                     </div>
                     <div className="space-y-3">
                         {upcomingExams.map((exam) => {
-                            const until = formatTimeUntil(exam.start_time);
+                            const until = formatTimeUntil(exam.start_time || '');
                             return (
                                 <div key={exam.id}
                                     className="p-5 bg-white border border-slate-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden shadow-sm opacity-80"

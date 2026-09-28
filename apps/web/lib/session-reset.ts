@@ -44,6 +44,6 @@ export async function clearCbtSession(): Promise<void> {
  */
 export async function resetAndRetrySso(): Promise<void> {
     await clearCbtSession();
-    const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'https://accav2.icgowa.sch.id';
+    const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id';
     window.location.href = `${accaUrl}/api/sso/cbt`;
 }

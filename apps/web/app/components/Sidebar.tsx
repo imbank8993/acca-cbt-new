@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect,useMemo,useRef,useState } from 'react';
 import './sidebar.css';
 
-const ACCA_URL = process.env.NEXT_PUBLIC_ACCA_URL || 'https://accav2.icgowa.sch.id';
+const ACCA_URL = process.env.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id';
 
 interface MenuItem {
     icon: string;

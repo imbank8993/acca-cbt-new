@@ -15,6 +15,7 @@ getStatusColor
 } from '@/app/types/review';
 import { AnswerValue,parseAnswer,parseMCQComplexAnswer } from '@/lib/answer-parser';
 import { getExamReview } from '@/lib/api/exam-review';
+import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
@@ -34,6 +35,41 @@ XCircle
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useMemo,useState } from 'react';
+
+type QuestionMetadata = NonNullable<Question['metadata']>;
+
+function normalizeQuestionMetadata(raw: unknown): QuestionMetadata {
+    if (!raw) return {};
+    if (typeof raw === 'string') {
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                ? parsed as QuestionMetadata
+                : {};
+        } catch {
+            return {};
+        }
+    }
+    return typeof raw === 'object' && !Array.isArray(raw) ? raw as QuestionMetadata : {};
+}
+
+function normalizeEssayAnswer(value: unknown) {
+    let parsed: unknown = value;
+    if (typeof value === 'string') {
+        try { parsed = JSON.parse(value); } catch { return { text: value, files: [] as string[], videoUrl: '' }; }
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { text: '', files: [] as string[], videoUrl: '' };
+    }
+    const payload = parsed as Record<string, unknown>;
+    return {
+        text: typeof payload.text === 'string' ? payload.text : '',
+        files: Array.isArray(payload.fileUrls)
+            ? payload.fileUrls.filter((item): item is string => typeof item === 'string')
+            : [],
+        videoUrl: typeof payload.videoUrl === 'string' ? payload.videoUrl : '',
+    };
+}
 
 export default function ExamReviewPage() {
     const params = useParams();
@@ -68,10 +104,11 @@ export default function ExamReviewPage() {
             setError(getErrorMessage(err) || 'Terjadi kesalahan saat memuat review.');
         }
         setIsLoading(false);
-    }, [attemptId]);
+    }, [attemptId, setIsLoading]);
 
     useEffect(() => {
-        fetchReview();
+        const timer = window.setTimeout(() => void fetchReview(), 0);
+        return () => window.clearTimeout(timer);
     }, [fetchReview]);
 
     // Filter questions
@@ -454,24 +491,7 @@ function QuestionReviewCard({
                         <p className="text-xs font-semibold text-slate-500 uppercase">Jawaban Anda:</p>
                     </div>
                     {(() => {
-                        let text = question.essayAnswer || '';
-                        let files: string[] = [];
-                        let videoUrl = '';
-                        if (typeof text === 'string') {
-                            try {
-                                const parsed = JSON.parse(text);
-                                if (parsed.text !== undefined) {
-                                    text = parsed.text;
-                                    files = parsed.fileUrls || [];
-                                    videoUrl = parsed.videoUrl || '';
-                                }
-                            } catch { }
-                        } else if (text && typeof text === 'object') {
-                            const obj: any = text;
-                            text = obj.text || '';
-                            files = obj.fileUrls || [];
-                            videoUrl = obj.videoUrl || '';
-                        }
+                        const { text, files, videoUrl } = normalizeEssayAnswer(question.essayAnswer || '');
 
                         if (!text && files.length === 0 && !videoUrl) {
                             return <p className="text-sm text-slate-400 italic">Tidak ada jawaban</p>;
@@ -491,8 +511,8 @@ function QuestionReviewCard({
                                                 <p className="text-xs font-bold text-slate-500 mb-2">Lampiran File:</p>
                                                 <div className="flex flex-col gap-2">
                                                     {files.map((url, i) => (
-                                                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                                                            📄 {decodeURIComponent(url.split('/').pop() || `File ${i + 1}`)}
+                                                        <a key={i} href={safeExternalUrl(url) || undefined} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                                                            📄 {attachmentLabel(url, i)}
                                                         </a>
                                                     ))}
                                                 </div>
@@ -501,7 +521,7 @@ function QuestionReviewCard({
                                         {videoUrl && (
                                             <div>
                                                 <p className="text-xs font-bold text-slate-500 mb-2">Tautan Video:</p>
-                                                <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-red-600 hover:underline">
+                                                <a href={safeExternalUrl(videoUrl) || undefined} target="_blank" rel="noopener noreferrer" className="text-sm text-red-600 hover:underline">
                                                     🎥 {videoUrl}
                                                 </a>
                                             </div>
@@ -573,14 +593,7 @@ const QuestionContentRenderer = React.memo(({
     showFeedback: boolean;
     questionNumber: number;
 }) => {
-    const metadata: any = (() => {
-        const raw = question?.metadata;
-        if (!raw) return {};
-        if (typeof raw === 'string') {
-            try { return JSON.parse(raw); } catch { return {}; }
-        }
-        return raw;
-    })();
+    const metadata = normalizeQuestionMetadata(question.metadata);
 
     // parseAnswer imported from lib/answer-parser.ts (at top of file)
 
@@ -604,7 +617,7 @@ const QuestionContentRenderer = React.memo(({
             {/* OPTIONS for MCQ, TRUE_FALSE, MCQ_COMPLEX */}
             {(question.type === 'mcq' || question.type === 'true_false' || question.type === 'mcq_complex') && (
                 <div className="space-y-3">
-                    {question.bank_question_options?.filter((opt: any) => (opt.option_text || opt.text || '').trim().length > 0).map((opt: any, idx: number) => {
+                    {question.bank_question_options?.filter((opt) => (opt.option_text || opt.text || '').trim().length > 0).map((opt, idx) => {
                         const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
                         const label = letters[idx] || '?';
                         const isCorrect = opt.is_correct || opt.isCorrect;
@@ -746,7 +759,7 @@ function MatchingReview({
 }: {
     options: QuestionOption[];
     answer: Record<string, string[]>;
-    metadata: any;
+    metadata: QuestionMetadata;
     showFeedback: boolean;
 }) {
     const rightItems: string[] = metadata?.right_items?.length
@@ -834,7 +847,7 @@ function CategorizationReview({
 }: {
     options: QuestionOption[];
     answer: Record<string, string[]>;
-    metadata: any;
+    metadata: QuestionMetadata;
     showFeedback: boolean;
 }) {
     const categories: string[] = metadata?.categories?.length
@@ -968,14 +981,14 @@ function ShortAnswerReview({
 }: {
     options: QuestionOption[];
     answer: string[];
-    metadata: any;
+    metadata: QuestionMetadata;
     showFeedback: boolean;
 }) {
     const blanks = metadata?.blanks?.length ? metadata.blanks : [{ variations: [] }];
 
     return (
         <div className="space-y-4">
-            {blanks.map((blank: any, bIdx: number) => {
+            {blanks.map((blank, bIdx) => {
                 const allVariations = blank.variations || [];
                 const studentAnswer = answer[bIdx] || '';
                 const isCorrect = allVariations.map((v: string) => v.toLowerCase()).includes(studentAnswer.toLowerCase());

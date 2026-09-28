@@ -685,6 +685,36 @@ Kontrak API proktor sekarang mencakup organisasi, kelas, siswa, ujian, attempt, 
 
 Halaman monitoring Admin, Guru, dan Proktor sekarang memakai kontrak attempt, rincian pelanggaran, status koneksi, skor, analisis butir, opsi jawaban, dan alert keamanan yang eksplisit. Pemuatan awal, pergantian ujian, refresh berkala, serta pembacaan pelanggaran memakai callback stabil dan cleanup. Perlindungan terhadap respons lama di halaman Proktor tetap dipertahankan. Ketiga halaman mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 91 masalah menjadi 555 error/31 warning. **Lokasi:** [kontrak attempt](../apps/web/lib/api/proctor.ts), [monitoring Proktor](../apps/web/app/dashboard/proktor/monitoring/page.tsx), dan [dokumentasi tahap 47](perbaikan-2026-09-19/TAHAP-47-MONITORING-UJIAN-BERTIPE.md).
 
+## Tahap 48 — Editor dan alur pengerjaan ujian
+
+### LINT-33–39: editor soal, attempt siswa, dan pemulihan offline
+
+Tiga editor soal sekarang memakai kontrak bank, soal, opsi, serta metadata yang sama. Komponen inti pengerjaan ujian dan paket pemulihan offline memakai tipe pengguna, ujian, attempt, soal siswa, dan jawaban server yang eksplisit. Deduplikasi opsi, antrean autosave, kirim ulang, snapshot lokal, pemulihan reload, deadline server, dan submit tetap dipertahankan. Semua sasaran tahap ini mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 112 masalah menjadi 446 error/28 warning. **Lokasi:** [kontrak API siswa](../apps/web/lib/api/students.ts), [komponen pengerjaan ujian](../apps/web/app/components/questions/ExamPage.tsx), [penyimpanan pemulihan](../apps/web/lib/exam-durable-storage.ts), dan [dokumentasi tahap 48](perbaikan-2026-09-19/TAHAP-48-EDITOR-DAN-ALUR-PENGERJAAN-UJIAN.md).
+
+## Tahap 49 — Penyajian dan cetak ujian
+
+### LINT-40–43: status jawaban, metadata tugas, dan tampilan cetak
+
+`ExamViewer` sekarang memakai kontrak soal dan nilai jawaban yang sama dengan kartu soal. Parsing jawaban kompleks memeriksa nilai `unknown` sebelum membaca kunci, sedangkan metadata tugas memiliki bidang eksplisit. Tampilan cetak memakai kontrak bank, soal, opsi, stimulus, petunjuk, kategori, dan blank. TypeScript frontend lulus dan seluruh komponen yang disentuh mencapai lint nol. Pemindaian penuh turun 28 masalah menjadi 418 error/28 warning. **Lokasi:** [penyaji ujian](../apps/web/app/components/questions/ExamViewer.tsx), [tampilan cetak](../apps/web/app/components/questions/ExamPrintView.tsx), dan [dokumentasi tahap 49](perbaikan-2026-09-19/TAHAP-49-PENYAJIAN-DAN-CETAK-UJIAN.md).
+
+## Tahap 50 — Renderer dan pratinjau soal
+
+### LINT-44–49: metadata lama, opsi, stimulus, dan jawaban esai
+
+Renderer soal sekarang menormalisasi metadata lama sebagai data `unknown`, menyatukan bentuk stimulus/petunjuk tunggal dan array, serta memvalidasi isi jawaban esai sebelum digunakan. Pratinjau menormalisasi opsi API ke kontrak renderer dan menangani JSON jawaban pilihan ganda kompleks yang rusak tanpa menjatuhkan halaman. Renderer, pratinjau, dan penampil stimulus mencapai lint nol; TypeScript frontend lulus. Pemindaian penuh turun 26 masalah menjadi 392 error/28 warning. **Lokasi:** [renderer soal](../apps/web/app/components/questions/QuestionRenderer.tsx), [pratinjau](../apps/web/app/components/questions/PreviewModal.tsx), [tipe soal](../apps/web/app/types/question.ts), dan [dokumentasi tahap 50](perbaikan-2026-09-19/TAHAP-50-RENDERER-DAN-PRATINJAU-SOAL.md).
+
+## Tahap 51 — Hasil dan review siswa
+
+### LINT-50–56: attempt historis, dimensi, lampiran, dan URL aman
+
+API siswa serta tiga halaman hasil memakai kontrak eksplisit untuk attempt, jawaban, soal, dimensi, interpretasi, kelas, dan jadwal. Relasi soal kosong dilewati dengan aman; jawaban esai lama divalidasi sebagai data tidak tepercaya; lampiran dan video melewati pemeriksaan URL sebelum dirender. Lifecycle pemuatan awal juga memakai callback stabil dan cleanup. Seluruh sasaran mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 37 masalah menjadi 358 error/25 warning. **Lokasi:** [API siswa](../apps/web/lib/api/students.ts), [detail hasil](../apps/web/app/dashboard/siswa/results/[attemptId]/page.tsx), [review jawaban](../apps/web/app/dashboard/siswa/results/review/[attemptId]/page.tsx), dan [dokumentasi tahap 51](perbaikan-2026-09-19/TAHAP-51-HASIL-DAN-REVIEW-SISWA.md).
+
+## Tahap 52 — Jadwal dan kelas siswa
+
+### LINT-57–61: status jadwal, keanggotaan kelas, dan lifecycle refresh
+
+Halaman jadwal dan kelas siswa sekarang memakai kontrak ujian serta kelas dari API siswa. Perhitungan status jadwal tidak lagi menerima objek tanpa tipe. Pemuatan awal dijadwalkan dengan cleanup, interval jam dibersihkan, dan refresh kelas ketika jendela kembali fokus memakai callback stabil. Kedua halaman mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 7 masalah menjadi 352 error/24 warning. **Lokasi:** [jadwal siswa](../apps/web/app/dashboard/siswa/schedule/page.tsx), [kelas siswa](../apps/web/app/dashboard/siswa/classes/page.tsx), dan [dokumentasi tahap 52](perbaikan-2026-09-19/TAHAP-52-JADWAL-DAN-KELAS-SISWA.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -695,10 +725,10 @@ Halaman monitoring Admin, Guru, dan Proktor sekarang memakai kontrak attempt, ri
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
 | Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 47; API terakhir lulus pada rangkaian audit sebelumnya |
+| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 52; API terakhir lulus pada rangkaian audit sebelumnya |
 | Build produksi frontend | Lulus setelah Tahap 43; 92 halaman berhasil diproses |
 | Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
-| ESLint frontend penuh | 555 error/31 warning; total turun 1.218 masalah sampai Tahap 47 |
+| ESLint frontend penuh | 352 error/24 warning; total turun 1.428 masalah sampai Tahap 52 |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |

@@ -1,7 +1,8 @@
 "use client";
+import type { QuestionStimulus } from '@/app/types';
 import { LatexRenderer } from './LatexRenderer';
 
-export const StimulusViewer = ({ stimulus }: { stimulus: any }) => {
+export const StimulusViewer = ({ stimulus }: { stimulus: QuestionStimulus }) => {
     if (!stimulus || !stimulus.content) return null;
 
     return (

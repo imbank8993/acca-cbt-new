@@ -1,7 +1,7 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
 import { useToast } from '@/app/components/ui/Toast';
-import { joinClassAction,leaveClassAction,listStudentClasses } from '@/lib/api/students';
+import { joinClassAction,leaveClassAction,listStudentClasses,type StudentClass } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -14,10 +14,10 @@ Loader2,
 LogOut,
 School
 } from 'lucide-react';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 
 export default function SiswaClassesPage() {
-    const [classes, setClasses] = useMemoryState<any[]>('siswa_classes_classes', []);
+    const [classes, setClasses] = useMemoryState<StudentClass[]>('siswa_classes_classes', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_classes_isLoading', true);
     const [joinCode, setJoinCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,21 +27,24 @@ export default function SiswaClassesPage() {
 
     const toast = useToast();
 
-    useEffect(() => {
-        loadData();
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         const user = await getSessionUser();
         if (user) {
             setUserId(user.id);
             setClasses(await listStudentClasses());
         }
         setIsLoading(false);
-    };
+    }, [setClasses, setIsLoading]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const handleJoinClass = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -54,7 +57,7 @@ export default function SiswaClassesPage() {
             if (result.success) {
                 toast.success('Berhasil Bergabung', `Anda telah masuk ke kelas: ${result.className}`);
                 setJoinCode('');
-                loadData();
+                void loadData();
             } else {
                 toast.error('Gagal Bergabung', result.error || 'Kode kelas tidak valid.');
             }
@@ -72,7 +75,7 @@ export default function SiswaClassesPage() {
             const result = await leaveClassAction(classToLeave.id);
             if (result.success) {
                 toast.success('Berhasil Keluar', `Anda telah keluar dari kelas: ${result.className}`);
-                loadData();
+                void loadData();
             } else {
                 toast.error('Gagal Keluar', result.error || 'Tidak dapat keluar dari kelas.');
             }
