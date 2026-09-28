@@ -56,10 +56,15 @@ export interface OrganizationClass {
     member_count?: number;
     student_count?: number;
     studentCount?: number;
+    program?: string | null;
+    join_code?: string | null;
+    canEdit?: boolean;
+    canDelete?: boolean;
 }
 
 export interface ClassStudent {
     id: string;
+    name?: string | null;
     user_id?: string;
     full_name?: string | null;
     identity_number?: string | null;

@@ -1,5 +1,6 @@
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
+import type { OrganizationClass } from './proctor';
 
 /**
  * Klien modul guru. Menggantikan `app/actions/guru.ts`.
@@ -36,15 +37,15 @@ export async function getGuruOrganization(): Promise<GuruOrganization | null> {
         : null;
 }
 
-export async function listGuruClasses(): Promise<any[]> {
-    const res = await apiGet<{ classes: any[] }>('/api/teachers/classes');
+export async function listGuruClasses(): Promise<OrganizationClass[]> {
+    const res = await apiGet<{ classes: OrganizationClass[] }>('/api/teachers/classes');
     // Versi lama mengembalikan array kosong saat gagal, bukan melempar. Halaman
     // pemanggilnya mengandalkan itu.
     return res.success ? res.classes : [];
 }
 
 export function createTambahanClass(name: string) {
-    return apiCreate<{ data: any }>('/api/teachers/classes', { name });
+    return apiCreate<{ data: OrganizationClass }>('/api/teachers/classes', { name });
 }
 
 export function deleteTambahanClass(classId: string) {

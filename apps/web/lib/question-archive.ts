@@ -27,12 +27,19 @@ export async function readQuestionArchive(buffer: ArrayBuffer): Promise<ParsedQu
     const zip = await JSZip.loadAsync(buffer);
     const entry = zip.file(ENTRY);
     if (!entry) return null;
-    const data = JSON.parse(await entry.async('string'));
-    const xml = await zip.file('word/document.xml')?.async('string');
-    if (!xml || data.version !== 1 || data.digest !== await documentDigest(zip)) return null;
-    if (!Array.isArray(data.questions) || data.questions.some((q: any) =>
-        typeof q.question_text !== 'string' || !Array.isArray(q.options))) {
+    const parsed: unknown = JSON.parse(await entry.async('string'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('Data bank soal di dokumen tidak valid.');
     }
-    return data.questions;
+    const data = parsed as Record<string, unknown>;
+    const xml = await zip.file('word/document.xml')?.async('string');
+    if (!xml || data.version !== 1 || data.digest !== await documentDigest(zip)) return null;
+    if (!Array.isArray(data.questions) || data.questions.some((question) => {
+        if (!question || typeof question !== 'object' || Array.isArray(question)) return true;
+        const record = question as Record<string, unknown>;
+        return typeof record.question_text !== 'string' || !Array.isArray(record.options);
+    })) {
+        throw new Error('Data bank soal di dokumen tidak valid.');
+    }
+    return data.questions as ParsedQuestion[];
 }

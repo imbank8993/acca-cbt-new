@@ -152,8 +152,12 @@ function postProcessHtml(html: string): string {
     return restored;
 }
 
-function getCellInnerHTML(cell: any): string {
-    if (typeof cell.innerHTML !== 'undefined') {
+function elementChildren(node: Element): Element[] {
+    return Array.from(node.childNodes).filter((child): child is Element => child.nodeType === 1);
+}
+
+function getCellInnerHTML(cell: Element): string {
+    if ('innerHTML' in cell && typeof cell.innerHTML === 'string') {
         return cell.innerHTML;
     }
     const serializer = getXMLSerializer();
@@ -177,9 +181,43 @@ export interface ParsedQuestion {
         isCorrect: boolean;
         order: number;
         weight: number;
-        metadata?: any;
+        metadata?: ParsedOptionMetadata;
     }[];
-    metadata: any;
+    metadata: ParsedQuestionMetadata;
+}
+
+interface ParsedOptionMetadata {
+    match_texts?: string[];
+    category_names?: string[];
+    dimension?: string;
+    [key: string]: unknown;
+}
+
+interface KisiData {
+    nomor_kd?: string;
+    kd_cp?: string;
+    materi?: string;
+    indikator_soal?: string;
+    level_kognitif?: string;
+}
+
+interface ParsedQuestionMetadata {
+    import_stimulus?: string;
+    import_instruction?: string;
+    import_source_number?: number;
+    _stimulus_code?: string;
+    _instruction_code?: string;
+    stimulus_title?: string;
+    instruction_title?: string;
+    kisi_kisi?: string;
+    kisi_kisi_data?: KisiData | null;
+    dimension?: string;
+    isComplex?: boolean;
+    correct_order?: string[];
+    blanks?: { id: string; answer: string; variations: string[] }[];
+    right_items?: string[];
+    categories?: string[];
+    [key: string]: unknown;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -240,12 +278,9 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
     const preprocessedBuffer = await preprocessDocx(file);
     
     // Konversi langsung ke HTML untuk mempertahankan gambar dan tabel bersarang
-    const mammothOptions: any = {};
-    if (typeof window === 'undefined') {
-        mammothOptions.buffer = Buffer.from(preprocessedBuffer);
-    } else {
-        mammothOptions.arrayBuffer = preprocessedBuffer;
-    }
+    const mammothOptions = typeof window === 'undefined'
+        ? { buffer: Buffer.from(preprocessedBuffer) }
+        : { arrayBuffer: preprocessedBuffer };
     const result = await mammoth.convertToHtml(mammothOptions);
     const html = result.value;
 
@@ -261,15 +296,15 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
         const tbl = tblElements[t];
         const rows: RowData[] = [];
         
-        const trList: HTMLTableRowElement[] = [];
+        const trList: Element[] = [];
         // Cari baris utama secara dangkal agar tidak mengambil baris dari tabel bersarang
-        Array.from(tbl.children || []).forEach((child: any) => {
+        elementChildren(tbl).forEach((child) => {
             if (child.tagName.toLowerCase() === 'tr') {
-                trList.push(child as HTMLTableRowElement);
+                trList.push(child);
             } else if (['tbody', 'thead', 'tfoot'].includes(child.tagName.toLowerCase())) {
-                Array.from(child.children || []).forEach((gc: any) => {
+                elementChildren(child).forEach((gc) => {
                     if (gc.tagName.toLowerCase() === 'tr') {
-                        trList.push(gc as HTMLTableRowElement);
+                        trList.push(gc);
                     }
                 });
             }
@@ -277,7 +312,7 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
 
         for (let r = 0; r < trList.length; r++) {
             const tr = trList[r];
-            const tcList = Array.from(tr.children).filter(c => c.tagName.toLowerCase() === 'td' || c.tagName.toLowerCase() === 'th');
+            const tcList = elementChildren(tr).filter(c => c.tagName.toLowerCase() === 'td' || c.tagName.toLowerCase() === 'th');
             const cells: string[] = [];
 
             for (let c = 0; c < tcList.length; c++) {
@@ -545,7 +580,7 @@ function parseQuestionTable(
     let current: ParsedQuestion | null = null;
     let currentOpts: ParsedQuestion['options'] = [];
     let currentKunci = '';
-    let currentMetadata: any = {};
+    let currentMetadata: ParsedQuestionMetadata = {};
 
     for (let i = 1; i < rows.length; i++) {
         const cells = rows[i].cells;
@@ -598,12 +633,22 @@ function parseQuestionTable(
             
             const isPersonality = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(type);
 
-            let kisiData = null;
+            let kisiData: KisiData | null = null;
             let kisiString = resolvedKisi || '';
             try {
                 if (kisiString.startsWith('{')) {
-                    kisiData = JSON.parse(kisiString);
-                    kisiString = `KD: ${kisiData.nomor_kd}, Materi: ${kisiData.materi}`;
+                    const parsed: unknown = JSON.parse(kisiString);
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        const record = parsed as Record<string, unknown>;
+                        kisiData = {
+                            nomor_kd: typeof record.nomor_kd === 'string' ? record.nomor_kd : '',
+                            kd_cp: typeof record.kd_cp === 'string' ? record.kd_cp : '',
+                            materi: typeof record.materi === 'string' ? record.materi : '',
+                            indikator_soal: typeof record.indikator_soal === 'string' ? record.indikator_soal : '',
+                            level_kognitif: typeof record.level_kognitif === 'string' ? record.level_kognitif : '',
+                        };
+                        kisiString = `KD: ${kisiData.nomor_kd}, Materi: ${kisiData.materi}`;
+                    }
                 }
             } catch (e) {
                 console.error('[doc-parser] Failed to parse Kisi-kisi JSON', e);
@@ -627,11 +672,11 @@ function parseQuestionTable(
             }
 
             if (type === 'short_answer' && currentKunci) {
-                const blanks = currentKunci.split('|').map((part, idx) => {
+                const blanks = currentKunci.split('|').flatMap((part, idx) => {
                     const vars = part.split(',').map(s => s.trim()).filter(Boolean);
-                    if (!vars[0]) return null;
-                    return { id: `blank_${Date.now()}_${idx}`, answer: vars[0], variations: vars.slice(1) };
-                }).filter(Boolean);
+                    if (!vars[0]) return [];
+                    return [{ id: `blank_${Date.now()}_${idx}`, answer: vars[0], variations: vars.slice(1) }];
+                });
                 if (blanks.length > 0) currentMetadata.blanks = blanks;
             }
 
@@ -685,12 +730,13 @@ function parseQuestionTable(
                     order: currentOpts.length,
                     weight: 1,
                     metadata: { match_texts: matchText ? matchText.split(' | ').map(s => s.trim()).filter(Boolean) : [] }
-                } as any);
+                });
                 if (matchText && current.metadata) {
-                    const ri = (current.metadata.right_items as string[]);
+                    const ri = current.metadata.right_items || [];
                     for (const text of matchText.split(' | ').map(s => s.trim()).filter(Boolean)) {
                         if (!ri.includes(text)) ri.push(text);
                     }
+                    current.metadata.right_items = ri;
                 }
             }
             // ── Sub-item CAT: Tipe = CAT1/CAT2/... ───────────────────────────────
@@ -707,10 +753,10 @@ function parseQuestionTable(
                     order: currentOpts.length,
                     weight: 1,
                     metadata: { category_names: categories }
-                } as any);
+                });
                 // Auto-derive question-level categories list from sub-rows
                 if (current.metadata) {
-                    const existingCats = (current.metadata.categories as string[]) || [];
+                    const existingCats = current.metadata.categories || [];
                     for (const cat of categories) {
                         if (!existingCats.includes(cat)) existingCats.push(cat);
                     }
@@ -765,7 +811,7 @@ function parseQuestionTable(
     questions.sort((left, right) => {
         const a = left.metadata?.import_source_number;
         const b = right.metadata?.import_source_number;
-        return Number.isFinite(a) && Number.isFinite(b) ? a - b : 0;
+        return typeof a === 'number' && typeof b === 'number' && Number.isFinite(a) && Number.isFinite(b) ? a - b : 0;
     });
     console.log('[doc-parser] Total parsed questions:', questions.length);
     return questions;
@@ -800,12 +846,9 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
     try {
         const mammoth = await import('mammoth');
         const preprocessedBuffer = await preprocessDocx(file);
-        const mammothOptions: any = {};
-        if (typeof window === 'undefined') {
-            mammothOptions.buffer = Buffer.from(preprocessedBuffer);
-        } else {
-            mammothOptions.arrayBuffer = preprocessedBuffer;
-        }
+        const mammothOptions = typeof window === 'undefined'
+            ? { buffer: Buffer.from(preprocessedBuffer) }
+            : { arrayBuffer: preprocessedBuffer };
         const result = await mammoth.convertToHtml(mammothOptions);
         const html = result.value;
 
@@ -813,7 +856,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
         const wrappedHtml = typeof window === 'undefined' ? `<div id="root">${html}</div>` : html;
         const doc = parser.parseFromString(wrappedHtml, typeof window === 'undefined' ? 'text/xml' : 'text/html');
         const tablesList = doc.getElementsByTagName ? doc.getElementsByTagName('table') : doc.querySelectorAll('table');
-        const tables = Array.from(tablesList) as HTMLTableElement[];
+        const tables = Array.from(tablesList) as Element[];
 
         if (tables.length === 0) {
             return [];
@@ -825,18 +868,18 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
         // - kolom terakhir mengandung "Isi Stimulus" / "Isi Petunjuk" (atau generic "Isi")
         // Tabel soal (8 kolom) tidak boleh ikut.
 
-        const getFirstRow = (table: any) => {
+        const getFirstRow = (table: Element): Element | null => {
             const rows = table.getElementsByTagName('tr');
             return rows.length > 0 ? rows[0] : null;
         };
 
-        const matchesKind = (table: HTMLTableElement, targetKind: 'stimulus' | 'instruction' | undefined) => {
+        const matchesKind = (table: Element, targetKind: 'stimulus' | 'instruction' | undefined) => {
             if (!targetKind) return true; // tidak ada filter → terima semua
             const firstRow = getFirstRow(table);
             if (!firstRow) return false;
-            const headers = Array.from(firstRow.children || firstRow.childNodes)
-                .filter((c: any) => c.tagName && ['th', 'td'].includes(c.tagName.toLowerCase()))
-                .map((c: any) => (c.textContent || '').trim());
+            const headers = elementChildren(firstRow)
+                .filter((cell) => ['th', 'td'].includes(cell.tagName.toLowerCase()))
+                .map((cell) => (cell.textContent || '').trim());
             // Harus 2 atau 3 kolom
             if (headers.length < 2 || headers.length > 3) return false;
             // Kolom pertama harus mengandung "Nomor" atau "No"
@@ -847,10 +890,10 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
             return /ISI\s*(PETUNJUK|INSTRUKSI)|PETUNJUK|INSTRUKSI/i.test(lastHeader);
         };
 
-        const hasNumberedRows = (rows: any): boolean => {
+        const hasNumberedRows = (rows: ArrayLike<Element>): boolean => {
             for (let r = 1; r < rows.length; r++) {
-                const firstCell = Array.from(rows[r].children || rows[r].childNodes)
-                    .find((c: any) => c.tagName && ['td', 'th'].includes(c.tagName.toLowerCase())) as any;
+                const firstCell = elementChildren(rows[r])
+                    .find((cell) => ['td', 'th'].includes(cell.tagName.toLowerCase()));
                 const text = (firstCell?.textContent || '').trim();
                 // Ada setidaknya 1 angka di baris manapun
                 if (/\d+/.test(text)) return true;
@@ -858,7 +901,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
             return false;
         };
 
-        const candidateTables: HTMLTableElement[] = [];
+        const candidateTables: Element[] = [];
         tables.forEach((table) => {
             const rows = table.getElementsByTagName('tr');
             if (kind && matchesKind(table, kind) && hasNumberedRows(rows)) candidateTables.push(table);
@@ -875,9 +918,9 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
                 const rows = table.getElementsByTagName('tr');
                 if (rows.length < 2) continue;
                 const firstRow = rows[0];
-                const headers = Array.from(firstRow.children || firstRow.childNodes)
-                    .filter((c: any) => c.tagName && ['th', 'td'].includes(c.tagName.toLowerCase()))
-                    .map((c: any) => (c.textContent || '').trim());
+                const headers = elementChildren(firstRow)
+                    .filter((cell) => ['th', 'td'].includes(cell.tagName.toLowerCase()))
+                    .map((cell) => (cell.textContent || '').trim());
                 if (headers.length >= 2 && headers.length <= 3) {
                     candidateTables.push(table);
                     break;
@@ -891,8 +934,8 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
             const rows = table.getElementsByTagName('tr');
 
             for (let i = 1; i < rows.length; i++) {
-                const cells = Array.from(rows[i].children || rows[i].childNodes)
-                    .filter((c: any) => c.tagName && c.tagName.toLowerCase() === 'td') as any[];
+                const cells = elementChildren(rows[i])
+                    .filter((cell) => cell.tagName.toLowerCase() === 'td');
                 if (cells.length < 2) continue;
 
                 let title = '';

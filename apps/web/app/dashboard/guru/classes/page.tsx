@@ -1,6 +1,6 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import { editClassAction,getProctorOrganization,getStudentsByClassAction } from '@/lib/api/proctor';
+import { editClassAction,getProctorOrganization,getStudentsByClassAction,type ClassStudent,type OrganizationClass,type ProctorOrganization } from '@/lib/api/proctor';
 import { createTambahanClass,deleteTambahanClass,listGuruClasses } from '@/lib/api/teachers';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -19,7 +19,7 @@ Trash2,
 Users,
 X
 } from 'lucide-react';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 
 const currentYear = new Date().getFullYear();
 const generateYearOptions = (): string[] => {
@@ -85,13 +85,13 @@ function compareClasses(
 }
 
 export default function GuruClassesPage() {
-    const [classes, setClasses] = useMemoryState<any[]>('guru_classes_classes', []);
-    const [org, setOrg] = useState<any>(null);
+    const [classes, setClasses] = useMemoryState<OrganizationClass[]>('guru_classes_classes', []);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [isLoading, setIsLoading] = useMemoryState('guru_classes_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingClass, setEditingClass] = useState<any>(null);
+    const [editingClass, setEditingClass] = useState<OrganizationClass | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [classForm, setClassForm] = useState({
         name: '',
@@ -103,11 +103,11 @@ export default function GuruClassesPage() {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
-    const [selectedClassForStudents, setSelectedClassForStudents] = useState<any>(null);
-    const [classStudents, setClassStudents] = useState<any[]>([]);
+    const [selectedClassForStudents, setSelectedClassForStudents] = useState<OrganizationClass | null>(null);
+    const [classStudents, setClassStudents] = useState<ClassStudent[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
 
-    const handleViewStudents = async (cls: any) => {
+    const handleViewStudents = async (cls: OrganizationClass) => {
         setSelectedClassForStudents(cls);
         setIsStudentModalOpen(true);
         setIsLoadingStudents(true);
@@ -116,13 +116,7 @@ export default function GuruClassesPage() {
         setIsLoadingStudents(false);
     };
 
-    useEffect(() => { loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus); }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
         const user = await getSessionUser();
         if (user) {
@@ -135,7 +129,17 @@ export default function GuruClassesPage() {
             }
         }
         setIsLoading(false);
-    };
+    }, [setClasses, setIsLoading]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const [yearOptions] = useState<string[]>(generateYearOptions());
 
@@ -183,14 +187,15 @@ export default function GuruClassesPage() {
         setIsSubmitting(false);
     };
 
-    const openEditModal = (cls: any) => {
+    const openEditModal = (cls: OrganizationClass) => {
         setEditingClass(cls);
         setClassForm({ name: cls.name, type: cls.type, schoolYear: cls.school_year || '' });
         setIsEditModalOpen(true);
     };
 
-    const handleCopyCode = (code: string) => {
-        navigator.clipboard.writeText(code);
+    const handleCopyCode = (code?: string | null) => {
+        if (!code) return;
+        void navigator.clipboard.writeText(code);
         setCopiedCode(code);
         setTimeout(() => setCopiedCode(null), 2000);
     };
@@ -232,7 +237,7 @@ export default function GuruClassesPage() {
             if (!acc[year]) acc[year] = [];
             acc[year].push(cls);
             return acc;
-        }, {} as Record<string, any[]>);
+        }, {} as Record<string, OrganizationClass[]>);
     }, [filtered]);
 
     return (
@@ -416,10 +421,10 @@ export default function GuruClassesPage() {
                                 <div className="flex items-center gap-2 mb-3">
                                     <Bookmark size={14} className="text-[#3083FF]" />
                                     <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{year}</h3>
-                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{(yearClasses as any[]).length} kelas</span>
+                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{yearClasses.length} kelas</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {(yearClasses as any[]).map((cls: any, i: number) => (
+                                    {yearClasses.map((cls, i) => (
                                         <motion.div
                                             key={cls.id}
                                             initial={{ opacity: 0, y: 12 }}

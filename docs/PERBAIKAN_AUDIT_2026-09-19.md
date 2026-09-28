@@ -715,6 +715,24 @@ API siswa serta tiga halaman hasil memakai kontrak eksplisit untuk attempt, jawa
 
 Halaman jadwal dan kelas siswa sekarang memakai kontrak ujian serta kelas dari API siswa. Perhitungan status jadwal tidak lagi menerima objek tanpa tipe. Pemuatan awal dijadwalkan dengan cleanup, interval jam dibersihkan, dan refresh kelas ketika jendela kembali fokus memakai callback stabil. Kedua halaman mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 7 masalah menjadi 352 error/24 warning. **Lokasi:** [jadwal siswa](../apps/web/app/dashboard/siswa/schedule/page.tsx), [kelas siswa](../apps/web/app/dashboard/siswa/classes/page.tsx), dan [dokumentasi tahap 52](perbaikan-2026-09-19/TAHAP-52-JADWAL-DAN-KELAS-SISWA.md).
 
+## Tahap 53 — Parser DOCX dan arsip soal
+
+### LINT-62–68: DOM tabel, metadata impor, kisi-kisi, dan urutan sumber
+
+Parser DOCX sekarang memakai kontrak metadata serta elemen DOM yang eksplisit. JSON kisi-kisi dan arsip soal tertanam diperiksa sebagai data tidak tepercaya sebelum dibaca. Nomor sumber tetap menjadi dasar pengurutan hasil akhir, sedangkan metadata matching serta kategori tidak lagi memakai cast paksa. Parser dan arsip mencapai lint nol, TypeScript lulus, serta 14 regresi sumber soal, workflow, dan idempotensi konten lulus. Pemindaian penuh turun 21 masalah menjadi 331 error/24 warning. **Lokasi:** [parser DOCX](../apps/web/lib/doc-parser.ts), [arsip soal](../apps/web/lib/question-archive.ts), dan [dokumentasi tahap 53](perbaikan-2026-09-19/TAHAP-53-PARSER-DOCX-DAN-ARSIP-SOAL.md).
+
+## Tahap 54 — Modal impor massal
+
+### LINT-69–73: bank sumber, soal portabel, opsi, dan payload lintas bank
+
+Modal impor massal sekarang memakai kontrak bank dan soal API. Hasil `portableQuestion` disimpan bersama soal sumber lalu menjadi satu-satunya dasar payload lintas bank, sehingga tipe, metadata, opsi, bobot, dan kunci tidak dibentuk ulang dari objek tanpa bentuk. Filter, pilihan massal, dan tampilan jumlah opsi juga bertipe eksplisit. Modal mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 10 masalah menjadi 321 error/24 warning. **Lokasi:** [modal impor massal](../apps/web/app/components/questions/BulkImportModal.tsx) dan [dokumentasi tahap 54](perbaikan-2026-09-19/TAHAP-54-MODAL-IMPOR-MASSAL.md).
+
+## Tahap 55 — Transfer soal dan kelas staf
+
+### LINT-74–82: bentuk portabel, opsi ordering, kelas, siswa, dan lifecycle fokus
+
+Kontrak transfer bersama sekarang dipakai oleh ekspor dan impor untuk melepas ID sumber tanpa kehilangan isi, kunci, bobot, atau urutan opsi. Halaman kelas Admin, Proktor, dan Guru memakai kontrak organisasi, kelas, serta siswa yang sama. Pemuatan awal dan refresh fokus memakai callback stabil dengan cleanup, sedangkan data spreadsheet diperiksa sebelum dikonversi. Semua sasaran mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 57 masalah menjadi 267 error/21 warning. **Lokasi:** [transfer soal](../apps/web/lib/question-transfer.ts), [kelas Admin](../apps/web/app/dashboard/admin/classes/page.tsx), [kelas Proktor](../apps/web/app/dashboard/proktor/classes/page.tsx), [kelas Guru](../apps/web/app/dashboard/guru/classes/page.tsx), dan [dokumentasi tahap 55](perbaikan-2026-09-19/TAHAP-55-TRANSFER-SOAL-DAN-KELAS-STAF.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -725,10 +743,10 @@ Halaman jadwal dan kelas siswa sekarang memakai kontrak ujian serta kelas dari A
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
 | Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 52; API terakhir lulus pada rangkaian audit sebelumnya |
+| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 55; API terakhir lulus pada rangkaian audit sebelumnya |
 | Build produksi frontend | Lulus setelah Tahap 43; 92 halaman berhasil diproses |
 | Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
-| ESLint frontend penuh | 352 error/24 warning; total turun 1.428 masalah sampai Tahap 52 |
+| ESLint frontend penuh | 267 error/21 warning; total turun 1.516 masalah sampai Tahap 55 |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |

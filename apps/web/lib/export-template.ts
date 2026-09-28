@@ -31,6 +31,7 @@ interface ExportOptionMetadata {
     match_texts?: string[];
     category_names?: string[];
     dimension_id?: string | null;
+    [key: string]: unknown;
 }
 
 interface ExportOption {

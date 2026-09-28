@@ -3,7 +3,7 @@ import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { QUESTION_TYPE_LABELS } from '@/app/types/question';
 import { bulkImportQuestions } from '@/lib/api/imports';
-import { listQuestionBanks } from '@/lib/api/questions';
+import { listQuestionBanks,type QuestionBank,type QuestionRecord } from '@/lib/api/questions';
 import { parseDocxToQuestions } from '@/lib/doc-parser';
 import {
 ImportResult,
@@ -46,6 +46,7 @@ interface BulkImportModalProps {
 type ImportStep = 'upload' | 'preview' | 'importing' | 'complete';
 type FileType = 'xlsx' | 'docx' | 'csv';
 type ImportTab = 'file' | 'bank';
+type SourceBankQuestion = QuestionRecord & { transfer: ParsedQuestion };
 
 const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     mcq: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
@@ -78,9 +79,9 @@ export default function BulkImportModal({
 
     // ── Cross-bank import state ───────────────────────────────────────────────
     const [importTab, setImportTab] = useState<ImportTab>('file');
-    const [allBanks, setAllBanks] = useState<any[]>([]);
+    const [allBanks, setAllBanks] = useState<QuestionBank[]>([]);
     const [selectedSourceBank, setSelectedSourceBank] = useState<string>('');
-    const [sourceBankQuestions, setSourceBankQuestions] = useState<any[]>([]);
+    const [sourceBankQuestions, setSourceBankQuestions] = useState<SourceBankQuestion[]>([]);
     const [sourceLoading, setSourceLoading] = useState(false);
     const [selectedCrossQuestions, setSelectedCrossQuestions] = useState<Set<string>>(new Set());
     const [searchSourceQuery, setSearchSourceQuery] = useState('');
@@ -112,7 +113,7 @@ export default function BulkImportModal({
         void listQuestionBanks()
             .then(banks => {
                 if (!active) return;
-                setAllBanks((banks || []).filter((b: any) => b.id !== bankId));
+                setAllBanks((banks || []).filter((bank) => bank.id !== bankId));
             })
             .catch(err => {
                 console.error('Failed to load banks:', err);
@@ -157,7 +158,7 @@ export default function BulkImportModal({
     }, []);
 
     const selectAllCross = useCallback(() => {
-        setSelectedCrossQuestions(new Set(sourceBankQuestions.map((q: any) => q.id)));
+        setSelectedCrossQuestions(new Set(sourceBankQuestions.map((question) => question.id)));
     }, [sourceBankQuestions]);
 
     const deselectAllCross = useCallback(() => {
@@ -173,16 +174,16 @@ export default function BulkImportModal({
 
         try {
             const questionsToImport = sourceBankQuestions
-                .filter((q: any) => selectedCrossQuestions.has(q.id))
-                .map((q: any) => {
-                    const value = q.transfer || portableQuestion(q);
+                .filter((question) => selectedCrossQuestions.has(question.id))
+                .map((question) => {
+                    const value = question.transfer;
                     return {
                         question_text: value.question_text, type: value.type,
                         difficulty: value.difficulty, score_default: value.scoreDefault,
                         metadata: value.metadata,
-                        options: value.options.map((o: any) => ({
-                            option_text: o.text, is_correct: o.isCorrect ?? false,
-                            order: o.order, weight: o.weight, metadata: o.metadata,
+                        options: value.options.map((option) => ({
+                            option_text: option.text, is_correct: option.isCorrect ?? false,
+                            order: option.order, weight: option.weight, metadata: option.metadata,
                         })),
                     };
                 });
@@ -361,7 +362,7 @@ export default function BulkImportModal({
     const filteredSourceQuestions = useMemo(() => {
         if (!searchSourceQuery) return sourceBankQuestions;
         const q = searchSourceQuery.toLowerCase();
-        return sourceBankQuestions.filter((sq: any) =>
+        return sourceBankQuestions.filter((sq) =>
             (sq.question_text || '').toLowerCase().includes(q) ||
             (sq.type || '').toLowerCase().includes(q)
         );
@@ -538,7 +539,7 @@ export default function BulkImportModal({
                                             className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm bg-white focus:outline-none focus:border-primary"
                                         >
                                             <option value="">-- Pilih Bank Soal --</option>
-                                            {allBanks.map((b: any) => (
+                                            {allBanks.map((b) => (
                                                 <option key={b.id} value={b.id}>{b.title || b.name || 'Bank Soal'}</option>
                                             ))}
                                         </select>
@@ -577,7 +578,7 @@ export default function BulkImportModal({
                                                 </div>
                                             </div>
                                             <div className="space-y-2 max-h-80 overflow-y-auto">
-                                                {filteredSourceQuestions.map((sq: any) => (
+                                                {filteredSourceQuestions.map((sq) => (
                                                     <div
                                                         key={sq.id}
                                                         onClick={() => toggleCrossQuestion(sq.id)}
@@ -597,8 +598,8 @@ export default function BulkImportModal({
                                                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[sq.type]?.bg || 'bg-slate-100'} ${TYPE_COLORS[sq.type]?.text || 'text-slate-600'}`}>
                                                                     {TYPE_LABEL[sq.type] || sq.type}
                                                                 </span>
-                                                                {sq.bank_question_options?.length > 0 && (
-                                                                    <span className="text-xs text-slate-400">{sq.bank_question_options.length} opsi</span>
+                                                                {(sq.bank_question_options?.length ?? 0) > 0 && (
+                                                                    <span className="text-xs text-slate-400">{sq.bank_question_options?.length ?? 0} opsi</span>
                                                                 )}
                                                             </div>
                                                             <p className="text-sm text-slate-700 line-clamp-2">

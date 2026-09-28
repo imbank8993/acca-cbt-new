@@ -4,6 +4,7 @@ import { FilterActions,FilterSearch,FilterSelect,FilterToolbar } from '@/app/com
 import { Modal,ModalBody,ModalField,ModalFooter,ModalHeader } from '@/app/components/ui/modal';
 import { Spinner } from '@/app/components/ui/Spinner';
 import {
+type ClassStudent,
 createClassAction,
 deleteClassAction,
 editClassAction,
@@ -12,7 +13,9 @@ getProctorOrganization,
 getStudentsByClassAction,
 importClassesAction,
 listOrganizationClasses,
-listOrganizationSchoolYears
+listOrganizationSchoolYears,
+type OrganizationClass,
+type ProctorOrganization,
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -25,7 +28,7 @@ Copy,
 School,
 Users
 } from 'lucide-react';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 
 const currentYear = new Date().getFullYear();
 const generateYearOptions = (): string[] => {
@@ -93,15 +96,15 @@ function compareClasses(
 }
 
 export default function ProctorSettingsClassesPage() {
-    const [classes, setClasses] = useMemoryState<any[]>('proktor_settings_classes_classes', []);
-    const [org, setOrg] = useState<any>(null);
+    const [classes, setClasses] = useMemoryState<OrganizationClass[]>('proktor_settings_classes_classes', []);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [isLoading, setIsLoading] = useMemoryState('proktor_settings_classes_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [deleteClassTarget, setDeleteClassTarget] = useState<any | null>(null);
-    const [editingClass, setEditingClass] = useState<any>(null);
+    const [deleteClassTarget, setDeleteClassTarget] = useState<OrganizationClass | null>(null);
+    const [editingClass, setEditingClass] = useState<OrganizationClass | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [classForm, setClassForm] = useState({
         name: '',
@@ -114,11 +117,12 @@ export default function ProctorSettingsClassesPage() {
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
-    const [selectedClassForStudents, setSelectedClassForStudents] = useState<any>(null);
-    const [classStudents, setClassStudents] = useState<any[]>([]);
+    const [selectedClassForStudents, setSelectedClassForStudents] = useState<OrganizationClass | null>(null);
+    const [classStudents, setClassStudents] = useState<ClassStudent[]>([]);
     const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+    const [yearOptions, setYearOptions] = useState<string[]>(generateYearOptions());
 
-    const handleViewStudents = async (cls: any) => {
+    const handleViewStudents = async (cls: OrganizationClass) => {
         setSelectedClassForStudents(cls);
         setIsStudentModalOpen(true);
         setIsLoadingStudents(true);
@@ -127,14 +131,7 @@ export default function ProctorSettingsClassesPage() {
         setIsLoadingStudents(false);
     };
 
-    useEffect(() => {
-        loadData();
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         const user = await getSessionUser();
         if (user) {
             const organization = await getProctorOrganization();
@@ -149,15 +146,21 @@ export default function ProctorSettingsClassesPage() {
                 setYearOptions(yearList || []);
                 const runningYear = activeYearData?.year || yearList?.[0] || defaultCurrentYear;
                 setYearFilter(prev => (!prev || prev === 'all' || prev === defaultCurrentYear ? runningYear : prev));
-                if (!classForm.schoolYear) {
-                    setClassForm(prev => ({ ...prev, schoolYear: runningYear }));
-                }
+                setClassForm(prev => prev.schoolYear ? prev : ({ ...prev, schoolYear: runningYear }));
             }
         }
         setIsLoading(false);
-    };
+    }, [defaultCurrentYear, setClasses, setIsLoading]);
 
-    const [yearOptions, setYearOptions] = useState<string[]>(generateYearOptions());
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const handleCreateClass = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -206,14 +209,15 @@ export default function ProctorSettingsClassesPage() {
         setIsSubmitting(false);
     };
 
-    const openEditModal = (cls: any) => {
+    const openEditModal = (cls: OrganizationClass) => {
         setEditingClass(cls);
         setClassForm({ name: cls.name, type: cls.type, schoolYear: cls.school_year || '' });
         setIsEditModalOpen(true);
     };
 
-    const handleCopyCode = (code: string) => {
-        navigator.clipboard.writeText(code);
+    const handleCopyCode = (code?: string | null) => {
+        if (!code) return;
+        void navigator.clipboard.writeText(code);
         setCopiedCode(code);
         setTimeout(() => setCopiedCode(null), 2000);
     };
@@ -256,7 +260,7 @@ export default function ProctorSettingsClassesPage() {
             const data = new Uint8Array(event.target?.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+            const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
             const formattedData = jsonData.map(row => ({
                 name: String(row['Nama Kelas'] || row.name || '').trim(),
                 type: String(row['Tipe'] || row.type || 'reguler').toLowerCase().trim() as 'reguler' | 'tambahan',
@@ -287,7 +291,7 @@ export default function ProctorSettingsClassesPage() {
             if (!acc[year]) acc[year] = [];
             acc[year].push(cls);
             return acc;
-        }, {} as Record<string, any[]>);
+        }, {} as Record<string, OrganizationClass[]>);
     }, [filtered]);
 
     return (
@@ -338,7 +342,7 @@ export default function ProctorSettingsClassesPage() {
                     <FilterSelect
                         label="Tipe Kelas"
                         value={classTypeFilter}
-                        onChange={val => setClassTypeFilter(val as any)}
+                        onChange={val => setClassTypeFilter(val as typeof classTypeFilter)}
                         options={[
                             { value: 'all', label: 'Semua Tipe' },
                             { value: 'reguler', label: 'Utama' },
@@ -493,10 +497,10 @@ export default function ProctorSettingsClassesPage() {
                                 <div className="flex items-center gap-2 mb-3">
                                     <Bookmark size={14} className="text-[#3083FF]" />
                                     <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">{year}</h3>
-                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{(yearClasses as any[]).length} kelas</span>
+                                    <span className="text-xs text-slate-400 bg-[#3083FF]/10 px-2 py-0.5 rounded-lg border border-[#3083FF]/30">{yearClasses.length} kelas</span>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {(yearClasses as any[]).map((cls: any, i: number) => (
+                                    {yearClasses.map((cls, i) => (
                                         <motion.div
                                             key={cls.id}
                                             initial={{ opacity: 0, y: 12 }}
@@ -585,7 +589,7 @@ export default function ProctorSettingsClassesPage() {
                         <ModalField label="Tipe Kelas" required>
                             <select
                                 value={classForm.type}
-                                onChange={e => setClassForm({ ...classForm, type: e.target.value as any })}
+                                onChange={e => setClassForm({ ...classForm, type: e.target.value as typeof classForm.type })}
                             >
                                 <option value="reguler">Reguler (Utama)</option>
                                 <option value="tambahan">Tambahan</option>
@@ -644,7 +648,7 @@ export default function ProctorSettingsClassesPage() {
                         <ModalField label="Tipe Kelas" required>
                             <select
                                 value={classForm.type}
-                                onChange={e => setClassForm({ ...classForm, type: e.target.value as any })}
+                                onChange={e => setClassForm({ ...classForm, type: e.target.value as typeof classForm.type })}
                             >
                                 <option value="reguler">Reguler (Utama)</option>
                                 <option value="tambahan">Tambahan</option>
