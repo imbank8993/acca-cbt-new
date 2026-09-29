@@ -117,23 +117,25 @@ export default function Header({
                         <Menu size={19} />
                     </button>
 
-                    <button
-                        type="button"
-                        className="header-back-btn"
-                        onClick={() => {
-                            if (typeof window !== 'undefined') {
-                                if (window.history.length > 1) {
-                                    router.back();
-                                } else {
-                                    router.push('/dashboard');
+                    {!isDashboard && (
+                        <button
+                            type="button"
+                            className="header-back-btn"
+                            onClick={() => {
+                                if (typeof window !== 'undefined') {
+                                    if (window.history.length > 1) {
+                                        router.back();
+                                    } else {
+                                        router.push('/dashboard');
+                                    }
                                 }
-                            }
-                        }}
-                        title="Kembali ke halaman sebelumnya"
-                        aria-label="Kembali ke halaman sebelumnya"
-                    >
-                        <ArrowLeft size={16} />
-                    </button>
+                            }}
+                            title="Kembali ke halaman sebelumnya"
+                            aria-label="Kembali ke halaman sebelumnya"
+                        >
+                            <ArrowLeft size={16} />
+                        </button>
+                    )}
 
                     <div className="header-title-wrapper">
                         <h1 className="header-title" title={isDashboard ? 'Selamat Datang 👋' : pageTitle}>

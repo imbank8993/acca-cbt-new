@@ -107,10 +107,7 @@
 
 .header-back-btn,
 .header-collapse-toggle {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -118,33 +115,44 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
   color: var(--header-text);
   font-size: 0.8rem;
-  opacity: 0.75;
+  opacity: 0.85;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.15s ease;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
 }
 
 .header-back-btn:hover,
 .header-collapse-toggle:hover {
-  background: rgba(59, 130, 246, 0.1);
-  color: var(--n-primary);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--n-primary, #2563eb);
   opacity: 1;
 }
 
 .header-back-btn:active,
 .header-collapse-toggle:active {
-  transform: translateY(-50%) scale(0.92);
+  transform: scale(0.92);
+}
+
+.dark .header-back-btn,
+html.dark .header-back-btn,
+.dark .header-collapse-toggle,
+html.dark .header-collapse-toggle {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
 }
 
 .dark .header-back-btn:hover,
 html.dark .header-back-btn:hover,
 .dark .header-collapse-toggle:hover,
 html.dark .header-collapse-toggle:hover {
-  background: rgba(37, 99, 235, 0.22);
+  background: rgba(37, 99, 235, 0.25);
+  border-color: rgba(96, 165, 250, 0.4);
   color: #60a5fa;
 }
 
