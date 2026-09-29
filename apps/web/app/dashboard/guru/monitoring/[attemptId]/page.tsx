@@ -48,7 +48,7 @@ export default function AttemptAnalyticsPage() {
                 setData(res);
                 const initialGrades: Record<string, number> = {};
                 res.answers.forEach((a) => {
-                    if (['essay', 'esay', 'uraian'].includes(a.bank_questions?.type)) {
+                    if (a.bank_questions?.type && ['essay', 'esay', 'uraian'].includes(a.bank_questions.type)) {
                         initialGrades[a.id] = a.score || 0;
                     }
                 });
@@ -239,7 +239,7 @@ export default function AttemptAnalyticsPage() {
                 <div className="bg-white p-5 rounded-lg border border-[#3083FF]/20 shadow-sm relative overflow-hidden">
                     <div className="flex justify-between items-start mb-2">
                         <span className="text-sm font-bold text-slate-500">Keamanan</span>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${attempt.warning_count > 0 ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-600'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${(attempt.warning_count || 0) > 0 ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-600'}`}>
                             <Shield size={16} />
                         </div>
                     </div>

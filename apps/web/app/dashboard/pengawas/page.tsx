@@ -285,7 +285,7 @@ export default function PengawasDashboard() {
                                         {exam.title}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                                        {exam.subject || 'Mata Pelajaran'}
+                                        {(exam as any).subject || 'Mata Pelajaran'}
                                     </p>
                                 </button>
                             );

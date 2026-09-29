@@ -297,7 +297,7 @@ function MonitoringContent() {
                                 >
                                     <option value="">Semua Kelas</option>
                                     {availableClasses.map((cls) => (
-                                        <option key={cls} value={cls}>
+                                        <option key={cls || ''} value={cls || ''}>
                                             {cls}
                                         </option>
                                     ))}
@@ -370,7 +370,7 @@ function MonitoringContent() {
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
-                                                        {formatTime(attempt.started_at)}
+                                                        {formatTime(attempt.started_at ?? null)}
                                                     </td>
                                                     <td className="py-3 px-3">
                                                         {warningCount > 0 || tabCount > 0 ? (
