@@ -172,6 +172,7 @@ export interface StudentExam {
     duration_minutes: number;
     metadata?: {
         is_safe_mode?: boolean;
+        max_violations?: number | null;
         assignment_description?: string;
         videoUrl?: string;
         documentUrl?: string;

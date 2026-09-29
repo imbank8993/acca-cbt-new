@@ -2,10 +2,11 @@
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
-import type { ExamAttemptRecord,OrganizationExam,ViolationEvent } from '@/lib/api/proctor';
+import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam,ViolationEvent } from '@/lib/api/proctor';
 import type { QuestionOptionRecord } from '@/lib/api/questions';
-import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -57,6 +58,7 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
+    const [detailedAnalysis, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
     const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('proktor_monitoring_liveAlerts', []);
@@ -134,12 +136,13 @@ function MonitoringContent() {
             }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
             if (generation !== examRequestGenerationRef.current) return;
             setAttempts(attData);
+            setDetailedAnalysis(analysisData.detailed || null);
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
         }
         if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
-    }, [setAnalysis, setAttempts]);
+    }, [setAnalysis, setAttempts, setDetailedAnalysis]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadInitialData(), 0);
@@ -168,39 +171,53 @@ function MonitoringContent() {
     }, [loadExamData, selectedExamId]);
 
     const handleResetAttempt = async (attemptId: string, studentName: string) => {
+        const modeInput = window.prompt(
+            `Pilih tindakan untuk ${studentName}:\n\n` +
+            `Ketik SUSULAN untuk menghapus jawaban lama dan mengerjakan dari awal.\n` +
+            `Ketik PULIHKAN untuk melanjutkan jawaban lama.`,
+            'SUSULAN',
+        );
+        if (!modeInput) return;
+        const mode = modeInput.trim().toUpperCase();
+        if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
+            alert('Pilihan harus SUSULAN atau PULIHKAN.');
+            return;
+        }
+
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
-        const confirmed = window.confirm(
-            `Yakin ingin mereset ujian siswa "${studentName}"?\n\n` +
-            `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya. ` +
-            `Jika waktu pengerjaannya sudah habis, siswa mendapat tenggat pemulihan 15 menit.\n\n` +
-            `Alasan: ${reason}\n\n` +
-            `Peringatan: Pastikan perangkat siswa sudah dalam kondisi baik untuk menghindari pelanggaran berulang.`
-        );
+        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
+        if (mode === 'SUSULAN' && !durationMinutes) return;
 
+        const confirmed = window.confirm(
+            mode === 'SUSULAN'
+                ? `Aktifkan ujian susulan untuk "${studentName}" selama ${durationMinutes} menit?\n\nSEMUA JAWABAN DAN NILAI LAMA SISWA INI AKAN DIHAPUS. Hasil baru tetap masuk ke rekap ujian yang sama.\n\nAlasan: ${reason}`
+                : `Pulihkan ujian "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
+        );
         if (!confirmed) return;
 
         setResettingAttemptId(attemptId);
         try {
-            const result = await resetExamAttempt(attemptId, reason);
+            const result = mode === 'SUSULAN'
+                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
+                : await resetExamAttempt(attemptId, reason);
             if (result.success) {
                 const deadline = result.recoveryUntil
-                    ? ` Tenggat pemulihan: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
+                    ? ` Tenggat: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
                     : '';
-                alert(
-                    `Ujian "${studentName}" berhasil dipulihkan. ` +
-                    `${result.serverAnswerCount} jawaban sudah ada di server.${deadline}`,
-                );
+                const detail = mode === 'SUSULAN'
+                    ? ` ${'deletedAnswerCount' in result ? result.deletedAnswerCount : 0} jawaban lama dihapus.`
+                    : ` ${'serverAnswerCount' in result ? result.serverAnswerCount : 0} jawaban lama dipertahankan.`;
+                alert(`${mode === 'SUSULAN' ? 'Ujian susulan' : 'Pemulihan'} untuk "${studentName}" berhasil.${detail}${deadline}`);
                 if (selectedExamId) loadExamData(selectedExamId);
             } else {
-                alert(`Gagal mereset: ${result.error}`);
+                alert(`Tindakan gagal: ${result.error}`);
             }
         } catch {
-            alert('Terjadi kesalahan saat mereset ujian');
+            alert('Terjadi kesalahan saat mengatur ulang ujian.');
         }
         setResettingAttemptId(null);
     };
-
     const handleCalculateIRT = async () => {
         if (!selectedExamId) return;
         const orgId = exams.find(e => e.id === selectedExamId)?.organization_id;
@@ -215,7 +232,10 @@ function MonitoringContent() {
         try {
             const res = await calculateExamIRT(selectedExamId);
             if (res.success) {
-                alert(`Kalkulasi selesai. ${res.count} skor peserta telah diperbarui.`);
+                const warnings = res.warnings?.length
+                    ? `\n\nPeringatan:\n${res.warnings.map((warning) => `• ${warning}`).join('\n')}`
+                    : '';
+                alert(`Kalkulasi selesai. ${res.count} skor peserta telah diperbarui.${warnings}`);
                 loadExamData(selectedExamId);
             } else {
                 alert(`Gagal kalkulasi: ${res.error}`);
@@ -274,50 +294,13 @@ function MonitoringContent() {
     const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
     const exportResultsToExcel = async () => {
-        if (!attempts?.length && !analysis?.length) return alert('Tidak ada data');
-        const XLSX = await import('xlsx');
-        const wb = XLSX.utils.book_new();
-
-        if (attempts?.length) {
-            const wsHasil = XLSX.utils.json_to_sheet(attempts.map(a => {
-                const bd = a.violation_breakdown || { pindah_tab: a.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                return {
-                    'Nama': a.profiles?.full_name || '-',
-                    'Kelas': a.kelas_name || '-',
-                    'Status': a.status === 'submitted' || a.status === 'auto_submitted' ? 'Selesai' : a.status === 'in_progress' ? 'Mengerjakan' : a.status === 'belum' ? 'Belum Mengerjakan' : a.status,
-                    'Pelanggaran': a.warning_count ?? 0,
-                    'Pindah Tab': bd.pindah_tab,
-                    'Close Tab': bd.close_tab,
-                    'Pelanggaran Lain': bd.lainnya,
-                    'Nilai': Number(a.total_score || 0).toFixed(2),
-                    'Mulai': a.started_at ? new Date(a.started_at).toLocaleString('id-ID') : '-',
-                    'Selesai': a.finished_at ? new Date(a.finished_at).toLocaleString('id-ID') : '-'
-                };
-            }));
-            wsHasil['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
-            XLSX.utils.book_append_sheet(wb, wsHasil, "Hasil");
-        }
-
-        if (analysis?.length) {
-            const wsAnalisis = XLSX.utils.json_to_sheet(analysis.map((a, i) => ({
-                'No': a.number ?? i + 1,
-                'Soal': a.qText.replace(/<[^>]+>/g, '').substring(0, 150),
-                'Menjawab': a.total,
-                'Benar': a.correct,
-                'Salah': a.incorrect,
-                'Belum Ternilai': a.ungraded ?? 0,
-                '% Salah': a.incorrectPercentage.toFixed(1) + '%',
-                'Siswa Menjawab Salah': (a.wrongStudents || []).join(', ')
-            })));
-            wsAnalisis['!cols'] = [{ wch: 5 }, { wch: 80 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 13 }, { wch: 10 }, { wch: 60 }];
-            XLSX.utils.book_append_sheet(wb, wsAnalisis, "Analisis");
-        }
-
-        const examTitle = exams.find(e => e.id === selectedExamId)?.title || selectedExamId?.slice(0, 6) || 'Ujian';
-        const safeTitle = examTitle.replace(/[^a-z0-9]/gi, '_');
-        XLSX.writeFile(wb, `Analisis_${safeTitle}.xlsx`);
+        await exportDetailedAnalysisToExcel({
+            exam: exams.find((exam) => exam.id === selectedExamId),
+            attempts,
+            analysis,
+            detailedAnalysis,
+        });
     };
-
     if (isLoading) return (
         <div className="flex items-center justify-center min-h-screen">
             <Loader2 size={48} className="text-primary animate-spin" />
@@ -334,6 +317,12 @@ function MonitoringContent() {
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
     // sistem penilaian IRT yang dipilih"), jadi tombolnya disembunyikan.
     const selectedExam = exams.find(e => e.id === selectedExamId);
+    const configuredViolationLimit = selectedExam?.metadata?.max_violations;
+    const violationLimit = selectedExam?.metadata?.is_safe_mode === false || configuredViolationLimit === null
+        ? null
+        : (typeof configuredViolationLimit === 'number' && Number.isInteger(configuredViolationLimit) && configuredViolationLimit >= 1
+            ? configuredViolationLimit
+            : 3);
     const hasIRTScoring = String(selectedExam?.scoring_type || '')
         .split(',')
         .map((t: string) => t.trim())
@@ -532,7 +521,7 @@ function MonitoringContent() {
                                                     const canReset = isTerminated || att.status === 'submitted';
                                                     const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
                                                     const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                    const MAX = 3;
+                                                    const MAX = violationLimit ?? Math.max(violations, 1);
                                                     const hasViolations = violations > 0;
 
                                                     let duration = '-';
@@ -603,7 +592,7 @@ function MonitoringContent() {
                                                                     <div>
                                                                         <div className="flex justify-between text-[9px] font-semibold uppercase tracking-wider mb-1.5">
                                                                             <span className={hasViolations ? 'text-red-500' : 'text-slate-400'}>Pelanggaran</span>
-                                                                            <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{MAX}</span>
+                                                                            <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{violationLimit ?? '∞'}</span>
                                                                         </div>
                                                                         <div className="flex gap-1">
                                                                             {[...Array(MAX)].map((_, i) => (
@@ -628,6 +617,15 @@ function MonitoringContent() {
                                                                 </div>
                                                             </div>
 
+                                                            {liveAlert && (
+                                                                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[10px] text-amber-800">
+                                                                    <span className="font-bold">Pelanggaran terakhir:</span> {liveAlert.violationLabel}
+                                                                    <span className="block text-amber-600 mt-0.5">
+                                                                        {new Date(liveAlert.timestamp).toLocaleString('id-ID')}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+
                                                             <div className="mt-3 flex gap-2">
                                                                 <button
                                                                     onClick={() => router.push(`/dashboard/proktor/monitoring/${att.id}`)}
@@ -646,7 +644,7 @@ function MonitoringContent() {
                                                                         ) : (
                                                                             <RotateCcw size={11} />
                                                                         )}
-                                                                        Reset
+                                                                        Susulan / Pulihkan
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -687,7 +685,6 @@ function MonitoringContent() {
                                                         const canReset = isTerminated || att.status === 'submitted';
                                                         const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
                                                         const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                        const MAX = 3;
                                                         const hasViolations = violations > 0;
 
                                                         let duration = '-';
@@ -729,7 +726,7 @@ function MonitoringContent() {
                                                                 </td>
                                                                 <td className="p-3 text-center">
                                                                     <span className={`font-bold ${hasViolations ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                        {violations}/{MAX}
+                                                                        {violations}/{violationLimit ?? '∞'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="p-3 text-center text-xs">
@@ -760,7 +757,7 @@ function MonitoringContent() {
                                                                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
                                                                                 {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                                Reset
+                                                                                Susulan / Pulihkan
                                                                             </button>
                                                                         )}
                                                                     </div>
@@ -920,7 +917,7 @@ function MonitoringContent() {
                                                                             className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                         >
                                                                             {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                            Reset
+                                                                            Susulan / Pulihkan
                                                                         </button>
                                                                     )}
                                                                 </div>

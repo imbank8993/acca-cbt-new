@@ -141,6 +141,8 @@ export interface QuestionMetadata {
     blanks?: { answer: string; variations: string[] }[];
     import_stimulus?: string;
     import_instruction?: string;
+    import_source_number?: number;
+    isComplex?: boolean;
     is_multi_topic?: boolean;
     right_items?: string[];
     _stimulus_code?: string;

@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { wibDateTimeToUtc } from '../common/wib-time';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import {
     assertExamsHaveNoHistory,
     deleteExamsWithoutHistory,
@@ -602,10 +603,7 @@ export class ExamConfigsService {
 
         return this.db.transaction(async (db) => {
             await this.lockConfig(db, configId);
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `config-exam-generation:${configExamId}`,
-            );
+            await advisoryTransactionLock(db, `config-exam-generation:${configExamId}`);
             await this.assertUnlocked(configId, 'Tidak bisa menghapus jadwal.', db);
 
             const { data: current } = await db.from('exam_config_exams')
@@ -667,10 +665,7 @@ export class ExamConfigsService {
 
         return this.db.transaction(async (db) => {
             await this.lockConfig(db, sourceConfigId);
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `config-exam-generation:${configExamId}`,
-            );
+            await advisoryTransactionLock(db, `config-exam-generation:${configExamId}`);
 
             const { data } = await db
                 .from('exam_config_exams')
@@ -800,19 +795,13 @@ export class ExamConfigsService {
         }
     }
 
-    private lockConfig(db: DbSession, configId: string): Promise<unknown> {
-        return db.raw(
-            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-            `exam-config:${configId}`,
-        );
+    private lockConfig(db: DbSession, configId: string): Promise<void> {
+        return advisoryTransactionLock(db, `exam-config:${configId}`);
     }
 
     private async lockConfigSchedules(db: DbSession, ids: string[]): Promise<void> {
         for (const id of [...new Set(ids)].sort()) {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `config-exam-generation:${id}`,
-            );
+            await advisoryTransactionLock(db, `config-exam-generation:${id}`);
         }
     }
 

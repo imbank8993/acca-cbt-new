@@ -9,7 +9,11 @@ import {
 createDefaultState,
 questionReducer,
 type BaseOption,
+type EssayMetadata,
+type MatchingMetadata,
+type OrderingMetadata,
 type QuestionAction,
+type ShortAnswerMetadata,
 type QuestionState
 } from '../schema';
 
@@ -212,7 +216,7 @@ export const QuestionForms = React.memo(({
         return (
           <MatchingForm
             options={state.options}
-            rightItems={(state.metadata as any).right_items || []}
+            rightItems={(state.metadata as MatchingMetadata).right_items || []}
             onAddLeftItem={handleAddLeftItem}
             onRemoveLeftItem={handleRemoveLeftItem}
             onUpdateLeftItem={handleUpdateLeftItem}
@@ -241,7 +245,7 @@ export const QuestionForms = React.memo(({
       case 'short_answer':
         return (
           <ShortAnswerForm
-            blanks={(state.metadata as any).blanks || []}
+            blanks={(state.metadata as ShortAnswerMetadata).blanks || []}
             questionText={state.questionText}
             onAddBlank={handleAddBlank}
             onRemoveBlank={handleRemoveBlank}
@@ -251,7 +255,7 @@ export const QuestionForms = React.memo(({
 
       case 'essay':
         return <EssayForm 
-          metadata={(state.metadata as any) || {}}
+          metadata={(state.metadata as EssayMetadata) || {}}
           onUpdateMetadata={(fields) => dispatch({ type: 'SET_METADATA', payload: fields })}
         />;
 
@@ -272,7 +276,7 @@ export const QuestionForms = React.memo(({
         return (
           <OrderingForm
             options={state.options}
-            correctOrder={((state.metadata as any).correct_order as string[]) || []}
+            correctOrder={(state.metadata as OrderingMetadata).correct_order || []}
             onAddItem={() => dispatch({ type: 'ADD_OPTION', payload: {} })}
             onBulkAdd={(texts) => addOptions(texts.map(t => ({ text: t })))}
             onRemoveItem={removeOption}

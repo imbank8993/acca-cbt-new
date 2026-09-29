@@ -313,7 +313,7 @@ export const InteractiveMatching = ({
               if (showFeedback) {
                 const correctMatchTexts = opt?.metadata?.match_texts || (opt?.metadata?.match_text ? [opt.metadata.match_text] : []);
                 const isCorrectMatch = correctMatchTexts.includes(rightText);
-                lineColor = isCorrectMatch ? "#10b981" : "#ef4444"; // Emerald or Red
+                lineColor = isCorrectMatch ? "#3083FF" : "#f87171"; // Biru for correct match, soft red for wrong
                 strokeWidth = 3;
                 zIndex = isCorrectMatch ? 10 : 5;
               }

@@ -653,23 +653,25 @@ const QuestionContentRenderer = React.memo(({
 
                         if (showFeedback) {
                             if (hasStudentMark && markIsRight) {
-                                optionClass = 'bg-emerald-50 border-emerald-300';
-                                labelClass = 'bg-emerald-500 text-white border-emerald-500';
-                                textClass = 'text-emerald-900';
-                                checkBg = 'bg-emerald-500 border-emerald-500 text-white';
+                                optionClass = 'bg-blue-50/70 border-[#3083FF] shadow-sm';
+                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
+                                textClass = 'text-slate-900 font-medium';
+                                checkBg = 'bg-[#3083FF] border-[#3083FF] text-white';
                                 iconElement = <Check size={14} strokeWidth={3} />;
                             } else if (hasStudentMark) {
-                                optionClass = 'bg-red-50 border-red-300';
-                                labelClass = 'bg-red-500 text-white border-red-500';
+                                optionClass = 'bg-rose-50/70 border-rose-200';
+                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 font-bold';
                                 textClass = 'text-red-900';
-                                checkBg = 'bg-red-500 border-red-500 text-white';
+                                checkBg = 'bg-rose-100 border-rose-300 text-rose-600';
                                 iconElement = <X size={14} strokeWidth={3} />;
                             } else if (isKey) {
                                 // Kunci yang TERLEWAT — tidak diberi tanda centang
                                 // supaya tidak tertukar dengan jawaban siswa.
-                                optionClass = 'bg-white border-emerald-300 border-dashed';
-                                labelClass = 'bg-white text-emerald-600 border-emerald-300';
-                                textClass = 'text-emerald-800';
+                                optionClass = 'bg-emerald-50/50 border-emerald-400';
+                                labelClass = 'bg-emerald-500 text-white border-emerald-500 font-bold';
+                                textClass = 'text-emerald-950 font-medium';
+                                checkBg = 'bg-emerald-500 border-emerald-500 text-white';
+                                iconElement = <Check size={14} strokeWidth={3} />;
                             } else {
                                 textClass = 'text-slate-400';
                             }
@@ -691,19 +693,24 @@ const QuestionContentRenderer = React.memo(({
                                 </div>
                                 {showFeedback && (
                                     <div className="shrink-0 flex flex-col items-end gap-1">
-                                        {hasStudentMark && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-white">
-                                                {question.type === 'true_false' ? `Jawab: ${tfChoice}` : 'Dipilih'}
+                                        {hasStudentMark && markIsRight && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Benar)` : 'Jawaban Siswa & Kunci'}
                                             </span>
                                         )}
-                                        {isKey && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
-                                                {question.type === 'true_false' ? `Kunci: ${isCorrect ? 'benar' : 'salah'}` : 'Kunci'}
+                                        {hasStudentMark && !markIsRight && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                                <X size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Salah)` : 'Jawaban Siswa (Salah)'}
+                                            </span>
+                                        )}
+                                        {!hasStudentMark && isKey && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Kunci: ${isCorrect ? 'benar' : 'salah'}` : 'Kunci Jawaban'}
                                             </span>
                                         )}
                                     </div>
                                 )}
-                                {hasStudentMark && (
+                                {(hasStudentMark || isKey) && (
                                     <div className={`w-7 h-7 shrink-0 rounded-lg border-2 flex items-center justify-center ${checkBg} text-white`}>
                                         {iconElement}
                                     </div>

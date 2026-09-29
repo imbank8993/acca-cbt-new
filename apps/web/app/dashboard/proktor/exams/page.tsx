@@ -1,14 +1,13 @@
 "use client";
+import { AssignExamModal } from '@/components/exams/AssignExamModal';
+import { CreateExamModal } from '@/components/exams/CreateExamModal';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam,purgeTrialExam,setExamArchived } from '@/lib/api/exams';
 import type { ExamConfig,ExamConfigBank } from '@/app/types/pas';
 import { listSubjects } from '@/lib/api/pas';
 import {
-assignExamAction,
-createExamAction,
 createSchoolYearAction,
-editExamAction,
 getProctorOrganization,
 listClassStudents,
 listExamAssignmentsAction,
@@ -29,7 +28,6 @@ AlertCircle,
 Archive,
 BookOpen,
 Calendar,
-Check,
 CheckCircle2,
 ChevronDown,
 ClipboardCheck,
@@ -38,7 +36,6 @@ Eye,EyeOff,
 FileText,
 FolderOpen,
 Globe,GlobeLock,
-Info,
 Loader2,
 Plus,Search,
 Settings,
@@ -55,24 +52,6 @@ import ProctorPASPage from '../pas/page';
 
 type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
 type SortBy = 'newest' | 'oldest' | 'name';
-type ExamType = 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya';
-
-// Helper: Convert UTC ISO string to WIB datetime-local format for input display
-// WIB = UTC+7
-const utcToLocalDateTime = (utcStr: string): string => {
-    if (!utcStr) return '';
-    // Parse as UTC
-    const date = new Date(utcStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? utcStr : utcStr + 'Z');
-    if (isNaN(date.getTime())) return '';
-    // Convert to WIB (UTC+7) by adding 7 hours
-    const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-    const year = wibDate.getUTCFullYear();
-    const month = String(wibDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(wibDate.getUTCDate()).padStart(2, '0');
-    const hours = String(wibDate.getUTCHours()).padStart(2, '0');
-    const minutes = String(wibDate.getUTCMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
 
 const ExamsPage = () => {
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_exams_exams', []);
@@ -124,36 +103,8 @@ const ExamsPage = () => {
         bank_id: '', class_ids: [] as string[],
         scheduled_date: '', scheduled_time: '', window_end_time: ''
     });
-    const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        examType: 'daily' as ExamType,
-        duration: 60,
-        randomizeQuestions: true,
-        randomizeOptions: true,
-        showResults: false,
-        isSafeMode: true,
-        bankId: '',
-        startTime: '',
-        endTime: '',
-        selectedClassIds: [] as string[],
-        scoringTypes: ['classical'] as string[],
-        isForever: false,
-        isPublic: false,
-        documentUrl: '',
-        videoUrl: '',
-        // Assignment-specific fields
-        assignmentDescription: '',
-        allowFileUpload: false,
-        allowedFileTypes: ['pdf'] as string[],
-        requireBank: true,
-    });
-    // Enhanced assignment state: per-class student selection
-    const [classAssignments, setClassAssignments] = useState<Record<string, { mode: 'all' | 'selected', studentIds: string[] }>>({});
-    const [assignData, setAssignData] = useState<{classIds: string[], userIds: string[]}>({ classIds: [], userIds: [] });
     const [examAssignments, setExamAssignments] = useState<Record<string, { classCount: number, studentCount: number }>>({});
     const [classStudents, setClassStudents] = useState<Record<string, ClassStudent[]>>({});
-    const [selectedClassForStudents, setSelectedClassForStudents] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     // Per-exam publish/unpublish in-flight id, so ONLY the clicked card's button
     // shows a spinner (the shared isSubmitting can't tell buttons apart).
@@ -162,15 +113,7 @@ const ExamsPage = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-    const [isScoringDropdownOpen, setIsScoringDropdownOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);
-
-    const SCORING_OPTIONS = [
-        { value: 'classical', label: 'Klasik (Total Benar)' },
-        { value: 'irt_1pl', label: 'IRT (1 Parameter Logistic)', info: 'Ideal untuk >100 peserta.' },
-        { value: 'irt_2pl', label: 'IRT (2 Parameter Logistic)', info: 'Ideal untuk >200 peserta.' },
-        { value: 'irt_3pl', label: 'IRT (3 Parameter Logistic)', info: 'Ideal untuk >500 peserta.' }
-    ];
 
     const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
@@ -248,140 +191,6 @@ const ExamsPage = () => {
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
 
-    const handleCreateExam = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const user = await getSessionUser();
-        if (!org || !user) return;
-        // Skip bank validation if: PAS type OR assignment without requireBank
-        const skipBankValidation = formData.examType === 'pas' || 
-            (formData.examType === 'assignment' && !formData.requireBank);
-        if (!skipBankValidation && !formData.bankId) {
-            alert('Pilih Bank Soal terlebih dahulu.');
-            return;
-        }
-        setIsSubmitting(true);
-        const result = await createExamAction({
-            title: formData.title,
-            description: formData.description,
-            duration: formData.duration,
-            examType: formData.examType,
-            startTime: formData.startTime || undefined,
-            endTime: formData.endTime || undefined,
-            randomizeQuestions: formData.randomizeQuestions,
-            randomizeOptions: formData.randomizeOptions,
-            showResults: formData.showResults,
-            isSafeMode: formData.isSafeMode,
-            questionBankId: formData.requireBank || formData.examType !== 'assignment' ? formData.bankId : undefined,
-            scoringType: formData.scoringTypes.join(','),
-            isPublic: formData.isPublic,
-            documentUrl: formData.documentUrl,
-            videoUrl: formData.videoUrl,
-            assignmentDescription: formData.assignmentDescription,
-            allowFileUpload: formData.allowFileUpload,
-            allowedFileTypes: formData.allowedFileTypes,
-            requireBank: formData.requireBank,
-        });
-        if (!result.success) {
-            alert(result.error);
-            setIsSubmitting(false);
-            return;
-        }
-        {
-            // Assign selected classes immediately
-            if (formData.selectedClassIds.length > 0) {
-                await assignExamAction(result.id, formData.selectedClassIds, [], false);
-            }
-            setIsAddModalOpen(false);
-            setFormData({
-                title: '', description: '', examType: 'daily' as ExamType, duration: 60,
-                randomizeQuestions: true, randomizeOptions: true,
-                showResults: false, isSafeMode: true, bankId: qBanks[0]?.id || '',
-                startTime: '', endTime: '', selectedClassIds: [],
-                scoringTypes: ['classical'],
-                isForever: false, isPublic: false, documentUrl: '', videoUrl: '',
-                assignmentDescription: '', allowFileUpload: false, allowedFileTypes: ['pdf'], requireBank: true,
-            });
-            await loadData();
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleEditExam = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedExam) return;
-        setIsSubmitting(true);
-
-        // Log what we're sending
-        console.log('[handleEditExam] startTime:', JSON.stringify(formData.startTime), 'endTime:', JSON.stringify(formData.endTime));
-
-        const result = await editExamAction(selectedExam.id, {
-            title: formData.title,
-            description: formData.description,
-            examType: formData.examType,
-            duration: formData.duration,
-            startTime: formData.startTime || undefined,
-            endTime: formData.endTime || undefined,
-            randomizeQuestions: formData.randomizeQuestions,
-            randomizeOptions: formData.randomizeOptions,
-            showResults: formData.showResults,
-            isSafeMode: formData.isSafeMode,
-            scoringType: formData.scoringTypes.join(','),
-            isPublic: formData.isPublic,
-            documentUrl: formData.documentUrl,
-            videoUrl: formData.videoUrl,
-            assignmentDescription: formData.assignmentDescription,
-            allowFileUpload: formData.allowFileUpload,
-            allowedFileTypes: formData.allowedFileTypes,
-            requireBank: formData.requireBank,
-        });
-        if (result.success) {
-            setIsEditModalOpen(false);
-            setSelectedExam(null);
-            await loadData();
-        } else {
-            alert(result.error || 'Gagal menyimpan');
-        }
-        setIsSubmitting(false);
-    };
-
-    const handleAssignExam = async () => {
-        if (!selectedExam) return;
-        setIsSubmitting(true);
-
-        // Determine which class-level targets vs individual participants
-        const targetClassIds: string[] = [];
-        const participantAssignments: { userId: string; classId: string }[] = [];
-
-        for (const clsId of assignData.classIds) {
-            const assignment = classAssignments[clsId] || { mode: 'all', studentIds: [] };
-            if (assignment.mode === 'all') {
-                targetClassIds.push(clsId);
-            } else {
-                // Individual students only
-                participantAssignments.push(...assignment.studentIds.map((userId) => ({
-                    userId,
-                    classId: clsId,
-                })));
-            }
-        }
-
-        const activate = !selectedExam.is_published;
-        const result = await assignExamAction(
-            selectedExam.id,
-            targetClassIds,
-            participantAssignments,
-            activate,
-        );
-        if (result.success) {
-            setIsAssignModalOpen(false);
-            setSelectedExam(null);
-            setClassAssignments({});
-            await loadData();
-        } else {
-            alert(result.error || 'Gagal assign');
-        }
-        setIsSubmitting(false);
-    };
 
     const handlePublishToggle = async (exam: OrganizationExam) => {
         const assignment = examAssignments[exam.id] || { classCount: 0, studentCount: 0 };
@@ -485,7 +294,7 @@ const ExamsPage = () => {
 
     const tabs: { id: TabId; label: string; icon: LucideIcon; color: string }[] = [
         { id: 'all', label: 'Semua', icon: FolderOpen, color: 'text-slate-500' },
-        { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-amber-500' },
+        { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-red-500' },
         { id: 'active', label: 'Aktif', icon: Zap, color: 'text-emerald-500' },
         { id: 'finished', label: 'Selesai', icon: CheckCircle2, color: 'text-slate-400' },
         { id: 'archived', label: 'Arsip', icon: Archive, color: 'text-violet-500' },
@@ -493,70 +302,12 @@ const ExamsPage = () => {
 
     const openEdit = (exam: OrganizationExam) => {
         setSelectedExam(exam);
-        setFormData({
-            title: exam.title || '',
-            description: exam.description || '',
-            examType: (exam.exam_type as ExamType | null) || 'daily',
-            duration: exam.duration_minutes || 60,
-            randomizeQuestions: exam.randomize_questions ?? true,
-            randomizeOptions: exam.randomize_options ?? true,
-            showResults: exam.show_results ?? false,
-            isSafeMode: exam.metadata?.is_safe_mode ?? true,
-            bankId: exam.question_bank_id || '',
-            // Convert UTC ISO string to local datetime-local format for input display
-            startTime: exam.start_time ? utcToLocalDateTime(exam.start_time) : '',
-            endTime: exam.end_time ? utcToLocalDateTime(exam.end_time) : '',
-            scoringTypes: exam.scoring_type ? exam.scoring_type.split(',') : ['classical'],
-            isForever: !exam.start_time && !exam.end_time,
-            isPublic: exam.metadata?.is_public ?? false,
-            documentUrl: exam.metadata?.document_url || '',
-            videoUrl: exam.metadata?.video_url || '',
-            selectedClassIds: [],
-            // Assignment fields
-            assignmentDescription: exam.metadata?.assignment_description || '',
-            allowFileUpload: exam.metadata?.allow_file_upload ?? false,
-            allowedFileTypes: exam.metadata?.allowed_file_types || ['pdf'],
-            requireBank: exam.metadata?.require_bank ?? true,
-        });
         setIsEditModalOpen(true);
     };
 
     const openAssign = (exam: OrganizationExam) => {
         setSelectedExam(exam);
-        // Load existing assignment
-        loadExamAssignments(exam.id).then(existing => {
-            setAssignData({ classIds: existing.classIds, userIds: [] });
-            // Load existing individual participants per class
-            const existingParticipants = existing.participants;
-            const defaults: Record<string, { mode: 'all' | 'selected', studentIds: string[] }> = {};
-            for (const clsId of existing.classIds) {
-                const classParticipants = existingParticipants
-                    .filter((participant) => participant.class_id === clsId)
-                    .map((participant) => participant.user_id);
-                defaults[clsId] = classParticipants.length > 0
-                    ? { mode: 'selected', studentIds: classParticipants }
-                    : { mode: 'all', studentIds: [] };
-            }
-            // Also add classes with no targets (but we set them as 'all' by default)
-            for (const cls of classes) {
-                if (!defaults[cls.id]) {
-                    defaults[cls.id] = { mode: 'all', studentIds: [] };
-                }
-            }
-            setClassAssignments(defaults);
-        });
         setIsAssignModalOpen(true);
-    };
-
-    const loadExamAssignments = async (examId: string) => {
-        const { targets, participants } = await listExamAssignmentsAction([examId]);
-        // Kelas terpilih = target kelas penuh + kelas asal peserta individual
-        // (kelas mode "siswa terpilih" tidak punya baris target, hanya peserta).
-        const classIds = [...new Set([
-            ...targets.map((t) => t.class_id || t.additional_class_id),
-            ...participants.map((p) => p.class_id),
-        ].filter(Boolean) as string[])];
-        return { classIds, participants };
     };
 
     const formatDateTime = (str: string | null | undefined) => {
@@ -990,7 +741,9 @@ const ExamsPage = () => {
                                         className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
                                         <option value="">— Pilih Bank Soal —</option>
                                         {qBanks.filter(b => b.is_published).map(bank => (
-                                            <option key={bank.id} value={bank.id}>{bank.title}</option>
+                                            <option key={bank.id} value={bank.id}>
+                                                {bank.title} ({bank.question_count ?? bank.total_questions ?? 0} Soal)
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -1126,32 +879,33 @@ const ExamsPage = () => {
                         const isPublic = exam.metadata?.is_public === true;
                         const canPublish = isAssigned || isPublic;
                         return (
-                            <div key={exam.id} className="bg-white border border-[#3083FF]/30 rounded-xl overflow-hidden hover:border-[#3083FF] hover:shadow-lg transition-all">
+                            <div key={exam.id} className={`bg-white border rounded-xl overflow-hidden transition-all hover:shadow-lg ${
+                                exam.is_published
+                                    ? 'border-[#3083FF]/30 hover:border-[#3083FF]'
+                                    : 'border-red-200 hover:border-red-300'
+                            }`}>
                                 {/* Card Header */}
                                 <div className="p-4 sm:p-5">
                                     <div className="flex items-start gap-3">
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 border ${
                                             exam.is_published
-                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                                : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/40'
+                                                ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/40'
+                                                : 'bg-red-50 text-red-600 border border-red-200'
                                         }`}>
                                             {exam.is_published ? <Globe size={18} /> : <GlobeLock size={18} />}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                                                <span className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-semibold ${
-                                                    exam.is_published
-                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
-                                                }`}>
-                                                    {exam.status === 'archived' ? 'Diarsipkan' : exam.is_published ? 'Dipublikasikan' : 'Draft'}
-                                                </span>
-                                                {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="px-2 py-0.5 bg-[#3083FF]/5 text-[#3083FF] text-[10px] sm:text-xs font-bold rounded-lg border border-[#3083FF]/20">
-                                                        {exam.exam_type.toUpperCase()}
+                                            {(!exam.is_published || exam.status === 'archived') && (
+                                                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-semibold ${
+                                                        exam.status === 'archived'
+                                                            ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                            : 'bg-red-50 text-red-600 border border-red-200'
+                                                    }`}>
+                                                        {exam.status === 'archived' ? 'Diarsipkan' : 'Draft'}
                                                     </span>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
                                             <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{exam.title}</h3>
                                         </div>
                                     </div>
@@ -1166,16 +920,16 @@ const ExamsPage = () => {
 
                                     {/* Assignment Status Badge */}
                                     {isPublic ? (
-                                        <div className="mt-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center gap-2">
-                                            <Globe size={12} className="text-emerald-600 shrink-0" />
-                                            <p className="text-xs text-emerald-700 font-medium">
+                                        <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
+                                            <Globe size={12} className="text-[#3083FF] shrink-0" />
+                                            <p className="text-xs text-[#3083FF] font-medium">
                                                 <strong>Ujian Umum (Publik)</strong> • Tersedia untuk siswa anggota aktif sekolah ini
                                             </p>
                                         </div>
                                     ) : isAssigned ? (
-                                        <div className="mt-2 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center gap-2">
-                                            <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
-                                            <p className="text-xs text-emerald-700 font-medium">
+                                        <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
+                                            <CheckCircle2 size={12} className="text-[#3083FF] shrink-0" />
+                                            <p className="text-xs text-[#3083FF] font-medium">
                                                 Ditugaskan ke <strong>{assignment.classCount} kelas</strong> • <strong>{assignment.studentCount} siswa</strong>
                                             </p>
                                         </div>
@@ -1214,9 +968,9 @@ const ExamsPage = () => {
                                         disabled={isSubmitting || publishingId === exam.id || exam.status === 'archived'}
                                         className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait ${
                                             exam.is_published
-                                                ? 'bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 border border-[#3083FF]/30'
+                                                ? 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 hover:border-red-500'
                                                 : canPublish
-                                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
+                                                    ? 'bg-[#3083FF] text-white hover:bg-[#2563EB] shadow-sm shadow-[#3083FF]/20'
                                                     : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                                         }`}
                                         title={!exam.is_published && !canPublish ? 'Tugaskan ke kelas terlebih dahulu sebelum mempublish' : ''}
@@ -1229,7 +983,7 @@ const ExamsPage = () => {
                                         ) : (
                                             <>
                                                 {exam.is_published ? <EyeOff size={12} /> : <Eye size={12} />}
-                                                {exam.is_published ? 'Unpub' : 'Publish'}
+                                                {exam.is_published ? 'Unpublish' : 'Publish'}
                                             </>
                                         )}
                                     </button>
@@ -1267,8 +1021,8 @@ const ExamsPage = () => {
                                         onClick={() => openAssign(exam)}
                                         className={`p-2 rounded-lg transition-all border ${
                                             isAssigned
-                                                ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-200 hover:border-emerald-300'
-                                                : 'text-[#3083FF] hover:text-[#3083FF] hover:bg-[#3083FF]/10 border-[#3083FF]/30 hover:border-[#3083FF]'
+                                                ? 'text-[#3083FF] hover:text-[#2563EB] hover:bg-[#3083FF]/10 border-[#3083FF]/30 hover:border-[#3083FF]'
+                                                : 'text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 border-slate-200 hover:border-[#3083FF]/30'
                                         }`}
                                         title={isAssigned ? 'Ubah penugasan kelas' : 'Tugaskan ke kelas'}
                                     >
@@ -1299,916 +1053,43 @@ const ExamsPage = () => {
             ))}
 
             {/* ─────────────── CREATE MODAL ─────────────── */}
-            <AnimatePresence>
-                {isAddModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#3083FF]/30"
-                        >
-                            <button onClick={() => setIsAddModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <Plus size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Buat {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} Baru</h3>
-                                    <p className="text-xs text-slate-500">Ujian baru dibuat sebagai draft.</p>
-                                </div>
-                            </div>
-
-                            <form onSubmit={handleCreateExam} className="flex flex-col gap-3">
-                                {/* Jenis Ujian & Sistem Penilaian */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Ujian</label>
-                                        <select
-                                            value={formData.examType}
-                                            onChange={e => setFormData({ ...formData, examType: e.target.value as ExamType })}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                        >
-                                            <option value="daily">Ulangan Harian</option>
-                                            <option value="pas">ASAS/PAS</option>
-                                            <option value="pat">ASAT/PAT</option>
-                                            <option value="assignment">Tugas</option>
-                                            <option value="lainnya">Ujian Lainnya</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Sistem Penilaian</label>
-                                        <div className="relative">
-                                            <div 
-                                                onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                                className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
-                                            >
-                                                <span className="truncate">
-                                                    {formData.scoringTypes.length > 0 
-                                                        ? formData.scoringTypes.map(v => SCORING_OPTIONS.find(o => o.value === v)?.label).join(', ') 
-                                                        : 'Pilih Sistem Penilaian'}
-                                                </span>
-                                                <ChevronDown size={16} className={`text-slate-400 transition-transform ${isScoringDropdownOpen ? 'rotate-180' : ''}`} />
-                                            </div>
-                                            
-                                            {isScoringDropdownOpen && (
-                                                <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
-                                                    {SCORING_OPTIONS.map(option => (
-                                                        <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                                                            <div className="flex items-center gap-2">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    checked={formData.scoringTypes.includes(option.value)}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.checked) {
-                                                                            const newScoringTypes = [...formData.scoringTypes, option.value];
-                                                                            const hasIRT = newScoringTypes.some(type => type.startsWith('irt_'));
-                                                                            setFormData({ 
-                                                                                ...formData, 
-                                                                                scoringTypes: newScoringTypes,
-                                                                                ...(hasIRT ? { showResults: false } : {}) 
-                                                                            });
-                                                                        } else {
-                                                                            setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
-                                                                        }
-                                                                    }}
-                                                                    className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
-                                                                />
-                                                                <span className="text-sm text-slate-700">{option.label}</span>
-                                                            </div>
-                                                            {option.info && (
-                                                                <span className="text-[10px] text-slate-500 ml-6 mt-0.5 leading-tight">{option.info}</span>
-                                                            )}
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Title & Deskripsi */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Judul {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} *</label>
-                                        <input
-                                            required type="text" placeholder={formData.examType === 'assignment' ? "Contoh: Tugas Matematika" : "Contoh: UTS Matematika"}
-                                            value={formData.title}
-                                            onChange={e => setFormData({ ...formData, title: e.target.value })}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi (opsional)</label>
-                                        <input
-                                            type="text" placeholder="Deskripsi singkat..."
-                                            value={formData.description}
-                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Bank Soal & Durasi */}
-                                {formData.examType !== 'pas' && formData.examType !== 'assignment' && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Bank Soal *</label>
-                                            {publishedBanks.length === 0 ? (
-                                                <div className="p-2.5 bg-[#3083FF]/10 border border-[#3083FF]/30 rounded-xl text-xs text-[#3083FF] flex items-center gap-1.5">
-                                                    <AlertCircle size={14} /> Belum ada bank soal.
-                                                </div>
-                                            ) : (
-                                                <select
-                                                    required value={formData.bankId}
-                                                    onChange={e => setFormData({ ...formData, bankId: e.target.value })}
-                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                                >
-                                                    <option value="">— Pilih Bank Soal —</option>
-                                                    {publishedBanks.map(bank => (
-                                                        <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Durasi (menit) *</label>
-                                            <input
-                                                required type="number" min="5" max="300"
-                                                value={formData.duration}
-                                                onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-                                                className="w-full border border-[#3083FF]/30 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Waktu */}
-                                <div className="bg-slate-50 p-2.5 rounded-xl border border-[#3083FF]/20 flex flex-col gap-2">
-                                    <label className="flex items-center gap-2 cursor-pointer w-max">
-                                        <input type="checkbox" checked={formData.isForever} onChange={e => setFormData({ ...formData, isForever: e.target.checked, startTime: e.target.checked ? '' : formData.startTime, endTime: e.target.checked ? '' : formData.endTime })} className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-sm font-medium text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
-                                    </label>
-                                    {!formData.isForever && (
-                                        <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-2'} gap-3 mt-1`}>
-                                            {formData.examType !== 'assignment' && (
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-700 mb-1">Waktu Mulai</label>
-                                                    <input
-                                                        required={!formData.isForever} type="datetime-local" step="60"
-                                                        value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                                        className="w-full border border-[#3083FF]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                                    />
-                                                </div>
-                                            )}
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-700 mb-1">{formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'}</label>
-                                                <input
-                                                    required={!formData.isForever} type="datetime-local" step="60"
-                                                    value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-2 text-xs focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Tugas - Assignment Panel */}
-                                {formData.examType === 'assignment' && (
-                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex flex-col gap-4">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <FileText size={16} className="text-amber-600" />
-                                            <h4 className="text-sm font-semibold text-amber-800">Pengaturan Tugas</h4>
-                                        </div>
-
-                                        {/* Instruksi / Deskripsi Penugasan */}
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-700 mb-1">Instruksi / Deskripsi Penugasan <span className="text-slate-400">(Opsional)</span></label>
-                                            <textarea
-                                                rows={4}
-                                                placeholder="Tuliskan instruksi tugas secara detail di sini..."
-                                                value={formData.assignmentDescription}
-                                                onChange={e => setFormData({ ...formData, assignmentDescription: e.target.value })}
-                                                className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none resize-none"
-                                            />
-                                        </div>
-
-                                        {/* Toggle: Require Bank Soal (Moved to top of assignment options) */}
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.requireBank}
-                                                onChange={e => setFormData({ ...formData, requireBank: e.target.checked, bankId: e.target.checked ? formData.bankId : '', duration: e.target.checked ? (formData.duration || 60) : 0 })}
-                                                className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500/20"
-                                            />
-                                            <div>
-                                                <span className="text-sm font-medium text-slate-700">Sertakan Soal dari Bank Soal</span>
-                                                <p className="text-[11px] text-slate-500">Jika dicentang, siswa akan mengerjakan soal pilihan sebelum mengumpulkan tugas.</p>
-                                            </div>
-                                        </label>
-
-                                        {formData.requireBank && (
-                                            <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200 grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bank Soal *</label>
-                                                    {publishedBanks.length === 0 ? (
-                                                        <div className="p-2.5 bg-[#3083FF]/10 border border-[#3083FF]/30 rounded-xl text-xs text-[#3083FF] flex items-center gap-1.5">
-                                                            <AlertCircle size={14} /> Belum ada bank soal.
-                                                        </div>
-                                                    ) : (
-                                                        <select
-                                                            required value={formData.bankId}
-                                                            onChange={e => setFormData({ ...formData, bankId: e.target.value })}
-                                                            className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                        >
-                                                            <option value="">— Pilih Bank Soal —</option>
-                                                            {publishedBanks.map(bank => (
-                                                                <option key={bank.id} value={bank.id}>{bank.title}</option>
-                                                            ))}
-                                                        </select>
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Durasi Pengerjaan Bank Soal (opsional)</label>
-                                                    <input
-                                                        type="number" min="0" max="300"
-                                                        placeholder="Tidak dibatasi (0)"
-                                                        value={formData.duration || ''}
-                                                        onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
-                                                        className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                    />
-                                                    <p className="text-[10px] text-slate-400 mt-1">Kosongkan/isi 0 jika tidak ada batas waktu layar (hanya dibatasi waktu pengumpulan)</p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Toggle: Allow File Upload */}
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.allowFileUpload}
-                                                onChange={e => setFormData({ ...formData, allowFileUpload: e.target.checked })}
-                                                className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500/20"
-                                            />
-                                            <div>
-                                                <span className="text-sm font-medium text-slate-700">Siswa Wajib Unggah File</span>
-                                                <p className="text-[11px] text-slate-500">Siswa harus mengunggah dokumen tugas mereka.</p>
-                                            </div>
-                                        </label>
-
-                                        {/* File Types - shown when allowFileUpload is true */}
-                                        {formData.allowFileUpload && (
-                                            <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200">
-                                                <p className="text-xs font-semibold text-slate-600 mb-2">Jenis File yang Diizinkan:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['pdf', 'docx', 'jpg', 'png', 'zip', 'xlsx', 'pptx'].map(ft => (
-                                                        <label key={ft} className="flex items-center gap-1.5 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={formData.allowedFileTypes.includes(ft)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setFormData({ ...formData, allowedFileTypes: [...formData.allowedFileTypes, ft] });
-                                                                    } else {
-                                                                        setFormData({ ...formData, allowedFileTypes: formData.allowedFileTypes.filter(t => t !== ft) });
-                                                                    }
-                                                                }}
-                                                                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600"
-                                                            />
-                                                            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">.{ft}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* URL dokumen & video */}
-                                        <div className="grid grid-cols-1 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-700 mb-1">URL File Dokumen Referensi <span className="text-slate-400">(Opsional)</span></label>
-                                                <input
-                                                    type="url" placeholder="Contoh: https://drive.google.com/..."
-                                                    value={formData.documentUrl} onChange={e => setFormData({ ...formData, documentUrl: e.target.value })}
-                                                    className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-700 mb-1">URL Video Pembelajaran <span className="text-slate-400">(Opsional)</span></label>
-                                                <input
-                                                    type="url" placeholder="Contoh: https://youtube.com/..."
-                                                    value={formData.videoUrl} onChange={e => setFormData({ ...formData, videoUrl: e.target.value })}
-                                                    className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Kelas Target */}
-                                {formData.examType === 'lainnya' && (
-                                    <div className="bg-slate-50 p-2.5 rounded-xl border border-[#3083FF]/20 flex flex-col gap-2">
-                                        <label className="flex items-center gap-2 cursor-pointer w-max">
-                                            <input type="checkbox" checked={formData.isPublic} onChange={e => setFormData({ ...formData, isPublic: e.target.checked, selectedClassIds: e.target.checked ? [] : formData.selectedClassIds })} className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500/20" />
-                                            <span className="text-sm font-medium text-slate-700">Ujian Umum (Bisa diakses semua siswa)</span>
-                                        </label>
-                                        {!formData.isPublic && (
-                                            <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto mt-1">
-                                                {classes.length === 0 ? (
-                                                    <p className="text-[11px] text-slate-400">Belum ada kelas.</p>
-                                                ) : classes.map(cls => (
-                                                    <button
-                                                        key={cls.id} type="button"
-                                                        onClick={() => {
-                                                            const ids = formData.selectedClassIds.includes(cls.id)
-                                                                ? formData.selectedClassIds.filter(id => id !== cls.id)
-                                                                : [...formData.selectedClassIds, cls.id];
-                                                            setFormData({ ...formData, selectedClassIds: ids });
-                                                        }}
-                                                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
-                                                            formData.selectedClassIds.includes(cls.id)
-                                                                ? 'bg-[#3083FF] text-white'
-                                                                : 'bg-white text-slate-600 border border-[#3083FF]/20'
-                                                        }`}
-                                                    >
-                                                        {cls.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Options */}
-                                <div className="flex flex-wrap gap-x-4 gap-y-2 px-1 py-1">
-                                    <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.randomizeQuestions} onChange={e => setFormData({ ...formData, randomizeQuestions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-xs font-medium text-slate-700">Acak Soal</span>
-                                    </label>
-                                    <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.randomizeOptions} onChange={e => setFormData({ ...formData, randomizeOptions: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-xs font-medium text-slate-700">Acak Opsi</span>
-                                    </label>
-                                    <label className="flex items-center gap-1.5 cursor-pointer">
-                                        <input type="checkbox" checked={formData.isSafeMode} onChange={e => setFormData({ ...formData, isSafeMode: e.target.checked })} className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-xs font-medium text-slate-700">Mode Aman (Proctoring)</span>
-                                    </label>
-                                    <label className={`flex items-center gap-1.5 ${formData.scoringTypes.some(t => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                        <input type="checkbox" 
-                                            checked={formData.showResults} 
-                                            disabled={formData.scoringTypes.some(t => t.startsWith('irt_'))}
-                                            onChange={e => setFormData({ ...formData, showResults: e.target.checked })} 
-                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200" />
-                                        <span className="text-xs font-medium text-slate-700">
-                                            Tampilkan Nilai
-                                            {formData.scoringTypes.some(t => t.startsWith('irt_')) && " (Nonaktif untuk IRT)"}
-                                        </span>
-                                    </label>
-                                </div>
-
-
-                                <button type="submit" disabled={isSubmitting || publishedBanks.length === 0}
-                                    className="w-full py-2.5 mt-1 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
-                                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                                    Simpan sebagai Draft
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <CreateExamModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSuccess={loadData}
+                publishedBanks={publishedBanks}
+                classes={classes}
+                classStudents={classStudents}
+                role="proktor"
+            />
 
             {/* ─────────────── EDIT MODAL ─────────────── */}
-            <AnimatePresence>
-                {isEditModalOpen && selectedExam && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto border border-[#3083FF]/30"
-                        >
-                            <button onClick={() => setIsEditModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <Settings size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Edit {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}</h3>
-                                    <p className="text-xs text-slate-500">Ubah detail ujian</p>
-                                </div>
-                            </div>
-                            <form onSubmit={handleEditExam} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Jenis Ujian</label>
-                                    <select value={formData.examType} onChange={e => setFormData({ ...formData, examType: e.target.value as ExamType })}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
-                                        <option value="daily">Ulangan Harian</option>
-                                        <option value="pas">ASAS/PAS</option>
-                                        <option value="pat">ASAT/PAT</option>
-                                        <option value="assignment">Tugas</option>
-                                        <option value="lainnya">Ujian Lainnya</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Sistem Penilaian</label>
-                                    <div className="relative">
-                                        <div 
-                                            onClick={() => setIsScoringDropdownOpen(!isScoringDropdownOpen)}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none flex justify-between items-center cursor-pointer bg-white"
-                                        >
-                                            <span className="truncate">
-                                                {formData.scoringTypes.length > 0 
-                                                    ? formData.scoringTypes.map(v => SCORING_OPTIONS.find(o => o.value === v)?.label).join(', ') 
-                                                    : 'Pilih Sistem Penilaian'}
-                                            </span>
-                                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isScoringDropdownOpen ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        
-                                        {isScoringDropdownOpen && (
-                                            <div className="absolute z-50 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
-                                                {SCORING_OPTIONS.map(option => (
-                                                    <label key={option.value} className="flex flex-col px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                                                        <div className="flex items-center gap-2">
-                                                            <input 
-                                                                type="checkbox" 
-                                                                checked={formData.scoringTypes.includes(option.value)}
-                                                                onChange={(e) => {
-                                                                    if (e.target.checked) {
-                                                                        const newScoringTypes = [...formData.scoringTypes, option.value];
-                                                                        const hasIRT = newScoringTypes.some(type => type.startsWith('irt_'));
-                                                                        setFormData({ 
-                                                                            ...formData, 
-                                                                            scoringTypes: newScoringTypes,
-                                                                            ...(hasIRT ? { showResults: false } : {}) 
-                                                                        });
-                                                                    } else {
-                                                                        setFormData({ ...formData, scoringTypes: formData.scoringTypes.filter(v => v !== option.value) });
-                                                                    }
-                                                                }}
-                                                                className="rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]"
-                                                            />
-                                                            <span className="text-sm text-slate-700">{option.label}</span>
-                                                        </div>
-                                                        {option.info && (
-                                                            <span className="text-[10px] text-slate-500 ml-6 mt-0.5 leading-tight">{option.info}</span>
-                                                        )}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Judul {formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}</label>
-                                    <input required type="text" value={formData.title}
-                                        onChange={e => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Deskripsi</label>
-                                    <textarea rows={2} value={formData.description}
-                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none resize-none" />
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="flex items-center gap-2 cursor-pointer group mb-1">
-                                        <input type="checkbox" checked={formData.isForever} onChange={e => setFormData({ ...formData, isForever: e.target.checked, startTime: e.target.checked ? '' : formData.startTime, endTime: e.target.checked ? '' : formData.endTime })} className="hidden" />
-                                        <div className={`w-4 h-4 rounded border ${formData.isForever ? 'bg-[#3083FF] border-[#3083FF]' : 'bg-white border-slate-300'} flex items-center justify-center transition-all`}>
-                                            {formData.isForever && <Check size={12} className="text-white" />}
-                                        </div>
-                                        <span className="text-sm font-medium text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
-                                    </label>
-
-                                    {!formData.isForever && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Mulai (WIB)</label>
-                                                <input required={!formData.isForever} type="datetime-local" step="60" value={formData.startTime}
-                                                    onChange={e => setFormData({ ...formData, startTime: e.target.value })}
-                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Selesai (WIB)</label>
-                                                <input required={!formData.isForever} type="datetime-local" step="60" value={formData.endTime}
-                                                    onChange={e => setFormData({ ...formData, endTime: e.target.value })}
-                                                    className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                {formData.examType !== 'pas' && formData.examType !== 'assignment' && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Durasi (menit)</label>
-                                        <input required type="number" min="5" max="300" value={formData.duration}
-                                            onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none" />
-                                    </div>
-                                )}
-
-                                {/* Tugas - Assignment Panel */}
-                                {formData.examType === 'assignment' && (
-                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex flex-col gap-4">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <FileText size={16} className="text-amber-600" />
-                                            <h4 className="text-sm font-semibold text-amber-800">Pengaturan Tugas</h4>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-700 mb-1">Instruksi / Deskripsi Penugasan <span className="text-slate-400">(Opsional)</span></label>
-                                            <textarea
-                                                rows={4}
-                                                placeholder="Tuliskan instruksi tugas secara detail di sini..."
-                                                value={formData.assignmentDescription}
-                                                onChange={e => setFormData({ ...formData, assignmentDescription: e.target.value })}
-                                                className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none resize-none"
-                                            />
-                                        </div>
-
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.requireBank}
-                                                disabled
-                                                className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500/20 bg-slate-100"
-                                            />
-                                            <div>
-                                                <span className="text-sm font-medium text-slate-700">Sertakan Soal dari Bank Soal (Tidak bisa diubah saat edit)</span>
-                                                <p className="text-[11px] text-slate-500">Pengaturan Bank Soal hanya dapat dilakukan saat membuat ujian baru.</p>
-                                            </div>
-                                        </label>
-
-                                        {formData.requireBank && (
-                                            <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Durasi Pengerjaan Bank Soal (opsional)</label>
-                                                    <input
-                                                        type="number" min="0" max="300"
-                                                        placeholder="Tidak dibatasi (0)"
-                                                        value={formData.duration || ''}
-                                                        onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
-                                                        className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                    />
-                                                    <p className="text-[10px] text-slate-400 mt-1">Kosongkan/isi 0 jika tidak ada batas waktu layar</p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.allowFileUpload}
-                                                onChange={e => setFormData({ ...formData, allowFileUpload: e.target.checked })}
-                                                className="mt-0.5 w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500/20"
-                                            />
-                                            <div>
-                                                <span className="text-sm font-medium text-slate-700">Siswa Wajib Unggah File</span>
-                                                <p className="text-[11px] text-slate-500">Siswa harus mengunggah dokumen tugas mereka.</p>
-                                            </div>
-                                        </label>
-
-                                        {formData.allowFileUpload && (
-                                            <div className="ml-7 p-3 bg-white rounded-lg border border-amber-200">
-                                                <p className="text-xs font-semibold text-slate-600 mb-2">Jenis File yang Diizinkan:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['pdf', 'docx', 'jpg', 'png', 'zip', 'xlsx', 'pptx'].map(ft => (
-                                                        <label key={ft} className="flex items-center gap-1.5 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={formData.allowedFileTypes.includes(ft)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setFormData({ ...formData, allowedFileTypes: [...formData.allowedFileTypes, ft] });
-                                                                    } else {
-                                                                        setFormData({ ...formData, allowedFileTypes: formData.allowedFileTypes.filter(t => t !== ft) });
-                                                                    }
-                                                                }}
-                                                                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600"
-                                                            />
-                                                            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">.{ft}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="grid grid-cols-1 gap-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-700 mb-1">URL File Dokumen Referensi <span className="text-slate-400">(Opsional)</span></label>
-                                                <input
-                                                    type="url" placeholder="Contoh: https://drive.google.com/..."
-                                                    value={formData.documentUrl} onChange={e => setFormData({ ...formData, documentUrl: e.target.value })}
-                                                    className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-700 mb-1">URL Video Pembelajaran <span className="text-slate-400">(Opsional)</span></label>
-                                                <input
-                                                    type="url" placeholder="Contoh: https://youtube.com/..."
-                                                    value={formData.videoUrl} onChange={e => setFormData({ ...formData, videoUrl: e.target.value })}
-                                                    className="w-full border border-amber-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
-                                        <input type="checkbox" checked={formData.randomizeQuestions}
-                                            onChange={e => setFormData({ ...formData, randomizeQuestions: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-sm text-slate-600">Acak Soal</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
-                                        <input type="checkbox" checked={formData.randomizeOptions}
-                                            onChange={e => setFormData({ ...formData, randomizeOptions: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-sm text-slate-600">Acak Opsi</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl cursor-pointer border border-[#3083FF]/20 hover:bg-slate-100 transition-colors">
-                                        <input type="checkbox" checked={formData.isSafeMode}
-                                            onChange={e => setFormData({ ...formData, isSafeMode: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
-                                        <span className="text-sm text-slate-600">Mode Aman</span>
-                                    </label>
-                                    <label className={`flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-[#3083FF]/20 transition-colors ${formData.scoringTypes.some(t => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-100'}`}>
-                                        <input type="checkbox" checked={formData.showResults}
-                                            disabled={formData.scoringTypes.some(t => t.startsWith('irt_'))}
-                                            onChange={e => setFormData({ ...formData, showResults: e.target.checked })}
-                                            className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200" />
-                                        <span className="text-sm text-slate-600">
-                                            Tampilkan Nilai
-                                            {formData.scoringTypes.some(t => t.startsWith('irt_')) && " (Nonaktif)"}
-                                        </span>
-                                    </label>
-                                </div>
-                                {formData.examType === 'lainnya' && (
-                                    <label className="flex items-center gap-2 cursor-pointer group mt-4">
-                                        <input type="checkbox" checked={formData.isPublic} onChange={e => setFormData({ ...formData, isPublic: e.target.checked })} className="hidden" />
-                                        <div className={`w-4 h-4 rounded border ${formData.isPublic ? 'bg-emerald-500 border-emerald-500' : 'bg-white border-slate-300'} flex items-center justify-center transition-all`}>
-                                            {formData.isPublic && <Check size={12} className="text-white" />}
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-slate-700">Ujian Umum (Publik)</span>
-                                            <span className="text-[11px] text-slate-400">Semua siswa di sekolah dapat mengakses ujian ini.</span>
-                                        </div>
-                                    </label>
-                                )}
-                                <button type="submit" disabled={isSubmitting}
-                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors flex items-center justify-center gap-2">
-                                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                    Simpan Perubahan
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <CreateExamModal
+                isOpen={isEditModalOpen}
+                onClose={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedExam(null);
+                }}
+                exam={selectedExam}
+                onSuccess={loadData}
+                publishedBanks={publishedBanks}
+                classes={classes}
+                classStudents={classStudents}
+                role="proktor"
+            />
 
             {/* ─────────────── ASSIGN MODAL ─────────────── */}
-            <AnimatePresence>
-                {isAssignModalOpen && selectedExam && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-xl rounded-2xl p-6 relative border border-[#3083FF]/30 max-h-[90vh] overflow-y-auto"
-                        >
-                            <button onClick={() => setIsAssignModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <Users size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Tetapkan ke Kelas</h3>
-                                    <p className="text-xs text-slate-500 truncate">&quot;{selectedExam?.title}&quot;</p>
-                                </div>
-                            </div>
-
-                            {selectedExam?.metadata?.is_public ? (
-                                <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-center my-6">
-                                    <Globe size={32} className="mx-auto mb-3 text-emerald-500" />
-                                    <p className="font-semibold text-lg mb-1">Ujian Umum (Publik)</p>
-                                    <p>Ujian ini tersedia untuk <b>siswa anggota aktif sekolah ini</b> saat dipublikasikan. Anda tidak perlu menetapkan target kelas secara manual. Anggota sekolah lain tidak dapat mengaksesnya.</p>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAssignModalOpen(false)}
-                                        className="w-full mt-6 py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center hover:bg-[#3083FF]/90 transition-colors"
-                                    >
-                                        Tutup
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Info banner */}
-                                    <div className="flex items-start gap-2 p-3 bg-[#3083FF]/5 border border-[#3083FF]/20 rounded-xl text-sm text-slate-600 mb-4">
-                                        <Info size={14} className="text-[#3083FF] shrink-0 mt-0.5" />
-                                        <p>Pilih kelas dan tentukan siswa yang boleh mengerjakan. Cocok untuk ujian susulan — pilih siswa tertentu dari kelas terkait.</p>
-                                    </div>
-
-                            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-                                {classes.length === 0 ? (
-                                    <p className="text-sm text-slate-400 text-center py-8">Belum ada kelas.</p>
-                                ) : classes.map(cls => {
-                                    const isSelected = assignData.classIds.includes(cls.id);
-                                    const students = classStudents[cls.id] || [];
-                                    const assignment = classAssignments[cls.id] || { mode: 'all', studentIds: [] };
-                                    const isExpanded = selectedClassForStudents === cls.id;
-                                    const selectedCount = assignment.mode === 'all' ? students.length : assignment.studentIds.length;
-
-                                    return (
-                                        <div key={cls.id} className={`rounded-xl border transition-all overflow-hidden ${
-                                            isSelected
-                                                ? 'border-[#3083FF] bg-[#3083FF]/5'
-                                                : 'border-[#3083FF]/30 bg-white'
-                                        }`}>
-                                            {/* Class row */}
-                                            <div className="flex items-center gap-3 p-3.5">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => {
-                                                        const ids = isSelected
-                                                            ? assignData.classIds.filter(id => id !== cls.id)
-                                                            : [...assignData.classIds, cls.id];
-                                                        setAssignData({ ...assignData, classIds: ids });
-                                                        // Set default: all students
-                                                        setClassAssignments(prev => ({
-                                                            ...prev,
-                                                            [cls.id]: { mode: 'all', studentIds: [] }
-                                                        }));
-                                                    }}
-                                                    className="w-4.5 h-4.5 rounded border-slate-300 text-[#3083FF] shrink-0"
-                                                />
-                                                <div className="flex-1 min-w-0 cursor-pointer"
-                                                    onClick={() => {
-                                                        if (!isSelected) {
-                                                            const ids = [...assignData.classIds, cls.id];
-                                                            setAssignData({ ...assignData, classIds: ids });
-                                                            setClassAssignments(prev => ({
-                                                                ...prev,
-                                                                [cls.id]: { mode: 'all', studentIds: [] }
-                                                            }));
-                                                        }
-                                                    }}
-                                                >
-                                                    <p className="text-sm font-semibold text-slate-800">{cls.name}</p>
-                                                    <p className="text-xs text-slate-400">{students.length} siswa di kelas ini</p>
-                                                </div>
-                                                {isSelected && students.length > 0 && (
-                                                    <button
-                                                        onClick={() => setSelectedClassForStudents(isExpanded ? null : cls.id)}
-                                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all shrink-0 shadow-sm ${
-                                                            isExpanded
-                                                                ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-[#3083FF]/20'
-                                                                : 'bg-indigo-50 text-[#3083FF] border-[#3083FF]/40 hover:bg-[#3083FF] hover:text-white hover:border-[#3083FF]'
-                                                        }`}
-                                                    >
-                                                        {isExpanded ? '✕ Tutup' : '👤 Pilih Siswa'}
-                                                    </button>
-                                                )}
-                                                {isSelected && (
-                                                    <span className="text-xs font-semibold text-emerald-600 shrink-0">
-                                                        {selectedCount}/{students.length} siswa
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Student selection (expandable) */}
-                                            {isSelected && isExpanded && students.length > 0 && (
-                                                <div className="border-t border-[#3083FF]/20 px-4 py-3 space-y-2 bg-white">
-                                                    {/* Mode selector */}
-                                                    <div className="flex gap-3 mb-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setClassAssignments(prev => ({
-                                                                ...prev,
-                                                                [cls.id]: { mode: 'all', studentIds: [] }
-                                                            }))}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                                                                assignment.mode === 'all'
-                                                                    ? 'bg-[#3083FF] text-white border-[#3083FF]'
-                                                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                                            }`}
-                                                        >
-                                                            Semua ({students.length})
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setClassAssignments(prev => ({
-                                                                ...prev,
-                                                                [cls.id]: { mode: 'selected', studentIds: [] }
-                                                            }))}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                                                                assignment.mode === 'selected'
-                                                                    ? 'bg-[#3083FF] text-white border-[#3083FF]'
-                                                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                                            }`}
-                                                        >
-                                                            Pilih Siswa...
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Student list (only when mode = selected) */}
-                                                    {assignment.mode === 'selected' && (
-                                                        <div className="max-h-[150px] overflow-y-auto bg-slate-50 rounded-xl border border-slate-200 p-2 space-y-1">
-                                                            {students.map(student => {
-                                                                const isStudentSelected = assignment.studentIds.includes(student.id);
-                                                                return (
-                                                                    <label key={student.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white cursor-pointer transition-all">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={isStudentSelected}
-                                                                            onChange={() => {
-                                                                                const ids = isStudentSelected
-                                                                                    ? assignment.studentIds.filter(id => id !== student.id)
-                                                                                    : [...assignment.studentIds, student.id];
-                                                                                setClassAssignments(prev => ({
-                                                                                    ...prev,
-                                                                                    [cls.id]: { ...assignment, studentIds: ids }
-                                                                                }));
-                                                                            }}
-                                                                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#3083FF]"
-                                                                        />
-                                                                        <div className="min-w-0 flex-1">
-                                                                            <p className="text-xs font-medium text-slate-700 truncate">{student.full_name || 'Tanpa nama'}</p>
-                                                                            {student.email && <p className="text-[10px] text-slate-400 truncate">{student.email}</p>}
-                                                                        </div>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                            {assignment.studentIds.length > 0 && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setClassAssignments(prev => ({
-                                                                        ...prev,
-                                                                        [cls.id]: { ...assignment, studentIds: [] }
-                                                                    }))}
-                                                                    className="w-full text-xs text-slate-400 hover:text-[#3083FF] py-1 border-t border-slate-200 mt-1 pt-2"
-                                                                >
-                                                                    Hapus semua pilihan
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-
-                                                    {assignment.mode === 'selected' && assignment.studentIds.length === 0 && (
-                                                        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                                            Tidak ada siswa dipilih — ujian tidak akan muncul untuk siswa manapun di kelas ini.
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Summary */}
-                            <div className="mt-4 pt-4 border-t border-[#3083FF]/20">
-                                {assignData.classIds.length === 0 ? (
-                                    <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl">
-                                        Belum ada kelas dipilih. Ujian tidak akan muncul di jadwal siswa manapun.
-                                    </div>
-                                ) : (
-                                    <div className="text-xs text-slate-600 bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-1">
-                                        <p className="font-semibold text-emerald-700">Ringkasan:</p>
-                                        <p>• {assignData.classIds.length} kelas dipilih</p>
-                                        <p>• {
-                                            assignData.classIds.reduce((total, clsId) => {
-                                                const a = classAssignments[clsId];
-                                                return total + (a?.mode === 'selected' ? a.studentIds.length : (classStudents[clsId] || []).length);
-                                            }, 0)
-                                        } siswa total yang bisa mengerjakan</p>
-                                        <p className="text-slate-500">• Klik &quot;Pilih Siswa&quot; pada kelas untuk membatasi siswa (misal: susulan)</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={handleAssignExam}
-                                disabled={isSubmitting || assignData.classIds.length === 0}
-                                className="w-full mt-4 py-3 bg-[#3083FF] text-white rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors"
-                            >
-                                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                Tetapkan
-                            </button>
-                                </>
-                            )}
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            <AssignExamModal
+                isOpen={isAssignModalOpen}
+                onClose={() => {
+                    setIsAssignModalOpen(false);
+                    setSelectedExam(null);
+                }}
+                exam={selectedExam}
+                classes={classes}
+                classStudents={classStudents}
+                onSuccess={loadData}
+            />
         </div>
     );
 };

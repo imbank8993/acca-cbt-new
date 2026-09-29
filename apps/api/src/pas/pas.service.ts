@@ -11,6 +11,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { insertIdempotently } from '../common/idempotent-create';
 import { listOperationalSubjects } from '../common/subject-catalog';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
 
 /**
@@ -120,10 +121,7 @@ export class PasService {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-period:${periodId}`,
-            );
+            await advisoryTransactionLock(db, `pas-period:${periodId}`);
             const { data: period, error: readError } = await db.from('cbt_pas_periods')
                 .select('id').eq('id', periodId).maybeSingle();
             if (readError) throw new BadRequestException(`Gagal membaca periode: ${readError.message}`);
@@ -141,10 +139,7 @@ export class PasService {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-period:${periodId}`,
-            );
+            await advisoryTransactionLock(db, `pas-period:${periodId}`);
 
             const { data: period } = await db.from('cbt_pas_periods')
                 .select('is_locked').eq('id', periodId).maybeSingle();
@@ -160,10 +155,7 @@ export class PasService {
             if (scheduleError) throw new BadRequestException(`Gagal membaca jadwal: ${scheduleError.message}`);
             const schedules = (scheduleData as Array<{ id: string; exam_id: string | null }>) || [];
             for (const scheduleId of schedules.map((row) => row.id).sort()) {
-                await db.raw(
-                    'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                    `pas-exam-generation:${scheduleId}`,
-                );
+                await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
             }
 
             const { data: currentData, error: currentError } = await db

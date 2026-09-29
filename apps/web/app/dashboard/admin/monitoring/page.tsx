@@ -5,12 +5,19 @@ import { MultiSelect } from '@/components/ui/MultiSelect';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
-import type { ExamAttemptRecord,OrganizationExam,ViolationEvent } from '@/lib/api/proctor';
-import type { QuestionOptionRecord } from '@/lib/api/questions';
-import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
+import type {
+    ExamAttemptRecord,
+    OrganizationExam,
+    ViolationEvent,
+    DetailedItemAnalysisResponse,
+    StudentAnswerSummary,
+    ItemAnalysis,
+} from '@/lib/api/proctor';
+import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 Activity,
@@ -26,26 +33,16 @@ RefreshCw,
 RotateCcw,
 ShieldAlert,
 TrendingUp,
+UserCheck,
+UserX,
 Users,
+PieChart,
 X
 } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
 import { Suspense,useCallback,useDeferredValue,useEffect,useState } from 'react';
 
-interface ItemAnalysis {
-    id: string;
-    number?: number;
-    qText: string;
-    type: string;
-    options: QuestionOptionRecord[];
-    total: number;
-    correct: number;
-    incorrect: number;
-    ungraded: number;
-    wrongStudents: string[];
-    correctStudents: string[];
-    incorrectPercentage: number;
-}
+export type { ItemAnalysis };
 
 function MonitoringContent() {
     const searchParams = useSearchParams();
@@ -59,6 +56,8 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
+    const [detailedAnalysis, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
+    const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
     const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('proktor_monitoring_liveAlerts', []);
@@ -94,49 +93,107 @@ function MonitoringContent() {
                 getExamAnswersForAnalysisAction(examId)
             ]);
             setAttempts(attData);
+            setDetailedAnalysis(analysisData.detailed || null);
 
-            // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
-            const studentByAttempt = new Map<string, string>();
-            attData.forEach((att) => studentByAttempt.set(att.id, att.profiles?.full_name || 'Tanpa Nama'));
+            if (analysisData.detailed?.items?.length) {
+                const analysisArray: ItemAnalysis[] = analysisData.detailed.items.map((item) => ({
+                    id: item.id,
+                    number: item.number,
+                    qText: item.question_text,
+                    type: item.type,
+                    options: item.options || [],
+                    total: item.total_answered,
+                    correct: item.total_correct,
+                    incorrect: item.total_incorrect,
+                    ungraded: item.total_ungraded,
+                    unanswered: item.total_unanswered,
+                    keyDisplay: item.key_display,
+                    difficultyIndex: item.difficulty_index,
+                    difficultyLabel: item.difficulty_label,
+                    discriminationIndex: item.discrimination_index,
+                    discriminationLabel: item.discrimination_label,
+                    wrongStudents: item.wrong_students || [],
+                    correctStudents: item.correct_students || [],
+                    ungradedStudents: item.ungraded_students || [],
+                    unansweredStudents: item.unanswered_students || [],
+                    distractorDistribution: item.distractor_distribution || [],
+                    incorrectPercentage: item.incorrect_percentage,
+                })).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || ((a.number || 0) - (b.number || 0)));
 
-            const { questions: bankQuestions, answers: ansRows } = analysisData;
-            const itemStats: Record<string, { total: number; correct: number; incorrect: number; ungraded: number; wrongStudents: string[] }> = {};
-            ansRows.forEach((ans) => {
-                const qId = ans.question_id;
-                if (!itemStats[qId]) itemStats[qId] = { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [] };
-                itemStats[qId].total += 1;
-                // is_correct null = belum ternilai (esai / menunggu penilaian
-                // manual) — masuk hitungan "Menjawab" tapi bukan "Salah".
-                if (ans.is_correct === true) itemStats[qId].correct += 1;
-                else if (ans.is_correct === false) {
-                    itemStats[qId].incorrect += 1;
-                    const nm = studentByAttempt.get(ans.attempt_id ?? '');
-                    if (nm) itemStats[qId].wrongStudents.push(nm);
-                } else {
-                    itemStats[qId].ungraded += 1;
-                }
-            });
+                setAnalysis(analysisArray);
+            } else {
+                // Fallback jika layanan Python belum mengembalikan detailed
+                const studentByAttempt = new Map<string, { name: string; class: string; nis: string }>();
+                attData.forEach((att) => {
+                    studentByAttempt.set(att.id, {
+                        name: att.profiles?.full_name || 'Tanpa Nama',
+                        class: att.kelas_name || '-',
+                        nis: att.profiles?.identity_number || '-',
+                    });
+                });
 
-            // SEMUA soal bank ditampilkan (termasuk yang belum dijawab), dengan
-            // nomor sesuai urutan bank soal; tetap diurutkan % salah terbesar.
-            const analysisArray = bankQuestions.map((q) => {
-                const stat = itemStats[q.id] || { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [] };
-                const graded = stat.correct + stat.incorrect;
-                return {
-                    id: q.id, number: q.number ?? 0, qText: q.question_text, type: q.type, options: q.options || [],
-                    total: stat.total, correct: stat.correct, incorrect: stat.incorrect,
-                    ungraded: stat.ungraded,
-                    wrongStudents: [...stat.wrongStudents].sort((a, b) => a.localeCompare(b)),
-                    correctStudents: [],
-                    incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
-                };
-            }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
-            setAnalysis(analysisArray);
+                const { questions: bankQuestions, answers: ansRows } = analysisData;
+                const itemStats: Record<string, {
+                    total: number;
+                    correct: number;
+                    incorrect: number;
+                    ungraded: number;
+                    wrongStudents: StudentAnswerSummary[];
+                    correctStudents: StudentAnswerSummary[];
+                }> = {};
+
+                ansRows.forEach((ans) => {
+                    const qId = ans.question_id;
+                    if (!itemStats[qId]) itemStats[qId] = { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [], correctStudents: [] };
+                    itemStats[qId].total += 1;
+                    const stu = studentByAttempt.get(ans.attempt_id ?? '') || { name: 'Tanpa Nama', class: '-', nis: '-' };
+                    const summary: StudentAnswerSummary = {
+                        attempt_id: ans.attempt_id ?? '',
+                        student_name: stu.name,
+                        class_name: stu.class,
+                        student_nis: stu.nis,
+                        score: ans.score != null ? Number(ans.score) : (ans.is_correct ? 1 : 0),
+                        display_answer: ans.selected_option_id || (typeof ans.essay_answer === 'string' ? ans.essay_answer : '-'),
+                        is_correct: ans.is_correct ?? null,
+                    };
+
+                    if (ans.is_correct === true) {
+                        itemStats[qId].correct += 1;
+                        itemStats[qId].correctStudents.push(summary);
+                    } else if (ans.is_correct === false) {
+                        itemStats[qId].incorrect += 1;
+                        itemStats[qId].wrongStudents.push(summary);
+                    } else {
+                        itemStats[qId].ungraded += 1;
+                    }
+                });
+
+                const analysisArray: ItemAnalysis[] = bankQuestions.map((q) => {
+                    const stat = itemStats[q.id] || { total: 0, correct: 0, incorrect: 0, ungraded: 0, wrongStudents: [], correctStudents: [] };
+                    const graded = stat.correct + stat.incorrect;
+                    return {
+                        id: q.id,
+                        number: q.number ?? 0,
+                        qText: q.question_text,
+                        type: q.type,
+                        options: q.options || [],
+                        total: stat.total,
+                        correct: stat.correct,
+                        incorrect: stat.incorrect,
+                        ungraded: stat.ungraded,
+                        wrongStudents: [...stat.wrongStudents].sort((a, b) => a.student_name.localeCompare(b.student_name)),
+                        correctStudents: [...stat.correctStudents].sort((a, b) => a.student_name.localeCompare(b.student_name)),
+                        incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
+                    };
+                }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || ((a.number || 0) - (b.number || 0)));
+
+                setAnalysis(analysisArray);
+            }
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
         }
         if (!silent) setIsRefreshing(false);
-    }, [setAnalysis, setAttempts]);
+    }, [setAnalysis, setAttempts, setDetailedAnalysis]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadInitialData(), 0);
@@ -164,39 +221,53 @@ function MonitoringContent() {
     }, [loadExamData, selectedExamId]);
 
     const handleResetAttempt = async (attemptId: string, studentName: string) => {
+        const modeInput = window.prompt(
+            `Pilih tindakan untuk ${studentName}:\n\n` +
+            `Ketik SUSULAN untuk menghapus jawaban lama dan mengerjakan dari awal.\n` +
+            `Ketik PULIHKAN untuk melanjutkan jawaban lama.`,
+            'SUSULAN',
+        );
+        if (!modeInput) return;
+        const mode = modeInput.trim().toUpperCase();
+        if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
+            alert('Pilihan harus SUSULAN atau PULIHKAN.');
+            return;
+        }
+
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
-        const confirmed = window.confirm(
-            `Yakin ingin mereset ujian siswa "${studentName}"?\n\n` +
-            `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya. ` +
-            `Jika waktu pengerjaannya sudah habis, siswa mendapat tenggat pemulihan 15 menit.\n\n` +
-            `Alasan: ${reason}\n\n` +
-            `Peringatan: Pastikan perangkat siswa sudah dalam kondisi baik untuk menghindari pelanggaran berulang.`
-        );
+        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
+        if (mode === 'SUSULAN' && !durationMinutes) return;
 
+        const confirmed = window.confirm(
+            mode === 'SUSULAN'
+                ? `Aktifkan ujian susulan untuk "${studentName}" selama ${durationMinutes} menit?\n\nSEMUA JAWABAN DAN NILAI LAMA SISWA INI AKAN DIHAPUS. Hasil baru tetap masuk ke rekap ujian yang sama.\n\nAlasan: ${reason}`
+                : `Pulihkan ujian "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
+        );
         if (!confirmed) return;
 
         setResettingAttemptId(attemptId);
         try {
-            const result = await resetExamAttempt(attemptId, reason);
+            const result = mode === 'SUSULAN'
+                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
+                : await resetExamAttempt(attemptId, reason);
             if (result.success) {
                 const deadline = result.recoveryUntil
-                    ? ` Tenggat pemulihan: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
+                    ? ` Tenggat: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
                     : '';
-                alert(
-                    `Ujian "${studentName}" berhasil dipulihkan. ` +
-                    `${result.serverAnswerCount} jawaban sudah ada di server.${deadline}`,
-                );
+                const detail = mode === 'SUSULAN'
+                    ? ` ${'deletedAnswerCount' in result ? result.deletedAnswerCount : 0} jawaban lama dihapus.`
+                    : ` ${'serverAnswerCount' in result ? result.serverAnswerCount : 0} jawaban lama dipertahankan.`;
+                alert(`${mode === 'SUSULAN' ? 'Ujian susulan' : 'Pemulihan'} untuk "${studentName}" berhasil.${detail}${deadline}`);
                 if (selectedExamId) loadExamData(selectedExamId);
             } else {
-                alert(`Gagal mereset: ${result.error}`);
+                alert(`Tindakan gagal: ${result.error}`);
             }
         } catch {
-            alert('Terjadi kesalahan saat mereset ujian');
+            alert('Terjadi kesalahan saat mengatur ulang ujian.');
         }
         setResettingAttemptId(null);
     };
-
     const handleCalculateIRT = async () => {
         if (!selectedExamId) return;
         const orgId = exams.find(e => e.id === selectedExamId)?.organization_id;
@@ -211,7 +282,10 @@ function MonitoringContent() {
         try {
             const res = await calculateExamIRT(selectedExamId);
             if (res.success) {
-                alert(`Kalkulasi selesai. ${res.count} skor peserta telah diperbarui.`);
+                const warnings = res.warnings?.length
+                    ? `\n\nPeringatan:\n${res.warnings.map((warning) => `• ${warning}`).join('\n')}`
+                    : '';
+                alert(`Kalkulasi selesai. ${res.count} skor peserta telah diperbarui.${warnings}`);
                 loadExamData(selectedExamId);
             } else {
                 alert(`Gagal kalkulasi: ${res.error}`);
@@ -282,48 +356,15 @@ function MonitoringContent() {
     const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
     const exportResultsToExcel = async () => {
-        if (!attempts?.length && !analysis?.length) return alert('Tidak ada data');
-        const XLSX = await import('xlsx');
-        const wb = XLSX.utils.book_new();
-
-        if (attempts?.length) {
-            const wsHasil = XLSX.utils.json_to_sheet(attempts.map(a => {
-                const bd = a.violation_breakdown || { pindah_tab: a.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                return {
-                    'Nama': a.profiles?.full_name || '-',
-                    'Kelas': a.kelas_name || '-',
-                    'Status': a.status === 'submitted' || a.status === 'auto_submitted' ? 'Selesai' : a.status === 'in_progress' ? 'Mengerjakan' : a.status === 'belum' ? 'Belum Mengerjakan' : a.status,
-                    'Pelanggaran': a.warning_count ?? 0,
-                    'Pindah Tab': bd.pindah_tab,
-                    'Close Tab': bd.close_tab,
-                    'Pelanggaran Lain': bd.lainnya,
-                    'Nilai': Number(a.total_score || 0).toFixed(2),
-                    'Mulai': a.started_at ? new Date(a.started_at).toLocaleString('id-ID') : '-',
-                    'Selesai': a.finished_at ? new Date(a.finished_at).toLocaleString('id-ID') : '-'
-                };
-            }));
-            wsHasil['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
-            XLSX.utils.book_append_sheet(wb, wsHasil, "Hasil");
+        if (!attempts?.length && !analysis?.length && !detailedAnalysis?.items?.length) {
+            return alert('Tidak ada data');
         }
-
-        if (analysis?.length) {
-            const wsAnalisis = XLSX.utils.json_to_sheet(analysis.map((a, i) => ({
-                'No': a.number ?? i + 1,
-                'Soal': a.qText.replace(/<[^>]+>/g, '').substring(0, 150),
-                'Menjawab': a.total,
-                'Benar': a.correct,
-                'Salah': a.incorrect,
-                'Belum Ternilai': a.ungraded ?? 0,
-                '% Salah': a.incorrectPercentage.toFixed(1) + '%',
-                'Siswa Menjawab Salah': (a.wrongStudents || []).join(', ')
-            })));
-            wsAnalisis['!cols'] = [{ wch: 5 }, { wch: 80 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 13 }, { wch: 10 }, { wch: 60 }];
-            XLSX.utils.book_append_sheet(wb, wsAnalisis, "Analisis");
-        }
-
-        const examTitle = exams.find(e => e.id === selectedExamId)?.title || selectedExamId?.slice(0, 6) || 'Ujian';
-        const safeTitle = examTitle.replace(/[^a-z0-9]/gi, '_');
-        XLSX.writeFile(wb, `Analisis_${safeTitle}.xlsx`);
+        await exportDetailedAnalysisToExcel({
+            exam: exams.find(e => e.id === selectedExamId),
+            attempts,
+            analysis,
+            detailedAnalysis,
+        });
     };
 
     if (isLoading) return (
@@ -342,6 +383,12 @@ function MonitoringContent() {
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
     // sistem penilaian IRT yang dipilih"), jadi tombolnya disembunyikan.
     const selectedExam = exams.find(e => e.id === selectedExamId);
+    const configuredViolationLimit = selectedExam?.metadata?.max_violations;
+    const violationLimit = selectedExam?.metadata?.is_safe_mode === false || configuredViolationLimit === null
+        ? null
+        : (typeof configuredViolationLimit === 'number' && Number.isInteger(configuredViolationLimit) && configuredViolationLimit >= 1
+            ? configuredViolationLimit
+            : 3);
     const hasIRTScoring = String(selectedExam?.scoring_type || '')
         .split(',')
         .map((t: string) => t.trim())
@@ -550,7 +597,7 @@ function MonitoringContent() {
                                                     const canReset = isTerminated || att.status === 'submitted';
                                                     const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
                                                     const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                    const MAX = 3;
+                                                    const MAX = violationLimit ?? Math.max(violations, 1);
                                                     const hasViolations = violations > 0;
 
                                                     let duration = '-';
@@ -620,7 +667,7 @@ function MonitoringContent() {
                                                                     <div>
                                                                         <div className="flex justify-between text-[9px] font-semibold uppercase tracking-wider mb-1.5">
                                                                             <span className={hasViolations ? 'text-red-500' : 'text-slate-400'}>Pelanggaran</span>
-                                                                            <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{MAX}</span>
+                                                                            <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{violationLimit ?? '∞'}</span>
                                                                         </div>
                                                                         <div className="flex gap-1">
                                                                             {[...Array(MAX)].map((_, i) => (
@@ -645,6 +692,15 @@ function MonitoringContent() {
                                                                 </div>
                                                             </div>
 
+                                                            {liveAlert && (
+                                                                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[10px] text-amber-800">
+                                                                    <span className="font-bold">Pelanggaran terakhir:</span> {liveAlert.violationLabel}
+                                                                    <span className="block text-amber-600 mt-0.5">
+                                                                        {new Date(liveAlert.timestamp).toLocaleString('id-ID')}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+
                                                             <div className="mt-3 flex gap-2">
                                                                 <button
                                                                     onClick={() => router.push(`/dashboard/admin/monitoring/${att.id}`)}
@@ -663,7 +719,7 @@ function MonitoringContent() {
                                                                         ) : (
                                                                             <RotateCcw size={11} />
                                                                         )}
-                                                                        Reset
+                                                                        Susulan / Pulihkan
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -703,7 +759,6 @@ function MonitoringContent() {
                                                         const canReset = isTerminated || att.status === 'submitted';
                                                         const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
                                                         const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                        const MAX = 3;
                                                         const hasViolations = violations > 0;
 
                                                         let duration = '-';
@@ -746,7 +801,7 @@ function MonitoringContent() {
                                                                 </td>
                                                                 <td className="p-3 text-center">
                                                                     <span className={`font-bold ${hasViolations ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                        {violations}/{MAX}
+                                                                        {violations}/{violationLimit ?? '∞'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="p-3 text-center text-xs">
@@ -777,7 +832,7 @@ function MonitoringContent() {
                                                                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
                                                                                 {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                                Reset
+                                                                                Susulan / Pulihkan
                                                                             </button>
                                                                         )}
                                                                     </div>
@@ -941,7 +996,7 @@ function MonitoringContent() {
                                                                             className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                         >
                                                                             {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                            Reset
+                                                                            Susulan / Pulihkan
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -971,11 +1026,13 @@ function MonitoringContent() {
                                     </button>
                                 </div>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[600px]">
+                                    <table className="w-full min-w-[700px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
                                                 <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF] w-20">Tipe</th>
+                                                <th className="p-4 text-center font-bold text-[#3083FF] w-28">Kesukaran</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF]">Menjawab</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF]">Benar</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF]">Salah</th>
@@ -985,10 +1042,18 @@ function MonitoringContent() {
                                         </thead>
                                         <tbody>
                                             {analysis.length === 0 ? (
-                                                <tr><td colSpan={7} className="p-12 text-center text-slate-400 font-medium">Belum ada data</td></tr>
+                                                <tr><td colSpan={9} className="p-12 text-center text-slate-400 font-medium">Belum ada data</td></tr>
                                             ) : (
                                                 pagedAnalysis.map((anl) => {
                                                     const isCritical = anl.incorrectPercentage > 50;
+                                                    const diffLabel = anl.difficultyLabel?.toLowerCase() || '';
+                                                    const diffColor =
+                                                        diffLabel === 'mudah'
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            : diffLabel === 'sukar'
+                                                            ? 'bg-red-50 text-red-700 border-red-200'
+                                                            : 'bg-amber-50 text-amber-700 border-amber-200';
+
                                                     return (
                                                         <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
                                                             <td className="p-4 text-center font-bold text-[#3083FF]">{anl.number}</td>
@@ -1000,17 +1065,56 @@ function MonitoringContent() {
                                                                             <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                                         </div>
                                                                         <button
-                                                                            onClick={() => setViewQuestion(anl)}
-                                                                            className="mt-2 text-xs font-semibold text-[#3083FF] hover:text-[#3083FF] flex items-center gap-1 transition-colors"
+                                                                            onClick={() => {
+                                                                                setViewQuestion(anl);
+                                                                                setModalActiveTab('soal');
+                                                                            }}
+                                                                            className="mt-2 text-xs font-semibold text-[#3083FF] hover:text-[#2563EB] flex items-center gap-1 transition-colors"
                                                                         >
-                                                                            <Eye size={12} /> Lihat Soal & Siapa yang Salah
+                                                                            <Eye size={12} /> Detail Soal & Jawaban Siswa
                                                                         </button>
                                                                     </div>
                                                                 </div>
                                                             </td>
+                                                            <td className="p-4 text-center">
+                                                                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-bold uppercase text-slate-600">
+                                                                    {anl.type || 'mcq'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                {anl.difficultyLabel ? (
+                                                                    <span className={`px-2 py-0.5 border rounded text-[10px] font-bold uppercase ${diffColor}`}>
+                                                                        {anl.difficultyLabel}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-xs text-slate-400">-</span>
+                                                                )}
+                                                            </td>
                                                             <td className="p-4 text-center font-bold text-slate-500">{anl.total}</td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-emerald-600">{anl.correct}</span></td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-red-500">{anl.incorrect}</span></td>
+                                                            <td className="p-4 text-center">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setViewQuestion(anl);
+                                                                        setModalActiveTab('benar');
+                                                                    }}
+                                                                    className="px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold transition-all text-xs"
+                                                                    title="Klik untuk melihat siswa yang menjawab benar"
+                                                                >
+                                                                    {anl.correct}
+                                                                </button>
+                                                            </td>
+                                                            <td className="p-4 text-center">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setViewQuestion(anl);
+                                                                        setModalActiveTab('salah');
+                                                                    }}
+                                                                    className="px-2.5 py-1 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold transition-all text-xs"
+                                                                    title="Klik untuk melihat siswa yang menjawab salah"
+                                                                >
+                                                                    {anl.incorrect}
+                                                                </button>
+                                                            </td>
                                                             <td className="p-4 text-center"><span className="font-bold text-slate-400">{anl.ungraded ?? 0}</span></td>
                                                             <td className="p-4 text-right">
                                                                 <div className="flex flex-col items-end">
@@ -1068,70 +1172,364 @@ function MonitoringContent() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+                        className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
                         onClick={() => setViewQuestion(null)}
                     >
                         <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                            initial={{ scale: 0.96, opacity: 0, y: 12 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85dvh]"
+                            exit={{ scale: 0.96, opacity: 0, y: 12 }}
+                            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[88dvh] border border-slate-100"
                             onClick={e => e.stopPropagation()}
                         >
-                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                <h3 className="font-bold text-slate-800">Detail Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}</h3>
-                                <button onClick={() => setViewQuestion(null)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
-                                    <X size={16} />
+                            {/* Modal Header */}
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="font-bold text-slate-800 text-lg">
+                                        Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}
+                                    </h3>
+                                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[11px] font-bold uppercase tracking-wider">
+                                        {viewQuestion.type || 'mcq'}
+                                    </span>
+                                    {viewQuestion.difficultyLabel && (
+                                        <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                                            viewQuestion.difficultyLabel === 'Sukar' ? 'bg-red-50 text-red-700 border-red-200' :
+                                            viewQuestion.difficultyLabel === 'Sedang' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                            'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}>
+                                            {viewQuestion.difficultyLabel} {viewQuestion.difficultyIndex !== undefined ? `(P: ${viewQuestion.difficultyIndex.toFixed(2)})` : ''}
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setViewQuestion(null)}
+                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors"
+                                >
+                                    <X size={18} />
                                 </button>
                             </div>
-                            <div className="p-6 overflow-y-auto flex-1">
-                                <LatexRenderer text={viewQuestion.qText} className="text-base text-slate-700 leading-relaxed" />
 
-                                {/* Opsi jawaban terurut; kunci ditandai hijau */}
-                                {(viewQuestion.options?.length ?? 0) > 0 && (
-                                    <div className="mt-4 space-y-1.5">
-                                        {viewQuestion.options.map((opt, i) => (
-                                            <div key={opt.id || i} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-sm ${
-                                                opt.is_correct ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'
-                                            }`}>
-                                                <span className={`font-bold shrink-0 ${opt.is_correct ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                    {String.fromCharCode(65 + i)}.
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <LatexRenderer text={opt.option_text || ''} className="!text-[13px] !leading-relaxed" />
+                            {/* Modal Tabs Bar */}
+                            <div className="px-6 pt-2 border-b border-slate-200 bg-white flex items-center gap-2 overflow-x-auto">
+                                <button
+                                    onClick={() => setModalActiveTab('soal')}
+                                    className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                        modalActiveTab === 'soal'
+                                            ? 'border-[#3083FF] text-[#3083FF]'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <Eye size={14} />
+                                    Teks Soal & Kunci
+                                </button>
+                                <button
+                                    onClick={() => setModalActiveTab('benar')}
+                                    className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                        modalActiveTab === 'benar'
+                                            ? 'border-emerald-500 text-emerald-600'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <UserCheck size={14} className="text-emerald-500" />
+                                    Siswa Benar
+                                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700">
+                                        {viewQuestion.correctStudents?.length ?? viewQuestion.correct}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => setModalActiveTab('salah')}
+                                    className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                        modalActiveTab === 'salah'
+                                            ? 'border-red-500 text-red-600'
+                                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    <UserX size={14} className="text-red-500" />
+                                    Siswa Salah
+                                    <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-red-100 text-red-700">
+                                        {viewQuestion.wrongStudents?.length ?? viewQuestion.incorrect}
+                                    </span>
+                                </button>
+                                {(viewQuestion.distractorDistribution?.length ?? 0) > 0 && (
+                                    <button
+                                        onClick={() => setModalActiveTab('distraktor')}
+                                        className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                                            modalActiveTab === 'distraktor'
+                                                ? 'border-purple-500 text-purple-600'
+                                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <PieChart size={14} className="text-purple-500" />
+                                        Sebaran Pengecoh
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
+                                {modalActiveTab === 'soal' && (
+                                    <div className="space-y-5">
+                                        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Teks Soal</div>
+                                            <LatexRenderer text={viewQuestion.qText} className="text-base text-slate-800 leading-relaxed" />
+                                        </div>
+
+                                        {(viewQuestion.options?.length ?? 0) > 0 && (
+                                            <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pilihan Opsi & Kunci Jawaban</div>
+                                                <div className="space-y-2">
+                                                    {viewQuestion.options.map((opt, i) => (
+                                                        <div
+                                                            key={opt.id || i}
+                                                            className={`flex items-start gap-3 p-3 rounded-lg border text-sm transition-colors ${
+                                                                opt.is_correct
+                                                                    ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300'
+                                                                    : 'bg-slate-50 border-slate-200/70'
+                                                            }`}
+                                                        >
+                                                            <span className={`w-6 h-6 flex items-center justify-center rounded font-bold text-xs shrink-0 ${
+                                                                opt.is_correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                                                            }`}>
+                                                                {String.fromCharCode(65 + i)}
+                                                            </span>
+                                                            <div className="flex-1 min-w-0 pt-0.5">
+                                                                <LatexRenderer text={opt.option_text || ''} className="!text-sm !leading-relaxed" />
+                                                            </div>
+                                                            {opt.is_correct && (
+                                                                <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                                                                    <CheckCircle2 size={13} /> Kunci Jawaban
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                {opt.is_correct && <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />}
                                             </div>
-                                        ))}
+                                        )}
+
+                                        {viewQuestion.keyDisplay && (
+                                            <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
+                                                <span className="font-semibold">Kunci Jawaban Resmi:</span>
+                                                <span className="font-bold bg-white px-3 py-1 rounded border border-blue-200">{viewQuestion.keyDisplay}</span>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                                            <div className="bg-white p-3 rounded-xl border border-slate-200">
+                                                <div className="text-[10px] font-bold text-slate-400 uppercase">Total Menjawab</div>
+                                                <div className="text-xl font-bold text-slate-700 mt-1">{viewQuestion.total}</div>
+                                            </div>
+                                            <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                                                <div className="text-[10px] font-bold text-emerald-600 uppercase">Jawaban Benar</div>
+                                                <div className="text-xl font-bold text-emerald-700 mt-1">{viewQuestion.correct}</div>
+                                            </div>
+                                            <div className="bg-red-50 p-3 rounded-xl border border-red-200">
+                                                <div className="text-[10px] font-bold text-red-600 uppercase">Jawaban Salah</div>
+                                                <div className="text-xl font-bold text-red-700 mt-1">{viewQuestion.incorrect}</div>
+                                            </div>
+                                            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
+                                                <div className="text-[10px] font-bold text-amber-600 uppercase">Belum Dinilai</div>
+                                                <div className="text-xl font-bold text-amber-700 mt-1">{viewQuestion.ungraded ?? 0}</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
-                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200">Menjawab {viewQuestion.total}</span>
-                                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200">Benar {viewQuestion.correct}</span>
-                                    <span className="px-2.5 py-1 bg-red-50 text-red-700 rounded-lg border border-red-200">Salah {viewQuestion.incorrect}</span>
-                                    {(viewQuestion.ungraded ?? 0) > 0 && (
-                                        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">Belum Ternilai {viewQuestion.ungraded}</span>
-                                    )}
-                                </div>
-                                {(viewQuestion.wrongStudents?.length ?? 0) > 0 && (
-                                    <div className="mt-5">
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 mb-2 flex items-center gap-1.5">
-                                            <AlertTriangle size={12} /> Siswa yang Menjawab Salah ({viewQuestion.wrongStudents.length})
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5">
-                                            {viewQuestion.wrongStudents.map((nm: string, i: number) => (
-                                                <div key={i} className="flex items-baseline gap-2 text-xs text-slate-700 py-1.5 border-b border-slate-100">
-                                                    <span className="w-6 shrink-0 text-right font-bold text-slate-400">{i + 1}.</span>
-                                                    <span className="font-medium">{nm}</span>
+                                {modalActiveTab === 'benar' && (
+                                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="p-4 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <CheckCircle2 size={16} className="text-emerald-600" />
+                                                <span className="font-bold text-sm text-emerald-900">
+                                                    Daftar Siswa yang Menjawab Benar ({viewQuestion.correctStudents?.length ?? 0})
+                                                </span>
+                                            </div>
+                                            <span className="text-xs text-emerald-700 font-medium">Nilai Poin Diperoleh Penuh</span>
+                                        </div>
+
+                                        {(!viewQuestion.correctStudents || viewQuestion.correctStudents.length === 0) ? (
+                                            <div className="p-8 text-center text-slate-400 text-sm">
+                                                Belum ada siswa yang menjawab dengan benar untuk butir soal ini.
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-x-auto max-h-[50vh]">
+                                                <table className="w-full text-left border-collapse text-xs">
+                                                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 sticky top-0">
+                                                        <tr>
+                                                            <th className="p-3 w-12 text-center">No</th>
+                                                            <th className="p-3">Nama Siswa</th>
+                                                            <th className="p-3">Kelas</th>
+                                                            <th className="p-3">NISN / Identitas</th>
+                                                            <th className="p-3">Jawaban Diberikan</th>
+                                                            <th className="p-3 text-right">Skor</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {viewQuestion.correctStudents.map((st, i) => (
+                                                            <tr key={i} className="hover:bg-emerald-50/30 transition-colors">
+                                                                <td className="p-3 text-center font-bold text-slate-400">{i + 1}</td>
+                                                                <td className="p-3 font-semibold text-slate-800">{st.student_name}</td>
+                                                                <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
+                                                                <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
+                                                                <td className="p-3">
+                                                                    <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                                                                        {st.display_answer || 'Benar'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-3 text-right font-bold text-emerald-600">
+                                                                    +{st.score !== undefined ? st.score : 1}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {modalActiveTab === 'salah' && (
+                                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="p-4 bg-red-50/50 border-b border-red-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <AlertTriangle size={16} className="text-red-600" />
+                                                <span className="font-bold text-sm text-red-900">
+                                                    Daftar Siswa yang Menjawab Salah ({viewQuestion.wrongStudents?.length ?? 0})
+                                                </span>
+                                            </div>
+                                            <span className="text-xs text-red-700 font-medium">Perlu Perhatian & Remedial</span>
+                                        </div>
+
+                                        {(!viewQuestion.wrongStudents || viewQuestion.wrongStudents.length === 0) ? (
+                                            <div className="p-8 text-center text-emerald-600 font-medium text-sm">
+                                                Luar biasa! Tidak ada siswa yang menjawab salah untuk butir soal ini.
+                                            </div>
+                                        ) : (
+                                            <div className="overflow-x-auto max-h-[50vh]">
+                                                <table className="w-full text-left border-collapse text-xs">
+                                                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 sticky top-0">
+                                                        <tr>
+                                                            <th className="p-3 w-12 text-center">No</th>
+                                                            <th className="p-3">Nama Siswa</th>
+                                                            <th className="p-3">Kelas</th>
+                                                            <th className="p-3">NISN / Identitas</th>
+                                                            <th className="p-3">Jawaban Siswa</th>
+                                                            <th className="p-3">Kunci Jawaban</th>
+                                                            <th className="p-3 text-right">Skor</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {viewQuestion.wrongStudents.map((st, i) => (
+                                                            <tr key={i} className="hover:bg-red-50/30 transition-colors">
+                                                                <td className="p-3 text-center font-bold text-slate-400">{i + 1}</td>
+                                                                <td className="p-3 font-semibold text-slate-800">{st.student_name}</td>
+                                                                <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
+                                                                <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
+                                                                <td className="p-3">
+                                                                    <span className="inline-block px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
+                                                                        {st.display_answer || '(Kosong / Salah)'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-3">
+                                                                    <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
+                                                                        {viewQuestion.keyDisplay || '-'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="p-3 text-right font-bold text-red-500">
+                                                                    {st.score !== undefined ? st.score : 0}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {modalActiveTab === 'distraktor' && (
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-purple-50/60 rounded-xl border border-purple-200 flex items-center justify-between text-xs text-purple-900">
+                                            <span className="font-semibold">Analisis Distribusi Pemilihan Opsi (Pengecoh / Distractor):</span>
+                                            <span className="text-[11px] text-purple-700">Membantu mengevaluasi efektivitas distraktor soal</span>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {(viewQuestion.distractorDistribution || []).map((dist) => (
+                                                <div key={dist.option_id} className={`p-4 rounded-xl border transition-all ${
+                                                    dist.is_correct ? 'bg-emerald-50/40 border-emerald-300' : 'bg-white border-slate-200'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-4 mb-2">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className={`w-6 h-6 flex items-center justify-center rounded font-bold text-xs shrink-0 ${
+                                                                dist.is_correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                                                            }`}>
+                                                                {dist.option_letter}
+                                                            </span>
+                                                            <div className="truncate text-xs text-slate-700 font-medium">
+                                                                {dist.option_text ? dist.option_text.substring(0, 80) : ''}
+                                                            </div>
+                                                            {dist.is_correct && (
+                                                                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                                                    KUNCI
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <span className="font-bold text-sm text-slate-800">{dist.count} siswa</span>
+                                                            <span className="text-xs text-slate-500 ml-1.5 font-semibold">({dist.percentage.toFixed(1)}%)</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Progress bar */}
+                                                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all ${
+                                                                dist.is_correct ? 'bg-emerald-500' : 'bg-[#3083FF]'
+                                                            }`}
+                                                            style={{ width: `${Math.min(100, dist.percentage)}%` }}
+                                                        />
+                                                    </div>
+
+                                                    {/* Students who selected this option */}
+                                                    {dist.student_names && dist.student_names.length > 0 && (
+                                                        <div className="pt-2 border-t border-slate-100">
+                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                                                Siswa yang Memilih:
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {dist.student_names.map((nm: string, sIdx: number) => (
+                                                                    <span
+                                                                        key={sIdx}
+                                                                        className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
+                                                                            dist.is_correct
+                                                                                ? 'bg-emerald-100/70 text-emerald-800'
+                                                                                : 'bg-slate-100 text-slate-700'
+                                                                        }`}
+                                                                    >
+                                                                        {nm}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                                <button onClick={() => setViewQuestion(null)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+
+                            {/* Modal Footer */}
+                            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                                <div className="text-xs text-slate-500">
+                                    {viewQuestion.discriminationLabel && (
+                                        <span>Daya Beda: <strong className="text-slate-700">{viewQuestion.discriminationLabel}</strong> ({viewQuestion.discriminationIndex?.toFixed(2) ?? '-'})</span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setViewQuestion(null)}
+                                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm"
+                                >
                                     Tutup
                                 </button>
                             </div>

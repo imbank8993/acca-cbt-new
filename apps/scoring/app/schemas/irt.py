@@ -69,3 +69,4 @@ class IrtResponse(BaseModel):
     # Parameter butir dikembalikan juga: analisis butir memakainya, dan tanpa ini
     # perhitungan yang sama harus diulang di tempat lain.
     items: list[ItemParameter] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

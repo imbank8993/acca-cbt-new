@@ -86,7 +86,7 @@ export default function AnalyticsDashboard() {
   const recentExams = exams.slice(0, 8);
 
   const statusLabel = (e: ExamWithStats) => {
-    if (!e.is_published) return { text: 'Draft', cls: 'bg-amber-100 text-amber-700', icon: 'bg-amber-100 text-amber-600' };
+    if (!e.is_published) return { text: 'Draft', cls: 'bg-red-50 text-red-600 border border-red-200', icon: 'bg-red-50 text-red-600' };
     if (e.status === 'active') return { text: 'Aktif', cls: 'bg-emerald-100 text-emerald-700', icon: 'bg-emerald-100 text-emerald-600' };
     return { text: 'Selesai', cls: 'bg-slate-100 text-slate-600', icon: 'bg-slate-100 text-slate-600' };
   };

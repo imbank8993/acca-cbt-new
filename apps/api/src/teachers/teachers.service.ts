@@ -296,43 +296,54 @@ export class TeachersService {
                 throw new BadRequestException('Nilai harus berada antara nol dan skor maksimum soal.');
             }
         }
-        for (const [answerId, score] of Object.entries(grades)) {
-            const { data: updated, error } = await this.db
-                .from('cbt_answers')
-                .update({ score, is_correct: score > 0 })
-                .eq('id', answerId).eq('attempt_id', attemptId).select('id').maybeSingle();
-            if (error || !updated) throw new BadRequestException('Nilai jawaban gagal disimpan. Coba lagi.');
-        }
-
         const academicQuestions = ((questions as any[]) || []).filter(q => !PERSONALITY_TYPES.includes(q.type));
         const maxScore = academicQuestions.reduce(
             (sum, q) => sum + (q.score_default || 1),
             0,
         );
 
-        const { data: allAnswers, error: allAnswersError } = await this.db
-            .from('cbt_answers')
-            .select('question_id, score, is_correct')
-            .eq('attempt_id', attemptId);
-        if (allAnswersError) throw new BadRequestException(allAnswersError.message);
+        const finalScore = await this.db.transaction(async db => {
+            // Dua guru/proktor dapat membuka halaman yang sama. Kunci attempt
+            // membuat penilaian parsial mereka dihitung berurutan sehingga total
+            // dan flag pending tidak berasal dari snapshot yang sudah usang.
+            await db.raw(
+                'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
+                attemptId,
+            );
+            for (const [answerId, score] of Object.entries(grades)) {
+                const { data: updated, error } = await db
+                    .from('cbt_answers')
+                    .update({ score, is_correct: score > 0 })
+                    .eq('id', answerId).eq('attempt_id', attemptId).select('id').maybeSingle();
+                if (error || !updated) {
+                    throw new BadRequestException('Nilai jawaban gagal disimpan. Coba lagi.');
+                }
+            }
 
-        const academicIds = new Set(academicQuestions.map(q => q.id));
-        const total = ((allAnswers as any[]) || []).filter(a => academicIds.has(a.question_id)).reduce(
-            (sum, a) => sum + (a.score || 0),
-            0,
-        );
-        const pending = academicQuestions.filter(q => ESSAY_TYPES.includes(q.type)).some(q =>
-            !((allAnswers as any[]) || []).some(a => a.question_id === q.id &&
-                typeof a.score === 'number' && a.is_correct !== null && a.is_correct !== undefined),
-        );
+            const { data: allAnswers, error: allAnswersError } = await db
+                .from('cbt_answers')
+                .select('question_id, score, is_correct')
+                .eq('attempt_id', attemptId);
+            if (allAnswersError) throw new BadRequestException(allAnswersError.message);
 
-        const finalScore = maxScore > 0 ? (total / maxScore) * 100 : 0;
+            const academicIds = new Set(academicQuestions.map(q => q.id));
+            const total = ((allAnswers as any[]) || []).filter(a => academicIds.has(a.question_id)).reduce(
+                (sum, a) => sum + (a.score || 0),
+                0,
+            );
+            const pending = academicQuestions.filter(q => ESSAY_TYPES.includes(q.type)).some(q =>
+                !((allAnswers as any[]) || []).some(a => a.question_id === q.id &&
+                    typeof a.score === 'number' && a.is_correct !== null && a.is_correct !== undefined),
+            );
 
-        const { error: totalError } = await this.db
-            .from('cbt_exam_attempts')
-            .update({ total_score: finalScore, needs_manual_grading: pending })
-            .eq('id', attemptId);
-        if (totalError) throw new BadRequestException(totalError.message);
+            const score = maxScore > 0 ? (total / maxScore) * 100 : 0;
+            const { error: totalError } = await db
+                .from('cbt_exam_attempts')
+                .update({ total_score: score, needs_manual_grading: pending })
+                .eq('id', attemptId);
+            if (totalError) throw new BadRequestException(totalError.message);
+            return score;
+        });
 
         return { totalScore: finalScore };
     }

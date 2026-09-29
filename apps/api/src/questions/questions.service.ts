@@ -3,6 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -160,8 +161,8 @@ export class QuestionsService {
                 // transaksi aborted. Advisory lock menyerialkan request dengan
                 // kunci sama sehingga retry kedua menemukan baris lama sebelum
                 // mencoba insert.
-                await db.raw(
-                    'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+                await advisoryTransactionLock(
+                    db,
                     `question:${dto.bankId}:${dto.clientRequestId}`,
                 );
                 const inserted = await insertIdempotentlyWithStatus<{ id: string }>(db, {

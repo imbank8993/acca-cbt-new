@@ -2,6 +2,14 @@
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { renderLatex,sanitizeLatex } from './math-utils';
 
+interface MathRendererProps {
+  latex: string;
+  displayMode?: boolean;
+  editable?: boolean;
+  onChange?: (latex: string) => void;
+  copyable?: boolean;
+}
+
 export const MathRenderer = React.memo(
   ({
     latex,
@@ -9,7 +17,7 @@ export const MathRenderer = React.memo(
     editable = false,
     onChange,
     copyable = false,
-  }: any) => {
+  }: MathRendererProps) => {
     const [html, setHtml] = useState('');
     const [error, setError] = useState(false);
     const [isEditing, setIsEditing] = useState(false);

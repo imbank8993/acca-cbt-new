@@ -183,18 +183,10 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
 
             if student_input == answer or student_input in variations:
                 correct_blanks += 1
-            elif len(student_input) > 0:
-                # Isian kosong tidak boleh dapat kredit parsial (``"" in answer``
-                # selalu benar), jadi cabang ini hanya jalan bila siswa mengisi.
-                matched = bool(answer) and (
-                    answer in student_input or student_input in answer
-                )
-                if not matched:
-                    matched = any(
-                        v and (v in student_input or student_input in v) for v in variations
-                    )
-                if matched:
-                    correct_blanks += 0.5
+            # Kredit parsial berbasis substring sengaja tidak diberikan. Aturan
+            # lama membuat satu huruf seperti "a" mendapat setengah poin untuk
+            # "Jakarta". Guru tetap dapat memasukkan bentuk jawaban lain secara
+            # eksplisit melalui daftar variasi.
 
         ratio = correct_blanks / len(blanks) if blanks else 0
         score_earned = ratio * default_score
@@ -324,9 +316,17 @@ def apply_relative_scoring(attempts: list[RelativeAttempt]) -> dict[str, float]:
         groups.setdefault(attempt.base_score, []).append(attempt)
 
     for group in groups.values():
-        group.sort(key=lambda a: a.duration_seconds)  # tercepat lebih dulu
-        for index, attempt in enumerate(group):
-            penalty = index * 0.01
+        group.sort(key=lambda a: (a.duration_seconds, a.attempt_id))
+        distinct_rank = -1
+        previous_duration: int | None = None
+        for attempt in group:
+            # Durasi disimpan dalam detik. Dua peserta dengan durasi sama harus
+            # mendapat penalti sama; urutan baris database tidak boleh menentukan
+            # siapa yang kehilangan 0,01 poin.
+            if previous_duration is None or attempt.duration_seconds != previous_duration:
+                distinct_rank += 1
+                previous_duration = attempt.duration_seconds
+            penalty = distinct_rank * 0.01
             result[attempt.attempt_id] = max(0.0, round(attempt.base_score - penalty, 2))
 
     return result

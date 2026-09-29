@@ -24,6 +24,12 @@ const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 's
 /** `src="…"` di dalam JSON yang sudah di-stringify — kutipnya ikut ter-escape. */
 const IMAGE_SRC_PATTERN = /src=\\"(https?:\/\/[^\\]+)\\"/gi;
 
+interface BackupExportPayload {
+    error?: string;
+    organization?: { name?: string | null };
+    [key: string]: unknown;
+}
+
 export async function GET(request: NextRequest) {
     const token = extractRequestToken(request);
     if (!token) {
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    const { status, body } = await nestFetchAsUser<any>(
+    const { status, body } = await nestFetchAsUser<BackupExportPayload>(
         '/backup/export',
         token,
     );

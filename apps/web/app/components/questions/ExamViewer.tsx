@@ -100,7 +100,7 @@ export interface ExamViewerProps {
     timeLeft?: number;
     isSafeMode?: boolean;
     violationCount?: number;
-    maxViolations?: number;
+    maxViolations?: number | null;
     showViolationModal?: boolean;
     violationType?: string;
     onCloseViolationModal?: () => void;
@@ -556,15 +556,19 @@ export function ExamViewer({
                                 {violationType.replace(/_/g, ' ')}
                             </p>
                             <p className="text-xs text-slate-400 mb-5">
-                                {violationCount} dari {maxViolations} maksimum
+                                {maxViolations === null
+                                    ? `${violationCount} pelanggaran tercatat · tanpa penyelesaian otomatis`
+                                    : `${violationCount} dari ${maxViolations} maksimum`}
                             </p>
-                            <div className="w-full bg-slate-100 rounded-full h-2 mb-5 overflow-hidden">
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${(violationCount / maxViolations) * 100}%` }}
-                                    className={`h-full ${violationCount >= maxViolations - 1 ? 'bg-red-500' : 'bg-amber-500'}`}
-                                />
-                            </div>
+                            {maxViolations !== null && (
+                                <div className="w-full bg-slate-100 rounded-full h-2 mb-5 overflow-hidden">
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${Math.min(100, (violationCount / maxViolations) * 100)}%` }}
+                                        className={`h-full ${violationCount >= maxViolations - 1 ? 'bg-red-500' : 'bg-amber-500'}`}
+                                    />
+                                </div>
+                            )}
                             <button
                                 onClick={onCloseViolationModal}
                                 className="w-full py-3.5 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"

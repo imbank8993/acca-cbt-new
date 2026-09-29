@@ -23,6 +23,16 @@
   --header-text: #e2e8f0;
 }
 
+/* ===== Base Header Typography (Default Poppins) ===== */
+.header,
+.header button,
+.header input,
+.header select,
+.header textarea,
+.user-menu-dropdown {
+  font-family: var(--font-poppins), 'Poppins', sans-serif !important;
+}
+
 /* ===== Header Shell (Desktop) ===== */
 @media (min-width: 1024px) {
   .header {
@@ -223,7 +233,7 @@ html.dark .header-collapse-toggle:hover {
 }
 
 .header-title {
-  font-family: 'Poppins', sans-serif !important;
+  font-family: var(--font-poppins), 'Poppins', sans-serif !important;
   font-size: 1.1rem;
   font-weight: 750;
   color: var(--header-text);
@@ -692,7 +702,7 @@ html.dark .user_menu_nip {
     flex: 1 1 auto;
     min-width: 0;
     margin: 0;
-    font-family: 'Poppins', sans-serif !important;
+    font-family: var(--font-poppins), 'Poppins', sans-serif !important;
     font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.2;
@@ -720,7 +730,7 @@ html.dark .user_menu_nip {
   }
 
   .header-greeting-text {
-    font-family: 'Poppins', sans-serif !important;
+    font-family: var(--font-poppins), 'Poppins', sans-serif !important;
     font-size: 1.02rem;
     font-weight: 700;
     color: #112E59;
@@ -735,7 +745,7 @@ html.dark .user_menu_nip {
   }
 
   .header-greeting-name {
-    font-family: 'Poppins', sans-serif !important;
+    font-family: var(--font-poppins), 'Poppins', sans-serif !important;
     font-size: 0.72rem;
     font-weight: 500;
     color: #64748b;
@@ -753,7 +763,7 @@ html.dark .user_menu_nip {
   }
 
   .header-pageTitle--stacked {
-    font-family: 'Poppins', sans-serif !important;
+    font-family: var(--font-poppins), 'Poppins', sans-serif !important;
     font-size: 0.96rem !important;
     font-weight: 800 !important;
     color: #0437A6 !important;
@@ -769,7 +779,7 @@ html.dark .user_menu_nip {
   }
 
   .header-pageSubtitle {
-    font-family: 'Poppins', sans-serif !important;
+    font-family: var(--font-poppins), 'Poppins', sans-serif !important;
     font-size: 0.72rem !important;
     font-weight: 600 !important;
     color: #64748b !important;

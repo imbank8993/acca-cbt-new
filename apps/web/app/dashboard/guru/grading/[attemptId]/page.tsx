@@ -173,7 +173,7 @@ export default function GradeEssayPage() {
                             <div className="mb-10 p-2">
                                 <QuestionRenderer
                                     question={rendererQuestion}
-                                    answer={answer.essay_answer as any}
+                                    answer={parseEssaySubmission(answer.essay_answer).text}
                                     onAnswerChange={() => { }} // Read-only for grading view
                                     // Dulu renderer tampil sebagai form aktif: guru melihat
                                     // textarea & radio topik yang bisa diklik padahal
@@ -198,7 +198,7 @@ export default function GradeEssayPage() {
 
                                     return (
                                         <div className="space-y-6">
-                                            <div className="text-lg font-bold text-[#3083FF] leading-relaxed whitespace-pre-wrap pl-1">
+                                            <div className="text-lg font-bold text-[#3083FF] leading-relaxed whitespace-pre-wrap pl-1 student-essay-answer">
                                                 {text || <span className="text-slate-300 font-medium">Peserta tidak memberikan jawaban pada soal ini.</span>}
                                             </div>
 

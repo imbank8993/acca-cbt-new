@@ -22,6 +22,7 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
  */
 const NON_WARNING_EVENTS = [
     'RESET_BY_PROCTOR',
+    'MAKEUP_EXAM_STARTED',
     'FORCE_TERMINATED',
     'DEVICE_SWITCH_BLOCKED',
     'LATE_ANSWER_SYNC',
@@ -38,8 +39,7 @@ export const STUDENT_SECURITY_EVENTS = [
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
 
-/** Tenggat tambahan saat attempt yang deadline-nya sudah lewat di-reset. */
-const RESET_GRACE_MS = 15 * 60 * 1000;
+const DEFAULT_RECOVERY_MINUTES = 15;
 
 @Injectable()
 export class ProctoringService {
@@ -71,20 +71,21 @@ export class ProctoringService {
         }
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('user_id, status')
+            .select('user_id, status, exam_id, warning_count')
             .eq('id', attemptId)
             .maybeSingle();
 
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        const row = attempt as { user_id: string; status: string };
+        const row = attempt as {
+            user_id: string;
+            status: string;
+            exam_id: string;
+            warning_count: number | null;
+        };
 
         if (row.user_id !== user.id) {
             throw new ForbiddenException('Tidak diizinkan.');
         }
-        if (row.status !== 'in_progress') {
-            throw new BadRequestException('Ujian tidak sedang berlangsung.');
-        }
-
         let duplicate = false;
         if (clientEventId) {
             const { data: existing } = await this.db
@@ -94,6 +95,35 @@ export class ProctoringService {
                 .contains('metadata', { client_event_id: clientEventId })
                 .maybeSingle();
             duplicate = Boolean(existing);
+        }
+
+        const { data: exam } = await this.db
+            .from('cbt_exams')
+            .select('metadata')
+            .eq('id', row.exam_id)
+            .maybeSingle();
+        const examMetadata = (exam as { metadata?: Record<string, unknown> } | null)?.metadata || {};
+        const safeMode = examMetadata.is_safe_mode !== false;
+        const configuredLimit = examMetadata.max_violations;
+        const maxViolations = !safeMode || configuredLimit === null
+            ? null
+            : (Number.isInteger(configuredLimit) && Number(configuredLimit) >= 1
+                ? Number(configuredLimit)
+                : 3);
+
+        // Respons terminasi bisa hilang ketika jaringan putus tepat setelah
+        // server menutup attempt. Retry event yang sama harus tetap berhasil
+        // agar antrean perangkat dapat dibersihkan secara idempoten.
+        if (row.status !== 'in_progress') {
+            if (duplicate) {
+                return {
+                    warningCount: row.warning_count || 0,
+                    duplicate: true,
+                    maxViolations,
+                    terminated: row.status === 'auto_submitted',
+                };
+            }
+            throw new BadRequestException('Ujian tidak sedang berlangsung.');
         }
 
         if (!duplicate) {
@@ -126,7 +156,7 @@ export class ProctoringService {
             .from('cbt_attempt_security_logs')
             .select('created_at')
             .eq('attempt_id', attemptId)
-            .eq('event_type', 'RESET_BY_PROCTOR')
+            .in('event_type', ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'])
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -158,7 +188,25 @@ export class ProctoringService {
             .from('cbt_exam_attempts').update(updates).eq('id', attemptId);
         if (updateError) throw new BadRequestException('Penghitung pengawasan belum dapat diperbarui.');
 
-        return { warningCount: (updates.warning_count as number) || 0, duplicate };
+        const authoritativeCount = (updates.warning_count as number) || 0;
+        const mustTerminate = maxViolations !== null && authoritativeCount >= maxViolations;
+
+        // Batas ditegakkan di server. Klien tetap menampilkan peringatan, tetapi
+        // tidak dapat menghindari penutupan hanya dengan memodifikasi JavaScript.
+        if (mustTerminate) {
+            await this.forceTerminate(
+                user,
+                attemptId,
+                `Batas ${maxViolations} pelanggaran tercapai (${authoritativeCount}); event terakhir: ${eventType}.`,
+            );
+        }
+
+        return {
+            warningCount: authoritativeCount,
+            duplicate,
+            maxViolations,
+            terminated: mustTerminate,
+        };
     }
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
@@ -273,9 +321,6 @@ export class ProctoringService {
                 device_fingerprint: null,
             };
 
-            // Deadline personal yang sudah lewat membuat resume langsung ditutup
-            // otomatis lagi. Jam database dipakai agar keputusan dan audit tidak
-            // bergantung pada jam proses NestJS.
             const expired =
                 !previousDeadline || new Date(previousDeadline).getTime() <= now.getTime();
             let recoveryUntil: string | null = null;
@@ -284,7 +329,9 @@ export class ProctoringService {
             delete metadataWithoutOldScore.dimension_scores;
             updates.metadata = metadataWithoutOldScore;
             if (expired) {
-                recoveryUntil = new Date(now.getTime() + RESET_GRACE_MS).toISOString();
+                recoveryUntil = new Date(
+                    now.getTime() + DEFAULT_RECOVERY_MINUTES * 60 * 1000,
+                ).toISOString();
                 updates.personal_end_time = recoveryUntil;
                 updates.metadata = {
                     ...metadataWithoutOldScore,
@@ -323,6 +370,165 @@ export class ProctoringService {
                 previousStatus,
                 recoveryUntil,
                 serverAnswerCount: serverAnswerCount || 0,
+            };
+        });
+    }
+
+    /**
+     * Buka ujian susulan dari awal untuk satu siswa.
+     *
+     * Berbeda dari reset/pemulihan: seluruh jawaban lama dihapus di transaksi
+     * yang sama. Attempt yang sama dipakai agar hasil submit berikutnya tetap
+     * muncul di ujian, kelas, analisis, dan rekap yang sama.
+     */
+    async startMakeupAttempt(
+        user: AuthUser,
+        attemptId: string,
+        reason: string,
+        durationMinutes: number,
+        clientRequestId?: string,
+    ) {
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+            throw new BadRequestException('Alasan ujian susulan wajib diisi (5–500 karakter).');
+        }
+        if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
+            throw new BadRequestException('Waktu ujian susulan harus 1–1440 menit.');
+        }
+
+        const { data: attempt } = await this.db
+            .from('cbt_exam_attempts')
+            .select('id, exam_id')
+            .eq('id', attemptId)
+            .maybeSingle();
+        if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id);
+
+        return this.db.transaction(async db => {
+            await db.raw(
+                'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
+                attemptId,
+            );
+            const { data: locked } = await db
+                .from('cbt_exam_attempts')
+                .select('id, status, personal_end_time, metadata')
+                .eq('id', attemptId)
+                .maybeSingle();
+            if (!locked) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            const row = locked as {
+                status: string;
+                personal_end_time: string | null;
+                metadata: Record<string, unknown> | null;
+            };
+
+            // Respons POST dapat hilang saat jaringan putus sesudah transaksi
+            // berhasil. Percobaan ulang dengan kunci yang sama harus mengembalikan
+            // hasil pertama dan tidak pernah menyentuh jawaban baru siswa.
+            if (clientRequestId) {
+                const { data: previousRun } = await db
+                    .from('cbt_attempt_security_logs')
+                    .select('metadata')
+                    .eq('attempt_id', attemptId)
+                    .eq('event_type', 'MAKEUP_EXAM_STARTED')
+                    .contains('metadata', { client_request_id: clientRequestId })
+                    .maybeSingle();
+                const metadata = (previousRun as { metadata?: Record<string, unknown> } | null)?.metadata;
+                if (metadata) {
+                    return {
+                        attemptId,
+                        previousStatus: String(metadata.previous_status || 'submitted'),
+                        recoveryUntil: String(metadata.recovery_until),
+                        durationMinutes: Number(metadata.duration_minutes),
+                        deletedAnswerCount: Number(metadata.deleted_answer_count || 0),
+                    };
+                }
+            }
+            if (!RESETTABLE_STATUSES.includes(row.status)) {
+                throw new BadRequestException(
+                    'Ujian susulan hanya dapat dibuat dari pengerjaan yang sudah selesai.',
+                );
+            }
+
+            const now = await this.databaseNow(db);
+            const recoveryUntil = new Date(
+                now.getTime() + durationMinutes * 60 * 1000,
+            ).toISOString();
+            const previousStatus = row.status;
+            const previousDeadline = row.personal_end_time;
+            const previousMetadata = { ...(row.metadata || {}) };
+            delete previousMetadata.base_score;
+            delete previousMetadata.dimension_scores;
+            delete previousMetadata.grading_retry_count;
+            delete previousMetadata.grading_retry_at;
+            delete previousMetadata.grading_retry_error;
+            delete previousMetadata.grading_recovered_at;
+
+            const { count: deletedAnswerCount, error: countError } = await db
+                .from('cbt_answers')
+                .select('id', { count: 'exact', head: true })
+                .eq('attempt_id', attemptId);
+            if (countError) {
+                throw new BadRequestException('Jawaban lama belum dapat dihitung.');
+            }
+            const { error: deleteError } = await db
+                .from('cbt_answers')
+                .delete()
+                .eq('attempt_id', attemptId);
+            if (deleteError) {
+                throw new BadRequestException('Jawaban lama belum dapat dihapus.');
+            }
+
+            const { error: updateError } = await db
+                .from('cbt_exam_attempts')
+                .update({
+                    status: 'in_progress',
+                    started_at: now.toISOString(),
+                    finished_at: null,
+                    personal_end_time: recoveryUntil,
+                    total_score: null,
+                    score_irt: null,
+                    irt_theta: null,
+                    needs_manual_grading: false,
+                    warning_count: 0,
+                    tab_switch_count: 0,
+                    device_fingerprint: null,
+                    metadata: {
+                        ...previousMetadata,
+                        proctor_recovery_until: recoveryUntil,
+                        makeup_exam: true,
+                        makeup_duration_minutes: durationMinutes,
+                        makeup_activated_at: now.toISOString(),
+                    },
+                })
+                .eq('id', attemptId)
+                .eq('status', previousStatus);
+            if (updateError) {
+                throw new BadRequestException('Ujian susulan belum dapat diaktifkan.');
+            }
+
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: attemptId,
+                event_type: 'MAKEUP_EXAM_STARTED',
+                metadata: {
+                    actor_user_id: user.id,
+                    reason: normalizedReason,
+                    previous_status: previousStatus,
+                    previous_deadline: previousDeadline,
+                    makeup_started_at: now.toISOString(),
+                    recovery_until: recoveryUntil,
+                    duration_minutes: durationMinutes,
+                    deleted_answer_count: deletedAnswerCount || 0,
+                    ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
+                },
+            });
+            if (logError) throw new BadRequestException('Jejak audit ujian susulan gagal disimpan.');
+
+            return {
+                attemptId,
+                previousStatus,
+                recoveryUntil,
+                durationMinutes,
+                deletedAnswerCount: deletedAnswerCount || 0,
             };
         });
     }
@@ -398,6 +604,7 @@ export class ProctoringService {
                     .eq('id', attemptId)
                     // Jangan tulis hasil lama jika proktor sudah mereset attempt.
                     .eq('status', 'auto_submitted');
+                await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
             }
         } catch (error) {
             // Kegagalan penilaian tidak boleh membatalkan terminasi — attempt

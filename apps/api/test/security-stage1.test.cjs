@@ -22,7 +22,7 @@ function database(extra = {}, errors = []) {
         cbt_profiles: [], ...extra,
     };
     const queries = [];
-    return { queries, raw: async () => [{ now: new Date('2026-09-19T00:00:00Z') }], from(table) {
+    return { queries, async transaction(work) { return work(this); }, raw: async () => [{ now: new Date('2026-09-19T00:00:00Z') }], from(table) {
         const record = { table, calls: [] }; queries.push(record);
         let rows = [...(tables[table] || [])], single = false;
         const builder = new Proxy({}, { get(_, method) {
@@ -41,6 +41,10 @@ function database(extra = {}, errors = []) {
                     rows = rows.filter(row => clauses.some(m => m[2].split(',').includes(row[m[1]])));
                 }
                 if (['update', 'insert', 'upsert', 'delete'].includes(method)) {
+                    if (method === 'insert' && table === 'cbt_exam_question_snapshots') {
+                        tables[table] = args[0];
+                        return builder;
+                    }
                     throw new Error('Unexpected write during access/read test');
                 }
                 return builder;

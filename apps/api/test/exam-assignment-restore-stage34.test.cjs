@@ -89,8 +89,12 @@ test('RESTORE-04: kontrak browser mengirim pasangan siswa dan kelas pada tiga pe
             path.join(root, `apps/web/app/dashboard/${role}/exams/page.tsx`),
             'utf8',
         );
-        assert.match(page, /participantAssignments\.push/);
-        assert.match(page, /classId: clsId/);
+        assert.match(page, /AssignExamModal/);
+    }
+    for (const component of ['AssignExamModal', 'CreateExamModal']) {
+        const source = fs.readFileSync(path.join(root, `apps/web/components/exams/${component}.tsx`), 'utf8');
+        assert.match(source, /participantAssignments\.push/);
+        assert.match(source, /classId: clsId/);
     }
 });
 

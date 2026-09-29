@@ -31,7 +31,15 @@ Subscript,Superscript,
 Underline,
 Undo
 } from 'lucide-react';
-import React,{ useState } from 'react';
+import React,{ useRef,useState } from 'react';
+
+interface LegacyMathField {
+    latex: () => string;
+}
+
+interface LegacyMathLiveModule {
+    MathField: new (element: HTMLElement, options: Record<string, unknown>) => LegacyMathField;
+}
 
 interface TiptapEditorProps {
     content: string;
@@ -71,26 +79,27 @@ function MathField({
 }) {
     const [, setLatex] = useState('');
     const [showMath, setShowMath] = useState(false);
+    const mathFieldRef = useRef<LegacyMathField | null>(null);
 
     React.useEffect(() => {
         if (!showMath) return;
         const loadMathLive = async () => {
-            const ML = await import('mathlive') as any;
+            const ML = await import('mathlive') as unknown as LegacyMathLiveModule;
             const field = document.getElementById('math-field');
             if (field && ML) {
                 const mf = new ML.MathField(field, {
                     virtualKeyboardOnMobile: true,
                     virtualKeyboardTheme: 'material',
                 });
-                (window as any).__mathField = mf;
+                mathFieldRef.current = mf;
             }
         };
         loadMathLive();
     }, [showMath]);
 
     const handleInsert = () => {
-        if ((window as any).__mathField) {
-            const latex = (window as any).__mathField.latex();
+        if (mathFieldRef.current) {
+            const latex = mathFieldRef.current.latex();
             onInsert(`$$${latex}$$`);
             setShowMath(false);
             setLatex('');

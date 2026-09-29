@@ -14,6 +14,7 @@
 import React,{ useCallback } from 'react';
 import {
 type BaseOption,
+type QuestionMetadata,
 type QuestionType,
 } from '../schema';
 import {
@@ -51,7 +52,7 @@ export const QuestionFormsWrapper = React.memo(({
   const { state, dispatch } = useQuestionForms({
     type: selectedType,
     options,
-    metadata: metadata as any,
+    metadata: metadata as QuestionMetadata,
     categories,
     scoreDefault,
     kisiKisi,
@@ -138,7 +139,7 @@ export function useQuestionFormState(initial?: {
     ),
     setMetadata: useCallback(
       (meta: Record<string, unknown>) =>
-        dispatch({ type: 'SET_METADATA', payload: meta as any }),
+        dispatch({ type: 'SET_METADATA', payload: meta as QuestionMetadata }),
       [dispatch]
     ),
     setCategories: useCallback(

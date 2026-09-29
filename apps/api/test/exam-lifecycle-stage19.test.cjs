@@ -102,7 +102,11 @@ test('LIF-02: monitoring menutup status sebelum menunggu layanan penilaian', asy
         db,
         {},
         {},
-        { gradeAttemptFromSavedAnswers: async () => gate.promise },
+        {
+            gradeAttemptFromSavedAnswers: async () => gate.promise,
+            retryPendingAutoSubmissions: async () => ({ recovered: 0, failed: 0 }),
+            applyRelativeQuizScoringIfQuiz: async () => ({}),
+        },
         {},
     );
 

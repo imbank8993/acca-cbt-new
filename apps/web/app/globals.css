@@ -128,6 +128,9 @@ mjx-container svg {
   --n-surface: #ffffff;
   --n-primary: #3083ff;
   --n-border: rgba(48, 131, 255, 0.16);
+  --font-sans: var(--font-poppins), 'Poppins', system-ui, -apple-system, sans-serif;
+  --font-poppins: var(--font-poppins), 'Poppins', system-ui, -apple-system, sans-serif;
+  --font-exam: var(--font-open-sans), 'Open Sans', system-ui, -apple-system, sans-serif;
 }
 
 /* Theme Variables */
@@ -157,7 +160,9 @@ mjx-container svg {
   --color-acca-navy-light: #60a5fa;
 
   /* Fonts */
-  --font-sans: var(--font-open-sans), system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-poppins), 'Poppins', system-ui, -apple-system, sans-serif;
+  --font-poppins: var(--font-poppins), 'Poppins', system-ui, -apple-system, sans-serif;
+  --font-exam: var(--font-open-sans), 'Open Sans', system-ui, -apple-system, sans-serif;
   --font-heading: var(--font-cinzel), system-ui, -apple-system, sans-serif;
   --font-display: var(--font-cinzel), system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
@@ -181,6 +186,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+select,
+input,
+textarea {
+  font-family: var(--font-sans);
+}
+
 /* Font utility classes */
 .font-heading {
   font-family: var(--font-heading) !important;
@@ -194,6 +206,74 @@ body {
 
 .font-mono {
   font-family: var(--font-mono) !important;
+}
+
+.font-poppins {
+  font-family: var(--font-poppins), 'Poppins', sans-serif !important;
+}
+
+.font-exam {
+  font-family: var(--font-exam) !important;
+}
+
+/* ========================================================
+   CBT EXAM & QUESTION/ANSWER TYPOGRAPHY EXEMPTION
+   Questions, options, and student answers retain readable
+   typography (Open Sans / Serif) rather than Poppins.
+   ======================================================== */
+.question-content,
+.latex-renderer,
+.stimulus-viewer,
+.tiptap-preview-editor,
+.ck-editor__editable,
+.eqc-qtext,
+.eqc-mc-content,
+.eqc-stimulus,
+.cbt-question-content,
+.cbt-option-content,
+.cbt-question-text,
+.cbt-answer-text {
+  font-family: 'Merriweather', 'Source Serif 4', var(--font-open-sans), 'Open Sans', Georgia, serif;
+}
+
+.question-content p,
+.question-content span,
+.question-content div,
+.question-content li,
+.latex-renderer *,
+.tiptap-preview-editor .ProseMirror,
+.tiptap-preview-editor .ProseMirror * {
+  font-family: inherit;
+}
+
+/* Explicit text inputs/answers for questions (essays, short answer blanks, grading student answers) */
+.essay-answer-input,
+.short-answer-input,
+.rich-input-textarea,
+.rich-input-text,
+.student-essay-answer,
+.cbt-student-answer,
+input.short-answer-input,
+textarea.essay-answer-input {
+  font-family: var(--font-open-sans), 'Open Sans', system-ui, -apple-system, sans-serif !important;
+}
+
+/* Ensure Math / KaTeX rendering stays untouched */
+.katex,
+.katex *,
+mjx-container,
+mjx-container *,
+.math-node,
+.math-node * {
+  font-family: KaTeX_Main, KaTeX_Math, 'Times New Roman', serif !important;
+}
+
+/* Ensure icons inside questions/options retain icon font */
+.question-content i[class*="fa-"],
+.question-content i[class*="bi-"],
+.latex-renderer i[class*="fa-"],
+.latex-renderer i[class*="bi-"] {
+  font-family: var(--fa-style-family, "Font Awesome 6 Free"), bootstrap-icons, inherit !important;
 }
 
 /* Body scroll lock — applied by modals when open */

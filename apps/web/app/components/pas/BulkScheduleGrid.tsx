@@ -1,17 +1,20 @@
 "use client";
 
-import { addPASScheduleAction } from '@/lib/api/pas';
+import type { PASPeriod,PASSession } from '@/app/types/pas';
+import { addPASScheduleAction,type PASSubjectSummary } from '@/lib/api/pas';
+import type { OrganizationClass } from '@/lib/api/proctor';
+import type { QuestionBank } from '@/lib/api/questions';
 import { saveBulkScheduleRows,type BulkScheduleRow } from '@/lib/pas/bulk-schedule';
 import { CheckCircle2,Info,Loader2,Plus,RotateCcw,Save,Trash2,X,XCircle } from 'lucide-react';
 import React,{ useRef,useState } from 'react';
 
 interface BulkScheduleGridProps {
     periodId: string;
-    period: any;
-    classes: any[];
-    subjects: any[];
-    qBanks: any[];
-    sessions: any[];
+    period: PASPeriod;
+    classes: OrganizationClass[];
+    subjects: PASSubjectSummary[];
+    qBanks: QuestionBank[];
+    sessions: PASSession[];
     onComplete: () => void;
     onCancel: () => void;
 }

@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@/lib/errors';
-import { QuestionType } from '@/lib/api/questions';
+import type { QuestionMetadata,QuestionOptionMetadata,QuestionType } from '@/lib/api/questions';
 import * as XLSX from 'xlsx';
 import { optionIndex,optionLabel } from './option-label';
 
@@ -14,9 +14,9 @@ export interface ParsedQuestion {
         is_correct?: boolean;
         order: number;
         weight: number;
-        metadata?: any;
+        metadata?: QuestionOptionMetadata;
     }[];
-    metadata: any;
+    metadata: QuestionMetadata;
     rowIndex?: number; // Track original row for error reporting
     warnings?: string[];
 }
@@ -370,7 +370,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
             }
 
             // Build metadata
-            const metadata: any = {};
+            const metadata: QuestionMetadata = {};
             const sourceNumber = Number.parseInt(sourceNumberRaw.replace(/\D+/g, ''), 10);
             if (Number.isFinite(sourceNumber)) metadata.import_source_number = sourceNumber;
             if (type === 'mcq_complex') {
@@ -389,18 +389,21 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 metadata.kisi_kisi = kisiRaw;
             }
 
-            if (type === 'matching') metadata.right_items = [...new Set(options.flatMap(o => o.metadata.match_texts))];
-            if (type === 'categorization') metadata.categories = [...new Set(options.flatMap(o => o.metadata.category_names))];
+            if (type === 'matching') {
+                metadata.right_items = [...new Set(options.flatMap(o => o.metadata?.match_texts ?? []))];
+            }
+            if (type === 'categorization') {
+                metadata.categories = [...new Set(options.flatMap(o => o.metadata?.category_names ?? []))];
+            }
             if (type === 'short_answer') {
-                const blanks = kunciRaw.split('|').map((part, index) => {
+                const blanks = kunciRaw.split('|').flatMap((part) => {
                     const vars = part.split(',').map(s => s.trim()).filter(Boolean);
-                    if (vars.length === 0) return null;
-                    return {
-                        id: `blank_${Date.now()}_${index}`,
+                    if (vars.length === 0) return [];
+                    return [{
                         answer: vars[0],
                         variations: vars.length > 1 ? vars.slice(1) : []
-                    };
-                }).filter(Boolean);
+                    }];
+                });
                 if (blanks.length > 0) {
                     metadata.blanks = blanks;
                 }
@@ -438,7 +441,7 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
         result.questions.sort((left, right) => {
             const a = left.metadata?.import_source_number;
             const b = right.metadata?.import_source_number;
-            return Number.isFinite(a) && Number.isFinite(b) ? a - b : 0;
+            return typeof a === 'number' && typeof b === 'number' ? a - b : 0;
         });
         result.success = result.questions.length > 0 || result.errors.length === 0;
 
@@ -666,7 +669,7 @@ export function validateQuestions(questions: ParsedQuestion[]): {
             if (q.options.length < 2) {
                 errors.push(`Hanya ${q.options.length} opsi (minimal 2)`);
             }
-            const hasWeight = q.options.some(o => (o as any).weight > 0);
+            const hasWeight = q.options.some(o => o.weight > 0);
             if (!hasWeight) {
                 errors.push('SJT memerlukan setidaknya satu opsi dengan bobot > 0');
             }

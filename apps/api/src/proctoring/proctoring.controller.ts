@@ -9,7 +9,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -52,6 +52,28 @@ class ResetAttemptDto {
     @IsString()
     @Length(5, 500)
     reason!: string;
+}
+
+class MakeupAttemptDto extends ResetAttemptDto {
+    @ApiProperty({
+        required: true,
+        example: 90,
+        minimum: 1,
+        maximum: 1440,
+        description: 'Waktu ujian susulan dalam menit, dihitung sejak pengawas mengaktifkan susulan.',
+    })
+    @IsInt()
+    @Min(1)
+    @Max(1440)
+    durationMinutes!: number;
+
+    @ApiProperty({
+        required: false,
+        description: 'Kunci idempoten untuk percobaan ulang saat respons jaringan hilang.',
+    })
+    @IsOptional()
+    @IsUUID()
+    clientRequestId?: string;
 }
 
 @ApiTags('proctoring')
@@ -97,6 +119,23 @@ export class ProctoringController {
         @Body() dto: ResetAttemptDto,
     ) {
         return this.proctoring.resetAttempt(user, attemptId, dto.reason);
+    }
+
+    @Post('attempts/:attemptId/makeup')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Buka ujian susulan dari awal untuk satu siswa' })
+    async makeup(
+        @CurrentUser() user: AuthUser,
+        @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: MakeupAttemptDto,
+    ) {
+        return this.proctoring.startMakeupAttempt(
+            user,
+            attemptId,
+            dto.reason,
+            dto.durationMinutes,
+            dto.clientRequestId,
+        );
     }
 
     @Post('attempts/:attemptId/terminate')

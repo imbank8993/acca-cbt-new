@@ -61,6 +61,15 @@
 }
 
 /* Sidebar shell */
+.sidebar,
+.sidebar button,
+.sidebar input,
+.sidebar select,
+.sidebar textarea,
+.sidebar-tooltip {
+  font-family: var(--font-poppins), 'Poppins', sans-serif !important;
+}
+
 .sidebar {
   position: fixed;
   top: 0;
@@ -221,7 +230,7 @@
 }
 
 .brand-text-acca {
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
   font-weight: 850;
   font-size: 1.55rem;
   letter-spacing: 0.02em;

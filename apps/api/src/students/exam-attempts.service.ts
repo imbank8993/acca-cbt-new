@@ -7,11 +7,16 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
-import { loadExamQuestions, resolveExamBankIds } from '../common/exam-question-sources';
+import { resolveExamBankIds } from '../common/exam-question-sources';
+import {
+    ensureExamQuestionSnapshotsInTransaction,
+    loadFrozenExamQuestions,
+} from '../common/exam-question-snapshots';
 import {
     orderQuestionsForStudent,
     shuffleOptionsForStudent,
 } from '../common/question-order';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { utcToWibClock } from '../common/wib-time';
 import { GradingService } from '../grading/grading.service';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
@@ -95,13 +100,9 @@ export class ExamAttemptsService {
         if (!row.is_published) {
             throw new ForbiddenException('Ujian belum dipublikasikan oleh proktor.');
         }
-        const questions = await loadExamQuestions(
+        const questions = await loadFrozenExamQuestions(
             this.db,
             examId,
-            `id, question_text, type, score_default, metadata, created_at,
-             bank_question_options:cbt_bank_question_options(id, option_text, weight, metadata, order),
-             stimulus:cbt_question_stimuli(*),
-             instruction:cbt_question_instructions(*)`,
             row.question_bank_id,
         );
 
@@ -235,10 +236,7 @@ export class ExamAttemptsService {
         device: string,
     ) {
         return this.db.transaction(async db => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `${examId}:${user.id}`,
-            );
+            await advisoryTransactionLock(db, `${examId}:${user.id}`);
 
             const { data: active, error: activeError } = await db
                 .from('cbt_exam_attempts')
@@ -368,6 +366,8 @@ export class ExamAttemptsService {
         device: string,
         db: DbSession = this.db,
     ) {
+        await ensureExamQuestionSnapshotsInTransaction(db, examId);
+
         const personalEnd = this.capToWindow(
             new Date(
                 now.getTime() +
@@ -490,6 +490,7 @@ export class ExamAttemptsService {
                     // Reset proktor dapat terjadi saat penilaian masih berjalan.
                     // Hasil dari penutupan lama tidak boleh menimpa attempt aktif.
                     .eq('status', 'auto_submitted');
+                await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
             }
         } catch (err) {
             // Statusnya sudah tercatat; kegagalan penilaian tidak boleh membuat
@@ -855,12 +856,7 @@ export class ExamAttemptsService {
             rows: [] as AnswerRow[],
         };
 
-        const questions = await loadExamQuestions(
-            this.db,
-            examId,
-            `id, type, score_default, metadata, dimension_id, created_at,
-             bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
-        );
+        const questions = await loadFrozenExamQuestions(this.db, examId);
         if (questions.length === 0) return empty;
 
         const result = await this.scoring.post<{

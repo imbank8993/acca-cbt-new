@@ -35,9 +35,13 @@ function tables() {
 test('ASSIGN-01: target tervalidasi diganti atomik dan ID ganda dibuang', async () => {
     const db = fixtureDb(tables());
     let lockCalls = 0;
+    let lockArguments;
     const originalRaw = db.raw;
     db.raw = async (...args) => {
-        if (/FOR UPDATE/i.test(args[0])) lockCalls++;
+        if (/FOR UPDATE/i.test(args[0])) {
+            lockCalls++;
+            lockArguments = args.slice(1);
+        }
         return originalRaw(...args);
     };
     const service = new ExamAdminService(db, authz, roles);
@@ -55,6 +59,7 @@ test('ASSIGN-01: target tervalidasi diganti atomik dan ID ganda dibuang', async 
 
     assert.deepEqual(result, { examId: 'exam-1', classes: 2, participants: 1 });
     assert.equal(lockCalls, 1);
+    assert.deepEqual(lockArguments, ['exam-1']);
     assert.deepEqual(
         db.tables.cbt_exam_targets.map((row) => [row.class_id, row.additional_class_id]),
         [['class-1', undefined], [undefined, 'extra-1']],

@@ -96,7 +96,7 @@ test('QID-06: soal dan impor memakai transaksi serta advisory lock', () => {
     const questions = fs.readFileSync(path.resolve(__dirname, '../src/questions/questions.service.ts'), 'utf8');
     const content = fs.readFileSync(path.resolve(__dirname, '../src/questions/bank-content.service.ts'), 'utf8');
     assert.match(questions, /this\.db\.transaction/);
-    assert.match(questions, /pg_advisory_xact_lock/);
+    assert.match(questions, /advisoryTransactionLock/);
     assert.match(content, /content-import:/);
     assert.match(content, /deriveRequestUuid/);
 });

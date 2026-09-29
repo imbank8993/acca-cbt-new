@@ -509,13 +509,32 @@ export class ClassesService {
         classIdByKey: Map<string, string>,
         activeYears: string[],
     ): Promise<void> {
-        const [{ data: enrolments }, { data: users }, { data: members }] = await Promise.all([
+        const [enrolmentResult, userResult, memberResult, profileResult] = await Promise.all([
             this.db.from('siswa_kelas').select('*').eq('aktif', true).in('tahun_ajaran', activeYears),
             // Siswa dipetakan lewat NISN → `users.nip` → `auth_id`; hanya akun
             // yang sudah punya identitas yang bisa disinkronkan.
             this.db.from('users').select('auth_id, nip, nama').not('auth_id', 'is', null),
             this.db.from('cbt_class_members').select('class_id, user_id'),
+            // Identitas profil dikunci sesudah dibuat. Sinkronisasi kelas hanya
+            // perlu mengetahui profil mana yang belum ada, bukan menimpa nama
+            // atau NISN profil lama dari data pendaftaran.
+            this.db.from('cbt_profiles').select('id'),
         ]);
+
+        for (const [source, result] of [
+            ['pendaftaran siswa', enrolmentResult],
+            ['akun pengguna', userResult],
+            ['anggota kelas', memberResult],
+            ['profil CBT', profileResult],
+        ] as const) {
+            if (result.error) {
+                throw new Error(`Gagal membaca ${source}: ${result.error.message}`);
+            }
+        }
+
+        const enrolments = enrolmentResult.data;
+        const users = userResult.data;
+        const members = memberResult.data;
 
         const authIdByNip = new Map(
             ((users as Array<{ auth_id: string; nip: string }>) || []).map((u) => [
@@ -528,6 +547,9 @@ export class ClassesService {
             ((members as Array<{ class_id: string; user_id: string }>) || []).map(
                 (m) => `${m.class_id}-${m.user_id}`,
             ),
+        );
+        const existingProfiles = new Set(
+            ((profileResult.data as Array<{ id: string }>) || []).map((profile) => profile.id),
         );
 
         const profiles = new Map<string, Record<string, unknown>>();
@@ -555,14 +577,33 @@ export class ClassesService {
             existingMembers.add(key);
         }
 
-        if (profiles.size > 0) {
-            await this.db
+        const missingProfiles = [...profiles.values()].filter(
+            (profile) => !existingProfiles.has(String(profile.id)),
+        );
+        if (missingProfiles.length > 0) {
+            // DO NOTHING saat request sinkronisasi lain lebih dahulu membuat
+            // profil yang sama. Yang penting jalur ini tidak pernah menjalankan
+            // UPDATE terhadap kolom identitas yang immutable.
+            const { error } = await this.db
                 .from('cbt_profiles')
-                .upsert([...profiles.values()], { onConflict: 'id' });
+                .upsert(missingProfiles, { onConflict: 'id', ignoreDuplicates: true });
+            if (error) {
+                throw new Error(`Gagal membuat profil siswa: ${error.message}`);
+            }
         }
 
         for (const batch of chunk(newMembers, MEMBER_INSERT_BATCH)) {
-            await this.db.from('cbt_class_members').insert(batch);
+            // Constraint unik (class_id, user_id) menjamin satu keanggotaan.
+            // DO NOTHING membuat dua request daftar kelas yang berjalan
+            // bersamaan tidak saling menggagalkan setelah keduanya membaca
+            // snapshot anggota yang sama.
+            const { error } = await this.db.from('cbt_class_members').upsert(batch, {
+                onConflict: 'class_id,user_id',
+                ignoreDuplicates: true,
+            });
+            if (error) {
+                throw new Error(`Gagal menyimpan anggota kelas: ${error.message}`);
+            }
         }
     }
 }

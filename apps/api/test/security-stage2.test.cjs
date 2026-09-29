@@ -84,7 +84,7 @@ test('SEC-11: both permission check and bulk import use bank ownership policy', 
     assert.equal(calls, 2);
 });
 
-function gradingFixture() {
+function gradingFixture(options = {}) {
     const db = fixtureDb({
         cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', status: 'submitted' }],
         cbt_exams: [{ id: 'exam', question_bank_id: 'bank' }],
@@ -101,7 +101,7 @@ function gradingFixture() {
             { id: 'a4', question_id: 'personality', attempt_id: 'attempt', score: 999, is_correct: null },
             { id: 'foreign', question_id: 'essay-1', attempt_id: 'other', score: 0, is_correct: null },
         ],
-    });
+    }, [], options);
     const service = Object.create(TeachersService.prototype);
     Object.assign(service, { db, authz: { assertExamStaff: async () => {} } });
     return { db, service };
@@ -124,6 +124,12 @@ test('BUG-06: partial grading stays pending; completing includes zero scores and
     assert.equal(second.totalScore, 50);
     assert.equal(db.tables.cbt_exam_attempts[0].needs_manual_grading, false);
     assert.equal(db.tables.cbt_answers.find(a => a.id === 'foreign').score, 0);
+});
+test('essay grading rolls back every answer when final attempt update fails', async () => {
+    const { db, service } = gradingFixture({ failMutation: { table: 'cbt_exam_attempts', mutation: 'update' } });
+    await assert.rejects(service.submitEssayGrades(user, 'attempt', { a1: 5, a2: 4 }), rejected);
+    assert.equal(db.tables.cbt_answers.find(a => a.id === 'a1').score, 0);
+    assert.equal(db.tables.cbt_answers.find(a => a.id === 'a2').score, 0);
 });
 
 for (const event of ['RESET_BY_PROCTOR', 'FORCE_TERMINATED', 'LATE_ANSWER_SYNC', 'unexpected']) {

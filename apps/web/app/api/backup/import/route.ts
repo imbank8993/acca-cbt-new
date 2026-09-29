@@ -162,7 +162,8 @@ export async function readArchive(file: File): Promise<{ content: string; zip: J
         if (name !== 'backup.cbtbak' && !name.startsWith('images/')) {
             throw new Error(`Berkas tidak dikenal di dalam arsip: ${name}`);
         }
-        const size = Number((entry as any)._data?.uncompressedSize);
+        const sizedEntry = entry as unknown as { _data?: { uncompressedSize?: number } };
+        const size = Number(sizedEntry._data?.uncompressedSize);
         if (!Number.isFinite(size) || size < 0) throw new Error('Ukuran isi arsip tidak valid.');
         if (name === 'backup.cbtbak' && size > MAX_MANIFEST_BYTES) {
             throw new Error('Manifest backup melewati batas 20 MB.');

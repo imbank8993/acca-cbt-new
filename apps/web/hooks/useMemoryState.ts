@@ -2,7 +2,7 @@
 import { useCallback,useState } from 'react';
 
 // In-memory global cache
-const memoryCache = new Map<string, any>();
+const memoryCache = new Map<string, unknown>();
 
 /**
  * A drop-in replacement for useState that persists data across page transitions
@@ -12,7 +12,7 @@ export function useMemoryState<T>(key: string, initialValue: T): [T, (val: T | (
     // Synchronously initialize from cache if available to prevent hydration mismatch / flashes
     const [state, setState] = useState<T>(() => {
         if (typeof window === 'undefined') return initialValue; // Server side
-        if (memoryCache.has(key)) return memoryCache.get(key);
+        if (memoryCache.has(key)) return memoryCache.get(key) as T;
         return initialValue;
     });
 

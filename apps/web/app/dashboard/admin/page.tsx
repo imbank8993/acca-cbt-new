@@ -337,14 +337,14 @@ export default function AdminDashboard() {
                                                     isOngoing
                                                         ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
                                                         : isDraft
-                                                        ? 'bg-[#3083FF]/5 text-[#3083FF] border-[#3083FF]/20'
+                                                        ? 'bg-red-50 text-red-600 border-red-200'
                                                         : isFinished
                                                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                         : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/20'
                                                 }`}>
                                                     <span className={`w-1.5 h-1.5 rounded-full ${
                                                         isOngoing ? 'bg-[#3083FF] animate-pulse shadow-lg shadow-[#3083FF]/50'
-                                                        : isDraft ? 'bg-[#3083FF]'
+                                                        : isDraft ? 'bg-red-500'
                                                         : isFinished ? 'bg-emerald-500' : 'bg-[#3083FF]'
                                                     }`} />
                                                     {isOngoing ? 'Aktif' : isDraft ? 'Draft' : isFinished ? 'Selesai' : 'Terjadwal'}

@@ -521,7 +521,7 @@
   border-radius: 10px;
   border: 1.5px solid #cbd5e1;
   background: #ffffff;
-  color: #0f172a;
+  color: #475569;
   font-family: inherit;
   font-weight: 500;
   font-size: var(--mdl-fs-control);
@@ -581,6 +581,13 @@
   display: block;
 }
 
+.mdl-field.h-full > .mdl-field__control,
+.mdl-field--stretch > .mdl-field__control {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Kontrol kedua di field yang sama (mis. input "folder baru" yang muncul
    setelah memilih "+ Tambah Folder") tidak boleh menempel ke kontrol di
    atasnya. */
@@ -614,6 +621,7 @@
   border: 1.5px solid #cbd5e1;
   font-size: var(--mdl-fs-control);
   font-weight: 500;
+  color: #475569;
 }
 
 .mdl-field__control .uisel .uisel-icon {

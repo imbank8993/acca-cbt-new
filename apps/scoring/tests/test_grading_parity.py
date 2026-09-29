@@ -40,6 +40,11 @@ with (FIXTURES / "grading-expected-ts.json").open(encoding="utf-8") as fh:
 # memeriksa rawAnswer lebih dulu.
 JS_FALSY_QUIRK_INDEXES = {1}
 
+# Implementasi lama memberi setengah kredit bila salah satu teks hanyalah
+# substring teks lain. Kasus 29 ("Sumat" untuk "Sumatera") sekarang dinilai
+# salah; bentuk yang diterima harus ditulis eksplisit sebagai variasi oleh guru.
+INTENTIONAL_SCORE_OVERRIDES = {29: 5.0}
+
 
 def _normalize_js(value):
     """Petakan nilai falsy ala JavaScript ke None, seperti yang dilakukan pemanggil."""
@@ -55,7 +60,8 @@ def test_grading_matches_typescript(index: int) -> None:
 
     result = calculate_single_answer_score(Question(**case["question"]), case["raw_answer"])
 
-    assert result.score == pytest.approx(expected["score"]), (
+    expected_score = INTENTIONAL_SCORE_OVERRIDES.get(index, expected["score"])
+    assert result.score == pytest.approx(expected_score), (
         f"[{index}] {case['label']}: skor berbeda"
     )
     assert result.dimension_scores == pytest.approx(expected["dimensionScores"]), (

@@ -7,10 +7,9 @@ import { Modal,ModalBody,ModalField,ModalFooter } from '@/app/components/ui/moda
 import { Spinner } from '@/app/components/ui/Spinner';
 import { getProctorOrganization,hasUserDualRole,isUserProctor,listSubjects } from '@/lib/api/proctor';
 import type { ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
-import { bulkMoveBanksToFolder,createBankFolder,createOrganizationLabel,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBanks,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder,updateQuestionBankAction } from '@/lib/api/questions';
+import { bulkMoveBanksToFolder,createBankFolder,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBanks,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder } from '@/lib/api/questions';
 import type { BankFolder,OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
-import { uploadToHosting } from '@/lib/uploader';
 import { useMemoryState } from '@/lib/useMemoryState';
 import {
 ArrowRight,
@@ -23,11 +22,12 @@ FolderOpen,
 FolderPlus,
 MoreHorizontal,
 Plus,
-Trash2,
-Upload
+Trash2
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { CreateBankModal } from '@/components/questions/CreateBankModal';
 
 
 export default function GuruQuestionBankPage() {
@@ -44,21 +44,17 @@ export default function GuruQuestionBankPage() {
 
     const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
     const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
+    const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
-    const [uploadingImage, setUploadingImage] = useState(false);
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
     const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(null);
     const [activeCreatorFilter, setActiveCreatorFilter] = useState<string | null>(null);
     const PAGE_SIZE = 20;
     const [currentPage, setCurrentPage] = useState(1);
 
-    const [formData, setFormData] = useState({
-        title: '', description: '', subject: '', classLevel: '',
-        iconIdentifier: 'BookOpen', imageUrl: '', tags: [] as string[], folderId: undefined as string | undefined
-    });
     const [labels, setLabels] = useMemoryState<OrganizationLabel[]>('guru_questions_labels', []);
     const [orgSubjects, setOrgSubjects] = useMemoryState<SchoolSubject[]>('guru_questions_orgSubjects', []);
-    const [newCustomLabel, setNewCustomLabel] = useState('');
+
     const [, setIsLabelDropdownOpen] = useState(false);
     const [] = useState('');
     const labelDropdownRef = useRef<HTMLDivElement>(null);
@@ -175,67 +171,9 @@ export default function GuruQuestionBankPage() {
         };
     }, [loadData]);
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !org) return;
-        setUploadingImage(true);
-        try {
-            const result = await uploadToHosting(file, 'banks', formData.imageUrl);
-            if (result.success && result.url) {
-                setFormData(prev => ({ ...prev, imageUrl: result.url || '', iconIdentifier: '' }));
-            }
-        } catch (error) { alert('Gagal upload: ' + getErrorMessage(error)); }
-        finally { setUploadingImage(false); }
-    };
-
     const handleOpenEdit = (bank: QuestionBank) => {
         setEditingBank(bank);
-        setFormData({
-            title: bank.title, description: bank.description || '',
-            subject: bank.subject || '', classLevel: bank.class_level || '',
-            iconIdentifier: bank.icon_identifier || 'BookOpen', imageUrl: bank.image_url || '',
-            tags: bank.tags || [], folderId: bank.folder_id || undefined
-        });
         setIsAddModalOpen(true);
-    };
-
-    const handleSaveBank = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!org) return;
-        setIsSubmitting(true);
-        try {
-            const user = await getSessionUser();
-            if (!user) return;
-
-            let result: Awaited<ReturnType<typeof createQuestionBank>>;
-            if (editingBank) {
-                result = await updateQuestionBankAction(editingBank.id, {
-                    title: formData.title, description: formData.description,
-                    subject: formData.subject, classLevel: formData.classLevel,
-                    iconIdentifier: formData.iconIdentifier, imageUrl: formData.imageUrl,
-                    tags: formData.tags, folderId: formData.folderId
-                });
-            } else {
-                result = await createQuestionBank({
-                    title: formData.title,
-                    description: formData.description,
-                    subject: formData.subject,
-                    classLevel: formData.classLevel,
-                    iconIdentifier: formData.iconIdentifier,
-                    imageUrl: formData.imageUrl,
-                    tags: formData.tags,
-                    folderId: formData.folderId,
-                });
-            }
-
-            if (result.success) {
-                setIsAddModalOpen(false);
-                setEditingBank(null);
-                setFormData({ title: '', description: '', subject: '', classLevel: '', iconIdentifier: 'BookOpen', imageUrl: '', tags: [], folderId: undefined });
-                await loadData();
-            } else { alert('Gagal: ' + result.error); }
-        } catch (err) { alert('Error: ' + getErrorMessage(err)); }
-        finally { setIsSubmitting(false); }
     };
 
     const handleDeleteBank = async () => {
@@ -257,46 +195,6 @@ export default function GuruQuestionBankPage() {
         else alert('Gagal: ' + result.error);
     };
 
-    const toggleTag = (tag: string) => {
-        setFormData(prev => ({
-            ...prev,
-            tags: prev.tags.includes(tag)
-                ? prev.tags.filter(t => t !== tag)
-                : [...prev.tags, tag]
-        }));
-    };
-
-    const handleCreateCustomLabel = async () => {
-        if (!newCustomLabel.trim() || !org) return;
-        
-        const labelName = newCustomLabel.trim();
-        const existingLabel = labels.find(l => l.name.toLowerCase() === labelName.toLowerCase());
-        
-        if (existingLabel) {
-            if (!formData.tags.includes(existingLabel.name)) {
-                setFormData(prev => ({ ...prev, tags: [...prev.tags, existingLabel.name] }));
-            }
-            setNewCustomLabel('');
-            return;
-        }
-
-        const colors = ['#6366f1', '#ec4899', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#06b6d4'];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-        try {
-            const result = await createOrganizationLabel(labelName, randomColor);
-            if (result.success) {
-                const labelList = await listOrganizationLabels();
-                setLabels(labelList || []);
-                setFormData(prev => ({ ...prev, tags: [...prev.tags, labelName] }));
-                setNewCustomLabel('');
-            } else {
-                alert('Gagal membuat label: ' + result.error);
-            }
-        } catch (err) {
-            alert('Error: ' + getErrorMessage(err));
-        }
-    };
 
     // Folder actions
     const handleOpenCreateFolder = () => {
@@ -501,12 +399,16 @@ export default function GuruQuestionBankPage() {
                     onChange={() => toggleSelectBank(bank.id)}
                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
-                <div className="w-12 h-12 bg-[#3083FF]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#3083FF]/40">
-                    <BookOpen size={20} className="text-[#3083FF]" />
+                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
+                    {bank.image_url ? (
+                        <Image src={bank.image_url} alt={bank.title} width={48} height={48} unoptimized className="w-full h-full object-cover" />
+                    ) : (
+                        <BookOpen size={20} className="text-[#3083FF]" />
+                    )}
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
                             {bank.is_published ? 'Published' : 'Draft'}
                         </span>
                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
@@ -530,7 +432,7 @@ export default function GuruQuestionBankPage() {
             <div className="flex items-center gap-1.5 shrink-0">
                 <Button
                     size="sm"
-                    variant={bank.is_published ? "outline" : "primary"}
+                    variant={bank.is_published ? "warning" : "primary"}
                     onClick={() => handleTogglePublish(bank)}
                 >
                     {bank.is_published ? 'Unpublish' : 'Publish'}
@@ -568,12 +470,12 @@ export default function GuruQuestionBankPage() {
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-3 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#3083FF]">{allCount}</p>
+                <div className="bg-white rounded-lg border border-slate-200 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-slate-700">{allCount}</p>
                     <p className="text-xs text-slate-500">Total</p>
                 </div>
-                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-[#3083FF]">{draftCount}</p>
+                <div className="bg-white rounded-lg border border-red-200 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-red-600">{draftCount}</p>
                     <p className="text-xs text-slate-500">Draft</p>
                 </div>
                 <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
@@ -643,7 +545,11 @@ export default function GuruQuestionBankPage() {
                         )}
                         <Button
                             variant="primary"
-                            onClick={() => setIsAddModalOpen(true)}
+                            onClick={() => {
+                                setEditingBank(null);
+                                setTargetFolderId(undefined);
+                                setIsAddModalOpen(true);
+                            }}
                             icon="add"
                         >
                             Buat Bank Soal
@@ -694,12 +600,16 @@ export default function GuruQuestionBankPage() {
                                     onChange={() => toggleSelectBank(bank.id)}
                                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                                 />
-                                <div className="w-12 h-12 bg-[#3083FF]/10 rounded-lg flex items-center justify-center shrink-0 border border-[#3083FF]/40">
-                                    <BookOpen size={20} className="text-[#3083FF]" />
+                                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
+                                    {bank.image_url ? (
+                                        <Image src={bank.image_url} alt={bank.title} width={48} height={48} unoptimized className="w-full h-full object-cover" />
+                                    ) : (
+                                        <BookOpen size={20} className="text-[#3083FF]" />
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
+                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
                                             {bank.is_published ? 'Published' : 'Draft'}
                                         </span>
                                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
@@ -723,7 +633,7 @@ export default function GuruQuestionBankPage() {
                             <div className="flex items-center gap-2">
                                 <Button
                                     size="sm"
-                                    variant={bank.is_published ? "outline" : "primary"}
+                                    variant={bank.is_published ? "warning" : "primary"}
                                     onClick={() => handleTogglePublish(bank)}
                                     className="flex-1"
                                 >
@@ -804,11 +714,7 @@ export default function GuruQuestionBankPage() {
                                                     <button
                                                         onClick={() => {
                                                             setEditingBank(null);
-                                                            setFormData({
-                                                                title: '', description: '', subject: '',
-                                                                classLevel: '', iconIdentifier: 'BookOpen',
-                                                                imageUrl: '', tags: [], folderId: folder.id
-                                                            });
+                                                            setTargetFolderId(folder.id);
                                                             setIsAddModalOpen(true);
                                                             setFolderMenuId(null);
                                                         }}
@@ -870,11 +776,7 @@ export default function GuruQuestionBankPage() {
                                             <button
                                                 onClick={() => {
                                                     setEditingBank(null);
-                                                    setFormData({
-                                                        title: '', description: '', subject: '',
-                                                        classLevel: '', iconIdentifier: 'BookOpen',
-                                                        imageUrl: '', tags: [], folderId: folder.id
-                                                    });
+                                                    setTargetFolderId(folder.id);
                                                     setIsAddModalOpen(true);
                                                 }}
                                                 className="w-full py-2 border border-dashed border-[#3083FF]/30 rounded-lg text-xs text-slate-500 hover:border-[#3083FF] hover:text-[#3083FF] transition-all flex items-center justify-center gap-1"
@@ -1064,7 +966,7 @@ export default function GuruQuestionBankPage() {
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-slate-800 text-sm truncate">{bank.title}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${bank.is_published ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-red-50 text-red-600'}`}>
                                                 {bank.is_published ? 'Published' : 'Draft'}
                                             </span>
                                             <span className="text-xs text-slate-400">{bank.question_count || 0} soal</span>
@@ -1145,145 +1047,23 @@ export default function GuruQuestionBankPage() {
                 </ModalFooter>
             </Modal>
 
-            {/* Add/Edit Modal */}
-            <Modal
-                open={isAddModalOpen}
-                onClose={() => { setIsAddModalOpen(false); setEditingBank(null); }}
-                size="md"
-                variant={editingBank ? 'edit' : 'add'}
-                title={editingBank ? 'Edit Bank Soal' : 'Buat Bank Soal Baru'}
-                subtitle={editingBank ? 'Perbarui informasi bank soal' : 'Isi formulir untuk membuat paket bank soal baru'}
-                icon={editingBank ? 'pencil-square' : 'journal-plus'}
-            >
-                <form onSubmit={handleSaveBank}>
-                    <ModalBody className="space-y-4 max-h-[70vh] overflow-y-auto">
-                        <ModalField label="Judul Bank Soal" required>
-                            <input
-                                required
-                                type="text"
-                                placeholder="Judul Bank Soal"
-                                value={formData.title}
-                                onChange={e => setFormData({ ...formData, title: e.target.value })}
-                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                            />
-                        </ModalField>
-                        <ModalField label="Mata Pelajaran">
-                            <input
-                                type="text"
-                                list="subject-suggestions"
-                                placeholder="Ketik nama mapel..."
-                                value={formData.subject}
-                                onChange={e => setFormData({ ...formData, subject: e.target.value })}
-                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                            />
-                            <datalist id="subject-suggestions">
-                                {orgSubjects.map((sub, idx) => (
-                                    <option key={idx} value={sub.name} />
-                                ))}
-                            </datalist>
-                        </ModalField>
-                        {folders.length > 0 && (
-                            <ModalField label="Folder">
-                                <select
-                                    value={formData.folderId || ''}
-                                    onChange={e => setFormData({ ...formData, folderId: e.target.value || undefined })}
-                                    className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                                >
-                                    <option value="">Pilih Folder (opsional)</option>
-                                    {folders.map(folder => (
-                                        <option key={folder.id} value={folder.id}>{folder.name}</option>
-                                    ))}
-                                </select>
-                            </ModalField>
-                        )}
-                        <ModalField label="Tingkat Kelas">
-                            <select
-                                value={formData.classLevel}
-                                onChange={e => setFormData({ ...formData, classLevel: e.target.value })}
-                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
-                            >
-                                <option value="">Pilih Tingkat</option>
-                                <option value="Kelas 10">Kelas 10 (SMA)</option>
-                                <option value="Kelas 11">Kelas 11 (SMA)</option>
-                                <option value="Kelas 12">Kelas 12 (SMA)</option>
-                                <option value="Umum">Umum (Guru/Trainer)</option>
-                            </select>
-                        </ModalField>
-                        <ModalField label="Deskripsi">
-                            <textarea
-                                placeholder="Deskripsi (opsional)"
-                                value={formData.description}
-                                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none min-h-[80px]"
-                            />
-                        </ModalField>
-                        <ModalField label="Cover Bank Soal">
-                            <label className="flex items-center gap-3 p-4 border border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary/40">
-                                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                <Upload size={18} className="text-slate-400" />
-                                <span className="text-sm text-slate-500">{formData.imageUrl ? 'Ganti Cover' : 'Upload Cover'}</span>
-                            </label>
-                        </ModalField>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">Label</label>
-                            <div className="flex flex-wrap gap-2 mb-2">
-                                {labels.map(label => (
-                                    <button
-                                        key={label.id}
-                                        type="button"
-                                        onClick={() => toggleTag(label.name)}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${formData.tags.includes(label.name) ? 'text-white' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}
-                                        style={formData.tags.includes(label.name) ? { backgroundColor: label.color, borderColor: label.color } : {}}
-                                    >
-                                        {label.name}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                                <input
-                                    type="text"
-                                    placeholder="Tulis & tambah label baru..."
-                                    value={newCustomLabel}
-                                    onChange={e => setNewCustomLabel(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleCreateCustomLabel();
-                                        }
-                                    }}
-                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
-                                />
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={handleCreateCustomLabel}
-                                >
-                                    Tambah
-                                </Button>
-                            </div>
-                        </div>
-                    </ModalBody>
-                    <ModalFooter align="between">
-                        <Button
-                            type="button"
-                            variant="cancel"
-                            onClick={() => { setIsAddModalOpen(false); setEditingBank(null); }}
-                            icon="cancel"
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            isLoading={isSubmitting || uploadingImage}
-                            icon="save"
-                        >
-                            {editingBank ? 'Simpan' : 'Buat Bank Soal'}
-                        </Button>
-                    </ModalFooter>
-                </form>
-            </Modal>
+            {/* Add/Edit Bank Soal Modal */}
+            <CreateBankModal
+                isOpen={isAddModalOpen}
+                onClose={() => {
+                    setIsAddModalOpen(false);
+                    setEditingBank(null);
+                    setTargetFolderId(undefined);
+                }}
+                onSuccess={loadData}
+                editingBank={editingBank}
+                defaultFolderId={targetFolderId}
+                folders={folders}
+                labels={labels}
+                orgSubjects={orgSubjects}
+                onLabelsUpdated={setLabels}
+            />
+
 
             {/* Delete Modal */}
             <Modal

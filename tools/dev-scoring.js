@@ -13,7 +13,12 @@ if (!fs.existsSync(py)) {
     py = process.platform === 'win32' ? 'python' : 'python3';
 }
 
-const child = spawn(py, ['-m', 'uvicorn', 'app.main:app', '--reload', '--port', '8000'], {
+// WatchFiles memakai named pipe multiprocessing pada Windows. Di beberapa
+// instalasi ia gagal dengan WinError 5 dan meninggalkan port 8000 terikat tanpa
+// worker yang dapat melayani request. Server stabil menjadi default; hot reload
+// tetap dapat diaktifkan secara eksplisit saat dibutuhkan.
+const reloadArgs = process.env.SCORING_RELOAD === '1' ? ['--reload'] : [];
+const child = spawn(py, ['-m', 'uvicorn', 'app.main:app', ...reloadArgs, '--port', '8000'], {
     cwd: scoringDir,
     stdio: 'inherit',
 });

@@ -3,6 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { chunk } from '../common/chunk';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 @Injectable()
@@ -19,10 +20,7 @@ export class ExamsService {
         await this.authz.assertExamStaff(user, examId);
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `exam-archive:${examId}`,
-            );
+            await advisoryTransactionLock(db, `exam-archive:${examId}`);
 
             const { data: exam, error: examError } = await db.from('cbt_exams')
                 .select('id, status, is_published, metadata')
@@ -103,10 +101,7 @@ export class ExamsService {
         await this.authz.assertExamStaff(user, examId);
 
         await this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `exam-delete:${examId}`,
-            );
+            await advisoryTransactionLock(db, `exam-delete:${examId}`);
             await lockExamsForDeletion(db, [examId]);
             await assertExamsHaveNoHistory(db, [examId]);
 
@@ -135,10 +130,7 @@ export class ExamsService {
         await this.authz.assertProktorByRecord(user, 'cbt_exams', examId);
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `exam-delete:${examId}`,
-            );
+            await advisoryTransactionLock(db, `exam-delete:${examId}`);
             await lockExamsForDeletion(db, [examId]);
 
             const { data: exam } = await db.from('cbt_exams')
@@ -178,6 +170,7 @@ export class ExamsService {
                 ['cbt_exam_participants', 'exam_id'],
                 ['cbt_exam_schedules', 'exam_id'],
                 ['cbt_exam_question_sources', 'exam_id'],
+                ['cbt_exam_question_snapshots', 'exam_id'],
             ] as const) {
                 const { error } = await db.from(table).delete().eq(column, examId);
                 if (error) throw new BadRequestException(`Gagal membersihkan data uji coba: ${error.message}`);

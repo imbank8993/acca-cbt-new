@@ -14,6 +14,7 @@ import {
 } from '../common/idempotent-create';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { wibDateTimeToUtc } from '../common/wib-time';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
 
@@ -253,10 +254,7 @@ export class PasSchedulesService {
 
         return this.db.transaction(async (db) => {
             await this.lockPeriod(db, periodId);
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-exam-generation:${scheduleId}`,
-            );
+            await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
 
             await this.assertPeriodUnlocked(db, periodId);
 
@@ -335,10 +333,7 @@ export class PasSchedulesService {
 
         return this.db.transaction(async (db) => {
             await this.lockPeriod(db, sourcePeriodId);
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-exam-generation:${scheduleId}`,
-            );
+            await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
 
             const { data } = await db
                 .from('cbt_pas_class_schedules')
@@ -448,11 +443,8 @@ export class PasSchedulesService {
         });
     }
 
-    private lockPeriod(db: DbSession, periodId: string): Promise<unknown> {
-        return db.raw(
-            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-            `pas-period:${periodId}`,
-        );
+    private lockPeriod(db: DbSession, periodId: string): Promise<void> {
+        return advisoryTransactionLock(db, `pas-period:${periodId}`);
     }
 
     private async assertPeriodUnlocked(db: DbSession, periodId: string): Promise<void> {

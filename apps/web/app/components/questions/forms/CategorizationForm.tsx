@@ -473,8 +473,8 @@ const CategorizationItemRow = React.memo(({ index, value, onChange }: Categoriza
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = 'image/*';
-                    input.onchange = (e: any) => {
-                      const f = e.target.files?.[0];
+                    input.onchange = (event: Event) => {
+                      const f = (event.target as HTMLInputElement | null)?.files?.[0];
                       if (f) handleImageUpload(f);
                     };
                     input.click();

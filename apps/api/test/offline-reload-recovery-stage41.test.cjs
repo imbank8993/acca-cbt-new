@@ -95,7 +95,7 @@ test('RECLOAD-05: sinkronisasi terkunci sampai server mengakui attempt yang sama
     assert.match(examPage, /result\.attempt\?\.id !== localAttempt\.id/);
     assert.ok(
         examPage.indexOf('await revalidateOfflineSession()') <
-        examPage.indexOf('Promise.all([syncPendingAnswers(), flushSecurityEvents()])'),
+        examPage.indexOf('const answersSynced = await syncPendingAnswers()'),
     );
 });
 

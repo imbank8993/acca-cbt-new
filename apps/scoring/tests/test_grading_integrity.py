@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from app.schemas.grading import Question, QuestionOption
-from app.services.grading import calculate_single_answer_score
+from app.schemas.grading import Question, QuestionOption, RelativeAttempt
+from app.services.grading import apply_relative_scoring, calculate_single_answer_score
 
 
 def question(kind, metadata=None):
@@ -56,3 +56,25 @@ def test_nested_malformed_values_do_not_crash_grading(kind):
         for option in q.bank_question_options:
             option.metadata = {key: ["X"]}
     assert calculate_single_answer_score(q, answer).score == 0
+
+
+def test_relative_scoring_gives_equal_duration_equal_penalty():
+    scores = apply_relative_scoring([
+        RelativeAttempt(attempt_id="b", base_score=80, duration_seconds=60),
+        RelativeAttempt(attempt_id="a", base_score=80, duration_seconds=60),
+        RelativeAttempt(attempt_id="c", base_score=80, duration_seconds=61),
+    ])
+    assert scores == {"a": 80, "b": 80, "c": 79.99}
+
+
+def test_short_answer_substring_does_not_receive_unintended_partial_credit():
+    q = Question(
+        id="q",
+        type="short_answer",
+        score_default=10,
+        metadata={"blanks": [{"answer": "Jakarta", "variations": ["DKI Jakarta"]}]},
+    )
+
+    assert calculate_single_answer_score(q, '["a"]').score == 0
+    assert calculate_single_answer_score(q, '["Jak"]').score == 0
+    assert calculate_single_answer_score(q, '["DKI Jakarta"]').score == 10

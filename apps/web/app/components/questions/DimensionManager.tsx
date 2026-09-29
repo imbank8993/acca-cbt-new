@@ -216,7 +216,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {dimsInterps.map((interp: any) => (
+                                            {dimsInterps.map((interp) => (
                                                 <div key={interp.id} className="relative p-4 rounded-lg border border-slate-100 bg-slate-50 hover:border-indigo-200 transition-colors group">
                                                     <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button onClick={() => handleOpenInterpEditor(d.id, interp)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md shadow-sm border border-transparent hover:border-slate-200 transition-all">

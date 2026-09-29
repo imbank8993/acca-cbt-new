@@ -32,6 +32,7 @@ export function Modal({
     icon,
     labelledBy,
     className = '',
+    overlayClassName = '',
     closeOnOverlayClick = true,
 }: {
     open?: boolean;
@@ -51,14 +52,24 @@ export function Modal({
     /** id elemen judul (dipakai ModalHeader) untuk aria-labelledby */
     labelledBy?: string;
     className?: string;
+    overlayClassName?: string;
     closeOnOverlayClick?: boolean;
 }) {
     const mounted = useClientMounted();
+    const overlayRef = useRef<HTMLDivElement>(null);
 
     // Escape untuk menutup + kunci scroll body selama modal terbuka.
     useEffect(() => {
         if (!open || !mounted) return;
-        const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                const overlays = document.querySelectorAll('.mdl-overlay');
+                if (overlays.length > 0 && overlays[overlays.length - 1] !== overlayRef.current) {
+                    return;
+                }
+                onClose();
+            }
+        };
         window.addEventListener('keydown', onKeyDown);
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
@@ -73,7 +84,8 @@ export function Modal({
 
     return createPortal(
         <div
-            className="mdl-overlay"
+            ref={overlayRef}
+            className={`mdl-overlay ${overlayClassName}`.trim()}
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}
@@ -222,15 +234,17 @@ export function ModalField({
     label,
     hint,
     required = false,
+    className = '',
     children,
 }: {
     label: ReactNode;
     hint?: ReactNode;
     required?: boolean;
+    className?: string;
     children: ReactNode;
 }) {
     return (
-        <div className="mdl-field">
+        <div className={`mdl-field ${className}`.trim()}>
             <span className="mdl-field__label">
                 {label}
                 {required && <span className="mdl-field__req" aria-hidden="true"> *</span>}

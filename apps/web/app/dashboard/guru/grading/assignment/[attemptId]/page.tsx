@@ -221,7 +221,7 @@ export default function AssignmentReviewerPage() {
                                         {(() => {
                                             const options = qInfo.options || [];
                                             const opt = options.find((option) => option.id === topicId);
-                                            return opt ? (opt.option_text || (opt as any).text) : 'Topik Tidak Diketahui';
+                                            return opt?.option_text || 'Topik Tidak Diketahui';
                                         })()}
                                     </p>
                                 </div>
@@ -233,7 +233,7 @@ export default function AssignmentReviewerPage() {
                             <div>
                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Jawaban Teks</h3>
                                 <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 max-h-48 overflow-y-auto custom-scrollbar">
-                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{text}</p>
+                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed student-essay-answer">{text}</p>
                                 </div>
                             </div>
                         )}

@@ -11,6 +11,7 @@ LayoutDashboard,
 Settings,
 Users
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -33,7 +34,7 @@ const MobileNav = () => {
     // Sebelumnya menu ini diwarisi dari produk asalnya dan separuh tautannya
     // mati — yang terburuk /dashboard/settings, yang muncul di SETIAP peran,
     // sehingga tombol "Set" tidak pernah berfungsi untuk siapa pun.
-    const navConfig: Record<string, any[]> = {
+    const navConfig: Record<string, Array<{ icon: LucideIcon; label: string; href: string }>> = {
         'Admin': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/admin' },
             { icon: ClipboardCheck, label: 'Ujian', href: '/dashboard/admin/exams' },

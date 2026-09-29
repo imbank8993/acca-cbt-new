@@ -1,21 +1,22 @@
 "use client";
-import { AnimatePresence,motion } from 'framer-motion';
-import { Check,Crop,RotateCcw,X,ZoomIn,ZoomOut } from 'lucide-react';
-import React,{ useCallback,useState } from 'react';
-import type { Area,Point } from 'react-easy-crop';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, Crop, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import type { Area, Point } from 'react-easy-crop';
 import Cropper from 'react-easy-crop';
+import { useClientMounted } from '@/hooks/useClientMounted';
+import { createPortal } from 'react-dom';
 
 interface ImageCropperModalProps {
     isOpen: boolean;
     onClose: () => void;
     imageSrc: string;
     onCropComplete: (croppedImage: string) => void;
+    /** Paksa rasio tertentu — mis. 1 untuk 1:1, 16/9 untuk 16:9. undefined = bebas. */
+    aspect?: number;
 }
 
-import { useClientMounted } from '@/hooks/useClientMounted';
-import { createPortal } from 'react-dom';
-
-const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageCropperModalProps) => {
+const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete, aspect }: ImageCropperModalProps) => {
     const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
@@ -129,8 +130,14 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
                                     <Crop size={20} />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-primary uppercase tracking-tight">Crop & Potong Gambar</h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">Sesuaikan tampilan gambar sesuai keinginan</p>
+                                    <h3 className="text-xl font-black text-primary uppercase tracking-tight">Crop &amp; Potong Gambar</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">
+                                        {aspect === 1
+                                            ? 'Potong ke rasio 1:1 (persegi)'
+                                            : aspect
+                                            ? `Potong ke rasio ${aspect}`
+                                            : 'Sesuaikan tampilan gambar sesuai keinginan'}
+                                    </p>
                                 </div>
                             </div>
                             <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -144,7 +151,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
                                 crop={crop}
                                 zoom={zoom}
                                 rotation={rotation}
-                                aspect={undefined} // Free aspect ratio
+                                aspect={aspect}
                                 onCropChange={onCropChange}
                                 onCropComplete={onCropAreaComplete}
                                 onZoomChange={onZoomChange}
@@ -207,7 +214,7 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete }: ImageC
                                     onClick={handleConfirm}
                                     className="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-primary text-white flex items-center gap-2 hover:bg-primary-light transition-all shadow-xl shadow-primary/20 active:scale-95"
                                 >
-                                    <Check size={16} /> Potong & Gunakan
+                                    <Check size={16} /> Potong &amp; Gunakan
                                 </button>
                             </div>
                         </div>

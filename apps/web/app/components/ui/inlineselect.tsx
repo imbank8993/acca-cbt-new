@@ -1,26 +1,10 @@
 'use client';
 
-import { type CSSProperties,type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
+import { RiArrowDropDownFill } from 'react-icons/ri';
 import './inline-select.css';
 
 export type InlineSelectOption = { value: string; label: string; disabled?: boolean };
-
-function DropDownIcon({ size = 20, className = '' }: { size?: number; className?: string }) {
-    return (
-        <svg
-            stroke="currentColor"
-            fill="currentColor"
-            strokeWidth="0"
-            viewBox="0 0 24 24"
-            height={size}
-            width={size}
-            className={className}
-            aria-hidden="true"
-        >
-            <path d="M12 16L6 10H18L12 16Z" />
-        </svg>
-    );
-}
 
 /**
  * Select ringkas sebaris dengan <ActionButton>: tingginya sama (34px) dan
@@ -70,7 +54,7 @@ export function InlineSelect({
                 ))}
                 {children}
             </select>
-            <DropDownIcon size={20} className="uisel-icon" />
+            <RiArrowDropDownFill size={20} className="uisel-icon" />
         </div>
     );
 }

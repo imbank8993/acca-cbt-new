@@ -1,0 +1,75 @@
+.tfd {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.tfd__input,
+.mdl-field__control .tfd__input {
+    width: 100%;
+    height: 42px !important;
+    box-sizing: border-box;
+    padding: 0 14px 0 40px !important;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    color: #475569;
+    font: inherit;
+    font-size: var(--mdl-fs-control, 0.88rem);
+    font-weight: 500;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.tfd__input:hover:not(:disabled) {
+    border-color: var(--n-primary, #3083FF);
+    background: #ffffff;
+}
+
+.tfd__input:focus {
+    border-color: var(--n-primary, #3083FF);
+    box-shadow: 0 0 0 3px rgba(48, 131, 255, 0.15);
+    background: #ffffff;
+}
+
+.tfd__input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tfd__input::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+.tfd__icon {
+    position: absolute;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--n-primary, #3083FF);
+    cursor: pointer;
+}
+
+.tfd__icon:disabled {
+    cursor: not-allowed;
+}
+
+.dark .tfd__input {
+    background: #0b1329 !important;
+    border: 1.5px solid rgba(59, 130, 246, 0.45) !important;
+    color: #f1f5f9 !important;
+}
+
+.dark .tfd__input:hover:not(:disabled),
+.dark .tfd__input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.35) !important;
+}
+
+.dark .tfd__icon {
+    color: #60a5fa !important;
+}

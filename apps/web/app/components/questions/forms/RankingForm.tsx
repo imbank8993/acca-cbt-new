@@ -1,12 +1,13 @@
 "use client";
 import { FileText,Target } from 'lucide-react';
 import React,{ useCallback } from 'react';
+import type { DimensionItem } from '@/lib/api/questions';
 import { BaseOption } from '../schema';
 import { AnswerOptionCard,OptionList } from './AnswerOptionCard';
 
 interface RankingFormProps {
     options: BaseOption[];
-    dimensions: any[];
+    dimensions: DimensionItem[];
     onAddOption: () => void;
     onRemoveOption: (idx: number) => void;
     onUpdateOption: (idx: number, fields: Partial<BaseOption>) => void;
@@ -19,7 +20,7 @@ const RankingOptionCard = React.memo(({
     opt: BaseOption;
     idx: number;
     canDelete: boolean;
-    dimensions: any[];
+    dimensions: DimensionItem[];
     onUpdateOption: (index: number, fields: Partial<BaseOption>) => void;
     onRemoveOption: (idx: number) => void;
 }) => {

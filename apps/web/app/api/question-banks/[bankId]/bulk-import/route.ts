@@ -4,6 +4,11 @@ import { nestFetchAsUser } from '@/lib/nest-api';
 import { proxy } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
+type BulkImportQuestion = Record<string, unknown> & {
+    question_text?: string;
+    options?: Array<Record<string, unknown>>;
+};
+
 /**
  * Impor massal soal.
  *
@@ -18,9 +23,9 @@ export async function POST(
 ) {
     const { bankId } = await context.params;
 
-    let payload: { questions?: Array<Record<string, any>> };
+    let payload: { questions?: BulkImportQuestion[] };
     try {
-        payload = await request.json();
+        payload = await request.json() as { questions?: BulkImportQuestion[] };
     } catch {
         return NextResponse.json(
             { success: false, error: 'Muatan permintaan bukan JSON yang sah.' },
@@ -64,7 +69,7 @@ export async function POST(
         if (typeof question.question_text === 'string') {
             question.question_text = await renderEquationsToImages(question.question_text, bankId);
         }
-        for (const option of question.options || []) {
+        for (const option of Array.isArray(question.options) ? question.options : []) {
             if (typeof option?.option_text === 'string') {
                 option.option_text = await renderEquationsToImages(option.option_text, bankId);
             }

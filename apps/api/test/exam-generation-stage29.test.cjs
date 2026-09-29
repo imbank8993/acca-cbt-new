@@ -119,7 +119,7 @@ test('GEN-05: generator dikunci, transaksional, dan memakai kunci sumber stabil'
     const config = fs.readFileSync(path.resolve(__dirname, '../src/exam-configs/exam-configs.service.ts'), 'utf8');
     for (const source of [pas, config]) {
         assert.match(source, /this\.db\.transaction/);
-        assert.match(source, /pg_advisory_xact_lock/);
+        assert.match(source, /advisoryTransactionLock/);
         assert.match(source, /insertIdempotentlyWithStatus/);
         assert.match(source, /deriveRequestUuid/);
         assert.match(source, /targetError/);

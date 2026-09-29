@@ -189,7 +189,7 @@ const PairingRow = React.memo(({ leftLabel, leftFallback, selectedMatches, right
 PairingRow.displayName = 'PairingRow';
 
 /* ─── MatchingColumn ─── */
-interface MatchItem { key: any; idx: number; text: string; }
+interface MatchItem { key: React.Key; idx: number; text: string; }
 interface MatchingColumnProps {
   label: string;
   items: MatchItem[];

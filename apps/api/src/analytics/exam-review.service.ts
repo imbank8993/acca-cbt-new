@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
-import { loadExamQuestions } from '../common/exam-question-sources';
+import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { orderQuestionsForStudent } from '../common/question-order';
 import { DbService } from '../prisma/prisma-db-adapter';
 
@@ -100,22 +100,9 @@ export class ExamReviewService {
         // dibaca layar ujian. Soal yang TIDAK dijawab ikut terbawa, sehingga
         // `unansweredCount` bisa terisi; menyusunnya dari `cbt_answers` saja
         // akan membuat soal kosong hilang sama sekali dari review.
-        const bankQuestions = await loadExamQuestions(
+        const bankQuestions = await loadFrozenExamQuestions(
             this.db,
             record.exam_id,
-            `id,
-             question_text,
-             type,
-             score_default,
-             metadata,
-             difficulty,
-             created_at,
-             bank_question_options:cbt_bank_question_options (
-                 id,
-                 option_text,
-                 is_correct,
-                 weight
-             )`,
             record.exams?.question_bank_id,
         );
 

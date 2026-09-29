@@ -12,7 +12,7 @@ getProctorOrganization,
     type OrganizationExam,
     type ViolationEvent
 } from '@/lib/api/proctor';
-import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
 import {
 AlertTriangle,
@@ -100,28 +100,45 @@ function MonitoringContent() {
     };
 
     const handleReset = async (attemptId: string, studentName: string) => {
-        const reason = promptRecoveryReason(studentName);
-        if (!reason) return;
-        if (!confirm(`Konfirmasi pemulihan ujian untuk siswa "${studentName}"?\n\nAlasan: ${reason}`)) {
+        const modeInput = window.prompt(
+            'Ketik SUSULAN untuk mulai dari awal, atau PULIHKAN untuk mempertahankan jawaban lama.',
+            'SUSULAN',
+        );
+        if (!modeInput) return;
+        const mode = modeInput.trim().toUpperCase();
+        if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
+            alert('Pilihan harus SUSULAN atau PULIHKAN.');
             return;
         }
+        const reason = promptRecoveryReason(studentName);
+        if (!reason) return;
+        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
+        if (mode === 'SUSULAN' && !durationMinutes) return;
+        if (!confirm(
+            mode === 'SUSULAN'
+                ? `Mulai ujian susulan ${studentName} selama ${durationMinutes} menit? Semua jawaban dan nilai lama akan dihapus.`
+                : `Pulihkan ujian ${studentName} dengan jawaban lama tetap tersimpan?`,
+        )) return;
 
         setResettingId(attemptId);
         try {
-            const res = await resetExamAttempt(attemptId, reason);
+            const res = mode === 'SUSULAN'
+                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
+                : await resetExamAttempt(attemptId, reason);
             if (res.success) {
-                alert(`${res.serverAnswerCount} jawaban sudah ada di server. Siswa dapat melanjutkan pemulihan.`);
+                alert(mode === 'SUSULAN'
+                    ? `${'deletedAnswerCount' in res ? res.deletedAnswerCount : 0} jawaban lama dihapus. Siswa dapat mengerjakan dari awal.`
+                    : `${'serverAnswerCount' in res ? res.serverAnswerCount : 0} jawaban lama dipertahankan. Siswa dapat melanjutkan.`);
                 await loadData(true);
             } else {
-                alert(`Gagal mereset ujian: ${res.error}`);
+                alert(`Tindakan gagal: ${res.error}`);
             }
         } catch (err) {
-            alert(`Terjadi kesalahan: ${getErrorMessage(err) || 'Gagal mereset'}`);
+            alert(`Terjadi kesalahan: ${getErrorMessage(err) || 'Gagal mengatur ulang ujian'}`);
         } finally {
             setResettingId(null);
         }
     };
-
     // Ekstraksi kelas unik
     const availableClasses = Array.from(
         new Set(attempts.map((a) => a.kelas_name).filter((k) => k && k !== '-'))
@@ -405,7 +422,7 @@ function MonitoringContent() {
                                                                     size={12}
                                                                     className={isResetting ? 'animate-spin' : ''}
                                                                 />
-                                                                <span>Reset</span>
+                                                                <span>Susulan / Pulihkan</span>
                                                             </button>
                                                         )}
                                                     </td>

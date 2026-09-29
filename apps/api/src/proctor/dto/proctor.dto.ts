@@ -13,6 +13,7 @@ import {
     IsUUID,
     Max,
     Min,
+    ValidateIf,
     ValidateNested,
 } from 'class-validator';
 
@@ -72,6 +73,19 @@ class ExamFieldsDto {
     @IsOptional()
     @IsBoolean()
     isSafeMode?: boolean;
+
+    @ApiPropertyOptional({
+        nullable: true,
+        minimum: 1,
+        maximum: 100,
+        default: 3,
+        description: 'Jumlah pelanggaran sebelum ujian diselesaikan otomatis. null berarti tanpa batas.',
+    })
+    @ValidateIf((_object, value) => value !== undefined && value !== null)
+    @IsInt({ message: 'Batas pelanggaran harus berupa bilangan bulat.' })
+    @Min(1, { message: 'Batas pelanggaran minimal 1.' })
+    @Max(100, { message: 'Batas pelanggaran maksimal 100.' })
+    maxViolations?: number | null;
 
     @ApiPropertyOptional({ default: 'classical' })
     @IsOptional()

@@ -211,8 +211,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
 
                 .question-content {
                     font-family: 'Merriweather', 'Source Serif 4', 'Libre Baskerville', 'Crimson Pro', Georgia, serif;
-                    font-size: 15px;
-                    line-height: 1.85;
+                    font-size: 13.5px;
+                    line-height: 1.6;
                     word-break: normal;
                     overflow-wrap: anywhere;
                     overflow: visible;
@@ -221,7 +221,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                     -moz-osx-font-smoothing: grayscale;
                 }
                 .question-content p {
-                    margin: 0 0 0.5rem 0;
+                    margin: 0 0 0.35rem 0;
                     text-align: inherit;
                     overflow: visible;
                 }
@@ -232,7 +232,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                 .question-content h2,
                 .question-content h3 {
                     font-weight: 700;
-                    margin: 1rem 0 0.5rem 0;
+                    margin: 0.6rem 0 0.3rem 0;
+                    font-size: 0.95rem;
                     color: #1e293b;
                 }
                 .question-content h1:first-child,
@@ -305,7 +306,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                 }
             `}</style>
 
-            <div className="w-full space-y-6">
+            <div className="w-full space-y-4">
             {/* STIMULUS VIEWER */}
             {(() => {
                 const stim = firstContentItem(question.stimulus || question.question_stimuli);
@@ -364,7 +365,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         <div className="hidden">{questionNumber}</div>
                     )}
                     <div className={`flex-1 min-w-0 ${type === 'likert' ? 'w-full max-w-4xl mx-auto px-4 sm:px-8' : ''}`}>
-                        <QuestionContent content={question.question_text || ''} className="text-base leading-relaxed text-slate-800" />
+                        <QuestionContent content={question.question_text || ''} className="text-sm leading-relaxed text-slate-800" />
                     </div>
                     {(() => {
                         const inst = firstContentItem(question.instruction || question.question_instructions);
@@ -413,62 +414,71 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         // putus-putus tanpa tanda centang.
                         if (showFeedback) {
                             if (isSelected && isCorrect) {
-                                borderClass = 'border-emerald-400';
-                                bgClass = 'bg-emerald-50';
-                                labelClass = 'bg-emerald-500 text-white border-emerald-500';
-                                textClass = 'text-emerald-900';
-                                checkClass = 'bg-emerald-500 text-white';
+                                borderClass = 'border-[#3083FF] shadow-sm';
+                                bgClass = 'bg-blue-50/70';
+                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
+                                textClass = 'text-slate-900 font-medium';
+                                checkClass = 'bg-[#3083FF] text-white';
                             } else if (isSelected) {
-                                borderClass = 'border-rose-400';
-                                bgClass = 'bg-rose-50';
-                                labelClass = 'bg-rose-500 text-white border-rose-500';
+                                borderClass = 'border-rose-200';
+                                bgClass = 'bg-rose-50/70';
+                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 font-bold';
                                 textClass = 'text-rose-900';
-                                checkClass = 'bg-rose-500 text-white';
+                                checkClass = 'bg-rose-100 text-rose-600 border border-rose-200';
                             } else if (isCorrect) {
-                                borderClass = 'border-emerald-300 border-dashed';
-                                bgClass = 'bg-white';
-                                labelClass = 'bg-white text-emerald-600 border-emerald-300';
-                                textClass = 'text-emerald-800';
+                                borderClass = 'border-emerald-400 bg-emerald-50/50';
+                                bgClass = 'bg-emerald-50/50';
+                                labelClass = 'bg-emerald-500 text-white border-emerald-500 font-bold';
+                                textClass = 'text-emerald-950 font-medium';
+                                checkClass = 'bg-emerald-500 text-white';
                             } else {
                                 textClass = 'text-slate-400';
+                                bgClass = 'bg-white opacity-55';
                             }
                         } else if (isSelected) {
-                            borderClass = 'border-slate-800';
-                            bgClass = 'bg-slate-50';
-                            labelClass = 'bg-slate-800 text-white border-slate-800';
+                            borderClass = 'border-[#3083FF] shadow-sm';
+                            bgClass = 'bg-blue-50/40';
+                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
                             textClass = 'text-slate-800';
-                            checkClass = 'bg-slate-800 text-white';
+                            checkClass = 'bg-[#3083FF] text-white';
                         }
 
                         return (
-                            <label key={opt.id} className={`flex items-start gap-3 p-3 rounded-md border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                            <label key={opt.id} className={`flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
                                 <input type="radio" className="hidden" checked={isSelected} disabled={showFeedback} onChange={() => onAnswerChange(opt.id)} />
-                                <div className={`w-8 h-8 shrink-0 rounded flex items-center justify-center font-black text-xs leading-none pt-[1px] border-2 transition-colors ${labelClass}`}>
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}>
                                     {label}
                                 </div>
-                                <div className={`flex-1 min-w-0 text-sm font-normal transition-colors ${textClass}`}>
+                                <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                 </div>
                                 {isSelected && !showFeedback && (
-                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center ${checkClass}`}>
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${checkClass}`}>
                                         <Check size={12} strokeWidth={3} />
                                     </motion.div>
                                 )}
                                 {showFeedback && (
                                     <div className="shrink-0 flex flex-col items-end gap-1">
-                                        {isSelected && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-white">Dipilih</span>
+                                        {isSelected && isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa & Kunci
+                                            </span>
                                         )}
-                                        {isCorrect && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Kunci</span>
+                                        {isSelected && !isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                                <X size={10} strokeWidth={3} /> Jawaban Siswa (Salah)
+                                            </span>
+                                        )}
+                                        {!isSelected && isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> Kunci Jawaban
+                                            </span>
                                         )}
                                     </div>
                                 )}
-                                {showFeedback && isSelected && (
-                                    <div className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center ${checkClass}`}>
-                                        {isCorrect
-                                            ? <Check size={12} strokeWidth={3} />
-                                            : <AlertTriangle size={12} strokeWidth={3} />}
+                                {showFeedback && (isSelected || isCorrect) && (
+                                    <div className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${checkClass}`}>
+                                        {isSelected && !isCorrect ? <X size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
                                     </div>
                                 )}
                             </label>
@@ -499,29 +509,31 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                             </div>
                                             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
                                                 <button
+                                                    type="button"
                                                     disabled={showFeedback}
                                                     onClick={() => {
                                                         const next = { ...studentAnswers, [opt.id]: 'benar' };
                                                         onAnswerChange(JSON.stringify(next));
                                                     }}
-                                                    className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
+                                                    className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'benar'
-                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white') : 'bg-emerald-500 text-white')
-                                                            : (showFeedback && isCorrectAnswer ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-500')
+                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 font-bold') : 'bg-[#3083FF] text-white')
+                                                            : (showFeedback && isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200')
                                                         }`}
                                                 >
                                                     Benar
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     disabled={showFeedback}
                                                     onClick={() => {
                                                         const next = { ...studentAnswers, [opt.id]: 'salah' };
                                                         onAnswerChange(JSON.stringify(next));
                                                     }}
-                                                    className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
+                                                    className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'salah'
-                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white') : 'bg-rose-500 text-white')
-                                                            : (showFeedback && !isCorrectAnswer ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500')
+                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 font-bold') : 'bg-[#3083FF] text-white')
+                                                            : (showFeedback && !isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200')
                                                         }`}
                                                 >
                                                     Salah
@@ -562,29 +574,28 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         // hilang jadi mustahil terdeteksi dari layar monitoring.
                         if (showFeedback) {
                             if (isSelected && isCorrect) {
-                                borderClass = 'border-emerald-400'; bgClass = 'bg-emerald-50';
-                                labelClass = 'bg-emerald-500 text-white border-emerald-500';
-                                textClass = 'text-emerald-900'; checkBg = 'bg-emerald-500 border-emerald-500 text-white';
+                                borderClass = 'border-[#3083FF] shadow-sm'; bgClass = 'bg-blue-50/70';
+                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
+                                textClass = 'text-slate-900 font-medium'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white';
                             } else if (isSelected) {
-                                borderClass = 'border-rose-400'; bgClass = 'bg-rose-50';
-                                labelClass = 'bg-rose-500 text-white border-rose-500';
-                                textClass = 'text-rose-900'; checkBg = 'bg-rose-500 border-rose-500 text-white';
+                                borderClass = 'border-rose-200'; bgClass = 'bg-rose-50/70';
+                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 font-bold';
+                                textClass = 'text-rose-900'; checkBg = 'bg-rose-100 border-rose-300 text-rose-600';
                             } else if (isCorrect) {
-                                // Kunci yang TERLEWAT — kotak centang sengaja kosong.
-                                borderClass = 'border-emerald-300 border-dashed'; bgClass = 'bg-white';
-                                labelClass = 'bg-white text-emerald-600 border-emerald-300';
-                                textClass = 'text-emerald-800'; checkBg = 'bg-white border-emerald-300';
+                                borderClass = 'border-emerald-400 bg-emerald-50/50'; bgClass = 'bg-emerald-50/50';
+                                labelClass = 'bg-emerald-500 text-white border-emerald-500 font-bold';
+                                textClass = 'text-emerald-950 font-medium'; checkBg = 'bg-emerald-500 border-emerald-500 text-white';
                             } else {
-                                textClass = 'text-slate-400'; bgClass = 'bg-white opacity-50';
+                                textClass = 'text-slate-400'; bgClass = 'bg-white opacity-55';
                             }
                         } else if (isSelected) {
-                            borderClass = 'border-slate-800'; bgClass = 'bg-slate-50';
-                            labelClass = 'bg-slate-800 text-white border-slate-800';
-                            textClass = 'text-slate-800'; checkBg = 'bg-slate-800 border-slate-800 text-white';
+                            borderClass = 'border-[#3083FF] shadow-sm'; bgClass = 'bg-blue-50/40';
+                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
+                            textClass = 'text-slate-800'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white';
                         }
 
                         return (
-                            <label key={opt.id} className={`flex items-start gap-3 p-3 rounded-md border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                            <label key={opt.id} className={`flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
                                 <input
                                     type="checkbox"
                                     className="hidden"
@@ -597,24 +608,39 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                         onAnswerChange(JSON.stringify(next));
                                     }}
                                 />
-                                <div className={`w-8 h-8 shrink-0 rounded flex items-center justify-center font-black text-xs leading-none pt-[1px] border-2 transition-colors ${labelClass}`}>
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}>
                                     {letters[idx] || '?'}
                                 </div>
-                                <div className={`flex-1 min-w-0 text-sm font-normal transition-colors ${textClass}`}>
+                                <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                 </div>
                                 {showFeedback && (
                                     <div className="shrink-0 flex flex-col items-end gap-1">
-                                        {isSelected && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-white">Dipilih</span>
+                                        {isSelected && isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa & Kunci
+                                            </span>
                                         )}
-                                        {isCorrect && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">Kunci</span>
+                                        {isSelected && !isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                                <X size={10} strokeWidth={3} /> Jawaban Siswa (Salah)
+                                            </span>
+                                        )}
+                                        {!isSelected && isCorrect && (
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                                <Check size={10} strokeWidth={3} /> Kunci Jawaban
+                                            </span>
                                         )}
                                     </div>
                                 )}
-                                <div className={`w-7 h-7 shrink-0 rounded-lg border-2 flex items-center justify-center transition-colors ${checkBg}`}>
-                                    {isSelected && <Check size={12} strokeWidth={3} className="text-white" />}
+                                <div className={`w-6 h-6 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${checkBg}`}>
+                                    {showFeedback ? (
+                                        isSelected && isCorrect ? <Check size={12} strokeWidth={3} className="text-white" /> :
+                                        isSelected && !isCorrect ? <X size={12} strokeWidth={3} className="text-rose-600" /> :
+                                        !isSelected && isCorrect ? <Check size={12} strokeWidth={3} className="text-white" /> : null
+                                    ) : (
+                                        isSelected && <Check size={12} strokeWidth={3} className="text-white" />
+                                    )}
                                 </div>
                             </label>
                         );
@@ -718,9 +744,9 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                         className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all text-white text-xs font-bold
                                                                             ${cellStatus === 'idle' ? 'border-slate-200 bg-white hover:bg-slate-100' : ''}
                                                                             ${cellStatus === 'selected' ? `${color.active} border-transparent shadow-sm` : ''}
-                                                                            ${cellStatus === 'correct' ? 'bg-emerald-500 border-transparent shadow-sm' : ''}
-                                                                            ${cellStatus === 'wrong' ? 'bg-rose-500 border-transparent shadow-sm' : ''}
-                                                                            ${cellStatus === 'missing' ? `${color.bg} ${color.border} ${color.text} ring-2 ring-offset-1 ring-amber-400` : ''}
+                                                                            ${cellStatus === 'correct' ? 'bg-[#3083FF] border-transparent shadow-sm' : ''}
+                                                                            ${cellStatus === 'wrong' ? 'bg-rose-400 border-transparent shadow-sm' : ''}
+                                                                            ${cellStatus === 'missing' ? 'bg-emerald-500 border-transparent shadow-sm text-white' : ''}
                                                                         `}
                                                                     >
                                                                         {cellStatus === 'correct' && <Check size={13} strokeWidth={3} />}
@@ -801,11 +827,11 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                 } ${
                                                                     cellStatus === 'selected' ? `${color.active} shadow-sm` : ''
                                                                 } ${
-                                                                    cellStatus === 'correct' ? 'bg-emerald-600 border-transparent text-white' : ''
+                                                                    cellStatus === 'correct' ? 'bg-[#3083FF] border-transparent text-white' : ''
                                                                 } ${
-                                                                    cellStatus === 'wrong' ? 'bg-rose-600 border-transparent text-white' : ''
+                                                                    cellStatus === 'wrong' ? 'bg-rose-400 border-transparent text-white' : ''
                                                                 } ${
-                                                                    cellStatus === 'missing' ? 'bg-amber-50 border-amber-200 text-amber-800 ring-2 ring-amber-350' : ''
+                                                                    cellStatus === 'missing' ? 'bg-emerald-500 border-transparent text-white' : ''
                                                                 }`}
                                                             >
                                                                 <div className="flex items-center gap-2">
@@ -1427,7 +1453,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                         }}
                         onBlur={() => commitAnswer({ text: localEssay })}
                         placeholder="Ketik jawaban uraian di sini..."
-                        className="w-full min-h-[180px] rounded-md border-2 border-slate-200 p-5 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 resize-none"
+                        className="w-full min-h-[180px] rounded-md border-2 border-slate-200 p-5 text-sm font-medium text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 resize-none essay-answer-input"
                     />
                     
                     {metadata?.allow_file_upload && (
@@ -1607,14 +1633,14 @@ const ShortAnswerInline = React.memo(({
                                         onChange={(e) => handleChange(idx, e.target.value)}
                                         onBlur={handleBlur}
                                         placeholder="Ketik jawaban..."
-                                        className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 outline-none transition-all
+                                        className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 outline-none transition-all short-answer-input
                                             ${showFeedback
-                                                ? (isCorrect ? 'border-emerald-400 bg-emerald-50 text-emerald-700 pr-10' : 'border-rose-400 bg-rose-50 text-rose-700 pr-10')
+                                                ? (isCorrect ? 'border-[#3083FF] bg-blue-50/70 text-blue-900 pr-10' : 'border-rose-200 bg-rose-50/70 text-rose-800 pr-10')
                                                 : 'border-slate-200 bg-white text-slate-700 focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
                                             }`}
                                     />
                                     {showFeedback && isCorrect && (
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#3083FF]">
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                                                 <polyline points="20 6 9 17 4 12"></polyline>
                                             </svg>
@@ -1640,7 +1666,7 @@ const ShortAnswerInline = React.memo(({
             {showFeedback && (
                 <div className="space-y-1 mt-2">
                     {allVariations.map((variations: string[], idx: number) => (
-                        <p key={idx} className="text-xs text-emerald-600">
+                        <p key={idx} className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded inline-block font-medium">
                             Kunci {idx + 1}: {variations.join(', ')}
                         </p>
                     ))}

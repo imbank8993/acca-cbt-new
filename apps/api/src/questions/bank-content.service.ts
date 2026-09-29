@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { deriveRequestUuid, insertIdempotently } from '../common/idempotent-create';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /**
@@ -352,8 +353,8 @@ export class BankContentService {
         }
 
         await this.db.transaction(async db => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+            await advisoryTransactionLock(
+                db,
                 `content-import:${table}:${bankId}:${clientRequestId}`,
             );
             for (const [index, payload] of inserts.entries()) {

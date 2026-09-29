@@ -1,12 +1,13 @@
 "use client";
 import { FileText,Target } from 'lucide-react';
 import React,{ useCallback } from 'react';
+import type { DimensionItem } from '@/lib/api/questions';
 import { BaseOption } from '../schema';
 import { AnswerOptionCard } from './AnswerOptionCard';
 
 interface PairedComparisonFormProps {
     options: BaseOption[];
-    dimensions: any[];
+    dimensions: DimensionItem[];
     onUpdateOption: (idx: number, fields: Partial<BaseOption>) => void;
 }
 
@@ -15,7 +16,7 @@ const PairedComparisonOptionCard = React.memo(({
 }: {
     opt: BaseOption;
     idx: number;
-    dimensions: any[];
+    dimensions: DimensionItem[];
     onUpdateOption: (index: number, fields: Partial<BaseOption>) => void;
 }) => {
     const stableOnChange = useCallback((text: string) => onUpdateOption(idx, { text }), [idx, onUpdateOption]);

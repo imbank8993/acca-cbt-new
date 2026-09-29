@@ -96,9 +96,12 @@ export class QuestionBanksService {
             const known =
                 profileName && profileName !== 'Unknown User' && profileName !== 'Unknown';
 
+            const questionCount = (bank.bank_questions || []).filter((q: any) => !q.metadata?._deleted).length;
+
             return {
                 ...bank,
-                question_count: (bank.bank_questions || []).filter((q: any) => !q.metadata?._deleted).length,
+                question_count: questionCount,
+                total_questions: questionCount,
                 folder_id: bank.folder_id,
                 creator_name: known
                     ? profileName

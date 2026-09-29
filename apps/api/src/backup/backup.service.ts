@@ -102,7 +102,7 @@ export class BackupService {
         const periodIds = pasPeriods.map((p) => p.id);
 
         const [stimuli, instructions, kisiKisi, dimensions, questions, examClasses,
-            examTargets, examParticipants, examSources, answers, attemptQuestions,
+            examTargets, examParticipants, examSources, examQuestionSnapshots, answers, attemptQuestions,
             securityLogs, classMembers, additionalClassMembers, pasSessions,
             pasSchedules, pasRooms] = await Promise.all([
             this.byIds('cbt_question_stimuli', 'bank_id', bankIds),
@@ -114,6 +114,7 @@ export class BackupService {
             this.byIds('cbt_exam_targets', 'exam_id', examIds),
             this.byIds('cbt_exam_participants', 'exam_id', examIds),
             this.byIds('cbt_exam_question_sources', 'exam_id', examIds),
+            this.byIds('cbt_exam_question_snapshots', 'exam_id', examIds),
             this.byIds('cbt_answers', 'attempt_id', attemptIds),
             this.byIds('cbt_exam_attempt_questions', 'attempt_id', attemptIds),
             this.byIds('cbt_attempt_security_logs', 'attempt_id', attemptIds),
@@ -143,7 +144,7 @@ export class BackupService {
         const emails = await this.authUsers.emailMap(memberUserIds);
 
         return {
-            version: '2.0',
+            version: '3.0',
             timestamp: new Date().toISOString(),
             organization: org as { id: string; name: string | null },
             data: {
@@ -181,6 +182,7 @@ export class BackupService {
                 exam_targets: examTargets,
                 exam_participants: examParticipants,
                 exam_question_sources: examSources,
+                exam_question_snapshots: examQuestionSnapshots,
                 exam_attempts: attempts,
                 exam_attempt_questions: attemptQuestions,
                 attempt_security_logs: securityLogs,
@@ -257,6 +259,7 @@ export class BackupService {
                 await this.insert('cbt_exam_targets', plain(data.exam_targets), db);
                 await this.insert('cbt_exam_participants', withUser(data.exam_participants), db);
                 await this.insert('cbt_exam_question_sources', plain(data.exam_question_sources), db);
+                await this.insert('cbt_exam_question_snapshots', plain(data.exam_question_snapshots), db);
                 await this.insert('cbt_pas_periods', withOrg(data.pas_periods), db);
                 await this.insert('cbt_pas_sessions', plain(data.pas_sessions), db);
                 await this.insert('cbt_pas_rooms', plain(data.pas_rooms), db);
@@ -284,7 +287,7 @@ export class BackupService {
     // ── Pembacaan ────────────────────────────────────────────────────────────
 
     private validatePayload(payload: BackupPayload): void {
-        if (!['1.0', '2.0'].includes(payload.version)) {
+        if (!['1.0', '2.0', '3.0'].includes(payload.version)) {
             throw new BadRequestException(`Versi backup tidak didukung: ${payload.version || 'kosong'}.`);
         }
         if (!payload.organization || typeof payload.organization.id !== 'string') {
@@ -297,6 +300,7 @@ export class BackupService {
             'question_banks', 'question_stimuli', 'bank_questions',
             'bank_question_options', 'exams', 'exam_attempts', 'answers',
         ];
+        if (payload.version === '3.0') required.push('exam_question_snapshots');
         for (const key of required) {
             if (!Array.isArray(data[key])) {
                 throw new BadRequestException(`Bagian backup '${key}' tidak valid atau tidak ada.`);
@@ -354,6 +358,8 @@ export class BackupService {
             ['exam_participants', 'exam_id', examIds], ['exam_participants', 'user_id', userIds],
             ['exam_question_sources', 'exam_id', examIds],
             ['exam_question_sources', 'bank_id', bankIds],
+            ['exam_question_snapshots', 'exam_id', examIds],
+            ['exam_question_snapshots', 'question_id', questionIds, true],
             ['exam_attempts', 'exam_id', examIds], ['exam_attempts', 'user_id', userIds],
             ['exam_attempt_questions', 'attempt_id', attemptIds],
             ['exam_attempt_questions', 'question_id', questionIds],

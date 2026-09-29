@@ -335,7 +335,7 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
     } else if (question.type === 'ordering') {
-        const correctOrder: string[] = portableQuestion(question).metadata.correct_order;
+        const correctOrder = portableQuestion(question).metadata.correct_order ?? [];
         const kunci = correctOrder.join(' | ');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),

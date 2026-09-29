@@ -103,7 +103,7 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(({
     return (
         <div className="w-full relative">
             <div
-                className={`${showPreview ? 'block' : 'hidden'} w-full px-2 py-1.5 min-h-[26px] text-[13px] leading-[1.4] text-slate-700 cursor-text ${className}`}
+                className={`${showPreview ? 'block' : 'hidden'} w-full px-2 py-1.5 min-h-[26px] text-[13px] leading-[1.4] text-slate-700 cursor-text rich-input-text ${className}`}
                 onClick={() => setEditing(true)}
                 style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
             >
@@ -125,7 +125,7 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(({
                     text-[13px] leading-[1.4] text-slate-700
                     placeholder:text-slate-300
                     border-none px-2 py-1.5 m-0
-                    focus:ring-0
+                    focus:ring-0 rich-input-textarea
                     ${className}
                 `}
                 style={{

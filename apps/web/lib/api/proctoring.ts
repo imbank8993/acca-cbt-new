@@ -1,5 +1,5 @@
 import { getDeviceId } from '../device-id';
-import { apiSend } from './client';
+import { apiIdempotentMutation, apiSend } from './client';
 
 /**
  * Pemantauan keamanan ujian. Menggantikan `app/actions/security.ts`.
@@ -20,7 +20,12 @@ export function logSecurityViolation(
     metadata: Record<string, unknown> = {},
     clientEventId?: string,
 ) {
-    return apiSend<{ warningCount: number; duplicate?: boolean }>(
+    return apiSend<{
+        warningCount: number;
+        duplicate?: boolean;
+        maxViolations: number | null;
+        terminated: boolean;
+    }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/violations`,
         { eventType, metadata, clientEventId },
         'POST',
@@ -52,6 +57,27 @@ export function resetExamAttempt(attemptId: string, reason: string) {
     );
 }
 
+export interface MakeupExamResult {
+    attemptId: string;
+    previousStatus: string;
+    recoveryUntil: string;
+    durationMinutes: number;
+    deletedAnswerCount: number;
+}
+
+export function startMakeupExam(
+    attemptId: string,
+    reason: string,
+    durationMinutes: number,
+) {
+    return apiIdempotentMutation<MakeupExamResult>(
+        `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/makeup`,
+        { reason, durationMinutes },
+        'POST',
+        { timeoutMs: 30_000 },
+    );
+}
+
 /** Minta alasan yang akan disimpan permanen pada jejak audit pemulihan. */
 export function promptRecoveryReason(studentName: string): string | null {
     const value = window.prompt(
@@ -70,6 +96,21 @@ export function promptRecoveryReason(studentName: string): string | null {
         return null;
     }
     return reason;
+}
+
+export function promptRecoveryDuration(studentName: string): number | null {
+    const value = window.prompt(
+        `Berapa menit waktu ujian susulan untuk ${studentName}?\n\n` +
+        'Waktu dihitung sejak ujian susulan diaktifkan. Masukkan 1–1440 menit.',
+        '60',
+    );
+    if (value === null) return null;
+    const duration = Number(value);
+    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
+        window.alert('Waktu ujian susulan harus berupa angka bulat antara 1 dan 1440 menit.');
+        return null;
+    }
+    return duration;
 }
 
 export function forceTerminateAttempt(attemptId: string, reason: string) {

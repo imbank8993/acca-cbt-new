@@ -10,6 +10,7 @@
  */
 
 import { Check,SlidersHorizontal } from 'lucide-react';
+import { RiArrowDropDownFill } from 'react-icons/ri';
 import React,{ CSSProperties,ReactNode,useState } from 'react';
 import { Button } from './button';
 import './filter-toolbar.css';
@@ -52,22 +53,7 @@ type NamedElementType = React.ElementType & {
     name?: string;
 };
 
-function DropDownIcon({ size = 20, className = '' }: { size?: number; className?: string }) {
-    return (
-        <svg
-            stroke="currentColor"
-            fill="currentColor"
-            strokeWidth="0"
-            viewBox="0 0 24 24"
-            height={size}
-            width={size}
-            className={className}
-            aria-hidden="true"
-        >
-            <path d="M12 16L6 10H18L12 16Z" />
-        </svg>
-    );
-}
+
 
 export function MobileOption({
     selected,
@@ -544,7 +530,7 @@ export function FilterSelect({
                     ))}
                     {children}
                 </select>
-                <DropDownIcon size={20} className="ftb-select-icon" />
+                <RiArrowDropDownFill size={20} className="ftb-select-icon" />
             </div>
         </FilterField>
     );

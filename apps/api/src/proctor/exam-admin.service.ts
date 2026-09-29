@@ -311,7 +311,7 @@ export class ExamAdminService {
             // berikutnya menjadi satu keputusan atomik.
             await db.raw(
                 'SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE',
-                [examId],
+                examId,
             );
 
             const { data: exam, error: examError } = await db
@@ -572,6 +572,11 @@ export class ExamAdminService {
         return {
             ...existing,
             is_safe_mode: dto.isSafeMode ?? existing.is_safe_mode ?? true,
+            // `null` adalah pilihan eksplisit "tanpa batas". Ujian lama yang
+            // belum memiliki bidang ini tetap memakai perilaku lama: 3.
+            max_violations: dto.maxViolations !== undefined
+                ? dto.maxViolations
+                : (existing.max_violations !== undefined ? existing.max_violations : 3),
             is_public: dto.isPublic ?? false,
             document_url: isAssignment
                 ? (dto.documentUrl ?? existing.document_url ?? '')

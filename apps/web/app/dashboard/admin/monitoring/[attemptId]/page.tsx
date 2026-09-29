@@ -5,6 +5,7 @@ import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/procto
 import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { securityViolationLabel } from '@/lib/security-violations';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 Activity,
@@ -71,22 +72,19 @@ export default function AttemptAnalyticsPage() {
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
         if (!confirm(
-            `Yakin ingin mereset ujian siswa "${studentName}"?\n\n` +
-            `Siswa akan bisa melanjutkan ujian dengan jawaban yang sudah tersimpan sebelumnya.\n\nAlasan: ${reason}\n\n` +
-            `Peringatan: Pastikan perangkat siswa sudah dalam kondisi baik.`
+            `Pulihkan ujian siswa "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
         )) return;
 
         setResetting(true);
         const res = await resetExamAttempt(attemptId, reason);
         if (res.success) {
-            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban sudah ada di server.`);
+            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan.`);
             router.push('/dashboard/admin/monitoring');
         } else {
-            alert('Gagal mereset: ' + res.error);
+            alert('Gagal memulihkan: ' + res.error);
         }
         setResetting(false);
     };
-
     const handleSave = async () => {
         if (!confirm('Simpan perubahan nilai? Total nilai akhir akan dihitung kembali.')) return;
         setSubmitting(true);
@@ -313,10 +311,10 @@ export default function AttemptAnalyticsPage() {
                     </button>
                 </div>
 
-                <div className="bg-white border border-[#3083FF]/20 rounded-lg p-6 lg:p-8 shadow-sm">
+                <div className="bg-white border border-[#3083FF]/20 rounded-xl p-4 sm:p-6 shadow-sm">
                     <AnimatePresence mode="wait">
                         {activeTab === 'questions' && (
-                            <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+                            <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5 sm:space-y-6">
                                 {answers.map((answer, index) => {
                                     const q = answer.bank_questions;
                                     if (!q) return null;
@@ -344,8 +342,8 @@ export default function AttemptAnalyticsPage() {
                                             </div>
 
                                             {/* Card Content */}
-                                            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-4 md:p-6 hover:border-[#3083FF]/30 transition-colors">
-                                                <div className="flex flex-wrap gap-4 justify-between items-center mb-4 pb-4 border-b border-slate-200">
+                                            <div className="flex-1 bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4 hover:border-[#3083FF]/30 transition-colors">
+                                                <div className="flex flex-wrap gap-2 justify-between items-center mb-3 pb-2.5 border-b border-slate-200">
                                                     <div className="flex gap-2">
                                                         <span className="px-2.5 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-500">
                                                             {q.type.toUpperCase()}
@@ -363,10 +361,10 @@ export default function AttemptAnalyticsPage() {
                                                 </div>
 
 
-                                                <div className="bg-white p-4 rounded border border-slate-200 shadow-sm">
+                                                <div className="bg-white p-3 sm:p-3.5 rounded-lg border border-slate-200 shadow-sm text-sm">
                                                     <QuestionRenderer
                                                         question={q}
-                                                        answer={q.type === 'mcq' ? answer.selected_option_id : answer.essay_answer}
+                                                        answer={answer.essay_answer ?? answer.selected_option_id}
                                                         onAnswerChange={() => { }} // Read-only
                                                         showFeedback={true}
                                                     />
@@ -437,7 +435,8 @@ export default function AttemptAnalyticsPage() {
                                                     {log.event_type === 'tab_close' ? <MousePointerClick size={18} /> : <AlertTriangle size={18} />}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className="text-sm font-bold text-slate-800 uppercase tracking-tight">{log.event_type.replace('_', ' ')}</p>
+                                                    <p className="text-sm font-bold text-slate-800 tracking-tight">{securityViolationLabel(log.event_type)}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{log.event_type}</p>
                                                     <p className="text-xs font-medium text-slate-500 mt-0.5">
                                                         {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                                     </p>

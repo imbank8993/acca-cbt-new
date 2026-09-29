@@ -32,7 +32,18 @@ import { useCallback,useEffect,useRef,useState } from 'react';
 import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 
-const MAX_VIOLATIONS = 3;
+function resolveMaxViolations(exam: StudentExam | null): number | null {
+    if (exam?.metadata?.is_safe_mode === false) return null;
+    if (exam?.metadata && Object.prototype.hasOwnProperty.call(exam.metadata, 'max_violations')) {
+        const configured = exam.metadata.max_violations;
+        if (configured === null) return null;
+        if (typeof configured === 'number' && Number.isInteger(configured) && configured >= 1) {
+            return configured;
+        }
+    }
+    // Kompatibilitas ujian lama yang dibuat sebelum pengaturan ini tersedia.
+    return 3;
+}
 
 // Tipe yang jawabannya disimpan di kolom essay_answer (JSON/teks), bukan
 // selected_option_id. WAJIB sama dengan daftar di submitExamAction — dulu
@@ -67,6 +78,7 @@ export default function ExamPage() {
     // the real full_name + NISN (identity_number) live in cbt_profiles.
     const [profile, setProfile] = useState<StudentProfile | null>(null);
     const [exam, setExam] = useState<StudentExam | null>(null);
+    const maxViolations = resolveMaxViolations(exam);
     const [isCompleted, setIsCompleted] = useState(false);
     const [questions, setQuestions] = useState<StudentExamQuestion[]>([]);
     const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -403,6 +415,21 @@ export default function ExamPage() {
                     return;
                 }
 
+                const makeupActivatedAt = result.attempt.metadata?.makeup_activated_at;
+                if (typeof makeupActivatedAt === 'string') {
+                    const previousSession = await readExamRecoverySession(examId);
+                    if (previousSession?.attempt.metadata?.makeup_activated_at !== makeupActivatedAt) {
+                        await removeExamSnapshot(result.attempt.id);
+                        for (const event of await readSecurityEvents(result.attempt.id)) {
+                            await removeSecurityEvent(result.attempt.id, event.id);
+                        }
+                        failedSyncRef.current.clear();
+                        try {
+                            localStorage.removeItem(`exam_assignment_${result.attempt.id}`);
+                            localStorage.removeItem(`exam_lastseen_${result.attempt.id}`);
+                        } catch { /* Penyimpanan browser dapat dinonaktifkan. */ }
+                    }
+                }
                 setAttempt(result.attempt);
                 // Lanjutkan hitungan pelanggaran dari DB — kalau mulai dari 0
                 // lagi setiap reload, siswa dapat "jatah" 3 pelanggaran baru
@@ -813,12 +840,17 @@ export default function ExamPage() {
     }, [retryFailedAnswers, beaconPendingAnswers]);
 
     /** Kirim antrean satu per satu; hapus hanya sesudah server mengakuinya. */
-    const flushSecurityEvents = useCallback(async (): Promise<number | null> => {
+    const flushSecurityEvents = useCallback(async (): Promise<{
+        warningCount: number;
+        maxViolations: number | null;
+        terminated: boolean;
+    } | null> => {
         const att = attemptRef.current;
         if (!att?.id || offlineRecoveryRef.current || !navigator.onLine) return null;
         const events = await readSecurityEvents(att.id);
-        let serverCount: number | null = null;
-        for (const event of events) {
+        let latest: { warningCount: number; maxViolations: number | null; terminated: boolean } | null = null;
+        for (let index = 0; index < events.length; index++) {
+            const event = events[index];
             const result = await logSecurityViolation(
                 att.id,
                 event.eventType,
@@ -826,14 +858,30 @@ export default function ExamPage() {
                 event.id,
             );
             if (!result.success) break;
-            serverCount = result.warningCount;
+            latest = {
+                warningCount: result.warningCount,
+                maxViolations: result.maxViolations,
+                terminated: result.terminated,
+            };
             await removeSecurityEvent(att.id, event.id);
+            if (result.terminated) {
+                // Event setelah ambang tidak lagi relevan karena attempt sudah
+                // ditutup oleh server. Bersihkan agar antrean lokal tidak macet.
+                await Promise.all(events.slice(index + 1).map((queued) =>
+                    removeSecurityEvent(att.id, queued.id),
+                ));
+                break;
+            }
         }
-        if (serverCount !== null) {
-            violationCountRef.current = serverCount;
-            setViolationCount(serverCount);
+        if (latest) {
+            violationCountRef.current = latest.warningCount;
+            setViolationCount(latest.warningCount);
+            if (latest.terminated) {
+                await clearCbtSession();
+                window.location.reload();
+            }
         }
-        return serverCount;
+        return latest;
     }, []);
 
     const requireTermination = useCallback((reason: string) => {
@@ -849,19 +897,16 @@ export default function ExamPage() {
                 if (!await revalidateOfflineSession()) return;
                 setIsOffline(false);
                 if (!attemptRef.current?.id) return;
-                Promise.all([syncPendingAnswers(), flushSecurityEvents()]).then(([answersSynced, securityCount]) => {
-                    if (securityCount !== null && securityCount >= MAX_VIOLATIONS) {
-                        requireTermination(terminationReasonRef.current || 'Batas pelanggaran keamanan terlampaui');
-                        return;
-                    }
-                    if (terminationReasonRef.current) {
-                        void confirmPendingTermination(terminationReasonRef.current);
-                        return;
-                    }
-                    if (waitingForSyncAndSubmit && answersSynced) {
-                        handleSubmitExam(undefined, { isAuto: true });
-                    }
-                });
+                const answersSynced = await syncPendingAnswers();
+                const securityResult = await flushSecurityEvents();
+                if (securityResult?.terminated) return;
+                if (terminationReasonRef.current) {
+                    void confirmPendingTermination(terminationReasonRef.current);
+                    return;
+                }
+                if (waitingForSyncAndSubmit && answersSynced) {
+                    handleSubmitExam(undefined, { isAuto: true });
+                }
             })();
         };
         const handleOffline = () => setIsOffline(true);
@@ -871,7 +916,7 @@ export default function ExamPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [attempt, syncPendingAnswers, flushSecurityEvents, requireTermination, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
+    }, [attempt, syncPendingAnswers, flushSecurityEvents, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
 
     // `online` tidak selalu ditembakkan bila Wi-Fi tetap terhubung tetapi API
     // sempat mati. Paket recovery memeriksa ulang server secara berkala; setelah
@@ -883,7 +928,8 @@ export default function ExamPage() {
             if (!navigator.onLine) return;
             const valid = await revalidateOfflineSession();
             if (!active || !valid) return;
-            await Promise.all([syncPendingAnswers(), flushSecurityEvents()]);
+            await syncPendingAnswers();
+            await flushSecurityEvents();
         };
         void retry();
         const interval = setInterval(() => { void retry(); }, 15_000);
@@ -949,15 +995,23 @@ export default function ExamPage() {
                     setStorageWarning('Event keamanan gagal disimpan di perangkat. Hubungi proktor.');
                 }
 
-                const serverCount = await flushSecurityEvents();
-                const effectiveCount = serverCount ?? newCount;
-                if (effectiveCount >= MAX_VIOLATIONS) {
-                    requireTermination(`Exceeded ${MAX_VIOLATIONS} violations: ${type}`);
+                // Dahulukan jawaban bila event lokal ini diperkirakan mencapai
+                // ambang. Server tetap menjadi penentu akhir.
+                if (maxViolations !== null && newCount >= maxViolations) {
+                    await retryFailedAnswers();
+                    beaconPendingAnswers();
+                }
+                const securityResult = await flushSecurityEvents();
+                if (securityResult?.terminated) return;
+                const effectiveLimit = securityResult?.maxViolations ?? maxViolations;
+                const effectiveCount = securityResult?.warningCount ?? newCount;
+                if (effectiveLimit !== null && effectiveCount >= effectiveLimit) {
+                    requireTermination(`Batas ${effectiveLimit} pelanggaran tercapai: ${type}`);
                 }
             } catch (err) {
                 console.error('Security violation error:', err);
-                if (newCount >= MAX_VIOLATIONS) {
-                    requireTermination(`Exceeded ${MAX_VIOLATIONS} violations: ${type}`);
+                if (maxViolations !== null && newCount >= maxViolations) {
+                    requireTermination(`Batas ${maxViolations} pelanggaran tercapai: ${type}`);
                 }
             }
         };
@@ -1012,7 +1066,7 @@ export default function ExamPage() {
             document.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, examId, flushSecurityEvents, requireTermination]);
+    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers]);
 
     // Retry berkala untuk autosave yang gagal. Sebelumnya jawaban yang gagal
     // tersimpan hanya tersusul kalau kebetulan ada event 'online' — kegagalan
@@ -1047,17 +1101,15 @@ export default function ExamPage() {
             try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
             if (!navigator.onLine || offlineRecoveryRef.current) return;
             await heartbeatExamAttempt(attempt.id).catch(() => undefined);
-            const securityCount = await flushSecurityEvents().catch(() => null);
-            if (securityCount !== null && securityCount >= MAX_VIOLATIONS) {
-                requireTermination(terminationReasonRef.current || 'Batas pelanggaran keamanan terlampaui');
-            } else if (terminationReasonRef.current) {
+            const securityResult = await flushSecurityEvents().catch(() => null);
+            if (!securityResult?.terminated && terminationReasonRef.current) {
                 void confirmPendingTermination(terminationReasonRef.current);
             }
         };
         void pulse();
         const iv = setInterval(() => { void pulse(); }, 15000);
         return () => clearInterval(iv);
-    }, [attempt, isCompleted, accessDenied, flushSecurityEvents, requireTermination, confirmPendingTermination]);
+    }, [attempt, isCompleted, accessDenied, flushSecurityEvents, confirmPendingTermination]);
 
     // ── Timer ─────────────────────────────────────────────────
     useEffect(() => {
@@ -1228,7 +1280,8 @@ export default function ExamPage() {
     }
 
     if (accessDenied) {
-        // Handle case where exam is already finished or no access
+        // Keadaan ini juga mencakup gangguan server/jaringan dan soal kosong,
+        // jadi judulnya tidak boleh selalu menyimpulkan masalah izin.
         const isAlreadyFinished = accessError.toLowerCase().includes('sudah menyelesaikan');
         
         return (
@@ -1242,7 +1295,7 @@ export default function ExamPage() {
                         )}
                     </div>
                     <h1 className="text-xl font-bold text-slate-800 mb-2">
-                        {isAlreadyFinished ? 'Ujian Telah Selesai' : 'Akses Ditolak'}
+                        {isAlreadyFinished ? 'Ujian Telah Selesai' : 'Ujian Belum Dapat Dibuka'}
                     </h1>
                     <p className="text-slate-500 mb-6 text-sm">
                         {isAlreadyFinished 
@@ -1373,7 +1426,7 @@ export default function ExamPage() {
             timeLeft={timeLeft}
             isSafeMode={safeMode}
             violationCount={violationCount}
-            maxViolations={MAX_VIOLATIONS}
+            maxViolations={maxViolations}
             showViolationModal={showViolationModal}
             violationType={violationType}
             onCloseViolationModal={() => setShowViolationModal(false)}

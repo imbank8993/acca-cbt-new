@@ -509,7 +509,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     const result = await toggleQuestionBankPublishAction(bankId, !bankInfo?.is_published);
                                     if (result.success) await loadData();
                                 }}
-                                className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                                className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
                             >
                                 <span className="truncate">{bankInfo?.is_published ? 'Unpublish' : 'Publish'}</span>
                             </button>

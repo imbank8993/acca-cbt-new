@@ -1,7 +1,7 @@
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
 import type { AnswerValue,Question } from '@/app/types';
-import type { QuestionRecord } from './questions';
+import type { QuestionOptionRecord, QuestionRecord } from './questions';
 
 /**
  * Dasbor staf sekolah. Menggantikan `app/actions/proktor.ts`.
@@ -101,7 +101,9 @@ export interface OrganizationExam {
     end_time?: string | null;
     created_at?: string;
     subject_id?: string | null;
+    subject?: string | null;
     question_bank_id?: string | null;
+    question_bank_title?: string | null;
     randomize_questions?: boolean;
     randomize_options?: boolean;
     show_results?: boolean;
@@ -114,6 +116,7 @@ export interface OrganizationExam {
         document_url?: string;
         is_public?: boolean;
         is_safe_mode?: boolean;
+        max_violations?: number | null;
         require_bank?: boolean;
         video_url?: string;
         [key: string]: unknown;
@@ -135,6 +138,10 @@ export interface ExamAttemptRecord {
     violation_breakdown?: {
         pindah_tab: number;
         close_tab: number;
+        keluar_fullscreen?: number;
+        shortcut_terlarang?: number;
+        salin_tempel?: number;
+        klik_kanan?: number;
         lainnya: number;
     } | null;
     detailed_scores?: {
@@ -397,6 +404,7 @@ export interface ExamInput {
     randomizeOptions?: boolean;
     showResults?: boolean;
     isSafeMode?: boolean;
+    maxViolations?: number | null;
     scoringType?: string;
     isPublic?: boolean;
     documentUrl?: string;
@@ -470,9 +478,11 @@ export interface ViolationEvent {
     attemptId: string;
     studentName: string;
     violationType: string;
+    violationLabel: string;
     violationCount: number;
     timestamp: string;
     duration?: string;
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -492,13 +502,125 @@ export async function getRecentViolationsAction(
     return res.success ? res.violations : [];
 }
 
+export interface StudentAnswerSummary {
+    attempt_id: string;
+    student_name: string;
+    class_name?: string;
+    student_nis?: string;
+    identity_number?: string;
+    score: number;
+    display_answer: string;
+    submitted_answer?: string;
+    is_correct: boolean | null;
+}
+
+export interface DistractorOptionStat {
+    option_id: string;
+    option_letter: string;
+    option_label?: string;
+    option_text: string;
+    is_correct: boolean;
+    count: number;
+    percentage: number;
+    student_names: string[];
+    selected_by?: Array<{ student_name: string; class_name?: string }>;
+}
+
+export interface DetailedItemResult {
+    id: string;
+    number: number;
+    question_text: string;
+    type: string;
+    score_default: number;
+    key_display: string;
+    options: QuestionOptionRecord[];
+    total_participants: number;
+    total_answered: number;
+    total_correct: number;
+    total_incorrect: number;
+    total_ungraded: number;
+    total_unanswered: number;
+    incorrect_percentage: number;
+    difficulty_index: number;
+    difficulty_label: string;
+    discrimination_index: number;
+    discrimination_label: string;
+    correct_students: StudentAnswerSummary[];
+    wrong_students: StudentAnswerSummary[];
+    ungraded_students: StudentAnswerSummary[];
+    unanswered_students: StudentAnswerSummary[];
+    distractor_distribution: DistractorOptionStat[];
+}
+
+export interface StudentItemCell {
+    score: number;
+    is_correct: boolean | null;
+    display_answer: string;
+    status: 'correct' | 'wrong' | 'ungraded' | 'unanswered';
+}
+
+export interface StudentItemMatrixRow {
+    attempt_id: string;
+    student_name: string;
+    student_nis?: string;
+    class_name?: string;
+    status: string;
+    total_score: number;
+    total_correct: number;
+    total_wrong: number;
+    total_unanswered: number;
+    items: Record<string, StudentItemCell>;
+}
+
+export interface DetailedItemAnalysisResponse {
+    exam_id: string;
+    total_questions: number;
+    total_participants: number;
+    items: DetailedItemResult[];
+    matrix: StudentItemMatrixRow[];
+}
+
+export interface ItemAnalysis {
+    id: string;
+    number?: number;
+    qText: string;
+    type: string;
+    options: QuestionOptionRecord[];
+    total: number;
+    correct: number;
+    incorrect: number;
+    ungraded: number;
+    unanswered?: number;
+    keyDisplay?: string;
+    difficultyIndex?: number;
+    difficultyLabel?: string;
+    discriminationIndex?: number;
+    discriminationLabel?: string;
+    wrongStudents: StudentAnswerSummary[];
+    correctStudents: StudentAnswerSummary[];
+    ungradedStudents?: StudentAnswerSummary[];
+    unansweredStudents?: StudentAnswerSummary[];
+    distractorDistribution?: DistractorOptionStat[];
+    incorrectPercentage: number;
+}
+
 export async function getExamAnswersForAnalysisAction(
     examId: string,
-): Promise<{ questions: QuestionRecord[]; answers: ExamAnswerRecord[] }> {
-    const res = await apiGet<{ questions: QuestionRecord[]; answers: ExamAnswerRecord[] }>(
+): Promise<{
+    questions: QuestionRecord[];
+    answers: ExamAnswerRecord[];
+    detailed: DetailedItemAnalysisResponse | null;
+}> {
+    const res = await apiGet<{
+        questions: QuestionRecord[];
+        answers: ExamAnswerRecord[];
+        detailed?: DetailedItemAnalysisResponse | null;
+    }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis`,
     );
-    return res.success ? { questions: res.questions, answers: res.answers } : { questions: [], answers: [] };
+    return res.success
+        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null }
+        : { questions: [], answers: [], detailed: null };
 }
 
 export async function getAttemptFullDetailsAction(attemptId: string): Promise<AttemptFullDetails | null> {

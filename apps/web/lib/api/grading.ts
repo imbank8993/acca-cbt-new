@@ -7,7 +7,7 @@ import { apiSend } from './client';
  * otorisasinya diturunkan dari ujiannya sendiri di NestJS.
  */
 export function calculateExamIRT(examId: string) {
-    return apiSend<{ count: number }>(
+    return apiSend<{ count: number; warnings: string[] }>(
         `/api/grading/irt/${encodeURIComponent(examId)}`,
         undefined,
     );

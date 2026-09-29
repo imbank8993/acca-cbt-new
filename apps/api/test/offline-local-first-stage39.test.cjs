@@ -42,7 +42,8 @@ test('OFFLINE-03: sinkronisasi membaca snapshot setelah antrean tulis selesai', 
 });
 
 test('OFFLINE-04: auto-submit menunggu konfirmasi sinkronisasi jawaban', () => {
-    assert.match(examPage, /\[answersSynced, securityCount\]/);
+    assert.match(examPage, /const answersSynced = await syncPendingAnswers\(\)/);
+    assert.ok(examPage.indexOf('const answersSynced = await syncPendingAnswers()') < examPage.indexOf('const securityResult = await flushSecurityEvents()'));
     assert.match(examPage, /waitingForSyncAndSubmit && answersSynced/);
     assert.match(examPage, /const syncPendingAnswers = useCallback\(async \(\): Promise<boolean>/);
 });

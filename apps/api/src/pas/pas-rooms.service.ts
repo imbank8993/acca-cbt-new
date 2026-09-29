@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { insertIdempotently } from '../common/idempotent-create';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
@@ -82,10 +83,7 @@ export class PasRoomsService {
         const uniqueUserIds = [...new Set(userIds)];
 
         return this.db.transaction(async (db) => {
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-room-invigilators:${roomId}`,
-            );
+            await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}`);
 
             const { data: room } = await db
                 .from('cbt_pas_rooms')
@@ -143,10 +141,7 @@ export class PasRoomsService {
         return this.db.transaction(async (db) => {
             // Semua pemindahan siswa dalam satu periode berbagi lock agar dua
             // admin tidak sama-sama melihat sisa kapasitas yang sama.
-            await db.raw(
-                'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-                `pas-room-students:${periodId}`,
-            );
+            await advisoryTransactionLock(db, `pas-room-students:${periodId}`);
 
             const [{ data: period }, { data: room }] = await Promise.all([
                 db.from('cbt_pas_periods').select('organization_id').eq('id', periodId).maybeSingle(),

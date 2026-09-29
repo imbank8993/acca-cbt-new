@@ -214,7 +214,9 @@ interface ParsedQuestionMetadata {
     dimension?: string;
     isComplex?: boolean;
     correct_order?: string[];
-    blanks?: { id: string; answer: string; variations: string[] }[];
+    // Arsip Excel lama tidak selalu memiliki ID blank; ID baru dibuat ketika
+    // pertanyaan disimpan ke bank soal.
+    blanks?: { id?: string; answer: string; variations: string[] }[];
     right_items?: string[];
     categories?: string[];
     [key: string]: unknown;

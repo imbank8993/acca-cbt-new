@@ -12,10 +12,21 @@ import { ScoringClient } from '../scoring/scoring.client';
 const ID_BATCH = 300;
 
 /** Peristiwa administratif — bukan pelanggaran, tidak ikut dihitung. */
-const NON_VIOLATION_EVENTS = ['RESET_BY_PROCTOR', 'FORCE_TERMINATED'];
+const NON_VIOLATION_EVENTS = ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED', 'FORCE_TERMINATED'];
 
 /** Peristiwa yang dianggap "pindah tab" pada rincian pelanggaran. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
+
+const VIOLATION_LABELS: Record<string, string> = {
+    tab_switch: 'Berpindah tab atau aplikasi',
+    window_blur: 'Jendela ujian kehilangan fokus',
+    blur: 'Jendela ujian kehilangan fokus',
+    exit_fullscreen: 'Keluar dari layar penuh',
+    restricted_shortcut: 'Menekan pintasan keyboard terlarang',
+    copy_paste_attempt: 'Mencoba menyalin atau menempel',
+    right_click_attempt: 'Mencoba membuka menu klik kanan',
+    tab_close: 'Menutup atau meninggalkan tab ujian',
+};
 
 /**
  * Toleransi sebelum pengerjaan yang lewat tenggat ditutup otomatis.
@@ -228,7 +239,6 @@ export class ExamMonitoringService {
             .eq('status', 'in_progress');
 
         const open = (openRows as any[]) || [];
-        if (open.length === 0) return;
 
         const exam = examRow as { end_time: string | null; duration_minutes: number | null } | null;
         const windowClose = exam?.end_time ? new Date(exam.end_time).getTime() : null;
@@ -278,6 +288,7 @@ export class ExamMonitoringService {
                         .eq('id', attempt.id)
                         // Reset dapat terjadi ketika grading masih berjalan.
                         .eq('status', 'auto_submitted');
+                    await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
                 }
             } catch (err) {
                 this.logger.error(
@@ -285,6 +296,11 @@ export class ExamMonitoringService {
                 );
             }
         }
+
+        // Status auto_submitted + nilai null adalah antrean durable. Jalur ini
+        // tetap berjalan walau tidak ada attempt aktif, sehingga kegagalan Python
+        // pada polling sebelumnya dapat pulih saat layanan kembali sehat.
+        await this.grading.retryPendingAutoSubmissions(examId);
     }
 
     /**
@@ -336,8 +352,10 @@ export class ExamMonitoringService {
                 attemptId: log.attempt_id,
                 studentName: profile?.full_name || 'Tanpa nama',
                 violationType: log.event_type,
+                violationLabel: VIOLATION_LABELS[log.event_type] || 'Pelanggaran lain',
                 violationCount: attempt?.warning_count ?? 0,
                 timestamp: log.created_at,
+                metadata: log.metadata || {},
                 duration:
                     typeof seconds === 'number'
                         ? seconds >= 60
@@ -374,7 +392,7 @@ export class ExamMonitoringService {
              bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
             bankId,
         );
-        if (sorted.length === 0) return { questions: [], answers: [] };
+        if (sorted.length === 0) return { questions: [], answers: [], detailed: null };
 
         const questionById = new Map(sorted.map((q) => [q.id, q]));
 
@@ -383,35 +401,73 @@ export class ExamMonitoringService {
             number: index + 1,
             question_text: question.question_text,
             type: question.type,
+            score_default: Number(question.score_default || 1),
             options: [...(question.bank_question_options || [])]
                 .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
                 .map((option: any) => ({
                     id: option.id,
                     option_text: option.option_text,
                     is_correct: option.is_correct === true,
+                    order: option.order || 0,
                 })),
         }));
 
         const { data: attemptRows } = await this.db
             .from('cbt_exam_attempts')
-            .select('id')
+            .select('id, user_id, status, total_score, profiles:cbt_profiles(full_name, identity_number)')
             .eq('exam_id', examId);
 
-        const attemptIds = ((attemptRows as Array<{ id: string }>) || []).map((a) => a.id);
-        if (attemptIds.length === 0) return { questions, answers: [] };
+        const attemptList = (attemptRows as any[]) || [];
+        const attemptIds = attemptList.map((a) => a.id);
+        if (attemptIds.length === 0) return { questions, answers: [], detailed: null };
+
+        const assigned = await this.loadAssignedStudents(examId);
+
+        const participants = attemptList.map((att) => {
+            const profile = Array.isArray(att.profiles) ? att.profiles[0] : att.profiles;
+            const className = assigned.classByUser.get(att.user_id) || '-';
+            return {
+                attempt_id: att.id,
+                user_id: att.user_id,
+                student_name: profile?.full_name || 'Tanpa Nama',
+                student_nis: profile?.identity_number || '-',
+                class_name: className,
+                status: att.status || 'submitted',
+                total_score: att.total_score != null ? Number(att.total_score) : null,
+            };
+        });
 
         const raw: any[] = [];
         for (const ids of chunk(attemptIds, ID_BATCH)) {
             const { data } = await this.db
                 .from('cbt_answers')
-                .select('attempt_id, question_id, is_correct, selected_option_id, essay_answer')
+                .select('attempt_id, question_id, is_correct, selected_option_id, essay_answer, score')
                 .in('attempt_id', ids);
 
             raw.push(...((data as any[]) || []));
         }
 
         const answers = await this.resolveCorrectness(raw, questionById);
-        return { questions, answers };
+
+        let detailed: any = null;
+        try {
+            detailed = await this.scoring.post(
+                '/analytics/item-analysis-detailed',
+                {
+                    exam_id: examId,
+                    questions,
+                    participants,
+                    answers,
+                },
+                { timeoutMs: 30_000 },
+            );
+        } catch (err) {
+            this.logger.error(
+                `Gagal memanggil Python detailed analysis: ${(err as Error).message}`,
+            );
+        }
+
+        return { questions, answers, detailed };
     }
 
     /**
@@ -424,11 +480,23 @@ export class ExamMonitoringService {
     private async resolveCorrectness(
         rows: any[],
         questionById: Map<string, any>,
-    ): Promise<Array<{ attempt_id: string; question_id: string; is_correct: boolean | null }>> {
+    ): Promise<
+        Array<{
+            attempt_id: string;
+            question_id: string;
+            is_correct: boolean | null;
+            score?: number | null;
+            selected_option_id?: string | null;
+            essay_answer?: any;
+        }>
+    > {
         const settled: Array<{
             attempt_id: string;
             question_id: string;
             is_correct: boolean | null;
+            score?: number | null;
+            selected_option_id?: string | null;
+            essay_answer?: any;
         }> = [];
 
         const pending: Array<{ row: any; key: string }> = [];
@@ -442,13 +510,26 @@ export class ExamMonitoringService {
                     attempt_id: row.attempt_id,
                     question_id: row.question_id,
                     is_correct: row.is_correct,
+                    score: row.score != null ? Number(row.score) : null,
+                    selected_option_id: row.selected_option_id ?? null,
+                    essay_answer: row.essay_answer ?? null,
                 });
                 continue;
             }
 
             // Baris tanpa isi jawaban sama sekali — mis. hanya ditandai ragu —
             // bukan "menjawab", jadi ia tidak ikut dihitung.
-            if (!rawAnswer) continue;
+            if (!rawAnswer) {
+                settled.push({
+                    attempt_id: row.attempt_id,
+                    question_id: row.question_id,
+                    is_correct: false,
+                    score: 0,
+                    selected_option_id: row.selected_option_id ?? null,
+                    essay_answer: row.essay_answer ?? null,
+                });
+                continue;
+            }
 
             const question = questionById.get(row.question_id);
             if (!question) continue;
@@ -462,16 +543,24 @@ export class ExamMonitoringService {
 
         try {
             const result = await this.scoring.post<{
-                items: Array<{ answer_id: string | null; is_correct: boolean | null }>;
+                items: Array<{
+                    answer_id: string | null;
+                    is_correct: boolean | null;
+                    score?: number | null;
+                }>;
             }>('/grading/attempt', { items });
 
-            const byKey = new Map(result.items.map((item) => [item.answer_id, item.is_correct]));
+            const byKey = new Map(result.items.map((item) => [item.answer_id, item]));
 
             for (const { row, key } of pending) {
+                const graded = byKey.get(key);
                 settled.push({
                     attempt_id: row.attempt_id,
                     question_id: row.question_id,
-                    is_correct: byKey.get(key) ?? null,
+                    is_correct: graded?.is_correct ?? null,
+                    score: graded?.score != null ? Number(graded.score) : null,
+                    selected_option_id: row.selected_option_id ?? null,
+                    essay_answer: row.essay_answer ?? null,
                 });
             }
         } catch (err) {
@@ -480,6 +569,16 @@ export class ExamMonitoringService {
             this.logger.error(
                 `Penilaian jawaban berjalan gagal, analisis memakai data tersimpan saja: ${(err as Error).message}`,
             );
+            for (const { row } of pending) {
+                settled.push({
+                    attempt_id: row.attempt_id,
+                    question_id: row.question_id,
+                    is_correct: null,
+                    score: null,
+                    selected_option_id: row.selected_option_id ?? null,
+                    essay_answer: row.essay_answer ?? null,
+                });
+            }
         }
 
         return settled;
@@ -700,21 +799,40 @@ export class ExamMonitoringService {
         score: number,
         feedback: string,
     ) {
+        if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 100) {
+            throw new BadRequestException('Nilai tugas harus berada antara 0 dan 100.');
+        }
         const { data } = await this.db
             .from('cbt_exam_attempts')
-            .select('exam_id, metadata')
+            .select('exam_id, metadata, status')
             .eq('id', attemptId)
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Pengerjaan tidak ditemukan.');
 
-        const attempt = data as { exam_id: string; metadata: Record<string, any> | null };
+        const attempt = data as {
+            exam_id: string;
+            metadata: Record<string, any> | null;
+            status: string;
+        };
 
         // Otorisasi lewat ujian induknya: Guru hanya boleh menilai tugas dari
         // ujian buatannya sendiri.
         await this.authz.assertExamStaff(user, attempt.exam_id);
 
-        const { error } = await this.db
+        const { data: exam } = await this.db
+            .from('cbt_exams')
+            .select('exam_type')
+            .eq('id', attempt.exam_id)
+            .maybeSingle();
+        if ((exam as { exam_type?: string } | null)?.exam_type !== 'assignment') {
+            throw new BadRequestException('Pengerjaan ini bukan tugas.');
+        }
+        if (!['submitted', 'auto_submitted'].includes(attempt.status)) {
+            throw new BadRequestException('Tugas belum dikumpulkan.');
+        }
+
+        const { data: updated, error } = await this.db
             .from('cbt_exam_attempts')
             .update({
                 total_score: score,
@@ -726,9 +844,12 @@ export class ExamMonitoringService {
                     graded_at: new Date().toISOString(),
                 },
             })
-            .eq('id', attemptId);
+            .eq('id', attemptId)
+            .in('status', ['submitted', 'auto_submitted'])
+            .select('id')
+            .maybeSingle();
 
-        if (error) throw new BadRequestException(error.message);
+        if (error || !updated) throw new BadRequestException('Nilai tugas gagal disimpan. Coba lagi.');
 
         return { attemptId, score };
     }
@@ -752,12 +873,20 @@ function appendClassName(target: Map<string, string>, row: any): void {
  */
 function summariseViolations(logs: Array<{ event_type: string; created_at: string }>) {
     const lastReset = logs
-        .filter((log) => log.event_type === 'RESET_BY_PROCTOR')
+        .filter((log) => ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'].includes(log.event_type))
         .map((log) => log.created_at)
         .sort()
         .pop();
 
-    const breakdown = { pindah_tab: 0, close_tab: 0, lainnya: 0 };
+    const breakdown = {
+        pindah_tab: 0,
+        close_tab: 0,
+        keluar_fullscreen: 0,
+        shortcut_terlarang: 0,
+        salin_tempel: 0,
+        klik_kanan: 0,
+        lainnya: 0,
+    };
 
     for (const log of logs) {
         if (NON_VIOLATION_EVENTS.includes(log.event_type)) continue;
@@ -765,6 +894,10 @@ function summariseViolations(logs: Array<{ event_type: string; created_at: strin
 
         if (TAB_SWITCH_EVENTS.includes(log.event_type)) breakdown.pindah_tab++;
         else if (log.event_type === 'tab_close') breakdown.close_tab++;
+        else if (log.event_type === 'exit_fullscreen') breakdown.keluar_fullscreen++;
+        else if (log.event_type === 'restricted_shortcut') breakdown.shortcut_terlarang++;
+        else if (log.event_type === 'copy_paste_attempt') breakdown.salin_tempel++;
+        else if (log.event_type === 'right_click_attempt') breakdown.klik_kanan++;
         else breakdown.lainnya++;
     }
 

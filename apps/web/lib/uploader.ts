@@ -11,6 +11,13 @@ import { getErrorMessage } from '@/lib/errors';
 
 const STORAGE_ENDPOINT = '/api/storage/upload';
 
+interface UploadResponse {
+    success?: boolean;
+    url?: string;
+    error?: string;
+    provider?: string;
+}
+
 /**
  * Upload file ke storage provider yang aktif.
  *
@@ -37,9 +44,9 @@ export async function uploadToHosting(
         // Body bisa bukan JSON (mis. 413 dari reverse-proxy/platform hosting
         // saat file melebihi batas request). Tanpa penanganan ini, resp.json()
         // melempar dan pesan yang sampai ke pengguna tidak informatif.
-        let result: any = null;
+        let result: UploadResponse | null = null;
         try {
-            result = await resp.json();
+            result = await resp.json() as UploadResponse;
         } catch {
             if (resp.status === 413) {
                 return { success: false, error: 'File terlalu besar untuk diunggah. Coba kompres atau gunakan file yang lebih kecil.' };

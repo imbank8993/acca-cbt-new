@@ -1,6 +1,6 @@
 # Catatan perbaikan audit ACCA CBT
 
-Dimulai 19 September 2026; diperbarui 28 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
+Dimulai 19 September 2026; diperbarui 29 September 2026. Acuan: [audit awal](AUDIT_LENGKAP_2026-09-19.md), baseline Git `a8861683c7612920a511859f1d1f009ec4d49f17`.
 
 ## Status pekerjaan
 
@@ -787,6 +787,66 @@ Daftar PAS Admin dan Proktor memakai kontrak pengguna, organisasi, periode, sert
 
 Bottom navigation, Sidebar, dan layout kini menjadwalkan sinkronisasi state dengan cleanup serta memakai callback subscription yang stabil. Pratinjau editor matematika dan dialog persamaan dihitung sebagai nilai turunan, fungsi sisip kursor stabil, dan MathLive memakai tipe elemennya. Pie chart menghitung irisan sebelum render tanpa mutasi variabel. Dashboard serta monitoring Pengawas memakai lifecycle pemuatan yang dapat dibatalkan dan kontrak ujian serta attempt. Seluruh temuan hook frontend sudah nol, TypeScript lulus, dan 12 regresi UI serta konteks peran lulus. Pemindaian penuh turun 18 masalah menjadi 41 error/0 warning; seluruh sisanya adalah `no-explicit-any`. **Lokasi:** [bottom navigation](../apps/web/app/components/BottomNav.tsx), [Sidebar](../apps/web/app/components/Sidebar.tsx), [editor matematika](../apps/web/app/components/questions/MathEditor.tsx), [grafik](../apps/web/app/components/ui/Charts.tsx), [monitoring Pengawas](../apps/web/app/dashboard/pengawas/monitoring/page.tsx), dan [dokumentasi tahap 64](perbaikan-2026-09-19/TAHAP-64-HOOK-NAVIGASI-EDITOR-DAN-PENGAWAS.md).
 
+## Tahap 65 — Lint nol dan kontrak tipe akhir
+
+### LINT-151–162: PAS, editor, formulir soal, parser, backup, impor, cache, dan uploader
+
+Jadwal massal PAS, layout ujian mobile, TipTap/MathLive, renderer matematika, formulir soal, dimensi, dan navigasi mobile sekarang memakai kontrak domain atau platform yang eksplisit. Parser Excel serta DOCX membedakan metadata impor dari data tersimpan, menjaga nomor sumber dan kompatibilitas blank lama tanpa memalsukan ID. Route backup dan bulk import memperlakukan JSON serta struktur ZIP sebagai data tidak tepercaya, sementara cache memori dan uploader memakai `unknown` serta kontrak respons. Pemindaian penuh mencapai 0 error/0 warning; seluruh 1.804 masalah baseline telah diselesaikan. TypeScript, build produksi 92 halaman, 30 regresi terpilih, 44 round-trip soal, dan 13 pemeriksaan layanan lulus. **Lokasi:** [jadwal massal PAS](../apps/web/app/components/pas/BulkScheduleGrid.tsx), [parser Excel](../apps/web/lib/excel-parser.ts), [formulir soal](../apps/web/app/components/questions/forms/QuestionForms.tsx), [export backup](../apps/web/app/api/backup/export/route.ts), dan [dokumentasi tahap 65](perbaikan-2026-09-19/TAHAP-65-LINT-NOL-DAN-KONTRAK-TIPE-AKHIR.md).
+
+## Tahap 66 — Sinkronisasi profil dan anggota kelas
+
+### DB-CLASS-01: profil immutable, kegagalan berantai, dan request bersamaan
+
+Sinkronisasi kelas tidak lagi meng-upsert nama serta nomor identitas seluruh siswa. Profil lama dipertahankan, hanya profil yang belum ada yang dibuat, dan kegagalan pembuatan profil menghentikan penyimpanan anggota agar foreign key tidak gagal sesudahnya. Pembuatan profil serta anggota memakai konflik idempoten; constraint database aktif mengonfirmasi primary key profil, kedua foreign key anggota, dan unique key `(class_id, user_id)`. Pemulihan database aktif membuat 59 profil dan 81 keanggotaan yang sebelumnya tertahan; audit ulang 602 pasangan aktif menghasilkan 0 profil dan 0 keanggotaan hilang. Sebanyak 19 pemeriksaan terkait, TypeScript backend, serta build NestJS lulus dan tahap ini tidak memerlukan migrasi SQL. **Lokasi:** [layanan kelas](../apps/api/src/proctor/classes.service.ts), [regresi tahap 66](../apps/api/test/class-profile-sync-stage66.test.cjs), dan [dokumentasi tahap 66](perbaikan-2026-09-19/TAHAP-66-SINKRONISASI-PROFIL-DAN-ANGGOTA-KELAS.md).
+
+## Tahap 67 — Penugasan ujian ke siswa tertentu
+
+### DB-ASSIGN-02: parameter UUID pada query pengunci transaksi
+
+Penugasan individual sebelumnya mengirim ID ujian sebagai array ke placeholder UUID scalar pada query `FOR UPDATE`. Prisma melempar galat mentah sebelum validasi peserta, lalu filter keamanan menampilkannya sebagai pesan server umum. ID sekarang diteruskan sebagai nilai scalar; lock dan penggantian target tetap atomik. Regresi juga memeriksa bentuk parameter agar kesalahan ini tidak kembali. Sepuluh regresi penugasan/pemulihan, TypeScript backend, query Prisma terhadap PostgreSQL aktif, serta build backend lulus. Tidak ada migrasi atau pemulihan data yang diperlukan. **Lokasi:** [layanan administrasi ujian](../apps/api/src/proctor/exam-admin.service.ts), [regresi penugasan](../apps/api/test/exam-assignment-stage33.test.cjs), dan [dokumentasi tahap 67](perbaikan-2026-09-19/TAHAP-67-PENUGASAN-UJIAN-KE-SISWA-TERTENTU.md).
+
+## Tahap 68 — Akses mulai ujian dan advisory lock
+
+### DB-ATTEMPT-03: hasil void PostgreSQL tidak dapat dibaca Prisma
+
+Audit ujian aktif membuktikan peserta individual, sekolah, kelas, publikasi, waktu, profil, serta 15 soal sudah valid dan kebijakan akses menghasilkan `true`. Kegagalan terjadi setelah itu: `pg_advisory_xact_lock` mengembalikan tipe `void` yang tidak dapat dideserialisasi Prisma, sehingga attempt tidak pernah dibuat dan layar menampilkan judul umum “Akses Ditolak”. Helper bersama kini meng-cast hasil lock ke `text`; seluruh 16 pemakaian lock transaksi memakai helper tersebut. Simulasi produksi dalam transaksi rollback membuktikan lock dan insert attempt berhasil tanpa menyimpan sesi diagnostik. Judul kegagalan UI juga dibuat netral agar gangguan teknis tidak disimpulkan sebagai masalah izin. Tiga regresi helper/UI dan 62 regresi jalur terkait (65 total), TypeScript, serta build backend lulus. **Lokasi:** [helper lock transaksi](../apps/api/src/common/transaction-lock.ts), [jalur mulai ujian](../apps/api/src/students/exam-attempts.service.ts), [layar ujian](../apps/web/app/components/questions/ExamPage.tsx), [regresi tahap 68](../apps/api/test/transaction-lock-stage68.test.cjs), dan [dokumentasi tahap 68](perbaikan-2026-09-19/TAHAP-68-AKSES-MULAI-UJIAN-DAN-ADVISORY-LOCK.md).
+
+## Tahap 69 — Penilaian, IRT, dan layanan Python
+
+### SCORE-IRT-01–02 dan OPS-SCORE-01–02: matriks lengkap, bobot, health, dan proses stabil
+
+Mesin nilai utama, koreksi esai, auto-submit, keamanan API, skor relatif, serta IRT diaudit. IRT kini menerima seluruh soal untuk setiap peserta sehingga soal yang dilewati tetap dihitung sebagai respons kosong. Pembanding klasikal di hasil IRT memakai poin dan bobot sebenarnya; skor IRT tetap memakai model 1PL/2PL/3PL dan tetap berbeda dari klasikal. Health API kini ikut memeriksa FastAPI, sedangkan `dev:scoring` memakai proses stabil tanpa reload multiproses secara default di Windows. Audit baca-saja atas 346 attempt menemukan semua nilai total terisi dan berada pada 0–100; 279 attempt pada sembilan ujian cocok dengan mesin saat ini. Sebanyak 67 attempt `Pretest Matematika XI Wajib` tidak diubah karena regrade terhadap bank/kunci saat ini dapat mengubah nilai historis sampai 10,43 poin. Sebanyak 101 tes Python, enam regresi backend, build NestJS, dan uji HTTP lulus. **Lokasi:** [layanan IRT Python](../apps/scoring/app/services/irt.py), [orkestrasi penilaian](../apps/api/src/grading/grading.service.ts), [health API](../apps/api/src/health/health.controller.ts), [audit baca-saja](../tools/audit-scoring-consistency.js), dan [dokumentasi tahap 69](perbaikan-2026-09-19/TAHAP-69-PENILAIAN-IRT-DAN-LAYANAN-PYTHON.md).
+
+## Tahap 70 — Konsistensi nilai esai, kuis, dan tugas
+
+### SCORE-QUIZ-01–02, SCORE-ESSAY-01, SCORE-ASSIGN-01
+
+Kuis relatif sekarang mencakup `auto_submitted`, menyimpan nilai dasar agar penalti tidak menumpuk, dan memberi penalti sama kepada peserta dengan skor serta durasi sama. Semua hasil relatif ditulis atomik. Koreksi beberapa esai beserta total attempt kini berada dalam satu transaksi dan dikunci agar dua penilai tidak memakai data usang. Nilai tugas divalidasi kembali pada lapisan service, hanya berlaku untuk ujian `assignment` yang sudah dikumpulkan, dan harus benar-benar tersimpan sebelum dilaporkan sukses. Database aktif belum mempunyai attempt kuis selesai atau nilai tugas manual, sehingga tidak diperlukan pemulihan. Sebanyak 102 tes Python, 44 regresi backend terpilih, dan build NestJS lulus. Risiko desain yang tersisa adalah perubahan bank/kunci setelah ujian; snapshot versi soal menjadi tahap lanjutan. **Lokasi:** [mesin skor relatif](../apps/scoring/app/services/grading.py), [orkestrasi skor](../apps/api/src/grading/grading.service.ts), [koreksi esai](../apps/api/src/teachers/teachers.service.ts), [nilai tugas](../apps/api/src/proctor/exam-monitoring.service.ts), dan [dokumentasi tahap 70](perbaikan-2026-09-19/TAHAP-70-KONSISTENSI-NILAI-ESAI-KUIS-DAN-TUGAS.md).
+
+## Tahap 71 — Snapshot kunci dan pemulihan nilai auto-submit
+
+### SCORE-SNAPSHOT-01 dan SCORE-RETRY-01
+
+Paket soal lengkap kini dibekukan per ujian saat pertama dibuka: teks, tipe, bobot, opsi, kunci, metadata, stimulus, dan instruksi. Siswa, submit, auto-submit, review, regrade, serta IRT membaca snapshot yang sama sehingga edit bank berikutnya tidak mengubah nilai ujian. Ujian legacy tanpa snapshot tetap dapat dibaca, tetapi regrade/IRT ditolak agar keadaan bank sekarang tidak disamarkan sebagai kunci historis. Snapshot masuk backup versi 3.0, restore, dan purge ujian uji coba. Auto-submit bernilai kosong kini menjadi antrean durable yang dipulihkan dari jawaban tersimpan saat monitoring berikutnya; kegagalan dicatat dan tetap dapat dicoba ulang. Migrasi permanen telah dijalankan idempoten; tabel dan indeks aktif, dengan 0 snapshot awal dan 0 nilai tertunda. Regresi snapshot/retry, mulai ujian, grading, backup, restore, penghapusan, build NestJS, dan 102 tes Python lulus. **Lokasi:** [helper snapshot](../apps/api/src/common/exam-question-snapshots.ts), [migrasi](../database/migrations/20260929_01_exam_question_snapshots_and_grading_queue.sql), [pemulihan nilai](../apps/api/src/grading/grading.service.ts), [regresi tahap 71](../apps/api/test/scoring-snapshot-retry-stage71.test.cjs), dan [dokumentasi tahap 71](perbaikan-2026-09-19/TAHAP-71-SNAPSHOT-KUNCI-DAN-PEMULIHAN-NILAI.md).
+
+## Tahap 72 — Ketepatan isian singkat dan peringatan IRT
+
+### SCORE-SHORT-01, SCORE-IRT-03–04
+
+Isian singkat kini hanya menerima kecocokan hasil normalisasi atau variasi eksplisit; substring pendek seperti `a` tidak lagi mendapat setengah poin untuk `Jakarta`. Pemilihan hasil akhir IRT tidak lagi memakai nilai truthy, sehingga skor sah 0,00 dari model tertinggi tidak tergantikan oleh model lain. Ujian tanpa butir objektif ditolak dari kalkulasi IRT agar nilai esai tidak disamarkan sebagai hasil IRT. Kalkulasi juga mengembalikan dan menampilkan peringatan bila jumlah peserta di bawah rekomendasi 100 untuk 1PL, 200 untuk 2PL, atau 500 untuk 3PL. Audit baca-saja menemukan 530 jawaban isian singkat pada 138 attempt selesai dan 13 skor parsial; nilai historis tidak diubah karena skor parsial dapat berasal dari soal multi-isian yang sah. Sebanyak 106 tes Python, build NestJS, lint berkas frontend terkait, dan uji HTTP layanan aktif lulus. **Lokasi:** [mesin penilaian](../apps/scoring/app/services/grading.py), [layanan IRT](../apps/scoring/app/services/irt.py), [audit isian](../tools/audit-short-answer-scores.js), dan [dokumentasi tahap 72](perbaikan-2026-09-19/TAHAP-72-KETEPATAN-ISIAN-DAN-PERINGATAN-IRT.md).
+
+## Tahap 73 — Lint modal dan halaman bersama kembali nol
+
+### LINT-163–171: lifecycle modal, impor mati, dan gambar bank
+
+Refactor modal ujian dan bank sempat menambah 4 error serta 47 warning setelah baseline Tahap 65. Inisialisasi state tiga modal sekarang dijadwalkan dan dibatalkan sesuai lifecycle React sehingga tidak memicu render berantai. Impor, helper, tipe, action, serta konfigurasi lama yang tidak lagi dipakai sudah dihapus dari halaman ujian dan bank untuk Admin, Guru, serta Proktor. Gambar sampul memakai `next/image` dengan ukuran eksplisit. ESLint frontend penuh kembali 0 error/0 warning, TypeScript lulus, build produksi memproses 92 halaman, dan delapan regresi UI/peran lulus. **Lokasi:** [modal ujian](../apps/web/components/exams/CreateExamModal.tsx), [modal penugasan](../apps/web/components/exams/AssignExamModal.tsx), [modal bank](../apps/web/components/questions/CreateBankModal.tsx), dan [dokumentasi tahap 73](perbaikan-2026-09-19/TAHAP-73-LINT-MODAL-DAN-HALAMAN-BERSAMA.md).
+
+## Tahap 74 — Batas pelanggaran dan audit keamanan ujian
+
+### SECURITY-LIMIT-01–04
+
+Pembuat ujian kini dapat mengaktifkan Mode Aman dan memilih batas 1–100 pelanggaran atau **Tanpa batas**. Nilai `null` berarti semua event tetap dicatat tanpa menyelesaikan ujian otomatis; ujian lama tanpa pengaturan tetap memakai batas tiga. Server menghitung log secara otoritatif dan menutup attempt saat batas tercapai, sehingga manipulasi hitungan pada browser tidak dapat melewati aturan. Saat jaringan pulih, jawaban dikirim sebelum antrean pelanggaran; retry event yang responsnya hilang tetap idempoten. Monitoring memakai batas per ujian, menampilkan simbol `∞`, label pelanggaran yang mudah dipahami, waktu kejadian, kode event asli, dan rincian jenis event. Empat regresi Tahap 74, lima regresi pengawasan offline, TypeScript API/web, build NestJS, build web 92 halaman, serta ESLint web penuh lulus. Tidak ada migrasi SQL karena konfigurasi disimpan pada metadata JSON ujian. **Lokasi:** [pengaturan ujian](../apps/web/components/exams/CreateExamModal.tsx), [penegakan server](../apps/api/src/proctoring/proctoring.service.ts), [audit monitoring](../apps/api/src/proctor/exam-monitoring.service.ts), dan [dokumentasi tahap 74](perbaikan-2026-09-19/TAHAP-74-BATAS-PELANGGARAN-DAN-AUDIT-KEAMANAN.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -796,11 +856,11 @@ Bottom navigation, Sidebar, dan layout kini menjadwalkan sinkronisasi state deng
 | Tahap 1–4, Node test runner | 78 lulus, 0 gagal |
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
 | Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
-| Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 64; build API lulus sampai tahap 62 |
-| Build produksi frontend | Lulus setelah Tahap 43; 92 halaman berhasil diproses |
+| Scoring Python | 106 lulus, 0 gagal |
+| TypeScript API dan frontend | Backend lulus sampai tahap 72; frontend terkait Tahap 72 lulus |
+| Build produksi frontend | Lulus setelah Tahap 73; 92 halaman berhasil diproses |
 | Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
-| ESLint frontend penuh | 41 error/0 warning; total turun 1.763 masalah sampai Tahap 64 |
+| ESLint frontend penuh | 0 error/0 warning; diverifikasi ulang pada Tahap 73 |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |
@@ -830,7 +890,7 @@ Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.t
 2. **Simulasi jaringan/pengawasan:** jalankan checklist tahap 19 untuk heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
 3. **Uji PWA di perangkat nyata:** validasi install/update worker, reload offline, soal bergambar, dan pembersihan cache setelah logout pada Chrome/Edge perangkat sekolah.
 4. **Upload tugas tahan gangguan:** pastikan daftar berkas yang sudah terunggah tidak hilang dan submit tugas dapat dilanjutkan setelah request gagal.
-5. **Pembersihan tipe terakhir:** bersihkan 41 penggunaan `any` pada PAS, editor, formulir soal, parser Excel, route API, dan helper kecil.
+5. **Pemeliharaan Next.js:** migrasikan konvensi `middleware` ke `proxy` setelah perilaku autentikasi dan redirect diuji di staging.
 
 ## Verifikasi sebelum rollout
 
@@ -841,3 +901,8 @@ Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.t
 - Validasi schema/FK dan kegagalan tengah write; kelulusan mock tidak membuktikan atomicity.
 - Sebelum migrasi tahap 15, cari pasangan `exam_id,user_id` dengan lebih dari satu baris `in_progress`; tinjau jawaban pada setiap attempt dan finalkan duplikat secara manual.
 - Tutup masalah state/persist serta backup prioritas tinggi sebelum menyatakan seluruh proyek aman untuk ujian nyata.
+## Tahap 75 — Ujian susulan penuh dan ekspor jawaban
+
+### SUSULAN-01 dan EXPORT-ANALYSIS-01: mulai ulang bersih per siswa dan matriks jawaban
+
+Staf kini dapat memilih **Susulan / Pulihkan** pada siswa yang sudah menyelesaikan ujian. Pemulihan mempertahankan jawaban, sedangkan susulan penuh menghapus seluruh jawaban serta nilai lama dalam satu transaksi dan memberi waktu baru khusus siswa. Attempt dan ujian tetap sama agar hasil baru kembali ke rekap utama. Permintaan susulan memakai kunci idempoten sehingga percobaan ulang setelah respons jaringan hilang tidak menghapus jawaban baru. Ekspor Excel menempatkan lembar `Jawaban_Siswa` di depan dengan nama, kelas, soal beserta opsi, kunci, jawaban siswa, status, dan skor untuk setiap jenis soal; warna, border, wrapping, dan ukuran sel benar-benar tersimpan pada XLSX. Tujuh regresi Tahap 74–75, pemeriksaan tipe API/web, dan lint web penuh lulus. **Lokasi:** [layanan susulan](../apps/api/src/proctoring/proctoring.service.ts), [ekspor Excel](../apps/web/lib/export-excel-analysis.ts), dan [dokumentasi tahap 75](perbaikan-2026-09-19/TAHAP-75-UJIAN-SUSULAN-DAN-EKSPOR-JAWABAN.md).

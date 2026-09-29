@@ -4,11 +4,19 @@ import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { getSettingServer } from "@/lib/api/settings.server";
 import type { Metadata } from "next";
-import { Open_Sans } from "next/font/google";
+import { Open_Sans, Poppins } from "next/font/google";
 import "./globals.css";
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
+  preload: true,
+});
+
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
@@ -80,7 +88,7 @@ export default async function RootLayout({
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
       </head>
       <body
-        className={`${openSans.variable} antialiased`}
+        className={`${openSans.variable} ${poppins.variable} antialiased`}
       >
         <div className="acca-ambient-bg" aria-hidden="true" />
         <ExamPwaRegistration />

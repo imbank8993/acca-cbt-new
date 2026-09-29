@@ -61,6 +61,10 @@ class StudentData:
     essay_score_achieved: float = 0.0
     total_essay_weight: float = 0.0
     objective_raw_score: float = 0.0
+    # Poin objektif yang benar-benar diperoleh. Nilai ini berbeda dari
+    # ``objective_raw_score``: satu jawaban benar dapat berbobot 2, 5, atau 10
+    # poin, sedangkan raw score selalu menghitung respons IRT biner.
+    objective_score_achieved: float = 0.0
     # Bobot objektif dalam POIN (Σ score_default), supaya penggabungan dengan
     # esai memakai satuan yang sama — bukan sekadar jumlah butir.
     objective_weight: float = 0.0
@@ -110,19 +114,26 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
                 continue
 
             qtype = (question.type or "mcq").lower()
-            weight = question.score_default or 1
+            weight = max(float(question.score_default or 1), 0.0)
 
             if qtype in PERSONALITY_TYPES:
                 # Diabaikan sepenuhnya: tipe psikometri tidak mengukur kemampuan.
                 continue
 
             if qtype in ESSAY_TYPES:
-                student.essay_score_achieved += answer.score or 0
+                student.essay_score_achieved += min(max(float(answer.score or 0), 0.0), weight)
                 student.total_essay_weight += weight
                 continue
 
+            # Skor klasik memakai poin berbobot yang sama dengan nilai utama
+            # ujian. Baris jawaban kosong tetap mempunyai bobot maksimum dan
+            # skor nol, sehingga soal yang tidak dijawab tidak menaikkan nilai.
+            student.objective_weight += weight
+            student.objective_score_achieved += min(
+                max(float(answer.score or 0), 0.0), weight
+            )
+
             if qtype in UNFOLDED_TYPES:
-                student.objective_weight += weight
                 # Tipe kompleks menyimpan JSON di essay_answer — tidak ada kolom
                 # raw_answer di cbt_answers.
                 parsed = _loads(answer.essay_answer)
@@ -143,7 +154,6 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
             # Standar: MCQ, isian singkat, MCQ kompleks.
             item_id = answer.question_id
             student.total_answered += 1
-            student.objective_weight += weight
 
             if item_id not in item_stats:
                 # Tebakan semu (c) mengikuti jumlah opsi; default 0,2.
@@ -266,6 +276,21 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
     if not request.attempts:
         raise IrtError("Belum ada peserta yang menyelesaikan ujian.")
 
+    participant_count = len(request.attempts)
+    warnings: list[str] = []
+    recommended_samples = [
+        (calc_1pl, 100, "IRT 1PL"),
+        (calc_2pl, 200, "IRT 2PL"),
+        (calc_3pl, 500, "IRT 3PL"),
+    ]
+    for enabled, recommended, label in recommended_samples:
+        if enabled and participant_count < recommended:
+            warnings.append(
+                f"{label} dihitung dari {participant_count} peserta; "
+                f"hasil sebaiknya ditafsirkan hati-hati karena jumlah yang disarankan "
+                f"sekurang-kurangnya {recommended} peserta."
+            )
+
     # IRT hanya mengestimasi kemampuan dari butir objektif; skor esai digabung
     # dari penilaian manual. Bila masih ada esai yang belum dinilai, skornya 0
     # dan akan MENYERET hasil turun secara diam-diam.
@@ -277,6 +302,11 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
         )
 
     item_stats, students = _collect(request.attempts)
+    if not item_stats:
+        raise IrtError(
+            "IRT memerlukan sedikitnya satu soal objektif. "
+            "Ujian ini hanya berisi esai atau instrumen nonakademik."
+        )
     _estimate_item_parameters(item_stats, students, need_discrimination=calc_2pl or calc_3pl)
 
     item_ids = list(item_stats.keys())
@@ -308,9 +338,11 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
             )
             continue
 
-        denominator = student.total_answered + student.total_essay_weight
+        denominator = student.objective_weight + student.total_essay_weight
         classical = (
-            (student.objective_raw_score + student.essay_score_achieved) / denominator * 100
+            (student.objective_score_achieved + student.essay_score_achieved)
+            / denominator
+            * 100
             if denominator
             else 0.0
         )
@@ -323,12 +355,16 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
         if calc_3pl:
             detailed["irt_3pl"] = _theta_score(student, "3pl", item_ids, a_all, b_all, c_all)
 
-        score_irt = (
-            detailed.get("irt_3pl")
-            or detailed.get("irt_2pl")
-            or detailed.get("irt_1pl")
-            or detailed["classical"]
-        )
+        # Pilih model tertinggi yang memang dikonfigurasi. Jangan memakai `or`:
+        # skor sah 0,00 bersifat falsy dan dulu dapat tergantikan oleh model lain.
+        if calc_3pl:
+            score_irt = detailed["irt_3pl"]
+        elif calc_2pl:
+            score_irt = detailed["irt_2pl"]
+        elif calc_1pl:
+            score_irt = detailed["irt_1pl"]
+        else:
+            score_irt = detailed["classical"]
         results.append(
             AttemptScore(id=attempt.id, detailed_scores=detailed, score_irt=score_irt)
         )
@@ -346,4 +382,4 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
         for item_id, stat in item_stats.items()
     ]
 
-    return IrtResponse(count=len(results), attempts=results, items=items)
+    return IrtResponse(count=len(results), attempts=results, items=items, warnings=warnings)

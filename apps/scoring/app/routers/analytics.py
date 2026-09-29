@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends
 
 from ..schemas.analytics import (
+    DetailedItemAnalysisRequest,
+    DetailedItemAnalysisResponse,
     ExamAnalyticsRequest,
     ExamAnalyticsResponse,
     ItemAnalysisRequest,
     ItemAnalysisResponse,
 )
 from ..security import require_api_key
-from ..services.analytics import analyze_items, build_exam_analytics
+from ..services.analytics import analyze_items, build_detailed_item_analysis, build_exam_analytics
 
 router = APIRouter(
     prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_api_key)]
@@ -24,3 +26,9 @@ def exam_analytics(request: ExamAnalyticsRequest) -> ExamAnalyticsResponse:
 def item_analysis(request: ItemAnalysisRequest) -> ItemAnalysisResponse:
     """Indeks kesukaran dan daya beda per butir."""
     return analyze_items(request)
+
+
+@router.post("/item-analysis-detailed", response_model=DetailedItemAnalysisResponse)
+def item_analysis_detailed(request: DetailedItemAnalysisRequest) -> DetailedItemAnalysisResponse:
+    """Analisis butir soal mendalam lengkap dengan rincian siswa dan matriks respon."""
+    return build_detailed_item_analysis(request)

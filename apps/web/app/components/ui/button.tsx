@@ -21,7 +21,7 @@ import React from 'react';
 import './button.css';
 import { Spinner } from './Spinner';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'cancel' | 'reset' | 'more' | 'activate' | 'edit' | 'add' | 'ajukan';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost' | 'cancel' | 'reset' | 'more' | 'activate' | 'edit' | 'add' | 'ajukan' | 'warning' | 'unpublish';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 export type ButtonIconPreset = 'import' | 'export' | 'add' | 'edit' | 'delete' | 'save' | 'cancel' | 'search' | 'toggle' | 'download' | 'whatsapp' | 'print' | 'pdf' | 'preview' | 'pratinjau' | 'cetak' | 'ajukan' | 'send' | 'paperplane' | 'surat' | 'riwayat' | 'history' | 'clock' | 'filter' | 'refresh';
 
