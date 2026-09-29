@@ -6,9 +6,11 @@ import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
 getExamAttemptsAction,
 getProctorOrganization,
-getRecentViolationsAction,
-listOrganizationExams,
-type ViolationEvent
+    getRecentViolationsAction,
+    listOrganizationExams,
+    type ExamAttemptRecord,
+    type OrganizationExam,
+    type ViolationEvent
 } from '@/lib/api/proctor';
 import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
@@ -34,9 +36,9 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [exams, setExams] = useState<any[]>([]);
+    const [exams, setExams] = useState<OrganizationExam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
-    const [attempts, setAttempts] = useState<any[]>([]);
+    const [attempts, setAttempts] = useState<ExamAttemptRecord[]>([]);
     const [liveAlerts, setLiveAlerts] = useState<ViolationEvent[]>([]);
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState('');
@@ -75,7 +77,8 @@ function MonitoringContent() {
     }, [selectedExamId, initialExamId]);
 
     useEffect(() => {
-        loadData(false);
+        const initialLoad = window.setTimeout(() => { void loadData(false); }, 0);
+        return () => window.clearTimeout(initialLoad);
     }, [loadData]);
 
     // Live refresh setiap 10 detik saat monitoring aktif

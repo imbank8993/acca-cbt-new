@@ -1,7 +1,12 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
-import { getStudentExams,getStudentResultsAction } from '@/lib/api/students';
+import {
+    getStudentExams,
+    getStudentResultsAction,
+    type StudentResult,
+    type StudentScheduledExam,
+} from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -21,15 +26,13 @@ TrendingUp,
 Zap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback,useEffect } from 'react';
 
 export default function SiswaDashboard() {
-    const [exams, setExams] = useMemoryState<any[]>('siswa_exams', []);
-    const [results, setResults] = useMemoryState<any[]>('siswa_results', []);
+    const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_exams', []);
+    const [results, setResults] = useMemoryState<StudentResult[]>('siswa_results', []);
     const [loading, setLoading] = useMemoryState('siswa_loading', true);
-    const [, setUser] = useState<any>(null);
-    const [, setFullName] = useState<string>('');
-    const [announcements, setAnnouncements] = useMemoryState<any[]>('siswa_announcements', []);
+    const [announcements, setAnnouncements] = useMemoryState<Announcement[]>('siswa_announcements', []);
     const router = useRouter();
 
     const loadData = useCallback(async () => {
@@ -39,8 +42,6 @@ export default function SiswaDashboard() {
             router.replace('/');
             return;
         }
-        setUser(user);
-
         const [ex, res, announcementConfig] = await Promise.all([
             getStudentExams(),
             getStudentResultsAction(),
@@ -49,13 +50,13 @@ export default function SiswaDashboard() {
 
         setExams(ex);
         setResults(res);
-        setFullName(user.fullName ?? '');
         setAnnouncements(pickAnnouncements(announcementConfig, 'show_siswa'));
         setLoading(false);
-    }, [router]);
+    }, [router, setAnnouncements, setExams, setLoading, setResults]);
 
     useEffect(() => {
-        loadData();
+        const timer = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(timer);
     }, [loadData]);
 
     // Jadwal dan hasil disegarkan berkala. Dulu keduanya didorong langganan
@@ -121,7 +122,7 @@ export default function SiswaDashboard() {
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
 
 
-    const renderExamCard = (exam: any, i: number) => {
+    const renderExamCard = (exam: StudentScheduledExam, i: number) => {
         const isReady = exam.status === 'active' || exam.status === 'draft' || exam.status === 'scheduled';
         const isCompleted = exam.isCompleted;
         return (
@@ -210,7 +211,7 @@ export default function SiswaDashboard() {
                             </div>
                             <div className="text-left">
                                 <h3 className="font-bold text-blue-900 mb-0.5 text-sm">{ann.title}</h3>
-                                <p className="text-xs md:text-sm text-blue-800 whitespace-pre-wrap leading-relaxed font-sans font-medium" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content) }}></p>
+                                <p className="text-xs md:text-sm text-blue-800 whitespace-pre-wrap leading-relaxed font-sans font-medium" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content || '') }}></p>
                             </div>
                         </div>
                     ))}

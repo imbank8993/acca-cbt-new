@@ -2,27 +2,28 @@
 
 import BottomNav from '@/app/components/BottomNav';
 import DashboardLoading from '@/app/components/DashboardLoading';
-import Header,{ type HeaderUser } from '@/app/components/Header';
+import Header, { type HeaderUser } from '@/app/components/Header';
 import Sidebar from '@/app/components/Sidebar';
 import { getAccountProfile } from '@/lib/api/account';
-import { getSetting,type AppConfig } from '@/lib/api/settings';
+import { getSetting, type AppConfig } from '@/lib/api/settings';
 import {
-getActiveRoleFromStorage,
-getRoleFromPath,
-getUserRoleContexts,
-isActiveRoleLocked,
-isRoleQualifiedFromList,
-resolveActiveRole,
-ROLE_TO_DASHBOARD_PATH,
-setActiveRoleInStorage,
-unlockActiveRole,
-type DashboardRole,
-type UserRoleContext,
+    getActiveRoleFromStorage,
+    getRoleFromPath,
+    getUserRoleContexts,
+    isActiveRoleLocked,
+    isRoleQualifiedFromList,
+    resolveActiveRole,
+    ROLE_TO_DASHBOARD_PATH,
+    setActiveRoleInStorage,
+    unlockActiveRole,
+    type DashboardRole,
+    type UserRoleContext,
 } from '@/lib/rbac';
 import { getSessionUser } from '@/lib/session';
+import { applyThemeColor } from '@/lib/theme-color';
 import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
-import { usePathname,useRouter } from 'next/navigation';
-import React,{ useEffect,useMemo,useRef,useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 interface ExtendedUser {
     nama?: string;
@@ -45,6 +46,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [appSubtitle, setAppSubtitle] = useState('MAN IC Gowa');
     const lastResolvedPath = useRef<string | null>(null);
     const pathRoleRef = useRef<DashboardRole | null>(null);
+    const scrollPosRef = useRef(0);
+
+    // Warna chrome browser & simpan/kembalikan posisi scroll saat sidebar mobile buka/tutup
+    useEffect(() => {
+        applyThemeColor();
+        if (mobileOpen) {
+            scrollPosRef.current = window.scrollY || window.pageYOffset || 0;
+        } else if (scrollPosRef.current > 0) {
+            window.scrollTo(0, scrollPosRef.current);
+        }
+    }, [mobileOpen]);
 
     const pageTitle = useMemo(() => {
         if (pathname.includes('/classes')) return 'Kelas';
@@ -203,7 +215,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, []);
 
     useEffect(() => {
-        setMobileOpen(false);
+        const resetNavigation = window.setTimeout(() => {
+            setMobileOpen(false);
+            scrollPosRef.current = 0;
+        }, 0);
+        return () => window.clearTimeout(resetNavigation);
     }, [pathname]);
 
     // Automatic global modal detection: whenever any modal overlay is active anywhere in the dashboard
@@ -317,7 +333,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     --app-sidebar-w-collapsed: 85px;
                     --app-header-h: 70px;
                 }
-                @media (max-width: 767.98px) {
+                @media (max-width: 1023.98px) {
                     :root {
                         --app-header-h: 56px;
                         --app-sidebar-mobile-w: min(calc(100vw - 64px), 320px);
@@ -394,6 +410,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         box-shadow: -10px 0 28px rgba(0, 0, 0, 0.16), -1px 0 0 rgba(0, 0, 0, 0.06) !important;
                         overflow: hidden !important;
                         pointer-events: none;
+                        -webkit-mask-image: -webkit-radial-gradient(white, black) !important;
+                        mask-image: radial-gradient(white, black) !important;
                     }
 
                     :global(.dark) .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
@@ -433,7 +451,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }
                 }
 
-                @media (min-width: 768px) {
+                @media (min-width: 1024px) {
                     .dashboard-content-wrapper {
                         display: contents;
                     }

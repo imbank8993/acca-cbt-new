@@ -733,6 +733,60 @@ Modal impor massal sekarang memakai kontrak bank dan soal API. Hasil `portableQu
 
 Kontrak transfer bersama sekarang dipakai oleh ekspor dan impor untuk melepas ID sumber tanpa kehilangan isi, kunci, bobot, atau urutan opsi. Halaman kelas Admin, Proktor, dan Guru memakai kontrak organisasi, kelas, serta siswa yang sama. Pemuatan awal dan refresh fokus memakai callback stabil dengan cleanup, sedangkan data spreadsheet diperiksa sebelum dikonversi. Semua sasaran mencapai lint nol dan TypeScript frontend lulus. Pemindaian penuh turun 57 masalah menjadi 267 error/21 warning. **Lokasi:** [transfer soal](../apps/web/lib/question-transfer.ts), [kelas Admin](../apps/web/app/dashboard/admin/classes/page.tsx), [kelas Proktor](../apps/web/app/dashboard/proktor/classes/page.tsx), [kelas Guru](../apps/web/app/dashboard/guru/classes/page.tsx), dan [dokumentasi tahap 55](perbaikan-2026-09-19/TAHAP-55-TRANSFER-SOAL-DAN-KELAS-STAF.md).
 
+## Tahap 56 — Kontrak jadwal dan ruangan PAS
+
+### LINT-83–90: periode, jadwal, sesi, ruangan, anggota, dan cache peran
+
+API serta halaman PAS sekarang memakai kontrak eksplisit untuk periode, jadwal kelas, mata pelajaran, bank soal, kelas, sesi, staf, ruangan, pengawas, dan siswa. Pengelompokan jadwal mempertahankan tipe sampai dirender, sementara kapasitas menangani relasi siswa yang belum dimuat. Pemuatan awal dan refresh fokus memakai callback stabil dengan cleanup. Cache detail Admin yang sebelumnya memakai kunci Proktor sudah dipisahkan agar data antarmuka tidak tertukar setelah perpindahan peran. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan 33 regresi PAS lulus. Pemindaian penuh turun 72 masalah menjadi 199 error/17 warning. **Lokasi:** [kontrak PAS](../apps/web/lib/api/pas.ts), [detail PAS Admin](../apps/web/app/dashboard/admin/exams/pas/[id]/page.tsx), [ruangan PAS Admin](../apps/web/app/dashboard/admin/pas/RoomManagementModal.tsx), dan [dokumentasi tahap 56](perbaikan-2026-09-19/TAHAP-56-KONTRAK-JADWAL-DAN-RUANGAN-PAS.md).
+
+## Tahap 57 — Analitik ujian Guru
+
+### LINT-91–96: attempt, jawaban, respons soal, ekspor, dan lifecycle analitik
+
+API analitik sekarang mempunyai kontrak eksplisit untuk daftar ujian, attempt, profil siswa, jawaban, soal, opsi, respons per soal, serta data ekspor. Halaman detail Guru memakai kontrak tersebut untuk review siswa, distribusi opsi, dan tiga lembar ekspor. Detail kosong tidak lagi disimpan sebagai objek yang dapat dibaca kemudian, sementara effect pemuatan menyatakan dependency cache yang dipakai. Kedua sasaran mencapai lint nol, TypeScript frontend lulus, dan tiga regresi tren analitik lulus. Pemindaian penuh turun 24 masalah menjadi 176 error/16 warning. **Lokasi:** [API analitik](../apps/web/lib/api/analytics.ts), [detail analitik Guru](../apps/web/app/dashboard/guru/analytics/exam/[id]/page.tsx), dan [dokumentasi tahap 57](perbaikan-2026-09-19/TAHAP-57-ANALITIK-UJIAN-GURU.md).
+
+## Tahap 58 — Filter bersama dan rekap penilaian
+
+### LINT-97–103: properti anak filter, analisis butir, attempt, dan lifecycle pilihan ujian
+
+Toolbar filter bersama sekarang memeriksa properti anak, tipe komponen, opsi, nilai, serta callback sebelum digunakan pada tampilan desktop maupun modal mobile. Rekap penilaian Guru memakai kontrak ujian, attempt, profil, jawaban, soal, dan statistik butir yang eksplisit. Pemuatan awal, pergantian ujian, serta pembersihan keadaan kosong memakai callback stabil dan timer dengan cleanup. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan tiga regresi penilaian esai lulus. Pemindaian penuh turun 23 masalah menjadi 155 error/14 warning. **Lokasi:** [toolbar filter](../apps/web/app/components/ui/filtertoolbar.tsx), [rekap penilaian Guru](../apps/web/app/dashboard/guru/grading/page.tsx), [kontrak API Proktor](../apps/web/lib/api/proctor.ts), dan [dokumentasi tahap 58](perbaikan-2026-09-19/TAHAP-58-FILTER-BERSAMA-DAN-REKAP-PENILAIAN.md).
+
+## Tahap 59 — Matching dan format jawaban kompleks
+
+### LINT-104–110: pasangan, metadata, JSON lama, kategori, blank, dan urutan
+
+Matching interaktif sekarang memakai kontrak opsi dan pasangan jawaban yang eksplisit tanpa kehilangan tipe saat pengacakan deterministik. Formatter jawaban memperlakukan JSON lama sebagai data `unknown`, lalu memeriksa record, array, ID, metadata matching, kategori, blank, lampiran, dan video sebelum digunakan. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan sembilan regresi ketahanan serta integritas jawaban lulus. Pemindaian penuh turun 17 masalah menjadi 138 error/14 warning. **Lokasi:** [matching interaktif](../apps/web/app/components/questions/InteractiveMatching.tsx), [formatter jawaban](../apps/web/lib/answer-display.ts), dan [dokumentasi tahap 59](perbaikan-2026-09-19/TAHAP-59-MATCHING-DAN-FORMAT-JAWABAN-KOMPLEKS.md).
+
+## Tahap 60 — Dashboard Guru, Admin, dan Proktor
+
+### LINT-111–118: statistik, ujian, login, pengumuman, cache, dan lifecycle peran
+
+Ketiga dashboard peran sekarang memakai kontrak eksplisit untuk organisasi, statistik, ujian, login terbaru, anggota yang pernah masuk, dan pengumuman. Data login tanpa waktu tidak diteruskan ke kartu aktivitas, isi pengumuman kosong dinormalisasi sebelum diformat, dan filter ujian Guru tidak lagi memakai objek bebas. Pemuatan awal memakai callback stabil serta timer dengan cleanup; auto-refresh tetap memakai callback terbaru. Properti `orgId` mati pada kartu login juga dihapus karena pembatasan sekolah sudah dilakukan backend berdasarkan sesi. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan delapan regresi kesetaraan peran serta konteks satu sekolah lulus. Pemindaian penuh turun 25 masalah menjadi 116 error/11 warning. **Lokasi:** [dashboard Guru](../apps/web/app/dashboard/guru/page.tsx), [dashboard Admin](../apps/web/app/dashboard/admin/page.tsx), [dashboard Proktor](../apps/web/app/dashboard/proktor/page.tsx), dan [dokumentasi tahap 60](perbaikan-2026-09-19/TAHAP-60-DASHBOARD-GURU-ADMIN-DAN-PROKTOR.md).
+
+## Tahap 61 — Analitik dan dashboard Siswa
+
+### LINT-119–125: riwayat, perbandingan, grafik, jadwal, hasil, dan lifecycle siswa
+
+Analitik Siswa sekarang memakai kontrak riwayat dan perbandingan kelas serta tipe opsi resmi Chart.js. Dashboard Siswa memakai kontrak jadwal, hasil, dan pengumuman yang eksplisit. State pengguna, nama, dan rentang waktu kosong yang tidak dirender telah dihapus. Pemuatan awal dan refresh fokus memakai callback stabil dengan timer serta cleanup, sementara auto-refresh mempertahankan callback terbaru. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan enam regresi tren serta status jadwal lulus. Pemindaian penuh turun 15 masalah menjadi 103 error/9 warning. **Lokasi:** [analitik Siswa](../apps/web/app/dashboard/siswa/analytics/page.tsx), [dashboard Siswa](../apps/web/app/dashboard/siswa/page.tsx), [API analitik Siswa](../apps/web/lib/api/student-analytics.ts), dan [dokumentasi tahap 61](perbaikan-2026-09-19/TAHAP-61-ANALITIK-DAN-DASHBOARD-SISWA.md).
+
+## Tahap 62 — Toolbar dan detail penilaian Guru
+
+### LINT-126–132: referensi editor, attempt, esai, lampiran, dan waktu pengumpulan
+
+Toolbar input kaya sekarang memakai kontrak editor Quill untuk seleksi, format, teks, dan clipboard tanpa objek bebas atau memo manual yang ditolak compiler. API Guru serta dua halaman detail penilaian memakai kontrak attempt, soal, opsi, dan jawaban esai. Parser bersama memvalidasi teks, lampiran, video, serta topik dari data lama. Tahap ini juga memperbaiki isi soal yang sebelumnya ditimpa properti lama hingga dapat kosong dan menambahkan `finished_at` agar waktu pengumpulan tampil benar. Seluruh sasaran mencapai lint nol, TypeScript frontend dan build backend lulus, serta 13 regresi penilaian dan penugasan lulus. Pemindaian penuh turun 20 masalah menjadi 84 error/8 warning. **Lokasi:** [toolbar input kaya](../apps/web/app/components/questions/forms/RichInputToolbar.tsx), [detail penilaian](../apps/web/app/dashboard/guru/grading/[attemptId]/page.tsx), [reviewer tugas](../apps/web/app/dashboard/guru/grading/assignment/[attemptId]/page.tsx), [API Guru](../apps/web/lib/api/teachers.ts), dan [dokumentasi tahap 62](perbaikan-2026-09-19/TAHAP-62-TOOLBAR-DAN-DETAIL-PENILAIAN-GURU.md).
+
+## Tahap 63 — Lifecycle PAS, stimulus, dan monitoring
+
+### LINT-133–141: fokus jendela, stimulus, attempt lengkap, log keamanan, dan cache peran
+
+Daftar PAS Admin dan Proktor memakai kontrak pengguna, organisasi, periode, serta mata pelajaran, dengan callback refresh fokus yang stabil dan cleanup timer. Pengelola stimulus memakai kontrak stimulus serta baris impor dan menunggu refresh sesudah mutasi. API Proktor serta detail monitoring Admin, Guru, dan Proktor memakai satu kontrak attempt, jawaban, soal, dan log keamanan, sementara kunci cache peran tetap terpisah. Dependency analitik Guru juga dilengkapi. Seluruh sasaran mencapai lint nol, TypeScript frontend lulus, dan 31 regresi PAS, lifecycle monitoring, serta tren analitik lulus. Pemindaian penuh turun 33 masalah menjadi 58 error/1 warning. **Lokasi:** [PAS Admin](../apps/web/app/dashboard/admin/pas/page.tsx), [pengelola stimulus](../apps/web/app/components/questions/StimulusManager.tsx), [detail monitoring Admin](../apps/web/app/dashboard/admin/monitoring/[attemptId]/page.tsx), [kontrak API Proktor](../apps/web/lib/api/proctor.ts), dan [dokumentasi tahap 63](perbaikan-2026-09-19/TAHAP-63-LIFECYCLE-PAS-STIMULUS-DAN-MONITORING.md).
+
+## Tahap 64 — Hook navigasi, editor, dan Pengawas
+
+### LINT-142–150: subscription navigasi, pratinjau turunan, grafik, layout, dan pemuatan Pengawas
+
+Bottom navigation, Sidebar, dan layout kini menjadwalkan sinkronisasi state dengan cleanup serta memakai callback subscription yang stabil. Pratinjau editor matematika dan dialog persamaan dihitung sebagai nilai turunan, fungsi sisip kursor stabil, dan MathLive memakai tipe elemennya. Pie chart menghitung irisan sebelum render tanpa mutasi variabel. Dashboard serta monitoring Pengawas memakai lifecycle pemuatan yang dapat dibatalkan dan kontrak ujian serta attempt. Seluruh temuan hook frontend sudah nol, TypeScript lulus, dan 12 regresi UI serta konteks peran lulus. Pemindaian penuh turun 18 masalah menjadi 41 error/0 warning; seluruh sisanya adalah `no-explicit-any`. **Lokasi:** [bottom navigation](../apps/web/app/components/BottomNav.tsx), [Sidebar](../apps/web/app/components/Sidebar.tsx), [editor matematika](../apps/web/app/components/questions/MathEditor.tsx), [grafik](../apps/web/app/components/ui/Charts.tsx), [monitoring Pengawas](../apps/web/app/dashboard/pengawas/monitoring/page.tsx), dan [dokumentasi tahap 64](perbaikan-2026-09-19/TAHAP-64-HOOK-NAVIGASI-EDITOR-DAN-PENGAWAS.md).
+
 ## Hasil pengujian dan cara menjalankan
 
 | Pemeriksaan | Hasil |
@@ -743,10 +797,10 @@ Kontrak transfer bersama sekarang dipakai oleh ekspor dan impor untuk melepas ID
 | Tahap 1–5, Node test runner | 85 lulus, 0 gagal |
 | Seluruh regresi Node termasuk integrasi HTTP | 276 lulus, 0 gagal sampai Tahap 42 |
 | Scoring Python | 98 lulus, 0 gagal |
-| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 55; API terakhir lulus pada rangkaian audit sebelumnya |
+| TypeScript API dan frontend | Frontend lulus sampai perubahan tahap 64; build API lulus sampai tahap 62 |
 | Build produksi frontend | Lulus setelah Tahap 43; 92 halaman berhasil diproses |
 | Dry run migrasi dalam transaksi rollback | 15 migrasi, 32 kolom, 34 indeks; lulus dan idempoten |
-| ESLint frontend penuh | 267 error/21 warning; total turun 1.516 masalah sampai Tahap 55 |
+| ESLint frontend penuh | 41 error/0 warning; total turun 1.763 masalah sampai Tahap 64 |
 | Impor/ekspor dan integritas historis soal | 44 pemeriksaan round-trip + 13 pemeriksaan service lulus |
 | Database nyata | Audit lifecycle, sinkronisasi ujian hasil generate, dan katalog mata pelajaran lulus tanpa temuan |
 | Browser, R2, deployment | Belum dijalankan |
@@ -776,7 +830,7 @@ Tes baru berada di [security-stage1.test.cjs](../apps/api/test/security-stage1.t
 2. **Simulasi jaringan/pengawasan:** jalankan checklist tahap 19 untuk heartbeat 45 detik, antrean event offline, retry idempoten, dan terminasi terkonfirmasi di browser nyata.
 3. **Uji PWA di perangkat nyata:** validasi install/update worker, reload offline, soal bergambar, dan pembersihan cache setelah logout pada Chrome/Edge perangkat sekolah.
 4. **Upload tugas tahan gangguan:** pastikan daftar berkas yang sudah terunggah tidak hilang dan submit tugas dapat dilanjutkan setelah request gagal.
-5. **Pembersihan alur PAS dan utang lint:** hapus kode penjadwalan lama lalu lanjutkan perbaikan lint bertahap tanpa melonggarkan baseline.
+5. **Pembersihan tipe terakhir:** bersihkan 41 penggunaan `any` pada PAS, editor, formulir soal, parser Excel, route API, dan helper kecil.
 
 ## Verifikasi sebelum rollout
 

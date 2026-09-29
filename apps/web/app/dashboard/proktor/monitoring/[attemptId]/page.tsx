@@ -1,7 +1,7 @@
 "use client";
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
-import { getAttemptFullDetailsAction } from '@/lib/api/proctor';
+import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
 import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -36,7 +36,7 @@ export default function AttemptAnalyticsPage() {
     const [loading, setLoading] = useMemoryState(`proktor_monitoring_${attemptId}_loading`, true);
     const [submitting, setSubmitting] = useState(false);
     const [resetting, setResetting] = useState(false);
-    const [data, setData] = useMemoryState<any>(`proktor_monitoring_${attemptId}_data`, null);
+    const [data, setData] = useMemoryState<AttemptFullDetails | null>(`proktor_monitoring_${attemptId}_data`, null);
     const [grades, setGrades] = useState<Record<string, number>>({});
     const [activeTab, setActiveTab] = useState<'questions' | 'security'>('questions');
 
@@ -47,7 +47,7 @@ export default function AttemptAnalyticsPage() {
             if (res) {
                 setData(res);
                 const initialGrades: Record<string, number> = {};
-                res.answers.forEach((a: any) => {
+                res.answers.forEach((a) => {
                     if (['essay', 'esay', 'uraian'].includes(a.bank_questions?.type)) {
                         initialGrades[a.id] = a.score || 0;
                     }
@@ -57,7 +57,7 @@ export default function AttemptAnalyticsPage() {
             setLoading(false);
         }
         load();
-    }, [attemptId]);
+    }, [attemptId, setData, setLoading]);
 
     const handleGradeChange = (answerId: string, val: string) => {
         setGrades(prev => ({
@@ -316,7 +316,7 @@ export default function AttemptAnalyticsPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === 'questions' && (
                             <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                                {answers.map((answer: any, index: number) => {
+                                {answers.map((answer, index) => {
                                     const q = answer.bank_questions;
                                     if (!q) return null;
                                     const isEssay = ['essay', 'esay', 'uraian'].includes(q.type);
@@ -429,7 +429,7 @@ export default function AttemptAnalyticsPage() {
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {securityLogs.map((log: any) => (
+                                        {securityLogs.map((log) => (
                                             <div key={log.id} className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-lg hover:border-red-300 transition-colors">
                                                 <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center text-red-500 shrink-0">
                                                     {log.event_type === 'tab_close' ? <MousePointerClick size={18} /> : <AlertTriangle size={18} />}

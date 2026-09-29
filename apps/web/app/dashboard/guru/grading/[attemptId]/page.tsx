@@ -1,6 +1,7 @@
 "use client";
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { getAttemptDetailsForGrading,submitEssayGrades } from '@/lib/api/teachers';
+import type { Question } from '@/app/types';
+import { AttemptGradingDetails,getAttemptDetailsForGrading,parseEssaySubmission,submitEssayGrades } from '@/lib/api/teachers';
 import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
@@ -15,7 +16,7 @@ export default function GradeEssayPage() {
 
     const [loading, setLoading] = useMemoryState('guru_grading__attemptId__loading', true);
     const [submitting, setSubmitting] = useState(false);
-    const [details, setDetails] = useState<any>(null);
+    const [details, setDetails] = useState<AttemptGradingDetails | null>(null);
     const [grades, setGrades] = useState<Record<string, number>>({});
 
     useEffect(() => {
@@ -25,7 +26,7 @@ export default function GradeEssayPage() {
             if (data) {
                 setDetails(data);
                 const initialGrades: Record<string, number> = {};
-                data.essayAnswers.forEach((a: any) => {
+                data.essayAnswers.forEach((a) => {
                     initialGrades[a.id] = a.score || 0;
                 });
                 setGrades(initialGrades);
@@ -33,7 +34,7 @@ export default function GradeEssayPage() {
             setLoading(false);
         }
         load();
-    }, [attemptId]);
+    }, [attemptId, setLoading]);
 
     const handleGradeChange = (answerId: string, val: string) => {
         setGrades(prev => ({
@@ -101,15 +102,9 @@ export default function GradeEssayPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                    {details.essayAnswers.some((a: any) => {
-                        let hasFile = false;
-                        if (typeof a.essay_answer === 'string') {
-                            try { hasFile = JSON.parse(a.essay_answer).fileUrls?.length > 0; } catch {}
-                        } else if (a.essay_answer && typeof a.essay_answer === 'object') {
-                            hasFile = (a.essay_answer as any).fileUrls?.length > 0;
-                        }
-                        return hasFile;
-                    }) && (
+                    {details.essayAnswers.some((answer) =>
+                        parseEssaySubmission(answer.essay_answer).fileUrls.length > 0
+                    ) && (
                         <button
                             onClick={() => router.push(`/dashboard/guru/grading/assignment/${attemptId}`)}
                             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-6 py-4 rounded-2xl flex items-center gap-3 transition-all border border-indigo-200"
@@ -130,9 +125,23 @@ export default function GradeEssayPage() {
             </header>
 
             <div className="space-y-8">
-                {details.essayAnswers.map((answer: any, index: number) => {
+                {details.essayAnswers.map((answer, index) => {
                     const qInfo = answer.bank_questions;
                     const maxScore = qInfo.score_default || 1;
+                    const rendererQuestion: Question = {
+                        ...qInfo,
+                        metadata: qInfo.metadata ?? undefined,
+                        options: (qInfo.options || []).map(option => ({
+                            ...option,
+                            is_correct: false,
+                            weight: 0,
+                        })),
+                        bank_question_options: (qInfo.options || []).map(option => ({
+                            ...option,
+                            is_correct: false,
+                            weight: 0,
+                        })),
+                    };
 
                     return (
                         <motion.div
@@ -163,11 +172,8 @@ export default function GradeEssayPage() {
 
                             <div className="mb-10 p-2">
                                 <QuestionRenderer
-                                    question={{
-                                        ...qInfo,
-                                        question_text: qInfo.question // Map "question" to "question_text" for renderer
-                                    }}
-                                    answer={answer.essay_answer}
+                                    question={rendererQuestion}
+                                    answer={answer.essay_answer as any}
                                     onAnswerChange={() => { }} // Read-only for grading view
                                     // Dulu renderer tampil sebagai form aktif: guru melihat
                                     // textarea & radio topik yang bisa diklik padahal
@@ -188,24 +194,7 @@ export default function GradeEssayPage() {
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Jawaban Siswa</h4>
                                 </div>
                                 {(() => {
-                                    let text = answer.essay_answer || '';
-                                    let files: string[] = [];
-                                    let videoUrl = '';
-                                    if (typeof text === 'string') {
-                                        try {
-                                            const parsed = JSON.parse(text);
-                                            if (parsed.text !== undefined || parsed.fileUrls !== undefined) {
-                                                text = parsed.text || '';
-                                                files = parsed.fileUrls || [];
-                                                videoUrl = parsed.videoUrl || '';
-                                            }
-                                        } catch { }
-                                    } else if (text && typeof text === 'object') {
-                                        const obj: any = text;
-                                        text = obj.text || '';
-                                        files = obj.fileUrls || [];
-                                        videoUrl = obj.videoUrl || '';
-                                    }
+                                    const { text, fileUrls: files, videoUrl } = parseEssaySubmission(answer.essay_answer);
 
                                     return (
                                         <div className="space-y-6">

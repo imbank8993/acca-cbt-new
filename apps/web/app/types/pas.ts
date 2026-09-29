@@ -30,6 +30,7 @@ export interface PASPeriod {
   created_at: string;
   // Joined data
   pas_subjects?: PASSubject[];
+  pas_class_schedules?: PASClassSchedule[];
   _count?: {
     pas_subjects: number;
     pas_class_schedules: number;
@@ -96,6 +97,10 @@ export interface PASClassSchedule {
     title: string;
     is_published: boolean;
   };
+  question_banks?: {
+    id?: string;
+    title: string;
+  } | null;
 }
 
 // Form input types

@@ -1,5 +1,6 @@
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
+import type { AnswerValue,Question } from '@/app/types';
 import type { QuestionRecord } from './questions';
 
 /**
@@ -32,6 +33,14 @@ export interface RecentLogin {
     fullName: string;
     avatarUrl: string | null;
     role: string;
+}
+
+export interface OrganizationStats {
+    totalMembers: number;
+    totalBanks: number;
+    ongoingExams: number;
+    draftExams: number;
+    finishedExams: number;
 }
 
 export interface SchoolYear {
@@ -97,6 +106,7 @@ export interface OrganizationExam {
     randomize_options?: boolean;
     show_results?: boolean;
     scoring_type?: string | null;
+    creatorName?: string | null;
     metadata?: {
         assignment_description?: string;
         allow_file_upload?: boolean;
@@ -137,7 +147,7 @@ export interface ExamAttemptRecord {
     score_irt?: number | null;
     needs_manual_grading?: boolean;
     metadata?: Record<string, unknown> | null;
-    profiles?: { id?: string; full_name?: string | null; identity_number?: string | null } | null;
+    profiles?: { id?: string; full_name?: string | null; identity_number?: string | null; email?: string | null } | null;
     exams?: OrganizationExam | null;
 }
 
@@ -158,6 +168,35 @@ export interface SecurityLogRecord {
     event_type?: string;
     created_at?: string;
     metadata?: Record<string, unknown> | null;
+}
+
+export interface AttemptDetailAnswer {
+    id: string;
+    question_id: string;
+    selected_option_id: string | null;
+    essay_answer: AnswerValue;
+    score: number | null;
+    is_correct: boolean | null;
+    needs_manual_grading?: boolean;
+    bank_questions: Question | null;
+}
+
+export interface AttemptSecurityLog {
+    id: string;
+    attempt_id?: string;
+    event_type: string;
+    created_at: string;
+    metadata?: {
+        duration?: string | number;
+        duration_seconds?: string | number;
+        [key: string]: unknown;
+    } | null;
+}
+
+export interface AttemptFullDetails {
+    attempt: ExamAttemptRecord;
+    answers: AttemptDetailAnswer[];
+    securityLogs: AttemptSecurityLog[];
 }
 
 export interface AssignmentSubmission {
@@ -182,8 +221,8 @@ export async function getProctorOrganization(): Promise<ProctorOrganization | nu
         : null;
 }
 
-export async function getOrganizationStats() {
-    const empty = {
+export async function getOrganizationStats(): Promise<OrganizationStats> {
+    const empty: OrganizationStats = {
         totalMembers: 0,
         totalBanks: 0,
         ongoingExams: 0,
@@ -462,8 +501,8 @@ export async function getExamAnswersForAnalysisAction(
     return res.success ? { questions: res.questions, answers: res.answers } : { questions: [], answers: [] };
 }
 
-export async function getAttemptFullDetailsAction(attemptId: string) {
-    const res = await apiGet<{ attempt: ExamAttemptRecord; answers: ExamAnswerRecord[]; securityLogs: SecurityLogRecord[] }>(
+export async function getAttemptFullDetailsAction(attemptId: string): Promise<AttemptFullDetails | null> {
+    const res = await apiGet<AttemptFullDetails>(
         `/api/proctor/attempts/${encodeURIComponent(attemptId)}`,
     );
 

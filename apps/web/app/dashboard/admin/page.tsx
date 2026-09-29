@@ -1,7 +1,16 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
-import { getOrganizationStats,getProctorOrganization,getRecentLogins,listOrganizationExams } from '@/lib/api/proctor';
+import {
+    getOrganizationStats,
+    getProctorOrganization,
+    getRecentLogins,
+    listOrganizationExams,
+    type OrganizationExam,
+    type OrganizationStats,
+    type ProctorOrganization,
+    type RecentLogin,
+} from '@/lib/api/proctor';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import { getSessionUser } from '@/lib/session';
 import { linkifyText } from '@/lib/text-format';
@@ -25,24 +34,27 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from './RecentLoginsCard';
 
+type LoggedInUser = RecentLogin & { lastLoginAt: string };
+const hasLoginTime = (login: RecentLogin): login is LoggedInUser => typeof login.lastLoginAt === 'string';
+
 export default function AdminDashboard() {
     const router = useRouter();
-    const [org, setOrg] = useState<any>(null);
-    const [stats, setStats] = useMemoryState('admin_stats', {
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [stats, setStats] = useMemoryState<OrganizationStats>('admin_stats', {
         totalMembers: 0,
         totalBanks: 0,
         ongoingExams: 0,
         draftExams: 0,
         finishedExams: 0
     });
-    const [exams, setExams] = useMemoryState<any[]>('admin_exams', []);
-    const [logins, setLogins] = useMemoryState<any[]>('admin_logins', []);
+    const [exams, setExams] = useMemoryState<OrganizationExam[]>('admin_exams', []);
+    const [logins, setLogins] = useMemoryState<LoggedInUser[]>('admin_logins', []);
     const [loading, setLoading] = useMemoryState('admin_loading', true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [announcements, setAnnouncements] = useMemoryState<any[]>('admin_announcements', []);
+    const [announcements, setAnnouncements] = useMemoryState<Announcement[]>('admin_announcements', []);
     const [showAnnouncementsPopup, setShowAnnouncementsPopup] = useState(false);
     const [showMembersModal, setShowMembersModal] = useState(false);
-    const [membersList, setMembersList] = useState<any[]>([]);
+    const [membersList, setMembersList] = useState<LoggedInUser[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
 
     const loadData = useCallback(async () => {
@@ -70,7 +82,7 @@ export default function AdminDashboard() {
             ]);
             setStats(statData);
             setExams(examData);
-            setLogins(loginData);
+            setLogins(loginData.filter(hasLoginTime));
             
             setAnnouncements(pickAnnouncements(announcementConfig, 'show_proktor'));
         } catch (error) {
@@ -79,12 +91,13 @@ export default function AdminDashboard() {
         } finally {
             setLoading(false);
         }
-    }, [router]);
+    }, [setAnnouncements, setExams, setLoading, setLogins, setStats]);
 
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
     useEffect(() => {
-        loadData();
+        const timer = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(timer);
     }, [loadData]);
 
 
@@ -96,7 +109,7 @@ export default function AdminDashboard() {
         setMembersLoading(true);
         try {
             const all = await getRecentLogins(500);
-            setMembersList((all || []).filter((m: any) => m.lastLoginAt));
+            setMembersList(all.filter(hasLoginTime));
         } catch (e) {
             console.error('Load members error:', e);
             setMembersList([]);
@@ -370,7 +383,7 @@ export default function AdminDashboard() {
                 <div className="md:col-span-2 space-y-4">
 
                     {/* Aktivitas Login Pengguna */}
-                    <RecentLoginsCard initialLogins={logins} orgId={org?.id} />
+                    <RecentLoginsCard initialLogins={logins} />
                     {/* Informasi / Pengumuman */}
                     {announcements.length > 0 && (
                         <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
@@ -399,7 +412,7 @@ export default function AdminDashboard() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-[11px] text-slate-600 line-clamp-2" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content) }}></p>
+                                            <p className="text-[11px] text-slate-600 line-clamp-2" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content || '') }}></p>
                                         </div>
                                     ))}
                                 </div>
@@ -449,7 +462,7 @@ export default function AdminDashboard() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content, 'text-blue-600 underline font-semibold hover:text-blue-800 transition-colors') }}></p>
+                                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content || '', 'text-blue-600 underline font-semibold hover:text-blue-800 transition-colors') }}></p>
                                         </div>
                                     </div>
                                 </div>

@@ -2,12 +2,13 @@
 
 import Image from 'next/image';
 
-import { getAccountProfile } from '@/lib/api/account';
+import { getAccountProfile,type AccountProfile } from '@/lib/api/account';
 import { getUserRole,type Role } from '@/lib/rbac';
 import { getSessionUser } from '@/lib/session';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect,useMemo,useRef,useState } from 'react';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import type { AuthUser } from '@acca-cbt/shared';
 import './sidebar.css';
 
 const ACCA_URL = process.env.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id';
@@ -41,7 +42,7 @@ export default function Sidebar({
     const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const [userData, setUserData] = useState<any>(null);
+    const [userData, setUserData] = useState<(AuthUser & { profile: AccountProfile | null; auth_id?: string }) | null>(null);
     const [dbUserRole, setDbUserRole] = useState<string | null>(null);
 
     const handleMouseEnter = (idx: number) => {
@@ -55,7 +56,7 @@ export default function Sidebar({
         }, 120);
     };
 
-    const loadUserInfo = async () => {
+    const loadUserInfo = useCallback(async () => {
         const user = await getSessionUser();
         if (!user) return;
         const [{ profile }, role] = await Promise.all([
@@ -64,25 +65,29 @@ export default function Sidebar({
         ]);
         setUserData({ ...user, profile });
         if (role) setDbUserRole(role);
-    };
-
-    useEffect(() => {
-        loadUserInfo();
     }, []);
 
     useEffect(() => {
-        const handler = () => loadUserInfo();
+        const initialLoad = window.setTimeout(() => { void loadUserInfo(); }, 0);
+        return () => window.clearTimeout(initialLoad);
+    }, [loadUserInfo]);
+
+    useEffect(() => {
+        const handler = () => { void loadUserInfo(); };
         window.addEventListener('profile-updated', handler);
         return () => window.removeEventListener('profile-updated', handler);
-    }, []);
+    }, [loadUserInfo]);
 
     // Load pinned pages
     useEffect(() => {
-        try {
-            const userKey = userData?.id || userData?.auth_id || 'default';
-            const saved = localStorage.getItem(`acca_cbt_pinned_${userKey}`);
-            if (saved) setPinned(JSON.parse(saved));
-        } catch { }
+        const loadPinned = window.setTimeout(() => {
+            try {
+                const userKey = userData?.id || userData?.auth_id || 'default';
+                const saved = localStorage.getItem(`acca_cbt_pinned_${userKey}`);
+                if (saved) setPinned(JSON.parse(saved));
+            } catch { }
+        }, 0);
+        return () => window.clearTimeout(loadPinned);
     }, [userData]);
 
     const togglePin = (href: string) => {

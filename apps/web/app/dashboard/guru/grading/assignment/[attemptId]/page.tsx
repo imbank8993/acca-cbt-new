@@ -1,5 +1,5 @@
 "use client";
-import { getAttemptDetailsForGrading,submitEssayGrades } from '@/lib/api/teachers';
+import { AttemptGradingDetails,getAttemptDetailsForGrading,parseEssaySubmission,submitEssayGrades } from '@/lib/api/teachers';
 import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { ArrowLeft,ChevronLeft,ChevronRight,FileText,GraduationCap,Loader2,MessageSquare,Save,User } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
@@ -12,9 +12,8 @@ export default function AssignmentReviewerPage() {
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [details, setDetails] = useState<any>(null);
+    const [details, setDetails] = useState<AttemptGradingDetails | null>(null);
     const [grades, setGrades] = useState<Record<string, number>>({});
-    const [] = useState<Record<string, string>>({}); // Future proofing for feedback
     const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
 
     useEffect(() => {
@@ -23,26 +22,15 @@ export default function AssignmentReviewerPage() {
             const data = await getAttemptDetailsForGrading(attemptId);
             if (data && data.essayAnswers.length > 0) {
                 // Filter to only get essay answers that have files
-                const answersWithFiles = data.essayAnswers.filter((a: any) => {
-                    let files: string[] = [];
-                    if (typeof a.essay_answer === 'string') {
-                        try {
-                            const parsed = JSON.parse(a.essay_answer);
-                            files = parsed.fileUrls || [];
-                        } catch { }
-                    } else if (a.essay_answer && typeof a.essay_answer === 'object') {
-                        files = (a.essay_answer as any).fileUrls || [];
-                    }
-                    return files.length > 0;
-                });
+                const answersWithFiles = data.essayAnswers.filter((answer) =>
+                    parseEssaySubmission(answer.essay_answer).fileUrls.length > 0
+                );
                 
                 // If there are answers with files, prioritize them. Otherwise just use all essays.
                 const relevantAnswers = answersWithFiles.length > 0 ? answersWithFiles : data.essayAnswers;
-                data.essayAnswers = relevantAnswers;
-
-                setDetails(data);
+                setDetails({ ...data, essayAnswers: relevantAnswers });
                 const initialGrades: Record<string, number> = {};
-                relevantAnswers.forEach((a: any) => {
+                relevantAnswers.forEach((a) => {
                     initialGrades[a.id] = a.score || 0;
                 });
                 setGrades(initialGrades);
@@ -102,27 +90,7 @@ export default function AssignmentReviewerPage() {
     const maxScore = qInfo.score_default || 1;
     
     // Parse the answer
-    let text = currentAnswer.essay_answer || '';
-    let files: string[] = [];
-    let videoUrl = '';
-    let topicId = '';
-    if (typeof text === 'string') {
-        try {
-            const parsed = JSON.parse(text);
-            if (parsed.text !== undefined || parsed.fileUrls !== undefined) {
-                text = parsed.text || '';
-                files = parsed.fileUrls || [];
-                videoUrl = parsed.videoUrl || '';
-                topicId = parsed.topicId || '';
-            }
-        } catch { }
-    } else if (text && typeof text === 'object') {
-        const obj: any = text;
-        text = obj.text || '';
-        files = obj.fileUrls || [];
-        videoUrl = obj.videoUrl || '';
-        topicId = obj.topicId || '';
-    }
+    const { text, fileUrls: files, videoUrl, topicId } = parseEssaySubmission(currentAnswer.essay_answer);
 
     // Determine the active file to preview.
     // Isi fileUrls berasal dari payload jawaban milik siswa, jadi tidak boleh
@@ -252,8 +220,8 @@ export default function AssignmentReviewerPage() {
                                     <p className="text-sm text-indigo-300 font-medium">
                                         {(() => {
                                             const options = qInfo.options || [];
-                                            const opt = options.find((o: any) => o.id === topicId);
-                                            return opt ? (opt.option_text || opt.text) : 'Topik Tidak Diketahui';
+                                            const opt = options.find((option) => option.id === topicId);
+                                            return opt ? (opt.option_text || (opt as any).text) : 'Topik Tidak Diketahui';
                                         })()}
                                     </p>
                                 </div>

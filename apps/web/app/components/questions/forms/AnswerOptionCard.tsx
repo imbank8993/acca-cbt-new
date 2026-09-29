@@ -5,7 +5,7 @@
 import { uploadToHosting } from '@/lib/uploader';
 import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload } from 'lucide-react';
 import type { MathfieldElement } from 'mathlive';
-import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { MathToolbar } from '../MathToolbar';
 import { renderLatex,sanitizeLatex } from '../math-utils';
 import { RichInput } from './RichInput';
@@ -20,19 +20,17 @@ interface EquationDialogProps {
 
 export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProps) {
     const [input, setInput] = useState('');
-    const [previewHtml, setPreviewHtml] = useState('');
     const [editorMode, setEditorMode] = useState<'visual' | 'latex'>('visual');
 
     useEffect(() => {
         // Dynamic import to register <math-field> without breaking SSR
         import('mathlive').catch((err) => console.error('Failed to load mathlive', err));
+    }, []);
 
-        if (input.trim()) {
-            const r = renderLatex(sanitizeLatex(input), false);
-            setPreviewHtml(r.error ? '' : r.html);
-        } else {
-            setPreviewHtml('');
-        }
+    const previewHtml = useMemo(() => {
+        if (!input.trim()) return '';
+        const result = renderLatex(sanitizeLatex(input), false);
+        return result.error ? '' : result.html;
     }, [input]);
 
     const handleInsert = () => {
@@ -146,7 +144,7 @@ export function EquationDialog({ isOpen, onClose, onInsert }: EquationDialogProp
                     <MathToolbar
                         onInsert={(template) => {
                             if (editorMode === 'visual') {
-                                const mf = document.getElementById('mf-option-editor') as any;
+                                const mf = document.getElementById('mf-option-editor') as MathfieldElement | null;
                                 if (mf) {
                                     const liveLatex = template.replace(/\?/g, '#?');
                                     mf.executeCommand(['insert', liveLatex]);
@@ -390,7 +388,7 @@ export const AnswerOptionCard = React.memo(({
         }
     }, [showToolsMenu]);
 
-    const insertAtCursor = (text: string) => {
+    const insertAtCursor = useCallback((text: string) => {
         const ta = inputRef.current;
         if (!ta) return;
         const start = ta.selectionStart;
@@ -402,7 +400,7 @@ export const AnswerOptionCard = React.memo(({
             ta.selectionStart = ta.selectionEnd = start + text.length;
             ta.focus();
         }, 0);
-    };
+    }, [onChange, value]);
 
     const handleImageUpload = async (file: File) => {
         setImageUploading(true);

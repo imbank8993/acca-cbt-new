@@ -43,17 +43,35 @@ export default async function RootLayout({
   const appConfig = await getSettingServer<{ maintenance_mode?: boolean }>('app_config');
   const isMaintenance = appConfig?.maintenance_mode || false;
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="id" suppressHydrationWarning>
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="color-scheme" content="light" id="color-scheme-meta" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" id="theme-color-light-meta" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: dark)" id="theme-color-dark-meta" />
+        <meta name="theme-color" content="#ffffff" id="theme-color-meta" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.theme === 'dark' || localStorage.getItem('darkMode') === '1' || (!('theme' in localStorage) && !('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                var d = localStorage.getItem('darkMode') === '1' || localStorage.theme === 'dark' || (!('theme' in localStorage) && !('darkMode' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (d) {
                   document.documentElement.classList.add('dark');
                 } else {
                   document.documentElement.classList.remove('dark');
                 }
+                var c = d ? '#000000' : '#ffffff';
+                var s = d ? 'dark' : 'light';
+                document.documentElement.style.backgroundColor = c;
+                document.documentElement.style.colorScheme = s;
+                var metas = ['theme-color-meta', 'theme-color-light-meta', 'theme-color-dark-meta'];
+                for (var i = 0; i < metas.length; i++) {
+                  var el = document.getElementById(metas[i]);
+                  if (el) { el.content = c; el.setAttribute('content', c); }
+                }
+                var cs = document.getElementById('color-scheme-meta');
+                if (cs) { cs.content = s; cs.setAttribute('content', s); }
               } catch (_) {}
             `,
           }}
@@ -64,6 +82,7 @@ export default async function RootLayout({
       <body
         className={`${openSans.variable} antialiased`}
       >
+        <div className="acca-ambient-bg" aria-hidden="true" />
         <ExamPwaRegistration />
         <ErrorBoundary>
           <ToastProvider>

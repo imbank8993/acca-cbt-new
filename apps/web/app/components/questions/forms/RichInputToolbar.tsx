@@ -11,8 +11,18 @@ import React,{ createContext,useCallback,useContext,useRef,useState } from 'reac
 // ─── Context ────────────────────────────────────────────────────────────────
 
 interface RichInputToolbarContextValue {
-    activeQuill: React.MutableRefObject<any>;
-    registerFocus: (quill: any) => void;
+    activeQuill: React.MutableRefObject<QuillEditor | null>;
+    registerFocus: (quill: QuillEditor) => void;
+}
+
+interface QuillEditor {
+    clipboard: {
+        dangerouslyPasteHTML: (index: number, html: string) => void;
+    };
+    format: (format: string, value: unknown) => void;
+    getFormat: () => Record<string, unknown>;
+    getSelection: (focus?: boolean) => { index: number; length: number };
+    insertText: (index: number, text: string) => void;
 }
 
 export const RichInputToolbarContext = createContext<RichInputToolbarContextValue | null>(null);
@@ -28,9 +38,9 @@ interface RichInputToolbarProviderProps {
 }
 
 export function RichInputToolbarProvider({ children }: RichInputToolbarProviderProps) {
-    const activeQuill = useRef<any>(null);
+    const activeQuill = useRef<QuillEditor | null>(null);
 
-    const registerFocus = useCallback((quill: any) => {
+    const registerFocus = useCallback((quill: QuillEditor) => {
         activeQuill.current = quill;
     }, []);
 
@@ -59,10 +69,8 @@ export const SharedToolbar = React.memo(({ className = '' }: SharedToolbarProps)
     // Image upload state
     const [imageUploading, setImageUploading] = useState(false);
 
-    const getQuill = useCallback(() => activeQuill?.current, [activeQuill]);
-
-    const formatAction = useCallback((format: string, value?: any) => {
-        const q = getQuill();
+    const formatAction = (format: string, value?: unknown) => {
+        const q = activeQuill?.current;
         if (!q) return;
         if (value !== undefined) {
             q.format(format, value);
@@ -70,31 +78,31 @@ export const SharedToolbar = React.memo(({ className = '' }: SharedToolbarProps)
             const current = q.getFormat()[format];
             q.format(format, current ? false : true);
         }
-    }, [getQuill]);
+    };
 
-    const handleAlign = useCallback((align: string) => {
-        const q = getQuill();
+    const handleAlign = (align: string) => {
+        const q = activeQuill?.current;
         if (!q) return;
         q.format('align', align);
-    }, [getQuill]);
+    };
 
-    const handleList = useCallback((list: 'ordered' | 'bullet') => {
-        const q = getQuill();
+    const handleList = (list: 'ordered' | 'bullet') => {
+        const q = activeQuill?.current;
         if (!q) return;
         q.format('list', list);
-    }, [getQuill]);
+    };
 
-    const handleLink = useCallback(() => {
-        const q = getQuill();
+    const handleLink = () => {
+        const q = activeQuill?.current;
         if (!q) return;
         const url = prompt('URL:');
         if (url) {
             q.format('link', url);
         }
-    }, [getQuill]);
+    };
 
-    const handleImageFile = useCallback(async (file: File) => {
-        const q = getQuill();
+    const handleImageFile = async (file: File) => {
+        const q = activeQuill?.current;
         if (!q) return;
         setImageUploading(true);
         try {
@@ -110,20 +118,20 @@ export const SharedToolbar = React.memo(({ className = '' }: SharedToolbarProps)
         } finally {
             setImageUploading(false);
         }
-    }, [getQuill]);
+    };
 
-    const handleInsertLatex = useCallback(() => {
-        const q = getQuill();
+    const handleInsertLatex = () => {
+        const q = activeQuill?.current;
         if (!q) return;
         const latex = prompt('Ketik rumus LaTeX (tanpa $):', '');
         if (latex !== null && latex.trim()) {
             const range = q.getSelection(true);
             q.insertText(range.index, `$${latex.trim()}$`);
         }
-    }, [getQuill]);
+    };
 
-    const insertTable = useCallback(() => {
-        const q = getQuill();
+    const insertTable = () => {
+        const q = activeQuill?.current;
         if (!q) return;
         let tableHtml = '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin:6px 0;">';
         for (let r = 0; r < tableRows; r++) {
@@ -137,7 +145,7 @@ export const SharedToolbar = React.memo(({ className = '' }: SharedToolbarProps)
         const range = q.getSelection(true);
         q.clipboard.dangerouslyPasteHTML(range.index, tableHtml);
         setTableDialogOpen(false);
-    }, [getQuill, tableRows, tableCols]);
+    };
 
     return (
         <>
@@ -346,8 +354,6 @@ export const OptionToolbar = React.memo(({ className = '' }: OptionToolbarProps)
     // Image upload state
     const [imageUploading, setImageUploading] = useState(false);
 
-    const getQuill = useCallback(() => activeQuill?.current, [activeQuill]);
-
     // LaTeX dialog state
     const [latexDialogOpen, setLatexDialogOpen] = useState(false);
     const [latexInput, setLatexInput] = useState('');
@@ -357,8 +363,8 @@ export const OptionToolbar = React.memo(({ className = '' }: OptionToolbarProps)
     const [tableRows, setTableRows] = useState(2);
     const [tableCols, setTableCols] = useState(2);
 
-    const handleImageFile = useCallback(async (file: File) => {
-        const q = getQuill();
+    const handleImageFile = async (file: File) => {
+        const q = activeQuill?.current;
         if (!q) return;
         setImageUploading(true);
         try {
@@ -374,19 +380,19 @@ export const OptionToolbar = React.memo(({ className = '' }: OptionToolbarProps)
         } finally {
             setImageUploading(false);
         }
-    }, [getQuill]);
+    };
 
-    const handleInsertLatexFromDialog = useCallback(() => {
-        const q = getQuill();
+    const handleInsertLatexFromDialog = () => {
+        const q = activeQuill?.current;
         if (!q || !latexInput.trim()) return;
         const range = q.getSelection(true);
         q.insertText(range.index, `$${latexInput.trim()}$`);
         setLatexInput('');
         setLatexDialogOpen(false);
-    }, [getQuill, latexInput]);
+    };
 
-    const insertTable = useCallback(() => {
-        const q = getQuill();
+    const insertTable = () => {
+        const q = activeQuill?.current;
         if (!q) return;
         let tableHtml = '<table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin:6px 0;">';
         for (let r = 0; r < tableRows; r++) {
@@ -400,7 +406,7 @@ export const OptionToolbar = React.memo(({ className = '' }: OptionToolbarProps)
         const range = q.getSelection(true);
         q.clipboard.dangerouslyPasteHTML(range.index, tableHtml);
         setTableDialogOpen(false);
-    }, [getQuill, tableRows, tableCols]);
+    };
 
     return (
         <>

@@ -10,6 +10,15 @@
  *   berisi teks atau JSON.
  */
 
+export interface DisplayMetadata {
+    match_text?: string;
+    match_texts?: string[];
+    category_name?: string;
+    category_names?: string[];
+    blanks?: Array<{ variations?: string[] }>;
+    [key: string]: unknown;
+}
+
 export interface DisplayOption {
     id: string;
     option_text?: string;
@@ -17,14 +26,14 @@ export interface DisplayOption {
     is_correct?: boolean;
     weight?: number;
     order?: number;
-    metadata?: any;
+    metadata?: DisplayMetadata | null;
     category_names?: string[];
 }
 
 export interface DisplayQuestion {
     type: string;
     question_text?: string;
-    metadata?: any;
+    metadata?: DisplayMetadata | string | null;
     options?: DisplayOption[];
 }
 
@@ -43,7 +52,11 @@ export function stripHtml(html: string): string {
         .trim();
 }
 
-function parseMaybeJson(value: any): any {
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseMaybeJson(value: unknown): unknown {
     if (value === null || value === undefined) return null;
     if (typeof value !== 'string') return value;
     const s = value.trim();
@@ -65,13 +78,16 @@ function optionLabel(options: DisplayOption[], opt: DisplayOption): string {
     return `${letter}${optionText(opt)}`;
 }
 
-function normalizedMetadata(q: DisplayQuestion): any {
+function normalizedMetadata(q: DisplayQuestion): DisplayMetadata {
     const raw = q?.metadata;
     if (!raw) return {};
     if (typeof raw === 'string') {
-        try { return JSON.parse(raw); } catch { return {}; }
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            return isRecord(parsed) ? parsed : {};
+        } catch { return {}; }
     }
-    return raw;
+    return isRecord(raw) ? raw : {};
 }
 
 /**
@@ -81,7 +97,7 @@ function normalizedMetadata(q: DisplayQuestion): any {
 export function formatStudentAnswer(
     question: DisplayQuestion,
     selectedOptionId?: string | null,
-    essayAnswer?: any
+    essayAnswer?: unknown
 ): string[] {
     const type = (question?.type || '').toLowerCase();
     const options = question?.options || [];
@@ -97,19 +113,19 @@ export function formatStudentAnswer(
     if (parsed === null || parsed === undefined || parsed === '') return [];
 
     if (['essay', 'esay', 'uraian'].includes(type)) {
-        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (isRecord(parsed)) {
             const lines: string[] = [];
-            if (parsed.text) lines.push(String(parsed.text));
+            if (typeof parsed.text === 'string' && parsed.text) lines.push(parsed.text);
             const fileCount = Array.isArray(parsed.fileUrls) ? parsed.fileUrls.length : 0;
             if (fileCount > 0) lines.push(`📎 ${fileCount} lampiran file`);
-            if (parsed.videoUrl) lines.push(`🎥 Link video: ${parsed.videoUrl}`);
+            if (typeof parsed.videoUrl === 'string' && parsed.videoUrl) lines.push(`🎥 Link video: ${parsed.videoUrl}`);
             return lines;
         }
         return [String(parsed)];
     }
 
     if (type === 'mcq_complex') {
-        const ids: string[] = Array.isArray(parsed) ? parsed : [];
+        const ids = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
         return ids.map(id => {
             const opt = options.find(o => o.id === id);
             return opt ? optionLabel(options, opt) : '(Opsi tidak tersedia)';
@@ -117,21 +133,24 @@ export function formatStudentAnswer(
     }
 
     if (type === 'true_false' || type === 'checklist') {
-        if (typeof parsed !== 'object' || Array.isArray(parsed)) return [String(parsed)];
+        if (!isRecord(parsed)) return [String(parsed)];
         return options
             .filter(o => parsed[o.id] !== undefined && parsed[o.id] !== '')
             .map(o => `${optionText(o)} → ${String(parsed[o.id]).toUpperCase()}`);
     }
 
     if (type === 'matching' || type === 'categorization') {
-        if (typeof parsed !== 'object' || Array.isArray(parsed)) return [String(parsed)];
-        return options
-            .filter(o => Array.isArray(parsed[o.id]) && parsed[o.id].length > 0)
-            .map(o => `${optionText(o)} → ${parsed[o.id].join(', ')}`);
+        if (!isRecord(parsed)) return [String(parsed)];
+        return options.flatMap((option) => {
+            const matches = parsed[option.id];
+            return Array.isArray(matches) && matches.length > 0
+                ? [`${optionText(option)} → ${matches.map(String).join(', ')}`]
+                : [];
+        });
     }
 
     if (type === 'short_answer') {
-        const arr: any[] = Array.isArray(parsed) ? parsed : [parsed];
+        const arr: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
         return arr
             .map((v, i) => ({ v: String(v ?? '').trim(), i }))
             .filter(x => x.v !== '')
@@ -140,12 +159,13 @@ export function formatStudentAnswer(
 
     if (type === 'ordering' || type === 'ranking') {
         if (Array.isArray(parsed)) {
-            return parsed.map((id: string, i: number) => {
+            return parsed.map((value: unknown, i: number) => {
+                const id = typeof value === 'string' ? value : '';
                 const opt = options.find(o => o.id === id);
                 return `${i + 1}. ${optionText(opt)}`;
             });
         }
-        if (typeof parsed === 'object') {
+        if (isRecord(parsed)) {
             return options
                 .filter(o => parsed[o.id] !== undefined && String(parsed[o.id]).trim() !== '')
                 .map(o => `${optionText(o)} → urutan ${parsed[o.id]}`);
@@ -194,7 +214,9 @@ export function formatAnswerKey(question: DisplayQuestion): string[] {
     if (type === 'matching') {
         return options
             .map(o => {
-                const matches: string[] = o.metadata?.match_texts || (o.metadata?.match_text ? [o.metadata.match_text] : []);
+                const matches = Array.isArray(o.metadata?.match_texts)
+                    ? o.metadata.match_texts.filter((value): value is string => typeof value === 'string')
+                    : (typeof o.metadata?.match_text === 'string' ? [o.metadata.match_text] : []);
                 return matches.length > 0 ? `${optionText(o)} → ${matches.join(', ')}` : '';
             })
             .filter(Boolean);
@@ -203,14 +225,18 @@ export function formatAnswerKey(question: DisplayQuestion): string[] {
     if (type === 'categorization') {
         return options
             .map(o => {
-                const cats: string[] = o.category_names || o.metadata?.category_names || (o.metadata?.category_name ? [o.metadata.category_name] : []);
+                const cats = Array.isArray(o.category_names)
+                    ? o.category_names
+                    : Array.isArray(o.metadata?.category_names)
+                        ? o.metadata.category_names.filter((value): value is string => typeof value === 'string')
+                        : (typeof o.metadata?.category_name === 'string' ? [o.metadata.category_name] : []);
                 return cats.length > 0 ? `${optionText(o)} → ${cats.join(', ')}` : '';
             })
             .filter(Boolean);
     }
 
     if (type === 'short_answer') {
-        const blanks: any[] = metadata?.blanks || [];
+        const blanks = Array.isArray(metadata.blanks) ? metadata.blanks : [];
         return blanks
             .map((b, i) => {
                 const vars: string[] = b?.variations || [];

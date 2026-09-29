@@ -1,13 +1,29 @@
 "use client";
 import { InlineMath } from '@/app/components/questions/InlineMath';
-import { getExamAnswersForAnalysisAction,getExamAttemptsAction,listOrganizationExams } from '@/lib/api/proctor';
+import {
+    type ExamAttemptRecord,
+    getExamAnswersForAnalysisAction,
+    getExamAttemptsAction,
+    listOrganizationExams,
+    type OrganizationExam,
+} from '@/lib/api/proctor';
 import { getGuruOrganization } from '@/lib/api/teachers';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import { AlertTriangle,BarChart3,Calculator,FileSpreadsheet,Loader2,RefreshCw,Users } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
-import { Suspense,useEffect,useState } from 'react';
+import { Suspense,useCallback,useEffect,useState } from 'react';
+
+interface ItemAnalysis {
+    id: string;
+    number: number;
+    qText: string;
+    total: number;
+    correct: number;
+    incorrect: number;
+    incorrectPercentage: number;
+}
 
 function GradingContent() {
     const searchParams = useSearchParams();
@@ -16,15 +32,15 @@ function GradingContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('guru_grading_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [exams, setExams] = useMemoryState<any[]>('guru_grading_exams', []);
+    const [exams, setExams] = useMemoryState<OrganizationExam[]>('guru_grading_exams', []);
     const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
 
-    const [attempts, setAttempts] = useMemoryState<any[]>('guru_grading_attempts', []);
-    const [analysis, setAnalysis] = useMemoryState<any[]>('guru_grading_analysis', []);
+    const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('guru_grading_attempts', []);
+    const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('guru_grading_analysis', []);
 
     const [activeTab, setActiveTab] = useState<'results' | 'analysis'>('results');
 
-    const loadInitialData = async () => {
+    const loadInitialData = useCallback(async () => {
         setIsLoading(true);
         const user = await getSessionUser();
         if (user) {
@@ -38,9 +54,9 @@ function GradingContent() {
             }
         }
         setIsLoading(false);
-    };
+    }, [initialExamId, setExams, setIsLoading]);
 
-    const loadExamData = async (examId: string) => {
+    const loadExamData = useCallback(async (examId: string) => {
         setIsRefreshing(true);
         try {
             const [attData, analysisData] = await Promise.all([
@@ -56,7 +72,7 @@ function GradingContent() {
             const { questions: bankQuestions, answers: ansRows } = analysisData;
             const itemStats: Record<string, { total: number, correct: number, incorrect: number }> = {};
 
-            (ansRows || []).forEach((ans: any) => {
+            ansRows.forEach((ans) => {
                 const qId = ans.question_id;
                 if (!itemStats[qId]) itemStats[qId] = { total: 0, correct: 0, incorrect: 0 };
                 itemStats[qId].total += 1;
@@ -64,19 +80,19 @@ function GradingContent() {
                 else if (ans.is_correct === false) itemStats[qId].incorrect += 1;
             });
 
-            const analysisArray = ((bankQuestions || []) as any[]).map((q: any) => {
+            const analysisArray: ItemAnalysis[] = bankQuestions.map((q) => {
                 const stat = itemStats[q.id] || { total: 0, correct: 0, incorrect: 0 };
                 const graded = stat.correct + stat.incorrect;
                 return {
                     id: q.id,
-                    number: q.number,
+                    number: q.number ?? 0,
                     qText: q.question_text || 'Deskripsi Soal Tidak Terbaca',
                     total: stat.total,
                     correct: stat.correct,
                     incorrect: stat.incorrect,
                     incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
                 };
-            }).sort((a: any, b: any) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
+            }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
 
             setAnalysis(analysisArray);
 
@@ -84,20 +100,24 @@ function GradingContent() {
             console.error(error);
         }
         setIsRefreshing(false);
-    };
+    }, [setAnalysis, setAttempts]);
 
     useEffect(() => {
-        loadInitialData();
-    }, []);
+        const timer = window.setTimeout(() => void loadInitialData(), 0);
+        return () => window.clearTimeout(timer);
+    }, [loadInitialData]);
 
     useEffect(() => {
-        if (selectedExamId) {
-            loadExamData(selectedExamId);
-        } else {
-            setAttempts([]);
-            setAnalysis([]);
-        }
-    }, [selectedExamId]);
+        const timer = window.setTimeout(() => {
+            if (selectedExamId) {
+                void loadExamData(selectedExamId);
+            } else {
+                setAttempts([]);
+                setAnalysis([]);
+            }
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [loadExamData, selectedExamId, setAnalysis, setAttempts]);
 
     const formatUTCDateTime = (str: string) => {
         const date = new Date(str.match(/(Z|[+-]\d{2}:\d{2})$/) ? str : str + 'Z');

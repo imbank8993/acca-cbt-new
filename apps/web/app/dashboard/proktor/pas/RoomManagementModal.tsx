@@ -9,22 +9,30 @@ deletePASSessionAction,
 listPASRooms,
 listPASSessions,
 listTeachersAndInvigilators,
+type PASRoom,
+type PASStaffMember,
 removeStudentFromRoomAction
 } from '@/lib/api/pas';
-import { getStudentsByClassAction,listOrganizationClasses } from '@/lib/api/proctor';
+import {
+type ClassStudent,
+getStudentsByClassAction,
+listOrganizationClasses,
+type OrganizationClass,
+} from '@/lib/api/proctor';
+import type { PASPeriod,PASSession } from '@/app/types/pas';
 import { Plus,Save,Trash2,Users,X } from 'lucide-react';
-import { useEffect,useState } from 'react';
+import { useCallback,useEffect,useState } from 'react';
 
 interface RoomManagementModalProps {
-    period: any;
+    period: PASPeriod;
     onClose: () => void;
 }
 
 export default function RoomManagementModal({ period, onClose }: RoomManagementModalProps) {
-    const [rooms, setRooms] = useState<any[]>([]);
-    const [teachers, setTeachers] = useState<any[]>([]);
-    const [classes, setClasses] = useState<any[]>([]);
-    const [sessions, setSessions] = useState<any[]>([]);
+    const [rooms, setRooms] = useState<PASRoom[]>([]);
+    const [teachers, setTeachers] = useState<PASStaffMember[]>([]);
+    const [classes, setClasses] = useState<OrganizationClass[]>([]);
+    const [sessions, setSessions] = useState<PASSession[]>([]);
     
     // Tab State
     const [activeTab, setActiveTab] = useState<'rooms' | 'sessions'>('rooms');
@@ -41,21 +49,21 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const [newSessionEnd, setNewSessionEnd] = useState('09:30');
 
     // State for selected room to manage
-    const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
+    const [selectedRoom, setSelectedRoom] = useState<PASRoom | null>(null);
 
     // State for assignments in the selected room
     const [selectedProctorIds, setSelectedProctorIds] = useState<string[]>([]);
     
     // Student assignment state
     const [selectedClassId, setSelectedClassId] = useState('');
-    const [classStudents, setClassStudents] = useState<any[]>([]);
+    const [classStudents, setClassStudents] = useState<ClassStudent[]>([]);
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
     const assignedStudentIds = new Set<string>(
-        selectedRoom?.pas_room_students?.map((student: any) => student.user_id) || [],
+        selectedRoom?.pas_room_students?.map((student) => student.user_id) || [],
     );
     const remainingCapacity = selectedRoom
         ? Math.max(0, Number(selectedRoom.capacity || 0) - assignedStudentIds.size)
@@ -64,11 +72,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         .filter((id) => !assignedStudentIds.has(id)).length;
     const exceedsCapacity = newStudentCount > remainingCapacity;
 
-    useEffect(() => {
-        loadData();
-    }, [period.id]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [roomList, teacherList, classList, sessionList] = await Promise.all([
@@ -85,7 +89,12 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
             console.error('Failed to load room data', error);
         }
         setIsLoading(false);
-    };
+    }, [period.id]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(initialLoad);
+    }, [loadData]);
 
     const handleCreateRoom = async () => {
         if (!newRoomName.trim()) return;
@@ -115,9 +124,9 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         setIsSaving(false);
     };
 
-    const handleSelectRoom = (room: any) => {
+    const handleSelectRoom = (room: PASRoom) => {
         setSelectedRoom(room);
-        setSelectedProctorIds(room.pas_room_invigilators?.map((i: any) => i.user_id) || []);
+        setSelectedProctorIds(room.pas_room_invigilators?.map((invigilator) => invigilator.user_id) || []);
     };
 
     const handleSaveProctors = async () => {
@@ -315,7 +324,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             </button>
                                         </div>
                                         <div className="mt-2 text-xs text-slate-500 space-y-1">
-                                            <div>Siswa: <span className={room.pas_room_students?.length > room.capacity ? 'text-red-500 font-bold' : ''}>{room.pas_room_students?.length || 0} / {room.capacity}</span></div>
+                                            <div>Siswa: <span className={(room.pas_room_students?.length ?? 0) > room.capacity ? 'text-red-500 font-bold' : ''}>{room.pas_room_students?.length || 0} / {room.capacity}</span></div>
                                             <div>Pengawas: {room.pas_room_invigilators?.length || 0}</div>
                                         </div>
                                     </div>
@@ -428,7 +437,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                     {(!selectedRoom.pas_room_students || selectedRoom.pas_room_students.length === 0) ? (
                                         <div className="text-xs text-slate-400 p-4 text-center">Belum ada siswa di ruang ini.</div>
                                     ) : (
-                                        selectedRoom.pas_room_students.map((student: any) => (
+                                        selectedRoom.pas_room_students.map((student) => (
                                             <div key={student.user_id} className="flex items-center justify-between p-2 hover:bg-slate-50">
                                                 <span className="text-sm text-slate-700">{student.profiles?.full_name || 'Tanpa Nama'}</span>
                                                 <button

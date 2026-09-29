@@ -1,14 +1,17 @@
 "use client";
 import {
-createPASPeriodAction,
-deletePASPeriodAction,
-listPASPeriods,
-listSubjects,
-lockPASPeriodAction,
+    createPASPeriodAction,
+    deletePASPeriodAction,
+    listPASPeriods,
+    listSubjects,
+    lockPASPeriodAction,
+    PASSubjectSummary,
 } from '@/lib/api/pas';
-import { getActiveSchoolYear,getProctorOrganization } from '@/lib/api/proctor';
+import { getActiveSchoolYear,getProctorOrganization,ProctorOrganization } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import type { PASPeriod } from '@/app/types/pas';
+import type { AuthUser } from '@acca-cbt/shared';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 BookOpen,
@@ -23,17 +26,17 @@ Unlock,
 X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 
 type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn';
 type Semester = 'ganjil' | 'genap';
 
 export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: string }) {
     const router = useRouter();
-    const [user, setUser] = useState<any>(null);
-    const [org, setOrg] = useState<any>(null);
-    const [periods, setPeriods] = useMemoryState<any[]>('proktor_pas_periods', []);
-    const [, setSubjects] = useMemoryState<any[]>('proktor_pas_subjects', []);
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [periods, setPeriods] = useMemoryState<PASPeriod[]>('proktor_pas_periods', []);
+    const [, setSubjects] = useMemoryState<PASSubjectSummary[]>('proktor_pas_subjects', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_pas_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,15 +51,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
         end_date: '',
     });
 
-    useEffect(() => {
-        loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
         const authUser = await getSessionUser();
         if (authUser) {
@@ -77,7 +72,17 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
             }
         }
         setIsLoading(false);
-    };
+    }, [setIsLoading, setPeriods, setSubjects]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => { void loadData(); }, 0);
+        const handleFocus = () => { void loadData(); };
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const handleCreatePeriod = async (e: React.FormEvent) => {
         e.preventDefault();

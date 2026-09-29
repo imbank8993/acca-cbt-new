@@ -29,6 +29,29 @@ export interface FilterWidthProps {
     className?: string;
 }
 
+interface ToolbarChildProps {
+    children?: ReactNode;
+    variant?: string;
+    className?: string;
+    value?: unknown;
+    selectedMonths?: unknown[];
+    checked?: boolean;
+    options?: FilterOption[];
+    onChange?: (value: unknown) => void;
+    disabled?: boolean;
+    label?: string;
+}
+
+interface SearchCloneProps {
+    placeholder?: string;
+    trailing?: ReactNode;
+}
+
+type NamedElementType = React.ElementType & {
+    displayName?: string;
+    name?: string;
+};
+
 function DropDownIcon({ size = 20, className = '' }: { size?: number; className?: string }) {
     return (
         <svg
@@ -96,8 +119,8 @@ function flattenChildren(children: ReactNode): ReactNode[] {
     const result: ReactNode[] = [];
     React.Children.forEach(children, (child) => {
         if (!child) return;
-        if (React.isValidElement(child) && child.type === React.Fragment) {
-            result.push(...flattenChildren((child.props as any).children));
+        if (React.isValidElement<{ children?: ReactNode }>(child) && child.type === React.Fragment) {
+            result.push(...flattenChildren(child.props.children));
         } else if (Array.isArray(child)) {
             result.push(...flattenChildren(child));
         } else {
@@ -109,24 +132,24 @@ function flattenChildren(children: ReactNode): ReactNode[] {
 
 function isSearchElement(element: React.ReactElement): boolean {
     if (!element || !React.isValidElement(element)) return false;
-    const type = element.type as any;
+    const type = element.type as NamedElementType;
     if (type === FilterSearch) return true;
     if (type?.displayName === 'FilterSearch' || type?.name === 'FilterSearch') return true;
-    if ((element.props as any)?.variant === 'search') return true;
+    if ((element as React.ReactElement<ToolbarChildProps>).props.variant === 'search') return true;
     return false;
 }
 
 function isActionElement(element: React.ReactElement): boolean {
     if (!element || !React.isValidElement(element)) return false;
-    const type = element.type as any;
+    const type = element.type as NamedElementType;
     if (type === FilterActions) return true;
     if (type?.displayName === 'FilterActions' || type?.name === 'FilterActions') return true;
-    const props = element.props as any;
+    const props = (element as React.ReactElement<ToolbarChildProps>).props;
     if (props?.className && typeof props.className === 'string' && props.className.includes('ftb-field--action')) return true;
     return false;
 }
 
-function isValueActive(value: any): boolean {
+function isValueActive(value: unknown): boolean {
     if (value === undefined || value === null) return false;
     if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -163,8 +186,8 @@ function isValueActive(value: any): boolean {
 function getActiveCount(items: ReactNode[]): number {
     let count = 0;
     items.forEach((item) => {
-        if (React.isValidElement(item)) {
-            const props = (item as any).props || {};
+        if (React.isValidElement<ToolbarChildProps>(item)) {
+            const props = item.props;
             const { value, selectedMonths, checked } = props;
             if (Array.isArray(selectedMonths)) {
                 if (selectedMonths.length > 0) count++;
@@ -229,20 +252,27 @@ export function FilterToolbar({
     const soleChoiceFilter = (() => {
         if (filterItems.length !== 1) return null;
         const item = filterItems[0];
-        if (!React.isValidElement(item)) return null;
-        const props = (item as any).props || {};
-        const usable = Array.isArray(props.options)
-            && props.options.length > 0
-            && typeof props.onChange === 'function'
-            && props.value !== undefined
-            && !props.disabled;
-        return usable ? props : null;
+        if (!React.isValidElement<ToolbarChildProps>(item)) return null;
+        const props = item.props;
+        if (!Array.isArray(props.options)
+            || props.options.length === 0
+            || typeof props.onChange !== 'function'
+            || props.value === undefined
+            || props.disabled) {
+            return null;
+        }
+        return {
+            label: props.label,
+            onChange: props.onChange,
+            options: props.options,
+            value: props.value,
+        };
     })();
 
     const handleResetFilters = () => {
         filterItems.forEach((item) => {
-            if (React.isValidElement(item)) {
-                const props = (item as any).props || {};
+            if (React.isValidElement<ToolbarChildProps>(item)) {
+                const props = item.props;
                 if (typeof props.onChange === 'function') {
                     if (Array.isArray(props.selectedMonths)) {
                         props.onChange([]);
@@ -288,8 +318,8 @@ export function FilterToolbar({
                             {hasSearch ? (
                                 <div className="ftb-mobile-search-wrap">
                                     {searchItems.map((item, idx) => {
-                                        if (React.isValidElement(item)) {
-                                            return React.cloneElement(item as React.ReactElement<any>, {
+                                        if (React.isValidElement<SearchCloneProps>(item)) {
+                                            return React.cloneElement(item, {
                                                 key: idx,
                                                 placeholder: 'Cari',
                                                 trailing: (hasFilters && idx === searchItems.length - 1) ? (
@@ -700,7 +730,7 @@ export function FilterMonthSelect({
 }: FilterWidthProps & {
     selectedMonths?: number[];
     value?: string;
-    onChange: (value: any) => void;
+    onChange: (value: string | number[]) => void;
     label?: string;
 }) {
     let currentMonthVal = '';

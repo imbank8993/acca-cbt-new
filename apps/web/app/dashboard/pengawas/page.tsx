@@ -5,9 +5,11 @@ import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
 getExamAttemptsAction,
 getProctorOrganization,
-getRecentViolationsAction,
-listOrganizationExams,
-type ProctorOrganization,
+    getRecentViolationsAction,
+    listOrganizationExams,
+    type ExamAttemptRecord,
+    type OrganizationExam,
+    type ProctorOrganization,
 type ViolationEvent
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
@@ -31,9 +33,9 @@ export default function PengawasDashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [organization, setOrganization] = useState<ProctorOrganization | null>(null);
-    const [exams, setExams] = useState<any[]>([]);
+    const [exams, setExams] = useState<OrganizationExam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
-    const [attempts, setAttempts] = useState<any[]>([]);
+    const [attempts, setAttempts] = useState<ExamAttemptRecord[]>([]);
     const [violations, setViolations] = useState<ViolationEvent[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
@@ -73,7 +75,8 @@ export default function PengawasDashboard() {
     }, [selectedExamId]);
 
     useEffect(() => {
-        loadData(false);
+        const initialLoad = window.setTimeout(() => { void loadData(false); }, 0);
+        return () => window.clearTimeout(initialLoad);
     }, [loadData]);
 
     // Pembaruan berkala setiap 30 detik untuk dashboard

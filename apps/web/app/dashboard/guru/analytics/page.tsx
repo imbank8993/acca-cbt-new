@@ -66,7 +66,7 @@ export default function AnalyticsDashboard() {
     }
 
     fetchData();
-  }, []);
+  }, [setExams, setLoading]);
 
   // Statistik dihitung dari daftar ujian yang sudah ter-scoping — konsisten
   // dengan apa yang guru lihat di daftar, tanpa angka org-wide.

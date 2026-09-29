@@ -1,5 +1,5 @@
 "use client";
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback,useEffect,useMemo,useState } from 'react';
 import { renderLatex,sanitizeLatex } from './math-utils';
 
 const TEMPLATES = {
@@ -101,25 +101,21 @@ interface MathEditorProps {
 
 export function MathEditor({ isOpen, onClose, onInsert, initialLatex = '' }: MathEditorProps) {
   const [input, setInput] = useState(initialLatex);
-  const [previewHtml, setPreviewHtml] = useState('');
-  const [previewError, setPreviewError] = useState(false);
   const [activeCategory, setActiveCategory] = useState<keyof typeof TEMPLATES>('structure');
   const [mathMode, setMathMode] = useState<'inline' | 'block'>('inline');
 
-  useEffect(() => {
+  const { previewHtml, previewError } = useMemo(() => {
     if (!input.trim()) {
-      setPreviewHtml('');
-      setPreviewError(false);
-      return;
+      return { previewHtml: '', previewError: false };
     }
     const clean = sanitizeLatex(input);
     const result = renderLatex(clean, false);
-    setPreviewHtml(result.error ? '' : result.html);
-    setPreviewError(result.error);
+    return { previewHtml: result.error ? '' : result.html, previewError: result.error };
   }, [input]);
 
   useEffect(() => {
-    setInput(initialLatex);
+    const synchronizeInput = window.setTimeout(() => setInput(initialLatex), 0);
+    return () => window.clearTimeout(synchronizeInput);
   }, [initialLatex]);
 
   const handleInsert = useCallback(() => {

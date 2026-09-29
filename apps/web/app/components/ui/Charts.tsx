@@ -243,7 +243,15 @@ interface PieChartProps {
 
 export function PieChart({ data, size = 200, className = '' }: PieChartProps) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
-  let currentAngle = -90;
+  const slices = data.reduce<Array<{ item: PieChartData; startAngle: number; endAngle: number; percentage: number }>>(
+    (result, item) => {
+      const percentage = total > 0 ? item.value / total : 0;
+      const startAngle = result.length > 0 ? result[result.length - 1].endAngle : -90;
+      result.push({ item, startAngle, endAngle: startAngle + percentage * 360, percentage });
+      return result;
+    },
+    [],
+  );
 
   const getCoordinatesForAngle = (angle: number, radius: number) => {
     const rad = (angle * Math.PI) / 180;
@@ -256,11 +264,8 @@ export function PieChart({ data, size = 200, className = '' }: PieChartProps) {
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <svg width={size * 2} height={size * 2} className="transform -rotate-90">
-        {data.map((item, i) => {
-          const percentage = item.value / total;
-          const angle = percentage * 360;
-          const startAngle = currentAngle;
-          const endAngle = currentAngle + angle;
+        {slices.map(({ item, startAngle, endAngle, percentage }, i) => {
+          const angle = endAngle - startAngle;
 
           const start = getCoordinatesForAngle(startAngle, size);
           const end = getCoordinatesForAngle(endAngle, size);
@@ -273,8 +278,6 @@ export function PieChart({ data, size = 200, className = '' }: PieChartProps) {
             `A ${size} ${size} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`,
             'Z',
           ].join(' ');
-
-          currentAngle = endAngle;
 
           return (
             <path

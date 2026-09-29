@@ -211,7 +211,7 @@ export class TeachersService {
         const { data: attempt, error: attemptError } = await this.db
             .from('cbt_exam_attempts')
             .select(
-                `id, exam_id, total_score, status, needs_manual_grading,
+                `id, exam_id, total_score, status, needs_manual_grading, finished_at,
                  profiles:cbt_profiles(full_name),
                  exams:cbt_exams(title)`,
             )

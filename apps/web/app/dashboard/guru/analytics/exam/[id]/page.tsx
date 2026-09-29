@@ -20,7 +20,14 @@ import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { CardSkeleton,TableSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import type { ExamAnalyticsSummary,StudentPerformance } from '@/app/types';
 import { formatAnswerKey,formatStudentAnswer,stripHtml } from '@/lib/answer-display';
-import { getAttemptReviewForStaff,getExamAnalytics,getQuestionResponsesAction,getStudentPerformance } from '@/lib/api/analytics';
+import {
+  type AttemptReview,
+  getAttemptReviewForStaff,
+  getExamAnalytics,
+  getQuestionResponsesAction,
+  getStudentPerformance,
+  type QuestionResponseDetail,
+} from '@/lib/api/analytics';
 import { useMemoryState } from '@/lib/useMemoryState';
 import dynamic from 'next/dynamic';
 
@@ -55,8 +62,8 @@ export default function ExamResultsDetailPage() {
   // Detail jawaban per siswa (modal) & respons per soal (lazy saat expand)
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewData, setReviewData] = useState<any>(null);
-  const [questionDetails, setQuestionDetails] = useState<Record<string, any>>({});
+  const [reviewData, setReviewData] = useState<AttemptReview | null>(null);
+  const [questionDetails, setQuestionDetails] = useState<Record<string, QuestionResponseDetail>>({});
   const [questionDetailLoading, setQuestionDetailLoading] = useState<string | null>(null);
 
   const openStudentReview = async (attemptId?: string) => {
@@ -81,7 +88,7 @@ export default function ExamResultsDetailPage() {
       setQuestionDetailLoading(next);
       try {
         const detail = await getQuestionResponsesAction(examId, next);
-        setQuestionDetails(prev => ({ ...prev, [next]: detail }));
+        if (detail) setQuestionDetails(prev => ({ ...prev, [next]: detail }));
       } catch (e) {
         console.error('Load question responses error:', e);
       } finally {
@@ -111,7 +118,7 @@ export default function ExamResultsDetailPage() {
     if (examId) {
       fetchData();
     }
-  }, [examId]);
+  }, [examId, setLoading, setStudents]);
 
   const handleExport = async () => {
     try {
@@ -122,7 +129,7 @@ export default function ExamResultsDetailPage() {
       const data = await getExamExportData(examId);
       
       // Build Sheet 1: Overview
-      const overviewData = data.attempts.map((attempt: any) => ({
+      const overviewData = data.attempts.map((attempt) => ({
         'Nama Siswa': attempt.profiles?.full_name || 'Tanpa Nama',
         'Email': attempt.profiles?.email || '-',
         'Skor Total': attempt.total_score || 0,
@@ -136,15 +143,15 @@ export default function ExamResultsDetailPage() {
       const wsOverview = XLSX.utils.json_to_sheet(overviewData);
 
       // Build Sheet 2: Detail Jawaban
-      const detailData = data.attempts.map((attempt: any) => {
-        const row: any = {
+      const detailData = data.attempts.map((attempt) => {
+        const row: Record<string, string | number> = {
           'Nama Siswa': attempt.profiles?.full_name || 'Tanpa Nama',
           'Skor Total': attempt.total_score || 0,
         };
         
         // Map answers
-        data.questions.forEach((q: any, index: number) => {
-          const ans = attempt.answers?.find((a: any) => a.question_id === q.id);
+        data.questions.forEach((q, index) => {
+          const ans = attempt.answers?.find((answer) => answer.question_id === q.id);
           if (ans) {
             const answerLines = formatStudentAnswer(
               { ...q, options: q.bank_question_options || q.options || [] },
@@ -168,9 +175,9 @@ export default function ExamResultsDetailPage() {
       const wsDetail = XLSX.utils.json_to_sheet(detailData);
 
       // Build Sheet 3: Referensi Soal
-      const questionData = data.questions.map((q: any, index: number) => {
-        const correctOptions = q.bank_question_options?.filter((opt: any) => opt.is_correct).map((opt: any) => {
-            const optIndex = q.bank_question_options.indexOf(opt);
+      const questionData = data.questions.map((q, index) => {
+        const correctOptions = q.bank_question_options?.filter((option) => option.is_correct).map((option) => {
+            const optIndex = q.bank_question_options?.indexOf(option) ?? -1;
             return String.fromCharCode(65 + optIndex);
         }).join(', ');
 
@@ -579,7 +586,7 @@ export default function ExamResultsDetailPage() {
                       {questionDetails[q.question_id] && (() => {
                         const detail = questionDetails[q.question_id];
                         const dq = detail.question;
-                        const options: any[] = dq.options || [];
+                        const options = dq.options || [];
                         const answered = detail.responses.length || 1;
                         const keyLines = formatAnswerKey({ ...dq, options });
                         const isOptionBased = ['mcq', 'sjt', 'forced_choice', 'paired_comparison'].includes(dq.type);
@@ -591,7 +598,7 @@ export default function ExamResultsDetailPage() {
                               <div>
                                 <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Distribusi Pilihan Jawaban</p>
                                 <div className="space-y-2">
-                                  {options.map((opt: any, oi: number) => {
+                                  {options.map((opt, oi) => {
                                     const count = detail.optionCounts[opt.id] || 0;
                                     const pct = Math.round((count / answered) * 100);
                                     return (
@@ -627,7 +634,7 @@ export default function ExamResultsDetailPage() {
                             <div>
                               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Jawaban Peserta ({detail.responses.length})</p>
                               <div className="border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-50 max-h-80 overflow-y-auto">
-                                {detail.responses.map((r: any, ri: number) => {
+                                {detail.responses.map((r, ri) => {
                                   const lines = formatStudentAnswer({ ...dq, options }, r.selectedOptionId, r.essayAnswer);
                                   return (
                                     <div key={ri} className="flex items-start gap-3 px-4 py-2.5 text-sm">
@@ -704,7 +711,7 @@ export default function ExamResultsDetailPage() {
                 <p className="text-center text-sm text-slate-400 py-16">Data jawaban tidak ditemukan.</p>
               )}
 
-              {!reviewLoading && reviewData?.answers?.map((ans: any, idx: number) => {
+              {!reviewLoading && reviewData?.answers?.map((ans, idx) => {
                 const q = ans.question;
                 const studentLines = formatStudentAnswer(q, ans.selectedOptionId, ans.essayAnswer);
                 const keyLines = formatAnswerKey(q);

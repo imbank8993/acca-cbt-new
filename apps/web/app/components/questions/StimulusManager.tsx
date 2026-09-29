@@ -3,22 +3,24 @@ import { getErrorMessage } from '@/lib/errors';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
 import {
-createStimulus,
-deleteStimulus,
-getStimuliByBank,
+    BankTextItem,
+    createStimulus,
+    deleteStimulus,
+    getStimuliByBank,
+    ImportRow,
 importStimuliFromXlsAction,
 updateStimulus
 } from '@/lib/api/questions';
 import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
 import { AlertCircle,Check,Download,Edit3,Plus,Trash2,Upload,X } from 'lucide-react';
-import React,{ useEffect,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 interface StimulusManagerProps {
     bankId: string;
 }
 
 export default function StimulusManager({ bankId }: StimulusManagerProps) {
-    const [stimuli, setStimuli] = useState<any[]>([]);
+    const [stimuli, setStimuli] = useState<BankTextItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,19 +33,20 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
     const [isImporting, setIsImporting] = useState(false);
     const [importErrors, setImportErrors] = useState<string[]>([]);
     const [importSuccessCount, setImportSuccessCount] = useState(0);
-    const [previewRows, setPreviewRows] = useState<any[]>([]);
+    const [previewRows, setPreviewRows] = useState<ImportRow[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        loadStimuli();
-    }, [bankId]);
-
-    const loadStimuli = async () => {
+    const loadStimuli = useCallback(async () => {
         setIsLoading(true);
         const data = await getStimuliByBank(bankId);
         setStimuli(data || []);
         setIsLoading(false);
-    };
+    }, [bankId]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => { void loadStimuli(); }, 0);
+        return () => window.clearTimeout(initialLoad);
+    }, [loadStimuli]);
 
     const downloadTemplateDocx = async () => {
         window.open('/template_soal_pengetahuan.docx', '_blank');
@@ -88,7 +91,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
             if (result.success) {
                 setImportSuccessCount(result.imported);
                 setPreviewRows([]);
-                loadStimuli();
+                await loadStimuli();
             } else {
                 setImportErrors(result.errors);
             }
@@ -107,7 +110,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleOpenEditor = (s: any = null) => {
+    const handleOpenEditor = (s: BankTextItem | null = null) => {
         if (s) {
             setEditingId(s.id);
             setTitle(s.title || '');
@@ -133,13 +136,13 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
         }
         setIsSubmitting(false);
         setIsEditorOpen(false);
-        loadStimuli();
+        await loadStimuli();
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Yakin ingin menghapus stimulus ini? Soal yang terhubung akan kehilangan stimulus ini.')) return;
         await deleteStimulus(id);
-        loadStimuli();
+        await loadStimuli();
     };
 
     if (isLoading) {

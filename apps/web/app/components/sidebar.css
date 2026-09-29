@@ -39,7 +39,7 @@
   inset: 0;
   background: rgba(15, 23, 42, 0.3);
   backdrop-filter: blur(4px);
-  z-index: 39;
+  z-index: 40;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -75,7 +75,7 @@
 
   transform: translateX(-100%);
   transition: var(--sidebar-transition);
-  z-index: 40;
+  z-index: 1001;
 
   /* Edge-to-edge style */
   border-radius: 0;
@@ -117,7 +117,7 @@
 }
 
 /* Desktop always visible */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .sidebar {
     transform: translateX(0);
   }
@@ -174,8 +174,27 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: var(--sidebar-transition);
+  transition: transform 0.2s ease, opacity 0.2s ease;
   gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.brand-logo:hover {
+  opacity: 0.85;
+}
+
+.brand-logo:active {
+  transform: scale(0.96);
+}
+
+.brand-logo:focus-visible {
+  outline: 2px solid var(--n-primary, #3b82f6);
+  outline-offset: 2px;
 }
 
 .brand-logo-img {
@@ -197,10 +216,6 @@
   display: block;
 }
 
-/* Logo sidebar menyempit: satu berkas (logo-sidebar-kecil.webp) dipakai di mode
-   terang maupun gelap, jadi tidak ada .light-logo/.dark-logo yang perlu digerbangi
-   di sini. Ukurannya HANYA diatur di aturan ini — sebelumnya selektor yang sama
-   ditulis tiga kali (36px, 28px, 24px) dan dua di antaranya mati tertimpa. */
 .sidebar.collapsed .brand-logo-img {
   width: 24px;
 }
@@ -223,9 +238,18 @@
 
 .sidebar.collapsed .brand-logo {
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   gap: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.sidebar.collapsed .brand-logo:hover {
+  background: var(--sidebar-hover, rgba(59, 130, 246, 0.08));
+  opacity: 1;
 }
 
 .sidebar.collapsed .brand-text-acca {
@@ -281,7 +305,7 @@
   gap: 0;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   :root {
     --app-sidebar-mobile-w: min(calc(100vw - 64px), 320px);
   }
@@ -323,7 +347,11 @@
   }
 
   .sidebar-nav {
-    padding: 0 12px calc(20px + env(safe-area-inset-bottom)) !important;
+    padding: 12px 12px calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .sidebar:not(.collapsed) .sidebar-nav-fixed + .sidebar-nav {
+    padding-top: 4px !important;
   }
 }
 
@@ -331,7 +359,6 @@
   color: var(--n-primary-light);
 }
 
-/* Toggle hover — white text in dark mode */
 .dark .toggle-btn:hover {
   color: var(--n-ink) !important;
 }
@@ -340,14 +367,12 @@
   color: var(--sidebar-text-active) !important;
 }
 
-/* Chevron & ikon item aktif harus sejelas labelnya di mode dark */
 .dark .menu-btn.active .chevron,
 .dark .menu-btn.active .menu-icon {
   color: var(--sidebar-text-active) !important;
   opacity: 1;
 }
 
-/* Toggle */
 .toggle-btn {
   width: 28px;
   height: 28px;
@@ -368,7 +393,7 @@
   color: #fff;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .toggle-btn {
     display: flex;
   }
@@ -376,10 +401,8 @@
 
 .sidebar.collapsed .toggle-btn {
   display: none;
-  /* Hide toggle on collapsed to keep it clean like the UI image */
 }
 
-/* Nav header — CBT/TOOLS + Search: diam di tempat, tidak ikut scroll bareng daftar menu */
 .sidebar-nav-fixed {
   padding: 12px 16px 0;
   flex-shrink: 0;
@@ -389,14 +412,18 @@
   overflow: visible;
 }
 
-/* Nav area */
 .sidebar-nav {
-  padding: 0 16px 20px;
+  padding: 12px 16px 20px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
 }
+
+.sidebar:not(.collapsed) .sidebar-nav-fixed + .sidebar-nav {
+  padding-top: 4px;
+}
+
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;
 }
@@ -418,7 +445,6 @@
   overflow: visible;
 }
 
-/* Menu button */
 .menu-btn {
   width: 100%;
   margin: 2px 0;
@@ -440,12 +466,10 @@
   color: var(--sidebar-accent);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .menu-btn {
     padding: 8px 14px;
-    /* Reduced from 12px */
     margin: 1px 0;
-    /* Reduced from 2px */
   }
 }
 
@@ -476,23 +500,10 @@
   white-space: nowrap;
 }
 
-/* ── Badge antrean ──────────────────────────────────────────────────────────
-   Menempel di pojok kanan atas nama menu; efek "pojok kanan atas" didapat dari
-   pergeseran ke atas, bukan positioning absolut, supaya tidak pernah menimpa
-   elemen lain di baris.
-
-   Baris yang PUNYA badge dijadikan flex: nama menu boleh menyusut dan
-   ber-elipsis, badge tidak. Tanpa ini nama panjang seperti "Daftar Surat ACCA
-   Ketidakhadiran Siswa" akan memakan badge-nya sampai tak terlihat. Selector
-   kedua menyamai spesifisitas aturan `display: block` untuk baris submenu di
-   bagian bawah berkas ini — tanpa itu, aturan ini kalah. */
 .menu-label:has(.menu-badge),
 .submenu-row:not(.pinned-row) .submenu-btn .menu-label:has(.menu-badge) {
   display: flex;
   align-items: flex-start;
-  /* min-width:0 wajib: tanpa itu flex item menolak menyusut di bawah lebar
-     kontennya, dan nama panjang meluber keluar sidebar alih-alih ber-elipsis.
-     overflow tetap visible supaya badge yang digeser ke atas tidak terpotong. */
   min-width: 0;
   max-width: 100%;
   overflow: visible;
@@ -512,16 +523,9 @@
   position: relative;
   top: -0.45em;
   margin-left: 5px;
-  /* min-width = height supaya angka 1 digit tetap bulat sempurna; padding cuma
-     melebarkannya saat 2-3 digit. Ubah ketiganya bersamaan kalau ukurannya
-     disetel ulang — line-height yang tertinggal akan menggeser angka dari tengah. */
   min-width: 15px;
   height: 15px;
   padding: 0 4px;
-  /* Wajib: .menu-label adalah flex, dan tanpa ini badge ikut menanggung
-     penyusutan saat nama menu panjang — angka 2-3 digit terjepit sampai
-     mentok min-width dan terbaca setengah. Yang boleh menyusut hanya
-     .menu-name-text (lihat flex: 0 1 auto di bawah). */
   flex-shrink: 0;
   border-radius: 999px;
   background: #dc2626;
@@ -535,7 +539,6 @@
   pointer-events: none;
 }
 
-/* Sidebar menyempit: label hilang, jadi antrean diwakili titik di sudut ikon. */
 .menu-badge-dot {
   position: absolute;
   top: 8px;
@@ -552,8 +555,6 @@
 
 .dark .menu-badge-dot { box-shadow: 0 0 0 2px #000; }
 
-/* Hormati preferensi "kurangi animasi": tanpa itu badge berdenyut halus
-   saat baru muncul supaya perubahan angka tidak lolos dari perhatian. */
 @media (prefers-reduced-motion: no-preference) {
   .menu-badge { animation: menu-badge-pop 220ms ease-out; }
   @keyframes menu-badge-pop {
@@ -578,7 +579,6 @@
   gap: 0;
 }
 
-/* Chevron */
 .chevron {
   font-size: 0.75rem;
   opacity: 0.5;
@@ -593,7 +593,6 @@
   transform: rotate(180deg);
 }
 
-/* Submenu */
 .submenu {
   max-height: 0;
   overflow: hidden;
@@ -612,7 +611,6 @@
   display: flex;
   align-items: center;
   padding: 12px 14px 12px 50px;
-  /* Aligned with parent text: 14px padding + 24px icon + 12px gap */
   background: transparent;
   border: none;
   color: inherit;
@@ -623,12 +621,10 @@
   font-weight: 600;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .submenu-btn {
     padding: 8px 14px 8px 50px;
-    /* Reduced vertical padding from 12px */
     margin: 1px 0;
-    /* Reduced from 2px */
   }
 }
 
@@ -651,12 +647,10 @@
   box-shadow: 0 0 8px rgba(79, 142, 247, 0.5);
 }
 
-
 .sidebar.collapsed .submenu {
   display: none;
 }
 
-/* Tooltips for Collapsed State */
 .menu-group {
   position: relative;
 }
@@ -667,7 +661,6 @@
   margin-left: 20px;
   top: 50%;
   transform: translateY(-50%);
-  /* Center it vertically relative to the icon */
   min-width: 140px;
   width: max-content;
   max-width: 260px;
@@ -676,20 +669,18 @@
   border-radius: 12px;
   box-shadow: 12px 0 45px rgba(0, 56, 168, 0.12);
   padding: 6px;
-  z-index: 45;
+  z-index: 10000;
   animation: tooltipFadeIn .25s ease-out;
   pointer-events: all;
   backdrop-filter: blur(25px);
 }
 
-/* Invisible bridge to keep tooltip open while moving mouse from icon to labels */
 .sidebar-tooltip::before {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
   left: -25px;
-  /* Bridge the 20px margin gap */
   width: 30px;
   background: transparent;
 }
@@ -705,8 +696,6 @@
     transform: translateY(-50%) translateX(0);
   }
 }
-
-
 
 .tooltip-submenu {
   display: flex;
@@ -750,7 +739,6 @@
   box-shadow: none;
   font-weight: 700;
 }
-
 
 .cbt-access-btn {
   border: 1.5px solid #3083FF;
@@ -871,12 +859,6 @@
   font-size: 0.75rem;
 }
 
-/* Sidebar Footer */
-/* =====================================================
-   NAV ENHANCEMENTS — mode switch, search, pinned, sections
-===================================================== */
-
-/* Mode switch (Guru / Admin) */
 .nav-mode-switch {
   display: flex;
   gap: 4px;
@@ -894,7 +876,7 @@
   padding: 7px 0;
   border: none;
   background: transparent;
-  border-radius: 9px;
+  border-radius: 99px;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--sidebar-text);
@@ -910,7 +892,6 @@
   box-shadow: 0 4px 12px rgba(0, 56, 168, 0.25);
 }
 
-/* Search box — styled exactly like FilterToolbar search */
 .sidebar-search-box {
   display: flex;
   align-items: center;
@@ -1059,8 +1040,6 @@
 .search-results { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
 .search-results .submenu-btn { padding-left: 14px; padding-right: 34px; }
 .search-results .submenu-btn.active::before { display: none; }
-/* Search rows show a page icon on the left (like flat groups), so the pin
-   toggle must sit on the RIGHT to avoid overlapping that icon. */
 .search-results .pin-star { left: auto; right: 10px; }
 .search-empty {
   font-size: 0.8rem;
@@ -1070,7 +1049,6 @@
   opacity: 0.7;
 }
 
-/* Section labels */
 .nav-section-label {
   font-size: 0.66rem;
   font-weight: 800;
@@ -1082,15 +1060,10 @@
   margin-top: 6px;
 }
 
-/* Submenu row + pin star */
 .submenu-row { position: relative; display: flex; align-items: center; }
 .submenu-row .submenu-btn { flex: 1; min-width: 0; }
-/* Group sub-menu items: star sits on the LEFT (inside the indent), so the name
-   uses the full width on ONE line — truncated with ellipsis if too long. */
 .submenu-row:not(.pinned-row) .submenu-btn .menu-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .submenu-row:not(.pinned-row) .submenu-btn.active::before { display: none; }
-/* Pinned list rows: no star on the right — the page icon IS the pin toggle
-   (orange when pinned, click to pin/unpin). */
 .pinned-btn { padding-left: 14px !important; gap: 12px; }
 .pinned-btn.active::before { display: none; }
 .pinned-ico { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
@@ -1124,23 +1097,17 @@
 .dark .pin-ico.active { color: #1d6bf3 !important; }
 .dark .pin-star.active { opacity: 1; color: #1d6bf3 !important; }
 
-/* Flat Group Menu Items Alignment (icon doubles as pin toggle, no right star) */
 .menu-group--flat .submenu-row .submenu-btn {
   padding-left: 14px !important;
   gap: 12px;
 }
 
-/* Nav Divider */
 .nav-divider {
   height: 1px;
   background: var(--sidebar-border);
   margin: 12px 14px;
 }
 
-
-
-/* Placeholder struktur menu (dipakai selagi menu_layout dimuat, menggantikan
-   taksonomi bawaan yang dulu dirender sebagai cadangan) */
 .menu-skeleton {
   display: flex;
   flex-direction: column;
@@ -1167,6 +1134,6 @@
   50% { opacity: .7; }
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .menu-skeleton-row { height: 36px; }
 }

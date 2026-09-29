@@ -8,7 +8,7 @@ import { useState } from 'react';
 type LoginUser = RecentLogin & { lastLoginAt: string };
 const hasLoginAt = (login: RecentLogin): login is LoginUser => typeof login.lastLoginAt === 'string';
 
-export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[], orgId: string }) {
+export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[] }) {
     const logins = initialLogins;
     const [showAllModal, setShowAllModal] = useState(false);
     const [allLogins, setAllLogins] = useState<LoginUser[]>([]);

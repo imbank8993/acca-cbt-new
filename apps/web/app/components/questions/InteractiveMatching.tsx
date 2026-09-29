@@ -1,5 +1,6 @@
 import { useClientMounted } from '@/hooks/useClientMounted';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import type { QuestionOption } from '@/app/types';
 import { motion } from "framer-motion";
 import { CheckCircle2,Sparkles,Trash2 } from "lucide-react";
 import { useMemo,useState } from "react";
@@ -27,7 +28,7 @@ const mulberry32 = (seed: number) => {
   };
 };
 
-const seededShuffle = (arr: any[], seed: number): any[] => {
+const seededShuffle = <T,>(arr: T[], seed: number): T[] => {
   const rng = mulberry32(seed);
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -36,6 +37,18 @@ const seededShuffle = (arr: any[], seed: number): any[] => {
   }
   return a;
 };
+
+interface InteractiveMatchingProps {
+  questionId: string;
+  userId?: string | null;
+  options: QuestionOption[];
+  rightItems: string[];
+  answers: Record<string, string[]>;
+  onAnswerChange: (leftId: string, rightText: string) => void;
+  selectedLeft: string | null;
+  onSelectLeft: (leftId: string | null) => void;
+  showFeedback?: boolean;
+}
 
 export const InteractiveMatching = ({
   questionId,
@@ -47,7 +60,7 @@ export const InteractiveMatching = ({
   selectedLeft,
   onSelectLeft,
   showFeedback = false,
-}: any) => {
+}: InteractiveMatchingProps) => {
   const cleanHtml = (html: string) => {
     if (!html) return "";
     return html
@@ -79,8 +92,8 @@ export const InteractiveMatching = ({
   const rightDomId = (i: number) => `mtch-r-${questionId}-${i}`;
 
   const connections: [number, number][] = [];
-  Object.entries(answers || {}).forEach(([optId, rights]: any) => {
-    const li = shuffledOptions.findIndex((o: any) => o.id === optId);
+  Object.entries(answers || {}).forEach(([optId, rights]) => {
+    const li = shuffledOptions.findIndex((option) => option.id === optId);
     if (li < 0 || !Array.isArray(rights)) return;
     rights.forEach((rt: string) => {
       const ri = shuffledRightItems.indexOf(rt);
@@ -93,7 +106,7 @@ export const InteractiveMatching = ({
       <div className="relative">
         {/* ── Mobile Layout: Stacked with Custom Inline Dropdown ── */}
         <div className="block sm:hidden space-y-4">
-          {shuffledOptions.map((opt: any, optIdx: number) => {
+          {shuffledOptions.map((opt, optIdx) => {
             const matchedItem = answers?.[opt.id]?.[0];
             const isSelecting = mobileSelectOptId === opt.id;
 
@@ -136,7 +149,7 @@ export const InteractiveMatching = ({
                         <div className="grid grid-cols-1 gap-2">
                           {shuffledRightItems.map((item: string, rIdx: number) => {
                             const isLinkedToOther = Object.entries(answers || {}).some(
-                              ([lId, rights]: any) => lId !== opt.id && Array.isArray(rights) && rights.includes(item)
+                              ([leftId, rights]) => leftId !== opt.id && Array.isArray(rights) && rights.includes(item)
                             );
 
                             return (
@@ -187,7 +200,7 @@ export const InteractiveMatching = ({
           <div className="grid grid-cols-[1fr_32px_1fr] sm:grid-cols-[1fr_56px_1fr] gap-0">
             {/* LEFT */}
             <div className="space-y-3">
-              {shuffledOptions.map((opt: any, i: number) => {
+              {shuffledOptions.map((opt, i) => {
                 const isSelected = selectedLeft === opt.id;
                 const isConnected = answers?.[opt.id]?.length > 0;
 
@@ -242,7 +255,7 @@ export const InteractiveMatching = ({
             <div className="space-y-3">
               {shuffledRightItems.map((item: string, i: number) => {
                 const isLinked = Object.values(answers || {}).some(
-                  (rights: any) => Array.isArray(rights) && rights.includes(item)
+                  (rights) => Array.isArray(rights) && rights.includes(item)
                 );
                 const plain = stripHtml(item);
                 const displayText = plain || item;

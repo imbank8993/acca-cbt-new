@@ -1,5 +1,6 @@
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
+import type { Question } from '@/app/types';
 import type { OrganizationClass } from './proctor';
 
 /**
@@ -27,6 +28,82 @@ export interface GuruStudent {
     userId: string;
     fullName: string;
     email: string;
+}
+
+export interface GradingAttempt {
+    id: string;
+    exam_id: string;
+    total_score: number | null;
+    status: string;
+    needs_manual_grading: boolean;
+    finished_at: string | null;
+    profiles?: { full_name?: string | null } | null;
+    exams?: { title?: string | null } | null;
+}
+
+export interface GradingQuestion {
+    id: string;
+    question_text: string;
+    type: Question['type'];
+    score_default: number;
+    metadata?: Question['metadata'] | null;
+    options?: Array<{
+        id: string;
+        option_text: string;
+    }>;
+}
+
+export interface GradingEssayAnswer {
+    id: string;
+    essay_answer: unknown;
+    score: number | null;
+    bank_questions: GradingQuestion;
+}
+
+export interface AttemptGradingDetails {
+    attempt: GradingAttempt;
+    essayAnswers: GradingEssayAnswer[];
+}
+
+export interface EssaySubmission {
+    text: string;
+    fileUrls: string[];
+    videoUrl: string;
+    topicId: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Normalisasi jawaban esai lama, JSON, dan objek dari API ke satu bentuk aman. */
+export function parseEssaySubmission(value: unknown): EssaySubmission {
+    let parsed = value;
+    if (typeof value === 'string') {
+        try {
+            parsed = JSON.parse(value);
+        } catch {
+            return { text: value, fileUrls: [], videoUrl: '', topicId: '' };
+        }
+    }
+
+    if (!isRecord(parsed)) {
+        return {
+            text: typeof parsed === 'string' ? parsed : '',
+            fileUrls: [],
+            videoUrl: '',
+            topicId: '',
+        };
+    }
+
+    return {
+        text: typeof parsed.text === 'string' ? parsed.text : '',
+        fileUrls: Array.isArray(parsed.fileUrls)
+            ? parsed.fileUrls.filter((url): url is string => typeof url === 'string')
+            : [],
+        videoUrl: typeof parsed.videoUrl === 'string' ? parsed.videoUrl : '',
+        topicId: typeof parsed.topicId === 'string' ? parsed.topicId : '',
+    };
 }
 
 /** Organisasi pemanggil. Tidak lagi menerima userId — identitas dari token. */
@@ -68,8 +145,8 @@ export async function listStudentsForGuru(): Promise<GuruStudent[]> {
     return res.success ? res.students : [];
 }
 
-export async function getAttemptDetailsForGrading(attemptId: string) {
-    const res = await apiGet<{ attempt: any; essayAnswers: any[] }>(
+export async function getAttemptDetailsForGrading(attemptId: string): Promise<AttemptGradingDetails | null> {
+    const res = await apiGet<AttemptGradingDetails>(
         `/api/teachers/grading/${encodeURIComponent(attemptId)}`,
     );
     // Versi lama mengembalikan null saat gagal; halaman pemanggilnya menampilkan

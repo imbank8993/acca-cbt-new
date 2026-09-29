@@ -1,5 +1,34 @@
-import type { PASPeriod } from '@/app/types/pas';
+import type { PASPeriod,PASSession } from '@/app/types/pas';
+import type { OrganizationClass } from './proctor';
 import { apiCreate,apiGet,apiSend } from './client';
+
+export interface PASSubjectSummary {
+    id: string;
+    name: string;
+    code?: string | null;
+}
+
+export interface PASStaffMember {
+    id: string;
+    name: string;
+    roles: string[];
+}
+
+export interface PASRoomMember {
+    user_id: string;
+    profiles?: {
+        full_name?: string | null;
+    } | null;
+}
+
+export interface PASRoom {
+    id: string;
+    pas_period_id?: string;
+    name: string;
+    capacity: number;
+    pas_room_invigilators?: PASRoomMember[];
+    pas_room_students?: PASRoomMember[];
+}
 
 /**
  * Penilaian Akhir Semester / Tahun (PAS/PAT).
@@ -66,30 +95,30 @@ export function deletePASPeriodAction(periodId: string) {
  *
  * Lingkup sekolah diambil dari sesi terverifikasi oleh backend.
  */
-export async function listSubjects(): Promise<any[]> {
-    const res = await apiGet<{ subjects: any[] }>('/api/pas/subjects');
+export async function listSubjects(): Promise<PASSubjectSummary[]> {
+    const res = await apiGet<{ subjects: PASSubjectSummary[] }>('/api/pas/subjects');
     return res.success ? res.subjects : [];
 }
 
 export async function listOrganizationClasses(
     opts?: { activeYearOnly?: boolean },
-): Promise<any[]> {
+): Promise<OrganizationClass[]> {
     const query = new URLSearchParams();
     if (opts?.activeYearOnly) query.set('activeYearOnly', 'true');
 
-    const res = await apiGet<{ classes: any[] }>(`/api/pas/classes?${query.toString()}`);
+    const res = await apiGet<{ classes: OrganizationClass[] }>(`/api/pas/classes?${query.toString()}`);
     return res.success ? res.classes : [];
 }
 
-export async function listTeachersAndInvigilators(): Promise<any[]> {
-    const res = await apiGet<{ staff: any[] }>('/api/pas/staff');
+export async function listTeachersAndInvigilators(): Promise<PASStaffMember[]> {
+    const res = await apiGet<{ staff: PASStaffMember[] }>('/api/pas/staff');
     return res.success ? res.staff : [];
 }
 
 // ── Sesi ─────────────────────────────────────────────────────────────────────
 
-export async function listPASSessions(periodId: string): Promise<any[]> {
-    const res = await apiGet<{ sessions: any[] }>(
+export async function listPASSessions(periodId: string): Promise<PASSession[]> {
+    const res = await apiGet<{ sessions: PASSession[] }>(
         `/api/pas/periods/${encodeURIComponent(periodId)}/sessions`,
     );
     return res.success ? res.sessions : [];
@@ -165,8 +194,8 @@ export async function generateExamsFromSchedulesAction(scheduleIds: string[]) {
 
 // ── Ruang ────────────────────────────────────────────────────────────────────
 
-export async function listPASRooms(periodId: string): Promise<any[]> {
-    const res = await apiGet<{ rooms: any[] }>(
+export async function listPASRooms(periodId: string): Promise<PASRoom[]> {
+    const res = await apiGet<{ rooms: PASRoom[] }>(
         `/api/pas/periods/${encodeURIComponent(periodId)}/rooms`,
     );
     return res.success ? res.rooms : [];

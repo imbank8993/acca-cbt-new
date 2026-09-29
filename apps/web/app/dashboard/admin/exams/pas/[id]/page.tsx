@@ -1,5 +1,6 @@
 "use client";
 import RoomManagementModal from '@/app/dashboard/admin/pas/RoomManagementModal';
+import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
 import {
 addPASScheduleAction,
 generateExamsFromSchedulesAction,
@@ -8,8 +9,10 @@ listOrganizationClasses,
 listPASSessions,
 listSubjects,
 removePASScheduleAction,
+type PASSubjectSummary,
 } from '@/lib/api/pas';
-import { listQuestionBanks } from '@/lib/api/questions';
+import type { OrganizationClass } from '@/lib/api/proctor';
+import { listQuestionBanks,type QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -28,21 +31,21 @@ Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams,useRouter } from 'next/navigation';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
 type TabId = 'schedules' | 'live_today' | 'detail';
 
-export default function ProctorPASDetailPage() {
+export default function AdminPASDetailPage() {
     const router = useRouter();
     const params = useParams();
     const periodId = params.id as string;
 
-    const [period, setPeriod] = useState<any>(null);
-    const [classes, setClasses] = useMemoryState<any[]>('proktor_exams_pas__id__classes', []);
-    const [subjects, setSubjects] = useMemoryState<any[]>('proktor_exams_pas__id__subjects', []);
-    const [qBanks, setQBanks] = useMemoryState<any[]>('proktor_exams_pas__id__qBanks', []);
-    const [sessions, setSessions] = useMemoryState<any[]>('proktor_exams_pas__id__sessions', []);
+    const [period, setPeriod] = useState<PASPeriod | null>(null);
+    const [classes, setClasses] = useMemoryState<OrganizationClass[]>('admin_exams_pas__id__classes', []);
+    const [subjects, setSubjects] = useMemoryState<PASSubjectSummary[]>('admin_exams_pas__id__subjects', []);
+    const [qBanks, setQBanks] = useMemoryState<QuestionBank[]>('admin_exams_pas__id__qBanks', []);
+    const [sessions, setSessions] = useMemoryState<PASSession[]>('admin_exams_pas__id__sessions', []);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,13 +65,7 @@ export default function ProctorPASDetailPage() {
         room: '',
     });
 
-    useEffect(() => { loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus); }, [periodId]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         const authUser = await getSessionUser();
         if (authUser) {
             const [periodData, bankList, classList, subjectList, sessionList] = await Promise.all([
@@ -85,7 +82,17 @@ export default function ProctorPASDetailPage() {
                 setSessions(sessionList || []);
         }
         setIsLoading(false);
-    };
+    }, [periodId, setClasses, setQBanks, setSessions, setSubjects]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const toggleClass = (classId: string) => {
         setScheduleForm(prev => ({
@@ -160,13 +167,13 @@ export default function ProctorPASDetailPage() {
         return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
-    const getBankTitle = (bankId: string, sc?: any) => {
+    const getBankTitle = (bankId: string | null, sc?: PASClassSchedule) => {
         if (sc?.question_banks?.title) return sc.question_banks.title;
-        return qBanks.find((b: any) => b.id === bankId)?.title || 'Bank soal dihapus';
+        return qBanks.find((bank) => bank.id === bankId)?.title || 'Bank soal dihapus';
     };
 
-    const getSchedulesByDateAndTime = (filteredSchedules: any[]) => {
-        const grouped: Record<string, Record<string, any[]>> = {};
+    const getSchedulesByDateAndTime = (filteredSchedules: PASClassSchedule[]) => {
+        const grouped: Record<string, Record<string, PASClassSchedule[]>> = {};
         for (const sc of filteredSchedules) {
             const dateStr = sc.scheduled_date || 'Tanpa Tanggal';
             const timeStr = sc.scheduled_time || 'Tanpa Waktu';
@@ -179,7 +186,7 @@ export default function ProctorPASDetailPage() {
         
         // Sort dates
         const sortedDates = Object.keys(grouped).sort();
-        const result: Array<{ date: string; sessions: Array<{ time: string; schedules: any[] }> }> = [];
+        const result: Array<{ date: string; sessions: Array<{ time: string; schedules: PASClassSchedule[] }> }> = [];
         
         for (const date of sortedDates) {
             const sortedTimes = Object.keys(grouped[date]).sort();
@@ -212,11 +219,11 @@ export default function ProctorPASDetailPage() {
         );
     }
 
-    const schedules = period?.pas_class_schedules || [];
+    const schedules = period.pas_class_schedules || [];
     
     // Live Today filter
     const todayStr = new Date().toISOString().split('T')[0];
-    const liveSchedules = schedules.filter((s: any) => s.scheduled_date === todayStr);
+    const liveSchedules = schedules.filter((schedule) => schedule.scheduled_date === todayStr);
 
     const groupedSchedules = getSchedulesByDateAndTime(activeTab === 'live_today' ? liveSchedules : schedules);
 
@@ -301,7 +308,7 @@ export default function ProctorPASDetailPage() {
                             subjects={subjects}
                             qBanks={qBanks}
                             sessions={sessions}
-                            onComplete={() => { setIsBulkInputOpen(false); loadData(); }}
+                            onComplete={() => { setIsBulkInputOpen(false); void loadData(); }}
                             onCancel={() => setIsBulkInputOpen(false)}
                         />
                     )}
@@ -358,7 +365,7 @@ export default function ProctorPASDetailPage() {
 
                                             {/* Daftar Ujian di Sesi tersebut */}
                                             <div className="flex-1 space-y-3">
-                                                {session.schedules.map((sc: any) => (
+                                                {session.schedules.map((sc) => (
                                                     <div key={sc.id} className={`flex flex-col sm:flex-row gap-3 p-4 rounded-xl border transition-all ${
                                                         sc.status === 'active' ? 'bg-green-50 border-green-200 shadow-sm' : 
                                                         sc.status === 'finished' ? 'bg-slate-50 border-slate-100 opacity-70' : 
@@ -491,7 +498,7 @@ export default function ProctorPASDetailPage() {
                                     <label className="text-xs font-medium text-slate-600 mb-1.5 block">Bank Soal</label>
                                     <select required value={scheduleForm.bank_id} onChange={e => setScheduleForm(p => ({ ...p, bank_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
                                         <option value="">Pilih Bank Soal</option>
-                                        {qBanks.map((b: any) => (
+                                        {qBanks.map((b) => (
                                             <option key={b.id} value={b.id}>{b.title} — {b.subject} ({b.question_count} soal)</option>
                                         ))}
                                     </select>
@@ -500,7 +507,7 @@ export default function ProctorPASDetailPage() {
                                     <label className="text-xs font-medium text-slate-600 mb-1.5 block">Mata Pelajaran</label>
                                     <select required value={scheduleForm.subject_id} onChange={e => setScheduleForm(p => ({ ...p, subject_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
                                         <option value="">Pilih Mata Pelajaran</option>
-                                        {subjects.map((s: any) => (
+                                        {subjects.map((s) => (
                                             <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
                                     </select>
@@ -508,7 +515,7 @@ export default function ProctorPASDetailPage() {
                                 <div>
                                     <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kelas ({scheduleForm.class_ids.length} dipilih)</label>
                                     <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
-                                        {classes.map((c: any) => (
+                                        {classes.map((c) => (
                                             <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
                                                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${scheduleForm.class_ids.includes(c.id) ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}>
                                                 {c.name}
@@ -526,7 +533,7 @@ export default function ProctorPASDetailPage() {
                                         <label className="text-xs font-medium text-slate-600 mb-1.5 block">Sesi Ujian</label>
                                         <select required value={scheduleForm.session_id} onChange={e => setScheduleForm(p => ({ ...p, session_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
                                             <option value="">Pilih Sesi</option>
-                                            {sessions.map((s: any) => (
+                                            {sessions.map((s) => (
                                                 <option key={s.id} value={s.id}>{s.name} ({s.start_time.substring(0, 5)} - {s.end_time.substring(0, 5)})</option>
                                             ))}
                                         </select>
@@ -560,7 +567,7 @@ export default function ProctorPASDetailPage() {
                         period={period}
                         onClose={() => {
                             setIsRoomManagementOpen(false);
-                            loadData(); // Reload sessions in case they changed
+                            void loadData(); // Reload sessions in case they changed
                         }}
                     />
                 )}

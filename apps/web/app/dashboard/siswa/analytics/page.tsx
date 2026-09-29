@@ -1,6 +1,8 @@
 "use client";
 import type {
-StudentAnalyticsData
+StudentAnalyticsData,
+StudentComparison,
+StudentExamHistoryItem,
 } from '@/lib/api/student-analytics';
 import {
 getStudentAnalytics,
@@ -22,6 +24,7 @@ PointElement,
 Title,
 Tooltip
 } from 'chart.js';
+import type { ChartOptions } from 'chart.js';
 import { motion } from 'framer-motion';
 import {
 AlertTriangle,
@@ -45,7 +48,7 @@ TrendingUp,
 Trophy,
 Zap
 } from 'lucide-react';
-import { useEffect,useState } from 'react';
+import { useCallback,useEffect,useState } from 'react';
 import { Bar,Line } from 'react-chartjs-2';
 
 // Register ChartJS
@@ -62,23 +65,16 @@ ChartJS.register(
     Filler
 );
 
-type TimeRange = 'week' | 'month' | 'semester' | 'all';
-
 export default function StudentAnalyticsPage() {
     const [loading, setLoading] = useMemoryState('siswa_analytics_loading', true);
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
-    const [examHistory, setExamHistory] = useMemoryState<any[]>('siswa_analytics_examHistory', []);
-    const [comparison, setComparison] = useState<any>(null);
-    const [] = useState<TimeRange>('all');
-    const [, setUser] = useState<any>(null);
-    const [, setFullName] = useState<string>('');
+    const [examHistory, setExamHistory] = useMemoryState<StudentExamHistoryItem[]>('siswa_analytics_examHistory', []);
+    const [comparison, setComparison] = useState<StudentComparison | null>(null);
 
-    useEffect(() => {
-        async function loadData() {
+    const loadData = useCallback(async () => {
             setLoading(true);
             const user = await getSessionUser();
             if (user) {
-                setUser(user);
                 const [analyticsData, historyData, comparisonData] = await Promise.all([
                     getStudentAnalytics(),
                     getStudentExamHistory(20),
@@ -87,16 +83,19 @@ export default function StudentAnalyticsPage() {
                 setAnalytics(analyticsData);
                 setExamHistory(historyData);
                 setComparison(comparisonData);
-                setFullName(user.fullName ?? '');
             }
             setLoading(false);
-        }
-        loadData();
-        // Auto-injected smart sync (Window Focus)
-        const handleFocus = () => { if (typeof loadData === 'function') loadData(); };
+    }, [setExamHistory, setLoading]);
+
+    useEffect(() => {
+        const initialLoad = window.setTimeout(() => void loadData(), 0);
+        const handleFocus = () => void loadData();
         window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, []);
+        return () => {
+            window.clearTimeout(initialLoad);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [loadData]);
 
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -181,7 +180,7 @@ export default function StudentAnalyticsPage() {
         }]
     };
 
-    const trendChartOptions: any = {
+    const trendChartOptions: ChartOptions<'line'> = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
@@ -199,7 +198,7 @@ export default function StudentAnalyticsPage() {
                 beginAtZero: true,
                 max: 100,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { callback: (value: any) => `${value}%` }
+                ticks: { callback: (value) => `${value}%` }
             },
             x: {
                 grid: { display: false }
@@ -223,6 +222,21 @@ export default function StudentAnalyticsPage() {
             borderRadius: 6,
             barThickness: 32
         }]
+    };
+
+    const subjectChartOptions: ChartOptions<'bar'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                grid: { color: 'rgba(0,0,0,0.03)' },
+                ticks: { callback: (value) => `${value}%` },
+            },
+            x: { grid: { display: false } },
+        },
     };
 
     // Chart data: Difficulty Performance
@@ -377,22 +391,7 @@ export default function StudentAnalyticsPage() {
                             Performa per Mata Pelajaran
                         </h3>
                         <div className="h-64">
-                            <Bar data={subjectChartData} options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
-                                scales: {
-                                    y: {
-                                        beginAtZero: true,
-                                        max: 100,
-                                        grid: { color: 'rgba(0,0,0,0.03)' },
-                                        ticks: { callback: (value: any) => `${value}%` }
-                                    },
-                                    x: {
-                                        grid: { display: false }
-                                    }
-                                }
-                            } as any} />
+                            <Bar data={subjectChartData} options={subjectChartOptions} />
                         </div>
                     </motion.div>
                 </div>

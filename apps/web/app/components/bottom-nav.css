@@ -7,7 +7,7 @@
     display: none;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
     :root {
         --app-bottomnav-h: 62px;
     }

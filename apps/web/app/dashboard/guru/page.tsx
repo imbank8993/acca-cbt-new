@@ -1,9 +1,16 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
-import { getProctorOrganization,getRecentLogins,listOrganizationExams } from '@/lib/api/proctor';
+import {
+    getProctorOrganization,
+    getRecentLogins,
+    listOrganizationExams,
+    type OrganizationExam,
+    type ProctorOrganization,
+    type RecentLogin,
+} from '@/lib/api/proctor';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
-import { getGuruOrganizationStats } from '@/lib/api/teachers';
+import { getGuruOrganizationStats,type GuruStats } from '@/lib/api/teachers';
 import { getSessionUser } from '@/lib/session';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -25,26 +32,28 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from '../proktor/RecentLoginsCard';
 
+type LoggedInUser = RecentLogin & { lastLoginAt: string };
+const hasLoginTime = (login: RecentLogin): login is LoggedInUser => typeof login.lastLoginAt === 'string';
+
 export default function GuruDashboard() {
     const router = useRouter();
-    const [org, setOrg] = useState<any>(null);
-    const [stats, setStats] = useMemoryState('guru_stats', {
+    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [stats, setStats] = useMemoryState<GuruStats>('guru_stats', {
         totalMembers: 0,
         totalBanks: 0,
         ongoingExams: 0,
         draftExams: 0,
         finishedExams: 0
     });
-    const [exams, setExams] = useMemoryState<any[]>('guru_dashboard_exams', []);
-    const [logins, setLogins] = useMemoryState<any[]>('guru_logins', []);
+    const [exams, setExams] = useMemoryState<OrganizationExam[]>('guru_dashboard_exams', []);
+    const [logins, setLogins] = useMemoryState<LoggedInUser[]>('guru_logins', []);
     const [loading, setLoading] = useMemoryState('guru_loading', true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [announcements, setAnnouncements] = useMemoryState<any[]>('guru_announcements', []);
+    const [announcements, setAnnouncements] = useMemoryState<Announcement[]>('guru_announcements', []);
     const [showAnnouncementsPopup, setShowAnnouncementsPopup] = useState(false);
     const [showMembersModal, setShowMembersModal] = useState(false);
-    const [membersList, setMembersList] = useState<any[]>([]);
+    const [membersList, setMembersList] = useState<LoggedInUser[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
-    const [, setFullName] = useState<string>('');
 
     const loadData = useCallback(async () => {
         try {
@@ -68,10 +77,8 @@ export default function GuruDashboard() {
             ]);
             setStats(statData);
             // Guru cannot see ASAS/ASAT exams
-            setExams((examData || []).filter((e: any) => e.exam_type !== 'pas' && e.exam_type !== 'pat'));
-            setLogins(loginData);
-            
-            setFullName(user?.fullName ?? '');
+            setExams(examData.filter((exam) => exam.exam_type !== 'pas' && exam.exam_type !== 'pat'));
+            setLogins(loginData.filter(hasLoginTime));
             
             setAnnouncements(pickAnnouncements(announcementConfig, 'show_proktor'));
         } catch (error) {
@@ -80,12 +87,13 @@ export default function GuruDashboard() {
         } finally {
             setLoading(false);
         }
-    }, [router]);
+    }, [setAnnouncements, setExams, setLoading, setLogins, setStats]);
 
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
     useEffect(() => {
-        loadData();
+        const timer = window.setTimeout(() => void loadData(), 0);
+        return () => window.clearTimeout(timer);
     }, [loadData]);
 
 
@@ -95,7 +103,7 @@ export default function GuruDashboard() {
         setMembersLoading(true);
         try {
             const all = await getRecentLogins(500);
-            setMembersList((all || []).filter((m: any) => m.lastLoginAt));
+            setMembersList(all.filter(hasLoginTime));
         } catch (e) {
             console.error('Load members error:', e);
             setMembersList([]);
@@ -348,7 +356,7 @@ export default function GuruDashboard() {
 
                 {/* ── Right: Login Activity & Announcements ── */}
                 <div className="md:col-span-2 space-y-4">
-                    <RecentLoginsCard initialLogins={logins} orgId={org?.id} />
+                    <RecentLoginsCard initialLogins={logins} />
 
                     {announcements.length > 0 && (
                         <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
@@ -377,7 +385,7 @@ export default function GuruDashboard() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-[11px] text-slate-600 line-clamp-2" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content) }}></p>
+                                            <p className="text-[11px] text-slate-600 line-clamp-2" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content || '') }}></p>
                                         </div>
                                     ))}
                                 </div>
@@ -426,7 +434,7 @@ export default function GuruDashboard() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content, 'text-blue-600 underline font-semibold hover:text-blue-800 transition-colors') }}></p>
+                                            <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: linkifyText(ann.content || '', 'text-blue-600 underline font-semibold hover:text-blue-800 transition-colors') }}></p>
                                         </div>
                                     </div>
                                 </div>

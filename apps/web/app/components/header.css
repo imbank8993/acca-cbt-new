@@ -24,7 +24,7 @@
 }
 
 /* ===== Header Shell (Desktop) ===== */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .header {
     position: fixed;
     top: 0;
@@ -43,7 +43,7 @@
     padding: 0 24px;
     -webkit-transform: translateZ(0);
     transform: translateZ(0);
-    z-index: 30;
+    z-index: 500;
 
     transition:
       left .35s cubic-bezier(0.4, 0, 0.2, 1),
@@ -87,18 +87,11 @@
 }
 
 /* Mobile: header full width */
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   :root {
-    /* Nilai ini HARUS sama dengan yang di app/globals.css — dua-duanya
-       mendeklarasikan --app-header-h di :root untuk breakpoint yang sama,
-       dan yang menang tergantung urutan muat CSS. */
     --app-header-h: 56px;
   }
 
-  /* Scroll-hide: HANYA pakai opacity, JANGAN transform.
-     Di Safari iOS, transform pada elemen position:fixed menciptakan
-     layer GPU baru yang merusak rendering gradien di html.
-     Opacity-only aman karena tidak memicu recomposite layer baru. */
   .header {
     transition: background 0.25s ease, box-shadow 0.25s ease, border-radius 0.25s ease, border-color 0.25s ease !important;
   }
@@ -112,14 +105,12 @@
   min-width: 0;
 }
 
-/* Tombol lipat sidebar — pindahan dari .collapse-toggle di sidebar.
-   Desktop saja: di mobile sidebar berupa panel geser tanpa keadaan terlipat,
-   jadi tombol ini tidak punya arti di sana (aturan penyembunyiannya ada di
-   blok @media mobile di bawah). Ukurannya disamakan dengan .dark-mode-toggle
-   di sisi kanan header supaya kedua ujung barisnya seimbang. */
-.header-collapse-toggle,
-.header-back-btn {
-  position: relative;
+.header-back-btn,
+.header-collapse-toggle {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   flex-shrink: 0;
   width: 32px;
   height: 32px;
@@ -127,44 +118,37 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: rgba(48, 131, 255, 0.08);
-  border: 1.5px solid rgba(48, 131, 255, 0.22);
-  border-radius: 9px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
   color: var(--header-text);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-right: 4px;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease, transform 0.15s ease;
 }
 
-.header-collapse-toggle:hover,
-.header-back-btn:hover {
-  background: rgba(48, 131, 255, 0.16);
-  border-color: #3083FF;
-  color: var(--n-primary, #3083FF);
-  transform: translateX(-2px);
+.header-back-btn:hover,
+.header-collapse-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--n-primary);
+  opacity: 1;
 }
 
-.dark .header-collapse-toggle,
-html.dark .header-collapse-toggle,
-.dark .header-back-btn,
-html.dark .header-back-btn {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1.5px solid rgba(37, 99, 235, 0.35);
+.header-back-btn:active,
+.header-collapse-toggle:active {
+  transform: translateY(-50%) scale(0.92);
+}
+
+.dark .header-back-btn:hover,
+html.dark .header-back-btn:hover,
+.dark .header-collapse-toggle:hover,
+html.dark .header-collapse-toggle:hover {
+  background: rgba(37, 99, 235, 0.22);
   color: #60a5fa;
 }
 
-.dark .header-collapse-toggle:hover,
-html.dark .header-collapse-toggle:hover,
-.dark .header-back-btn:hover,
-html.dark .header-back-btn:hover {
-  background: rgba(37, 99, 235, 0.22);
-  border-color: #60a5fa;
-  color: #93c5fd;
-  transform: translateX(-2px);
-}
-
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .header-left {
     gap: 8px;
     min-width: 0;
@@ -207,13 +191,11 @@ html.dark .header-back-btn:hover {
   transition: all 0.2s ease;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .menu-toggle {
     display: none !important;
   }
 
-  /* Sidebar mobile tidak punya keadaan terlipat — dibuka penuh sebagai panel
-     geser lewat bilah nav bawah. */
   .header-collapse-toggle,
   .header-back-btn {
     display: none !important;
@@ -256,7 +238,7 @@ html.dark .header-back-btn:hover {
   display: none;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .header-mobile-br {
     display: block;
   }
@@ -292,7 +274,7 @@ html.dark .header-back-btn:hover {
   opacity: 0.85;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .header-subtitle {
     display: none;
   }
@@ -306,16 +288,12 @@ html.dark .header-back-btn:hover {
   flex-shrink: 0;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .header-right {
     gap: 6px;
   }
 }
 
-/* Header Dark Mode Toggle Button (Single Icon Badge)
-   Ikonnya memakai Bootstrap Icons yang sama dengan sakelar di halaman
-   login (bi-sun-fill / bi-moon-stars-fill). Ukuran tombol ~10% lebih
-   kecil dari sebelumnya (44px → 40px) agar tidak mendominasi header. */
 .dark-mode-toggle {
   position: relative;
   width: 40px;
@@ -353,7 +331,7 @@ html.dark .header-back-btn:hover {
 
 .dark .dark-mode-toggle {
   background: rgba(15, 23, 42, 0.6) !important;
-  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  border: 1px solid rgba(37, 99, 235, 0.35) !important;
   color: #60a5fa !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
 }
@@ -366,7 +344,7 @@ html.dark .header-back-btn:hover {
   box-shadow: 0 0 18px rgba(96, 165, 250, 0.4);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .dark-mode-toggle {
     width: 32px;
     height: 32px;
@@ -376,7 +354,6 @@ html.dark .header-back-btn:hover {
   }
 }
 
-/* Premium Header Icon Buttons (Chat & Bell) */
 .header-icon-btn {
   position: relative;
   width: 44px;
@@ -406,7 +383,7 @@ html.dark .header-back-btn:hover {
 
 .dark .header-icon-btn {
   background: rgba(15, 23, 42, 0.6) !important;
-  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  border: 1px solid rgba(37, 99, 235, 0.35) !important;
   color: #60a5fa !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
 }
@@ -431,16 +408,6 @@ html.dark .header-back-btn:hover {
   transform: scale(1.05);
 }
 
-/* Notification Badge — merah rata, tanpa efek apa pun.
-   Sebelumnya badge ini bergradien, berbayang merah (`0 4px 12px
-   rgba(239,68,68,.4)`), dan berdenyut tanpa henti lewat @keyframes
-   badge-pulse yang membesar-mengecilkan bayangannya. Bayangan merah itulah
-   yang terbaca sebagai halo di sekeliling badge.
-
-   Cincin `border` DIPERTAHANKAN: warnanya = warna header di belakangnya,
-   jadi fungsinya memisahkan badge dari ikon lonceng, bukan menghias.
-   Versi mobile di blok @media bawah sudah lebih dulu memakai bentuk polos
-   ini — sekarang keduanya sepaham. */
 .notification-badge {
   position: absolute;
   top: -6px;
@@ -460,7 +427,7 @@ html.dark .header-back-btn:hover {
   box-shadow: none;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .notification-wrapper {
     position: relative;
     display: flex;
@@ -479,7 +446,6 @@ html.dark .header-back-btn:hover {
   }
 }
 
-/* User Menu */
 .user-menu-wrapper {
   position: relative;
 }
@@ -496,7 +462,7 @@ html.dark .header-back-btn:hover {
   gap: 10px;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .user-menu-trigger {
     background: transparent;
     padding: 0;
@@ -533,7 +499,7 @@ html.dark .header-back-btn:hover {
 
 .dark .user-avatar-small {
   background: rgba(15, 23, 42, 0.6) !important;
-  border: 1.5px solid rgba(37, 99, 235, 0.45) !important;
+  border: 1px solid rgba(37, 99, 235, 0.35) !important;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
 }
 
@@ -543,7 +509,7 @@ html.dark .header-back-btn:hover {
   box-shadow: 0 0 18px rgba(96, 165, 250, 0.4);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .user-avatar-small {
     width: 28px;
     height: 28px;
@@ -562,14 +528,13 @@ html.dark .header-back-btn:hover {
   align-items: flex-start;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .user-info-header {
     display: none;
   }
 }
 
-/* Hide user info text on desktop if sidebar is visible to keep it clean */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .user-info-header {
     display: none;
   }
@@ -590,7 +555,6 @@ html.dark .header-back-btn:hover {
   opacity: 0.6;
 }
 
-/* User Dropdown */
 .user-menu-overlay {
   position: fixed;
   inset: 0;
@@ -660,7 +624,6 @@ html.dark .user_menu_nip {
   background: var(--n-surface);
 }
 
-/* Sembunyikan toggle mode gelap dan pembatas di menu profil pada desktop (karena sudah ada tombol langsung di header bar) */
 .user-menu-theme-btn {
   display: none !important;
 }
@@ -670,36 +633,13 @@ html.dark .user_menu_nip {
   border-top: 1px solid var(--header-border);
   margin: 4px 0;
 }
-/* =========================================================
-   HEADER MOBILE — melayang transparan, tanpa container
-   =========================================================
-   Blok ini sengaja ditaruh PALING BAWAH supaya menimpa aturan
-   `.header` / `.dark .header` di atas tanpa perlu menaikkan
-   spesifisitas di sana.
 
-   Alasan aman untuk transparan: `.main-content` adalah container
-   scroll `position: fixed` yang dimulai DI BAWAH header
-   (`top: var(--app-header-h) + ...`, lihat app/(dashboard)/layout.tsx),
-   jadi tidak ada konten yang pernah lewat di belakang header.
-   Yang terlihat di belakangnya selalu kanvas `--n-bg`, bukan teks.
-   Karena itu tidak perlu backdrop-filter atau tint apa pun.
-   ========================================================= */
-
-@media (max-width: 767.98px) {
-
-  /* ≤767.98px: full-bleed floating bar — strip all container chrome.
-     Ditaruh di sini (bukan nested 767px) agar tidak ada celah 4px
-     di kiri-kanan yang membuatnya masih terlihat seperti kotak. */
+@media (max-width: 1023.98px) {
   .header,
   .header.collapsed,
   .dark .header,
   html.dark .header,
   html.dark .header.collapsed {
-    /* `position` hanya dideklarasikan di blok desktop (min-width: 992px), jadi
-       tanpa baris ini header mobile jadi static: ia ikut tergulung ke atas DAN
-       memakan tinggi di aliran dokumen, sehingga `.content-area` yang sudah
-       memberi padding-top setinggi header menghasilkan jarak dobel.
-       Fixed = konten lewat di belakangnya, persis seperti bottom nav. */
     position: fixed !important;
     top: 0 !important;
     height: calc(var(--app-header-h, 56px) + env(safe-area-inset-top)) !important;
@@ -716,7 +656,6 @@ html.dark .user_menu_nip {
     padding: env(safe-area-inset-top) env(safe-area-inset-right, 8px) 0 env(safe-area-inset-left, 8px);
   }
 
-  /* Nama aplikasi + subjudul: konstan di semua halaman, tidak dibawa ke mobile. */
   .header-title-wrapper {
     display: none;
   }
@@ -744,8 +683,6 @@ html.dark .user_menu_nip {
     display: block;
     flex: 1 1 auto;
     min-width: 0;
-    /* Satu baris + ellipsis: judul terpanjang ("Bimbingan Konseling",
-       "Registrasi Sanggar") tidak boleh mendorong tinggi header. */
     margin: 0;
     font-family: 'Poppins', sans-serif !important;
     font-size: 1.05rem;
@@ -758,7 +695,6 @@ html.dark .user_menu_nip {
     text-overflow: ellipsis;
   }
 
-  /* Khusus Dashboard: Ucapan Selamat Pagi/Siang/Malam + Nama Pengguna */
   .header-greeting-container {
     display: flex;
     flex-direction: column;
@@ -804,7 +740,6 @@ html.dark .user_menu_nip {
     max-width: 170px;
   }
 
-  .dark .header-greeting-name,
   html.dark .header-greeting-name {
     color: #94a3b8;
   }
@@ -813,7 +748,7 @@ html.dark .user_menu_nip {
     font-family: 'Poppins', sans-serif !important;
     font-size: 0.96rem !important;
     font-weight: 800 !important;
-    color: #3083FF !important;
+    color: #0437A6 !important;
     letter-spacing: -0.015em !important;
     line-height: 1.1 !important;
     white-space: nowrap !important;
@@ -856,34 +791,21 @@ html.dark .user_menu_nip {
   }
 }
 
-/* Desktop: header tetap kartu putih, judulnya tetap nama aplikasi. */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .header-pageTitle-wrap {
     display: none;
   }
 }
 
-/* Mobile: show accamobile.svg <img> in DOM and hide inline SVG for clarity/accessibility */
 .header-pageTitle-mobile-logo {
   display: none;
 }
 
-/* Breakpoint disamakan dengan sisa aplikasi — lihat MOBILE_QUERY di
-   lib/use-breakpoint.ts, yang wajib sama persis dengan angka di sini.
-
-   Riwayatnya perlu dicatat karena gampang terulang: blok ini pernah berlaku
-   ≤767px sementara cangkang lain sudah 991.98px, dan tablet 768–991px
-   mendapat header fixed transparan TANPA kotak per-kontrol — teks header
-   menumpuk konten. Itu bukan alasan untuk menaikkan angka DI SINI saja;
-   obatnya adalah semua ambang cangkang bergerak bersama. Kini ketiganya
-   (header, sidebar, bilah nav) sama-sama 767.98px, jadi tablet dilayani
-   sepenuhnya sebagai desktop dan tidak ada lagi rentang campur. */
-@media (max-width: 767.98px) {
+@media (max-width: 1023.98px) {
   .header-pageTitle-logo {
     display: none !important;
   }
 
-  /* Mobile: Header default transparent at top */
   .header,
   .header.collapsed,
   .dark .header,
@@ -897,11 +819,6 @@ html.dark .user_menu_nip {
     padding-left: calc(14px + env(safe-area-inset-left)) !important;
     padding-right: calc(14px + env(safe-area-inset-right)) !important;
     padding-bottom: 0 !important;
-    /* Kontainer putih melayang — cerminan bottom nav: warna, tebal garis,
-       radius, dan bobot bayangan sama persis, hanya arahnya dibalik.
-       Putihnya sengaja menembus sampai ke area bilah status (padding-top =
-       safe-area-inset-top) supaya menyatu dengan warna chrome browser
-       yang diset lewat <meta name="theme-color"> di app/layout.tsx. */
     background: #ffffff !important;
     border: none !important;
     border-bottom: 1.5px solid #E1E2E9 !important;
@@ -917,17 +834,11 @@ html.dark .user_menu_nip {
   .dark .header.collapsed,
   html.dark .header,
   html.dark .header.collapsed {
-    /* Hitam pekat, sama persis dengan `--header-bg` gelap di desktop dan dengan
-       `--bnav-face` bilah bawah — header dan bottom nav mengapit halaman yang
-       sama, jadi keduanya tidak boleh berbeda kepekatan. */
     background: #000000 !important;
     border-bottom: 1.5px solid rgba(37, 99, 235, 0.45) !important;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5) !important;
   }
 
-  /* Saat sidebar mobile terbuka (push drawer), header berada di dalam kartu yang terdorong.
-     Header melengkung di sudut kiri atas (border-top-left-radius: 28px) tepat menyentuh bilah status (y = 0),
-     selaras dengan sudut lengkung .dashboard-content-wrapper seperti aplikasi X (Twitter). */
   .sidebar-mobile-open .header,
   .sidebar-mobile-open .header.collapsed {
     border-top-left-radius: 28px !important;
@@ -948,7 +859,6 @@ html.dark .user_menu_nip {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
   }
 
-  /* Kontrol di dalam header polos */
   .header .header-mobile-menu-btn,
   .header .header-pageTitle {
     background: transparent !important;
@@ -982,7 +892,6 @@ html.dark .user_menu_nip {
     color: #ffffff !important;
   }
 
-  /* Tombol Menu Mobile di samping judul */
   .header-mobile-menu-btn {
     display: inline-flex !important;
     align-items: center;
@@ -1013,14 +922,12 @@ html.dark .user_menu_nip {
     font-size: 1.02rem !important;
   }
 
-  /* Sembunyikan toggle dark mode dari header bar mobile — dipindahkan ke dalam modal profil */
   .header .dark-mode-toggle,
   .dark .header .dark-mode-toggle,
   html.dark .header .dark-mode-toggle {
     display: none !important;
   }
 
-  /* Tombol Notifikasi (Bell) di Header Mobile */
   .header .notification-wrapper {
     position: relative !important;
     display: flex !important;
@@ -1076,8 +983,6 @@ html.dark .user_menu_nip {
 
   .dark .header .notification-badge,
   html.dark .header .notification-badge {
-    /* Cincin badge = warna header di belakangnya, supaya terbaca sebagai
-       potongan bukan garis. Ikut hitam pekat. */
     border-color: #000000 !important;
   }
 
@@ -1133,7 +1038,6 @@ html.dark .user_menu_nip {
     color: #60a5fa !important;
   }
 
-  /* Modal / Dropdown Profil Mobile */
   .user-menu-dropdown {
     width: 210px !important;
     border-radius: 18px !important;
@@ -1156,35 +1060,18 @@ html.dark .user_menu_nip {
     color: #f1f5f9 !important;
   }
 
+  .user-menu-role,
   .user_menu_nip {
-    display: block !important;
-    font-size: 0.72rem !important;
-    color: #64748b !important;
-    margin: 1px 0 !important;
-  }
-
-  .dark .user_menu_nip,
-  html.dark .user_menu_nip {
-    color: #94a3b8 !important;
-  }
-
-  .user-menu-role {
-    display: block !important;
-    font-size: 0.72rem !important;
-  }
-
-  /* Tampilkan toggle mode gelap dan pembatas di menu profil pada mobile (karena toggle di header bar mobile disembunyikan) */
-  .user-menu-theme-btn {
-    display: flex !important;
-  }
-
-  .user-menu-divider {
-    display: block !important;
+    display: none !important;
   }
 
   .user-menu-item {
     padding: 11px 16px !important;
     font-size: 0.88rem !important;
     gap: 10px !important;
+  }
+
+  .user-menu-theme-btn {
+    display: flex !important;
   }
 }

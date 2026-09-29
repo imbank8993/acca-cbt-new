@@ -25,6 +25,10 @@ export interface AppConfig {
 
 /** key: 'announcement_config' — bisa satu objek, bisa array. */
 export interface Announcement {
+    id?: string;
+    title?: string;
+    content?: string;
+    created_at?: string;
     is_active?: boolean;
     show_proktor?: boolean;
     show_siswa?: boolean;
