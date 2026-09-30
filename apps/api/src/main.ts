@@ -2,9 +2,12 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+
+const MAX_REQUEST_BODY_SIZE = '10mb';
 
 // Beberapa tabel warisan (mis. public.users di acca_db) memakai bigint sebagai
 // primary key. JSON.stringify melempar untuk BigInt, jadi dipasang serializer
@@ -15,7 +18,9 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(json({ limit: MAX_REQUEST_BODY_SIZE }));
+  app.use(urlencoded({ extended: true, limit: MAX_REQUEST_BODY_SIZE }));
 
   const configService = app.get(ConfigService);
   const port = Number(configService.get('PORT')) || 3009;

@@ -16,11 +16,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const isPayloadTooLarge =
+      typeof exception === 'object' &&
+      exception !== null &&
+      'type' in exception &&
+      exception.type === 'entity.too.large';
 
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      isPayloadTooLarge
+        ? HttpStatus.PAYLOAD_TOO_LARGE
+        : exception instanceof HttpException
+          ? exception.getStatus()
+          : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const raw =
       exception instanceof HttpException
@@ -42,8 +49,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Yang dikirim keluar hanya pesan dari HttpException yang memang ditulis
     // untuk pengguna. Galat tak terduga (mis. Prisma) dibalas pesan umum:
     // aslinya memuat path absolut server dan cuplikan SQL.
-    const safe =
-      exception instanceof HttpException
+    const safe = isPayloadTooLarge
+      ? 'Ukuran data terlalu besar. Batas maksimum request adalah 10 MB.'
+      : exception instanceof HttpException
         ? detail
         : 'Terjadi kesalahan pada server. Silakan coba lagi.';
 

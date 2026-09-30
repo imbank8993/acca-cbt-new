@@ -35,6 +35,7 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
     
     const parser = getDOMParser();
     const doc = parser.parseFromString(docXml, 'application/xml');
+    const wordNamespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     
     // Find all oMath elements
     let oMaths = Array.from(doc.getElementsByTagName('m:oMath'));
@@ -62,38 +63,68 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
             console.error('[doc-parser] Failed to convert equation:', err);
         }
     }
+
+    // Mammoth drops literal Word tab runs. Replace them with a marker that can
+    // be restored as a rendered tab after the DOCX has been converted to HTML.
+    const wordTabs = Array.from(doc.getElementsByTagNameNS(wordNamespace, 'tab'));
+    for (const wordTab of wordTabs) {
+        const text = doc.createElementNS(wordNamespace, 'w:t');
+        text.textContent = '[WORD_TAB]';
+        wordTab.parentNode?.replaceChild(text, wordTab);
+    }
     
     // Process paragraph alignments
     const paragraphs = Array.from(doc.getElementsByTagName('w:p'));
     for (const p of paragraphs) {
-        const jc = p.getElementsByTagName('w:jc')[0];
-        if (jc) {
-            const align = jc.getAttribute('w:val') || jc.getAttribute('val');
-            if (align && ['both', 'center', 'right'].includes(align)) {
-                const wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-                let firstRun = p.getElementsByTagName('w:r')[0];
-                if (!firstRun) {
-                    firstRun = doc.createElementNS(wNs, 'w:r');
-                    const wT = doc.createElementNS(wNs, 'w:t');
-                    wT.textContent = '';
-                    firstRun.appendChild(wT);
-                    const pPr = p.getElementsByTagName('w:pPr')[0];
-                    if (pPr && pPr.nextSibling) {
-                        p.insertBefore(firstRun, pPr.nextSibling);
-                    } else {
-                        p.appendChild(firstRun);
-                    }
+        const paragraphProperties = elementChildren(p).find((child) => child.localName === 'pPr');
+        const indent = paragraphProperties
+            ? elementChildren(paragraphProperties).find((child) => child.localName === 'ind')
+            : undefined;
+        const readIndent = (name: string): string => {
+            if (!indent) return '';
+            return indent.getAttributeNS(wordNamespace, name) || indent.getAttribute(`w:${name}`) || '';
+        };
+        const indentLength = (twips: string, chars: string): string => {
+            if (/^-?\d+$/.test(twips)) return `${Number(twips) / 20}pt`;
+            if (/^-?\d+$/.test(chars)) return `${Number(chars) / 100}em`;
+            return '';
+        };
+        const indentStyles: string[] = [];
+        const leftIndent = indentLength(readIndent('left') || readIndent('start'), readIndent('leftChars') || readIndent('startChars'));
+        const rightIndent = indentLength(readIndent('right') || readIndent('end'), readIndent('rightChars') || readIndent('endChars'));
+        const firstLineIndent = indentLength(readIndent('firstLine'), readIndent('firstLineChars'));
+        const hangingIndent = indentLength(readIndent('hanging'), readIndent('hangingChars'));
+        if (leftIndent) indentStyles.push(`margin-left:${leftIndent}`);
+        if (rightIndent) indentStyles.push(`margin-right:${rightIndent}`);
+        if (hangingIndent) indentStyles.push(`text-indent:-${hangingIndent}`);
+        else if (firstLineIndent) indentStyles.push(`text-indent:${firstLineIndent}`);
+
+        const jc = paragraphProperties?.getElementsByTagName('w:jc')[0];
+        const align = jc?.getAttribute('w:val') || jc?.getAttribute('val') || '';
+        const alignmentMarker = ['both', 'center', 'right'].includes(align)
+            ? `[ALIGN_${align.toUpperCase()}]`
+            : '';
+        const indentMarker = indentStyles.length > 0
+            ? `[CBT_INDENT:${indentStyles.join(';')}]`
+            : '';
+
+        if (indentMarker || alignmentMarker) {
+            let firstRun = elementChildren(p).find((child) => child.localName === 'r');
+            if (!firstRun) {
+                firstRun = doc.createElementNS(wordNamespace, 'w:r');
+                if (paragraphProperties?.nextSibling) {
+                    p.insertBefore(firstRun, paragraphProperties.nextSibling);
+                } else {
+                    p.appendChild(firstRun);
                 }
-                
-                let wT = firstRun.getElementsByTagName('w:t')[0];
-                if (!wT) {
-                    wT = doc.createElementNS(wNs, 'w:t');
-                    wT.textContent = '';
-                    firstRun.appendChild(wT);
-                }
-                
-                wT.textContent = `[ALIGN_${align.toUpperCase()}]` + wT.textContent;
             }
+
+            let text = elementChildren(firstRun).find((child) => child.localName === 't');
+            if (!text) {
+                text = doc.createElementNS(wordNamespace, 'w:t');
+                firstRun.appendChild(text);
+            }
+            text.textContent = `${indentMarker}${alignmentMarker}${text.textContent || ''}`;
         }
     }
     
@@ -148,6 +179,34 @@ function postProcessHtml(html: string): string {
             return `<${tagName}${newAttrs}>${intermediate}`;
         });
     }
+
+    restored = restored.replace(/<p\b([^>]*)>([\s\S]*?)<\/p>/gi, (match, attrs: string, content: string) => {
+        const indentDeclarations: string[] = [];
+        const updatedContent = content.replace(/\[CBT_INDENT:([^\]]+)\]/g, (_marker, declarations: string) => {
+            for (const declaration of declarations.split(';')) {
+                if (/^(?:margin-left|margin-right|text-indent):-?\d+(?:\.\d+)?(?:pt|em)$/.test(declaration)) {
+                    indentDeclarations.push(declaration);
+                }
+            }
+            return '';
+        });
+
+        if (indentDeclarations.length === 0) return `<p${attrs}>${updatedContent}</p>`;
+
+        const styleMatch = attrs.match(/\sstyle="([^"]*)"/i);
+        const style = styleMatch
+            ? `${styleMatch[1]}${styleMatch[1] && !styleMatch[1].trimEnd().endsWith(';') ? ';' : ''}${indentDeclarations.join(';')};`
+            : `${indentDeclarations.join(';')};`;
+        const updatedAttrs = styleMatch
+            ? attrs.replace(styleMatch[0], ` style="${style}"`)
+            : `${attrs} style="${style}"`;
+        return `<p${updatedAttrs}>${updatedContent}</p>`;
+    });
+
+    restored = restored.replace(
+        /\[WORD_TAB\]/g,
+        '<span style="white-space:pre;tab-size:8">&#9;</span>'
+    );
     
     return restored;
 }
