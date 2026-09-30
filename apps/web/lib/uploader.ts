@@ -1,4 +1,6 @@
 import { getErrorMessage } from '@/lib/errors';
+import { resolveStorageUrl } from '@/lib/safe-url';
+
 /**
  * Helper untuk upload dan delete file
  * Mendukung multiple storage provider (Supabase, Cloudflare R2)
@@ -67,7 +69,7 @@ export async function uploadToHosting(
 
         return {
             success: true,
-            url: result.url,
+            url: resolveStorageUrl(result.url || ''),
             provider: result.provider,
         };
     } catch (err) {

@@ -181,18 +181,18 @@ function buildAkademik() {
   });
 
   // ── Petunjuk table ──
-  const petW = [800, 1400, 6800];
+  const petW = [1000, 1800, 6400];
   const petTable = new Table({
     layout: TableLayoutType.FIXED,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: petW,
     rows: [
-      new TableRow({ tableHeader: true, children: [hCell('Kode'), hCell('Judul'), hCell('Isi Petunjuk')] }),
-      new TableRow({ children: [nc('[I1]'), cell('Petunjuk PG'), cell('Pilihlah satu jawaban yang paling tepat!')] }),
-      new TableRow({ children: [nc('[I2]'), cell('Petunjuk PGK'), cell('Pilihlah semua jawaban yang benar (bisa lebih dari satu)!')] }),
-      new TableRow({ children: [nc('[I3]'), cell('Petunjuk BS'), cell('Tentukan apakah pernyataan berikut Benar (B) atau Salah (S).')] }),
-      new TableRow({ children: [nc('[I4]'), cell('Petunjuk Isian'), cell('Isilah titik-titik dengan jawaban yang tepat!')] }),
-      new TableRow({ children: [nc('[I5]'), cell('Petunjuk Urutan'), cell('Urutkan item berikut dari yang pertama (nomor 1) hingga terakhir.')] }),
+      new TableRow({ tableHeader: true, children: [hCell('Nomor Soal'), hCell('Judul'), hCell('Isi Petunjuk')] }),
+      new TableRow({ children: [nc('1'), cell('Petunjuk PG'), cell('Pilihlah satu jawaban yang paling tepat!')] }),
+      new TableRow({ children: [nc('2'), cell('Petunjuk PGK'), cell('Pilihlah semua jawaban yang benar (bisa lebih dari satu)!')] }),
+      new TableRow({ children: [nc('3'), cell('Petunjuk BS'), cell('Tentukan apakah pernyataan berikut Benar (B) atau Salah (S).')] }),
+      new TableRow({ children: [nc('6'), cell('Petunjuk Isian'), cell('Isilah titik-titik dengan jawaban yang tepat!')] }),
+      new TableRow({ children: [nc('8'), cell('Petunjuk Urutan'), cell('Urutkan item berikut dari yang pertama (nomor 1) hingga terakhir.')] }),
     ],
   });
 
@@ -239,24 +239,9 @@ function buildAkademik() {
         stiTable,
 
         heading('TABEL PETUNJUK'),
-        noteP('Kode petunjuk digunakan di kolom Petunjuk pada tabel soal.'),
+        noteP('Nomor soal digunakan untuk memetakan petunjuk langsung ke nomor yang dimaksud.'),
         space(),
         petTable,
-
-        heading('PANDUAN KUNCI JAWABAN', '059669'),
-        ...[
-          'PG        : Huruf opsi yang benar, misal: A',
-          'PGK       : Huruf dipisah koma, misal: A,C',
-          'BS        : B atau S untuk setiap pernyataan di kolom Kunci sub-baris (P1, P2, dst)',
-          'MJ        : Teks kolom kanan (jawaban pasangan) di kolom Kunci sub-baris',
-          'CAT       : Nama kategori di kolom Kunci sub-baris (bisa lebih dari satu, pisah koma)',
-          'ISIAN     : Jawaban benar, jika ada alternatif pisahkan dengan | (pipa)',
-          'ESAI      : Tulis "(Manual)" — dinilai oleh guru',
-          'URUT      : Urutan posisi yang benar pisah titik koma, misal: 2;1;4;3 (artinya U2 pertama, U1 kedua, dst)',
-        ].map(t => new Paragraph({
-          spacing: { before: 40, after: 40 },
-          children: [new TextRun({ text: t, size: 17, font: 'Courier New', color: '1E293B' })],
-        })),
       ],
     }],
   });
@@ -349,19 +334,19 @@ function buildKepribadian() {
   });
 
   // Petunjuk table
-  const petW = [800, 1400, 6800];
+  const petW = [1000, 1800, 6400];
   const petTable = new Table({
     layout: TableLayoutType.FIXED,
     width: { size: 100, type: WidthType.PERCENTAGE },
     columnWidths: petW,
     rows: [
-      new TableRow({ tableHeader: true, children: [hCell('Kode', HDR_COLOR), hCell('Judul', HDR_COLOR), hCell('Isi Petunjuk', HDR_COLOR)] }),
-      new TableRow({ children: [nc('[I1]'), cell('SJT'), cell('Pilih tindakan yang paling tepat menurut Anda dalam situasi berikut.')] }),
-      new TableRow({ children: [nc('[I2]'), cell('Likert'), cell('Nyatakan tingkat persetujuan Anda (1=Sangat Tidak Setuju, 5=Sangat Setuju).')] }),
-      new TableRow({ children: [nc('[I3]'), cell('Forced-Choice'), cell('Pilih SATU pernyataan yang paling menggambarkan diri Anda.')] }),
-      new TableRow({ children: [nc('[I4]'), cell('Checklist'), cell('Centang semua pernyataan yang sesuai dengan kebiasaan Anda.')] }),
-      new TableRow({ children: [nc('[I5]'), cell('Ranking'), cell('Urutkan item berikut dari yang paling sesuai (1=paling sesuai) hingga kurang sesuai.')] }),
-      new TableRow({ children: [nc('[I6]'), cell('Paired Comparison'), cell('Dari dua pernyataan, pilih satu yang lebih menggambarkan diri Anda.')] }),
+      new TableRow({ tableHeader: true, children: [hCell('Nomor Soal', HDR_COLOR), hCell('Judul', HDR_COLOR), hCell('Isi Petunjuk', HDR_COLOR)] }),
+      new TableRow({ children: [nc('1'), cell('SJT'), cell('Pilih tindakan yang paling tepat menurut Anda dalam situasi berikut.')] }),
+      new TableRow({ children: [nc('2, 3'), cell('Likert'), cell('Nyatakan tingkat persetujuan Anda (1=Sangat Tidak Setuju, 5=Sangat Setuju).')] }),
+      new TableRow({ children: [nc('4'), cell('Forced-Choice'), cell('Pilih SATU pernyataan yang paling menggambarkan diri Anda.')] }),
+      new TableRow({ children: [nc('5'), cell('Checklist'), cell('Centang semua pernyataan yang sesuai dengan kebiasaan Anda.')] }),
+      new TableRow({ children: [nc('6'), cell('Ranking'), cell('Urutkan item berikut dari yang paling sesuai (1=paling sesuai) hingga kurang sesuai.')] }),
+      new TableRow({ children: [nc('7'), cell('Paired Comparison'), cell('Dari dua pernyataan, pilih satu yang lebih menggambarkan diri Anda.')] }),
     ],
   });
 
@@ -415,7 +400,7 @@ function buildKepribadian() {
         kisiTable,
 
         heading('TABEL PETUNJUK', '7C3AED'),
-        noteP('Kode petunjuk digunakan di kolom Petunjuk pada tabel soal di atas.'),
+        noteP('Nomor soal digunakan untuk memetakan petunjuk langsung ke nomor yang dimaksud.'),
         space(),
         petTable,
 

@@ -12,6 +12,7 @@ importStimuliFromXlsAction,
 updateStimulus
 } from '@/lib/api/questions';
 import { parseDocxToStimuliOrInstructions } from '@/lib/doc-parser';
+import { uploadToHosting } from '@/lib/uploader';
 import { AlertCircle,Check,Download,Edit3,Plus,Trash2,Upload,X } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
@@ -49,7 +50,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
     }, [loadStimuli]);
 
     const downloadTemplateDocx = async () => {
-        window.open('/template_soal_pengetahuan.docx?v=20260930', '_blank');
+        window.open('/template_soal_pengetahuan.docx?v=20261001', '_blank');
     };
 
     // ── Parse File and Show Preview ────────────────────────────────
@@ -232,6 +233,13 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
                                         onChange={setContent}
                                         placeholder="Ketik teks bacaan, atau masukkan gambar stimulus di sini..."
                                         minHeight="250px"
+                                        onImageUpload={async (file: File) => {
+                                            const result = await uploadToHosting(file, 'questions');
+                                            if (!result.success || !result.url) {
+                                                throw new Error(result.error || 'Gagal mengunggah gambar stimulus.');
+                                            }
+                                            return result.url;
+                                        }}
                                     />
                                 </div>
                             </div>

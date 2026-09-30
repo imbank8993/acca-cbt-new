@@ -1,11 +1,19 @@
 "use client";
 import { BarChart2,Check,LineChart,PieChart,Plus,Trash2,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
+import type { QuestionChartType } from './chart-embed';
+
+export interface QuestionChartData {
+  type: QuestionChartType;
+  labels: string[];
+  values: number[];
+  width: '50%' | '100%';
+}
 
 export interface ChartEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (chartHTML: string) => void;
+  onInsert: (chart: QuestionChartData) => void;
 }
 
 export default function ChartEditorModal(props: ChartEditorModalProps) {
@@ -18,6 +26,7 @@ function ChartEditorModalContent({
   onInsert,
 }: ChartEditorModalProps) {
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
+  const [chartWidth, setChartWidth] = useState<'50%' | '100%'>('100%');
   const [chartData, setChartData] = useState({
     labels: ['A', 'B', 'C', 'D'],
     datasets: [{
@@ -30,23 +39,14 @@ function ChartEditorModalContent({
   });
 
   const handleInsert = useCallback(() => {
-    const maxVal = Math.max(1, ...chartData.datasets[0].data);
-    const chartHTML = `
-      <div class="chart-container" style="width:100%;max-width:500px;margin:1rem auto;padding:1rem;background:#f8fafc;border-radius:0.75rem;border:1px solid #e2e8f0;text-align:center">
-        <h4 style="font-weight:bold;margin-bottom:0.75rem;font-size:0.875rem;color:#1e293b">Grafik Data (${chartType.toUpperCase()})</h4>
-        <div style="display:flex;align-items:flex-end;justify-content:center;gap:0.75rem;height:140px;padding:0.5rem;background:#ffffff;border-radius:0.5rem;border:1px dashed #cbd5e1">
-          ${chartData.labels.map((l, i) => `
-            <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;flex:1;max-width:44px">
-              <div style="width:100%;height:${Math.max(8, (chartData.datasets[0].data[i] / maxVal) * 100)}%;background:${chartData.datasets[0].backgroundColor[i] || '#3083FF'};border-radius:3px"></div>
-              <span style="font-size:10px;font-weight:600;color:#64748b">${l}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-    onInsert(chartHTML);
+    onInsert({
+      type: chartType,
+      labels: [...chartData.labels],
+      values: [...chartData.datasets[0].data],
+      width: chartWidth,
+    });
     onClose();
-  }, [chartData, chartType, onInsert, onClose]);
+  }, [chartData, chartType, chartWidth, onInsert, onClose]);
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -155,6 +155,27 @@ function ChartEditorModalContent({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Lebar Grafik */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 mb-2 block">Lebar Grafik</label>
+            <div className="flex gap-2">
+              {(['50%', '100%'] as const).map(width => (
+                <button
+                  key={width}
+                  type="button"
+                  onClick={() => setChartWidth(width)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                    chartWidth === width
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {width === '50%' ? '50% (berdampingan)' : '100% (penuh)'}
+                </button>
+              ))}
             </div>
           </div>
 

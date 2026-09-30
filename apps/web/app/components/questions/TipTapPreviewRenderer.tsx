@@ -7,6 +7,7 @@ import Underline from '@tiptap/extension-underline';
 import { EditorContent,useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import DOMPurify from 'dompurify';
+import { normalizeHtmlStorageUrls } from '@/lib/safe-url';
 import { useEffect,useMemo,useRef } from 'react';
 import { createRoot,Root } from 'react-dom/client';
 import { AudioEmbed } from './audio-embed';
@@ -30,7 +31,7 @@ export function TipTapPreviewRenderer({ content, className = '' }: TipTapPreview
 
         // Create a temporary container to parse HTML
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = DOMPurify.sanitize(content, { ADD_TAGS: ['iframe'] });
+        tempDiv.innerHTML = DOMPurify.sanitize(normalizeHtmlStorageUrls(content), { ADD_TAGS: ['iframe'] });
 
         // Process all elements to ensure alignment is preserved
         const processElement = (el: Element) => {

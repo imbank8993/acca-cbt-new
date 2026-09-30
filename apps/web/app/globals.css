@@ -1743,6 +1743,26 @@ html body .option-text .katex-display {
   border-radius: 4px;
 }
 
+/* Tabulation consistency */
+.cbt-tab,
+span.cbt-tab,
+.latex-renderer .cbt-tab,
+.question-content .cbt-tab,
+.ProseMirror .cbt-tab,
+span[style*="white-space:pre"],
+span[style*="white-space: pre"] {
+  display: inline;
+  white-space: pre !important;
+  tab-size: 8 !important;
+  -moz-tab-size: 8 !important;
+}
+
+.latex-renderer,
+.question-content {
+  tab-size: 8 !important;
+  -moz-tab-size: 8 !important;
+}
+
 /* Table styling in questions */
 .latex-renderer table {
   border-collapse: collapse;

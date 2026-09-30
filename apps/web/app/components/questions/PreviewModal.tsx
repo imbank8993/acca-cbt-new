@@ -35,7 +35,7 @@ function PreviewModalInner(props: PreviewModalProps) {
     const searchParams = useSearchParams();
 
     const {
-        isOpen, onClose, bankInfo, setViewingQuestion,
+        isOpen, onClose, bankInfo, viewingQuestion, setViewingQuestion,
         filteredQuestions, currentPreviewIndex, setCurrentPreviewIndex,
         matchingAnswers, setMatchingAnswers,
         doubtfulPreviews, setDoubtfulPreviews,
@@ -63,9 +63,31 @@ function PreviewModalInner(props: PreviewModalProps) {
     // ══ Derived values (after all hooks, before any return) ══
     const safeMatchingAnswers = matchingAnswers ?? {};
     const safeFilteredQuestions = filteredQuestions ?? [];
-    const safeCurrentIndex = safeFilteredQuestions.length > 0
-        ? Math.max(0, Math.min(currentPreviewIndex, safeFilteredQuestions.length - 1))
-        : 0;
+
+    const effectiveQuestions = React.useMemo(() => {
+        const list = [...safeFilteredQuestions];
+        if (!viewingQuestion) return list;
+        const existingIdx = list.findIndex(q => q.id === viewingQuestion.id && q.id !== 'preview');
+        if (existingIdx >= 0) {
+            list[existingIdx] = viewingQuestion;
+        } else if (viewingQuestion.id === 'preview' || !list.some(q => q.id === viewingQuestion.id)) {
+            if (currentPreviewIndex >= 0 && currentPreviewIndex < list.length) {
+                list[currentPreviewIndex] = viewingQuestion;
+            } else {
+                list.unshift(viewingQuestion);
+            }
+        }
+        return list;
+    }, [safeFilteredQuestions, viewingQuestion, currentPreviewIndex]);
+
+    const safeCurrentIndex = React.useMemo(() => {
+        if (effectiveQuestions.length === 0) return 0;
+        if (viewingQuestion) {
+            const idx = effectiveQuestions.findIndex(q => q === viewingQuestion || (q.id === viewingQuestion.id && q.id !== 'preview'));
+            if (idx >= 0) return idx;
+        }
+        return Math.max(0, Math.min(currentPreviewIndex, effectiveQuestions.length - 1));
+    }, [effectiveQuestions, viewingQuestion, currentPreviewIndex]);
 
     const calcScore = (q: QuestionRecord, studentAnswer: string | undefined) => {
         if (!q || studentAnswer == null) return 0;
@@ -96,7 +118,7 @@ function PreviewModalInner(props: PreviewModalProps) {
 
     const handleFinish = () => {
         let total = 0, totalMax = 0;
-        safeFilteredQuestions.forEach((q) => {
+        effectiveQuestions.forEach((q) => {
             total += calcScore(q, safeMatchingAnswers[q.id]);
             totalMax += q.score_default || 1;
         });
@@ -116,7 +138,7 @@ function PreviewModalInner(props: PreviewModalProps) {
     };
 
     const handleNavigate = (idx: number) => {
-        if (idx < 0 || idx >= safeFilteredQuestions.length) return;
+        if (idx < 0 || idx >= effectiveQuestions.length) return;
         setViewingQuestion(null);
         setCurrentPreviewIndex(idx);
         const p = new URLSearchParams(searchParams.toString());
@@ -136,7 +158,7 @@ function PreviewModalInner(props: PreviewModalProps) {
     return (
         <ExamViewer
             mode="preview"
-            questions={safeFilteredQuestions.map(({ options: legacyOptions, ...question }): Question => {
+            questions={effectiveQuestions.map(({ options: legacyOptions, ...question }): Question => {
                 const normalizedOptions = (question.bank_question_options || legacyOptions || []).map((option) => ({
                     id: option.id || '',
                     option_text: option.option_text || option.text || '',

@@ -2,11 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
+import type { Readable } from 'node:stream';
 
 export interface StorageResult {
   success: boolean;
@@ -102,8 +104,43 @@ export class StorageService {
 
   /** URL publik sebuah object key. */
   publicUrlForKey(key: string): string {
-    if (this.publicUrl) return `${this.publicUrl}/${key}`;
-    return `https://${this.accountId}.r2.cloudflarestorage.com/${this.bucket}/${key}`;
+    if (this.publicUrl && !this.publicUrl.includes('.r2.dev')) {
+      return `${this.publicUrl}/${key}`;
+    }
+    return `/api/storage/file/${key}`;
+  }
+
+  /**
+   * Ambil satu objek dari R2 sebagai readable stream dan metadata.
+   */
+  async getObject(key: string): Promise<{
+    stream: Readable;
+    contentType: string;
+    contentLength?: number;
+    etag?: string;
+  } | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    try {
+      const resp = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+      if (!resp.Body) return null;
+      return {
+        stream: resp.Body as unknown as Readable,
+        contentType: resp.ContentType || this.resolveContentType(key) || 'application/octet-stream',
+        contentLength: resp.ContentLength,
+        etag: resp.ETag,
+      };
+    } catch (err) {
+      this.logger.warn(`Gagal mengambil '${key}': ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /**
@@ -118,6 +155,16 @@ export class StorageService {
       if (!key) return null;
       try { return decodeURIComponent(key); } catch { return key; }
     };
+
+    if (fileUrl.includes('/api/storage/file/')) {
+      const idx = fileUrl.indexOf('/api/storage/file/');
+      return decode(fileUrl.slice(idx + '/api/storage/file/'.length));
+    }
+
+    if (fileUrl.includes('.r2.dev/')) {
+      const idx = fileUrl.indexOf('.r2.dev/');
+      return decode(fileUrl.slice(idx + '.r2.dev/'.length));
+    }
 
     if (this.publicUrl && fileUrl.startsWith(`${this.publicUrl}/`)) {
       return decode(fileUrl.slice(this.publicUrl.length));

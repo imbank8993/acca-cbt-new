@@ -857,7 +857,7 @@ export default function QuestionEditorModal({
                                     if (res.success && res.url) {
                                         return res.url;
                                     }
-                                    throw new Error('Upload failed');
+                                    throw new Error(res.error || 'Gagal mengunggah gambar soal.');
                                 }}
                                 onAudioUpload={async (file: File) => {
                                     const res = await uploadToHosting(file, 'questions-audio');

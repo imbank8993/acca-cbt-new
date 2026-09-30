@@ -280,10 +280,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 setViewingQuestion(null);
                 const idx = indexParam ? Math.min(parseInt(indexParam) || 0, filtered.length - 1) : 0;
                 setCurrentPreviewIndex(Math.max(0, idx));
+            } else if (previewParam === 'draft') {
+                setIsViewModalOpen(true);
             } else {
                 const q = questions.find(q => q.id === previewParam);
                 if (q) {
-                    setViewingQuestion(q);
+                    setViewingQuestion(prev => (prev?.id === q.id ? prev : q));
                     setIsViewModalOpen(true);
                     const qIdx = filtered.findIndex(fq => fq.id === q.id);
                     if (qIdx >= 0) setCurrentPreviewIndex(qIdx);
@@ -365,13 +367,22 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
     const handleOpenView = (q: QuestionRecord) => {
         setMatchingAnswers({});
+        setViewingQuestion(q);
         setIsViewModalOpen(true);
-        const idx = filteredQuestions.findIndex(fq => fq.id === q.id);
-        if (idx >= 0) setCurrentPreviewIndex(idx);
-        const params = new URLSearchParams(searchParams.toString());
-        if (q?.id) { params.set('preview', q.id); params.set('index', idx >= 0 ? idx.toString() : '0'); }
-        else { params.set('preview', 'all'); }
-        router.push(`${pathname}?${params.toString()}`);
+        const idx = filteredQuestions.findIndex(fq => fq.id === q.id && fq.id !== 'preview');
+        if (idx >= 0) {
+            setCurrentPreviewIndex(idx);
+        } else {
+            setCurrentPreviewIndex(0);
+        }
+        const params = new URLSearchParams(window.location.search);
+        if (q?.id && q.id !== 'preview') {
+            params.set('preview', q.id);
+            params.set('index', idx >= 0 ? idx.toString() : '0');
+        } else {
+            params.set('preview', 'draft');
+        }
+        window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
     };
 
     const handleMoveQuestion = async (idx: number, direction: 'up' | 'down') => {
@@ -1021,6 +1032,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 isOpen={isViewModalOpen}
                 onClose={() => {
                     setIsViewModalOpen(false);
+                    setViewingQuestion(null);
                     const params = new URLSearchParams(window.location.search);
                     params.delete('preview');
                     if (!isEditorOpen) {

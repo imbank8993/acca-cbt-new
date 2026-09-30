@@ -1,6 +1,8 @@
 "use client";
 import { Check,Link as LinkIcon,Loader2,Mic,Music,RotateCcw,Square,UploadCloud,Volume2,X } from 'lucide-react';
 import { useEffect,useRef,useState } from 'react';
+import { resolveStorageUrl } from '@/lib/safe-url';
+import { uploadToHosting } from '@/lib/uploader';
 
 export interface AudioEditorModalProps {
   isOpen: boolean;
@@ -171,6 +173,12 @@ function AudioEditorModalContent({
     setIsUploading(true);
 
     try {
+      const uploader = onUpload || (async (file: File) => {
+        const res = await uploadToHosting(file, 'questions-audio');
+        if (res.success && res.url) return res.url;
+        throw new Error(res.error || 'Gagal mengunggah file audio.');
+      });
+
       if (activeTab === 'upload') {
         if (!selectedFile) {
           setUploadError('Silakan pilih file audio terlebih dahulu.');
@@ -178,13 +186,8 @@ function AudioEditorModalContent({
           return;
         }
 
-        if (onUpload) {
-          const uploadedUrl = await onUpload(selectedFile);
-          onInsert(uploadedUrl);
-        } else {
-          // Fallback to data URL or preview URL
-          onInsert(filePreviewUrl);
-        }
+        const uploadedUrl = await uploader(selectedFile);
+        onInsert(resolveStorageUrl(uploadedUrl));
         onClose();
       } else if (activeTab === 'record') {
         if (!recordedBlob) {
@@ -196,12 +199,8 @@ function AudioEditorModalContent({
         const fileName = `voicenote-${Date.now()}.webm`;
         const audioFile = new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' });
 
-        if (onUpload) {
-          const uploadedUrl = await onUpload(audioFile);
-          onInsert(uploadedUrl);
-        } else {
-          onInsert(recordedAudioUrl);
-        }
+        const uploadedUrl = await uploader(audioFile);
+        onInsert(resolveStorageUrl(uploadedUrl));
         onClose();
       } else if (activeTab === 'url') {
         if (!directUrl.trim()) {
@@ -209,7 +208,7 @@ function AudioEditorModalContent({
           setIsUploading(false);
           return;
         }
-        onInsert(directUrl.trim());
+        onInsert(resolveStorageUrl(directUrl.trim()));
         onClose();
       }
     } catch (err: unknown) {

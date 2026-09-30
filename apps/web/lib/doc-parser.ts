@@ -206,7 +206,7 @@ function postProcessHtml(html: string): string {
 
     restored = restored.replace(
         /\[WORD_TAB\]/g,
-        '<span style="white-space:pre;tab-size:8">&#9;</span>'
+        '<span class="cbt-tab" style="white-space:pre;tab-size:8">&#9;</span>'
     );
     
     return restored;
@@ -401,9 +401,9 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
 
 const stripHtml = (html: string | undefined | null) => html ? html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() : '';
 
-/** Samakan "01", "1.", dan "Soal 1" agar referensi stimulus tidak meleset. */
+/** Samakan "01", "1.", "[1]", dan "Soal 1" agar referensi stimulus/petunjuk tidak meleset. */
 function normalizeQuestionNumber(value: string): string {
-    const match = stripHtml(value).match(/^(?:SOAL\s*)?0*(\d+)\s*[.)]?$/i);
+    const match = stripHtml(value).trim().match(/^(?:SOAL\s*)?[\[(]?0*(\d+)[\])]?\s*[.)]?$/i);
     return match ? String(Number(match[1])) : '';
 }
 
@@ -943,8 +943,8 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
                 .map((cell) => (cell.textContent || '').trim());
             // Harus 2 atau 3 kolom
             if (headers.length < 2 || headers.length > 3) return false;
-            // Kolom pertama harus mengandung "Nomor" atau "No"
-            if (!/^(NOMOR(\s+SOAL)?|NO(\.)?)$/i.test(headers[0])) return false;
+            // Kolom pertama harus mengandung "Nomor", "No", atau "Kode"
+            if (!/^(NOMOR(\s+SOAL)?|NO(\.)?|KODE)$/i.test(headers[0])) return false;
             // Kolom terakhir harus berisi "Isi Stimulus" (untuk stimulus) atau "Isi Petunjuk"/"Isi Instruksi" (untuk instruction)
             const lastHeader = headers[headers.length - 1].toUpperCase();
             if (targetKind === 'stimulus') return /ISI\s*STIMULUS|STIMULUS/i.test(lastHeader);

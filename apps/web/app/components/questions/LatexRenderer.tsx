@@ -2,6 +2,7 @@
 import DOMPurify from 'dompurify';
 import React,{ useEffect,useState } from 'react';
 import { extractMathExpressions,renderLatex } from './math-utils';
+import { normalizeHtmlStorageUrls } from '@/lib/safe-url';
 
 function escapeHtml(str: string): string {
   return str
@@ -20,12 +21,15 @@ function escapeHtml(str: string): string {
 const SANITIZE_CONFIG = {
   ADD_TAGS: ['iframe'],
   ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'target'],
+  ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|data|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+  ADD_DATA_URI_TAGS: ['img', 'audio', 'video', 'source'],
 };
 
 function processContentClientSide(rawText: string): string {
   if (!rawText) return '';
 
-  const clean = DOMPurify.sanitize(rawText, SANITIZE_CONFIG);
+  const normalized = normalizeHtmlStorageUrls(rawText);
+  const clean = DOMPurify.sanitize(normalized, SANITIZE_CONFIG);
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(clean, 'text/html');
@@ -138,6 +142,7 @@ const WRAPPER_STYLE: React.CSSProperties = {
   textRendering: 'optimizeLegibility',
   WebkitFontSmoothing: 'antialiased',
   MozOsxFontSmoothing: 'grayscale',
+  tabSize: 8,
 };
 
 LatexRenderer.displayName = 'LatexRenderer';

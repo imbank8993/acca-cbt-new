@@ -1,9 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import { AnimatePresence,motion } from 'framer-motion';
-import { Maximize2,X,ZoomIn } from 'lucide-react';
-import React,{ useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Maximize2, X, ZoomIn } from 'lucide-react';
+import React, { useState } from 'react';
+import { resolveStorageUrl, normalizeHtmlStorageUrls } from '@/lib/safe-url';
 
 interface MediaViewerProps {
     src: string;
@@ -13,6 +14,7 @@ interface MediaViewerProps {
 }
 
 export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewerProps) {
+    const safeSrc = resolveStorageUrl(src);
     const [isOpen, setIsOpen] = useState(false);
     const [, setIsPlaying] = useState(true);
 
@@ -21,7 +23,7 @@ export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewer
             <>
                 <div className={`relative inline-block cursor-zoom-in group ${className}`} onClick={() => setIsOpen(true)}>
                     <Image
-                        src={src}
+                        src={safeSrc}
                         alt={alt}
                         width={1600}
                         height={900}
@@ -52,7 +54,7 @@ export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewer
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
-                                src={src}
+                                src={safeSrc}
                                 alt={alt}
                                 className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
                                 onClick={(e) => e.stopPropagation()}
@@ -69,7 +71,7 @@ export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewer
         <>
             <div className={`relative inline-block group ${className}`}>
                 <video
-                    src={src}
+                    src={safeSrc}
                     controls
                     className="max-w-full h-auto rounded-lg border border-slate-200"
                     onPlay={() => setIsPlaying(true)}
@@ -99,7 +101,7 @@ export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewer
                             <X size={24} />
                         </button>
                         <video
-                            src={src}
+                            src={safeSrc}
                             controls
                             autoPlay
                             className="max-w-full max-h-full object-contain"
@@ -115,12 +117,13 @@ export function MediaViewer({ src, type, alt = '', className = '' }: MediaViewer
 // Helper to render media from HTML content
 export function parseMediaContent(html: string): React.ReactNode[] {
     const result: React.ReactNode[] = [];
+    const normalizedHtml = normalizeHtmlStorageUrls(html || '');
 
     // Parse images
     const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi;
-    const processedHtml = html.replace(imgRegex, (match, src, alt) => {
+    const processedHtml = normalizedHtml.replace(imgRegex, (match, src, alt) => {
         result.push(
-            <MediaViewer key={`img-${result.length}`} src={src} alt={alt} type="image" className="my-2" />
+            <MediaViewer key={`img-${result.length}`} src={resolveStorageUrl(src)} alt={alt} type="image" className="my-2" />
         );
         return '';
     });
@@ -129,7 +132,7 @@ export function parseMediaContent(html: string): React.ReactNode[] {
     const videoRegex = /<video[^>]+src=["']([^"']+)["'][^>]*>/gi;
     const processedHtml2 = processedHtml.replace(videoRegex, (match, src) => {
         result.push(
-            <MediaViewer key={`video-${result.length}`} src={src} type="video" className="my-2" />
+            <MediaViewer key={`video-${result.length}`} src={resolveStorageUrl(src)} type="video" className="my-2" />
         );
         return '';
     });

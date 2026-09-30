@@ -8,9 +8,12 @@ Crop,
 Eye,
 ImageIcon,
 RotateCcw,
+Trash2,
 X,
 } from 'lucide-react';
 import { useCallback,useEffect,useRef,useState } from 'react';
+import { resolveStorageUrl } from '@/lib/safe-url';
+import { uploadToHosting } from '@/lib/uploader';
 
 export interface ImageEditorModalProps {
   isOpen: boolean;
@@ -20,6 +23,7 @@ export interface ImageEditorModalProps {
   initialAlign?: 'left' | 'center' | 'right';
   onApply: (data: { src: string; width: string; align: 'left' | 'center' | 'right' }) => void;
   onUpload?: (file: File) => Promise<string>;
+  onDelete?: () => void;
 }
 
 export default function ImageEditorModal(props: ImageEditorModalProps) {
@@ -33,14 +37,19 @@ function ImageEditorModalContent({
   initialWidth = '100%',
   initialAlign = 'center',
   onApply,
+  onUpload,
+  onDelete,
 }: ImageEditorModalProps) {
-  const originalImageSrc = imageSrc;
-  const [currentImageSrc, setCurrentImageSrc] = useState(imageSrc);
+  const normalizedSrc = resolveStorageUrl(imageSrc);
+  const originalImageSrc = normalizedSrc;
+  const [currentImageSrc, setCurrentImageSrc] = useState(normalizedSrc);
   const [imgWidth, setImgWidth] = useState(initialWidth || '100%');
   const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>(initialAlign || 'center');
 
   // Crop Modal state
   const [showCropModal, setShowCropModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const [cropAspectRatio, setCropAspectRatio] = useState<'original' | '1:1' | '4:3' | '16:9'>('original');
   const [cropBox, setCropBox] = useState({ x: 20, y: 20, width: 200, height: 120 });
   const [isDragging, setIsDragging] = useState(false);
@@ -85,14 +94,38 @@ function ImageEditorModalContent({
     };
   }, [originalImageSrc, currentImageSrc, cropBox]);
 
-  const handleFinalApply = useCallback(() => {
-    onApply({
-      src: currentImageSrc,
-      width: imgWidth,
-      align: imgAlign,
-    });
-    onClose();
-  }, [currentImageSrc, imgWidth, imgAlign, onApply, onClose]);
+  const handleFinalApply = useCallback(async () => {
+    setIsUploading(true);
+    setUploadError('');
+    try {
+      let src = currentImageSrc;
+      if (src.startsWith('data:')) {
+        const uploader = onUpload || (async (file: File) => {
+          const res = await uploadToHosting(file, 'questions');
+          if (res.success && res.url) return res.url;
+          throw new Error(res.error || 'Gagal mengunggah gambar soal.');
+        });
+        const response = await fetch(src);
+        if (!response.ok) throw new Error('Gambar tidak dapat diproses untuk diunggah.');
+        const blob = await response.blob();
+        const extension = blob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+        const file = new File([blob], `question-image-${Date.now()}.${extension}`, {
+          type: blob.type || 'image/jpeg',
+        });
+        src = await uploader(file);
+      }
+      src = resolveStorageUrl(src);
+      if (!src) {
+        throw new Error('Gambar belum berhasil diproses. Silakan coba lagi.');
+      }
+      await onApply({ src, width: imgWidth, align: imgAlign });
+      onClose();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Gagal mengunggah gambar.');
+    } finally {
+      setIsUploading(false);
+    }
+  }, [currentImageSrc, imgWidth, imgAlign, onApply, onClose, onUpload]);
 
   // Global mousemove/mouseup listener for crop box dragging & resizing
   useEffect(() => {
@@ -365,24 +398,49 @@ function ImageEditorModalContent({
 
           {/* Footer */}
           <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between shrink-0 bg-white">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              <span>Pratinjau interaktif real-time</span>
+            <div className="min-w-0 pr-3 text-xs">
+              {uploadError ? (
+                <span role="alert" className="text-rose-600">{uploadError}</span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                  <span>Pratinjau interaktif real-time</span>
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Hapus gambar ini dari soal?')) {
+                      onDelete();
+                      onClose();
+                    }
+                  }}
+                  disabled={isUploading}
+                  className="px-3 py-2 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer font-medium flex items-center gap-1.5 mr-2"
+                  title="Hapus gambar dari lembar soal"
+                >
+                  <Trash2 size={15} />
+                  <span>Hapus</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
+                disabled={isUploading}
                 className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 rounded-lg transition-colors cursor-pointer font-medium"
               >
                 Batal
               </button>
               <button
                 type="button"
-                onClick={handleFinalApply}
-                className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                onClick={() => void handleFinalApply()}
+                disabled={isUploading}
+                className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
-                <Check size={16} /> Sisipkan ke Soal
+                {isUploading ? 'Mengunggah...' : <><Check size={16} /> Sisipkan ke Soal</>}
               </button>
             </div>
           </div>

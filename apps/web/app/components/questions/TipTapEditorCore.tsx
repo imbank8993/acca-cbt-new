@@ -1,5 +1,5 @@
 "use client";
-import { Extension } from '@tiptap/core';
+import { Extension, Node, type Editor, type JSONContent } from '@tiptap/core';
 import BulletList from '@tiptap/extension-bullet-list';
 import { Color } from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
@@ -17,6 +17,8 @@ import { TableRow } from '@tiptap/extension-table-row';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Underline from '@tiptap/extension-underline';
+import type { QuestionChartData } from './ChartEditorModal';
+import { ChartEmbed } from './chart-embed';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
 import { Decoration,DecorationSet } from '@tiptap/pm/view';
@@ -51,6 +53,8 @@ Undo2,
 Video,
 } from 'lucide-react';
 import { useCallback,useEffect,useRef,useState } from 'react';
+import { normalizeHtmlStorageUrls, resolveStorageUrl } from '@/lib/safe-url';
+import { uploadToHosting } from '@/lib/uploader';
 import { AudioEmbed } from './audio-embed';
 import AudioEditorModal from './AudioEditorModal';
 import ChartEditorModal from './ChartEditorModal';
@@ -86,6 +90,20 @@ const BULLET_LIST_STYLES = [
 type OrderedListStyleKey = typeof ORDERED_LIST_STYLES[number]['key'];
 type BulletListStyleKey = typeof BULLET_LIST_STYLES[number]['key'];
 
+function insertAdjacentBlocks(editor: Editor, nodes: JSONContent[]): boolean {
+  const { selection } = editor.state;
+  const { $from } = selection;
+  const content = [...nodes, { type: 'paragraph' }];
+  const command = editor.chain().focus();
+  if (selection.empty && $from.parent.type.name === 'paragraph' && $from.parent.content.size === 0) {
+    return command.insertContentAt(
+      { from: $from.before(), to: $from.after() },
+      content,
+    ).run();
+  }
+  return command.insertContent(content).run();
+}
+
 /**
  * Normalizes HTML so that <br> inside paragraphs are split into independent <p> tags.
  * This guarantees that every line can have its own independent alignment (e.g. line 1 center, line 2 right).
@@ -102,6 +120,14 @@ function normalizeParagraphs(html: string): string {
     }
     return match;
   });
+}
+
+/**
+ * Normalizes tab characters (\t) into structured tab spans that TipTap and LatexRenderer preserve.
+ */
+function normalizeTabs(html: string): string {
+  if (!html) return '';
+  return html.replace(/\t/g, '<span class="cbt-tab" style="white-space:pre;tab-size:8">&#9;</span>');
 }
 
 // ProseMirror plugin to highlight math text matches ($...$ and $$...$$) on the fly
@@ -167,12 +193,48 @@ const MathHighlighter = Extension.create({
   },
 });
 
+// Tab Node Extension for preserving tabulations (\t and [WORD_TAB] spans)
+const Tab = Node.create({
+  name: 'tab',
+  inline: true,
+  group: 'inline',
+  atom: true,
+  selectable: true,
+  parseHTML() {
+    return [
+      {
+        tag: 'span.cbt-tab',
+      },
+      {
+        tag: 'span',
+        getAttrs: (element: HTMLElement) => {
+          const style = (element.getAttribute('style') || '').toLowerCase();
+          const text = element.textContent || '';
+          if (
+            element.classList.contains('cbt-tab') ||
+            style.includes('tab-size') ||
+            style.includes('white-space:pre') ||
+            style.includes('white-space: pre') ||
+            text === '\t'
+          ) {
+            return {};
+          }
+          return false;
+        },
+      },
+    ];
+  },
+  renderHTML() {
+    return ['span', { class: 'cbt-tab', style: 'white-space:pre;tab-size:8' }, '\t'];
+  },
+});
+
 // Custom Keyboard Shortcuts Extension for Tab and Enter behavior
 const CustomKeyboardShortcuts = Extension.create({
   name: 'customKeyboardShortcuts',
   addKeyboardShortcuts() {
     return {
-      // TAB key handling: indent list or insert 4-space tab indentation
+      // TAB key handling: indent list or insert custom tab node with 8-char tab stop
       Tab: () => {
         if (this.editor.isActive('listItem')) {
           return this.editor.commands.sinkListItem('listItem');
@@ -180,8 +242,7 @@ const CustomKeyboardShortcuts = Extension.create({
         if (this.editor.isActive('table')) {
           return false; // let table handle cell navigation
         }
-        // Insert standard 4-space tab indent in regular text
-        return this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0');
+        return this.editor.commands.insertContent({ type: 'tab' });
       },
       // SHIFT-TAB key handling: outdent list
       'Shift-Tab': () => {
@@ -226,8 +287,13 @@ export default function TipTapEditorCore({
   // Modal States
   const [showImageModal, setShowImageModal] = useState(false);
   const [localImageSrc, setLocalImageSrc] = useState('');
+  const [editingImagePos, setEditingImagePos] = useState<number | null>(null);
   const [imgWidth, setImgWidth] = useState('100%');
-  const [imgAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>('center');
+  const pendingImageFiles = useRef<File[]>([]);
+  const uploadedImageNodes = useRef<JSONContent[]>([]);
+  const isImageBatch = useRef(false);
+  const appliedImage = useRef(false);
 
   const [showMathModal, setShowMathModal] = useState(false);
   const [mathInput, setMathInput] = useState('');
@@ -256,7 +322,27 @@ export default function TipTapEditorCore({
   const [defaultListStyle, setDefaultListStyle] = useState<OrderedListStyleKey | null>(null);
   const [defaultBulletStyle, setDefaultBulletStyle] = useState<BulletListStyleKey | null>(null);
 
-  const normalizedInitialContent = normalizeParagraphs(content);
+  const handleImageUploadToStorage = useCallback(
+    async (file: File) => {
+      if (onImageUpload) return onImageUpload(file);
+      const res = await uploadToHosting(file, 'questions');
+      if (res.success && res.url) return res.url;
+      throw new Error(res.error || 'Gagal mengunggah gambar soal.');
+    },
+    [onImageUpload],
+  );
+
+  const handleAudioUploadToStorage = useCallback(
+    async (file: File) => {
+      if (onAudioUpload) return onAudioUpload(file);
+      const res = await uploadToHosting(file, 'questions-audio');
+      if (res.success && res.url) return res.url;
+      throw new Error(res.error || 'Gagal mengunggah audio soal.');
+    },
+    [onAudioUpload],
+  );
+
+  const normalizedInitialContent = normalizeParagraphs(normalizeTabs(normalizeHtmlStorageUrls(content)));
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -267,6 +353,7 @@ export default function TipTapEditorCore({
         hardBreak: false,
       }),
       CustomKeyboardShortcuts,
+      Tab,
       Subscript,
       Superscript,
       Highlight.configure({ multicolor: true }),
@@ -308,14 +395,39 @@ export default function TipTapEditorCore({
         alignments: ['left', 'center', 'right', 'justify'],
         defaultAlignment: 'left',
       }),
-      Image.configure({
+      Image.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            style: {
+              default: null,
+              parseHTML: (element: HTMLElement) => element.getAttribute('style'),
+              renderHTML: (attributes: { style?: string | null }) =>
+                attributes.style ? { style: attributes.style } : {},
+            },
+          };
+        },
+      }).configure({
         allowBase64: true,
         inline: false,
         HTMLAttributes: {
           class: 'rounded-lg max-w-full my-2',
         },
       }),
-      Table.configure({
+      ChartEmbed,
+      Table.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            style: {
+              default: null,
+              parseHTML: (element: HTMLElement) => element.getAttribute('style'),
+              renderHTML: (attributes: { style?: string | null }) =>
+                attributes.style ? { style: attributes.style } : {},
+            },
+          };
+        },
+      }).configure({
         resizable: true,
         HTMLAttributes: {
           class: 'border-collapse w-full my-4 border border-slate-300',
@@ -358,7 +470,7 @@ export default function TipTapEditorCore({
   // Keep editor content in sync with external prop changes
   useEffect(() => {
     if (editor && content !== lastContent.current) {
-      const normalized = normalizeParagraphs(content);
+      const normalized = normalizeParagraphs(normalizeTabs(normalizeHtmlStorageUrls(content)));
       lastContent.current = normalized;
       editor.commands.setContent(normalized);
     }
@@ -477,7 +589,12 @@ export default function TipTapEditorCore({
         const src = target.getAttribute('src') || '';
         const style = target.getAttribute('style') || '';
         if (src) {
-          setLocalImageSrc(src);
+          let pos: number | null = null;
+          try {
+            pos = editor.view.posAtDOM(target, 0);
+          } catch {}
+          setEditingImagePos(pos);
+          setLocalImageSrc(resolveStorageUrl(src));
           const widthMatch = style.match(/width:\s*([^;]+)/);
           if (widthMatch) {
             setImgWidth(widthMatch[1].trim());
@@ -530,55 +647,142 @@ export default function TipTapEditorCore({
   }, [editor]);
 
   // Handle local image file upload & modal trigger
-  const handleImageUpload = useCallback((file: File) => {
+  const openImageFile = useCallback((file: File) => {
+    setEditingImagePos(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       if (e.target?.result) {
         const src = e.target.result as string;
         setLocalImageSrc(src);
-        setImgWidth('100%');
+        setImgWidth(isImageBatch.current ? '48%' : '100%');
+        setImgAlign(isImageBatch.current ? 'left' : 'center');
         setShowImageModal(true);
       }
     };
     reader.readAsDataURL(file);
   }, []);
 
+  const handleImageUpload = useCallback((files: FileList | File[]) => {
+    const selected = Array.from(files);
+    if (selected.length === 0) return;
+    isImageBatch.current = selected.length > 1;
+    pendingImageFiles.current = selected.slice(1);
+    openImageFile(selected[0]);
+  }, [openImageFile]);
+
   // Apply edited or cropped image into editor
   const handleApplyImage = useCallback(
-    ({ src, width, align }: { src: string; width: string; align: 'left' | 'center' | 'right' }) => {
-      let marginStyle = 'display: block; margin-left: auto; margin-right: auto;';
-      if (align === 'left') {
-        marginStyle = 'display: block; margin-left: 0; margin-right: auto;';
-      } else if (align === 'right') {
-        marginStyle = 'display: block; margin-left: auto; margin-right: 0;';
-      }
-      const inlineWidthStyle = width !== 'original' ? `width: ${width}; max-width: 100%;` : 'max-width: 100%;';
-      const completeStyle = `${inlineWidthStyle} height: auto; ${marginStyle} margin-top: 0.5rem; margin-bottom: 0.5rem; border-radius: 0.5rem;`;
+    async ({ src, width, align }: { src: string; width: string; align: 'left' | 'center' | 'right' }) => {
+      if (!editor || !src) throw new Error('Editor soal tidak siap menerima gambar.');
+      const resolvedSrc = resolveStorageUrl(src);
 
-      if (editor && src) {
-        editor
-          .chain()
-          .focus()
-          .setImage({
-            src,
+      // In-place update if editing existing image
+      if (editingImagePos !== null) {
+        const layoutStyle = `display:block;vertical-align:top;width:${width === 'original' ? 'auto' : width};max-width:100%;height:auto;margin:${align === 'left' ? '0.5rem auto 0.5rem 0' : align === 'right' ? '0.5rem 0 0.5rem auto' : '0.5rem auto'};border-radius:0.5rem`;
+        editor.chain().focus().command(({ tr }) => {
+          tr.setNodeMarkup(editingImagePos, undefined, {
+            src: resolvedSrc,
             alt: 'Gambar Soal',
             title: 'Gambar Soal',
-          })
-          .run();
-        editor
-          .chain()
-          .focus()
-          .updateAttributes('image', {
-            style: completeStyle,
-            width: width !== 'original' ? width : null,
-          })
-          .run();
+            width: width === 'original' ? null : width,
+            style: layoutStyle,
+          });
+          return true;
+        }).run();
+        setEditingImagePos(null);
+        return;
       }
-      setShowImageModal(false);
-      setLocalImageSrc('');
+
+      const layoutStyle = isImageBatch.current
+        ? `display:inline-block;vertical-align:top;width:${width};max-width:100%;height:auto;margin:0.5rem 1%;border-radius:0.5rem`
+        : `display:block;vertical-align:top;width:${width === 'original' ? 'auto' : width};max-width:100%;height:auto;margin:${align === 'left' ? '0.5rem auto 0.5rem 0' : align === 'right' ? '0.5rem 0 0.5rem auto' : '0.5rem auto'};border-radius:0.5rem`;
+      uploadedImageNodes.current.push({
+        type: 'image',
+        attrs: {
+          src: resolvedSrc,
+          alt: 'Gambar Soal',
+          title: 'Gambar Soal',
+          width: width === 'original' ? null : width,
+          style: layoutStyle,
+        },
+      });
+      appliedImage.current = true;
     },
-    [editor]
+    [editor, editingImagePos],
   );
+
+  const handleDeleteImage = useCallback(() => {
+    if (editingImagePos !== null && editor) {
+      const node = editor.state.doc.nodeAt(editingImagePos);
+      if (node) {
+        editor.chain().focus().deleteRange({ from: editingImagePos, to: editingImagePos + node.nodeSize }).run();
+      }
+      setEditingImagePos(null);
+      setShowImageModal(false);
+    }
+  }, [editingImagePos, editor]);
+
+  const closeImageModal = useCallback(() => {
+    setShowImageModal(false);
+    setLocalImageSrc('');
+    setEditingImagePos(null);
+    if (appliedImage.current) {
+      appliedImage.current = false;
+      const next = pendingImageFiles.current.shift();
+      if (next) {
+        openImageFile(next);
+        return;
+      }
+    }
+    if (uploadedImageNodes.current.length === 1 && isImageBatch.current) {
+      const image = uploadedImageNodes.current[0];
+      image.attrs = {
+        ...image.attrs,
+        width: '100%',
+        style: 'display:block;vertical-align:top;width:100%;max-width:100%;height:auto;margin:0.5rem auto;border-radius:0.5rem',
+      };
+    }
+    if (editor && uploadedImageNodes.current.length > 0) {
+      if (!insertAdjacentBlocks(editor, uploadedImageNodes.current)) {
+        window.alert('Gambar sudah diunggah, tetapi gagal disisipkan ke editor. Silakan coba lagi.');
+      }
+      uploadedImageNodes.current = [];
+    }
+    pendingImageFiles.current = [];
+    isImageBatch.current = false;
+  }, [editor, openImageFile]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const handleImageFiles = (files: File[]) => {
+      const images = files.filter(file => file.type.startsWith('image/'));
+      if (images.length === 0) return false;
+      handleImageUpload(images);
+      return true;
+    };
+    const handlePaste = (event: ClipboardEvent) => {
+      const files = Array.from(event.clipboardData?.items || [])
+        .map(item => item.kind === 'file' ? item.getAsFile() : null)
+        .filter((file): file is File => file !== null);
+      if (handleImageFiles(files)) event.preventDefault();
+    };
+    const handleDrop = (event: DragEvent) => {
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (!handleImageFiles(files)) return;
+      event.preventDefault();
+      if (event.clientX || event.clientY) {
+        const target = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+        if (target) editor.commands.setTextSelection(target.pos);
+      }
+    };
+
+    editor.view.dom.addEventListener('paste', handlePaste);
+    editor.view.dom.addEventListener('drop', handleDrop);
+    return () => {
+      editor.view.dom.removeEventListener('paste', handlePaste);
+      editor.view.dom.removeEventListener('drop', handleDrop);
+    };
+  }, [editor, handleImageUpload]);
 
   if (!editor) {
     return <div className="border border-slate-200 rounded-lg animate-pulse bg-slate-50" style={{ minHeight }} />;
@@ -837,7 +1041,7 @@ export default function TipTapEditorCore({
                 if (editor.isActive('listItem')) {
                   editor.chain().focus().sinkListItem('listItem').run();
                 } else {
-                  editor.chain().focus().insertContent('\u00A0\u00A0\u00A0\u00A0').run();
+                  editor.chain().focus().insertContent({ type: 'tab' }).run();
                 }
               }}
               className="w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all text-slate-600 hover:bg-white/80 hover:text-slate-900 cursor-pointer"
@@ -852,16 +1056,17 @@ export default function TipTapEditorCore({
             {/* Image */}
             <label
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-white/80 hover:text-slate-900 transition-all cursor-pointer"
-              title="Sisipkan & Potong Gambar Soal"
+              title="Sisipkan satu atau beberapa gambar soal"
             >
               <ImageIcon size={14} />
               <input
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageUpload(file);
+                  const files = e.target.files;
+                  if (files?.length) handleImageUpload(files);
                   e.target.value = '';
                 }}
               />
@@ -945,15 +1150,33 @@ export default function TipTapEditorCore({
             <button
               type="button"
               onClick={() => {
-                const url = prompt('Masukkan URL tautan:');
-                if (url) editor.chain().focus().setLink({ href: url }).run();
+                const isCurrentlyLink = editor.isActive('link');
+                if (isCurrentlyLink) {
+                  const currentHref = editor.getAttributes('link').href || '';
+                  const choice = window.prompt('Ubah URL tautan (kosongkan untuk menghapus tautan):', currentHref);
+                  if (choice === null) return;
+                  if (choice.trim() === '') {
+                    editor.chain().focus().unsetLink().run();
+                  } else {
+                    editor.chain().focus().setLink({ href: choice.trim() }).run();
+                  }
+                } else {
+                  const url = window.prompt('Masukkan URL tautan:');
+                  if (!url || !url.trim()) return;
+                  const trimmedUrl = url.trim();
+                  if (editor.state.selection.empty) {
+                    editor.chain().focus().insertContent(`<a href="${trimmedUrl}">${trimmedUrl}</a> `).run();
+                  } else {
+                    editor.chain().focus().setLink({ href: trimmedUrl }).run();
+                  }
+                }
               }}
               className={`w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all cursor-pointer ${
                 editor.isActive('link')
                   ? 'bg-white text-[#3083FF] shadow-xs font-bold'
                   : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
               }`}
-              title="Sisipkan Link Tautan"
+              title="Sisipkan / Edit Link Tautan"
             >
               <LinkIcon size={14} />
             </button>
@@ -1016,15 +1239,13 @@ export default function TipTapEditorCore({
       {/* Standalone Image Editor & Crop Modal */}
       <ImageEditorModal
         isOpen={showImageModal}
-        onClose={() => {
-          setShowImageModal(false);
-          setLocalImageSrc('');
-        }}
+        onClose={closeImageModal}
         imageSrc={localImageSrc}
         initialWidth={imgWidth}
         initialAlign={imgAlign}
         onApply={handleApplyImage}
-        onUpload={onImageUpload}
+        onUpload={handleImageUploadToStorage}
+        onDelete={editingImagePos !== null ? handleDeleteImage : undefined}
       />
 
       {/* Standalone Math / LaTeX Equation Modal */}
@@ -1043,8 +1264,18 @@ export default function TipTapEditorCore({
       <ChartEditorModal
         isOpen={showChartModal}
         onClose={() => setShowChartModal(false)}
-        onInsert={(chartHTML) => {
-          editor?.chain().focus().insertContent(chartHTML).run();
+        onInsert={(chart: QuestionChartData) => {
+          if (editor) {
+            insertAdjacentBlocks(editor, [{
+              type: 'chartEmbed',
+              attrs: {
+                chartType: chart.type,
+                labels: chart.labels,
+                values: chart.values,
+                width: chart.width,
+              },
+            }]);
+          }
           setShowChartModal(false);
         }}
       />
@@ -1058,11 +1289,38 @@ export default function TipTapEditorCore({
         currentTableWidth={readActiveTableWidth()}
         onInsertTable={(rows, cols, withHeader, width) => {
           if (!editor) return;
-          editor.chain().focus().insertTable({ rows, cols, withHeaderRow: withHeader }).run();
-          if (width) {
-            requestAnimationFrame(() => {
-              editor.chain().focus().updateAttributes('table', { style: `width: ${width}` }).run();
+          if (editor.isActive('table')) {
+            const { $from } = editor.state.selection;
+            let tableDepth = $from.depth;
+            while (tableDepth > 0 && $from.node(tableDepth).type.name !== 'table') tableDepth--;
+            if (tableDepth === 0) return;
+            const insertAt = $from.after(tableDepth);
+            const schema = editor.schema;
+            const rowsContent = Array.from({ length: rows }, (_, rowIndex) => {
+              const cellType = withHeader && rowIndex === 0 ? 'tableHeader' : 'tableCell';
+              const cells = Array.from({ length: cols }, () =>
+                schema.nodes[cellType].createAndFill(),
+              ).filter((cell): cell is NonNullable<typeof cell> => cell !== null);
+              return schema.nodes.tableRow.create(null, cells);
             });
+            const style = width
+              ? `width:${width};display:${width === '100%' ? 'table' : 'inline-table'};vertical-align:top`
+              : null;
+            const newTable = schema.nodes.table.create({ style }, rowsContent);
+            const content = [
+              newTable,
+              schema.nodes.paragraph.createAndFill(),
+            ].filter((node): node is NonNullable<typeof node> => node !== null);
+            editor.chain().focus().insertContentAt(insertAt, content).run();
+          } else {
+            editor.chain().focus().insertTable({ rows, cols, withHeaderRow: withHeader }).run();
+            if (width) {
+              requestAnimationFrame(() => {
+                editor.chain().focus().updateAttributes('table', {
+                  style: `width:${width};display:${width === '100%' ? 'table' : 'inline-table'};vertical-align:top`,
+                }).run();
+              });
+            }
           }
           setShowTableModal(false);
         }}
@@ -1092,7 +1350,11 @@ export default function TipTapEditorCore({
         }}
         onApplyTableWidth={(width) => {
           if (!editor) return;
-          editor.chain().focus().updateAttributes('table', { style: width ? `width: ${width}` : null }).run();
+          editor.chain().focus().updateAttributes('table', {
+            style: width
+              ? `width:${width};display:${width === '100%' ? 'table' : 'inline-table'};vertical-align:top`
+              : null,
+          }).run();
           setShowTableModal(false);
         }}
         onDeleteTable={() => {
@@ -1158,10 +1420,10 @@ export default function TipTapEditorCore({
       <AudioEditorModal
         isOpen={showAudioModal}
         onClose={() => setShowAudioModal(false)}
-        onUpload={onAudioUpload}
+        onUpload={handleAudioUploadToStorage}
         onInsert={(audioUrl) => {
           if (editor && audioUrl) {
-            editor.chain().focus().insertAudioEmbed(audioUrl).run();
+            editor.chain().focus().insertAudioEmbed(resolveStorageUrl(audioUrl)).run();
           }
         }}
       />
@@ -1210,6 +1472,18 @@ export default function TipTapEditorCore({
         .ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: 0.75rem 0 0.35rem 0; color: #0f172a; }
         .ProseMirror h1:first-child, .ProseMirror h2:first-child, .ProseMirror h3:first-child { margin-top: 0; }
 
+        .ProseMirror {
+          tab-size: 8 !important;
+          -moz-tab-size: 8 !important;
+        }
+        .ProseMirror .cbt-tab,
+        .ProseMirror span[style*="white-space:pre"],
+        .ProseMirror span[style*="white-space: pre"] {
+          display: inline;
+          white-space: pre !important;
+          tab-size: 8 !important;
+          -moz-tab-size: 8 !important;
+        }
         .ProseMirror sub { vertical-align: sub; font-size: smaller; line-height: 0; }
         .ProseMirror sup { vertical-align: super; font-size: smaller; line-height: 0; }
         .ProseMirror mark { background-color: #fef08a; padding: 0.05rem 0.25rem; border-radius: 0.25rem; }

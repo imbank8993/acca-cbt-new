@@ -7,6 +7,7 @@ import {
   HttpStatus,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
   PayloadTooLargeException,
   Post,
   UploadedFile,
@@ -14,11 +15,15 @@ import {
   UseInterceptors,
   Body,
   Get,
+  Req,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
+import type { Request, Response } from 'express';
 import { AllowInternalKey } from '../auth/allow-internal-key.decorator';
+import { Public } from '../auth/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
@@ -62,6 +67,42 @@ export class StorageController {
   @ApiOperation({ summary: 'Status konfigurasi penyimpanan R2' })
   getStatus() {
     return this.storage.status();
+  }
+
+  /**
+   * Sajikan berkas dari penyimpanan Cloudflare R2 secara streaming.
+   * Endpoint ini bersifat publik agar elemen <img>, <audio>, <video> pada lembar soal
+   * dan halaman ujian siswa dapat memuat berkas tanpa dependensi DNS eksternal atau auth header.
+   */
+  @Get('file/*')
+  @Public()
+  @AllowInternalKey()
+  @ApiOperation({ summary: 'Sajikan berkas dari penyimpanan R2 secara streaming' })
+  async serveFile(@Req() req: Request, @Res() res: Response) {
+    const prefix = '/storage/file/';
+    const idx = req.url.indexOf(prefix);
+    const rawKey = idx >= 0 ? req.url.slice(idx + prefix.length).split('?')[0] : '';
+    const key = decodeURIComponent(rawKey).replace(/^\/+/, '');
+
+    if (!key) {
+      throw new BadRequestException('Object key tidak valid.');
+    }
+
+    const obj = await this.storage.getObject(key);
+    if (!obj) {
+      throw new NotFoundException('Berkas tidak ditemukan.');
+    }
+
+    res.setHeader('Content-Type', obj.contentType);
+    if (obj.contentLength !== undefined) {
+      res.setHeader('Content-Length', obj.contentLength);
+    }
+    if (obj.etag) {
+      res.setHeader('ETag', obj.etag);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+    obj.stream.pipe(res);
   }
 
   /**

@@ -46,6 +46,7 @@ function TableEditorModalContent({
   const [tableHeaderRow, setTableHeaderRow] = useState(true);
   const [tableWidthPreset, setTableWidthPreset] = useState<TableWidthPreset>(currentTableWidth?.preset || '100%');
   const [tableWidthCustom, setTableWidthCustom] = useState<string>(currentTableWidth?.custom || '');
+  const [insertAfterActiveTable, setInsertAfterActiveTable] = useState(false);
 
   const handleInsert = useCallback(() => {
     const custom = tableWidthCustom.trim();
@@ -63,14 +64,14 @@ function TableEditorModalContent({
       }
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        if (!isInTable) {
+        if (!isInTable || insertAfterActiveTable) {
           handleInsert();
         }
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isInTable, handleInsert, onClose]);
+  }, [isInTable, insertAfterActiveTable, handleInsert, onClose]);
 
   const TABLE_WIDTH_PRESETS: { key: TableWidthPreset; label: string }[] = [
     { key: 'auto', label: 'Otomatis' },
@@ -98,10 +99,10 @@ function TableEditorModalContent({
             </div>
             <div>
               <h2 className="text-sm font-bold text-white leading-tight">
-                {isInTable ? 'Kelola & Edit Tabel' : 'Sisipkan Tabel Baru'}
+                {isInTable && !insertAfterActiveTable ? 'Kelola & Edit Tabel' : 'Sisipkan Tabel Baru'}
               </h2>
               <p className="text-[11px] text-slate-400 leading-tight">
-                {isInTable ? 'Ubah baris, kolom, atau lebar tabel aktif' : 'Atur jumlah baris, kolom, dan baris header'}
+                {isInTable && !insertAfterActiveTable ? 'Ubah tabel aktif atau sisipkan tabel berdampingan' : 'Atur jumlah baris, kolom, dan baris header'}
               </p>
             </div>
           </div>
@@ -117,11 +118,20 @@ function TableEditorModalContent({
 
         {/* Body */}
         <div className="p-5 max-h-[75vh] overflow-y-auto">
-          {!isInTable ? (
+          {!isInTable || insertAfterActiveTable ? (
             /* Mode 1: Buat Tabel Baru */
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
               {/* Kolom Kiri: Input Pengaturan */}
               <div className="md:col-span-5 space-y-4">
+                {isInTable && insertAfterActiveTable && (
+                  <button
+                    type="button"
+                    onClick={() => setInsertAfterActiveTable(false)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    ← Kembali ke tabel aktif
+                  </button>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold text-slate-700 mb-1.5 block">Jumlah Baris</label>
@@ -243,6 +253,13 @@ function TableEditorModalContent({
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
               {/* Kolom Kiri: Tombol Aksi Kelola */}
               <div className="md:col-span-5 space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setInsertAfterActiveTable(true)}
+                  className="w-full py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700 transition-colors cursor-pointer"
+                >
+                  + Sisipkan tabel baru setelah tabel ini
+                </button>
                 {/* Baris */}
                 <div className="flex flex-col gap-2">
                   <span className="text-xs font-bold text-slate-700 block">Baris (Rows)</span>

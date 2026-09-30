@@ -56,3 +56,27 @@ export function ensureAbsoluteUrl(url: string): string {
     return url;
 }
 
+/**
+ * Normalisasi URL berkas penyimpanan Cloudflare R2 / local proxy.
+ * Domain `*.r2.dev` diblokir di tingkat DNS oleh banyak ISP di Indonesia.
+ * Fungsi ini mengubah URL `https://*.r2.dev/<key>` menjadi `/api/storage/file/<key>`
+ * agar berkas dapat diakses secara lancar melalui internal proxy.
+ */
+export function resolveStorageUrl(url: string): string {
+    if (!url) return '';
+    // Jika URL adalah URL r2.dev, ubah menjadi relative /api/storage/file/
+    const r2Match = url.match(/^https?:\/\/[^/]+\.r2\.dev\/(.+)$/i);
+    if (r2Match) {
+        return `/api/storage/file/${r2Match[1]}`;
+    }
+    return url;
+}
+
+/**
+ * Normalisasi seluruh kemunculan URL r2.dev dalam teks HTML
+ */
+export function normalizeHtmlStorageUrls(html: string): string {
+    if (!html) return '';
+    return html.replace(/https?:\/\/[^/"]+\.r2\.dev\/([^"'\s>]+)/gi, '/api/storage/file/$1');
+}
+
