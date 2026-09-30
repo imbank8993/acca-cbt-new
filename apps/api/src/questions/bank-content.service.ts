@@ -45,18 +45,25 @@ export class BankContentService {
         return this.insert('cbt_question_kisi_kisi', bankId, clientRequestId, {
             organization_id: organizationId,
             bank_id: bankId,
-            ...data,
+            ...this.pickKisiKisiFields(data),
         });
     }
 
     async updateKisiKisi(user: AuthUser, id: string, data: Record<string, unknown>) {
         await this.authz.assertBankAccessByChild(user, 'cbt_question_kisi_kisi', id);
-        return this.update('cbt_question_kisi_kisi', id, data);
+        return this.update('cbt_question_kisi_kisi', id, this.pickKisiKisiFields(data));
     }
 
     async removeKisiKisi(user: AuthUser, id: string) {
         await this.authz.assertBankAccessByChild(user, 'cbt_question_kisi_kisi', id);
         return this.remove('cbt_question_kisi_kisi', id);
+    }
+
+    private pickKisiKisiFields(data: Record<string, unknown>): Record<string, unknown> {
+        const fields = ['materi', 'indikator_soal', 'level_kognitif'];
+        return Object.fromEntries(fields
+            .filter((field) => Object.prototype.hasOwnProperty.call(data, field))
+            .map((field) => [field, data[field]]));
     }
 
     // ── Stimulus ─────────────────────────────────────────────────────────────

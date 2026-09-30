@@ -40,8 +40,6 @@ export interface ImportRow {
 
 export interface KisiKisiItem {
     id: string;
-    nomor_kd: string;
-    kd_cp?: string | null;
     materi?: string | null;
     indikator_soal?: string | null;
     level_kognitif?: string | null;
@@ -423,8 +421,6 @@ export const deleteKisiKisi = kisiKisi.remove;
 export function createKisiKisi(
     bankId: string,
     data: {
-        nomor_kd: string;
-        kd_cp?: string;
         materi?: string;
         indikator_soal?: string;
         level_kognitif?: string;
@@ -436,8 +432,6 @@ export function createKisiKisi(
 export function updateKisiKisi(
     kisiKisiId: string,
     data: {
-        nomor_kd?: string;
-        kd_cp?: string;
         materi?: string;
         indikator_soal?: string;
         level_kognitif?: string;

@@ -21,9 +21,6 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Form states
-    const [nomorKd, setNomorKd] = useState('');
-    const [kdCp, setKdCp] = useState('');
     const [materi, setMateri] = useState('');
     const [indikatorSoal, setIndikatorSoal] = useState('');
     const [levelKognitif, setLevelKognitif] = useState('L1');
@@ -51,15 +48,11 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     const handleOpenEditor = (k: KisiKisiItem | null = null) => {
         if (k) {
             setEditingId(k.id);
-            setNomorKd(k.nomor_kd || '');
-            setKdCp(k.kd_cp || '');
             setMateri(k.materi || '');
             setIndikatorSoal(k.indikator_soal || '');
             setLevelKognitif(k.level_kognitif || 'L1');
         } else {
             setEditingId(null);
-            setNomorKd('');
-            setKdCp('');
             setMateri('');
             setIndikatorSoal('');
             setLevelKognitif('L1');
@@ -68,12 +61,12 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     };
 
     const handleSave = async () => {
-        if (!nomorKd.trim()) return alert("Nomor KD wajib diisi");
+        if (!materi.trim() && !indikatorSoal.trim()) {
+            return alert('Materi atau indikator soal wajib diisi');
+        }
         
         setIsSubmitting(true);
         const data = {
-            nomor_kd: nomorKd,
-            kd_cp: kdCp,
             materi: materi,
             indikator_soal: indikatorSoal,
             level_kognitif: levelKognitif
@@ -98,7 +91,6 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     };
 
     const filteredData = kisiKisi.filter(k => 
-        (k.nomor_kd || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (k.materi || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (k.indikator_soal || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -113,14 +105,14 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
                 <div className="flex-1">
                     <h2 className="text-lg font-semibold text-slate-800">Kisi-kisi Soal</h2>
-                    <p className="text-sm text-slate-500">Buat rancangan pemetaan soal berdasarkan Kompetensi Dasar / Capaian Pembelajaran.</p>
+                    <p className="text-sm text-slate-500">Buat rancangan pemetaan soal berdasarkan materi, indikator, dan level kognitif.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 shrink-0">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
                             type="text" 
-                            placeholder="Cari KD / Materi..." 
+                            placeholder="Cari materi atau indikator..."
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500 w-full sm:w-64"
@@ -145,8 +137,6 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-50">
                             <tr>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-700 w-24">No. KD/CP</th>
-                                <th className="px-4 py-3 text-left font-semibold text-slate-700">KD / CP</th>
                                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Materi</th>
                                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Indikator Soal</th>
                                 <th className="px-4 py-3 text-center font-semibold text-slate-700 w-28">Level Kognitif</th>
@@ -156,8 +146,6 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
                         <tbody className="divide-y divide-slate-200 bg-white">
                             {filteredData.map(k => (
                                 <tr key={k.id} className="hover:bg-slate-50/50">
-                                    <td className="px-4 py-3 font-semibold text-slate-800 align-top">{k.nomor_kd}</td>
-                                    <td className="px-4 py-3 text-slate-600 align-top">{k.kd_cp || '-'}</td>
                                     <td className="px-4 py-3 text-slate-600 align-top">{k.materi || '-'}</td>
                                     <td className="px-4 py-3 text-slate-600 align-top">{k.indikator_soal || '-'}</td>
                                     <td className="px-4 py-3 text-center align-top">
@@ -203,42 +191,19 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
                             </button>
                         </div>
                         <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nomor KD / CP <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={nomorKd}
-                                        onChange={e => setNomorKd(e.target.value)}
-                                        placeholder="Contoh: 3.1"
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Level Kognitif</label>
-                                    <select
-                                        value={levelKognitif}
-                                        onChange={e => setLevelKognitif(e.target.value)}
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="L1">L1 (Pengetahuan/Pemahaman)</option>
-                                        <option value="L2">L2 (Aplikasi)</option>
-                                        <option value="L3">L3 (Penalaran/HOTS)</option>
-                                    </select>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1.5">Level Kognitif</label>
+                                <select
+                                    value={levelKognitif}
+                                    onChange={e => setLevelKognitif(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
+                                >
+                                    <option value="L1">L1 (Pengetahuan/Pemahaman)</option>
+                                    <option value="L2">L2 (Aplikasi)</option>
+                                    <option value="L3">L3 (Penalaran/HOTS)</option>
+                                </select>
                             </div>
                             
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">KD / CP (Deskripsi)</label>
-                                <textarea
-                                    value={kdCp}
-                                    onChange={e => setKdCp(e.target.value)}
-                                    placeholder="Contoh: Menjelaskan konsep aljabar..."
-                                    rows={2}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-indigo-500 resize-none"
-                                />
-                            </div>
-
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Materi Pokok</label>
                                 <input

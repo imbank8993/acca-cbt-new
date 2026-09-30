@@ -500,7 +500,7 @@ export default function BulkImportModal({
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
-                                                onClick={() => window.open('/template_soal_pengetahuan.docx', '_blank')}
+                                                onClick={() => window.open('/template_soal_pengetahuan.docx?v=20260930', '_blank')}
                                                 className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-left"
                                             >
                                                 <FileText className="w-4 h-4 text-blue-500 shrink-0" />
@@ -510,7 +510,7 @@ export default function BulkImportModal({
                                                 </div>
                                             </button>
                                             <button
-                                                onClick={() => window.open('/template_soal_kepribadian.docx', '_blank')}
+                                                onClick={() => window.open('/template_soal_kepribadian.docx?v=20260930', '_blank')}
                                                 className="flex items-center gap-2 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors text-left"
                                             >
                                                 <FileText className="w-4 h-4 text-indigo-500 shrink-0" />

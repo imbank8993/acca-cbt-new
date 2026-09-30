@@ -252,16 +252,6 @@ export class CreateLabelDto {
 // ── Isi pendamping bank ──────────────────────────────────────────────────────
 
 export class KisiKisiDto {
-    @ApiProperty()
-    @IsString()
-    @IsNotEmpty({ message: 'Nomor KD wajib diisi.' })
-    nomor_kd!: string;
-
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsString()
-    kd_cp?: string;
-
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
@@ -285,16 +275,6 @@ export class CreateKisiKisiDto extends KisiKisiDto {
 }
 
 export class UpdateKisiKisiDto {
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsString()
-    nomor_kd?: string;
-
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsString()
-    kd_cp?: string;
-
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()

@@ -9,8 +9,8 @@ import { AuthUsersRepository } from './auth-users.repository';
 import { CbtRolesService } from './cbt-roles.service';
 import { SingleSchoolService } from './single-school.service';
 
-/** Peran yang disamakan persis dengan isi tiket SSO; 'ADMIN' sengaja tidak. */
-const SSO_SYNCED_ROLES = ['PROKTOR', 'GURU', 'PENGAWAS', 'SISWA'] as const;
+/** Peran sekolah yang disamakan persis dengan isi tiket SSO. */
+const SSO_SYNCED_ROLES = ['ADMIN', 'PROKTOR', 'GURU', 'PENGAWAS', 'SISWA'] as const;
 
 @Injectable()
 export class AuthService {
@@ -136,10 +136,8 @@ export class AuthService {
   /**
    * Samakan keanggotaan dan peran dengan isi tiket.
    *
-   * Peran Proktor/Guru/Pengawas/Siswa disamakan PERSIS: yang hilang dari tiket
-   * ikut dicabut, supaya bekas Proktor yang kini Guru tidak selamanya terbaca
-   * Proktor di CBT. 'Admin' tidak pernah dicabut otomatis — peran itu bisa
-   * diberikan dari dalam CBT dan tidak selalu tercermin di tiket.
+   * Peran sekolah disamakan PERSIS: yang hilang dari tiket ikut dicabut agar
+   * perubahan peran di ACCA New berlaku saat pengguna masuk kembali ke CBT.
    */
   private async syncSsoMembership(
     userId: string,

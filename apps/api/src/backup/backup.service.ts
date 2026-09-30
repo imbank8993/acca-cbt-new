@@ -235,6 +235,11 @@ export class BackupService {
                     return this.remapUserReferences(copy, userIdMap, user.id);
                 };
                 const withOrg = (rows: any[]) => (rows || []).map((row) => localize(row, true));
+                const withKisiKisi = (rows: any[]) => withOrg(rows).map((row) => {
+                    delete row.nomor_kd;
+                    delete row.kd_cp;
+                    return row;
+                });
                 const withUser = (rows: any[]) => (rows || [])
                     .filter((row) => userIdMap.has(row.user_id))
                     .map((row) => localize({ ...row, user_id: userIdMap.get(row.user_id) }));
@@ -249,7 +254,7 @@ export class BackupService {
                 await this.insert('cbt_question_banks', withOrg(data.question_banks), db);
                 await this.insert('cbt_question_stimuli', withOrg(data.question_stimuli), db);
                 await this.insert('cbt_question_instructions', plain(data.question_instructions), db);
-                await this.insert('cbt_question_kisi_kisi', withOrg(data.question_kisi_kisi), db);
+                await this.insert('cbt_question_kisi_kisi', withKisiKisi(data.question_kisi_kisi), db);
                 await this.insert('cbt_question_dimensions', plain(data.question_dimensions), db);
                 await this.insert('cbt_dimension_interpretations', plain(data.dimension_interpretations), db);
                 await this.insert('cbt_bank_questions', withOrg(data.bank_questions), db);

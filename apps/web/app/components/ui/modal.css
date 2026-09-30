@@ -92,6 +92,15 @@
 .mdl-panel--lg { width: min(720px, 100%); }
 .mdl-panel--xl { width: min(960px, 100%); }
 
+.mdl-panel.create-exam-modal {
+  width: min(880px, 100%);
+}
+
+.create-exam-modal .create-exam-modal__body {
+  gap: 10px !important;
+  padding: 12px 18px !important;
+}
+
 /* Jenis modal ditandai warna garis tepi panel — tipis, mengelilingi semua sisi.
    Warnanya ikut dipakai ikon judul di header supaya keduanya senada. */
 .mdl-panel--add { border-color: #3083ff; }    /* navy — biru utama aplikasi */
@@ -1874,4 +1883,3 @@
   background-color: rgba(239, 68, 68, 0.25) !important;
   color: #f87171 !important;
 }
-

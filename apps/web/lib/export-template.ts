@@ -78,8 +78,6 @@ interface ExportContentItem {
 }
 
 interface ExportKisiKisiItem extends ExportContentItem {
-    nomor_kd?: string | null;
-    kd_cp?: string | null;
     materi?: string | null;
     indikator_soal?: string | null;
     level_kognitif?: string | null;
@@ -137,7 +135,7 @@ const TYPE_MAP_QUESTION_KIND: Record<string, 'akademik' | 'kepribadian'> = {
     checklist: 'kepribadian', ranking: 'kepribadian', paired_comparison: 'kepribadian',
 };
 
-const LOGO_URL = '/logo-icon.png';
+const LOGO_URL = '/logo-sidebar.png';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -535,12 +533,10 @@ function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: Exp
     const headerColor = '1E3A8A';
     const rows: TableRow[] = [
         hRow([
-            headerCell('Nomor Soal', 12, headerColor),
-            headerCell('No. KD/CP', 12, headerColor),
-            headerCell('KD / CP', 20, headerColor),
-            headerCell('Materi', 20, headerColor),
-            headerCell('Indikator Soal', 26, headerColor),
-            headerCell('Level', 10, headerColor),
+            headerCell('Nomor Soal', 15, headerColor),
+            headerCell('Materi', 30, headerColor),
+            headerCell('Indikator Soal', 40, headerColor),
+            headerCell('Level', 15, headerColor),
         ]),
     ];
     let rowIdx = 0;
@@ -554,12 +550,10 @@ function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: Exp
         
         // Even if no questions use it, we might still want to print the kisi-kisi in the document.
         rows.push(dRow([
-            dataCell(qNos || '-', 12, fill(rowIdx++), 'CENTER'),
-            dataCell(kisi.nomor_kd || '-', 12, fill(rowIdx - 1), 'CENTER'),
-            dataCell(kisi.kd_cp || '-', 20, fill(rowIdx - 1)),
-            dataCell(kisi.materi || '-', 20, fill(rowIdx - 1)),
-            dataCell(kisi.indikator_soal || '-', 26, fill(rowIdx - 1)),
-            dataCell(kisi.level_kognitif || '-', 10, fill(rowIdx - 1), 'CENTER'),
+            dataCell(qNos || '-', 15, fill(rowIdx++), 'CENTER'),
+            dataCell(kisi.materi || '-', 30, fill(rowIdx - 1)),
+            dataCell(kisi.indikator_soal || '-', 40, fill(rowIdx - 1)),
+            dataCell(kisi.level_kognitif || '-', 15, fill(rowIdx - 1), 'CENTER'),
         ]));
     });
 
@@ -585,7 +579,7 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
         ? new ImageRun({
             type: 'png',
             data: logoBuffer,
-            transformation: { width: 56, height: 56 },
+            transformation: { width: 180, height: 32 },
         })
         : null;
 
@@ -594,19 +588,7 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
             children: logoImage ? [logoImage] : [new TextRun({ text: 'ACCA', bold: true, size: 24, color, font: 'Calibri' })],
             alignment: AlignmentType.LEFT,
         })],
-        width: { size: 15, type: WidthType.PERCENTAGE },
-        borders: borderNone(),
-        verticalAlign: VerticalAlign.CENTER,
-    });
-
-    const textCell = new TableCell({
-        children: [
-            new Paragraph({
-                children: [new TextRun({ text: 'ACCA', bold: true, size: 28, color: '374151', font: 'Calibri' })],
-                alignment: AlignmentType.LEFT,
-            })
-        ],
-        width: { size: 85, type: WidthType.PERCENTAGE },
+        width: { size: 100, type: WidthType.PERCENTAGE },
         borders: borderNone(),
         verticalAlign: VerticalAlign.CENTER,
     });
@@ -616,7 +598,7 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
             new Table({
                 width: { size: 100, type: WidthType.PERCENTAGE },
                 borders: borderNone(),
-                rows: [new TableRow({ children: [logoCell, textCell] })],
+                rows: [new TableRow({ children: [logoCell] })],
             }),
             new Paragraph({
                 children: [new TextRun({ text: '', size: 4 })],
@@ -629,7 +611,7 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
 function makeFooter(): Footer {
     return new Footer({
         children: [new Paragraph({
-            children: [new TextRun({ text: 'acca-cbt.icgowa.sch.id', bold: true, size: 24, color: '1E3A8A', font: 'Calibri' })],
+            children: [new TextRun({ text: 'acca.icgowa.sch.id', bold: true, size: 24, color: '1E3A8A', font: 'Calibri' })],
             alignment: AlignmentType.CENTER,
         })],
     });

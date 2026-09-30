@@ -462,24 +462,20 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         <>
             <Modal
                 open={isOpen}
-            onClose={onClose}
-            size="lg"
-            variant={isEdit ? 'default' : 'add'}
-            icon={isEdit ? <Settings size={18} /> : <Plus size={18} />}
-            title={
-                isEdit
-                    ? `Edit ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`
-                    : `Buat ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} Baru`
-            }
-            subtitle={
-                isEdit
-                    ? `Ubah detail, jadwal, dan peserta ${formData.examType === 'assignment' ? 'tugas' : 'ujian'}.`
-                    : 'Ujian baru dibuat sebagai draft sebelum diterbitkan.'
-            }
-            labelledBy="modal-exam-form"
-        >
+                onClose={onClose}
+                size="xl"
+                variant={isEdit ? 'default' : 'add'}
+                icon={isEdit ? <Settings size={18} /> : <Plus size={18} />}
+                title={
+                    isEdit
+                        ? `Edit ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`
+                        : `Buat ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} Baru`
+                }
+                labelledBy="modal-exam-form"
+                className="create-exam-modal"
+            >
             <form onSubmit={handleSubmitExam}>
-                <ModalBody className="space-y-4">
+                <ModalBody className="create-exam-modal__body">
                     {error && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-center gap-2">
                             <AlertCircle size={15} className="shrink-0" />
@@ -487,7 +483,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         </div>
                     )}
 
-                    {/* Grid 1: Jenis Ujian & Sistem Penilaian */}
+                    {/* Detail utama */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <ModalField label="Jenis Ujian" required>
                             <InlineSelect
@@ -525,7 +521,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         </ModalField>
                     </div>
 
-                    {/* Grid 2: Judul & Deskripsi */}
+                    {/* Identitas ujian */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <ModalField label={`Judul ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`} required>
                             <input
@@ -657,7 +653,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide">Pengaturan Tugas</h4>
                             </div>
 
-                            <ModalField label="Instruksi / Deskripsi Penugasan" hint="Tuliskan petunjuk atau instruksi pengerjaan tugas secara rinci">
+                            <ModalField label="Instruksi Tugas">
                                 <textarea
                                     rows={3}
                                     placeholder="Tuliskan instruksi tugas di sini..."
@@ -685,9 +681,6 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     <span className="text-xs font-semibold text-slate-800">
                                         Sertakan Soal dari Bank Soal {isEdit && '(Terkunci)'}
                                     </span>
-                                    <p className="text-[11px] text-slate-500">
-                                        Siswa akan mengerjakan soal pilihan sebelum mengumpulkan tugas.
-                                    </p>
                                 </div>
                             </label>
 
@@ -757,7 +750,6 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 />
                                 <div>
                                     <span className="text-xs font-semibold text-slate-800">Siswa Wajib Unggah File</span>
-                                    <p className="text-[11px] text-slate-500">Siswa harus mengunggah berkas dokumen tugas mereka.</p>
                                 </div>
                             </label>
 
@@ -838,7 +830,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         {formData.isPublic ? (
                             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-2">
                                 <Globe size={16} className="shrink-0" />
-                                <span>Ujian ini bersifat publik dan dapat diakses oleh seluruh siswa aktif di sekolah.</span>
+                                <span>Dapat diakses semua siswa aktif.</span>
                             </div>
                         ) : (
                             <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -872,7 +864,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                             )}
                                         </div>
                                         <div className="text-[11px] text-slate-500 mt-1">
-                                            {formData.selectedClassIds.length > 0 ? (
+                                            {formData.selectedClassIds.length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-0.5">
                                                     {formData.selectedClassIds.slice(0, 4).map((cid) => {
                                                         const cls = classes.find((c) => c.id === cid);
@@ -894,10 +886,6 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                                         </span>
                                                     )}
                                                 </div>
-                                            ) : (
-                                                <span>
-                                                    Klik tombol di samping untuk menentukan kelas dan kustomisasi siswa peserta ujian.
-                                                </span>
                                             )}
                                         </div>
                                     </div>

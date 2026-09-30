@@ -56,7 +56,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
     }, [bankId]);
 
     const downloadTemplateDocx = async () => {
-        window.open('/template_soal_pengetahuan.docx', '_blank');
+        window.open('/template_soal_pengetahuan.docx?v=20260930', '_blank');
     };
 
     // ── Parse File and Show Preview ────────────────────────────────

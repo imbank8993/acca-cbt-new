@@ -9,8 +9,6 @@ interface TransferContent {
 }
 
 interface TransferKisiKisi extends TransferContent {
-    nomor_kd?: string | null;
-    kd_cp?: string | null;
     materi?: string | null;
     indikator_soal?: string | null;
     level_kognitif?: string | null;
@@ -74,7 +72,7 @@ export function portableQuestion(q: TransferQuestion, related: TransferRelatedDa
     if (stimulus) Object.assign(metadata, { import_stimulus: stimulus.content, stimulus_title: stimulus.title });
     if (instruction) Object.assign(metadata, { import_instruction: instruction.content, instruction_title: instruction.title });
     if (kisi) metadata.kisi_kisi_data = {
-        nomor_kd: kisi.nomor_kd, kd_cp: kisi.kd_cp, materi: kisi.materi,
+        materi: kisi.materi,
         indikator_soal: kisi.indikator_soal, level_kognitif: kisi.level_kognitif,
     };
     if (dimension) metadata.dimension = dimension.name;

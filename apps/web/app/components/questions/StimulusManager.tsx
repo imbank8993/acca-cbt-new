@@ -49,7 +49,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
     }, [loadStimuli]);
 
     const downloadTemplateDocx = async () => {
-        window.open('/template_soal_pengetahuan.docx', '_blank');
+        window.open('/template_soal_pengetahuan.docx?v=20260930', '_blank');
     };
 
     // ── Parse File and Show Preview ────────────────────────────────

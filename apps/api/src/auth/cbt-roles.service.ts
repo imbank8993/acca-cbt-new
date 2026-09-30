@@ -65,8 +65,9 @@ export class CbtRolesService {
     const organizationId = school.id;
     let isPlatformAdmin = false;
 
-    // Peran dari metadata akun. Dipertahankan karena tiket SSO acca-app menulis
-    // peran sekolah ke sini saat pengguna pertama kali masuk.
+    // Hanya peran superadmin yang tetap dibaca dari metadata sebagai fallback.
+    // Peran sekolah dikelola dari keanggotaan CBT yang disinkronkan dari tiket
+    // SSO; metadata lama tidak boleh mempertahankan hak yang sudah dicabut.
     const metaRole = String((userMetadata?.role as string) || '').toUpperCase();
     const metaRoleList = Array.isArray(userMetadata?.roles)
       ? (userMetadata?.roles as string[]).map((r) => String(r).toUpperCase())
@@ -78,8 +79,6 @@ export class CbtRolesService {
       isPlatformAdmin = true;
     } else if (metaRoles.has('SUPER_ADMIN') || metaRoles.has('SUPERADMIN')) {
       out.superadmin = true;
-    } else if (metaRoles.has('ADMIN')) {
-      out.admin = true;
     }
 
     const [memberships, platformAdmin, attempt] = await Promise.all([
@@ -125,11 +124,11 @@ export class CbtRolesService {
       else out.admin = true;
     }
 
-    if (orgRoleNames.has('PROKTOR') || metaRoles.has('PROKTOR')) out.proktor = true;
+    if (orgRoleNames.has('PROKTOR')) out.proktor = true;
     if (orgRoleNames.has('ADMIN')) out.admin = true;
-    if (orgRoleNames.has('GURU') || metaRoles.has('GURU')) out.guru = true;
-    if (orgRoleNames.has('PENGAWAS') || metaRoles.has('PENGAWAS')) out.pengawas = true;
-    if (orgRoleNames.has('SISWA') || metaRoles.has('SISWA')) out.siswa = true;
+    if (orgRoleNames.has('GURU')) out.guru = true;
+    if (orgRoleNames.has('PENGAWAS')) out.pengawas = true;
+    if (orgRoleNames.has('SISWA')) out.siswa = true;
 
     // Pernah mengikuti ujian sudah cukup untuk peran Siswa: akun lama bisa
     // kehilangan keanggotaan organisasi tetapi tetap perlu membuka riwayat

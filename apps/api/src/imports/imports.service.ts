@@ -274,15 +274,21 @@ export class ImportsService {
         question: BulkQuestionDto,
     ): Promise<string | null> {
         const kisi = question.metadata?.kisi_kisi_data;
-        const nomorKd = kisi?.nomor_kd ? String(kisi.nomor_kd).trim() : '';
-        if (!nomorKd) return null;
+        if (!kisi) return null;
+        const materi = String(kisi.materi || '').trim();
+        const indikatorSoal = String(kisi.indikator_soal || '').trim();
+        const levelKognitif = String(kisi.level_kognitif || '').trim();
+        if (!materi && !indikatorSoal) return null;
+        const key = JSON.stringify([materi, indikatorSoal, levelKognitif].map(value => value.toLowerCase()));
 
-        return this.findOrCreate(context.kisiKisi, nomorKd.toLowerCase(), async () => {
+        return this.findOrCreate(context.kisiKisi, key, async () => {
             const { data: existing, error: readError } = await context.db
                 .from('cbt_question_kisi_kisi')
                 .select('id')
                 .eq('bank_id', context.bankId)
-                .eq('nomor_kd', nomorKd)
+                .eq('materi', materi)
+                .eq('indikator_soal', indikatorSoal)
+                .eq('level_kognitif', levelKognitif)
                 .limit(1);
 
             if (readError) throw new BadRequestException(readError.message);
@@ -294,11 +300,9 @@ export class ImportsService {
                 .insert({
                     organization_id: context.organizationId,
                     bank_id: context.bankId,
-                    nomor_kd: nomorKd,
-                    kd_cp: kisi.kd_cp || '',
-                    materi: kisi.materi || '',
-                    indikator_soal: kisi.indikator_soal || '',
-                    level_kognitif: kisi.level_kognitif || '',
+                    materi,
+                    indikator_soal: indikatorSoal,
+                    level_kognitif: levelKognitif,
                 })
                 .select('id')
                 .maybeSingle();

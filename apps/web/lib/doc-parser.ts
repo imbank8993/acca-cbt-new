@@ -253,8 +253,6 @@ interface ParsedOptionMetadata {
 }
 
 interface KisiData {
-    nomor_kd?: string;
-    kd_cp?: string;
     materi?: string;
     indikator_soal?: string;
     level_kognitif?: string;
@@ -445,7 +443,9 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
         const headerStr = headers.join('|').toUpperCase();
         const hasStimHeader = /STIMULUS|DAFTAR\s*STIMULUS/i.test(headerStr);
         const hasInstHeader = /PETUNJUK|INSTRUKSI|DAFTAR\s*PETUNJUK/i.test(headerStr);
-        const hasKisiHeader = /KISI|KD\/CP/i.test(headerStr);
+        const hasKisiHeader = /KISI|KD\/CP/i.test(headerStr) ||
+            (headers.some(header => /MATERI/i.test(header)) &&
+                headers.some(header => /INDIKATOR\s*SOAL/i.test(header)));
 
         // ── Kisi-kisi table ───────────────────────────────────────────────────
         if (hasKisiHeader) {
@@ -456,19 +456,19 @@ function parseAllTables(tables: RowData[][], tableHeaders: string[][]): { questi
                 const numbers = parseQuestionReferences(cells[0]);
                 if (numbers.length === 0) continue;
                 
-                // If it's the new 5-column format: Nomor Soal | Nomor KD/CP | KD/CP | Materi | Indikator Soal
-                if (headers.length >= 5) {
-                    const kisiObj = {
-                        nomor_kd: stripHtml(cells[1]),
-                        kd_cp: stripHtml(cells[2]),
-                        materi: stripHtml(cells[3]),
-                        indikator_soal: stripHtml(cells[4]),
-                        level_kognitif: stripHtml(cells[5])
+                const materiColumn = headers.findIndex(header => /MATERI/i.test(header));
+                const indikatorColumn = headers.findIndex(header => /INDIKATOR\s*SOAL/i.test(header));
+                const levelColumn = headers.findIndex(header => /LEVEL/i.test(header));
+                if (materiColumn >= 0 && indikatorColumn >= 0) {
+                    const kisiObj: KisiData = {
+                        materi: stripHtml(cells[materiColumn]),
+                        indikator_soal: stripHtml(cells[indikatorColumn]),
+                        level_kognitif: levelColumn >= 0 ? stripHtml(cells[levelColumn]) : '',
                     };
                     for (const num of numbers) {
                         kisiMap[num] = JSON.stringify(kisiObj);
                     }
-                    console.log(`[doc-parser]   ✓ Soal ${numbers.join(', ')} (JSON): "${kisiObj.nomor_kd} - ${kisiObj.materi}"`);
+                    console.log(`[doc-parser]   ✓ Soal ${numbers.join(', ')} (JSON): "${kisiObj.materi}"`);
                 } else {
                     // Fallback to old text parsing
                     const parts = [];
@@ -702,13 +702,11 @@ function parseQuestionTable(
                     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                         const record = parsed as Record<string, unknown>;
                         kisiData = {
-                            nomor_kd: typeof record.nomor_kd === 'string' ? record.nomor_kd : '',
-                            kd_cp: typeof record.kd_cp === 'string' ? record.kd_cp : '',
                             materi: typeof record.materi === 'string' ? record.materi : '',
                             indikator_soal: typeof record.indikator_soal === 'string' ? record.indikator_soal : '',
                             level_kognitif: typeof record.level_kognitif === 'string' ? record.level_kognitif : '',
                         };
-                        kisiString = `KD: ${kisiData.nomor_kd}, Materi: ${kisiData.materi}`;
+                        kisiString = [kisiData.materi, kisiData.indikator_soal].filter(Boolean).join(' — ');
                     }
                 }
             } catch (e) {

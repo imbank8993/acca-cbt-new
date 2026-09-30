@@ -754,7 +754,7 @@ export default function QuestionEditorModal({
                                     >
                                         <option value="">-- Tanpa Kisi-kisi --</option>
                                         {(kisiKisiList || []).map(k => (
-                                            <option key={k.id} value={k.id}>{k.nomor_kd} - {k.materi}</option>
+                                            <option key={k.id} value={k.id}>{k.materi || k.indikator_soal || 'Kisi-kisi'}</option>
                                         ))}
                                     </select>
                                     <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
