@@ -7,6 +7,7 @@ import { QuestionType } from '@/lib/api/questions';
 import { DOMParser as XMLDOMParser,XMLSerializer as XMLXMLSerializer } from '@xmldom/xmldom';
 import * as JSZip from 'jszip';
 import { readQuestionArchive } from './question-archive';
+import { normalizeImportedOptionText } from './import-text';
 import omml2mathml from 'omml2mathml';
 
 const getDOMParser = () => {
@@ -880,13 +881,14 @@ function parseQuestionTable(
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
 // Keep option images and math; rendering sanitizes the HTML at its boundary.
-const stripOptionHtml = (text: string) => text ? String(text).trim() : '';
+const stripOptionHtml = (text: string) => normalizeImportedOptionText(text);
 
 export async function parseDocxToQuestions(file: File): Promise<ParsedQuestion[]> {
     try {
         const archived = await readQuestionArchive(await file.arrayBuffer());
         if (archived) return archived.map(q => ({ ...q, options: q.options.map(o => ({
-            ...o, isCorrect: o.isCorrect ?? o.is_correct ?? false,
+            ...o, text: normalizeImportedOptionText(o.text),
+            isCorrect: o.isCorrect ?? o.is_correct ?? false,
         })) }));
         const { tables, tableHeaders } = await extractTablesFromDocx(file);
         if (tables.length === 0) {

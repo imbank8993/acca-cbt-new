@@ -2,6 +2,7 @@ import { getErrorMessage } from '@/lib/errors';
 import type { QuestionMetadata,QuestionOptionMetadata,QuestionType } from '@/lib/api/questions';
 import * as XLSX from 'xlsx';
 import { optionIndex,optionLabel } from './option-label';
+import { normalizeImportedOptionText } from './import-text';
 
 export interface ParsedQuestion {
     question_text: string;
@@ -144,7 +145,7 @@ function parseCorrectAnswer(raw: string | undefined, optionCount: number): numbe
     return [];
 }
 
-const stripOptionHtml = (text: string) => text ? String(text).trim() : '';
+const stripOptionHtml = (text: string) => normalizeImportedOptionText(text);
 
 export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
     const result: ImportResult = {
@@ -426,7 +427,10 @@ export async function parseExcelToQuestions(file: File): Promise<ImportResult> {
                 type,
                 difficulty,
                 scoreDefault: score,
-                options,
+                options: options.map(option => ({
+                    ...option,
+                    text: normalizeImportedOptionText(option.text),
+                })),
                 metadata,
                 rowIndex: rowNum,
                 warnings: warnings.length > 0 ? warnings : undefined

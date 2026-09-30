@@ -17,6 +17,7 @@ const excel = load('apps/web/lib/excel-parser.ts');
 const exp = load('apps/web/lib/export-template.ts');
 const archive = load('apps/web/lib/question-archive.ts');
 const transfer = load('apps/web/lib/question-transfer.ts');
+const importText = load('apps/web/lib/import-text.ts');
 function readRows(html) {
     return [...html.matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/g)].map(t=>
         [...t[1].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)].map(r=>({cells:[...r[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/g)].map(c=>c[1])})));
@@ -30,6 +31,23 @@ async function parseSheet(headers,rows) {
 (async()=>{
     const template=excel.generateTemplateData();
     const parsed=await parseSheet(template.headers,template.sampleRows);
+    check('Imported option paragraph wrappers are removed without losing paragraph breaks',()=>{
+        assert.equal(importText.normalizeImportedOptionText('<p>Soekarno</p>'),'Soekarno');
+        assert.equal(importText.normalizeImportedOptionText('<p>Soekarno</p><p>Hatta</p>'),'Soekarno\nHatta');
+    });
+    const paragraphExcel=await parseSheet(['Soal','Tipe','Kunci','A','B'],[['Question','PG','A','<p>Soekarno</p>','<p>Soeharto</p>']]);
+    check('Excel import removes paragraph wrappers from options',()=>{
+        assert.deepEqual(paragraphExcel.questions[0].options.map(option=>option.text),['Soekarno','Soeharto']);
+    });
+    const paragraphWord=parseRows([
+        {cells:['NO','TIPE','SOAL','KUNCI','SKOR']},
+        {cells:['1','PG','Question','A','1']},
+        {cells:['','A','<p>Soekarno</p>','','']},
+        {cells:['','B','<p>Soeharto</p>','','']},
+    ]);
+    check('Word import removes paragraph wrappers from options',()=>{
+        assert.deepEqual(paragraphWord[0].options.map(option=>option.text),['Soekarno','Soeharto']);
+    });
     check('Excel template retains real option columns and Jakarta key',()=>{
         assert.deepEqual(parsed.questions[0].options.map(o=>o.text),['Jakarta','Bandung','Surabaya','Yogyakarta','Semarang']);
         assert.equal(parsed.questions[0].options.find(o=>o.isCorrect).text,'Jakarta');
