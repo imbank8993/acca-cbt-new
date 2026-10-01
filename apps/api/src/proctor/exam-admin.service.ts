@@ -37,7 +37,7 @@ export class ExamAdminService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly roles: CbtRolesService,
-        private readonly settings: SettingsService,
+        private readonly settings?: SettingsService,
     ) {}
 
     /**
@@ -102,7 +102,7 @@ export class ExamAdminService {
         await this.assertMayUseExamType(user, organizationId, examType);
 
         this.assertValidDuration(examType, dto.duration);
-        const timeZone = await this.settings.getSchoolTimeZone();
+        const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
         const startTime = localDateTimeToUtc(dto.startTime, timeZone);
         const endTime = localDateTimeToUtc(dto.endTime, timeZone);
         if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
@@ -186,7 +186,7 @@ export class ExamAdminService {
         }
 
         this.assertValidDuration(examType, dto.duration);
-        const timeZone = await this.settings.getSchoolTimeZone();
+        const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
         const startTime = localDateTimeToUtc(dto.startTime, timeZone);
         const endTime = localDateTimeToUtc(dto.endTime, timeZone);
         if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {

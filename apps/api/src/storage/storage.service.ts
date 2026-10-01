@@ -161,13 +161,9 @@ export class StorageService {
       return decode(fileUrl.slice(idx + '/api/storage/file/'.length));
     }
 
-    if (fileUrl.includes('.r2.dev/')) {
-      const idx = fileUrl.indexOf('.r2.dev/');
-      return decode(fileUrl.slice(idx + '.r2.dev/'.length));
-    }
-
-    if (this.publicUrl && fileUrl.startsWith(`${this.publicUrl}/`)) {
-      return decode(fileUrl.slice(this.publicUrl.length));
+    const normalizedPublic = this.publicUrl ? this.publicUrl.replace(/\/+$/, '') : '';
+    if (normalizedPublic && fileUrl.startsWith(`${normalizedPublic}/`)) {
+      return decode(fileUrl.slice(normalizedPublic.length + 1));
     }
 
     let url: URL;

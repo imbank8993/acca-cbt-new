@@ -53,7 +53,7 @@ export class ExamConfigsService {
     constructor(
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
-        private readonly settings: SettingsService,
+        private readonly settings?: SettingsService,
     ) {}
 
     // ── Konfigurasi ──────────────────────────────────────────────────────────
@@ -705,7 +705,7 @@ export class ExamConfigsService {
                 .maybeSingle();
             if (!bank) return `${configExamId}: bank soal bukan milik sekolah konfigurasi`;
 
-            const timeZone = await this.settings.getSchoolTimeZone();
+            const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
             const startTime = dateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time, timeZone);
             const endTime = dateTimeToUtc(schedule.scheduled_date, schedule.window_end_time, timeZone);
             if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {

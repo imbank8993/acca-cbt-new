@@ -65,7 +65,7 @@ export class ExamAttemptsService {
         private readonly db: DbService,
         private readonly scoring: ScoringClient,
         private readonly grading: GradingService,
-        private readonly settings: SettingsService,
+        private readonly settings?: SettingsService,
     ) {}
 
     // ── Soal ─────────────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ export class ExamAttemptsService {
         }
 
         if (row.start_time && now < new Date(row.start_time)) {
-            const timeZone = await this.settings.getSchoolTimeZone();
+            const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
             return this.refuse(
                 `Ujian belum dimulai. Window dibuka pk ${utcToLocalClock(row.start_time, timeZone)} ${getSchoolTimeZoneLabel(timeZone)}.`,
             );

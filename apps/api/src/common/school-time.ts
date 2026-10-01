@@ -1,4 +1,4 @@
-const DEFAULT_SCHOOL_TIME_ZONE = 'Asia/Makassar';
+const DEFAULT_SCHOOL_TIME_ZONE = 'Asia/Jakarta';
 
 export function assertValidTimeZone(timeZone: string): string {
     try {

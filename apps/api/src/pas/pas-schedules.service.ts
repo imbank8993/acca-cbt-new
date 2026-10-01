@@ -32,7 +32,7 @@ export class PasSchedulesService {
     constructor(
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
-        private readonly settings: SettingsService,
+        private readonly settings?: SettingsService,
     ) {}
 
     // ── Sesi ─────────────────────────────────────────────────────────────────
@@ -374,7 +374,7 @@ export class PasSchedulesService {
 
             const duration = schedule.duration_minutes || 90;
             const closeTime = schedule.window_end_time || schedule.scheduled_time;
-            const timeZone = await this.settings.getSchoolTimeZone();
+            const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
             const startTime = dateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time, timeZone);
             const endTime = dateTimeToUtc(schedule.scheduled_date, closeTime, timeZone);
             if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {

@@ -7,9 +7,9 @@ describe('school timezone conversions', () => {
         expect(localDateTimeToUtc('2026-10-01T09:00', 'Asia/Jayapura')).toBe('2026-10-01T00:00:00.000Z');
     });
 
-    it('defaults to the school timezone in Gowa when no setting exists', () => {
-        expect(DEFAULT_SCHOOL_TIME_ZONE).toBe('Asia/Makassar');
-        expect(localDateTimeToUtc('2026-10-01T09:00')).toBe('2026-10-01T01:00:00.000Z');
+    it('defaults to Asia/Jakarta when no setting exists', () => {
+        expect(DEFAULT_SCHOOL_TIME_ZONE).toBe('Asia/Jakarta');
+        expect(localDateTimeToUtc('2026-10-01T09:00')).toBe('2026-10-01T02:00:00.000Z');
     });
 
     it('round-trips generated exam schedule dates and formats local clocks', () => {

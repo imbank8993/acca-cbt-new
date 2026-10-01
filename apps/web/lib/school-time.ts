@@ -1,6 +1,6 @@
 import { getSettings, type AppConfig } from '@/lib/api/settings';
 
-export const DEFAULT_SCHOOL_TIME_ZONE = 'Asia/Makassar';
+export const DEFAULT_SCHOOL_TIME_ZONE = 'Asia/Jakarta';
 
 export const SCHOOL_TIME_ZONES = [
     { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat' },
