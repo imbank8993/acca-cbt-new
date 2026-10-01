@@ -3,6 +3,7 @@
 import React from 'react';
 import { DatePicker } from './DatePicker';
 import { TimeField } from './TimeField';
+import { DEFAULT_SCHOOL_TIME_ZONE, utcToSchoolLocalDateTime } from '@/lib/school-time';
 
 export interface DateTimePickerProps {
     value: string; // 'YYYY-MM-DDTHH:mm' or ''
@@ -13,6 +14,7 @@ export interface DateTimePickerProps {
     required?: boolean;
     minDate?: string;
     maxDate?: string;
+    timeZone?: string;
     className?: string;
 }
 
@@ -25,6 +27,7 @@ export function DateTimePicker({
     required = false,
     minDate,
     maxDate,
+    timeZone = DEFAULT_SCHOOL_TIME_ZONE,
     className = '',
 }: DateTimePickerProps) {
     let datePart = '';
@@ -55,7 +58,7 @@ export function DateTimePicker({
 
     const handleTimeChange = (newTime: string) => {
         if (!newTime) return;
-        const date = datePart || new Date().toISOString().slice(0, 10);
+        const date = datePart || utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(0, 10);
         onChange(`${date}T${newTime}`);
     };
 

@@ -1,5 +1,6 @@
 "use client";
 import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
+import InlineSelect from '@/components/ui/InlineSelect';
 import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionMetadata,QuestionOptionDraft,QuestionRecord } from '@/lib/api/questions';
 import type { ProctorOrganization } from '@/lib/api/proctor';
 import { uploadToHosting } from '@/lib/uploader';
@@ -9,7 +10,6 @@ AlertCircle,
 ArrowRightLeft,
 ArrowUpDown,BarChartHorizontal,
 BookOpen,
-Check,
 CheckCircle2,
 CheckSquare,
 ChevronDown,
@@ -20,7 +20,6 @@ Eye,
 FileQuestion,
 FileSearch,
 GitCompare,
-Info,
 Layers,
 ListChecks,
 ListOrdered,
@@ -107,39 +106,22 @@ interface QuestionEditorModalProps {
 
 export const QUESTION_TYPES = [
     // Pengetahuan
-    { value: 'mcq', label: 'Multiple Choice (Auto-Detect)', icon: ListChecks, description: 'Siswa akan diminta untuk memilih satu jawaban yang paling tepat dari beberapa pilihan yang tersedia.', category: 'Knowledge' },
-    { value: 'mcq_complex', label: 'MCQ Complex', icon: CheckCircle2, description: 'Siswa dapat memilih lebih dari satu jawaban yang benar dari pilihan yang tersedia.', category: 'Knowledge' },
-    { value: 'true_false', label: 'True / False', icon: ToggleLeft, description: 'Siswa akan menentukan apakah suatu pernyataan bernilai Benar atau Salah.', category: 'Knowledge' },
-    { value: 'matching', label: 'Matching', icon: ArrowRightLeft, description: 'Siswa akan menjodohkan atau memasangkan pernyataan di kolom kiri dengan jawaban yang tepat di kolom kanan.', category: 'Knowledge' },
-    { value: 'categorization', label: 'Categorization', icon: Layers, description: 'Siswa akan mengelompokkan beberapa item atau pernyataan ke dalam kategori yang telah ditentukan.', category: 'Knowledge' },
-    { value: 'ordering', label: 'Ordering', icon: ArrowUpDown, description: 'Siswa akan diminta untuk menyusun pernyataan-pernyataan ke dalam urutan yang benar.', category: 'Knowledge' },
-    { value: 'short_answer', label: 'Short Answer', icon: Edit3, description: 'Siswa harus mengisi bagian yang kosong dengan jawaban singkat yang tepat.', category: 'Knowledge' },
-    { value: 'essay', label: 'Essay', icon: FileQuestion, description: 'Siswa akan menjawab pertanyaan secara bebas dengan bentuk teks atau uraian panjang.', category: 'Knowledge' },
+    { value: 'mcq', label: 'PG', icon: ListChecks, description: 'Siswa akan diminta untuk memilih satu jawaban yang paling tepat dari beberapa pilihan yang tersedia.', category: 'Knowledge' },
+    { value: 'mcq_complex', label: 'PGK', icon: CheckCircle2, description: 'Siswa dapat memilih lebih dari satu jawaban yang benar dari pilihan yang tersedia.', category: 'Knowledge' },
+    { value: 'true_false', label: 'Benar/Salah', icon: ToggleLeft, description: 'Siswa akan menentukan apakah suatu pernyataan bernilai Benar atau Salah.', category: 'Knowledge' },
+    { value: 'matching', label: 'Menjodohkan', icon: ArrowRightLeft, description: 'Siswa akan menjodohkan atau memasangkan pernyataan di kolom kiri dengan jawaban yang tepat di kolom kanan.', category: 'Knowledge' },
+    { value: 'categorization', label: 'Kategorisasi', icon: Layers, description: 'Siswa akan mengelompokkan beberapa item atau pernyataan ke dalam kategori yang telah ditentukan.', category: 'Knowledge' },
+    { value: 'ordering', label: 'Pengurutan', icon: ArrowUpDown, description: 'Siswa akan diminta untuk menyusun pernyataan-pernyataan ke dalam urutan yang benar.', category: 'Knowledge' },
+    { value: 'short_answer', label: 'Isian Singkat', icon: Edit3, description: 'Siswa harus mengisi bagian yang kosong dengan jawaban singkat yang tepat.', category: 'Knowledge' },
+    { value: 'essay', label: 'Esai', icon: FileQuestion, description: 'Siswa akan menjawab pertanyaan secara bebas dengan bentuk teks atau uraian panjang.', category: 'Knowledge' },
     // Kepribadian
-    { value: 'sjt', label: 'SJT (Situational Judgment)', icon: Scale, description: 'Siswa akan dihadapkan pada skenario tertentu dan harus merespons. Setiap opsi jawaban memiliki bobot poin yang berbeda terhadap suatu dimensi karakter.', category: 'Personality' },
-    { value: 'likert', label: 'Likert Scale (1-5)', icon: BarChartHorizontal, description: 'Opsi jawaban otomatis dibuat dari skala 1 (Sangat Tidak Setuju) hingga 5 (Sangat Setuju). Pastikan Anda telah memilih Dimensi yang Diukur di panel sebelah kiri.', category: 'Personality' },
-    { value: 'forced_choice', label: 'Forced Choice', icon: Columns, description: 'Siswa akan diminta untuk memilih salah satu opsi pernyataan yang paling sesuai dengan diri mereka. Setiap pernyataan mewakili satu dimensi karakter yang berbeda.', category: 'Personality' },
-    { value: 'checklist', label: 'Checklist (Yes/No)', icon: CheckSquare, description: 'Siswa akan disajikan daftar pernyataan dan mereka harus mencentang pernyataan yang sesuai dengan diri mereka. Setiap pernyataan dapat mengukur dimensi karakter yang berbeda.', category: 'Personality' },
-    { value: 'ranking', label: 'Ranking', icon: ListOrdered, description: 'Ranking Test: Siswa akan diminta untuk mengurutkan pernyataan-pernyataan di bawah ini dari yang paling sesuai dengan dirinya (Peringkat 1) hingga yang paling tidak sesuai. Sistem akan memberikan poin berdasarkan urutan tersebut ke dimensi karakter masing-masing pernyataan. Disarankan 4 pernyataan.', category: 'Personality' },
-    { value: 'paired_comparison', label: 'Paired Comparison', icon: GitCompare, description: 'Siswa akan dihadapkan pada dua pilihan pernyataan (A dan B) dan harus memilih salah satu yang paling mendekati dirinya. Pastikan kedua pernyataan mengukur dimensi karakter yang saling berbeda.', category: 'Personality' },
+    { value: 'sjt', label: 'Situasional', icon: Scale, description: 'Siswa akan dihadapkan pada skenario tertentu dan harus merespons. Setiap opsi jawaban memiliki bobot poin yang berbeda terhadap suatu dimensi karakter.', category: 'Personality' },
+    { value: 'likert', label: 'Skala Likert (1–5)', icon: BarChartHorizontal, description: 'Opsi jawaban otomatis dibuat dari skala 1 (Sangat Tidak Setuju) hingga 5 (Sangat Setuju). Pastikan Anda telah memilih Dimensi yang Diukur di panel sebelah kiri.', category: 'Personality' },
+    { value: 'forced_choice', label: 'Pilihan Paksa', icon: Columns, description: 'Siswa akan diminta untuk memilih salah satu opsi pernyataan yang paling sesuai dengan diri mereka. Setiap pernyataan mewakili satu dimensi karakter yang berbeda.', category: 'Personality' },
+    { value: 'checklist', label: 'Ceklis (Ya/Tidak)', icon: CheckSquare, description: 'Siswa akan disajikan daftar pernyataan dan mereka harus mencentang pernyataan yang sesuai dengan diri mereka. Setiap pernyataan dapat mengukur dimensi karakter yang berbeda.', category: 'Personality' },
+    { value: 'ranking', label: 'Pemeringkatan', icon: ListOrdered, description: 'Tes pemeringkatan: siswa mengurutkan pernyataan dari yang paling sesuai (peringkat 1) hingga yang paling tidak sesuai. Sistem memberi poin berdasarkan urutan ke dimensi karakter tiap pernyataan. Disarankan 4 pernyataan.', category: 'Personality' },
+    { value: 'paired_comparison', label: 'Perbandingan Berpasangan', icon: GitCompare, description: 'Siswa akan dihadapkan pada dua pilihan pernyataan (A dan B) dan harus memilih salah satu yang paling mendekati dirinya. Pastikan kedua pernyataan mengukur dimensi karakter yang saling berbeda.', category: 'Personality' },
 ];
-
-export const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    mcq: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
-    mcq_complex: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' },
-    true_false: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
-    matching: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200' },
-    categorization: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200' },
-    sjt: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' },
-    ordering: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-200' },
-    short_answer: { bg: 'bg-cyan-50', text: 'text-cyan-600', border: 'border-cyan-200' },
-    essay: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' },
-    likert: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200' },
-    forced_choice: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-200' },
-    checklist: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200' },
-    ranking: { bg: 'bg-lime-50', text: 'text-lime-600', border: 'border-lime-200' },
-    paired_comparison: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-200' },
-};
 
 export default function QuestionEditorModal({
     onClose,
@@ -205,13 +187,11 @@ export default function QuestionEditorModal({
         });
     }, [bankId]);
 
-    const [showTypeDropdown, setShowTypeDropdown] = useState(false);
     const [typeTab, setTypeTab] = useState<'knowledge' | 'personality'>(
         ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(selectedType) ? 'personality' : 'knowledge'
     );
 
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
-    const [showHintPopup, setShowHintPopup] = useState(false);
 
     const [latexEditorOpen, setLatexEditorOpen] = useState(false);
     const [latexEditorOptIdx, setLatexEditorOptIdx] = useState<number | null>(null);
@@ -441,8 +421,6 @@ export default function QuestionEditorModal({
     };
 
     const selectedTypeInfo = QUESTION_TYPES.find(t => t.value === selectedType) || QUESTION_TYPES[0];
-    const TypeIcon = selectedTypeInfo.icon;
-    const typeColors = TYPE_COLORS[selectedType] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-50 overflow-hidden font-sans">
@@ -585,7 +563,7 @@ export default function QuestionEditorModal({
                     </div>
                     <div id="mobile-sidebar-content" className="hidden md:flex md:flex-1 flex-col overflow-y-visible md:overflow-y-auto">
 
-                        {/* ── Tab Switcher: Knowledge / Personality ── */}
+                        {/* ── Tab Switcher: Pengetahuan / Kepribadian ── */}
                         <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
                             {(['knowledge', 'personality'] as const).map(tab => (
                                 <button
@@ -606,7 +584,7 @@ export default function QuestionEditorModal({
                                             : 'text-slate-400 border-transparent hover:text-slate-600'
                                     }`}
                                 >
-                                    {tab === 'knowledge' ? '📚 Knowledge' : '🧠 Personality'}
+                                    {tab === 'knowledge' ? 'Pengetahuan' : 'Kepribadian'}
                                 </button>
                             ))}
                         </div>
@@ -616,66 +594,34 @@ export default function QuestionEditorModal({
                         {/* ── Jenis Soal dropdown (tab-filtered) ── */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Jenis Soal</label>
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                                    className="w-full flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg text-left hover:border-slate-300 hover:shadow-sm transition-all"
-                                >
-                                    <div className={`w-8 h-8 rounded-lg ${typeColors.bg} border ${typeColors.border} flex items-center justify-center shrink-0`}>
-                                        <TypeIcon size={15} className={typeColors.text} />
-                                    </div>
-                                    <span className="flex-1 text-sm font-medium text-slate-700 truncate">{selectedTypeInfo.label}</span>
-                                    <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${showTypeDropdown ? 'rotate-180' : ''}`} />
-                                </button>
-                                <AnimatePresence>
-                                    {showTypeDropdown && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -4 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -4 }}
-                                            transition={{ duration: 0.13 }}
-                                            className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden z-50"
-                                        >
-                                            <div className="max-h-[280px] overflow-y-auto">
-                                                {QUESTION_TYPES.filter(t => t.category.toLowerCase() === typeTab).map(type => {
-                                                    const Icon = type.icon;
-                                                    const tc = TYPE_COLORS[type.value] || { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' };
-                                                    const isActive = selectedType === type.value;
-                                                    return (
-                                                        <button
-                                                            key={type.value}
-                                                            onClick={() => {
-                                                                const nextType = type.value as QuestionType;
-                                                                setSelectedType(nextType);
-                                                                if (nextType === 'true_false') {
-                                                                    const looksLikeTrueFalse = options.length >= 2
-                                                                        && options.every(option => typeof option.isCorrect === 'boolean');
-                                                                    if (!looksLikeTrueFalse) {
-                                                                        setOptions([
-                                                                            { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
-                                                                            { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] },
-                                                                        ]);
-                                                                    }
-                                                                }
-                                                                setShowTypeDropdown(false);
-                                                            }}
-                                                            className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-all hover:bg-slate-50 ${isActive ? `${tc.bg} border-l-4 ${tc.border}` : ''}`}
-                                                        >
-                                                            <div className={`w-7 h-7 rounded-lg ${tc.bg} border ${tc.border} flex items-center justify-center shrink-0`}>
-                                                                <Icon size={13} className={tc.text} />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className={`text-[13px] font-semibold truncate ${isActive ? tc.text : 'text-slate-700'}`}>{type.label}</p>
-                                                            </div>
-                                                            {isActive && <Check size={13} className={`${tc.text} shrink-0`} />}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
+                            <InlineSelect
+                                value={selectedType}
+                                onChange={(value) => {
+                                    const nextType = value as QuestionType;
+                                    setSelectedType(nextType);
+                                    if (nextType === 'true_false') {
+                                        const looksLikeTrueFalse = options.length >= 2
+                                            && options.every(option => typeof option.isCorrect === 'boolean');
+                                        if (!looksLikeTrueFalse) {
+                                            setOptions([
+                                                { text: '', isCorrect: true, order: 0, weight: 1, match_texts: [], category_names: [] },
+                                                { text: '', isCorrect: false, order: 1, weight: 0, match_texts: [], category_names: [] },
+                                            ]);
+                                        }
+                                    }
+                                }}
+                                options={QUESTION_TYPES
+                                    .filter(type => type.category.toLowerCase() === typeTab)
+                                    .map(({ value, label }) => ({ value, label }))}
+                                minWidth="0"
+                                height="44px"
+                                className="w-full"
+                            />
+                            {selectedType === 'paired_comparison' && (
+                                <p className="text-xs font-medium leading-tight text-slate-600">
+                                    Perbandingan<br />Berpasangan
+                                </p>
+                            )}
                         </div>
 
                         {/* ── KNOWLEDGE ONLY: Poin (di atas Stimulus) ── */}
@@ -700,65 +646,72 @@ export default function QuestionEditorModal({
                         {/* ── Stimulus (both) ── */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><BookOpen size={11}/> Stimulus</label>
-                            <div className="flex gap-2">
-                                <select
-                                    value={stimulusId || ''}
-                                    onChange={(e) => setStimulusId(e.target.value || null)}
-                                    className="w-full text-sm p-2 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    disabled={isBulkImportPreview}
-                                >
-                                    <option value="">-- Tanpa Stimulus --</option>
-                                    {isBulkImportPreview && metadata?.import_stimulus && (
-                                        <option value={editingQuestion?.stimulus_id || 'imported'}>{metadata?._stimulus_code ? `[${metadata._stimulus_code}] Akan diimport` : 'Akan diimport'}</option>
-                                    )}
-                                    {stimuliList.map(s => (
-                                        <option key={s.id} value={s.id}>{s.title}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            <InlineSelect
+                                value={stimulusId || ''}
+                                onChange={(value) => setStimulusId(value || null)}
+                                options={[
+                                    { value: '', label: '-- Tanpa Stimulus --' },
+                                    ...(isBulkImportPreview && metadata?.import_stimulus
+                                        ? [{
+                                            value: editingQuestion?.stimulus_id || 'imported',
+                                            label: metadata?._stimulus_code ? `[${metadata._stimulus_code}] Akan diimport` : 'Akan diimport',
+                                            disabled: true,
+                                        }]
+                                        : []),
+                                    ...stimuliList.map((stimulus) => ({ value: stimulus.id, label: stimulus.title || 'Stimulus' })),
+                                ]}
+                                minWidth="0"
+                                height="42px"
+                                className="w-full"
+                                disabled={isBulkImportPreview}
+                            />
                         </div>
 
                         {/* ── Petunjuk (both) ── */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Eye size={11}/> Petunjuk Pengerjaan</label>
-                            <div className="flex gap-2">
-                                <select
-                                    value={instructionId || ''}
-                                    onChange={(e) => setInstructionId(e.target.value || null)}
-                                    className="w-full text-sm p-2 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    disabled={isBulkImportPreview}
-                                >
-                                    <option value="">-- Tanpa Petunjuk --</option>
-                                    {isBulkImportPreview && metadata?.import_instruction && (
-                                        <option value={editingQuestion?.instruction_id || 'imported'}>{metadata?._instruction_code ? `[${metadata._instruction_code}] Akan diimport` : 'Akan diimport'}</option>
-                                    )}
-                                    {instructionsList.map(s => (
-                                        <option key={s.id} value={s.id}>{s.title}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            <InlineSelect
+                                value={instructionId || ''}
+                                onChange={(value) => setInstructionId(value || null)}
+                                options={[
+                                    { value: '', label: '-- Tanpa Petunjuk --' },
+                                    ...(isBulkImportPreview && metadata?.import_instruction
+                                        ? [{
+                                            value: editingQuestion?.instruction_id || 'imported',
+                                            label: metadata?._instruction_code ? `[${metadata._instruction_code}] Akan diimport` : 'Akan diimport',
+                                            disabled: true,
+                                        }]
+                                        : []),
+                                    ...instructionsList.map((instruction) => ({ value: instruction.id, label: instruction.title || 'Petunjuk' })),
+                                ]}
+                                minWidth="0"
+                                height="42px"
+                                className="w-full"
+                                disabled={isBulkImportPreview}
+                            />
                         </div>
 
                         {/* ── KNOWLEDGE ONLY: Kisi-kisi ── */}
                         {typeTab === 'knowledge' && (
                             <div className="space-y-2">
                                 <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><FileSearch size={11}/> Kisi-kisi</label>
-                                <div className="relative">
-                                    <select
-                                        value={kisiKisiId || ''}
-                                        onChange={(e) => {
-                                            if (setKisiKisiId) setKisiKisiId(e.target.value || null);
-                                        }}
-                                        className="w-full pl-3 pr-8 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all appearance-none"
-                                        disabled={isBulkImportPreview}
-                                    >
-                                        <option value="">-- Tanpa Kisi-kisi --</option>
-                                        {(kisiKisiList || []).map(k => (
-                                            <option key={k.id} value={k.id}>{k.materi || k.indikator_soal || 'Kisi-kisi'}</option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                </div>
+                                <InlineSelect
+                                    value={kisiKisiId || ''}
+                                    onChange={(value) => {
+                                        if (setKisiKisiId) setKisiKisiId(value || null);
+                                    }}
+                                    options={[
+                                        { value: '', label: '-- Tanpa Kisi-kisi --' },
+                                        ...(kisiKisiList || []).map((item) => ({
+                                            value: item.id,
+                                            label: item.materi || item.indikator_soal || 'Kisi-kisi',
+                                        })),
+                                    ]}
+                                    minWidth="0"
+                                    height="42px"
+                                    className="w-full"
+                                    disabled={isBulkImportPreview}
+                                />
                                 {(kisiKisiList || []).length === 0 && (
                                     <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1.5 rounded-md">⚠️ Belum ada kisi-kisi. Buat kisi-kisi di tab Kisi-kisi Soal.</p>
                                 )}
@@ -769,21 +722,22 @@ export default function QuestionEditorModal({
                         {typeTab === 'personality' && (selectedType === 'likert' || selectedType === 'sjt') && (
                             <div className="space-y-2">
                                 <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Target size={11}/> Dimensi yang Diukur</label>
-                                <div className="relative">
-                                    <select
-                                        value={dimensionId || ''}
-                                        onChange={(e) => {
-                                            if (setDimensionId) setDimensionId(e.target.value || null);
-                                        }}
-                                        className="w-full pl-3 pr-8 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all appearance-none"
-                                    >
-                                        <option value="">-- Pilih Dimensi --</option>
-                                        {(dimensions || []).map(d => (
-                                            <option key={d.id} value={d.id}>{d.name}</option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                </div>
+                                <InlineSelect
+                                    value={dimensionId || ''}
+                                    onChange={(value) => {
+                                        if (setDimensionId) setDimensionId(value || null);
+                                    }}
+                                    options={[
+                                        { value: '', label: '-- Pilih Dimensi --' },
+                                        ...(dimensions || []).map((dimension) => ({
+                                            value: dimension.id,
+                                            label: dimension.name,
+                                        })),
+                                    ]}
+                                    minWidth="0"
+                                    height="42px"
+                                    className="w-full"
+                                />
                                 {dimensions.length === 0 && (
                                     <p className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1.5 rounded-md">⚠️ Belum ada dimensi. Buat dimensi di tab Dimensi bank soal ini.</p>
                                 )}
@@ -809,40 +763,6 @@ export default function QuestionEditorModal({
                                         </svg>
                                     </div>
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pertanyaan</span>
-                                </div>
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowHintPopup(!showHintPopup)}
-                                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
-                                        title="Petunjuk Jenis Soal"
-                                    >
-                                        <Info size={16} />
-                                    </button>
-                                    <AnimatePresence>
-                                        {showHintPopup && (
-                                            <>
-                                                <div 
-                                                    className="fixed inset-0 z-40" 
-                                                    onClick={() => setShowHintPopup(false)}
-                                                />
-                                                <motion.div
-                                                    initial={{ opacity: 0, y: 4, scale: 0.95 }}
-                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                                                    transition={{ duration: 0.15 }}
-                                                    className="absolute right-0 top-full mt-2 w-[280px] p-3.5 bg-slate-800 text-white text-xs rounded-xl shadow-xl z-50 border border-slate-700"
-                                                >
-                                                    <div className="font-bold text-indigo-300 mb-1.5 flex items-center gap-1.5 text-[13px]">
-                                                        <Info size={14} /> Petunjuk: {selectedTypeInfo.label}
-                                                    </div>
-                                                    <p className="text-slate-300 leading-relaxed text-[11px]">
-                                                        {selectedTypeInfo.description}
-                                                    </p>
-                                                </motion.div>
-                                            </>
-                                        )}
-                                    </AnimatePresence>
                                 </div>
                             </div>
 

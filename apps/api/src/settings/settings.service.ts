@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { assertValidTimeZone, DEFAULT_SCHOOL_TIME_ZONE } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 export interface SettingRow {
@@ -62,6 +63,28 @@ export class SettingsService {
             throw new InternalServerErrorException('Gagal membaca pengaturan.');
         }
         return (data as SettingRow) || null;
+    }
+
+    async getSchoolTimeZone(): Promise<string> {
+        const setting = await this.findOne('app_config');
+        const config = setting?.value;
+        const timeZone =
+            config && typeof config === 'object' && !Array.isArray(config)
+                ? (config as Record<string, unknown>).time_zone
+                : undefined;
+        if (timeZone === undefined || timeZone === null || timeZone === '') {
+            return DEFAULT_SCHOOL_TIME_ZONE;
+        }
+        if (typeof timeZone !== 'string') {
+            this.logger.error('Zona waktu pada app_config harus berupa string IANA.');
+            throw new InternalServerErrorException('Pengaturan zona waktu tidak valid.');
+        }
+        try {
+            return assertValidTimeZone(timeZone);
+        } catch (error) {
+            this.logger.error('Zona waktu pada app_config bukan identifier IANA yang valid.', error);
+            throw new InternalServerErrorException('Pengaturan zona waktu tidak valid.');
+        }
     }
 
     /**

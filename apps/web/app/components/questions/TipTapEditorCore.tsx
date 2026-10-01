@@ -35,6 +35,7 @@ Highlighter,
 ImageIcon,
 Indent,
 Italic as ItalicIcon,
+Languages,
 LinkIcon,
 List as ListIcon,
 ListOrdered,
@@ -55,6 +56,7 @@ Video,
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { normalizeHtmlStorageUrls, resolveStorageUrl } from '@/lib/safe-url';
 import { uploadToHosting } from '@/lib/uploader';
+import InlineSelect from '@/components/ui/InlineSelect';
 import { AudioEmbed } from './audio-embed';
 import AudioEditorModal from './AudioEditorModal';
 import ChartEditorModal from './ChartEditorModal';
@@ -798,13 +800,31 @@ export default function TipTapEditorCore({
   const isJustifyAlign = editor.isActive({ textAlign: 'justify' });
   const isLeftAlign = editor.isActive({ textAlign: 'left' }) || (!isCenterAlign && !isRightAlign && !isJustifyAlign);
 
+  // RTL direction detection — cek apakah paragraf/heading aktif punya dir="rtl"
+  const currentDir = editor.getAttributes('paragraph').dir ||
+    editor.getAttributes('heading').dir ||
+    editor.getAttributes('blockquote').dir || 'ltr';
+  const isRtlMode = currentDir === 'rtl';
+
+  // Toggle RTL/LTR pada node aktif (paragraph / heading / blockquote)
+  const toggleDirection = () => {
+    const newDir = isRtlMode ? null : 'rtl';
+    if (editor.isActive('heading')) {
+      editor.chain().focus().updateAttributes('heading', { dir: newDir }).run();
+    } else if (editor.isActive('blockquote')) {
+      editor.chain().focus().updateAttributes('blockquote', { dir: newDir }).run();
+    } else {
+      editor.chain().focus().updateAttributes('paragraph', { dir: newDir }).run();
+    }
+  };
+
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs" ref={editorWrapRef}>
       {/* Sleek Pure-Icon Unified Segmented Toolbar */}
       {editable && (
-        <div className="editor-toolbar flex flex-wrap items-center gap-1.5 px-3 py-2 bg-slate-50/80 border-b border-slate-200/80 select-none">
+        <div className="editor-toolbar flex w-full flex-wrap items-center gap-2 px-3 py-2 bg-slate-50/80 border-b border-slate-200/80 select-none">
           {/* Cluster 1: History (Undo / Redo) */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             <button
               type="button"
               onClick={() => editor.chain().focus().undo().run()}
@@ -826,9 +846,8 @@ export default function TipTapEditorCore({
           </div>
 
           {/* Cluster 2: Heading Dropdown */}
-          <select
-            onChange={(e) => {
-              const value = e.target.value;
+          <InlineSelect
+            onChange={(value) => {
               if (value === '0') editor.chain().focus().setParagraph().run();
               else editor.chain().focus().toggleHeading({ level: parseInt(value) as 1 | 2 | 3 }).run();
             }}
@@ -837,17 +856,20 @@ export default function TipTapEditorCore({
               editor.isActive('heading', { level: 2 }) ? '2' :
               editor.isActive('heading', { level: 3 }) ? '3' : '0'
             }
-            className="h-8 text-xs px-2.5 rounded-lg border border-slate-300/60 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-50 outline-none shadow-2xs shrink-0"
+            options={[
+              { value: '0', label: 'Normal' },
+              { value: '1', label: 'Heading 1' },
+              { value: '2', label: 'Heading 2' },
+              { value: '3', label: 'Heading 3' },
+            ]}
+            minWidth="110px"
+            height="32px"
+            className="shrink-0"
             title="Tingkat Paragraf / Heading"
-          >
-            <option value="0">Normal</option>
-            <option value="1">Heading 1</option>
-            <option value="2">Heading 2</option>
-            <option value="3">Heading 3</option>
-          </select>
+          />
 
           {/* Cluster 3: Basic Formatting (B, I, U, S) */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleBold().run()}
@@ -899,7 +921,7 @@ export default function TipTapEditorCore({
           </div>
 
           {/* Cluster 4: Scripts & Highlight */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleSubscript().run()}
@@ -947,7 +969,7 @@ export default function TipTapEditorCore({
           </div>
 
           {/* Cluster 5: Alignment (4 Segments in 1 Unified Pill) */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             <button
               type="button"
               onClick={() => editor.chain().focus().setTextAlign('left').run()}
@@ -998,8 +1020,27 @@ export default function TipTapEditorCore({
             </button>
           </div>
 
+          {/* Cluster 5b: RTL / Arab Mode — aktifkan untuk teks bahasa Arab */}
+          <div className="toolbar-group">
+            <button
+              type="button"
+              onClick={toggleDirection}
+              className={`flex items-center justify-center gap-1 px-2 h-7 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                isRtlMode
+                  ? 'bg-emerald-100 text-emerald-700 shadow-xs border border-emerald-200'
+                  : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'
+              }`}
+              title={isRtlMode
+                ? 'Mode Arab RTL aktif — klik untuk kembali ke mode Latin (LTR)'
+                : 'Aktifkan mode Arab/RTL (Right-to-Left) untuk paragraf ini'}
+            >
+              <Languages size={12} />
+              <span className="arab-mode-badge">{isRtlMode ? 'ع RTL' : 'ع'}</span>
+            </button>
+          </div>
+
           {/* Cluster 6: Lists & Indentation */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             <button
               type="button"
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -1054,7 +1095,7 @@ export default function TipTapEditorCore({
           </div>
 
           {/* Cluster 7: Media & Component Inserts (Icons ONLY - Pure Segmented Pill) */}
-          <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/40 shrink-0">
+          <div className="toolbar-group">
             {/* Image */}
             <label
               className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:bg-white/80 hover:text-slate-900 transition-all cursor-pointer"
@@ -1198,38 +1239,34 @@ export default function TipTapEditorCore({
           {editor.isActive('orderedList') && (
             <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200/80 shadow-2xs shrink-0 animate-in fade-in duration-150">
               <span className="text-[10px] font-semibold text-slate-400">Gaya:</span>
-              <select
+              <InlineSelect
                 value={defaultListStyle ?? 'decimal'}
-                onChange={(e) => {
-                  const style = e.target.value as OrderedListStyleKey;
+                onChange={(value) => {
+                  const style = value as OrderedListStyleKey;
                   setDefaultListStyle(style);
                   editor.chain().focus().updateAttributes('orderedList', { listStyle: style }).run();
                 }}
-                className="text-xs py-0.5 bg-transparent text-slate-700 font-medium cursor-pointer outline-none"
-              >
-                {ORDERED_LIST_STYLES.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
-              </select>
+                options={ORDERED_LIST_STYLES.map((style) => ({ value: style.key, label: style.label }))}
+                minWidth="110px"
+                height="28px"
+              />
             </div>
           )}
 
           {editor.isActive('bulletList') && (
             <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-slate-200/80 shadow-2xs shrink-0 animate-in fade-in duration-150">
               <span className="text-[10px] font-semibold text-slate-400">Poin:</span>
-              <select
+              <InlineSelect
                 value={defaultBulletStyle ?? 'disc'}
-                onChange={(e) => {
-                  const style = e.target.value as BulletListStyleKey;
+                onChange={(value) => {
+                  const style = value as BulletListStyleKey;
                   setDefaultBulletStyle(style);
                   editor.chain().focus().updateAttributes('bulletList', { bulletStyle: style }).run();
                 }}
-                className="text-xs py-0.5 bg-transparent text-slate-700 font-medium cursor-pointer outline-none"
-              >
-                {BULLET_LIST_STYLES.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
-              </select>
+                options={BULLET_LIST_STYLES.map((style) => ({ value: style.key, label: style.label }))}
+                minWidth="110px"
+                height="28px"
+              />
             </div>
           )}
         </div>
@@ -1444,6 +1481,45 @@ export default function TipTapEditorCore({
           background-color: #f1f5f9;
           font-weight: 600;
           color: #0f172a;
+        }
+        .editor-toolbar .toolbar-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.125rem;
+          flex: 0 0 auto;
+          padding: 0.1875rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 0.625rem;
+          background-color: #f1f5f9;
+        }
+        .editor-toolbar button,
+        .editor-toolbar label {
+          box-sizing: border-box;
+          width: 26px;
+          height: 26px;
+          flex: 0 0 26px;
+          border: 0;
+          border-radius: 0.375rem;
+          background-color: transparent;
+          box-shadow: none;
+        }
+        .editor-toolbar button:hover,
+        .editor-toolbar label:hover {
+          background-color: #fff;
+        }
+        .editor-toolbar button[class*="bg-white"] {
+          background-color: #fff;
+        }
+        .editor-toolbar button[class*="bg-amber-300"] {
+          background-color: #fcd34d;
+        }
+        .editor-toolbar button svg,
+        .editor-toolbar label svg {
+          width: 13px;
+          height: 13px;
+        }
+        .editor-toolbar .uisel {
+          flex-shrink: 0;
         }
         .ProseMirror {
           min-height: 200px;

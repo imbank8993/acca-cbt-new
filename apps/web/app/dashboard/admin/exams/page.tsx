@@ -23,6 +23,8 @@ import { listOrganizationLabels,listQuestionBanks } from '@/lib/api/questions';
 import type { OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject,SchoolYear } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
+import { formatSchoolDateTime, getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -56,6 +58,7 @@ type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
 type SortBy = 'newest' | 'oldest' | 'name';
 
 const ExamsPage = () => {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_exams_exams', []);
     const [qBanks, setQBanks] = useMemoryState<QuestionBank[]>('proktor_exams_qBanks', []);
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
@@ -316,18 +319,7 @@ const ExamsPage = () => {
     };
 
     const formatDateTime = (str: string | null | undefined) => {
-        if (!str) return '-';
-        const date = new Date(str.match(/(Z|[+-]\d{2}:\d{2})$/) ? str : str + 'Z');
-        if (isNaN(date.getTime())) return '-';
-        // Convert UTC to WIB (UTC+7)
-        const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-        const day = String(wibDate.getUTCDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const month = months[wibDate.getUTCMonth()];
-        const year = wibDate.getUTCFullYear();
-        const h = String(wibDate.getUTCHours()).padStart(2, '0');
-        const m = String(wibDate.getUTCMinutes()).padStart(2, '0');
-        return `${day} ${month} ${year} ${h}:${m} WIB`;
+        return formatSchoolDateTime(str, timeZone);
     };
 
     const getExamWindow = (exam: OrganizationExam) => {
@@ -452,6 +444,7 @@ const ExamsPage = () => {
 
     return (
         <div className="max-w-7xl mx-auto pb-24">
+            {timeZoneError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
@@ -840,13 +833,13 @@ const ExamsPage = () => {
                                             className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Jam Mulai *</label>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Jam Mulai ({getSchoolTimeZoneLabel(timeZone)}) *</label>
                                         <input type="time" required value={addClassForm.scheduled_time}
                                             onChange={e => setAddClassForm(p => ({ ...p, scheduled_time: e.target.value }))}
                                             className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Window Tutup *</label>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Window Tutup ({getSchoolTimeZoneLabel(timeZone)}) *</label>
                                         <input type="time" required value={addClassForm.window_end_time}
                                             onChange={e => setAddClassForm(p => ({ ...p, window_end_time: e.target.value }))}
                                             className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />

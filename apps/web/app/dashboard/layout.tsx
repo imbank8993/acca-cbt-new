@@ -64,6 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (pathname.includes('/exams')) return 'Ujian';
         if (pathname.includes('/monitoring')) return 'Monitoring Ujian';
         if (pathname.includes('/backup')) return 'Backup Data';
+        if (pathname.includes('/settings')) return 'Pengaturan Umum';
         if (pathname.includes('/schedule')) return 'Jadwal Ujian';
         if (pathname.includes('/results')) return 'Hasil Ujian';
         if (pathname.includes('/analytics')) return 'Analisis Siswa';

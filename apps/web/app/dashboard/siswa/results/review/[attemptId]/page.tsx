@@ -2,7 +2,8 @@
 import { getErrorMessage } from '@/lib/errors';
 import { InlineMath } from '@/app/components/questions/InlineMath';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import type { Question,QuestionOption,QuestionType } from '@/app/types/question';
+import { getQuestionTypeLabel } from '@/app/types/question';
+import type { Question,QuestionOption } from '@/app/types/question';
 import type {
 ExamReview,
 QuestionReview,
@@ -1042,19 +1043,4 @@ function ShortAnswerReview({
             })}
         </div>
     );
-}
-
-// ─── Helper Functions ─────────────────────────────────────────────────────────
-
-function getQuestionTypeLabel(t: QuestionType | string): string {
-    switch (t) {
-        case 'mcq': return 'Pilihan Ganda';
-        case 'mcq_complex': return 'PG Kompleks';
-        case 'true_false': return 'Benar/Salah';
-        case 'matching': return 'Menjodohkan';
-        case 'categorization': return 'Kategorisasi';
-        case 'short_answer': return 'Isian Singkat';
-        case 'essay': case 'esay': case 'uraian': return 'Uraian';
-        default: return 'Pertanyaan';
-    }
 }

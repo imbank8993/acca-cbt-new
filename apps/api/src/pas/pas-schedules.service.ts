@@ -13,9 +13,10 @@ import {
     insertIdempotentlyWithStatus,
 } from '../common/idempotent-create';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
-import { wibDateTimeToUtc } from '../common/wib-time';
+import { dateTimeToUtc } from '../common/school-time';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
+import { SettingsService } from '../settings/settings.service';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
 
 /**
@@ -31,6 +32,7 @@ export class PasSchedulesService {
     constructor(
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
+        private readonly settings: SettingsService,
     ) {}
 
     // ── Sesi ─────────────────────────────────────────────────────────────────
@@ -372,8 +374,9 @@ export class PasSchedulesService {
 
             const duration = schedule.duration_minutes || 90;
             const closeTime = schedule.window_end_time || schedule.scheduled_time;
-            const startTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time);
-            const endTime = wibDateTimeToUtc(schedule.scheduled_date, closeTime);
+            const timeZone = await this.settings.getSchoolTimeZone();
+            const startTime = dateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time, timeZone);
+            const endTime = dateTimeToUtc(schedule.scheduled_date, closeTime, timeZone);
             if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
                 return `${scheduleId}: jendela waktu ujian tidak valid`;
             }

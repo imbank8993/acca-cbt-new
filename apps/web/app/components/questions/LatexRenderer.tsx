@@ -3,6 +3,12 @@ import DOMPurify from 'dompurify';
 import React,{ useEffect,useState } from 'react';
 import { extractMathExpressions,renderLatex } from './math-utils';
 import { normalizeHtmlStorageUrls } from '@/lib/safe-url';
+import {
+  containsArabic,
+  segmentArabicAndLatin,
+  getFontFamilyForText,
+  getTextDirection
+} from '@/lib/arabic-utils';
 
 function escapeHtml(str: string): string {
   return str
@@ -34,7 +40,7 @@ function processContentClientSide(rawText: string): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(clean, 'text/html');
 
-  // Process raw text nodes for $...$, $...$, etc.
+  // 1. Proses ekspresi matematika ($...$, $$...$$) pada raw text nodes
   const walk = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   const textNodes: Node[] = [];
   let n: Node | null;
@@ -78,6 +84,64 @@ function processContentClientSide(rawText: string): string {
       node.parentNode.replaceChild(fragment, node);
     }
   });
+
+  // 2. Jika konten mengandung bahasa Arab, diferensiasikan font dan ukuran teks Arab vs Latin
+  if (containsArabic(doc.body.textContent || '')) {
+    const secondWalk = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const contentNodes: Node[] = [];
+    while ((n = secondWalk.nextNode())) {
+      const pn = n.parentNode as HTMLElement | null;
+      if (!pn) continue;
+      const pnName = pn.nodeName;
+      if (pnName === 'SCRIPT' || pnName === 'STYLE' || pnName === 'CODE' || pnName === 'PRE') continue;
+      if (pn.closest && pn.closest('.katex, .katex-block, .katex-inline, .cbt-arabic-text, .cbt-latin-text')) {
+        continue;
+      }
+      contentNodes.push(n);
+    }
+
+    contentNodes.forEach((node) => {
+      const text = node.nodeValue || '';
+      if (!text || !text.trim()) return;
+
+      const segments = segmentArabicAndLatin(text);
+      if (segments.length === 0 || (segments.length === 1 && segments[0].type === 'neutral')) return;
+
+      const fragment = document.createDocumentFragment();
+      for (const seg of segments) {
+        if (seg.type === 'arabic') {
+          const span = document.createElement('span');
+          span.className = 'cbt-arabic-text';
+          span.setAttribute('dir', 'rtl');
+          span.setAttribute('lang', 'ar');
+          span.appendChild(document.createTextNode(seg.text));
+          fragment.appendChild(span);
+        } else if (seg.type === 'latin_gloss') {
+          const span = document.createElement('span');
+          span.className = 'cbt-latin-text cbt-latin-gloss';
+          span.setAttribute('dir', 'ltr');
+          const bdi = document.createElement('bdi');
+          bdi.appendChild(document.createTextNode(seg.text));
+          span.appendChild(bdi);
+          fragment.appendChild(span);
+        } else if (seg.type === 'latin') {
+          const span = document.createElement('span');
+          span.className = 'cbt-latin-text';
+          span.setAttribute('dir', 'ltr');
+          const bdi = document.createElement('bdi');
+          bdi.appendChild(document.createTextNode(seg.text));
+          span.appendChild(bdi);
+          fragment.appendChild(span);
+        } else {
+          fragment.appendChild(document.createTextNode(seg.text));
+        }
+      }
+
+      if (node.parentNode) {
+        node.parentNode.replaceChild(fragment, node);
+      }
+    });
+  }
 
   return doc.body.innerHTML;
 }
@@ -124,10 +188,26 @@ export const LatexRenderer = React.memo(({ text, className = '' }: LatexRenderer
 
   if (!text) return null;
 
+  // Deteksi otomatis Arab untuk RTL dan font
+  const dir = getTextDirection(text);
+  const fontFamily = getFontFamilyForText(text);
+  const isAr = containsArabic(text);
+
   return (
     <div
       className={`latex-renderer ${className}`}
-      style={WRAPPER_STYLE}
+      dir={dir}
+      style={{
+        ...WRAPPER_STYLE,
+        direction: dir,
+        fontFamily,
+        // Font Arab butuh line-height yang lebih lega agar harakat tidak berhimpitan
+        ...(isAr && {
+          lineHeight: '2.0',
+          letterSpacing: '0',
+          wordSpacing: '0.05em',
+        }),
+      }}
       dangerouslySetInnerHTML={{ __html: processedHtml }}
     />
   );

@@ -109,7 +109,14 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
             ? `[CBT_INDENT:${indentStyles.join(';')}]`
             : '';
 
-        if (indentMarker || alignmentMarker) {
+        // Deteksi arah teks RTL (paragraf Arab di Word menggunakan elemen <w:bidi/>)
+        const bidiElements = paragraphProperties
+            ? elementChildren(paragraphProperties).filter((child) => child.localName === 'bidi')
+            : [];
+        const isBidi = bidiElements.length > 0;
+        const rtlMarker = isBidi ? '[DIR_RTL]' : '';
+
+        if (indentMarker || alignmentMarker || rtlMarker) {
             let firstRun = elementChildren(p).find((child) => child.localName === 'r');
             if (!firstRun) {
                 firstRun = doc.createElementNS(wordNamespace, 'w:r');
@@ -125,7 +132,7 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
                 text = doc.createElementNS(wordNamespace, 'w:t');
                 firstRun.appendChild(text);
             }
-            text.textContent = `${indentMarker}${alignmentMarker}${text.textContent || ''}`;
+            text.textContent = `${indentMarker}${alignmentMarker}${rtlMarker}${text.textContent || ''}`;
         }
     }
     
@@ -207,6 +214,19 @@ function postProcessHtml(html: string): string {
     restored = restored.replace(
         /\[WORD_TAB\]/g,
         '<span class="cbt-tab" style="white-space:pre;tab-size:8">&#9;</span>'
+    );
+
+    // Konversi marker [DIR_RTL] menjadi atribut dir="rtl" pada elemen paragraf
+    // Ini dihasilkan dari elemen <w:bidi/> pada paragraf Arab di Word
+    restored = restored.replace(
+        /<(p|h[1-6])([^>]*)>([\s\S]*?)\[DIR_RTL\]/gi,
+        (_match, tag, attrs, before) => {
+            // Tambahkan dir="rtl" ke atribut elemen jika belum ada
+            if (attrs.includes('dir=')) {
+                return `<${tag}${attrs.replace(/dir="[^"]*"/, 'dir="rtl"')}>${before}`;
+            }
+            return `<${tag}${attrs} dir="rtl">${before}`;
+        }
     );
     
     return restored;

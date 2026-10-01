@@ -121,24 +121,25 @@ export interface QuestionNavState {
 // ─── Type Label Mapping ──────────────────────────────────────
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
-  mcq: 'Pilihan Ganda',
-  mcq_complex: 'PG Kompleks',
+  mcq: 'PG',
+  mcq_complex: 'PGK',
   true_false: 'Benar/Salah',
   essay: 'Esai',
   uraian: 'Esai',
   short_answer: 'Isian Singkat',
   matching: 'Menjodohkan',
-  categorization: 'Pengelompokan',
-  sjt: 'SJT (Situational Judgment)',
+  categorization: 'Kategorisasi',
+  sjt: 'Situasional',
   ordering: 'Pengurutan',
   likert: 'Skala Likert',
-  forced_choice: 'Forced-Choice',
-  checklist: 'Checklist',
-  ranking: 'Ranking',
-  paired_comparison: 'Paired Comparison'
+  forced_choice: 'Pilihan Paksa',
+  checklist: 'Ceklis (Ya/Tidak)',
+  ranking: 'Pemeringkatan',
+  paired_comparison: 'Perbandingan Berpasangan'
 };
 
 export function getQuestionTypeLabel(type: QuestionType | string): string {
+  if (type === 'esay') return QUESTION_TYPE_LABELS.essay;
   return QUESTION_TYPE_LABELS[type as QuestionType] || type.replace(/_/g, ' ');
 }
 

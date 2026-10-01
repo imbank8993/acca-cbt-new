@@ -41,9 +41,10 @@ import KisiKisiTab from '@/app/components/questions/KisiKisiTab';
 import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { getQuestionTypeLabel } from '@/app/types/question';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useParams,usePathname,useRouter,useSearchParams } from 'next/navigation';
+import { useParams,useSearchParams } from 'next/navigation';
 const StimulusManager = dynamic(() => import('@/app/components/questions/StimulusManager'), { ssr: false });
 const InstructionManager = dynamic(() => import('@/app/components/questions/InstructionManager'), { ssr: false });
 const QuestionEditorModal = dynamic(() => import('@/app/components/questions/QuestionEditorModal'), { ssr: false });
@@ -60,8 +61,6 @@ interface QuestionBankDetailPageProps {
 export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageProps) {
     const params = useParams();
     const bankId = params.bankId as string;
-    const router = useRouter();
-    const pathname = usePathname();
     const searchParams = useSearchParams();
 
     const cachePrefix = `${role}_questions_${bankId}`;
@@ -511,7 +510,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 )}
                             </div>
 
-                            <button onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">
+                            <button onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-white bg-primary border border-primary hover:bg-primary/90 hover:border-primary/90 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">
                                 <Eye size={14} className="shrink-0 sm:w-[15px] sm:h-[15px]" /> <span className="truncate">Pratinjau</span>
                             </button>
                             <button
@@ -520,7 +519,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     const result = await toggleQuestionBankPublishAction(bankId, !bankInfo?.is_published);
                                     if (result.success) await loadData();
                                 }}
-                                className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500' : 'bg-emerald-500 text-white hover:bg-emerald-600'}`}
+                                className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500' : 'bg-primary text-white hover:bg-primary/90'}`}
                             >
                                 <span className="truncate">{bankInfo?.is_published ? 'Unpublish' : 'Publish'}</span>
                             </button>
@@ -580,33 +579,22 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 onClick={() => setFilterType('all')}
                                 className={`rounded-lg px-1 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center w-full sm:w-[140px] shrink-0 cursor-pointer transition-all ${filterType === 'all' ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
                             >
-                                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">Total Questions</p>
+                                <p className="text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">Jumlah Soal</p>
                                 <p className="text-base sm:text-lg font-bold text-primary stat-count">{totalQuestions}</p>
                             </div>
                             {(() => {
-                                const typeMap: Record<string, { label: string }> = {
-                                    mcq: { label: 'MCQ' },
-                                    mcq_complex: { label: 'MCQ Complex' },
-                                    true_false: { label: 'True/False' },
-                                    matching: { label: 'Matching' },
-                                    categorization: { label: 'Categorization' },
-                                    short_answer: { label: 'Short Answer' },
-                                    essay: { label: 'Essay' },
-                                    sjt: { label: 'SJT' },
-                                    likert: { label: 'Likert' },
-                                    forced_choice: { label: 'Forced Choice' },
-                                    checklist: { label: 'Checklist' },
-                                    ranking: { label: 'Ranking' },
-                                    paired_comparison: { label: 'Paired Comp' },
-                                    ordering: { label: 'Ordering' }
-                                };
+                                const typeOrder = [
+                                    'mcq', 'mcq_complex', 'true_false', 'matching', 'categorization',
+                                    'short_answer', 'essay', 'sjt', 'likert', 'forced_choice',
+                                    'checklist', 'ranking', 'paired_comparison', 'ordering',
+                                ];
 
                                 const typeCounts = questions.reduce((acc, q) => {
                                     acc[q.type] = (acc[q.type] || 0) + 1;
                                     return acc;
                                 }, {} as Record<string, number>);
 
-                                return Object.entries(typeMap).map(([type, meta]) => {
+                                return typeOrder.map((type) => {
                                     const count = typeCounts[type] || 0;
                                     if (count === 0) return null;
                                     return (
@@ -615,7 +603,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             onClick={() => setFilterType(type)}
                                             className={`rounded-lg px-1 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center w-full sm:w-[140px] shrink-0 cursor-pointer transition-all ${filterType === type ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
                                         >
-                                            <p className="text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">{meta.label}</p>
+                                            <p className={`text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider ${type === 'paired_comparison' ? 'whitespace-normal leading-tight' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
+                                                {type === 'paired_comparison' ? <>Perbandingan<br />Berpasangan</> : getQuestionTypeLabel(type)}
+                                            </p>
                                             <p className="text-base sm:text-lg font-bold text-primary stat-count">{count}</p>
                                         </div>
                                     );
@@ -708,7 +698,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                 </button>
                                                 <div className="min-w-0">
                                                     <div className="flex flex-wrap items-center gap-2">
-                                                        <span className="text-xs font-medium text-slate-500 uppercase">{q.type?.replace('_', ' ')}</span>
+                                                        <span className="text-xs font-medium text-slate-500">{getQuestionTypeLabel(q.type)}</span>
                                                         {q.score_default > 1 && (
                                                             <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full whitespace-nowrap">{q.score_default} poin</span>
                                                         )}
@@ -769,8 +759,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-col gap-1.5">
                                                 {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).map((opt) => (
-                                                    <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                                                        <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? 'B' : 'S'}</span>
+                                                    <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                                        <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-primary text-white' : 'bg-red-500 text-white'}`}>{opt.is_correct ? 'B' : 'S'}</span>
                                                         <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                     </div>
                                                 ))}
@@ -829,7 +819,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <Check size={13} className="text-emerald-500 shrink-0" strokeWidth={3} />
+                                                        <Check size={13} className="text-primary shrink-0" strokeWidth={3} />
                                                     </div>
                                                 ))}
                                                 {(!meta.blanks || meta.blanks.length === 0) && (
@@ -847,7 +837,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                     <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${opt.is_correct ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
                                                         <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${opt.is_correct ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
                                                         <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
-                                                        {opt.is_correct && <Check size={13} className="text-green-500 shrink-0" />}
+                                                        {opt.is_correct && <Check size={13} className="text-primary shrink-0" />}
                                                     </div>
                                                 ))}
                                             </div>
@@ -861,8 +851,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                     const dimId = opt.metadata?.dimension_id || opt.dimension_id;
                                                     const dimName = dimensionsList?.find((d) => d.id === dimId)?.name;
                                                     return (
-                                                        <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${isHighest ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
-                                                            <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${isHighest ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
+                                                        <div key={opt.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-md border text-xs ${isHighest ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                                                            <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] ${isHighest ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'}`}>{String.fromCharCode(65 + oIdx)}</span>
                                                             <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             {dimName && (
                                                                 <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-[10px] font-bold border border-indigo-100 whitespace-nowrap shrink-0 flex items-center gap-1">
@@ -936,9 +926,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         <div className="px-5 pt-3 pb-4">
                                             <div className="flex flex-wrap gap-2">
                                                 {(q.bank_question_options || []).filter((o) => (o.option_text || o.text || '').trim()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((opt) => (
-                                                    <div key={opt.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-emerald-50/50 border-emerald-100 text-xs text-emerald-800">
+                                                    <div key={opt.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-blue-50/50 border-blue-100 text-xs text-blue-800">
                                                         <span className="font-medium"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
-                                                        <span className="text-[10px] bg-emerald-200/50 text-emerald-700 px-1.5 rounded font-semibold whitespace-nowrap">Skor: {opt.weight || 0}</span>
+                                                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 rounded font-semibold whitespace-nowrap">Skor: {opt.weight || 0}</span>
                                                     </div>
                                                 ))}
                                             </div>

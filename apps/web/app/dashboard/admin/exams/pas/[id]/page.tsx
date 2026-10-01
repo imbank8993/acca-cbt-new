@@ -14,6 +14,8 @@ type PASSubjectSummary,
 import type { OrganizationClass } from '@/lib/api/proctor';
 import { listQuestionBanks,type QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
+import { getSchoolTimeZoneLabel, schoolTodayDate } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -37,6 +39,7 @@ import BulkScheduleGrid from './BulkScheduleGrid';
 type TabId = 'schedules' | 'live_today' | 'detail';
 
 export default function AdminPASDetailPage() {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const router = useRouter();
     const params = useParams();
     const periodId = params.id as string;
@@ -164,7 +167,7 @@ export default function AdminPASDetailPage() {
 
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '-';
-        return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        return new Date(`${dateStr}T12:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
     const getBankTitle = (bankId: string | null, sc?: PASClassSchedule) => {
@@ -222,13 +225,14 @@ export default function AdminPASDetailPage() {
     const schedules = period.pas_class_schedules || [];
     
     // Live Today filter
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = schoolTodayDate(timeZone);
     const liveSchedules = schedules.filter((schedule) => schedule.scheduled_date === todayStr);
 
     const groupedSchedules = getSchedulesByDateAndTime(activeTab === 'live_today' ? liveSchedules : schedules);
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
             {/* ── Hero Header — Navy Gradient ── */}
                         {/* Period Details Bar */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex items-start gap-4">
@@ -335,8 +339,8 @@ export default function AdminPASDetailPage() {
                             <div className="bg-slate-800 p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg bg-slate-700 flex flex-col items-center justify-center text-white">
-                                        <span className="text-xs font-bold -mb-1">{new Date(dayGroup.date).toLocaleDateString('id-ID', { weekday: 'short' })}</span>
-                                        <span className="text-sm font-black">{new Date(dayGroup.date).getDate()}</span>
+                                        <span className="text-xs font-bold -mb-1">{new Date(`${dayGroup.date}T12:00:00`).toLocaleDateString('id-ID', { weekday: 'short' })}</span>
+                                        <span className="text-sm font-black">{Number(dayGroup.date.slice(-2))}</span>
                                     </div>
                                     <div>
                                         <h3 className="text-white font-bold text-lg leading-tight">{formatDate(dayGroup.date)}</h3>
@@ -359,7 +363,7 @@ export default function AdminPASDetailPage() {
                                             <div className="sm:w-20 shrink-0 flex items-start sm:justify-end mt-1">
                                                 <div className="flex items-center gap-2 text-slate-700 font-bold bg-slate-100 px-3 py-1.5 rounded-lg">
                                                     <Clock size={14} className="text-primary" />
-                                                    {session.time}
+                                                    {session.time} {getSchoolTimeZoneLabel(timeZone)}
                                                 </div>
                                             </div>
 
@@ -386,7 +390,7 @@ export default function AdminPASDetailPage() {
                                                                 
                                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                                                                     <span className="flex items-center gap-1.5"><Clock size={12}/> {sc.duration_minutes} mnt</span>
-                                                                    <span className="flex items-center gap-1.5"><AlertTriangle size={12}/> Tutup {sc.window_end_time}</span>
+                                                                    <span className="flex items-center gap-1.5"><AlertTriangle size={12}/> Tutup {sc.window_end_time} {getSchoolTimeZoneLabel(timeZone)}</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -526,7 +530,7 @@ export default function AdminPASDetailPage() {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tanggal</label>
+                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tanggal ({getSchoolTimeZoneLabel(timeZone)})</label>
                                         <input type="date" required value={scheduleForm.scheduled_date} onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>

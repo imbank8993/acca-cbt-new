@@ -10,8 +10,9 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
 import { insertIdempotently } from '../common/idempotent-create';
-import { wibLocalToUtc } from '../common/wib-time';
+import { localDateTimeToUtc } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { SettingsService } from '../settings/settings.service';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
 /** Jenis ujian yang hanya boleh dibuat dan diubah Proktor/Admin. */
@@ -36,6 +37,7 @@ export class ExamAdminService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly roles: CbtRolesService,
+        private readonly settings: SettingsService,
     ) {}
 
     /**
@@ -100,6 +102,12 @@ export class ExamAdminService {
         await this.assertMayUseExamType(user, organizationId, examType);
 
         this.assertValidDuration(examType, dto.duration);
+        const timeZone = await this.settings.getSchoolTimeZone();
+        const startTime = localDateTimeToUtc(dto.startTime, timeZone);
+        const endTime = localDateTimeToUtc(dto.endTime, timeZone);
+        if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
+            throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
+        }
 
         if (dto.questionBankId) {
             const { data: bank } = await this.db
@@ -129,8 +137,8 @@ export class ExamAdminService {
                 exam_type: examType,
                 duration_minutes: dto.duration,
                 subject_id: dto.subjectId || null,
-                start_time: wibLocalToUtc(dto.startTime),
-                end_time: wibLocalToUtc(dto.endTime),
+                start_time: startTime,
+                end_time: endTime,
                 randomize_questions: dto.randomizeQuestions ?? true,
                 randomize_options: dto.randomizeOptions ?? true,
                 show_results: dto.showResults ?? false,
@@ -178,6 +186,12 @@ export class ExamAdminService {
         }
 
         this.assertValidDuration(examType, dto.duration);
+        const timeZone = await this.settings.getSchoolTimeZone();
+        const startTime = localDateTimeToUtc(dto.startTime, timeZone);
+        const endTime = localDateTimeToUtc(dto.endTime, timeZone);
+        if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
+            throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
+        }
 
         const { error } = await this.db
             .from('cbt_exams')
@@ -193,8 +207,8 @@ export class ExamAdminService {
                 // Selalu ditulis, termasuk saat kosong: mengosongkan jadwal
                 // adalah perubahan yang sah, dan melewatkannya membuat jadwal
                 // lama tertinggal.
-                start_time: wibLocalToUtc(dto.startTime),
-                end_time: wibLocalToUtc(dto.endTime),
+                start_time: startTime,
+                end_time: endTime,
                 metadata: this.buildMetadata(examType, dto, existing.metadata || {}),
             })
             .eq('id', examId);

@@ -2,6 +2,7 @@
 import { Spinner } from '@/app/components/ui/Spinner';
 import { getStudentExamsResult,type StudentScheduledExam } from '@/lib/api/students';
 import { formatSchoolDate,formatSchoolTimeRange } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -19,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
 const SchedulePage = () => {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_schedule_exams', []);
     const [loading, setLoading] = useMemoryState('siswa_schedule_loading', true);
     const [now, setNow] = useState(new Date());
@@ -82,8 +84,9 @@ const SchedulePage = () => {
         return { label: 'Kerjakan Sekarang', color: 'text-white', bg: 'bg-[#3083FF] hover:bg-[#2563EB]', icon: ArrowRight, enabled: true };
     };
 
-    const formatDay = formatSchoolDate;
-    const formatTimeRange = formatSchoolTimeRange;
+    const formatDay = (date: string | null | undefined) => formatSchoolDate(date, timeZone);
+    const formatTimeRange = (start: string | null | undefined, end: string | null | undefined) =>
+        formatSchoolTimeRange(start, end, timeZone);
 
     const formatTimeUntil = (dateStr: string) => {
         if (!dateStr) return '';
@@ -117,6 +120,7 @@ const SchedulePage = () => {
     const closedExams = sortedExams.filter(e => e.isCompleted || (e.is_published && e.end_time && now > new Date(e.end_time)));
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {/* Stats bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

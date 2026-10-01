@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
-import { wibDateTimeToUtc } from '../common/wib-time';
+import { dateTimeToUtc } from '../common/school-time';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import {
     assertExamsHaveNoHistory,
@@ -15,6 +15,7 @@ import {
     lockExamsForDeletion,
 } from '../common/exam-deletion';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
+import { SettingsService } from '../settings/settings.service';
 import {
     deriveRequestUuid,
     insertIdempotently,
@@ -52,6 +53,7 @@ export class ExamConfigsService {
     constructor(
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
+        private readonly settings: SettingsService,
     ) {}
 
     // ── Konfigurasi ──────────────────────────────────────────────────────────
@@ -703,8 +705,9 @@ export class ExamConfigsService {
                 .maybeSingle();
             if (!bank) return `${configExamId}: bank soal bukan milik sekolah konfigurasi`;
 
-            const startTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time);
-            const endTime = wibDateTimeToUtc(schedule.scheduled_date, schedule.window_end_time);
+            const timeZone = await this.settings.getSchoolTimeZone();
+            const startTime = dateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time, timeZone);
+            const endTime = dateTimeToUtc(schedule.scheduled_date, schedule.window_end_time, timeZone);
             if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
                 return `${configExamId}: jendela waktu ujian tidak valid`;
             }

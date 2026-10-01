@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GradingModule } from '../grading/grading.module';
+import { SettingsModule } from '../settings/settings.module';
 import { ClassesService } from './classes.service';
 import { ExamAdminService } from './exam-admin.service';
 import { ExamMonitoringService } from './exam-monitoring.service';
@@ -11,7 +12,7 @@ import { ProctorService } from './proctor.service';
  * tenggatnya lewat, dan penutupan itu harus ikut menilai dari jawaban tersimpan.
  */
 @Module({
-    imports: [GradingModule],
+    imports: [GradingModule, SettingsModule],
     controllers: [ProctorController],
     providers: [ProctorService, ClassesService, ExamAdminService, ExamMonitoringService],
     exports: [ProctorService, ClassesService, ExamAdminService, ExamMonitoringService],

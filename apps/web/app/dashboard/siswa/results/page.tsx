@@ -1,6 +1,7 @@
 "use client";
 import { getStudentResultsResult,type StudentResult } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
@@ -9,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
 export default function StudentResultsPage() {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [results, setResults] = useMemoryState<StudentResult[]>('siswa_results_results', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_results_isLoading', true);
     const [, setFullName] = useState<string>('');
@@ -37,6 +39,7 @@ export default function StudentResultsPage() {
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
             {/* Top Stat & Refresh Bar */}
             <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                 <div className="flex items-center gap-2">
@@ -104,7 +107,7 @@ export default function StudentResultsPage() {
                                         </h3>
                                         <p className="text-xs text-slate-400 flex items-center gap-1 font-medium font-sans">
                                             <Clock size={12} className="text-slate-300" />
-                                            {formatSchoolDateTime(attempt.finished_at)}
+                                            {formatSchoolDateTime(attempt.finished_at, timeZone)}
                                         </p>
                                     </div>
                                 </div>

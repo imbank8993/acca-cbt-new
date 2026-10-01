@@ -14,7 +14,7 @@ export const ImportedParagraphFormat = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: ['paragraph'],
+        types: ['paragraph', 'heading', 'blockquote'],
         attributes: {
           importedIndent: {
             default: null,
@@ -36,6 +36,17 @@ export const ImportedParagraphFormat = Extension.create({
                 })
                 .filter(Boolean);
               return styles.length > 0 ? { style: `${styles.join(';')};` } : {};
+            },
+          },
+          // Dukungan direction untuk teks Arab (RTL) dan Latin (LTR)
+          dir: {
+            default: null,
+            parseHTML: (element: HTMLElement) => {
+              const dir = element.getAttribute('dir');
+              return dir === 'rtl' || dir === 'ltr' ? dir : null;
+            },
+            renderHTML: (attributes: { dir?: string | null }) => {
+              return attributes.dir ? { dir: attributes.dir } : {};
             },
           },
         },

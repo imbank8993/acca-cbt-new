@@ -150,7 +150,7 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
                                     <td className="px-4 py-3 text-slate-600 align-top">{k.indikator_soal || '-'}</td>
                                     <td className="px-4 py-3 text-center align-top">
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                            k.level_kognitif === 'L1' ? 'bg-green-100 text-green-700' :
+                                            k.level_kognitif === 'L1' ? 'bg-blue-100 text-blue-700' :
                                             k.level_kognitif === 'L2' ? 'bg-blue-100 text-blue-700' :
                                             k.level_kognitif === 'L3' ? 'bg-purple-100 text-purple-700' :
                                             'bg-slate-100 text-slate-700'

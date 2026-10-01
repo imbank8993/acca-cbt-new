@@ -154,21 +154,21 @@ export function getStatusColor(status: QuestionStatus): { bg: string; text: stri
 // ─── Question Type Labels ────────────────────────────────────────────────────
 
 export const QUESTION_TYPE_LABELS_REVIEW: Record<QuestionType, string> = {
-    mcq: 'Pilihan Ganda',
-    mcq_complex: 'PG Kompleks',
+    mcq: 'PG',
+    mcq_complex: 'PGK',
     true_false: 'Benar/Salah',
     essay: 'Esai',
     uraian: 'Esai',
     short_answer: 'Isian Singkat',
     matching: 'Menjodohkan',
-    categorization: 'Pengelompokan',
-    sjt: 'SJT',
+    categorization: 'Kategorisasi',
+    sjt: 'Situasional',
     ordering: 'Pengurutan',
     likert: 'Skala Likert',
-    forced_choice: 'Forced-Choice',
-    checklist: 'Checklist',
-    ranking: 'Ranking',
-    paired_comparison: 'Paired Comparison'
+    forced_choice: 'Pilihan Paksa',
+    checklist: 'Ceklis (Ya/Tidak)',
+    ranking: 'Pemeringkatan',
+    paired_comparison: 'Perbandingan Berpasangan'
 };
 
 // ─── Format Helpers ─────────────────────────────────────────────────────────

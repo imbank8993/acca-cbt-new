@@ -43,7 +43,7 @@ class ExamFieldsDto {
 
     @ApiPropertyOptional({
         example: '2026-06-01T07:30',
-        description: 'Waktu lokal WIB; dikonversi ke UTC di server.',
+        description: 'Waktu lokal mengikuti zona waktu sekolah pada Pengaturan Umum; dikonversi ke UTC di server.',
     })
     @IsOptional()
     @IsString()

@@ -8,6 +8,8 @@ import {
     type StudentScheduledExam,
 } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
+import { formatSchoolDate, formatSchoolTimeRange, getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -29,6 +31,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback,useEffect } from 'react';
 
 export default function SiswaDashboard() {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_exams', []);
     const [results, setResults] = useMemoryState<StudentResult[]>('siswa_results', []);
     const [loading, setLoading] = useMemoryState('siswa_loading', true);
@@ -69,50 +72,18 @@ export default function SiswaDashboard() {
 
     const getDayNum = (dateStr: string | null | undefined) => {
         if (!dateStr) return '--';
-        try {
-            const date = new Date(dateStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? dateStr : dateStr + 'Z');
-            if (isNaN(date.getTime())) return '--';
-            const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-            return wibDate.getUTCDate().toString();
-        } catch (e) {
-            console.error('getDayNum error:', e);
-            return '--';
-        }
+        const formatted = formatSchoolDate(dateStr, timeZone);
+        return formatted === 'TBA' ? '--' : formatted.split(' ')[0];
     };
 
     const getMonthName = (dateStr: string | null | undefined) => {
         if (!dateStr) return 'TBA';
-        try {
-            const date = new Date(dateStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? dateStr : dateStr + 'Z');
-            if (isNaN(date.getTime())) return 'TBA';
-            const wibDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-            return months[wibDate.getUTCMonth()].toUpperCase();
-        } catch (e) {
-            console.error('getMonthName error:', e);
-            return 'TBA';
-        }
+        return formatSchoolDate(dateStr, timeZone).split(' ')[1]?.toUpperCase() || 'TBA';
     };
 
     const formatTime = (startStr: string | null | undefined, endStr: string | null | undefined) => {
-        if (!startStr) return '--:-- WIB';
-        try {
-            const s = new Date(startStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? startStr : startStr + 'Z');
-            const e = endStr ? new Date(endStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? endStr : endStr + 'Z') : null;
-            if (isNaN(s.getTime())) return '--:-- WIB';
-            
-            const sWib = new Date(s.getTime() + (7 * 60 * 60 * 1000));
-            const eWib = e && !isNaN(e.getTime()) ? new Date(e.getTime() + (7 * 60 * 60 * 1000)) : null;
-
-            const sH = String(sWib.getUTCHours()).padStart(2, '0');
-            const sM = String(sWib.getUTCMinutes()).padStart(2, '0');
-            const eH = eWib ? String(eWib.getUTCHours()).padStart(2, '0') : '..';
-            const eM = eWib ? String(eWib.getUTCMinutes()).padStart(2, '0') : '..';
-            return `${sH}:${sM} - ${eH}:${eM} WIB`;
-        } catch (e) {
-            console.error('formatTime error:', e);
-            return '--:-- WIB';
-        }
+        if (!startStr) return `--:-- ${getSchoolTimeZoneLabel(timeZone)}`;
+        return formatSchoolTimeRange(startStr, endStr, timeZone);
     };
 
     const averageScore = results.length > 0 
@@ -171,7 +142,7 @@ export default function SiswaDashboard() {
                         
                         <p className="text-xs text-slate-400 flex items-center gap-1.5 font-sans font-medium">
                             <Clock size={12} className="text-slate-300" />
-                            {formatTime(exam.start_time, exam.end_time) === '--:-- WIB' ? 'Waktu Fleksibel' : formatTime(exam.start_time, exam.end_time)}
+                            {formatTime(exam.start_time, exam.end_time) === `--:-- ${getSchoolTimeZoneLabel(timeZone)}` ? 'Waktu Fleksibel' : formatTime(exam.start_time, exam.end_time)}
                         </p>
                     </div>
                 </div>
@@ -201,6 +172,7 @@ export default function SiswaDashboard() {
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {announcements.length > 0 && (
                 <div className="space-y-4">

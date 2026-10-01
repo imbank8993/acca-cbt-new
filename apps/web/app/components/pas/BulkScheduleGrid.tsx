@@ -5,6 +5,8 @@ import { addPASScheduleAction,type PASSubjectSummary } from '@/lib/api/pas';
 import type { OrganizationClass } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import { saveBulkScheduleRows,type BulkScheduleRow } from '@/lib/pas/bulk-schedule';
+import { getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { CheckCircle2,Info,Loader2,Plus,RotateCcw,Save,Trash2,X,XCircle } from 'lucide-react';
 import React,{ useRef,useState } from 'react';
 
@@ -33,6 +35,7 @@ function createRow(): BulkScheduleRow {
 export default function BulkScheduleGrid({
     periodId, period, classes, subjects, qBanks, sessions, onComplete, onCancel,
 }: BulkScheduleGridProps) {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [rows, setRows] = useState<BulkScheduleRow[]>([createRow()]);
     const [isSaving, setIsSaving] = useState(false);
     const [summary, setSummary] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
@@ -142,7 +145,7 @@ export default function BulkScheduleGrid({
                 <table ref={tableRef} className="w-full text-sm border-collapse">
                     <thead>
                         <tr>
-                            {['Mata Pelajaran *', 'Kelas *', 'Bank Soal *', 'Tanggal *', 'Sesi Ujian *', 'Ruangan'].map((heading) => (
+                            {['Mata Pelajaran *', 'Kelas *', 'Bank Soal *', `Tanggal * (${getSchoolTimeZoneLabel(timeZone)})`, 'Sesi Ujian *', 'Ruangan'].map((heading) => (
                                 <th key={heading} className="border border-slate-300 bg-slate-100 px-3 py-2 text-left font-semibold text-slate-700">{heading}</th>
                             ))}
                             <th className="border border-slate-300 bg-slate-100 px-3 py-2 text-left font-semibold text-slate-700 min-w-40">Status</th>
@@ -179,7 +182,7 @@ export default function BulkScheduleGrid({
                                     <td className="border border-slate-300 p-0">
                                         <select value={row.session_id} disabled={disabled} onChange={(event) => handleChange(row.id, 'session_id', event.target.value)} onKeyDown={(event) => handleKeyDown(event, index, 'session_id')} className={fieldClass}>
                                             <option value="">Pilih Sesi...</option>
-                                            {sessions.map((session) => <option key={session.id} value={session.id}>{session.name} ({session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)})</option>)}
+                                            {sessions.map((session) => <option key={session.id} value={session.id}>{session.name} ({session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {getSchoolTimeZoneLabel(timeZone)})</option>)}
                                         </select>
                                     </td>
                                     <td className="border border-slate-300 p-0">
@@ -209,6 +212,7 @@ export default function BulkScheduleGrid({
                         <Info size={14} /> Baris kosong diabaikan; baris yang terisi sebagian ditandai untuk dilengkapi.
                     </div>
                 </div>
+                {timeZoneError && <p role="alert" className="mt-3 text-sm text-red-700">{timeZoneError}</p>}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">

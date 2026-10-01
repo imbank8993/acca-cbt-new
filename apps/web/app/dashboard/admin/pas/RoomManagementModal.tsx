@@ -20,6 +20,8 @@ listOrganizationClasses,
 type OrganizationClass,
 } from '@/lib/api/proctor';
 import type { PASPeriod,PASSession } from '@/app/types/pas';
+import { getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { Plus,Save,Trash2,Users,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -29,6 +31,7 @@ interface RoomManagementModalProps {
 }
 
 export default function RoomManagementModal({ period, onClose }: RoomManagementModalProps) {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [rooms, setRooms] = useState<PASRoom[]>([]);
     const [teachers, setTeachers] = useState<PASStaffMember[]>([]);
     const [classes, setClasses] = useState<OrganizationClass[]>([]);
@@ -248,6 +251,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                    {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{timeZoneError}</div>}
                     {activeTab === 'rooms' && (
                         <>
                             {/* Room List Section */}
@@ -491,7 +495,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Mulai</label>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Mulai ({getSchoolTimeZoneLabel(timeZone)})</label>
                                         <input
                                             type="time"
                                             value={newSessionStart}
@@ -500,7 +504,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Selesai</label>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Selesai ({getSchoolTimeZoneLabel(timeZone)})</label>
                                         <input
                                             type="time"
                                             value={newSessionEnd}
@@ -542,7 +546,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             <div>
                                                 <div className="font-semibold text-slate-800 mb-1">{session.name}</div>
                                                 <div className="text-xs text-slate-500 font-medium">
-                                                    {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)}
+                                                    {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {getSchoolTimeZoneLabel(timeZone)}
                                                 </div>
                                             </div>
                                             {!period.is_locked && (

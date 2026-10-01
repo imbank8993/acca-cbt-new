@@ -1,4 +1,5 @@
 "use client";
+import { getQuestionTypeLabel } from '@/app/types/question';
 import type { AnswerValue,Question,QuestionType } from '@/app/types';
 import { motion } from 'framer-motion';
 import { Flag } from 'lucide-react';
@@ -16,24 +17,6 @@ interface MobileExamQuestionCardProps {
     isCompact?: boolean;
 }
 
-const TYPE_LABELS: Record<QuestionType, string> = {
-    mcq: 'Pilihan Ganda',
-    mcq_complex: 'PG Kompleks',
-    true_false: 'Benar/Salah',
-    essay: 'Uraian',
-    uraian: 'Uraian',
-    short_answer: 'Isian Singkat',
-    matching: 'Menjodohkan',
-    categorization: 'Kategori',
-    sjt: 'SJT',
-    ordering: 'Pengurutan',
-    likert: 'Skala Likert',
-    forced_choice: 'Forced-Choice',
-    checklist: 'Checklist',
-    ranking: 'Ranking',
-    paired_comparison: 'Paired Comparison'
-};
-
 const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     mcq: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     mcq_complex: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
@@ -46,10 +29,6 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> 
     sjt: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
     ordering: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
 };
-
-function getTypeLabel(type: QuestionType | string): string {
-    return TYPE_LABELS[type as QuestionType] || type.replace(/_/g, ' ');
-}
 
 function getTypeColor(type: QuestionType | string) {
     return TYPE_COLORS[type] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
@@ -68,7 +47,7 @@ export function MobileExamQuestionCard({
     if (!question) return null;
 
     const qType = question.type;
-    const qTypeLabel = getTypeLabel(qType);
+    const qTypeLabel = getQuestionTypeLabel(qType);
     const qTypeColor = getTypeColor(qType);
     const score = question.score_default || 1;
 

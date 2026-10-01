@@ -87,6 +87,7 @@ export default function Sidebar({
     const menuConfig: Record<string, MenuItem[]> = useMemo(() => ({
         'Superadmin': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/admin' },
+            { icon: 'fa-gear', label: 'Pengaturan Umum', href: '/dashboard/admin/settings' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/admin/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/admin/questions' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },
@@ -95,6 +96,7 @@ export default function Sidebar({
         ],
         'Admin': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/admin' },
+            { icon: 'fa-gear', label: 'Pengaturan Umum', href: '/dashboard/admin/settings' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/admin/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/admin/questions' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },

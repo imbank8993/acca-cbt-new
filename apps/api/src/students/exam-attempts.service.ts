@@ -17,8 +17,9 @@ import {
     shuffleOptionsForStudent,
 } from '../common/question-order';
 import { advisoryTransactionLock } from '../common/transaction-lock';
-import { utcToWibClock } from '../common/wib-time';
+import { getSchoolTimeZoneLabel, utcToLocalClock } from '../common/school-time';
 import { GradingService } from '../grading/grading.service';
+import { SettingsService } from '../settings/settings.service';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
 import { assertExamAccess } from './exam-access';
@@ -64,6 +65,7 @@ export class ExamAttemptsService {
         private readonly db: DbService,
         private readonly scoring: ScoringClient,
         private readonly grading: GradingService,
+        private readonly settings: SettingsService,
     ) {}
 
     // ── Soal ─────────────────────────────────────────────────────────────────
@@ -176,8 +178,9 @@ export class ExamAttemptsService {
         }
 
         if (row.start_time && now < new Date(row.start_time)) {
+            const timeZone = await this.settings.getSchoolTimeZone();
             return this.refuse(
-                `Ujian belum dimulai. Window dibuka pk ${utcToWibClock(row.start_time)} WIB.`,
+                `Ujian belum dimulai. Window dibuka pk ${utcToLocalClock(row.start_time, timeZone)} ${getSchoolTimeZoneLabel(timeZone)}.`,
             );
         }
 

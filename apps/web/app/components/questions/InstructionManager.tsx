@@ -171,7 +171,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
                     </button>
                     <button
                         onClick={() => handleOpenEditor()}
-                        className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 flex items-center gap-2"
+                        className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 flex items-center gap-2"
                     >
                         <Plus size={16} /> Buat Petunjuk
                     </button>
@@ -226,7 +226,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
                                     value={title}
                                     onChange={e => setTitle(e.target.value)}
                                     placeholder="Contoh: Petunjuk Isian Singkat"
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                                 />
                             </div>
                             <div>
@@ -258,7 +258,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
                             <button
                                 onClick={handleSave}
                                 disabled={isSubmitting}
-                                className="px-5 py-2.5 text-sm font-semibold bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 flex items-center gap-2 disabled:opacity-50"
+                                className="px-5 py-2.5 text-sm font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center gap-2 disabled:opacity-50"
                             >
                                 {isSubmitting ? 'Menyimpan...' : <><Check size={16} /> Simpan Petunjuk</>}
                             </button>
@@ -355,7 +355,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
                                     <button
                                         onClick={executeImport}
                                         disabled={isImporting}
-                                        className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-emerald-100"
+                                        className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
                                     >
                                         {isImporting ? 'Mengimport...' : <><Check size={16} /> Konfirmasi & Import Sekarang</>}
                                     </button>
@@ -364,7 +364,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
 
                             {/* Success */}
                             {importSuccessCount > 0 && (
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 flex items-start gap-2">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700 flex items-start gap-2">
                                     <Check className="mt-0.5 shrink-0" size={16} />
                                     <span><strong>{importSuccessCount}</strong> petunjuk berhasil di-import!</span>
                                 </div>

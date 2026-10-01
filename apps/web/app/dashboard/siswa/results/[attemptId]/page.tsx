@@ -3,8 +3,10 @@ import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { formatAnswerKey,formatStudentAnswer } from '@/lib/answer-display';
 import { getAttemptDetailsAction,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
+import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
 import { ArrowLeft,BarChart3,BookOpen,Brain,CheckCircle2,Clock,Info,Loader2,XCircle } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
@@ -37,6 +39,7 @@ function summarizeEssayAnswer(value: StudentAttemptAnswer['essayAnswer']) {
 }
 
 export default function StudentResultDetailsPage() {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const params = useParams();
     const router = useRouter();
     const attemptId = params.attemptId as string;
@@ -70,16 +73,7 @@ export default function StudentResultDetailsPage() {
     }, [load]);
 
     const formatUTCDateTime = (str: string) => {
-        if (!str) return 'N/A';
-        const date = new Date(str.match(/(Z|[+-]\d{2}:\d{2})$/) ? str : str + 'Z');
-        if (isNaN(date.getTime())) return 'N/A';
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const month = months[date.getUTCMonth()];
-        const year = date.getUTCFullYear();
-        const h = String(date.getUTCHours()).padStart(2, '0');
-        const m = String(date.getUTCMinutes()).padStart(2, '0');
-        return `${day} ${month} ${year} ${h}:${m}`;
+        return str ? formatSchoolDateTime(str, timeZone) : 'N/A';
     };
 
     if (loading) return (
@@ -130,6 +124,7 @@ export default function StudentResultDetailsPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
             {/* Header & Score Summary Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
                 <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">

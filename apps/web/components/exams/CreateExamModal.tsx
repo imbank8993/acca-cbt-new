@@ -31,6 +31,7 @@ import type {
 } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
+import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, utcToSchoolLocalDateTime } from '@/lib/school-time';
 
 export type ExamType = 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya';
 
@@ -106,22 +107,6 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     requireBank: true,
 };
 
-function utcToLocalDateTime(utcStr: string): string {
-    if (!utcStr) return '';
-    try {
-        const d = new Date(utcStr);
-        if (isNaN(d.getTime())) return '';
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-    } catch {
-        return '';
-    }
-}
-
 export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     isOpen,
     onClose,
@@ -141,6 +126,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     }, [publishedBanks, questionBanks]);
 
     const [formData, setFormData] = useState<ExamFormData>(DEFAULT_FORM_DATA);
+    const [timeZone, setTimeZone] = useState(DEFAULT_SCHOOL_TIME_ZONE);
     const [localClassStudents, setLocalClassStudents] = useState<Record<string, ClassStudent[]>>(classStudents);
     const [isAssignPickerOpen, setIsAssignPickerOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -160,7 +146,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     useEffect(() => {
         if (!isOpen) return;
         let isMounted = true;
-        const initializeId = window.setTimeout(() => {
+        let initializeId: number | undefined;
+        void getSchoolTimeZone().then((zone) => {
+          if (!isMounted) return;
+          setTimeZone(zone);
+          initializeId = window.setTimeout(() => {
           if (!isMounted) return;
           setError(null);
           setIsSubmitting(false);
@@ -183,8 +173,8 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         ? exam.metadata.max_violations
                         : 3),
                 bankId: exam.question_bank_id || '',
-                startTime: exam.start_time ? utcToLocalDateTime(exam.start_time) : '',
-                endTime: exam.end_time ? utcToLocalDateTime(exam.end_time) : '',
+                startTime: exam.start_time ? utcToSchoolLocalDateTime(exam.start_time, zone) : '',
+                endTime: exam.end_time ? utcToSchoolLocalDateTime(exam.end_time, zone) : '',
                 selectedClassIds: [],
                 classAssignments: {},
                 scoringTypes: exam.scoring_type ? exam.scoring_type.split(',') : ['classical'],
@@ -255,10 +245,16 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 classAssignments: defaults,
             });
           }
-        }, 0);
+          }, 0);
+          return initializeId;
+        }).catch((loadError: unknown) => {
+            if (isMounted) {
+                setError(loadError instanceof Error ? loadError.message : 'Zona waktu sekolah gagal dimuat.');
+            }
+        });
         return () => {
             isMounted = false;
-            window.clearTimeout(initializeId);
+            if (initializeId !== undefined) window.clearTimeout(initializeId);
         };
     }, [isOpen, exam, availableBanks, classes]);
 
@@ -348,7 +344,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 return;
             }
             if (formData.examType !== 'assignment' && formData.startTime && formData.endTime) {
-                if (new Date(formData.startTime) >= new Date(formData.endTime)) {
+                if (formData.startTime >= formData.endTime) {
                     setError('Waktu Selesai harus lebih lambat dari Waktu Mulai.');
                     return;
                 }
@@ -621,17 +617,18 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         {!formData.isForever && (
                             <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 mt-1`}>
                                 {formData.examType !== 'assignment' && (
-                                    <ModalField label="Waktu Mulai" required={!formData.isForever}>
+                                    <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
                                         <DateTimePicker
                                             value={formData.startTime}
                                             onChange={(val) => setFormData((prev) => ({ ...prev, startTime: val }))}
                                             label="Waktu Mulai"
                                             required={!formData.isForever}
+                                            timeZone={timeZone}
                                         />
                                     </ModalField>
                                 )}
                                 <ModalField
-                                    label={formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'}
+                                    label={`${formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'} (${getSchoolTimeZoneLabel(timeZone)})`}
                                     required={!formData.isForever}
                                 >
                                     <DateTimePicker
@@ -639,6 +636,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                         onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
                                         label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}
                                         required={!formData.isForever}
+                                        timeZone={timeZone}
                                     />
                                 </ModalField>
                             </div>

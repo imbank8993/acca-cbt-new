@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GradingModule } from '../grading/grading.module';
+import { SettingsModule } from '../settings/settings.module';
 import { ExamAttemptsService } from './exam-attempts.service';
 import { StudentsController } from './students.controller';
 import { StudentsService } from './students.service';
@@ -11,7 +12,7 @@ import { StudentsService } from './students.service';
  * yang sama dengan jalur penilaian ulang milik guru.
  */
 @Module({
-    imports: [GradingModule],
+    imports: [GradingModule, SettingsModule],
     controllers: [StudentsController],
     providers: [StudentsService, ExamAttemptsService],
     exports: [StudentsService, ExamAttemptsService],

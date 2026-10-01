@@ -355,7 +355,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
 
                             {/* Success */}
                             {importSuccessCount > 0 && (
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700 flex items-start gap-2">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700 flex items-start gap-2">
                                     <Check className="mt-0.5 shrink-0" size={16} />
                                     <span><strong>{importSuccessCount}</strong> stimulus berhasil di-import!</span>
                                 </div>

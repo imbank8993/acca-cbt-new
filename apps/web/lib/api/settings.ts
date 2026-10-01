@@ -21,6 +21,7 @@ export interface AppConfig {
     app_short_name?: string;
     app_subtitle?: string;
     maintenance_mode?: boolean;
+    time_zone?: string;
 }
 
 /** key: 'announcement_config' — bisa satu objek, bisa array. */
