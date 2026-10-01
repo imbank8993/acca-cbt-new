@@ -13,6 +13,7 @@ import { createRoot,Root } from 'react-dom/client';
 import { AudioEmbed } from './audio-embed';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
 import { VideoEmbed } from './video-embed';
+import { ImportedParagraphFormat } from './imported-paragraph-format';
 
 // Pure HTML renderer without contenteditable - for preview only
 // Parses HTML and applies proper alignment styles
@@ -129,6 +130,7 @@ export function TipTapPreviewEditor({ content, className = '' }: TipTapPreviewEd
                 orderedList: false,
             }),
 
+            ImportedParagraphFormat,
             OrderedList.configure({
                 addAttributes() {
                     return {

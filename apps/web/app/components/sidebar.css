@@ -510,7 +510,7 @@
 }
 
 .menu-label:has(.menu-badge),
-.submenu-row:not(.pinned-row) .submenu-btn .menu-label:has(.menu-badge) {
+.submenu-row .submenu-btn .menu-label:has(.menu-badge) {
   display: flex;
   align-items: flex-start;
   min-width: 0;
@@ -1049,7 +1049,6 @@
 .search-results { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
 .search-results .submenu-btn { padding-left: 14px; padding-right: 34px; }
 .search-results .submenu-btn.active::before { display: none; }
-.search-results .pin-star { left: auto; right: 10px; }
 .search-empty {
   font-size: 0.8rem;
   color: var(--sidebar-text);
@@ -1071,50 +1070,12 @@
 
 .submenu-row { position: relative; display: flex; align-items: center; }
 .submenu-row .submenu-btn { flex: 1; min-width: 0; }
-.submenu-row:not(.pinned-row) .submenu-btn .menu-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.submenu-row:not(.pinned-row) .submenu-btn.active::before { display: none; }
-.pinned-btn { padding-left: 14px !important; gap: 12px; }
-.pinned-btn.active::before { display: none; }
-.pinned-ico { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-.pin-ico { cursor: pointer; border-radius: 6px; transition: color 0.15s ease, transform 0.15s ease; }
-.pin-ico:hover { transform: scale(1.15); }
-.pin-ico.active { color: var(--n-primary, #3083FF); }
-.pin-star {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  color: var(--sidebar-text);
-  opacity: 0;
-  transition: all 0.15s ease;
-}
-.submenu-row:hover .pin-star { opacity: 0.4; }
-.pin-star:hover { background: var(--sidebar-hover); opacity: 0.85 !important; }
-.pin-star.active { opacity: 1; color: var(--n-primary, #3083FF); }
-
-.dark .pinned-ico,
-.dark .pin-ico.active { color: #1d6bf3 !important; }
-.dark .pin-star.active { opacity: 1; color: #1d6bf3 !important; }
+.submenu-row .submenu-btn .menu-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.submenu-row .submenu-btn.active::before { display: none; }
 
 .menu-group--flat .submenu-row .submenu-btn {
   padding-left: 14px !important;
   gap: 12px;
-}
-
-.nav-divider {
-  height: 1px;
-  background: var(--sidebar-border);
-  margin: 12px 14px;
 }
 
 .menu-skeleton {

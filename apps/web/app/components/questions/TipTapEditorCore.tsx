@@ -64,6 +64,7 @@ import MathEditorModal from './MathEditorModal';
 import TableEditorModal,{ TableWidthPreset } from './TableEditorModal';
 import { VideoEmbed } from './video-embed';
 import VideoEditorModal,{ VideoData,VideoModalMode } from './VideoEditorModal';
+import { ImportedParagraphFormat } from './imported-paragraph-format';
 
 // Ordered list style options
 const ORDERED_LIST_STYLES = [
@@ -354,6 +355,7 @@ export default function TipTapEditorCore({
       }),
       CustomKeyboardShortcuts,
       Tab,
+      ImportedParagraphFormat,
       Subscript,
       Superscript,
       Highlight.configure({ multicolor: true }),

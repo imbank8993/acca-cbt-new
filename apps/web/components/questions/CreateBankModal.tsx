@@ -9,7 +9,6 @@ import {
     Trash2,
     Upload,
 } from 'lucide-react';
-import Image from 'next/image';
 import { Modal, ModalBody, ModalFooter, ModalField, type ModalSize } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { InlineSelect } from '@/components/ui/InlineSelect';
@@ -24,6 +23,7 @@ import type { BankFolder, OrganizationLabel, QuestionBank } from '@/lib/api/ques
 import type { SchoolSubject } from '@/lib/api/proctor';
 import { uploadToHosting } from '@/lib/uploader';
 import { getErrorMessage } from '@/lib/errors';
+import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
 
 export interface CreateBankModalProps {
     isOpen: boolean;
@@ -446,13 +446,11 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                         {formData.imageUrl ? (
                             <div className="flex items-center gap-3.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                                 <div className="relative w-16 h-16 aspect-square rounded-xl overflow-hidden bg-slate-200 flex-shrink-0 border border-slate-300 shadow-xs">
-                                    <Image
-                                        src={formData.imageUrl}
-                                        alt="Cover Preview"
+                                    <QuestionBankCover
+                                        imageUrl={formData.imageUrl}
+                                        title="Cover bank soal"
                                         width={64}
                                         height={64}
-                                        unoptimized
-                                        className="w-full h-full object-cover"
                                     />
                                 </div>
                                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">

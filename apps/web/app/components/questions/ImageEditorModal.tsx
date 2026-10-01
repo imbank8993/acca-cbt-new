@@ -55,6 +55,12 @@ function ImageEditorModalContent({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState<{
+    pointerX: number;
+    pointerY: number;
+    box: typeof cropBox;
+    handle: 'nw' | 'ne' | 'sw' | 'se';
+  } | null>(null);
   const cropContainerRef = useRef<HTMLDivElement>(null);
 
   const handleApplyCrop = useCallback(() => {
@@ -127,11 +133,11 @@ function ImageEditorModalContent({
     }
   }, [currentImageSrc, imgWidth, imgAlign, onApply, onClose, onUpload]);
 
-  // Global mousemove/mouseup listener for crop box dragging & resizing
+  // Global pointer listener allows crop adjustments with a mouse, pen, or touch.
   useEffect(() => {
     if (!showCropModal || (!isDragging && !isResizing)) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       if (!cropContainerRef.current) return;
       const rect = cropContainerRef.current.getBoundingClientRect();
 
@@ -141,27 +147,57 @@ function ImageEditorModalContent({
         newX = Math.max(0, Math.min(rect.width - cropBox.width, newX));
         newY = Math.max(0, Math.min(rect.height - cropBox.height, newY));
         setCropBox((prev) => ({ ...prev, x: newX, y: newY }));
-      } else if (isResizing) {
-        let newW = e.clientX - rect.left - cropBox.x;
-        let newH = e.clientY - rect.top - cropBox.y;
-        newW = Math.max(30, Math.min(rect.width - cropBox.x, newW));
-        newH = Math.max(30, Math.min(rect.height - cropBox.y, newH));
-        setCropBox((prev) => ({ ...prev, width: newW, height: newH }));
+      } else if (isResizing && resizeStart) {
+        const { box, handle, pointerX, pointerY } = resizeStart;
+        const isWest = handle.includes('w');
+        const isNorth = handle.includes('n');
+        const anchorX = isWest ? box.x + box.width : box.x;
+        const anchorY = isNorth ? box.y + box.height : box.y;
+        const deltaX = (e.clientX - pointerX) * (isWest ? -1 : 1);
+        const deltaY = (e.clientY - pointerY) * (isNorth ? -1 : 1);
+        let width = Math.max(30, box.width + deltaX);
+        let height = Math.max(30, box.height + deltaY);
+        const ratio =
+          cropAspectRatio === '1:1'
+            ? 1
+            : cropAspectRatio === '4:3'
+              ? 4 / 3
+              : cropAspectRatio === '16:9'
+                ? 16 / 9
+                : null;
+
+        if (ratio) {
+          if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+            height = width / ratio;
+          } else {
+            width = height * ratio;
+          }
+        }
+
+        const maxWidth = isWest ? anchorX : rect.width - anchorX;
+        const maxHeight = isNorth ? anchorY : rect.height - anchorY;
+        const scale = Math.min(1, maxWidth / width, maxHeight / height);
+        width *= scale;
+        height *= scale;
+        const x = isWest ? anchorX - width : anchorX;
+        const y = isNorth ? anchorY - height : anchorY;
+        setCropBox((prev) => ({ ...prev, x, y, width, height }));
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       setIsDragging(false);
       setIsResizing(false);
+      setResizeStart(null);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [showCropModal, isDragging, isResizing, dragStart, cropBox.width, cropBox.height, cropBox.x, cropBox.y]);
+  }, [showCropModal, isDragging, isResizing, dragStart, cropBox, cropAspectRatio, resizeStart]);
 
   // Keyboard shortcut listener (Escape to close, Ctrl+Enter to apply)
   useEffect(() => {
@@ -200,83 +236,103 @@ function ImageEditorModalContent({
         }}
       >
         <div
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[600px] max-h-[92vh] overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[min(760px,92vh)] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div className="px-5 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-                <ImageIcon size={16} className="text-blue-400" />
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                <ImageIcon size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white leading-tight">Pengaturan Gambar Soal</h2>
-                <p className="text-[11px] text-slate-400 leading-tight">Sesuaikan ukuran dan perataan posisi gambar pada lembar soal</p>
+                <h2 className="text-base font-semibold text-slate-900 leading-tight">Edit gambar</h2>
+                <p className="text-xs text-slate-500 mt-1">Atur tampilan gambar di soal</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
               title="Tutup"
             >
               <X size={16} />
             </button>
           </div>
 
-          {/* Body */}
-          <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-            {/* Left Column: Settings Panel */}
-            <div className="w-full md:w-80 shrink-0 border-r border-slate-100 p-5 space-y-5 bg-white overflow-y-auto">
-              {/* Lebar Tampilan */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-slate-700">Lebar Gambar</label>
-                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                    {imgWidth === 'original' ? '100% (Asli)' : imgWidth}
-                  </span>
+          <div className="flex-1 min-h-0 flex flex-col bg-slate-50">
+            <div className="flex-1 min-h-0 p-4 sm:p-8 flex items-center justify-center overflow-auto">
+              <div className="w-full max-w-4xl min-h-[280px] h-full max-h-[520px] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-5 sm:p-10">
+                <div className="self-start flex items-center gap-2 text-xs text-slate-500 mb-5">
+                  <Eye size={14} />
+                  <span>Pratinjau pada lembar soal</span>
                 </div>
-
-                {/* Preset Pills */}
-                <div className="grid grid-cols-5 gap-1 mb-2.5">
-                  {[
-                    { key: '25%', label: '25%' },
-                    { key: '50%', label: '50%' },
-                    { key: '75%', label: '75%' },
-                    { key: '100%', label: '100%' },
-                    { key: 'original', label: 'Asli' },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setImgWidth(item.key)}
-                      className={`py-1.5 text-xs font-semibold rounded-lg transition-all border cursor-pointer text-center ${
-                        imgWidth === item.key
-                          ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Custom Width Input */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Kustom (misal: 350px atau 60%)"
-                    value={['25%', '50%', '75%', '100%', 'original'].includes(imgWidth) ? '' : imgWidth}
-                    onChange={(e) => setImgWidth(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                <div
+                  className="w-full flex flex-1 min-h-0 items-center"
+                  style={{
+                    justifyContent:
+                      imgAlign === 'left' ? 'flex-start' : imgAlign === 'right' ? 'flex-end' : 'center',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={currentImageSrc}
+                    alt="Pratinjau gambar soal"
+                    className="rounded-lg border border-slate-200 transition-all duration-150 object-contain"
+                    style={{
+                      width: imgWidth === 'original' ? '100%' : imgWidth,
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      height: 'auto',
+                    }}
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Perataan Posisi */}
+            <div className="px-5 sm:px-8 py-4 bg-white border-t border-slate-200 grid grid-cols-1 md:grid-cols-[minmax(240px,1fr)_auto_auto] items-center gap-5">
+              <div className="min-w-0">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <label htmlFor="question-image-width" className="text-xs font-semibold text-slate-700">Lebar gambar</label>
+                  <span className="text-xs font-medium text-slate-500">{imgWidth === 'original' ? 'Asli' : imgWidth}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    aria-label="Lebar gambar dalam persen"
+                    type="range"
+                    min="1"
+                    max="100"
+                    step="0.1"
+                    value={/^(\d+(?:\.\d+)?)%$/.exec(imgWidth)?.[1] ?? '100'}
+                    onChange={(e) => setImgWidth(`${e.target.value}%`)}
+                    className="w-full accent-blue-600 cursor-pointer"
+                  />
+                  <input
+                    id="question-image-width"
+                    type="text"
+                    aria-label="Lebar gambar kustom"
+                    placeholder="mis. 63% atau 320px"
+                    value={['25%', '50%', '75%', '100%', 'original'].includes(imgWidth) ? '' : imgWidth}
+                    onChange={(e) => setImgWidth(e.target.value)}
+                    className="w-32 shrink-0 px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImgWidth('original')}
+                    aria-pressed={imgWidth === 'original'}
+                    className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                      imgWidth === 'original'
+                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Asli
+                  </button>
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-bold text-slate-700 mb-2 block">Perataan Posisi</label>
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                <span className="block text-xs font-semibold text-slate-700 mb-2">Posisi</span>
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
                   {[
                     { key: 'left', label: 'Kiri', icon: AlignLeft },
                     { key: 'center', label: 'Tengah', icon: AlignCenter },
@@ -289,108 +345,41 @@ function ImageEditorModalContent({
                         key={align.key}
                         type="button"
                         onClick={() => setImgAlign(align.key as 'left' | 'center' | 'right')}
-                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-white text-slate-900 shadow-xs'
-                            : 'text-slate-500 hover:text-slate-800'
+                        aria-label={`Rata ${align.label.toLowerCase()}`}
+                        aria-pressed={isActive}
+                        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
+                          isActive ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                         }`}
                       >
-                        <Icon size={14} />
-                        <span>{align.label}</span>
+                        <Icon size={16} />
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Pemotongan Gambar (Aksi Buka Modal Crop) */}
-              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-600 flex items-center justify-center shrink-0">
-                    <Crop size={16} />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">Pemotongan (Crop)</span>
-                    <span className="text-[11px] text-slate-400 block">
-                      {currentImageSrc !== originalImageSrc ? 'Gambar telah dipotong' : 'Potong bagian gambar'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
+              <div>
+                <span className="block text-xs font-semibold text-slate-700 mb-2">Potong</span>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowCropModal(true)}
-                    className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    className="h-11 px-3 rounded-lg border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors flex items-center gap-2"
                   >
-                    <Crop size={14} className="text-blue-600" />
-                    <span>{currentImageSrc !== originalImageSrc ? 'Ubah Potongan...' : 'Buka Alat Potong...'}</span>
+                    <Crop size={15} className="text-blue-600" />
+                    {currentImageSrc !== originalImageSrc ? 'Ubah crop' : 'Crop gambar'}
                   </button>
                   {currentImageSrc !== originalImageSrc && (
                     <button
                       type="button"
                       onClick={() => setCurrentImageSrc(originalImageSrc)}
-                      title="Kembalikan ke gambar asli sebelum dipotong"
-                      className="py-2 px-2.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-500 hover:text-red-600 text-xs font-medium rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-xs"
+                      aria-label="Pulihkan gambar asli"
+                      title="Pulihkan gambar asli"
+                      className="w-11 h-11 rounded-lg border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors flex items-center justify-center"
                     >
-                      <RotateCcw size={14} />
+                      <RotateCcw size={15} />
                     </button>
                   )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Live Document Preview */}
-            <div className="flex-1 flex flex-col bg-slate-50/70 p-5 overflow-hidden">
-              {/* Preview Topbar */}
-              <div className="flex items-center justify-between mb-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 shadow-xs">
-                    <Eye size={13} className="text-slate-500" />
-                    <span>Pratinjau Lembar Soal</span>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    Ukuran: {imgWidth === 'original' ? '100% (Asli)' : imgWidth}
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Tampilan proporsional pada lembar soal
-                </div>
-              </div>
-
-              {/* Preview Viewport */}
-              <div className="flex-1 rounded-xl border border-slate-200/80 bg-white p-6 flex flex-col justify-between overflow-auto shadow-xs">
-                {/* Simulated text lines */}
-                <div className="space-y-2 mb-4 shrink-0 max-w-lg">
-                  <div className="h-2.5 bg-slate-100 rounded-full w-4/5" />
-                  <div className="h-2 bg-slate-100 rounded-full w-3/5" />
-                </div>
-
-                {/* Simulated Image Container */}
-                <div
-                  className="w-full flex my-auto py-2 overflow-hidden"
-                  style={{
-                    justifyContent:
-                      imgAlign === 'left' ? 'flex-start' : imgAlign === 'right' ? 'flex-end' : 'center',
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={currentImageSrc}
-                    alt="Live Style Preview"
-                    className="rounded-lg shadow-sm border border-slate-200 transition-all duration-200 object-contain"
-                    style={{
-                      width: imgWidth === 'original' ? '100%' : imgWidth,
-                      maxWidth: '100%',
-                      maxHeight: '300px',
-                      height: 'auto',
-                    }}
-                  />
-                </div>
-
-                {/* Simulated text line below */}
-                <div className="space-y-2 mt-4 shrink-0 max-w-lg">
-                  <div className="h-2 bg-slate-100 rounded-full w-2/3" />
                 </div>
               </div>
             </div>
@@ -580,7 +569,7 @@ function ImageEditorModalContent({
 
                 {/* Interactive Crop Box Overlay */}
                 <div
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => {
                     e.preventDefault();
                     setIsDragging(true);
                     setDragStart({
@@ -597,7 +586,7 @@ function ImageEditorModalContent({
                     boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
                     cursor: 'move',
                   }}
-                  className="border-2 border-white ring-1 ring-blue-500/60 z-10"
+                  className="border-2 border-white ring-1 ring-blue-500/60 z-10 touch-none"
                 >
                   {/* Photography 3x3 Grid Lines */}
                   <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-40">
@@ -612,19 +601,34 @@ function ImageEditorModalContent({
                     <div />
                   </div>
 
-                  {/* Corner Visual Indicators */}
-                  <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-600 rounded-xs shadow-sm pointer-events-none" />
-                  <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-600 rounded-xs shadow-sm pointer-events-none" />
-                  <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-600 rounded-xs shadow-sm pointer-events-none" />
-
-                  {/* SE Resize Handle */}
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setIsResizing(true);
-                    }}
-                    className="absolute -bottom-2 -right-2 w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform"
-                  />
+                  {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => (
+                    <button
+                      key={handle}
+                      type="button"
+                      aria-label={`Ubah ukuran area crop ${handle}`}
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragging(false);
+                        setIsResizing(true);
+                        setResizeStart({
+                          pointerX: e.clientX,
+                          pointerY: e.clientY,
+                          box: { ...cropBox },
+                          handle,
+                        });
+                      }}
+                      className={`absolute w-4 h-4 bg-white border-2 border-blue-600 rounded-full shadow-md hover:scale-125 transition-transform ${
+                        handle === 'nw'
+                          ? '-top-2 -left-2 cursor-nwse-resize'
+                          : handle === 'ne'
+                            ? '-top-2 -right-2 cursor-nesw-resize'
+                            : handle === 'sw'
+                              ? '-bottom-2 -left-2 cursor-nesw-resize'
+                              : '-bottom-2 -right-2 cursor-nwse-resize'
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             </div>

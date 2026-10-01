@@ -22,10 +22,10 @@ MoreHorizontal,
 Plus,
 Trash2
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { CreateBankModal } from '@/components/questions/CreateBankModal';
+import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
 
 
 export default function ProktorQuestionBankPage() {
@@ -398,11 +398,7 @@ export default function ProktorQuestionBankPage() {
                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
                 <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
-                    {bank.image_url ? (
-                        <Image src={bank.image_url} alt={bank.title} width={48} height={48} unoptimized className="w-full h-full object-cover" />
-                    ) : (
-                        <BookOpen size={20} className="text-[#3083FF]" />
-                    )}
+                    <QuestionBankCover imageUrl={bank.image_url} title={bank.title} width={48} height={48} />
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -599,11 +595,7 @@ export default function ProktorQuestionBankPage() {
                                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                                 />
                                 <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
-                                    {bank.image_url ? (
-                                        <Image src={bank.image_url} alt={bank.title} width={48} height={48} unoptimized className="w-full h-full object-cover" />
-                                    ) : (
-                                        <BookOpen size={20} className="text-[#3083FF]" />
-                                    )}
+                                    <QuestionBankCover imageUrl={bank.image_url} title={bank.title} width={48} height={48} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
