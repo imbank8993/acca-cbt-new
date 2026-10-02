@@ -22,6 +22,7 @@ export interface AppConfig {
     app_subtitle?: string;
     maintenance_mode?: boolean;
     time_zone?: string;
+    time_zone_source?: 'site_settings' | 'app_config' | 'default';
 }
 
 /** key: 'announcement_config' — bisa satu objek, bisa array. */

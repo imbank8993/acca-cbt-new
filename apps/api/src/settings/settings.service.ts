@@ -38,6 +38,7 @@ export class SettingsService {
     /**
      * Seluruh pengaturan. Key sensitif disaring kecuali diminta secara eksplisit
      * oleh pemanggil yang sudah memeriksa perannya lebih dulu.
+     * Zona waktu pada app_config diselaraskan secara terpusat dari site_settings (acca-new).
      */
     async findAll(options: { includeSensitive?: boolean } = {}): Promise<SettingRow[]> {
         const { data, error } = await this.db.from('acca_settings').select('*');
@@ -47,11 +48,40 @@ export class SettingsService {
         }
 
         const rows = (data as SettingRow[]) || [];
-        if (options.includeSensitive) return rows;
-        return rows.filter((row) => !SENSITIVE_KEYS.has(row.key));
+        const filtered = options.includeSensitive ? rows : rows.filter((row) => !SENSITIVE_KEYS.has(row.key));
+
+        const effectiveInfo = await this.getSchoolTimeZoneInfo();
+        let foundAppConfig = false;
+        const mapped = filtered.map((row) => {
+            if (row.key === 'app_config') {
+                foundAppConfig = true;
+                const val =
+                    row.value && typeof row.value === 'object' && !Array.isArray(row.value)
+                        ? {
+                              ...(row.value as Record<string, unknown>),
+                              time_zone: effectiveInfo.timeZone,
+                              time_zone_source: effectiveInfo.source,
+                          }
+                        : { time_zone: effectiveInfo.timeZone, time_zone_source: effectiveInfo.source };
+                return { ...row, value: val };
+            }
+            return row;
+        });
+
+        if (!foundAppConfig) {
+            mapped.push({
+                id: 'synthesized-app-config',
+                key: 'app_config',
+                value: { time_zone: effectiveInfo.timeZone, time_zone_source: effectiveInfo.source },
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            });
+        }
+
+        return mapped;
     }
 
-    async findOne(key: string): Promise<SettingRow | null> {
+    private async findRawOne(key: string): Promise<SettingRow | null> {
         const { data, error } = await this.db
             .from('acca_settings')
             .select('*')
@@ -65,26 +95,65 @@ export class SettingsService {
         return (data as SettingRow) || null;
     }
 
-    async getSchoolTimeZone(): Promise<string> {
-        const setting = await this.findOne('app_config');
+    async findOne(key: string): Promise<SettingRow | null> {
+        const row = await this.findRawOne(key);
+        if (key === 'app_config' && row) {
+            const effectiveInfo = await this.getSchoolTimeZoneInfo();
+            const val =
+                row.value && typeof row.value === 'object' && !Array.isArray(row.value)
+                    ? {
+                          ...(row.value as Record<string, unknown>),
+                          time_zone: effectiveInfo.timeZone,
+                          time_zone_source: effectiveInfo.source,
+                      }
+                    : { time_zone: effectiveInfo.timeZone, time_zone_source: effectiveInfo.source };
+            return { ...row, value: val };
+        }
+        return row;
+    }
+
+    async getSchoolTimeZoneInfo(): Promise<{ timeZone: string; source: 'site_settings' | 'app_config' | 'default' }> {
+        // Prioritas 1: Baca zona waktu terpusat dari site_settings milik acca-new (Single Source of Truth)
+        try {
+            const { data, error } = await this.db
+                .from('site_settings')
+                .select('value')
+                .eq('key', 'timezone')
+                .maybeSingle();
+
+            if (!error && data?.value && typeof data.value === 'string' && data.value.trim() !== '') {
+                return { timeZone: assertValidTimeZone(data.value.trim()), source: 'site_settings' };
+            }
+        } catch (siteError) {
+            this.logger.warn(
+                `Gagal membaca zona waktu dari site_settings: ${
+                    siteError instanceof Error ? siteError.message : String(siteError)
+                }`,
+            );
+        }
+
+        // Prioritas 2 (Fallback): Baca dari acca_settings app_config
+        const setting = await this.findRawOne('app_config');
         const config = setting?.value;
         const timeZone =
             config && typeof config === 'object' && !Array.isArray(config)
                 ? (config as Record<string, unknown>).time_zone
                 : undefined;
-        if (timeZone === undefined || timeZone === null || timeZone === '') {
-            return DEFAULT_SCHOOL_TIME_ZONE;
+        if (timeZone && typeof timeZone === 'string' && timeZone.trim() !== '') {
+            try {
+                return { timeZone: assertValidTimeZone(timeZone.trim()), source: 'app_config' };
+            } catch (error) {
+                this.logger.error('Zona waktu pada app_config bukan identifier IANA yang valid.', error);
+            }
         }
-        if (typeof timeZone !== 'string') {
-            this.logger.error('Zona waktu pada app_config harus berupa string IANA.');
-            throw new InternalServerErrorException('Pengaturan zona waktu tidak valid.');
-        }
-        try {
-            return assertValidTimeZone(timeZone);
-        } catch (error) {
-            this.logger.error('Zona waktu pada app_config bukan identifier IANA yang valid.', error);
-            throw new InternalServerErrorException('Pengaturan zona waktu tidak valid.');
-        }
+
+        // Prioritas 3 (Default nasional)
+        return { timeZone: DEFAULT_SCHOOL_TIME_ZONE, source: 'default' };
+    }
+
+    async getSchoolTimeZone(): Promise<string> {
+        const info = await this.getSchoolTimeZoneInfo();
+        return info.timeZone;
     }
 
     /**

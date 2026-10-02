@@ -39,6 +39,13 @@ export class SettingsController {
         return { settings: await this.settings.findAll() };
     }
 
+    @Get('school-timezone')
+    @AllowInternalKey()
+    @ApiOperation({ summary: 'Informasi zona waktu sekolah dan sumber sinkronisasi' })
+    async getSchoolTimeZoneInfo() {
+        return this.settings.getSchoolTimeZoneInfo();
+    }
+
     @Get(':key')
     @ApiOperation({ summary: 'Satu pengaturan berdasarkan key' })
     async findOne(@CurrentUser() user: AuthUser, @Param('key') key: string) {
