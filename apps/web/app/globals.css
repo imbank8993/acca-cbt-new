@@ -1987,13 +1987,13 @@ span[style*="white-space: pre"] {
   --info-light: #172554;
 
   /* Layout & Navigation Tokens (Eden Style Dark - Sync with ACCA) */
-  --sidebar-bg: #000000;
+  --sidebar-bg: #0d1221;
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
   --sidebar-hover: rgba(37, 99, 235, 0.12);
   --sidebar-border: rgba(37, 99, 235, 0.35);
-  --header-bg: #000000;
+  --header-bg: #0d1221;
   --header-border: rgba(37, 99, 235, 0.35);
   --header-text: #e2e8f0;
   --n-bg: #020718;
@@ -2091,7 +2091,6 @@ span[style*="white-space: pre"] {
 .dark [class*="bg-[#0038A8]/"] {
   background-color: rgba(48, 131, 255, 0.18) !important;
 }
-.dark [class*="border-[#3083FF]"],
 .dark [class*="border-[#030C4D]"],
 .dark [class*="border-[#0038A8]"] {
   border-color: rgba(255, 255, 255, 0.12) !important;
@@ -2493,11 +2492,83 @@ span[style*="white-space: pre"] {
   background-color: #4f8ef7 !important;
 }
 
-/* Sidebar overrides specific to prevent light flash / borders */
+/* Sidebar & Header overrides specific to prevent light flash / borders / pitch black */
 .dark .sidebar,
-.dark aside {
+.dark aside,
+.dark .header,
+.dark header {
   background-color: #0d1221 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ========================================================
+   CBT QUESTION OPTIONS & BADGES (DARK MODE)
+   Ensure exam options and letter chips [A], [B], etc.
+   never become pitch black (#000000 or #0d1221) or blend invisibly.
+   ======================================================== */
+.dark .cbt-option-item,
+.dark [data-cbt-option] {
+  background-color: #1a233a !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .cbt-option-item:hover,
+.dark [data-cbt-option]:hover {
+  background-color: #222f4b !important;
+  border-color: rgba(48, 131, 255, 0.6) !important;
+}
+
+/* Selected option */
+.dark .cbt-option-item.selected,
+.dark .cbt-option-item[data-selected="true"],
+.dark [data-cbt-option][data-selected="true"] {
+  background-color: rgba(48, 131, 255, 0.2) !important;
+  border-color: #3083FF !important;
+  box-shadow: 0 0 0 1px rgba(48, 131, 255, 0.35) !important;
+}
+
+/* Unselected option letter badge [ A ], [ B ], etc. */
+.dark .cbt-option-badge,
+.dark [data-cbt-badge] {
+  background-color: #25324d !important;
+  border-color: #3b4e75 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Selected option letter badge */
+.dark .cbt-option-badge.selected,
+.dark [data-selected="true"] .cbt-option-badge,
+.dark [data-selected="true"] [data-cbt-badge],
+.dark [data-cbt-badge][data-selected="true"] {
+  background-color: #3083FF !important;
+  border-color: #3083FF !important;
+  color: #ffffff !important;
+}
+
+/* Correct / feedback states */
+.dark .cbt-option-item.correct,
+.dark [data-cbt-option][data-correct="true"] {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10b981 !important;
+}
+.dark .cbt-option-badge.correct,
+.dark [data-cbt-badge][data-correct="true"] {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.dark .cbt-option-item.wrong,
+.dark [data-cbt-option][data-wrong="true"] {
+  background-color: rgba(244, 63, 94, 0.2) !important;
+  border-color: #f43f5e !important;
+}
+.dark .cbt-option-badge.wrong,
+.dark [data-cbt-badge][data-wrong="true"] {
+  background-color: #f43f5e !important;
+  border-color: #f43f5e !important;
+  color: #ffffff !important;
 }
 
 /* Stat-card count numbers: brand pink in light, white in dark.

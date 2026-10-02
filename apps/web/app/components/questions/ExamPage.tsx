@@ -23,6 +23,7 @@ writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
 import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
+import { ExamClock } from '@/lib/exam-clock';
 import { PerKeyQueue } from '@/lib/per-key-queue';
 import { getSessionUser } from '@/lib/session';
 import { clearCbtSession } from '@/lib/session-reset';
@@ -53,18 +54,19 @@ function resolveMaxViolations(exam: StudentExam | null): number | null {
 const COMPLEX_TYPES = ['essay', 'esay', 'uraian', 'mcq_complex', 'true_false', 'categorization', 'matching', 'short_answer', 'likert', 'checklist', 'ranking', 'ordering'];
 
 /** Petakan satu jawaban ke kolom cbt_answers yang benar untuk tipe soalnya. */
-function answerColumns(question: StudentExamQuestion | undefined, ansVal: string | undefined, isDoubtful: boolean) {
+function answerColumns(question: StudentExamQuestion | undefined, ansVal: string | undefined, isDoubtful: boolean, revision?: number) {
     const isComplex = question ? COMPLEX_TYPES.includes(question.type) : false;
     return {
         selected_option_id: isComplex ? undefined : (ansVal || undefined),
         essay_answer: isComplex ? (ansVal || undefined) : undefined,
         is_doubtful: isDoubtful,
+        revision,
     };
 }
 
 /** Bentuk baris untuk sinkronisasi jawaban massal. */
-function answerRow(question: StudentExamQuestion | undefined, questionId: string, ansVal: string | undefined, isDoubtful: boolean) {
-    return { questionId, ...answerColumns(question, ansVal, isDoubtful) };
+function answerRow(question: StudentExamQuestion | undefined, questionId: string, ansVal: string | undefined, isDoubtful: boolean, revision?: number) {
+    return { questionId, ...answerColumns(question, ansVal, isDoubtful, revision) };
 }
 
 export default function ExamPage() {
@@ -90,6 +92,8 @@ export default function ExamPage() {
     // Cermin ref dari state jawaban. Interval retry, handler `pagehide`, dan
     // flush sebelum force-logout berjalan di luar siklus render, jadi mereka
     // tidak boleh membaca closure state yang bisa basi.
+    const revisionsRef = useRef<Record<string, number>>({});
+    const clockRef = useRef(new ExamClock());
     const answersRef = useRef<Record<string, string>>({});
     const doubtfulRef = useRef<Set<string>>(new Set());
     const questionsRef = useRef<StudentExamQuestion[]>([]);
@@ -176,6 +180,7 @@ export default function ExamPage() {
             qId,
             answersRef.current[qId],
             doubtfulRef.current.has(qId),
+            revisionsRef.current[qId] ?? 0,
         ));
     }, []);
 
@@ -191,16 +196,20 @@ export default function ExamPage() {
         if (offlineRecoveryRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
 
         const ids = Array.from(failedSyncRef.current);
+        const sentRevisions = { ...revisionsRef.current };
         const rows = ids.map(qId => answerRow(
             questionsRef.current.find((question) => question.id === qId),
             qId,
             answersRef.current[qId],
             doubtfulRef.current.has(qId),
+            revisionsRef.current[qId] ?? 0,
         ));
         try {
             const res = await syncAnswersBulkAction(att.id, rows);
             if (res?.success) {
-                ids.forEach(id => failedSyncRef.current.delete(id));
+                ids.forEach(id => {
+                    if (revisionsRef.current[id] === sentRevisions[id]) failedSyncRef.current.delete(id);
+                });
                 setFailedSyncCount(failedSyncRef.current.size);
             }
         } catch {
@@ -280,6 +289,7 @@ export default function ExamPage() {
                     const session = checked.session;
                     const local = await readExamSnapshot(session.attemptId).catch(() => null);
                     const restoredAnswers = local?.answers || {};
+                    revisionsRef.current = { ...(local?.revisions || {}) };
                     const restoredDoubtful = new Set(local?.doubtfulAnswers || []);
                     const restoredQuestions = session.questions;
                     const remaining = Math.max(0, Math.floor((session.deadlineAt - Date.now()) / 1000));
@@ -298,6 +308,7 @@ export default function ExamPage() {
                     Object.keys(restoredAnswers).forEach(id => failedSyncRef.current.add(id));
                     setFailedSyncCount(failedSyncRef.current.size);
                     deadlineRef.current = session.deadlineAt;
+                    clockRef.current.anchor(remaining);
                     setTimeLeft(remaining);
                     setCurrentQIndex(Math.min(
                         Math.max(0, session.lastQuestionIndex),
@@ -389,7 +400,9 @@ export default function ExamPage() {
                 }
 
                 // Start or resume attempt (bound to this device — see device lock)
+                const startRequestedAt = performance.now();
                 const result = await startExamAttemptAction(examId, durableDeviceId);
+                clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
                 if (!result.success) {
                     if (result.retryable && await restoreOfflineSession(authUser.id)) return;
                     // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
@@ -474,6 +487,7 @@ export default function ExamPage() {
                 const serverAnswerIds = new Set<string>();
                 (result.answers || []).forEach((ans) => {
                     serverAnswerIds.add(ans.question_id);
+                    revisionsRef.current[ans.question_id] = ans.metadata?.answer_revision ?? 0;
                     if (ans.selected_option_id) savedA[ans.question_id] = ans.selected_option_id;
                     else if (ans.essay_answer) savedA[ans.question_id] = ans.essay_answer;
                     if (ans.is_doubtful) savedD.add(ans.question_id);
@@ -485,10 +499,18 @@ export default function ExamPage() {
                         if (parsed.answers) {
                             localAnswerIds = Object.keys(parsed.answers)
                                 .filter(qId => loadedQuestions.some((question) => question.id === qId));
-                            for (const qId of localAnswerIds) savedA[qId] = parsed.answers[qId];
-                        }
-                        if (parsed.doubtfulAnswers) {
-                            parsed.doubtfulAnswers.forEach((id: string) => savedD.add(id));
+                            localAnswerIds = localAnswerIds.filter(qId => {
+                                const localRevision = parsed.revisions?.[qId] ?? 0;
+                                const serverRevision = revisionsRef.current[qId] ?? 0;
+                                // Old caches cannot overwrite a versioned server answer.
+                                if (localRevision < serverRevision) return false;
+                                if (localRevision === serverRevision && serverRevision > 0 &&
+                                    savedA[qId] !== undefined && savedA[qId] !== parsed.answers[qId]) return false;
+                                savedA[qId] = parsed.answers[qId];
+                                revisionsRef.current[qId] = localRevision;
+                                if (parsed.doubtfulAnswers.includes(qId)) savedD.add(qId); else savedD.delete(qId);
+                                return true;
+                            });
                         }
                     }
                 } catch(e) {
@@ -507,8 +529,13 @@ export default function ExamPage() {
                     }
                 } catch (e) { console.error('Failed to parse local assignment data', e); }
 
+                answersRef.current = savedA;
+                doubtfulRef.current = savedD;
                 setAnswers(savedA);
                 setDoubtfulAnswers(savedD);
+                await writeExamSnapshot(result.attempt.id, {
+                    answers: savedA, doubtfulAnswers: Array.from(savedD), revisions: { ...revisionsRef.current },
+                });
 
                 const recoveryUntil = result.attempt.metadata?.proctor_recovery_until;
                 if (
@@ -531,6 +558,7 @@ export default function ExamPage() {
                         qId,
                         savedA[qId],
                         savedD.has(qId),
+                        revisionsRef.current[qId] ?? 0,
                     ));
                     try {
                         const sync = await syncAnswersBulkAction(result.attempt.id, rows);
@@ -553,7 +581,7 @@ export default function ExamPage() {
                 // absolute deadline so the countdown reflects real elapsed time
                 // even if the tab was backgrounded (timer throttling can't grant
                 // extra time).
-                const remaining = Math.max(0, result.remainingSeconds ?? examData.duration_minutes * 60);
+                const remaining = clockRef.current.remainingSeconds();
                 deadlineRef.current = Date.now() + remaining * 1000;
                 setTimeLeft(remaining);
 
@@ -670,12 +698,15 @@ export default function ExamPage() {
                 answersRef.current,
                 assignmentData,
                 attempt?.id,
+                { ...revisionsRef.current },
             );
             if (result.success) {
                 autoRetryCountRef.current = 0;
                 setIsCompleted(true);
                 if (result.savedAnswersOnly) {
                     toast.warning('Waktu ujian berakhir', 'Hanya jawaban yang sudah sampai di server dinilai. Salinan lokal dipertahankan untuk pemulihan dengan persetujuan proktor.');
+                } else if (result.gradingPending) {
+                    toast.success('Jawaban berhasil dikumpulkan', 'Penilaian sedang menunggu layanan tersedia. Jawaban sudah aman di server.');
                 } else {
                     toast.success(isAssignment ? 'Tugas berhasil dikumpulkan!' : 'Ujian berhasil disubmit!');
                 }
@@ -732,6 +763,7 @@ export default function ExamPage() {
                         qId,
                         parsed.answers[qId],
                         parsed.doubtfulAnswers ? parsed.doubtfulAnswers.includes(qId) : false,
+                        parsed.revisions?.[qId] ?? 0,
                     ));
 
                 if (answersArray.length > 0) {
@@ -739,14 +771,18 @@ export default function ExamPage() {
                     const res = await syncAnswersBulkAction(att.id, answersArray);
                     if (res.success) {
                         // Seluruh snapshot durable baru saja dikirim ulang.
-                        failedSyncRef.current.clear();
-                        setFailedSyncCount(0);
+                        answersArray.forEach(row => {
+                            if ((revisionsRef.current[row.questionId] ?? 0) === row.revision) failedSyncRef.current.delete(row.questionId);
+                        });
+                        setFailedSyncCount(failedSyncRef.current.size);
                         if (hadPendingAnswers) {
                             toast.success('Tersinkronisasi', 'Jawaban offline telah dikirim.');
                         }
                         return true;
                     }
-                    answersArray.forEach((row) => failedSyncRef.current.add(row.questionId));
+                    answersArray.forEach(row => {
+                        if ((revisionsRef.current[row.questionId] ?? 0) === row.revision) failedSyncRef.current.add(row.questionId);
+                    });
                     setFailedSyncCount(failedSyncRef.current.size);
                     return false;
                 }
@@ -768,6 +804,7 @@ export default function ExamPage() {
         const localAttempt = attemptRef.current;
         if (!localAttempt?.id || !navigator.onLine) return false;
 
+        const startRequestedAt = performance.now();
         const result = await startExamAttemptAction(examId, getDeviceId());
         if (!result.success) {
             if (result.retryable) {
@@ -791,7 +828,8 @@ export default function ExamPage() {
             return false;
         }
 
-        const remaining = Math.max(0, result.remainingSeconds || 0);
+        const remaining = Math.max(0, (result.remainingSeconds || 0) - (performance.now() - startRequestedAt) / 1000);
+        clockRef.current.anchor(remaining);
         const serverDeadline = Date.now() + remaining * 1000;
         deadlineRef.current = serverDeadline;
         setTimeLeft(remaining);
@@ -1117,9 +1155,7 @@ export default function ExamPage() {
         const tick = () => {
             // Derive remaining from the absolute deadline so a throttled/background
             // tab cannot slow the countdown.
-            const remaining = deadlineRef.current
-                ? Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000))
-                : 0;
+            const remaining = clockRef.current.remainingSeconds();
             setTimeLeft(remaining);
             if (remaining <= 0) clearInterval(timer);
         };
@@ -1164,6 +1200,9 @@ export default function ExamPage() {
 
 
     const handleAnswerSelect = useCallback(async (questionId: string, answer: string | string[]) => {
+        if (submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
+        const revision = (revisionsRef.current[questionId] ?? 0) + 1;
+        revisionsRef.current[questionId] = revision;
         const answerStr = Array.isArray(answer) ? answer.join(',') : answer;
         // Baca dari ref, bukan closure state: dua perubahan yang terjadi dalam
         // satu batch render tidak boleh saling menimpa.
@@ -1174,8 +1213,12 @@ export default function ExamPage() {
         const att = attemptRef.current;
         if (!att) return;
 
+        const q = questionsRef.current.find((question) => question.id === questionId);
+        const payload = answerColumns(q, answersRef.current[questionId], doubtfulRef.current.has(questionId), revision);
+        markFailed(questionId, true);
         const localWrite = await writeExamSnapshot(att.id, {
             answers: updatedAnswers,
+            revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(doubtfulRef.current),
         });
         if (!localWrite.saved) {
@@ -1191,23 +1234,25 @@ export default function ExamPage() {
             return;
         }
 
-        const q = questionsRef.current.find((question) => question.id === questionId);
         // Hasil autosave WAJIB diperiksa. Kegagalan (sesi kedaluwarsa, attempt
         // sudah bukan in_progress, 500 sekejap) ditandai supaya retry berkala
         // dan flush penutupan bisa menyusulkannya.
         inFlightRef.current.add(questionId);
         await saveQueueRef.current.enqueue(questionId, async () => {
             try {
-                const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answerStr, doubtfulRef.current.has(questionId)));
-                markFailed(questionId, !res?.success);
+                const res = await saveAnswerAction(att.id, questionId, payload);
+                if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
-                markFailed(questionId, true);
+                if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
     }, [markFailed]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
+        if (submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
+        const revision = (revisionsRef.current[questionId] ?? 0) + 1;
+        revisionsRef.current[questionId] = revision;
         const newDoubtful = new Set(doubtfulRef.current);
         if (newDoubtful.has(questionId)) {
             newDoubtful.delete(questionId);
@@ -1222,8 +1267,12 @@ export default function ExamPage() {
         const att = attemptRef.current;
         if (!att) return;
 
+        const q = questionsRef.current.find((question) => question.id === questionId);
+        const payload = answerColumns(q, answersRef.current[questionId], doubtfulRef.current.has(questionId), revision);
+        markFailed(questionId, true);
         const localWrite = await writeExamSnapshot(att.id, {
-            answers: answersRef.current,
+            answers: { ...answersRef.current },
+            revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(newDoubtful),
         });
         if (!localWrite.saved) {
@@ -1237,14 +1286,13 @@ export default function ExamPage() {
             return;
         }
 
-        const q = questionsRef.current.find((question) => question.id === questionId);
         inFlightRef.current.add(questionId);
         await saveQueueRef.current.enqueue(questionId, async () => {
             try {
-                const res = await saveAnswerAction(att.id, questionId, answerColumns(q, answersRef.current[questionId], newDoubtful.has(questionId)));
-                markFailed(questionId, !res?.success);
+                const res = await saveAnswerAction(att.id, questionId, payload);
+                if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
-                markFailed(questionId, true);
+                if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);

@@ -437,10 +437,10 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         const label = optionLabel(idx);
                         const isCorrect = opt.is_correct || opt.isCorrect;
 
-                        let borderClass = 'border-slate-200 hover:border-slate-300';
-                        let bgClass = 'bg-white';
-                        let labelClass = 'bg-slate-50 text-slate-400 border-slate-100';
-                        let textClass = 'text-slate-700';
+                        let borderClass = 'border-slate-200 hover:border-slate-300 dark:border-slate-700/80 dark:hover:border-primary/60';
+                        let bgClass = 'bg-white hover:bg-slate-50/60 dark:bg-[#1a233a] dark:hover:bg-[#222f4b]';
+                        let labelClass = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600';
+                        let textClass = 'text-slate-700 dark:text-slate-200';
                         let checkClass = '';
 
                         // Sama seperti PGK: pilihan siswa harus terlihat terpisah
@@ -448,39 +448,52 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         // putus-putus tanpa tanda centang.
                         if (showFeedback) {
                             if (isSelected && isCorrect) {
-                                borderClass = 'border-[#3083FF] shadow-sm';
-                                bgClass = 'bg-blue-50/70';
-                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
-                                textClass = 'text-slate-900 font-medium';
+                                borderClass = 'border-[#3083FF] shadow-sm dark:border-primary';
+                                bgClass = 'bg-blue-50/70 dark:bg-blue-950/40';
+                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF] dark:bg-primary dark:text-white dark:border-primary';
+                                textClass = 'text-slate-900 dark:text-white font-medium';
                                 checkClass = 'bg-[#3083FF] text-white';
                             } else if (isSelected) {
-                                borderClass = 'border-rose-200';
-                                bgClass = 'bg-rose-50/70';
-                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 font-bold';
-                                textClass = 'text-rose-900';
-                                checkClass = 'bg-rose-100 text-rose-600 border border-rose-200';
+                                borderClass = 'border-rose-300 dark:border-rose-700';
+                                bgClass = 'bg-rose-50/70 dark:bg-rose-950/40';
+                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold';
+                                textClass = 'text-rose-900 dark:text-rose-200 font-medium';
+                                checkClass = 'bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-700';
                             } else if (isCorrect) {
-                                borderClass = 'border-emerald-400 bg-emerald-50/50';
-                                bgClass = 'bg-emerald-50/50';
-                                labelClass = 'bg-emerald-500 text-white border-emerald-500 font-bold';
-                                textClass = 'text-emerald-950 font-medium';
+                                borderClass = 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40';
+                                bgClass = 'bg-emerald-50/50 dark:bg-emerald-950/40';
+                                labelClass = 'bg-emerald-500 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-500 font-bold';
+                                textClass = 'text-emerald-950 dark:text-emerald-200 font-medium';
                                 checkClass = 'bg-emerald-500 text-white';
                             } else {
-                                textClass = 'text-slate-400';
-                                bgClass = 'bg-white opacity-55';
+                                textClass = 'text-slate-400 dark:text-slate-500';
+                                bgClass = 'bg-white/60 dark:bg-[#1a233a]/60 opacity-60';
                             }
                         } else if (isSelected) {
-                            borderClass = 'border-[#3083FF] shadow-sm';
-                            bgClass = 'bg-blue-50/40';
-                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
-                            textClass = 'text-slate-800';
+                            borderClass = 'border-[#3083FF] shadow-sm dark:border-primary ring-1 ring-[#3083FF]/30 dark:ring-primary/40';
+                            bgClass = 'bg-blue-50/50 dark:bg-primary/20';
+                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF] dark:bg-primary dark:text-white dark:border-primary';
+                            textClass = 'text-slate-900 dark:text-white font-medium';
                             checkClass = 'bg-[#3083FF] text-white';
                         }
 
                         return (
-                            <label key={opt.id} className={`flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                            <label
+                                key={opt.id}
+                                data-cbt-option
+                                data-selected={isSelected}
+                                data-correct={showFeedback && isCorrect}
+                                data-wrong={showFeedback && isSelected && !isCorrect}
+                                className={`cbt-option-item flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}
+                            >
                                 <input type="radio" className="hidden" checked={isSelected} disabled={showFeedback} onChange={() => onAnswerChange(opt.id)} />
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}>
+                                <div
+                                    data-cbt-badge
+                                    data-selected={isSelected}
+                                    data-correct={showFeedback && isCorrect}
+                                    data-wrong={showFeedback && isSelected && !isCorrect}
+                                    className={`cbt-option-badge w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}
+                                >
                                     {label}
                                 </div>
                                 <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
@@ -537,8 +550,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     const isCorrectAnswer = opt.is_correct;
 
                                     return (
-                                        <div key={opt.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-4 bg-white border border-slate-100 rounded-md">
-                                            <div className="flex-1 min-w-0 text-sm text-slate-700">
+                                        <div key={opt.id} data-cbt-option className="cbt-option-item flex flex-col sm:flex-row sm:items-start gap-3 p-4 bg-white dark:bg-[#1a233a] border border-slate-200 dark:border-slate-700/80 rounded-md">
+                                            <div className="flex-1 min-w-0 text-sm text-slate-700 dark:text-slate-200">
                                                 <QuestionContent content={opt.option_text || ''} />
                                             </div>
                                             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
@@ -551,8 +564,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                     }}
                                                     className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'benar'
-                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 font-bold') : 'bg-[#3083FF] text-white')
-                                                            : (showFeedback && isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200')
+                                                            ? (showFeedback ? (isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-[#3083FF] text-white')
+                                                            : (showFeedback && isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600 dark:hover:bg-[#2e3e62] border border-slate-200')
                                                         }`}
                                                 >
                                                     Benar
@@ -566,8 +579,8 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                     }}
                                                     className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wider transition-all
                                                         ${currentVal === 'salah'
-                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 font-bold') : 'bg-[#3083FF] text-white')
-                                                            : (showFeedback && !isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200')
+                                                            ? (showFeedback ? (!isCorrectAnswer ? 'bg-[#3083FF] text-white shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold') : 'bg-[#3083FF] text-white')
+                                                            : (showFeedback && !isCorrectAnswer ? 'bg-emerald-500 text-white border border-emerald-500 shadow-sm font-bold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600 dark:hover:bg-[#2e3e62] border border-slate-200')
                                                         }`}
                                                 >
                                                     Salah
@@ -595,11 +608,11 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
                         const isCorrect = opt.is_correct || opt.isCorrect;
 
-                        let borderClass = 'border-slate-200';
-                        let bgClass = 'bg-white';
-                        let labelClass = 'bg-slate-50 text-slate-400 border-slate-100';
-                        let textClass = 'text-slate-700';
-                        let checkBg = 'bg-white border-slate-200';
+                        let borderClass = 'border-slate-200 hover:border-slate-300 dark:border-slate-700/80 dark:hover:border-primary/60';
+                        let bgClass = 'bg-white hover:bg-slate-50/60 dark:bg-[#1a233a] dark:hover:bg-[#222f4b]';
+                        let labelClass = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600';
+                        let textClass = 'text-slate-700 dark:text-slate-200';
+                        let checkBg = 'bg-white border-slate-300 dark:bg-[#24324f] dark:border-slate-600';
 
                         // Saat review, apa yang DICENTANG SISWA harus tetap terbaca
                         // terpisah dari KUNCI. Dulu cabang isCorrect dievaluasi
@@ -608,28 +621,35 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         // hilang jadi mustahil terdeteksi dari layar monitoring.
                         if (showFeedback) {
                             if (isSelected && isCorrect) {
-                                borderClass = 'border-[#3083FF] shadow-sm'; bgClass = 'bg-blue-50/70';
-                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
-                                textClass = 'text-slate-900 font-medium'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white';
+                                borderClass = 'border-[#3083FF] shadow-sm dark:border-primary'; bgClass = 'bg-blue-50/70 dark:bg-blue-950/40';
+                                labelClass = 'bg-[#3083FF] text-white border-[#3083FF] dark:bg-primary dark:text-white dark:border-primary';
+                                textClass = 'text-slate-900 dark:text-white font-medium'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white dark:bg-primary dark:border-primary dark:text-white';
                             } else if (isSelected) {
-                                borderClass = 'border-rose-200'; bgClass = 'bg-rose-50/70';
-                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 font-bold';
-                                textClass = 'text-rose-900'; checkBg = 'bg-rose-100 border-rose-300 text-rose-600';
+                                borderClass = 'border-rose-300 dark:border-rose-700'; bgClass = 'bg-rose-50/70 dark:bg-rose-950/40';
+                                labelClass = 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700 font-bold';
+                                textClass = 'text-rose-900 dark:text-rose-200 font-medium'; checkBg = 'bg-rose-100 border-rose-300 text-rose-600 dark:bg-rose-900/60 dark:border-rose-700 dark:text-rose-300';
                             } else if (isCorrect) {
-                                borderClass = 'border-emerald-400 bg-emerald-50/50'; bgClass = 'bg-emerald-50/50';
-                                labelClass = 'bg-emerald-500 text-white border-emerald-500 font-bold';
-                                textClass = 'text-emerald-950 font-medium'; checkBg = 'bg-emerald-500 border-emerald-500 text-white';
+                                borderClass = 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40'; bgClass = 'bg-emerald-50/50 dark:bg-emerald-950/40';
+                                labelClass = 'bg-emerald-500 text-white border-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-500 font-bold';
+                                textClass = 'text-emerald-950 dark:text-emerald-200 font-medium'; checkBg = 'bg-emerald-500 border-emerald-500 text-white dark:bg-emerald-600 dark:border-emerald-500 dark:text-white';
                             } else {
-                                textClass = 'text-slate-400'; bgClass = 'bg-white opacity-55';
+                                textClass = 'text-slate-400 dark:text-slate-500'; bgClass = 'bg-white/60 dark:bg-[#1a233a]/60 opacity-60';
                             }
                         } else if (isSelected) {
-                            borderClass = 'border-[#3083FF] shadow-sm'; bgClass = 'bg-blue-50/40';
-                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF]';
-                            textClass = 'text-slate-800'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white';
+                            borderClass = 'border-[#3083FF] shadow-sm dark:border-primary ring-1 ring-[#3083FF]/30 dark:ring-primary/40'; bgClass = 'bg-blue-50/50 dark:bg-primary/20';
+                            labelClass = 'bg-[#3083FF] text-white border-[#3083FF] dark:bg-primary dark:text-white dark:border-primary';
+                            textClass = 'text-slate-900 dark:text-white font-medium'; checkBg = 'bg-[#3083FF] border-[#3083FF] text-white dark:bg-primary dark:border-primary dark:text-white';
                         }
 
                         return (
-                            <label key={opt.id} className={`flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                            <label
+                                key={opt.id}
+                                data-cbt-option
+                                data-selected={isSelected}
+                                data-correct={showFeedback && isCorrect}
+                                data-wrong={showFeedback && isSelected && !isCorrect}
+                                className={`cbt-option-item flex items-start gap-2.5 p-2.5 sm:p-3 rounded-lg border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}
+                            >
                                 <input
                                     type="checkbox"
                                     className="hidden"
@@ -642,7 +662,13 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                         onAnswerChange(JSON.stringify(next));
                                     }}
                                 />
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}>
+                                <div
+                                    data-cbt-badge
+                                    data-selected={isSelected}
+                                    data-correct={showFeedback && isCorrect}
+                                    data-wrong={showFeedback && isSelected && !isCorrect}
+                                    className={`cbt-option-badge w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded flex items-center justify-center font-bold text-xs leading-none border-2 transition-colors ${labelClass}`}
+                                >
                                     {letters[idx] || '?'}
                                 </div>
                                 <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
@@ -701,7 +727,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         return (
                         <div ref={catWrapRef}>
                             {/* Desktop/Tablet Layout (Grid Table) */}
-                            <div className="hidden sm:block overflow-x-auto rounded-md border border-slate-100">
+                            <div className="hidden sm:block overflow-x-auto rounded-md border border-slate-100 dark:border-slate-700">
                                 <table className="w-full table-fixed">
                                     <thead>
                                         <tr>
@@ -741,10 +767,10 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                 <motion.tr key={opt.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: optIdx * 0.03 }}>
                                                     <td className="py-3 px-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 shrink-0 rounded bg-slate-800 flex items-center justify-center text-white font-black text-xs leading-none pt-[1px]">
+                                                            <div className="w-8 h-8 shrink-0 rounded bg-slate-800 dark:bg-[#24324f] flex items-center justify-center text-white font-black text-xs leading-none pt-[1px]">
                                                                 {optIdx + 1}
                                                             </div>
-                                                            <div className="text-sm font-medium text-slate-700 min-w-0 [&_p]:!m-0">
+                                                            <div className="text-sm font-medium text-slate-700 dark:text-slate-200 min-w-0 [&_p]:!m-0">
                                                                 <QuestionContent content={(opt.option_text || opt.text || '')} />
                                                             </div>
                                                         </div>
@@ -776,7 +802,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                             onAnswerChange(JSON.stringify(next));
                                                                         }}
                                                                         className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all text-white text-xs font-bold
-                                                                            ${cellStatus === 'idle' ? 'border-slate-200 bg-white hover:bg-slate-100' : ''}
+                                                                            ${cellStatus === 'idle' ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a233a] hover:bg-slate-100 dark:hover:bg-[#24324f]' : ''}
                                                                             ${cellStatus === 'selected' ? `${color.active} border-transparent shadow-sm` : ''}
                                                                             ${cellStatus === 'correct' ? 'bg-[#3083FF] border-transparent shadow-sm' : ''}
                                                                             ${cellStatus === 'wrong' ? 'bg-rose-400 border-transparent shadow-sm' : ''}
@@ -787,7 +813,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                         {cellStatus === 'wrong' && <AlertTriangle size={13} strokeWidth={3} />}
                                                                         {cellStatus === 'missing' && <Check size={13} strokeWidth={3} />}
                                                                         {cellStatus === 'selected' && <Check size={13} strokeWidth={3} />}
-                                                                        {cellStatus === 'idle' && <div className="w-2 h-2 rounded-full bg-slate-300" />}
+                                                                        {cellStatus === 'idle' && <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />}
                                                                     </button>
                                                                 </div>
                                                             </td>
@@ -808,12 +834,12 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     const correctCats = opt.category_names || opt.metadata?.category_names || (opt.metadata?.category_name ? [opt.metadata.category_name] : []);
 
                                     return (
-                                        <div key={opt.id} className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 space-y-3 text-left">
+                                        <div key={opt.id} data-cbt-option className="cbt-option-item bg-slate-50/50 dark:bg-[#1a233a] border border-slate-100 dark:border-slate-700/80 rounded-2xl p-4 space-y-3 text-left">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-7 h-7 shrink-0 rounded bg-slate-800 flex items-center justify-center text-white font-black text-xs leading-none mt-0.5">
+                                                <div className="w-7 h-7 shrink-0 rounded bg-slate-800 dark:bg-[#24324f] flex items-center justify-center text-white font-black text-xs leading-none mt-0.5">
                                                     {optIdx + 1}
                                                 </div>
-                                                <div className="text-sm font-semibold text-slate-805 min-w-0 [&_p]:!m-0 pt-0.5">
+                                                <div className="text-sm font-semibold text-slate-805 dark:text-slate-100 min-w-0 [&_p]:!m-0 pt-0.5">
                                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                                 </div>
                                             </div>
@@ -857,7 +883,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                     onAnswerChange(JSON.stringify(next));
                                                                 }}
                                                                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all text-left ${
-                                                                    cellStatus === 'idle' ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700' : ''
+                                                                    cellStatus === 'idle' ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#24324f] hover:bg-slate-50 dark:hover:bg-[#2d3d60] text-slate-700 dark:text-slate-200' : ''
                                                                 } ${
                                                                     cellStatus === 'selected' ? `${color.active} shadow-sm` : ''
                                                                 } ${
@@ -869,7 +895,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                 }`}
                                                             >
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${isChecked ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${isChecked ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
                                                                         K{catIdx + 1}
                                                                     </span>
                                                                     <span>{cat}</span>
@@ -879,7 +905,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                                     {cellStatus === 'wrong' && <AlertTriangle size={13} strokeWidth={3} />}
                                                                     {cellStatus === 'missing' && <span className="text-[9px] font-extrabold">SEHARUSNYA</span>}
                                                                     {cellStatus === 'selected' && <Check size={13} strokeWidth={3} />}
-                                                                    {cellStatus === 'idle' && <div className="w-2.5 h-2.5 rounded-full border border-slate-300 bg-white" />}
+                                                                    {cellStatus === 'idle' && <div className="w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" />}
                                                                 </div>
                                                             </button>
                                                         );
@@ -979,13 +1005,13 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                             <div className="mt-12 mb-10 px-4 sm:px-12 w-full max-w-4xl mx-auto">
                                 <div className="relative">
                                     {/* Garis Horizontal */}
-                                    <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 -translate-y-1/2 rounded-full"></div>
+                                    <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 dark:bg-slate-700 -translate-y-1/2 rounded-full"></div>
                                     
                                     {/* Panah Kiri */}
-                                    <div className="absolute top-1/2 -left-3 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-slate-300 -translate-y-1/2"></div>
+                                    <div className="absolute top-1/2 -left-3 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] border-r-slate-300 dark:border-r-slate-600 -translate-y-1/2"></div>
                                     
                                     {/* Panah Kanan */}
-                                    <div className="absolute top-1/2 -right-3 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-slate-300 -translate-y-1/2"></div>
+                                    <div className="absolute top-1/2 -right-3 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-slate-300 dark:border-l-slate-600 -translate-y-1/2"></div>
                                     
                                     <div className="relative flex justify-between items-center z-10">
                                         {scale.map((val, idx) => {
@@ -999,7 +1025,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                         className={`w-[28px] h-[28px] sm:w-[34px] sm:h-[34px] rounded-full border-[3px] flex items-center justify-center transition-all ${
                                                             isSelected 
                                                                 ? 'bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/30' 
-                                                                : 'bg-white border-slate-300 hover:border-primary/50 text-slate-500 hover:bg-slate-50'
+                                                                : 'bg-white dark:bg-[#24324f] border-slate-300 dark:border-slate-600 hover:border-primary/50 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#2e3e62]'
                                                         }`}
                                                     >
                                                         {isSelected && <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white" />}
@@ -1007,7 +1033,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                     
                                                     {/* Label (Hanya ujung kiri dan ujung kanan) */}
                                                     {(idx === 0 || idx === 4) && (
-                                                        <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-4 w-28 sm:w-32 text-[10px] sm:text-xs font-bold tracking-wider uppercase leading-tight text-center ${isSelected ? 'text-primary' : 'text-slate-500'}`}>
+                                                        <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-4 w-28 sm:w-32 text-[10px] sm:text-xs font-bold tracking-wider uppercase leading-tight text-center ${isSelected ? 'text-primary' : 'text-slate-500 dark:text-slate-400'}`}>
                                                             {labels[idx]}
                                                         </div>
                                                     )}
@@ -1032,20 +1058,25 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         return validOptions.map((opt) => {
                             const isSelected = answer === opt.id;
 
-                            let borderClass = 'border-slate-200 hover:border-slate-300';
-                            let bgClass = 'bg-white';
-                            let boxClass = 'bg-slate-50 border-slate-200 text-transparent';
-                            let textClass = 'text-slate-700';
+                            let borderClass = 'border-slate-200 hover:border-slate-300 dark:border-slate-700/80 dark:hover:border-primary/60';
+                            let bgClass = 'bg-white hover:bg-slate-50/50 dark:bg-[#1a233a] dark:hover:bg-[#222f4b]';
+                            let boxClass = 'bg-slate-100 border-slate-300 text-transparent dark:bg-[#24324f] dark:border-slate-600';
+                            let textClass = 'text-slate-700 dark:text-slate-200';
 
                             if (isSelected) {
                                 borderClass = colors.border;
-                                bgClass = colors.bg;
+                                bgClass = `${colors.bg} dark:bg-pink-950/30`;
                                 boxClass = colors.boxBg;
-                                textClass = colors.text;
+                                textClass = `${colors.text} dark:text-pink-200`;
                             }
 
                             return (
-                                <label key={opt.id} className={`flex items-start gap-4 p-3 sm:p-4 rounded-xl border-2 ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                                <label
+                                    key={opt.id}
+                                    data-cbt-option
+                                    data-selected={isSelected}
+                                    className={`cbt-option-item flex items-start gap-4 p-3 sm:p-4 rounded-xl border-2 ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}
+                                >
                                     <input type="radio" className="hidden" checked={isSelected} disabled={showFeedback} onChange={() => onAnswerChange(opt.id)} />
                                     <div className={`mt-0.5 w-6 h-6 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${boxClass}`}>
                                         {isSelected && (
@@ -1067,22 +1098,22 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                         const studentAnswers = parseAnswer<Record<string, string>>(answer, {});
                         const uniqueOptions = options.filter(opt => (opt.option_text || opt.text || '').trim().length > 0);
                         return (
-                            <div className="overflow-x-auto rounded-md border border-slate-200">
+                            <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-bold">
+                                        <tr className="bg-slate-50 dark:bg-[#1e293f] border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wider font-bold">
                                             <th className="px-4 py-3 w-[70%]">Pernyataan</th>
                                             <th className="px-4 py-3 text-center w-[15%]">Ya</th>
                                             <th className="px-4 py-3 text-center w-[15%]">Tidak</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {uniqueOptions.map((opt) => {
                                             const currentVal = studentAnswers[opt.id];
                                             return (
-                                                <tr key={opt.id} className="bg-white hover:bg-slate-50/50 transition-colors">
+                                                <tr key={opt.id} className="bg-white dark:bg-[#1a233a] hover:bg-slate-50/50 dark:hover:bg-[#222f4b] transition-colors">
                                                     <td className="px-4 py-3 align-middle">
-                                                        <div className="text-sm text-slate-700">
+                                                        <div className="text-sm text-slate-700 dark:text-slate-200">
                                                             <QuestionContent content={opt.option_text || opt.text || ''} />
                                                         </div>
                                                     </td>
@@ -1096,7 +1127,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                             className={`w-6 h-6 sm:w-7 sm:h-7 mx-auto rounded-full border-2 flex items-center justify-center transition-all ${
                                                                 currentVal === 'ya'
                                                                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                                                                    : 'bg-white border-slate-300 hover:border-emerald-400 text-transparent'
+                                                                    : 'bg-white dark:bg-[#24324f] border-slate-300 dark:border-slate-600 hover:border-emerald-400 text-transparent'
                                                             }`}
                                                         >
                                                             <Check size={14} strokeWidth={3} />
@@ -1112,7 +1143,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                                             className={`w-6 h-6 sm:w-7 sm:h-7 mx-auto rounded-full border-2 flex items-center justify-center transition-all ${
                                                                 currentVal === 'tidak'
                                                                     ? 'bg-rose-500 border-rose-500 text-white shadow-sm'
-                                                                    : 'bg-white border-slate-300 hover:border-rose-400 text-transparent'
+                                                                    : 'bg-white dark:bg-[#24324f] border-slate-300 dark:border-slate-600 hover:border-rose-400 text-transparent'
                                                             }`}
                                                         >
                                                             <Check size={14} strokeWidth={3} />
@@ -1144,40 +1175,49 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                             const optWeight = opt.weight ?? 0;
                             const isHighest = optWeight === maxWeight;
 
-                            let borderClass = 'border-slate-200 hover:border-slate-300';
-                            let bgClass = 'bg-white';
-                            let labelClass = 'bg-slate-50 text-slate-400 border-slate-100';
-                            let textClass = 'text-slate-700';
+                            let borderClass = 'border-slate-200 hover:border-slate-300 dark:border-slate-700/80 dark:hover:border-primary/60';
+                            let bgClass = 'bg-white hover:bg-slate-50/50 dark:bg-[#1a233a] dark:hover:bg-[#222f4b]';
+                            let labelClass = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-[#24324f] dark:text-slate-200 dark:border-slate-600';
+                            let textClass = 'text-slate-700 dark:text-slate-200';
                             let checkClass = '';
 
                             if (showFeedback) {
                                 if (isHighest) {
-                                    borderClass = 'border-emerald-400';
-                                    bgClass = 'bg-emerald-50';
-                                    labelClass = 'bg-emerald-500 text-white border-emerald-500';
-                                    textClass = 'text-emerald-900';
+                                    borderClass = 'border-emerald-400 dark:border-emerald-600';
+                                    bgClass = 'bg-emerald-50 dark:bg-emerald-950/40';
+                                    labelClass = 'bg-emerald-500 text-white border-emerald-500 dark:bg-emerald-600 dark:border-emerald-500';
+                                    textClass = 'text-emerald-900 dark:text-emerald-200 font-medium';
                                     checkClass = 'bg-emerald-500 text-white';
                                 } else if (isSelected) {
-                                    borderClass = 'border-rose-400';
-                                    bgClass = 'bg-rose-50';
-                                    labelClass = 'bg-rose-500 text-white border-rose-500';
-                                    textClass = 'text-rose-900';
+                                    borderClass = 'border-rose-400 dark:border-rose-700';
+                                    bgClass = 'bg-rose-50 dark:bg-rose-950/40';
+                                    labelClass = 'bg-rose-500 text-white border-rose-500 dark:bg-rose-600 dark:border-rose-500';
+                                    textClass = 'text-rose-900 dark:text-rose-200 font-medium';
                                     checkClass = 'bg-rose-500 text-white';
                                 } else {
-                                    textClass = 'text-slate-400';
+                                    textClass = 'text-slate-400 dark:text-slate-500';
                                 }
                             } else if (isSelected) {
-                                borderClass = 'border-indigo-500';
-                                bgClass = 'bg-indigo-50';
+                                borderClass = 'border-indigo-500 dark:border-indigo-400 ring-1 ring-indigo-500/30';
+                                bgClass = 'bg-indigo-50 dark:bg-indigo-950/40';
                                 labelClass = 'bg-indigo-500 text-white border-indigo-500';
-                                textClass = 'text-indigo-800';
+                                textClass = 'text-indigo-800 dark:text-indigo-200 font-medium';
                                 checkClass = 'bg-indigo-500 text-white';
                             }
 
                             return (
-                                <label key={opt.id} className={`flex items-start gap-3 p-3 rounded-md border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}>
+                                <label
+                                    key={opt.id}
+                                    data-cbt-option
+                                    data-selected={isSelected}
+                                    className={`cbt-option-item flex items-start gap-3 p-3 rounded-md border ${borderClass} ${bgClass} cursor-pointer transition-all duration-150 hover:shadow-sm`}
+                                >
                                     <input type="radio" className="hidden" checked={isSelected} disabled={showFeedback} onChange={() => onAnswerChange(opt.id)} />
-                                    <div className={`w-8 h-8 shrink-0 rounded flex items-center justify-center font-black text-xs leading-none pt-[1px] border-2 transition-colors ${labelClass}`}>
+                                    <div
+                                        data-cbt-badge
+                                        data-selected={isSelected}
+                                        className={`cbt-option-badge w-8 h-8 shrink-0 rounded flex items-center justify-center font-black text-xs leading-none pt-[1px] border-2 transition-colors ${labelClass}`}
+                                    >
                                         {label}
                                     </div>
                                     <div className={`flex-1 min-w-0 text-sm font-normal transition-colors ${textClass}`}>
@@ -1437,15 +1477,20 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
             )}
 
             {isMultiTopic && (
-                <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <p className="text-sm font-bold text-slate-700">Pilih Topik Tugas <span className="text-rose-500">*</span></p>
+                <div className="space-y-3 mb-6 bg-slate-50 dark:bg-[#121826] p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Pilih Topik Tugas <span className="text-rose-500">*</span></p>
                     <div className="grid grid-cols-1 gap-3">
                         {topicOptions.map((opt, idx) => {
                             const isSelected = topicId === opt.id;
                             const label = String.fromCharCode(65 + idx);
                             
                             return (
-                                <label key={opt.id} className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all duration-150 ${isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                                <label
+                                    key={opt.id}
+                                    data-cbt-option
+                                    data-selected={isSelected}
+                                    className={`cbt-option-item flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all duration-150 ${isSelected ? 'border-primary bg-primary/5 dark:bg-primary/20 shadow-sm' : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#1a233a] hover:border-slate-300 dark:hover:border-slate-600'}`}
+                                >
                                     <input 
                                         type="radio" 
                                         name={`topic-${uniqueId}`}
@@ -1456,10 +1501,14 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                                             commitAnswer({ topic: opt.id });
                                         }}
                                     />
-                                    <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-sm leading-none border-2 transition-colors ${isSelected ? 'bg-primary text-white border-primary' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
+                                    <div
+                                        data-cbt-badge
+                                        data-selected={isSelected}
+                                        className={`cbt-option-badge w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-sm leading-none border-2 transition-colors ${isSelected ? 'bg-primary text-white border-primary' : 'bg-slate-100 dark:bg-[#24324f] text-slate-600 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
+                                    >
                                         {label}
                                     </div>
-                                    <div className={`flex-1 min-w-0 text-sm font-medium pt-1 ${isSelected ? 'text-primary' : 'text-slate-700'}`}>
+                                    <div className={`flex-1 min-w-0 text-sm font-medium pt-1 ${isSelected ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}`}>
                                         <QuestionContent content={(opt.option_text || opt.text || '')} />
                                     </div>
                                     {isSelected && (
@@ -1765,15 +1814,15 @@ const OrderingRenderer = React.memo(({
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto rounded-md border border-slate-200">
+      <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider font-bold">
+            <tr className="bg-slate-50 dark:bg-[#1e293f] border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wider font-bold">
               <th className="px-4 py-3 w-[80%]">Pernyataan</th>
               <th className="px-4 py-3 text-center w-[20%]">Urutan</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {options.map((opt) => {
               const currentVal = studentAnswers[opt.id] || '';
               const correctIdx = correctOrder.indexOf(opt.id);
@@ -1786,25 +1835,25 @@ const OrderingRenderer = React.memo(({
               const numVal = Number(trimmedVal);
               const isOutOfRange = trimmedVal !== '' && (numVal < 1 || numVal > maxN || !Number.isInteger(numVal));
 
-              let bgClass = 'bg-white hover:bg-slate-50/50';
-              let inputBorder = 'border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20';
+              let bgClass = 'bg-white hover:bg-slate-50/50 dark:bg-[#1a233a] dark:hover:bg-[#222f4b]';
+              let inputBorder = 'border-slate-200 dark:border-slate-600 dark:bg-[#24324f] dark:text-white focus:border-primary focus:ring-2 focus:ring-primary/20';
 
               if (showFeedback) {
                 const isCorrect = String(currentVal) === String(correctIdx + 1);
-                bgClass = isCorrect ? 'bg-emerald-50' : 'bg-rose-50';
-                inputBorder = isCorrect ? 'border-emerald-500 text-emerald-700 bg-emerald-100' : 'border-rose-500 text-rose-700 bg-rose-100';
+                bgClass = isCorrect ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40';
+                inputBorder = isCorrect ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50' : 'border-rose-500 text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
               } else if (isDuplicate) {
-                bgClass = 'bg-amber-50/60';
-                inputBorder = 'border-amber-400 text-amber-700 bg-amber-50 ring-2 ring-amber-200';
+                bgClass = 'bg-amber-50/60 dark:bg-amber-950/30';
+                inputBorder = 'border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/50 ring-2 ring-amber-200 dark:ring-amber-800';
               } else if (isOutOfRange) {
-                bgClass = 'bg-rose-50/60';
-                inputBorder = 'border-rose-400 text-rose-700 bg-rose-50 ring-2 ring-rose-200';
+                bgClass = 'bg-rose-50/60 dark:bg-rose-950/30';
+                inputBorder = 'border-rose-400 text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/50 ring-2 ring-rose-200 dark:ring-rose-800';
               }
 
               return (
                 <tr key={opt.id} className={`${bgClass} transition-colors`}>
                   <td className="px-4 py-3 align-middle">
-                    <div className="text-sm font-medium text-slate-700 [&_p]:!m-0">
+                    <div className="text-sm font-medium text-slate-700 dark:text-slate-200 [&_p]:!m-0">
                       <QuestionContent content={opt.option_text || opt.text || ''} />
                     </div>
                   </td>

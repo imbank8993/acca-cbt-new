@@ -117,10 +117,10 @@ export default function StudentResultsPage() {
                                         <div className="flex items-center gap-4">
                                             <div className="text-center min-w-[70px]">
                                                 <p className={`text-[8px] font-extrabold uppercase tracking-widest mb-0.5 ${attempt.needs_manual_grading ? 'text-amber-600' : 'text-slate-400'}`}>
-                                                    {attempt.needs_manual_grading ? 'Nilai Sementara' : 'Klasik'}
+                                                    {attempt.total_score == null ? 'Menunggu Penilaian' : attempt.needs_manual_grading ? 'Nilai Sementara' : 'Klasik'}
                                                 </p>
                                                 <div className="flex items-baseline justify-center gap-0.5">
-                                                    <span className="text-xl font-black text-[#3083FF] font-mono">{Number(attempt.total_score ?? 0).toFixed(0)}</span>
+                                                    <span className="text-xl font-black text-[#3083FF] font-mono">{attempt.total_score == null ? '—' : Number(attempt.total_score).toFixed(0)}</span>
                                                     <span className="text-[9px] font-bold text-slate-400">/100</span>
                                                 </div>
                                                 {attempt.needs_manual_grading && (

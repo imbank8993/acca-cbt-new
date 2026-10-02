@@ -100,24 +100,24 @@ export class GradingService {
      */
     async gradeAttemptFromSavedAnswers(
         attemptId: string,
-    ): Promise<{ finalScore100: number; hasEssay: boolean; examId: string } | null> {
+    ): Promise<{ finalScore100: number; hasEssay: boolean; examId: string; dimensionScores?: Record<string, number> } | null> {
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, exam_id')
+            .select('id, exam_id, status, finished_at, started_at')
             .eq('id', attemptId)
             .maybeSingle();
         if (!attempt) return null;
 
         const examId = (attempt as { exam_id: string }).exam_id;
 
-        const [questions, { data: saved }] = await Promise.all([
+        const [questions, { data: saved, error: savedError }] = await Promise.all([
             loadFrozenExamQuestions(this.db, examId),
             this.db
                 .from('cbt_answers')
                 .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
                 .eq('attempt_id', attemptId),
         ]);
-        if (questions.length === 0) return null;
+        if (savedError) throw new InternalServerErrorException('Jawaban belum dapat dibaca untuk penilaian.');
 
         const answers = new Map<string, AnswerRow>(
             ((saved as any[]) || []).map((a) => [a.question_id, a]),
@@ -137,21 +137,33 @@ export class GradingService {
         const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', { items });
         const manual = manualGradeSummary(questions || [], answers);
 
-        // Hanya jawaban yang benar-benar tersimpan yang ditulis ulang; soal tanpa
-        // jawaban tidak diberi baris baru.
-        for (const item of result.items) {
-            if (!item.answer_id || !answers.has(item.answer_id)) continue;
-            await this.db
-                .from('cbt_answers')
-                .update({ score: item.score, is_correct: item.is_correct })
-                .eq('attempt_id', attemptId)
-                .eq('question_id', item.answer_id);
-        }
+        // Discard results if a reset changed the attempt while scoring was running.
+        const applied = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: current, error } = await db.from('cbt_exam_attempts')
+                .select('status, finished_at, started_at').eq('id', attemptId).maybeSingle();
+            if (error) throw new InternalServerErrorException('Status penilaian belum dapat dibaca.');
+            if (!current || current.status !== attempt.status || current.finished_at !== attempt.finished_at ||
+                current.started_at !== attempt.started_at) return false;
+            for (const item of result.items) {
+                if (!item.answer_id || !answers.has(item.answer_id)) continue;
+                const { error: writeError } = await db.from('cbt_answers')
+                    .update({ score: item.score, is_correct: item.is_correct })
+                    .eq('attempt_id', attemptId).eq('question_id', item.answer_id);
+                if (writeError) throw new InternalServerErrorException('Nilai jawaban belum tersimpan.');
+            }
+            return true;
+        });
+        if (!applied) return null;
+        const { data: exam } = await this.db.from('cbt_exams').select('exam_type').eq('id', examId).maybeSingle();
 
         return {
             finalScore100: result.max_possible_score > 0
                 ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0,
-            hasEssay: manual.pending,
+            hasEssay: manual.pending || exam?.exam_type === 'assignment',
+            ...(result.dimension_scores && Object.keys(result.dimension_scores).length > 0
+                ? { dimensionScores: result.dimension_scores }
+                : {}),
             examId,
         };
     }
@@ -385,9 +397,9 @@ export class GradingService {
     ): Promise<{ recovered: number; failed: number }> {
         const { data, error } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, metadata')
+            .select('id, metadata, status, finished_at')
             .eq('exam_id', examId)
-            .eq('status', 'auto_submitted')
+            .in('status', ['submitted', 'auto_submitted'])
             .is('total_score', null)
             .order('finished_at', { ascending: true })
             .limit(limit);
@@ -395,13 +407,14 @@ export class GradingService {
 
         let recovered = 0;
         let failed = 0;
-        for (const row of (data as Array<{ id: string; metadata: Record<string, unknown> | null }>) || []) {
+        for (const row of (data as Array<{ id: string; metadata: Record<string, unknown> | null; status: string; finished_at: string | null }>) || []) {
             try {
                 const graded = await this.gradeAttemptFromSavedAnswers(row.id);
                 if (!graded) continue;
                 const metadata = {
                     ...(row.metadata || {}),
                     base_score: graded.finalScore100,
+                    dimension_scores: graded.dimensionScores || {},
                     grading_retry_error: null,
                     grading_recovered_at: new Date().toISOString(),
                 };
@@ -413,7 +426,8 @@ export class GradingService {
                         metadata,
                     })
                     .eq('id', row.id)
-                    .eq('status', 'auto_submitted')
+                    .eq('status', row.status)
+                    .eq('finished_at', row.finished_at)
                     .is('total_score', null)
                     .select('id')
                     .maybeSingle();
@@ -433,7 +447,8 @@ export class GradingService {
                         },
                     })
                     .eq('id', row.id)
-                    .eq('status', 'auto_submitted')
+                    .eq('status', row.status)
+                    .eq('finished_at', row.finished_at)
                     .is('total_score', null);
                 this.logger.error(
                     `Retry penilaian auto-submit ${row.id} gagal: ${(retryError as Error).message}`,

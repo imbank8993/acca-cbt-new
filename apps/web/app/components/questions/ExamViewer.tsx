@@ -370,8 +370,8 @@ export function ExamViewer({
         return (
             <div className="flex-1 flex min-h-0 flex-col md:flex-row-reverse">
                 {/* SIDEBAR - Desktop only */}
-                <aside className="hidden md:flex w-[280px] shrink-0 bg-white border-l border-slate-200 flex-col">
-                    <div className="px-5 pt-5 pb-3 border-b border-slate-50">
+                <aside className="hidden md:flex w-[280px] shrink-0 bg-white dark:bg-[#0d1221] border-l border-slate-200 dark:border-white/10 flex-col">
+                    <div className="px-5 pt-5 pb-3 border-b border-slate-50 dark:border-white/5">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Daftar Soal</p>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">
@@ -382,7 +382,7 @@ export function ExamViewer({
                                 const doubtful = doubtfulAnswers.has(q.id);
                                 const isUpdated = updatedQuestionIds.has(q.id);
                                 
-                                let btnClass = 'bg-white text-slate-400 border border-slate-200 hover:border-slate-300 hover:text-slate-600';
+                                let btnClass = 'bg-white dark:bg-[#1a233a] text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-white';
                                 if (active) {
                                     btnClass = 'bg-blue-600 text-white shadow-md shadow-blue-300/30 border-blue-600';
                                 } else if (doubtful) {
@@ -409,7 +409,7 @@ export function ExamViewer({
                 </aside>
 
                 {/* MAIN */}
-                <main className="flex-1 overflow-y-auto bg-slate-50 px-4 md:px-6 py-6 flex flex-col gap-8">
+                <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#020718] px-4 md:px-6 py-6 flex flex-col gap-8">
                     <ExamQuestionCard
                         key={currentQ.id}
                         question={currentQ}
@@ -510,20 +510,20 @@ export function ExamViewer({
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-100 font-sans">
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-slate-100 dark:bg-[#020718] font-sans">
             {/* ── Fullscreen overlay (Hanya mode Ujian Asli) ── */}
             <AnimatePresence>
                 {mode === 'exam' && !isFullScreen && isSafeMode && (
                     <motion.div
                         initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
-                        className="fixed inset-0 z-[10000] bg-white flex items-center justify-center p-6"
+                        className="fixed inset-0 z-[10000] bg-white dark:bg-[#0d1221] flex items-center justify-center p-6"
                     >
                         <div className="text-center max-w-xs">
-                            <div className="w-20 h-20 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-6">
-                                <Maximize2 size={36} className="text-amber-600" />
+                            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-950/40 rounded-lg flex items-center justify-center mx-auto mb-6">
+                                <Maximize2 size={36} className="text-amber-600 dark:text-amber-400" />
                             </div>
-                            <h2 className="text-2xl font-bold text-slate-800 mb-3">Mode Ujian Aman</h2>
-                            <p className="text-slate-500 mb-8 text-base">
+                            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-3">Mode Ujian Aman</h2>
+                            <p className="text-slate-500 dark:text-slate-400 mb-8 text-base">
                                 Aktifkan layar penuh untuk pengalaman ujian terbaik.
                             </p>
                             <button
@@ -546,13 +546,13 @@ export function ExamViewer({
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white rounded-lg p-6 max-w-sm w-full text-center shadow-2xl"
+                            className="bg-white dark:bg-[#0d1221] border border-slate-200 dark:border-slate-800 rounded-lg p-6 max-w-sm w-full text-center shadow-2xl"
                         >
-                            <div className="w-16 h-16 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                                <ShieldAlert size={30} className="text-amber-600" />
+                            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/40 rounded-lg flex items-center justify-center mx-auto mb-4">
+                                <ShieldAlert size={30} className="text-amber-600 dark:text-amber-400" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">Peringatan Pelanggaran</h3>
-                            <p className="text-sm text-slate-500 capitalize mb-2">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Peringatan Pelanggaran</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 capitalize mb-2">
                                 {violationType.replace(/_/g, ' ')}
                             </p>
                             <p className="text-xs text-slate-400 mb-5">
@@ -561,7 +561,7 @@ export function ExamViewer({
                                     : `${violationCount} dari ${maxViolations} maksimum`}
                             </p>
                             {maxViolations !== null && (
-                                <div className="w-full bg-slate-100 rounded-full h-2 mb-5 overflow-hidden">
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 mb-5 overflow-hidden">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: `${Math.min(100, (violationCount / maxViolations) * 100)}%` }}
@@ -571,7 +571,7 @@ export function ExamViewer({
                             )}
                             <button
                                 onClick={onCloseViolationModal}
-                                className="w-full py-3.5 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"
+                                className="w-full py-3.5 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
                             >
                                 Mengerti
                             </button>
@@ -581,7 +581,7 @@ export function ExamViewer({
             </AnimatePresence>
 
             {/* HEADER */}
-            <header className="shrink-0 bg-white border-b border-slate-200">
+            <header className="shrink-0 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-white/10">
                 {/* Desktop Header */}
                 <div className="hidden md:flex px-6 py-4 items-center justify-between gap-6">
                     {/* KIRI: Profil */}
@@ -595,11 +595,11 @@ export function ExamViewer({
                             {mode === 'preview' ? <Eye size={15} className="text-white" /> : <User size={15} className="text-white" />}
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                                <User size={14} className="text-slate-500" />
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <User size={14} className="text-slate-500 dark:text-slate-400" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-800 leading-tight max-w-[150px] md:max-w-xs truncate">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight max-w-[150px] md:max-w-xs truncate">
                                     {studentName}
                                 </p>
                                 <p className="text-[11px] text-slate-400 leading-tight truncate max-w-[150px] md:max-w-xs">
@@ -614,12 +614,12 @@ export function ExamViewer({
                         <span className="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg uppercase">
                             {currentQ?.type === 'mcq' ? 'PG' : currentQ?.type === 'mcq_complex' ? 'PGK' : currentQ?.type === 'true_false' ? 'BS' : currentQ?.type === 'matching' ? 'MJ' : currentQ?.type === 'categorization' ? 'CAT' : currentQ?.type === 'short_answer' ? 'ISIAN' : currentQ?.type === 'essay' ? 'ESAI' : currentQ?.type?.replace('_', ' ')}
                         </span>
-                        <span className="text-sm text-slate-500">{currentQ?.score_default || 1} poin</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">{currentQ?.score_default || 1} poin</span>
                         {doubtfulAnswers.has(currentQ?.id) && (
-                            <span className="px-2.5 py-1 bg-amber-100 text-amber-600 text-xs font-semibold rounded-lg">Ragu</span>
+                            <span className="px-2.5 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 text-xs font-semibold rounded-lg">Ragu</span>
                         )}
-                        <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <motion.div className="h-full bg-slate-800 rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.4, ease: 'easeOut' }} />
+                        <div className="w-32 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div className="h-full bg-slate-800 dark:bg-primary rounded-full" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.4, ease: 'easeOut' }} />
                         </div>
                         <span className="text-[11px] text-slate-400">{answeredCount}/{questions.length}</span>
                     </div>
@@ -630,23 +630,23 @@ export function ExamViewer({
                         {mode === 'exam' && (
                             <div className={`px-4 py-2 rounded-lg flex items-center gap-2 font-mono font-bold text-sm transition-all ${
                                 timeLeft < 300
-                                    ? 'bg-red-50 text-red-600 border border-red-200 animate-pulse'
+                                    ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 animate-pulse'
                                     : timeLeft < 600
-                                    ? 'bg-amber-50 text-amber-600 border border-amber-200'
-                                    : 'bg-slate-50 text-slate-700 border border-slate-200'
+                                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
                             }`}>
                                 <Clock size={16} />
                                 <span className="text-base">{formatTime(timeLeft)}</span>
                             </div>
                         )}
                         
-                        <div className="hidden md:flex items-center gap-1 bg-slate-100 rounded-lg p-1.5 shrink-0">
+                        <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 rounded-lg p-1.5 shrink-0">
                             <button onClick={() => setDisplayMode('one-col')}
-                                className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all ${displayMode === 'one-col' ? 'bg-white text-slate-800 shadow' : 'text-slate-400 hover:text-slate-600'}`}>
+                                className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all ${displayMode === 'one-col' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                                 <Rows3 size={16} />
                             </button>
                             <button onClick={() => setDisplayMode('two-col')}
-                                className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all ${displayMode === 'two-col' ? 'bg-white text-slate-800 shadow' : 'text-slate-400 hover:text-slate-600'}`}>
+                                className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all ${displayMode === 'two-col' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                                 <Columns2 size={16} />
                             </button>
                         </div>

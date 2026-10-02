@@ -1,3 +1,4 @@
+import { examDeadline } from '../common/exam-deadline';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
@@ -35,8 +36,6 @@ const VIOLATION_LABELS: Record<string, string> = {
  * habis sementara permintaan submit-nya masih dalam perjalanan.
  */
 const AUTO_FINISH_GRACE_MS = 60 * 1000;
-
-const DEFAULT_DURATION_MINUTES = 60;
 
 /**
  * Pemantauan ujian dan hasilnya untuk staf: daftar pengerjaan, analisis butir,
@@ -234,47 +233,33 @@ export class ExamMonitoringService {
 
         const { data: openRows } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, started_at, personal_end_time')
+            .select('id')
             .eq('exam_id', examId)
             .eq('status', 'in_progress');
 
         const open = (openRows as any[]) || [];
 
         const exam = examRow as { end_time: string | null; duration_minutes: number | null } | null;
-        const windowClose = exam?.end_time ? new Date(exam.end_time).getTime() : null;
-        const now = Date.now();
-
+        if (!exam) return;
         for (const attempt of open) {
-            let deadline: number | null = attempt.personal_end_time
-                ? new Date(attempt.personal_end_time).getTime()
-                : null;
-
-            if (deadline === null && attempt.started_at) {
-                deadline =
-                    new Date(attempt.started_at).getTime() +
-                    (exam?.duration_minutes || DEFAULT_DURATION_MINUTES) * 60 * 1000;
-            }
-
-            if (windowClose !== null && (deadline === null || windowClose < deadline)) {
-                deadline = windowClose;
-            }
-
-            if (deadline === null || deadline + AUTO_FINISH_GRACE_MS > now) continue;
-
             try {
-                // Menangkan status lebih dahulu. Jika submit siswa sudah menang,
-                // monitoring tidak ikut menilai atau menimpa bukti jawabannya.
-                const { data: closed, error: closeError } = await this.db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        status: 'auto_submitted',
-                        finished_at: new Date().toISOString(),
-                    })
-                    .eq('id', attempt.id)
-                    .eq('status', 'in_progress')
-                    .select('id')
-                    .maybeSingle();
-                if (closeError) throw new Error(closeError.message);
+                const closed = await this.db.transaction(async db => {
+                    await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
+                    const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                        .select('id, status, started_at, personal_end_time, metadata')
+                        .eq('id', attempt.id).maybeSingle();
+                    if (readError) throw new Error(readError.message);
+                    if (!current || current.status !== 'in_progress') return false;
+                    const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+                    const now = new Date(clock.now);
+                    const deadline = examDeadline(current, exam).getTime();
+                    if (!Number.isFinite(deadline) || deadline + AUTO_FINISH_GRACE_MS > now.getTime()) return false;
+                    const { data: updated, error } = await db.from('cbt_exam_attempts')
+                        .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                        .eq('id', attempt.id).eq('status', 'in_progress').select('id').maybeSingle();
+                    if (error) throw new Error(error.message);
+                    return Boolean(updated);
+                });
                 if (!closed) continue;
 
                 const graded = await this.grading.gradeAttemptFromSavedAnswers(attempt.id);

@@ -24,7 +24,7 @@
 
 .dark {
   /* Google One AI Dark Mode Palette */
-  --sidebar-bg: #000000;
+  --sidebar-bg: #0d1221;
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
@@ -95,7 +95,7 @@
 }
 
 .dark .sidebar {
-  background: #000000;
+  background: #0d1221;
   border: none !important;
   border-right: 1px solid var(--sidebar-border) !important;
   box-shadow: none !important;
@@ -828,7 +828,7 @@
 .dark .sso-cbt-btn {
   border-color: #3b82f6;
   color: #60a5fa;
-  background: #000000;
+  background: #0d1221;
 }
 
 .dark .sso-cbt-btn .btn-icon {
@@ -963,7 +963,7 @@
 }
 
 .dark .sidebar-search-box {
-  background: var(--sidebar-bg, #000000) !important;
+  background: var(--sidebar-bg, #0d1221) !important;
   border: 1px solid rgba(59, 130, 246, 0.45) !important;
   box-shadow: none !important;
 }
@@ -1003,7 +1003,7 @@
 }
 
 .dark .search-kbd {
-  background: #000000 !important;
+  background: #0d1221 !important;
   color: #94a3b8 !important;
   border-color: rgba(37, 99, 235, 0.3) !important;
 }

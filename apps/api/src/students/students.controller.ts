@@ -174,6 +174,7 @@ export class StudentsController {
             dto.assignmentData,
             dto.attemptId,
             dto.deviceId,
+            dto.answerRevisions,
         );
     }
 }

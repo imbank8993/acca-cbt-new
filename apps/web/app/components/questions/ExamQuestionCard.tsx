@@ -79,8 +79,8 @@ export function ExamQuestionCard({
 
       {displayMode === 'two-col' ? (
         <div className="flex gap-4">
-          <div className="flex-1 bg-white rounded-lg border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-50 shrink-0">
+          <div className="flex-1 bg-white dark:bg-[#111728] rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-50 dark:border-slate-800/80 shrink-0">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soal</p>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
@@ -89,8 +89,8 @@ export function ExamQuestionCard({
                 showOptions={false} questionNumber={questionNumber} examId={examId} userId={userId} />
             </div>
           </div>
-          <div className="flex-1 bg-white rounded-lg border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-50 shrink-0">
+          <div className="flex-1 bg-white dark:bg-[#111728] rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-50 dark:border-slate-800/80 shrink-0">
               <div className="flex items-center gap-2">
                 <Check size={13} className="text-emerald-500" />
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Opsi Jawaban</p>
@@ -104,7 +104,7 @@ export function ExamQuestionCard({
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-[#111728] rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-5">
             <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
               showQuestion={true}

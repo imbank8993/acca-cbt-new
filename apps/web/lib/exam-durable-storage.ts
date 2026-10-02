@@ -20,6 +20,7 @@ const MIN_FREE_BYTES = 5 * 1024 * 1024;
 export interface ExamAnswerSnapshot {
     answers: Record<string, string>;
     doubtfulAnswers: string[];
+    revisions?: Record<string, number>;
 }
 
 export interface ExamStorageHealth {
@@ -94,7 +95,10 @@ function normalizeSnapshot(value: unknown): ExamAnswerSnapshot | null {
     const doubtfulAnswers = Array.isArray(row.doubtfulAnswers)
         ? row.doubtfulAnswers.filter((id): id is string => typeof id === 'string')
         : [];
-    return { answers, doubtfulAnswers };
+    const revisions = row.revisions && typeof row.revisions === 'object'
+        ? Object.fromEntries(Object.entries(row.revisions).filter(([, value]) => Number.isSafeInteger(value) && value >= 0))
+        : undefined;
+    return { answers, doubtfulAnswers, ...(revisions ? { revisions } : {}) };
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -393,6 +397,7 @@ async function idbPut(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<
             attemptId,
             answers: snapshot.answers,
             doubtfulAnswers: snapshot.doubtfulAnswers,
+            revisions: snapshot.revisions,
             updatedAt: new Date().toISOString(),
         } satisfies StoredSnapshot);
         request.onerror = () => reject(request.error);

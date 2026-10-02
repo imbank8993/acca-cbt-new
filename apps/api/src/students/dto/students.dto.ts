@@ -9,6 +9,9 @@ import {
     IsString,
     Length,
     IsUUID,
+    IsInt,
+    Min,
+    Max,
     ValidateNested,
 } from 'class-validator';
 
@@ -32,6 +35,13 @@ export class StartAttemptDto {
 }
 
 export class AnswerDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    @Max(Number.MAX_SAFE_INTEGER)
+    revision?: number;
+
     @ApiProperty()
     @IsUUID('4', { message: 'questionId tidak valid' })
     questionId!: string;
@@ -53,6 +63,13 @@ export class AnswerDto {
 }
 
 export class SaveAnswerDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsInt()
+    @Min(0)
+    @Max(Number.MAX_SAFE_INTEGER)
+    revision?: number;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
@@ -92,6 +109,11 @@ export class SyncAnswersDto {
 export class SyncLateAnswersDto extends SyncAnswersDto {}
 
 export class SubmitExamDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsObject()
+    answerRevisions?: Record<string, number>;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()

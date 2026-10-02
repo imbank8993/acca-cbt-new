@@ -221,8 +221,8 @@ export const InteractiveMatching = ({
                                 return allCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-rose-400 bg-rose-50 text-rose-800";
                               })()
                             : isConnected
-                              ? "border-indigo-300 bg-indigo-50 text-indigo-800"
-                              : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30 text-slate-700"
+                              ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200"
+                              : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#1a233a] hover:border-indigo-300 dark:hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 text-slate-700 dark:text-slate-200"
                         }
                       `}
                       style={{ wordBreak: 'normal' }}
@@ -240,7 +240,7 @@ export const InteractiveMatching = ({
                           ? "bg-amber-400 border-amber-400 shadow-sm shadow-amber-200"
                           : isSelected
                             ? "bg-amber-300 border-amber-400 animate-pulse"
-                            : "bg-white border-slate-300"
+                            : "bg-white dark:bg-[#24324f] border-slate-300 dark:border-slate-600"
                       }`}
                     />
                   </div>
@@ -271,7 +271,7 @@ export const InteractiveMatching = ({
                           ? "bg-amber-400 border-amber-400 shadow-sm shadow-amber-200"
                           : selectedLeft
                             ? "bg-indigo-200 border-indigo-400 animate-pulse"
-                            : "bg-white border-slate-300"
+                            : "bg-white dark:bg-[#24324f] border-slate-300 dark:border-slate-600"
                       }`}
                     />
 
@@ -282,10 +282,10 @@ export const InteractiveMatching = ({
                         flex-1 min-h-[40px] sm:min-h-[48px] flex items-center px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg border-2 text-left text-[11px] sm:text-sm
                         font-medium transition-all duration-200 leading-snug
                         ${isLinked
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                          ? "border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200"
                           : selectedLeft
-                            ? "border-indigo-200 bg-indigo-50/40 hover:border-indigo-400 hover:bg-indigo-50 text-slate-700"
-                            : "border-slate-200 bg-white text-slate-700"
+                            ? "border-indigo-200 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 hover:border-indigo-400 hover:bg-indigo-50 text-slate-700 dark:text-slate-200"
+                            : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#1a233a] text-slate-700 dark:text-slate-200"
                         }
                       `}
                       style={{ wordBreak: 'normal' }}

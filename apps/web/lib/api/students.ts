@@ -19,6 +19,7 @@ import type { Question } from '@/app/types';
  */
 
 export interface AnswerPayload {
+    revision?: number;
     questionId: string;
     selected_option_id?: string;
     essay_answer?: string;
@@ -192,6 +193,7 @@ export interface StudentExamAttempt {
 }
 
 export interface StudentSavedAnswer {
+    metadata?: { answer_revision?: number } | null;
     question_id: string;
     selected_option_id?: string | null;
     essay_answer?: string | null;
@@ -270,7 +272,7 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
 export function saveAnswerAction(
     attemptId: string,
     questionId: string,
-    data: { selected_option_id?: string; essay_answer?: string; is_doubtful?: boolean },
+    data: { selected_option_id?: string; essay_answer?: string; is_doubtful?: boolean; revision?: number },
 ) {
     return apiSend<{ attemptId: string }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
@@ -318,10 +320,11 @@ export async function submitExamAction(
         textSubmission?: string;
     },
     attemptId?: string,
+    answerRevisions?: Record<string, number>,
 ) {
-    const res = await apiSend<{ score: number; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
+    const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-        { answers: studentAnswers, assignmentData, attemptId, deviceId: getDeviceId() },
+        { answers: studentAnswers, answerRevisions, assignmentData, attemptId, deviceId: getDeviceId() },
         'POST',
         { timeoutMs: 30_000 },
     );
@@ -332,6 +335,7 @@ export async function submitExamAction(
               score: res.score,
               alreadySubmitted: res.alreadySubmitted ?? false,
               savedAnswersOnly: res.savedAnswersOnly ?? false,
+              gradingPending: res.gradingPending ?? false,
           }
         : { success: false as const, error: res.error };
 }

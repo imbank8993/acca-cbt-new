@@ -27,6 +27,13 @@ interface SnapshotRow {
   question_snapshot: FrozenExamQuestion;
 }
 
+/** Read the same question version inside an existing answer transaction. */
+export async function readExamQuestionVersion(db: DbSession, examId: string): Promise<FrozenExamQuestion[]> {
+  const snapshots = await readSnapshots(db, examId);
+  if (snapshots.length) return snapshots.map(row => row.question_snapshot);
+  return loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT) as Promise<FrozenExamQuestion[]>;
+}
+
 async function readSnapshots(db: DbSession, examId: string): Promise<SnapshotRow[]> {
   const { data, error } = await db
     .from('cbt_exam_question_snapshots')
