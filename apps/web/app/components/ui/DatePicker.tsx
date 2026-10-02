@@ -266,7 +266,15 @@ export function DatePicker({
                 type="button"
                 id={id}
                 className={`dpk-trigger${disabled ? ' dpk-disabled' : ''}${open ? ' dpk-open' : ''}`}
-                onClick={() => !disabled && setOpen(o => !o)}
+                onClick={() => {
+                    if (disabled) return;
+                    if (!open) {
+                        updateCoords();
+                        setOpen(true);
+                    } else {
+                        setOpen(false);
+                    }
+                }}
                 disabled={disabled}
                 style={style}
                 title={title}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertCircle,
     FileText,
@@ -31,7 +31,7 @@ import type {
 } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
-import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, utcToSchoolLocalDateTime } from '@/lib/school-time';
+import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, utcToSchoolLocalDateTime, addMinutesToLocalDateTime } from '@/lib/school-time';
 
 export type ExamType = 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya';
 
@@ -132,6 +132,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const initializedModalRef = useRef<string | null>(null);
 
     // Sync external classStudents prop if available
     useEffect(() => {
@@ -144,7 +145,17 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
 
     // Inisialisasi data form saat modal dibuka
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            initializedModalRef.current = null;
+            return;
+        }
+
+        const modalKey = exam ? `edit-${exam.id}` : 'new';
+        if (initializedModalRef.current === modalKey) {
+            return;
+        }
+        initializedModalRef.current = modalKey;
+
         let isMounted = true;
         let initializeId: number | undefined;
         void getSchoolTimeZone().then((zone) => {
@@ -310,6 +321,30 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         }
         return count;
     }, [formData.selectedClassIds, formData.classAssignments, localClassStudents, classes]);
+
+    const handleStartTimeChange = (val: string) => {
+        setFormData((prev) => {
+            const next = { ...prev, startTime: val };
+            if (val && (!prev.endTime || prev.endTime <= val)) {
+                const dur = typeof prev.duration === 'number' ? prev.duration : (parseInt(String(prev.duration), 10) || 60);
+                next.endTime = addMinutesToLocalDateTime(val, Math.max(5, dur));
+            }
+            return next;
+        });
+    };
+
+    const handleDurationChange = (val: string | number) => {
+        setFormData((prev) => {
+            const next = { ...prev, duration: val };
+            const dur = typeof val === 'number' ? val : parseInt(String(val), 10);
+            if (!isNaN(dur) && dur > 0 && prev.startTime) {
+                if (!prev.endTime || prev.endTime <= prev.startTime) {
+                    next.endTime = addMinutesToLocalDateTime(prev.startTime, dur);
+                }
+            }
+            return next;
+        });
+    };
 
     const handleSubmitExam = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -590,7 +625,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     min="5"
                                     max="300"
                                     value={formData.duration}
-                                    onChange={(e) => setFormData((prev) => ({ ...prev, duration: e.target.value }))}
+                                    onChange={(e) => handleDurationChange(e.target.value)}
                                 />
                             </ModalField>
                         </div>
@@ -615,31 +650,61 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             <span className="text-xs font-semibold text-slate-700">Berlaku Terus Tanpa Batas Waktu</span>
                         </label>
                         {!formData.isForever && (
-                            <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 mt-1`}>
-                                {formData.examType !== 'assignment' && (
-                                    <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
+                            <>
+                                <div className={`grid ${formData.examType === 'assignment' ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 mt-1`}>
+                                    {formData.examType !== 'assignment' && (
+                                        <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
+                                            <DateTimePicker
+                                                value={formData.startTime}
+                                                onChange={handleStartTimeChange}
+                                                label="Waktu Mulai"
+                                                required={!formData.isForever}
+                                                defaultTime="08:00"
+                                                timeZone={timeZone}
+                                            />
+                                        </ModalField>
+                                    )}
+                                    <ModalField
+                                        label={`${formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'} (${getSchoolTimeZoneLabel(timeZone)})`}
+                                        required={!formData.isForever}
+                                    >
                                         <DateTimePicker
-                                            value={formData.startTime}
-                                            onChange={(val) => setFormData((prev) => ({ ...prev, startTime: val }))}
-                                            label="Waktu Mulai"
+                                            value={formData.endTime}
+                                            onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
+                                            label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}
                                             required={!formData.isForever}
+                                            minDate={formData.startTime ? formData.startTime.slice(0, 10) : undefined}
+                                            defaultTime={
+                                                formData.startTime
+                                                    ? addMinutesToLocalDateTime(formData.startTime, Number(formData.duration) || 60).slice(11, 16) || '09:00'
+                                                    : '09:00'
+                                            }
                                             timeZone={timeZone}
                                         />
                                     </ModalField>
+                                </div>
+                                {formData.examType !== 'assignment' && formData.startTime && formData.endTime && formData.startTime >= formData.endTime && (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 mt-1">
+                                        <span className="flex items-center gap-1.5 font-medium">
+                                            <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                                            Waktu Selesai harus lebih lambat dari Waktu Mulai.
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-white px-2.5 py-1 rounded border border-blue-200 shadow-xs cursor-pointer w-fit"
+                                            onClick={() => {
+                                                const dur = typeof formData.duration === 'number' ? formData.duration : (parseInt(String(formData.duration), 10) || 60);
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    endTime: addMinutesToLocalDateTime(prev.startTime, Math.max(5, dur)),
+                                                }));
+                                            }}
+                                        >
+                                            Sesuaikan Otomatis (+{formData.duration || 60} Menit)
+                                        </button>
+                                    </div>
                                 )}
-                                <ModalField
-                                    label={`${formData.examType === 'assignment' ? 'Batas Waktu Pengumpulan' : 'Waktu Selesai'} (${getSchoolTimeZoneLabel(timeZone)})`}
-                                    required={!formData.isForever}
-                                >
-                                    <DateTimePicker
-                                        value={formData.endTime}
-                                        onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
-                                        label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}
-                                        required={!formData.isForever}
-                                        timeZone={timeZone}
-                                    />
-                                </ModalField>
-                            </div>
+                            </>
                         )}
                     </div>
 

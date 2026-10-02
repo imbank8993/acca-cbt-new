@@ -48,7 +48,7 @@ X,
 Zap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import React,{ useCallback,useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
 type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
@@ -309,7 +309,7 @@ const ExamsPage = () => {
         return `${formatDateTime(exam.start_time)} - ${formatDateTime(exam.end_time)}`;
     };
 
-    const publishedBanks = qBanks.filter(b => b.is_published);
+    const publishedBanks = useMemo(() => qBanks.filter((b) => b.is_published), [qBanks]);
 
 
     // ─── Folder / Exam Config helpers ─────────────────────────

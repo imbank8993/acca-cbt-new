@@ -14,6 +14,7 @@ export interface DateTimePickerProps {
     required?: boolean;
     minDate?: string;
     maxDate?: string;
+    defaultTime?: string;
     timeZone?: string;
     className?: string;
 }
@@ -27,6 +28,7 @@ export function DateTimePicker({
     required = false,
     minDate,
     maxDate,
+    defaultTime = '08:00',
     timeZone = DEFAULT_SCHOOL_TIME_ZONE,
     className = '',
 }: DateTimePickerProps) {
@@ -52,12 +54,19 @@ export function DateTimePicker({
             onChange('');
             return;
         }
-        const time = timePart || '08:00';
+        const time = timePart || defaultTime || '08:00';
         onChange(`${newDate}T${time}`);
     };
 
     const handleTimeChange = (newTime: string) => {
-        if (!newTime) return;
+        if (!newTime) {
+            if (datePart) {
+                onChange(`${datePart}T00:00`);
+            } else {
+                onChange('');
+            }
+            return;
+        }
         const date = datePart || utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(0, 10);
         onChange(`${date}T${newTime}`);
     };
@@ -75,12 +84,13 @@ export function DateTimePicker({
                     max={maxDate}
                 />
             </div>
-            <div className="w-[124px] shrink-0">
+            <div className="w-[124px] sm:w-[130px] shrink-0">
                 <TimeField
                     value={timePart}
                     onChange={handleTimeChange}
                     label={label}
                     disabled={disabled}
+                    timeZone={timeZone}
                 />
             </div>
         </div>
