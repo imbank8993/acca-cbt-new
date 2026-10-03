@@ -17,7 +17,7 @@ function tables() {
             id: 'attempt', exam_id: 'exam', user_id: 'student', status: 'auto_submitted',
             personal_end_time: '2026-09-19T23:55:00Z', finished_at: '2026-09-20T00:00:00Z',
             warning_count: 2, tab_switch_count: 1, device_fingerprint: 'old-device',
-            metadata: { preserved: true },
+            metadata: { preserved: true, submit_intent_at: '2026-09-19T23:50:00Z' },
         }],
         cbt_answers: [
             { id: 'answer-1', attempt_id: 'attempt', question_id: 'q1' },
@@ -41,17 +41,19 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
         proctor,
         'attempt',
         'Jaringan siswa terputus sampai melewati batas waktu.',
+        25,
     );
 
     assert.equal(result.previousStatus, 'auto_submitted');
     assert.equal(result.serverAnswerCount, 2);
-    assert.equal(result.recoveryUntil, '2026-09-20T00:15:00.000Z');
+    assert.equal(result.recoveryUntil, '2026-09-20T00:25:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
     assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, null);
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.preserved, true);
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_at, undefined);
     assert.equal(
         db.tables.cbt_exam_attempts[0].metadata.proctor_recovery_until,
-        '2026-09-20T00:15:00.000Z',
+        '2026-09-20T00:25:00.000Z',
     );
 
     const audit = db.tables.cbt_attempt_security_logs[0];
@@ -60,12 +62,13 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
     assert.match(audit.metadata.reason, /jaringan siswa/i);
     assert.equal(audit.metadata.server_answer_count, 2);
     assert.equal(audit.metadata.reset_at, '2026-09-20T00:00:00.000Z');
+    assert.equal(audit.metadata.recovery_duration_minutes, 25);
 });
 
 test('ANS-03: alasan kosong atau terlalu pendek ditolak sebelum perubahan data', async () => {
     const db = fixtureDb(tables());
     await assert.rejects(
-        service(db).resetAttempt(proctor, 'attempt', '   '),
+        service(db).resetAttempt(proctor, 'attempt', '   ', 15),
         error => error.getStatus?.() === 400 && /alasan pemulihan/i.test(error.message),
     );
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
@@ -75,7 +78,7 @@ test('ANS-03: alasan kosong atau terlalu pendek ditolak sebelum perubahan data',
 test('ANS-03: kegagalan menulis audit membatalkan reset secara atomik', async () => {
     const db = fixtureDb(tables(), ['cbt_attempt_security_logs']);
     await assert.rejects(
-        service(db).resetAttempt(proctor, 'attempt', 'Gangguan jaringan terverifikasi.'),
+        service(db).resetAttempt(proctor, 'attempt', 'Gangguan jaringan terverifikasi.', 15),
         error => error.getStatus?.() === 400 && /jejak audit/i.test(error.message),
     );
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
@@ -95,6 +98,7 @@ test('ANS-03: layar siswa menampilkan jumlah lokal/server dan semua reset mengir
     assert.match(examPage, /Lokal:\s*\{recoverySummary\.localCount\}/);
     assert.match(examPage, /Server:\s*\{recoverySummary\.serverCount\}/);
     assert.match(examPage, /jangan hapus data browser atau berpindah perangkat/i);
-    assert.match(proctoringClient, /\{ reason \}/);
+    assert.match(proctoringClient, /\{ reason, durationMinutes \}/);
+    assert.match(proctoringClient, /isRecovery \? '15' : '60'/);
     assert.match(proctoringClient, /Alasan pemulihan minimal 5 karakter/);
 });

@@ -2,7 +2,7 @@
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
-import { promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
+import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { securityViolationLabel } from '@/lib/security-violations';
@@ -71,14 +71,16 @@ export default function AttemptAnalyticsPage() {
     const handleResetAttempt = async () => {
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
+        const durationMinutes = promptRecoveryDuration(studentName, 'pemulihan');
+        if (!durationMinutes) return;
         if (!confirm(
-            `Pulihkan ujian siswa "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
+            `Pulihkan ujian siswa "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
         )) return;
 
         setResetting(true);
-        const res = await resetExamAttempt(attemptId, reason);
+        const res = await resetExamAttempt(attemptId, reason, durationMinutes);
         if (res.success) {
-            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan.`);
+            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan. Tenggat: ${new Date(res.recoveryUntil).toLocaleString('id-ID')}.`);
             router.push('/dashboard/admin/monitoring');
         } else {
             alert('Gagal memulihkan: ' + res.error);

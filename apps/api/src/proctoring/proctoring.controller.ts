@@ -67,6 +67,18 @@ class ResetAttemptDto {
     @IsString()
     @Length(5, 500)
     reason!: string;
+
+    @ApiProperty({
+        required: true,
+        example: 15,
+        minimum: 1,
+        maximum: 1440,
+        description: 'Durasi pemulihan dalam menit, dihitung sejak pengawas mengaktifkan pemulihan.',
+    })
+    @IsInt()
+    @Min(1)
+    @Max(1440)
+    durationMinutes!: number;
 }
 
 class MakeupAttemptDto extends ResetAttemptDto {
@@ -127,13 +139,13 @@ export class ProctoringController {
 
     @Post('attempts/:attemptId/reset')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Kembalikan pengerjaan yang sudah tertutup ke berjalan' })
+    @ApiOperation({ summary: 'Pulihkan pengerjaan tertutup dengan durasi yang ditentukan pengawas' })
     async reset(
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: ResetAttemptDto,
     ) {
-        return this.proctoring.resetAttempt(user, attemptId, dto.reason);
+        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes);
     }
 
     @Post('attempts/:attemptId/makeup')

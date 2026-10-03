@@ -20,6 +20,7 @@ import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
+import { useToast } from '@/app/components/ui/Toast';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 Activity,
@@ -49,6 +50,7 @@ export type { ItemAnalysis };
 function MonitoringContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const toast = useToast();
     const initialExamId = searchParams.get('exam') || '';
 
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
@@ -261,27 +263,30 @@ function MonitoringContent() {
         if (!modeInput) return;
         const mode = modeInput.trim().toUpperCase();
         if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
-            alert('Pilihan harus SUSULAN atau PULIHKAN.');
+            toast.warning('Pilihan tindakan tidak valid', 'Pilih SUSULAN atau PULIHKAN.');
             return;
         }
 
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
-        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
-        if (mode === 'SUSULAN' && !durationMinutes) return;
+        const durationMinutes = promptRecoveryDuration(
+            studentName,
+            mode === 'SUSULAN' ? 'susulan' : 'pemulihan',
+        );
+        if (!durationMinutes) return;
 
         const confirmed = window.confirm(
             mode === 'SUSULAN'
                 ? `Aktifkan ujian susulan untuk "${studentName}" selama ${durationMinutes} menit?\n\nSEMUA JAWABAN DAN NILAI LAMA SISWA INI AKAN DIHAPUS. Hasil baru tetap masuk ke rekap ujian yang sama.\n\nAlasan: ${reason}`
-                : `Pulihkan ujian "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
+                : `Pulihkan ujian "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
         );
         if (!confirmed) return;
 
         setResettingAttemptId(attemptId);
         try {
             const result = mode === 'SUSULAN'
-                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
-                : await resetExamAttempt(attemptId, reason);
+                ? await startMakeupExam(attemptId, reason, durationMinutes)
+                : await resetExamAttempt(attemptId, reason, durationMinutes);
             if (result.success) {
                 const deadline = result.recoveryUntil
                     ? ` Tenggat: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
@@ -289,13 +294,18 @@ function MonitoringContent() {
                 const detail = mode === 'SUSULAN'
                     ? ` ${'deletedAnswerCount' in result ? result.deletedAnswerCount : 0} jawaban lama dihapus.`
                     : ` ${'serverAnswerCount' in result ? result.serverAnswerCount : 0} jawaban lama dipertahankan.`;
-                alert(`${mode === 'SUSULAN' ? 'Ujian susulan' : 'Pemulihan'} untuk "${studentName}" berhasil.${detail}${deadline}`);
+                toast.toast({
+                    type: 'success',
+                    title: `${mode === 'SUSULAN' ? 'Ujian susulan' : 'Pemulihan'} berhasil`,
+                    message: `${studentName}.${detail}${deadline}`,
+                    duration: 8000,
+                });
                 if (selectedExamId) loadExamData(selectedExamId);
             } else {
-                alert(`Tindakan gagal: ${result.error}`);
+                toast.error('Tindakan gagal', result.error);
             }
         } catch {
-            alert('Terjadi kesalahan saat mengatur ulang ujian.');
+            toast.error('Pemulihan gagal', 'Terjadi kesalahan saat mengatur ulang ujian.');
         }
         setResettingAttemptId(null);
     };
@@ -488,9 +498,9 @@ function MonitoringContent() {
                             title="Refresh data monitoring"
                             onClick={handleRefresh}
                             disabled={isRefreshing || !selectedExamId}
-                            className="shrink-0 rounded-lg bg-[#3083FF] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2672e8] disabled:cursor-not-allowed disabled:opacity-40">
+                            className="inline-flex h-[42px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#3083FF] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2672e8] disabled:cursor-not-allowed disabled:opacity-40">
                             <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
-                            <span className="ml-2 hidden sm:inline">Refresh</span>
+                            <span className="hidden sm:inline">Refresh</span>
                         </button>
                     </div>
                 </div>

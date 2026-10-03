@@ -52,14 +52,14 @@ export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncH
 export interface AttemptRecoveryResult {
     attemptId: string;
     previousStatus: string;
-    recoveryUntil: string | null;
+    recoveryUntil: string;
     serverAnswerCount: number;
 }
 
-export function resetExamAttempt(attemptId: string, reason: string) {
+export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number) {
     return apiSend<AttemptRecoveryResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/reset`,
-        { reason },
+        { reason, durationMinutes },
     );
 }
 
@@ -104,11 +104,12 @@ export function promptRecoveryReason(studentName: string): string | null {
     return reason;
 }
 
-export function promptRecoveryDuration(studentName: string): number | null {
+export function promptRecoveryDuration(studentName: string, purpose: 'susulan' | 'pemulihan' = 'susulan'): number | null {
+    const isRecovery = purpose === 'pemulihan';
     const value = window.prompt(
-        `Berapa menit waktu ujian susulan untuk ${studentName}?\n\n` +
-        'Waktu dihitung sejak ujian susulan diaktifkan. Masukkan 1–1440 menit.',
-        '60',
+        `Berapa menit waktu ${isRecovery ? 'pemulihan' : 'ujian susulan'} untuk ${studentName}?\n\n` +
+        `Tenggat dihitung sejak ${isRecovery ? 'pemulihan' : 'ujian susulan'} diaktifkan. Masukkan 1–1440 menit.`,
+        isRecovery ? '15' : '60',
     );
     if (value === null) return null;
     const duration = Number(value);

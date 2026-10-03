@@ -41,8 +41,6 @@ export const STUDENT_SECURITY_EVENTS = [
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
 
-const DEFAULT_RECOVERY_MINUTES = 15;
-
 @Injectable()
 export class ProctoringService {
     private readonly logger = new Logger(ProctoringService.name);
@@ -262,10 +260,13 @@ export class ProctoringService {
      * (salah pencet "Selesai", atau guru meminta perbaikan). Attempt yang masih
      * berjalan tidak perlu — dan tidak boleh — di-reset.
      */
-    async resetAttempt(user: AuthUser, attemptId: string, reason: string) {
+    async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number) {
         const normalizedReason = reason.trim();
         if (normalizedReason.length < 5 || normalizedReason.length > 500) {
             throw new BadRequestException('Alasan pemulihan wajib diisi (5–500 karakter).');
+        }
+        if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
+            throw new BadRequestException('Waktu pemulihan harus 1–1440 menit.');
         }
 
         const { data: attempt } = await this.db
@@ -336,24 +337,19 @@ export class ProctoringService {
                 device_fingerprint: null,
             };
 
-            const expired =
-                !previousDeadline || new Date(previousDeadline).getTime() <= now.getTime();
-            let recoveryUntil: string | null = null;
+            const recoveryUntil = new Date(
+                now.getTime() + durationMinutes * 60 * 1000,
+            ).toISOString();
             const metadataWithoutOldScore = { ...previousMetadata };
             delete metadataWithoutOldScore.base_score;
             delete metadataWithoutOldScore.dimension_scores;
             delete metadataWithoutOldScore.sync_health;
-            updates.metadata = metadataWithoutOldScore;
-            if (expired) {
-                recoveryUntil = new Date(
-                    now.getTime() + DEFAULT_RECOVERY_MINUTES * 60 * 1000,
-                ).toISOString();
-                updates.personal_end_time = recoveryUntil;
-                updates.metadata = {
-                    ...metadataWithoutOldScore,
-                    proctor_recovery_until: recoveryUntil,
-                };
-            }
+            delete metadataWithoutOldScore.submit_intent_at;
+            updates.personal_end_time = recoveryUntil;
+            updates.metadata = {
+                ...metadataWithoutOldScore,
+                proctor_recovery_until: recoveryUntil,
+            };
 
             const { error: updateError } = await db
                 .from('cbt_exam_attempts')
@@ -374,6 +370,7 @@ export class ProctoringService {
                     previous_status: previousStatus,
                     previous_deadline: previousDeadline,
                     recovery_until: recoveryUntil,
+                    recovery_duration_minutes: durationMinutes,
                     server_answer_count: serverAnswerCount || 0,
                 },
             });
@@ -479,6 +476,7 @@ export class ProctoringService {
             delete previousMetadata.grading_retry_error;
             delete previousMetadata.grading_recovered_at;
             delete previousMetadata.sync_health;
+            delete previousMetadata.submit_intent_at;
 
             const { count: deletedAnswerCount, error: countError } = await db
                 .from('cbt_answers')

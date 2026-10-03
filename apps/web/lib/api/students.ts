@@ -293,6 +293,15 @@ export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPa
     );
 }
 
+export async function beginSubmitAction(attemptId: string) {
+    return apiSend<{ attemptId: string; startedAt: string }>(
+        `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
+        { deviceId: getDeviceId() },
+        'POST',
+        { timeoutMs: 15_000 },
+    );
+}
+
 export async function syncLateAnswersAction(
     attemptId: string,
     answers: AnswerPayload[],
@@ -322,9 +331,16 @@ export async function submitExamAction(
     attemptId?: string,
     answerRevisions?: Record<string, number>,
 ) {
+    const finalAnswers = { ...studentAnswers };
+    const finalRevisions = answerRevisions ? { ...answerRevisions } : undefined;
+    if (attemptId) {
+        const intent = await beginSubmitAction(attemptId);
+        if (!intent.success) return { success: false as const, error: intent.error };
+    }
+
     const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-        { answers: studentAnswers, answerRevisions, assignmentData, attemptId, deviceId: getDeviceId() },
+        { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId() },
         'POST',
         { timeoutMs: 30_000 },
     );

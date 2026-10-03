@@ -113,19 +113,22 @@ function MonitoringContent() {
         }
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
-        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
-        if (mode === 'SUSULAN' && !durationMinutes) return;
+        const durationMinutes = promptRecoveryDuration(
+            studentName,
+            mode === 'SUSULAN' ? 'susulan' : 'pemulihan',
+        );
+        if (!durationMinutes) return;
         if (!confirm(
             mode === 'SUSULAN'
                 ? `Mulai ujian susulan ${studentName} selama ${durationMinutes} menit? Semua jawaban dan nilai lama akan dihapus.`
-                : `Pulihkan ujian ${studentName} dengan jawaban lama tetap tersimpan?`,
+                : `Pulihkan ujian ${studentName} selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?`,
         )) return;
 
         setResettingId(attemptId);
         try {
             const res = mode === 'SUSULAN'
-                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
-                : await resetExamAttempt(attemptId, reason);
+                ? await startMakeupExam(attemptId, reason, durationMinutes)
+                : await resetExamAttempt(attemptId, reason, durationMinutes);
             if (res.success) {
                 alert(mode === 'SUSULAN'
                     ? `${'deletedAnswerCount' in res ? res.deletedAnswerCount : 0} jawaban lama dihapus. Siswa dapat mengerjakan dari awal.`

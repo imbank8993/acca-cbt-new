@@ -60,6 +60,10 @@ test('monitoring honors recovery after global close and uses database time', asy
     await monitor.finalizeExpired('exam');
     assert.equal(attempt.status, 'in_progress');
     db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T00:11:01Z') }] : [];
+    attempt.metadata.submit_intent_at = '2026-09-20T00:10:00Z';
+    await monitor.finalizeExpired('exam');
+    assert.equal(attempt.status, 'in_progress');
+    delete attempt.metadata.submit_intent_at;
     await monitor.finalizeExpired('exam');
     assert.equal(attempt.status, 'auto_submitted');
 });
@@ -80,6 +84,43 @@ test('scoring outage leaves a durable submitted answer and an idempotent pending
     const grader = new GradingService(db, {}, scoring);
     assert.deepEqual(await grader.retryPendingAutoSubmissions('exam'), { recovered: 1, failed: 0 });
     assert.equal(db.tables.cbt_exam_attempts[0].total_score, 0);
+});
+
+test('submit intent recorded before deadline keeps the full snapshot receivable after deadline', async () => {
+    const db = fixture();
+    const attempts = service(db);
+    const intent = await attempts.beginSubmit(user, 'attempt', device);
+    assert.equal(intent.startedAt, '2026-09-20T00:00:00.000Z');
+
+    db.raw = async sql => /clock_timestamp/.test(sql)
+        ? [{ now: new Date('2026-09-20T01:01:00Z') }]
+        : [{ id: 'locked' }];
+    assert.deepEqual(
+        await attempts.beginSubmit(user, 'attempt', device),
+        { attemptId: 'attempt', startedAt: '2026-09-20T00:00:00.000Z' },
+    );
+    await attempts.autoFinish('attempt', new Date('2026-09-20T01:01:00Z'));
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
+
+    const result = await attempts.submit(
+        user, 'exam', { q: 'final answer' }, undefined, 'attempt', device, { q: 1 },
+    );
+    assert.equal(result.savedAnswersOnly, false);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'final answer');
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+});
+
+test('submit intent cannot be created for the first time after the deadline', async () => {
+    const db = fixture();
+    db.raw = async sql => /clock_timestamp/.test(sql)
+        ? [{ now: new Date('2026-09-20T01:00:01Z') }]
+        : [{ id: 'locked' }];
+
+    await assert.rejects(
+        service(db).beginSubmit(user, 'attempt', device),
+        error => error.getStatus?.() === 403 && error.getResponse?.().code === 'EXAM_TIME_EXPIRED',
+    );
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_at, undefined);
 });
 
 test('answers and closed status are committed while scoring is still pending', async () => {

@@ -692,9 +692,9 @@ export default function ExamPage() {
         } : undefined;
 
         try {
-            // `submitExamAction` membatalkan request setelah 30 detik. Submit
-            // selalu membaca ref terbaru agar jawaban yang berimpit dengan
-            // timer nol atau event jaringan tidak tertinggal satu render.
+            // Submit records its start with the server before sending this
+            // complete local snapshot, so an upload already in progress can
+            // finish even if the recovery deadline passes meanwhile.
             const result = await submitExamAction(
                 examId,
                 answersRef.current,
@@ -937,7 +937,9 @@ export default function ExamPage() {
                 if (!await revalidateOfflineSession()) return;
                 setIsOffline(false);
                 if (!attemptRef.current?.id) return;
-                const answersSynced = await syncPendingAnswers();
+                const answersSynced = waitingForSyncAndSubmit
+                    ? true
+                    : await syncPendingAnswers();
                 const securityResult = await flushSecurityEvents();
                 if (securityResult?.terminated) return;
                 if (terminationReasonRef.current) {
@@ -988,8 +990,7 @@ export default function ExamPage() {
         const retry = async () => {
             if (!navigator.onLine || submitInFlightRef.current) return;
             if (!await revalidateOfflineSession()) return;
-            const synced = await syncPendingAnswers();
-            if (active && synced && !submitInFlightRef.current) {
+            if (active && !submitInFlightRef.current) {
                 await handleSubmitExam(undefined, { isAuto: true });
             }
         };
@@ -999,7 +1000,7 @@ export default function ExamPage() {
             active = false;
             clearInterval(interval);
         };
-    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, syncPendingAnswers, handleSubmitExam, revalidateOfflineSession]);
+    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, handleSubmitExam, revalidateOfflineSession]);
 
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {

@@ -185,21 +185,24 @@ function MonitoringContent() {
 
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
-        const durationMinutes = mode === 'SUSULAN' ? promptRecoveryDuration(studentName) : null;
-        if (mode === 'SUSULAN' && !durationMinutes) return;
+        const durationMinutes = promptRecoveryDuration(
+            studentName,
+            mode === 'SUSULAN' ? 'susulan' : 'pemulihan',
+        );
+        if (!durationMinutes) return;
 
         const confirmed = window.confirm(
             mode === 'SUSULAN'
                 ? `Aktifkan ujian susulan untuk "${studentName}" selama ${durationMinutes} menit?\n\nSEMUA JAWABAN DAN NILAI LAMA SISWA INI AKAN DIHAPUS. Hasil baru tetap masuk ke rekap ujian yang sama.\n\nAlasan: ${reason}`
-                : `Pulihkan ujian "${studentName}" dengan jawaban lama tetap tersimpan?\n\nAlasan: ${reason}`,
+                : `Pulihkan ujian "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
         );
         if (!confirmed) return;
 
         setResettingAttemptId(attemptId);
         try {
             const result = mode === 'SUSULAN'
-                ? await startMakeupExam(attemptId, reason, durationMinutes as number)
-                : await resetExamAttempt(attemptId, reason);
+                ? await startMakeupExam(attemptId, reason, durationMinutes)
+                : await resetExamAttempt(attemptId, reason, durationMinutes);
             if (result.success) {
                 const deadline = result.recoveryUntil
                     ? ` Tenggat: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`

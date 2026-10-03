@@ -58,7 +58,7 @@ test('LIF-01: hasil auto-finish lama tidak menimpa attempt yang sudah di-reset',
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
 
-    await proctoringService(db, {}).resetAttempt(proctor, 'attempt-1', 'Pemulihan setelah koneksi terputus');
+    await proctoringService(db, {}).resetAttempt(proctor, 'attempt-1', 'Pemulihan setelah koneksi terputus', 15);
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
     assert.equal(db.tables.cbt_exam_attempts[0].total_score, null);
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.base_score, undefined);
@@ -80,7 +80,7 @@ test('LIF-01: terminasi dan audit atomik mendahului reset, grading lama tidak bo
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
     assert.equal(db.tables.cbt_attempt_security_logs[0].event_type, 'FORCE_TERMINATED');
 
-    await proctoring.resetAttempt(proctor, 'attempt-1', 'Izinkan siswa melanjutkan ujian');
+    await proctoring.resetAttempt(proctor, 'attempt-1', 'Izinkan siswa melanjutkan ujian', 15);
     gate.resolve({ finalScore100: 42, hasEssay: false });
     await terminating;
 

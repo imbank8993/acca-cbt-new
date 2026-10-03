@@ -117,12 +117,28 @@ test('SUSULAN-75: pemulihan biasa mempertahankan jawaban lama', async () => {
         staff,
         'attempt-75',
         'Lanjutkan jawaban setelah gangguan jaringan.',
+        30,
     );
 
     assert.equal(db.tables.cbt_answers.length, 2);
     assert.equal(result.serverAnswerCount, 2);
+    assert.equal(result.recoveryUntil, '2026-09-30T02:30:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
+    assert.equal(db.tables.cbt_exam_attempts[0].personal_end_time, '2026-09-30T02:30:00.000Z');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.proctor_recovery_until, '2026-09-30T02:30:00.000Z');
+    assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.recovery_duration_minutes, 30);
     assert.equal(db.tables.cbt_attempt_security_logs[0].event_type, 'RESET_BY_PROCTOR');
+});
+
+test('SUSULAN-75: durasi pemulihan di luar batas ditolak tanpa mengubah attempt', async () => {
+    const { db, service } = makeService();
+
+    await assert.rejects(
+        service.resetAttempt(staff, 'attempt-75', 'Durasi pemulihan tidak sah.', 1441),
+        /1–1440 menit/,
+    );
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+    assert.equal(db.tables.cbt_answers.length, 2);
 });
 
 test('SUSULAN-75: durasi tidak valid ditolak sebelum data diubah', async () => {

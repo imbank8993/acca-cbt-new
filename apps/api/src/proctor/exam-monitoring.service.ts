@@ -305,6 +305,8 @@ export class ExamMonitoringService {
                         .eq('id', attempt.id).maybeSingle();
                     if (readError) throw new Error(readError.message);
                     if (!current || current.status !== 'in_progress') return false;
+                    if (typeof current.metadata?.submit_intent_at === 'string' &&
+                        Number.isFinite(Date.parse(current.metadata.submit_intent_at))) return false;
                     const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
                     const now = new Date(clock.now);
                     const deadline = examDeadline(current, exam).getTime();

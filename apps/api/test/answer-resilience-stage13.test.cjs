@@ -45,6 +45,8 @@ test('ANS-01: endpoint jawaban memasang timeout autosave dan bulk sync', () => {
     assert.match(source, /saveAnswerAction[\s\S]*timeoutMs: 15_000/);
     assert.match(source, /syncAnswersBulkAction[\s\S]*timeoutMs: 30_000/);
     assert.match(source, /submitExamAction[\s\S]*timeoutMs: 30_000/);
+    assert.match(source, /beginSubmitAction[\s\S]*submit-intent/);
+    assert.match(source, /const intent = await beginSubmitAction\(attemptId\)[\s\S]*if \(!intent\.success\)/);
 });
 
 test('ANS-02: backoff auto-submit terus tersedia tanpa batas tiga percobaan', () => {

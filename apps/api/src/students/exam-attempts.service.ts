@@ -175,6 +175,7 @@ export class ExamAttemptsService {
             .maybeSingle();
         const recoveryUntil = this.proctorRecoveryUntil(existing as any);
         const recoveryActive = recoveryUntil !== null && now < recoveryUntil;
+        const submitPending = this.hasSubmitIntent((existing as any)?.metadata);
 
         if (!row.is_published) {
             return this.refuse('Ujian belum dipublikasikan oleh proktor.');
@@ -187,7 +188,7 @@ export class ExamAttemptsService {
             );
         }
 
-        if (row.end_time && now > new Date(row.end_time) && !recoveryActive) {
+        if (row.end_time && now > new Date(row.end_time) && !recoveryActive && !submitPending) {
             if (existing) await this.autoFinish((existing as { id: string }).id, now);
             return this.refuse('Waktu ujian telah berakhir.', {
                 expiredAttemptId: (existing as { id: string } | null)?.id,
@@ -334,7 +335,7 @@ export class ExamAttemptsService {
 
         const personalEnd = this.resolvePersonalEnd(attempt, exam, now);
 
-        if (now >= personalEnd) {
+        if (now >= personalEnd && !this.hasSubmitIntent((attempt as any).metadata)) {
             await this.autoFinish(attempt.id, now);
             // `expiredAttemptId` dikembalikan supaya klien masih bisa menyusulkan
             // jawaban yang hanya sempat tersimpan di localStorage — tanpa itu,
@@ -451,6 +452,11 @@ export class ExamAttemptsService {
         return Number.isFinite(value.getTime()) ? value : null;
     }
 
+    private hasSubmitIntent(metadata: Record<string, unknown> | null | undefined): boolean {
+        const submittedAt = metadata?.submit_intent_at;
+        return typeof submittedAt === 'string' && Number.isFinite(Date.parse(submittedAt));
+    }
+
     /**
      * Tutup pengerjaan yang kehabisan waktu, DAN nilai dari jawaban tersimpan.
      *
@@ -459,11 +465,19 @@ export class ExamAttemptsService {
      * skor — seluruh `is_correct`-nya null.
      */
     private async autoFinish(attemptId: string, now: Date): Promise<void> {
-        const { data: closed, error } = await this.db
-            .from('cbt_exam_attempts')
-            .update({ status: 'auto_submitted', finished_at: now.toISOString() })
-            .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
-        if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
+        const closed = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                .select('status, metadata').eq('id', attemptId).maybeSingle();
+            if (readError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
+            if (!current || current.status !== 'in_progress' || this.hasSubmitIntent(current.metadata)) return false;
+            const { data: updated, error } = await db
+                .from('cbt_exam_attempts')
+                .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
+            if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
+            return Boolean(updated);
+        });
         if (!closed) return;
 
         try {
@@ -515,6 +529,47 @@ export class ExamAttemptsService {
         });
 
         return { attemptId, saved: answers.length };
+    }
+
+    async beginSubmit(user: AuthUser, attemptId: string, deviceId?: string) {
+        const device = this.requireDeviceId(deviceId);
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: attempt, error } = await db.from('cbt_exam_attempts')
+                .select('user_id, status, device_fingerprint, metadata, personal_end_time, started_at, exam_id')
+                .eq('id', attemptId).maybeSingle();
+            if (error || !attempt) throw new ForbiddenException('Sesi pengerjaan tidak ditemukan.');
+            if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
+            if (attempt.status !== 'in_progress') {
+                throw new ForbiddenException('Ujian tidak sedang berlangsung.');
+            }
+            if (attempt.device_fingerprint && attempt.device_fingerprint !== device) {
+                throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
+            }
+            if (this.hasSubmitIntent(attempt.metadata)) {
+                return { attemptId, startedAt: attempt.metadata.submit_intent_at };
+            }
+
+            await this.assertOwnedAndRunning(user, attemptId, db, device);
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const now = new Date(clock.now);
+            const { data: exam, error: examError } = await db.from('cbt_exams')
+                .select('end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+            if (examError || !exam) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
+            const deadline = this.resolvePersonalEnd(attempt, exam, now);
+            if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
+                throw new ForbiddenException({
+                    code: 'EXAM_TIME_EXPIRED',
+                    message: 'Waktu ujian telah berakhir sebelum pengumpulan dimulai.',
+                });
+            }
+            const startedAt = now.toISOString();
+            const { error: updateError } = await db.from('cbt_exam_attempts')
+                .update({ metadata: { ...(attempt.metadata || {}), submit_intent_at: startedAt } })
+                .eq('id', attemptId).eq('status', 'in_progress');
+            if (updateError) throw new BadRequestException('Waktu mulai submit belum dapat dicatat.');
+            return { attemptId, startedAt };
+        });
     }
 
     private async upsertAnswers(attemptId: string, answers: AnswerInput[], db: DbSession = this.db): Promise<void> {
@@ -623,6 +678,7 @@ export class ExamAttemptsService {
         attemptId: string,
         db: DbSession = this.db,
         deviceId?: string,
+        allowRecordedSubmitIntent = false,
     ): Promise<{ examId: string }> {
         const { data, error } = await db
             .from('cbt_exam_attempts')
@@ -639,6 +695,7 @@ export class ExamAttemptsService {
         if (attempt.status !== 'in_progress') {
             throw new ForbiddenException('Ujian tidak sedang berlangsung.');
         }
+        const submitIntentRecorded = this.hasSubmitIntent(attempt.metadata);
         if (attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) {
             throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
         }
@@ -650,7 +707,8 @@ export class ExamAttemptsService {
         const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = new Date(clock.now);
         const deadline = this.resolvePersonalEnd(attempt, exam, now);
-        if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
+        if (!Number.isFinite(deadline.getTime()) ||
+            (now >= deadline && !(allowRecordedSubmitIntent && submitIntentRecorded))) {
             throw new ForbiddenException({ code: 'EXAM_TIME_EXPIRED', message: 'Waktu ujian telah berakhir. Jawaban baru tidak dapat diterima.' });
         }
         if (exam.start_time && now < new Date(exam.start_time)) {
@@ -818,7 +876,7 @@ export class ExamAttemptsService {
                         ...(current.total_score == null ? { gradingPending: true } : {}),
                     };
                 }
-                await this.assertOwnedAndRunning(user, attempt.id, db, device);
+                await this.assertOwnedAndRunning(user, attempt.id, db, device, true);
                 const questions = await readExamQuestionVersion(db, examId);
                 const byId = new Map(questions.map(question => [question.id, question]));
                 const rows: AnswerInput[] = Object.entries(studentAnswers).map(([questionId, raw]) => {

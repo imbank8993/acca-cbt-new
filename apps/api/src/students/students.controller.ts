@@ -143,6 +143,17 @@ export class StudentsController {
         return this.attempts.syncAnswers(user, attemptId, dto.answers, dto.deviceId);
     }
 
+    @Post('attempts/:attemptId/submit-intent')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Catat waktu mulai pengumpulan ujian' })
+    beginSubmit(
+        @CurrentUser() user: AuthUser,
+        @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: StartAttemptDto,
+    ) {
+        return this.attempts.beginSubmit(user, attemptId, dto.deviceId);
+    }
+
     @Post('attempts/:attemptId/late-answers')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
