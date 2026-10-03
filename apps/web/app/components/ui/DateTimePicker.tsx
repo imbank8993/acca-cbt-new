@@ -49,26 +49,28 @@ export function DateTimePicker({
         }
     }
 
+    const lastDatePartRef = React.useRef<string>('');
+    if (datePart) {
+        lastDatePartRef.current = datePart;
+    }
+
     const handleDateChange = (newDate: string) => {
         if (!newDate) {
+            lastDatePartRef.current = '';
             onChange('');
             return;
         }
+        lastDatePartRef.current = newDate;
         const time = timePart || defaultTime || '08:00';
         onChange(`${newDate}T${time}`);
     };
 
     const handleTimeChange = (newTime: string) => {
         if (!newTime) {
-            if (datePart) {
-                onChange(`${datePart}T00:00`);
-            } else {
-                onChange('');
-            }
             return;
         }
-        const date = datePart || utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(0, 10);
-        onChange(`${date}T${newTime}`);
+        const effectiveDate = datePart || lastDatePartRef.current || utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(0, 10);
+        onChange(`${effectiveDate}T${newTime}`);
     };
 
     return (

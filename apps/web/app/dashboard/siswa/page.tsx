@@ -86,8 +86,9 @@ export default function SiswaDashboard() {
         return formatSchoolTimeRange(startStr, endStr, timeZone);
     };
 
-    const averageScore = results.length > 0 
-        ? Math.round(results.reduce((acc, r) => acc + (Number(r.total_score) || 0), 0) / results.length) 
+    const gradedResults = results.filter(result => result.total_score != null);
+    const averageScore = gradedResults.length > 0
+        ? Math.round(gradedResults.reduce((acc, r) => acc + Number(r.total_score), 0) / gradedResults.length)
         : 0;
 
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
@@ -283,6 +284,7 @@ export default function SiswaDashboard() {
                                 </div>
                             ) : (
                                 results.slice(0, 4).map((res, i) => {
+                                    const gradingPending = res.total_score == null;
                                     const score = Number(res.total_score) || 0;
                                     const barColorClass = score >= 80 ? 'bg-emerald-500' : score >= 65 ? 'bg-[#3083FF]' : 'bg-rose-500';
                                     const textColorClass = score >= 80 ? 'text-emerald-600' : score >= 65 ? 'text-[#3083FF]' : 'text-rose-600';
@@ -292,7 +294,7 @@ export default function SiswaDashboard() {
                                             <div className="flex justify-between items-start">
                                                 <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.title || 'Ujian'}</p>
                                                 <p className="text-[10px] text-slate-400 shrink-0 leading-none">
-                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{score.toFixed(0)}</span>/100
+                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? 'Menunggu penilaian' : score.toFixed(0)}</span>{!gradingPending && '/100'}
                                                 </p>
                                             </div>
                                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

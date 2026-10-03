@@ -105,6 +105,7 @@ export default function StudentResultDetailsPage() {
 
     const correctCount = pengetahuanAnswers.filter((answer) => answer.isCorrect).length;
     const totalPengetahuanCount = pengetahuanAnswers.length;
+    const gradingPending = attempt.total_score == null;
     const totalScore = Number(attempt.total_score || 0);
     const scoreIrt = attempt.score_irt != null ? Number(attempt.score_irt) : null;
 
@@ -148,9 +149,9 @@ export default function StudentResultDetailsPage() {
                         {hasPengetahuan && (
                             <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
                                 <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Nilai Klasik</p>
+                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{gradingPending ? 'Menunggu Penilaian' : 'Nilai Klasik'}</p>
                                     <p className="text-3xl font-black tracking-tighter text-[#3083FF] leading-none font-mono">
-                                        {totalScore.toFixed(0)}
+                                        {gradingPending ? '—' : totalScore.toFixed(0)}
                                     </p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
                                 </div>
@@ -169,7 +170,7 @@ export default function StudentResultDetailsPage() {
                                 <div className="w-px h-10 bg-slate-200" />
                                 <div className="text-center min-w-[60px]">
                                     <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Benar</p>
-                                    <p className="text-2xl font-black text-emerald-600 leading-none font-mono mt-0.5">{correctCount}</p>
+                                    <p className="text-2xl font-black text-emerald-600 leading-none font-mono mt-0.5">{gradingPending ? '—' : correctCount}</p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
                                 </div>
                             </div>

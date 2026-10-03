@@ -332,11 +332,13 @@ export class GradingService {
     async applyRelativeQuizScoring(examId: string): Promise<Record<string, number>> {
         const { data } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, metadata, total_score, started_at, finished_at')
+            .select('id, metadata, total_score, started_at, finished_at, status')
             .eq('exam_id', examId)
             .in('status', FINISHED_STATUSES);
 
-        const rows = (data as AttemptTimingRow[]) || [];
+        // Null means durable submission awaiting grading, never a score of zero.
+        const rows = ((data || []) as (AttemptTimingRow & { total_score?: number | null; status: string })[])
+            .filter(row => row.total_score != null);
         if (rows.length === 0) return {};
 
         const attempts = rows.map((a: AttemptTimingRow & { total_score?: number | null }) => {
@@ -357,7 +359,8 @@ export class GradingService {
         await this.db.transaction(async db => {
             for (const [attemptId, score] of Object.entries(scores)) {
                 const row = rows.find((attempt) => attempt.id === attemptId) as
-                    (AttemptTimingRow & { total_score?: number | null }) | undefined;
+                    (AttemptTimingRow & { total_score?: number | null; status: string }) | undefined;
+                if (!row) continue;
                 const baseScore = Number(row?.metadata?.base_score ?? row?.total_score ?? 0);
                 const { error } = await db
                     .from('cbt_exam_attempts')
@@ -365,7 +368,10 @@ export class GradingService {
                         total_score: score,
                         metadata: { ...(row?.metadata || {}), base_score: baseScore },
                     })
-                    .eq('id', attemptId);
+                    .eq('id', attemptId)
+                    .eq('status', row.status)
+                    .eq('finished_at', row.finished_at)
+                    .eq('total_score', row.total_score);
                 if (error) throw new InternalServerErrorException('Nilai relatif gagal disimpan.');
             }
         });

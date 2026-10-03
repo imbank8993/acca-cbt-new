@@ -488,8 +488,7 @@ export default function ExamPage() {
                 (result.answers || []).forEach((ans) => {
                     serverAnswerIds.add(ans.question_id);
                     revisionsRef.current[ans.question_id] = ans.metadata?.answer_revision ?? 0;
-                    if (ans.selected_option_id) savedA[ans.question_id] = ans.selected_option_id;
-                    else if (ans.essay_answer) savedA[ans.question_id] = ans.essay_answer;
+                    savedA[ans.question_id] = ans.selected_option_id ?? ans.essay_answer ?? '';
                     if (ans.is_doubtful) savedD.add(ans.question_id);
                 });
 
@@ -505,7 +504,8 @@ export default function ExamPage() {
                                 // Old caches cannot overwrite a versioned server answer.
                                 if (localRevision < serverRevision) return false;
                                 if (localRevision === serverRevision && serverRevision > 0 &&
-                                    savedA[qId] !== undefined && savedA[qId] !== parsed.answers[qId]) return false;
+                                    serverAnswerIds.has(qId) && (savedA[qId] !== parsed.answers[qId] ||
+                                        savedD.has(qId) !== parsed.doubtfulAnswers.includes(qId))) return false;
                                 savedA[qId] = parsed.answers[qId];
                                 revisionsRef.current[qId] = localRevision;
                                 if (parsed.doubtfulAnswers.includes(qId)) savedD.add(qId); else savedD.delete(qId);
