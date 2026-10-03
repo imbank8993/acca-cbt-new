@@ -583,7 +583,7 @@ function MonitoringContent() {
                                                                     {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-[#3083FF] text-sm truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
+                                                                    <p className="font-bold text-[#3083FF] text-[13px] truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
                                                                     {att.kelas_name && att.kelas_name !== '-' && (
                                                                         <p className="text-[9px] text-slate-400 truncate">{att.kelas_name}</p>
                                                                     )}
@@ -726,7 +726,7 @@ function MonitoringContent() {
                                                                         }`}>
                                                                             {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                         </div>
-                                                                        <span className="font-bold text-[#3083FF] text-sm">{att.profiles?.full_name || 'Tanpa Nama'}</span>
+                                                                        <span className="font-bold text-[#3083FF] text-[13px]">{att.profiles?.full_name || 'Tanpa Nama'}</span>
                                                                         {isInProgress && <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse shrink-0" />}
                                                                     </div>
                                                                 </td>
@@ -796,7 +796,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
+                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden [&_tbody_td:first-child]:text-sm [&_tbody_td:nth-child(n+8):not(:last-child)]:text-base"
                             >
                                 <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
                                     <h3 className="font-bold text-[#3083FF]">Rekap Hasil</h3>

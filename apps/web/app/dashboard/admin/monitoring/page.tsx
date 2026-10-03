@@ -645,7 +645,7 @@ function MonitoringContent() {
                                         const violations = attempt.warning_count ?? 0;
                                         return (
                                             <tr key={attempt.id} className="border-t border-slate-100 hover:bg-slate-50">
-                                                <td className="px-5 py-3 font-medium text-slate-800">{attempt.profiles?.full_name || 'Tanpa nama'}</td>
+                                                <td className="px-5 py-3 text-[13px] font-medium text-slate-800">{attempt.profiles?.full_name || 'Tanpa nama'}</td>
                                                 <td className="px-5 py-3 text-slate-600">{attempt.kelas_name || '—'}</td>
                                                 <td className="px-5 py-3 text-slate-600">
                                                     {attempt.started_at ? new Date(attempt.started_at).toLocaleString('id-ID', { timeZone }) : 'Belum tercatat'}
@@ -986,7 +986,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm [&_tbody_td:first-child]:text-sm [&_tbody_td:nth-child(n+8):not(:last-child)]:text-base"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
                                     <h3 className="font-bold text-slate-800">Rekap Hasil</h3>
