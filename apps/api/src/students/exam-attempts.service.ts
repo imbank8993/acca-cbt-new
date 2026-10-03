@@ -523,7 +523,13 @@ export class ExamAttemptsService {
         const { data: saved, error: readError } = await db.from('cbt_answers')
             .select('question_id, selected_option_id, essay_answer, is_doubtful, metadata')
             .eq('attempt_id', attemptId);
-        if (readError) throw new BadRequestException('Versi jawaban belum dapat diperiksa.');
+        if (readError) {
+            this.logger.error(
+                `Gagal membaca versi jawaban untuk attempt ${attemptId}: ${readError.message}` +
+                    (readError.code ? ` (kode ${readError.code})` : ''),
+            );
+            throw new BadRequestException('Versi jawaban belum dapat diperiksa.');
+        }
         const existing = new Map<string, any>((saved || []).map((row: any) => [row.question_id, row]));
         const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const savedAt = new Date(clock.now).toISOString();

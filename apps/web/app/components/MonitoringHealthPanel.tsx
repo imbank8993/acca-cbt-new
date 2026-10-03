@@ -77,7 +77,13 @@ export function MonitoringHealthPanel({ attempts, onRecover }: {
                     <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} soal</strong><div className="mt-1">Kosong di server: {attempt.unanswered_count ?? '—'}</div><div className="mt-1 text-slate-500">Simpan terakhir: {date(attempt.last_answer_saved_at)}</div></td>
                     <td className="p-3">{health ? <><div>Terakhir dilaporkan: {health.localAnswerCount} terisi lokal</div><div>{health.pendingAnswerCount} perubahan belum terkirim</div><div>Penyimpanan: {storageLabels[health.storageState]}</div><div className="mt-1 text-slate-500">{date(health.receivedAt)}{!fresh && ' · Laporan lama'}</div></> : <span className="text-slate-500">Belum ada laporan perangkat</span>}</td>
                     <td className="p-3"><strong>{attempt.status === 'in_progress' && remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong><div className="mt-1">Tenggat: {date(attempt.deadline_at)}</div><div>{attempt.status !== 'in_progress' ? 'Sesi tidak aktif' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terakhir terhubung' : 'Tidak ada kabar terbaru'}</div><div className="text-slate-500">{date(attempt.last_seen_at)}</div></td>
-                    <td className="p-3"><strong>{gradingLabel(attempt)}</strong>{reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
+                    <td className="p-3">
+                        <span className={attempt.status === 'auto_submitted'
+                            ? 'inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800'
+                            : 'font-semibold'}>
+                            {gradingLabel(attempt)}
+                        </span>
+                        {reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
                         <details className="mt-2" open={historyId === attempt.id} onToggle={event => {
                             if (event.currentTarget.open) setHistoryId(attempt.id);
                             else setHistoryId(current => current === attempt.id ? null : current);
