@@ -60,6 +60,17 @@ test('ANS-06: localStorage menjadi fallback terdeteksi ketika IndexedDB tidak te
     }
 });
 
+test('ANS-06: warning persistence disembunyikan, tetapi peringatan kapasitas tetap ada', () => {
+    const source = fs.readFileSync(
+        path.resolve(__dirname, '../../web/lib/exam-durable-storage.ts'),
+        'utf8',
+    );
+    const warningLogic = source.slice(source.indexOf('const warning ='), source.indexOf('return { available: true, mode:'));
+
+    assert.match(warningLogic, /freeBytes !== null && freeBytes < MIN_FREE_BYTES/);
+    assert.doesNotMatch(warningLogic, /!persistent/);
+});
+
 test('ANS-06: ujian diblokir bila IndexedDB dan fallback sama-sama ditolak', async () => {
     const restoreIdb = replaceGlobal('indexedDB', undefined);
     const restoreLocal = replaceGlobal('localStorage', {

@@ -49,6 +49,16 @@ test('ANS-01: endpoint jawaban memasang timeout autosave dan bulk sync', () => {
     assert.match(source, /const intent = await beginSubmitAction\(attemptId\)[\s\S]*if \(!intent\.success\)/);
 });
 
+test('ANS-01: Next.js forwards submit intent to the API', () => {
+    const route = fs.readFileSync(
+        path.resolve(__dirname, '../../web/app/api/students/attempts/[attemptId]/submit-intent/route.ts'),
+        'utf8',
+    );
+
+    assert.match(route, /export async function POST/);
+    assert.match(route, /proxyJson\([\s\S]*\/students\/attempts\/\$\{encodeURIComponent\(attemptId\)\}\/submit-intent/);
+});
+
 test('ANS-02: backoff auto-submit terus tersedia tanpa batas tiga percobaan', () => {
     assert.equal(examAutoRetryDelay(0), 10_000);
     assert.equal(examAutoRetryDelay(1), 20_000);

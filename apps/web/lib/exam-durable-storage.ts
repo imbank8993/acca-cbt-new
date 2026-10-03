@@ -570,9 +570,7 @@ export async function inspectExamStorage(): Promise<ExamStorageHealth> {
 
         const warning = freeBytes !== null && freeBytes < MIN_FREE_BYTES
             ? 'Ruang penyimpanan browser hampir penuh. Kosongkan ruang sebelum ujian.'
-            : !persistent
-                ? 'Browser belum menjamin penyimpanan permanen. Jangan memakai mode privat atau menghapus data situs selama ujian.'
-                : undefined;
+            : undefined;
         return { available: true, mode: 'indexeddb', persistent, warning };
     } catch {
         try {
