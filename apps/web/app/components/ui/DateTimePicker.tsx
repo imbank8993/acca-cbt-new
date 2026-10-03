@@ -50,9 +50,11 @@ export function DateTimePicker({
     }
 
     const lastDatePartRef = React.useRef<string>('');
-    if (datePart) {
-        lastDatePartRef.current = datePart;
-    }
+    React.useEffect(() => {
+        if (datePart) {
+            lastDatePartRef.current = datePart;
+        }
+    }, [datePart]);
 
     const handleDateChange = (newDate: string) => {
         if (!newDate) {

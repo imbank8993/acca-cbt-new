@@ -1,4 +1,5 @@
 "use client";
+import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
@@ -17,6 +18,7 @@ import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeu
 import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -56,7 +58,7 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
-    const [detailedAnalysis, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
+    const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
@@ -356,15 +358,22 @@ function MonitoringContent() {
     const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
     const exportResultsToExcel = async () => {
-        if (!attempts?.length && !analysis?.length && !detailedAnalysis?.items?.length) {
-            return alert('Tidak ada data');
+        try {
+            const [freshAttempts, freshAnalysis, timeZone] = await Promise.all([
+                getExamAttemptsAction(selectedExamId), getExamAnswersForAnalysisAction(selectedExamId), getSchoolTimeZone(),
+            ]);
+            if (!freshAttempts.length) throw new Error('Data peserta belum tersedia. Muat ulang monitoring sebelum export.');
+            if (freshAttempts.some(a => a.status !== 'belum') && (freshAnalysis.questions.length || freshAttempts.some(a => (a.total_questions || 0) > 0)) && !freshAnalysis.detailed) {
+                throw new Error('Analisis rinci belum tersedia. Coba kembali setelah layanan penilaian tersedia.');
+            }
+            await exportDetailedAnalysisToExcel({
+                exam: exams.find(exam => exam.id === selectedExamId), attempts: freshAttempts,
+                analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+            });
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Export belum dapat dibuat.');
         }
-        await exportDetailedAnalysisToExcel({
-            exam: exams.find(e => e.id === selectedExamId),
-            attempts,
-            analysis,
-            detailedAnalysis,
-        });
     };
 
     if (isLoading) return (
@@ -427,6 +436,8 @@ function MonitoringContent() {
                     ))}
                 </div>
             )}
+
+            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

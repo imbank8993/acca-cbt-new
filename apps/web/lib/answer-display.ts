@@ -125,7 +125,8 @@ export function formatStudentAnswer(
     }
 
     if (type === 'mcq_complex') {
-        const ids = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+        const ids = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string')
+            : typeof parsed === 'string' ? parsed.split(',').map(id => id.trim()).filter(Boolean) : [];
         return ids.map(id => {
             const opt = options.find(o => o.id === id);
             return opt ? optionLabel(options, opt) : '(Opsi tidak tersedia)';

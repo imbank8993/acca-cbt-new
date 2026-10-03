@@ -124,6 +124,24 @@ export interface OrganizationExam {
 }
 
 export interface ExamAttemptRecord {
+    server_now?: string;
+    last_seen_at?: string | null;
+    deadline_at?: string | null;
+    remaining_seconds?: number | null;
+    saved_answer_count?: number;
+    total_questions?: number;
+    unanswered_count?: number;
+    last_answer_saved_at?: string | null;
+    grading_status?: 'pending' | 'manual' | 'complete' | 'not_submitted';
+    attention_reasons?: string[];
+    sync_health?: {
+        localAnswerCount: number;
+        pendingAnswerCount: number;
+        storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+        receivedAt: string;
+        fresh: boolean;
+    } | null;
+    monitoring_history?: MonitoringHistoryEvent[];
     id: string;
     exam_id: string;
     user_id: string;
@@ -156,6 +174,20 @@ export interface ExamAttemptRecord {
     metadata?: Record<string, unknown> | null;
     profiles?: { id?: string; full_name?: string | null; identity_number?: string | null; email?: string | null } | null;
     exams?: OrganizationExam | null;
+}
+
+export interface MonitoringHistoryEvent {
+    type: string;
+    at: string;
+    actor_id?: string | null;
+    actor_name?: string | null;
+    reason?: string | null;
+    previous_deadline?: string | null;
+    recovery_until?: string | null;
+    pending_answer_count?: number | null;
+    storage_state?: string | null;
+    gap_seconds?: number | null;
+    last_seen_at?: string | null;
 }
 
 export interface ExamAnswerRecord {
@@ -573,6 +605,8 @@ export interface StudentItemMatrixRow {
 }
 
 export interface DetailedItemAnalysisResponse {
+    generated_at?: string;
+    question_version_source?: 'frozen' | 'legacy_current_bank';
     exam_id: string;
     total_questions: number;
     total_participants: number;

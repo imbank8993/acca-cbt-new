@@ -1,10 +1,12 @@
+import { attemptHealth } from '../common/attempt-health';
+import { MONITORING_EVENTS } from '../common/exam-monitoring';
+import { readExamQuestionVersion, hasExamQuestionSnapshots } from '../common/exam-question-snapshots';
 import { examDeadline } from '../common/exam-deadline';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { chunk } from '../common/chunk';
-import { loadExamQuestions } from '../common/exam-question-sources';
 import { GradingService } from '../grading/grading.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
@@ -13,7 +15,7 @@ import { ScoringClient } from '../scoring/scoring.client';
 const ID_BATCH = 300;
 
 /** Peristiwa administratif — bukan pelanggaran, tidak ikut dihitung. */
-const NON_VIOLATION_EVENTS = ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED', 'FORCE_TERMINATED'];
+const NON_VIOLATION_EVENTS = [...MONITORING_EVENTS, 'DEVICE_SWITCH_BLOCKED', 'LATE_ANSWER_SYNC', 'RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED', 'FORCE_TERMINATED'];
 
 /** Peristiwa yang dianggap "pindah tab" pada rincian pelanggaran. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
@@ -81,15 +83,14 @@ export class ExamMonitoringService {
             .select(
                 `id, status, total_score, score_irt, irt_theta, needs_manual_grading,
                  started_at, finished_at, tab_switch_count, warning_count, exam_id, user_id,
-                 last_seen_at,
-                 profiles:cbt_profiles(full_name)`,
+                 last_seen_at, personal_end_time, metadata,
+                 profiles:cbt_profiles(full_name, identity_number)`,
             )
             .eq('exam_id', examId)
             .order('started_at', { ascending: false });
 
         if (error) {
-            this.logger.error(`Gagal membaca pengerjaan ujian ${examId}: ${error.message}`);
-            return [];
+            throw new BadRequestException('Data monitoring belum dapat dibaca.');
         }
 
         const attempts = (data as any[]) || [];
@@ -117,17 +118,53 @@ export class ExamMonitoringService {
             }
         }
 
-        const nowRows = await this.db.raw<Array<{ now: Date }>>('SELECT NOW() AS now');
-        const serverNow = new Date(nowRows?.[0]?.now || Date.now()).getTime();
-        const rows = attempts.map((attempt) => ({
-            ...attempt,
-            kelas_name: assigned.classByUser.get(attempt.user_id) || '-',
-            violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
-            connection_status: attempt.status === 'in_progress' &&
-                (!attempt.last_seen_at || serverNow - new Date(attempt.last_seen_at).getTime() > 45_000)
-                ? 'offline'
-                : attempt.status === 'in_progress' ? 'online' : 'inactive',
-        }));
+        const [{ data: exam }, questions] = await Promise.all([
+            this.db.from('cbt_exams').select('start_time, end_time, duration_minutes').eq('id', examId).maybeSingle(),
+            readExamQuestionVersion(this.db, examId),
+        ]);
+        const questionIds = new Set(questions.map(question => question.id));
+        const answersByAttempt = new Map<string, any[]>();
+        for (const ids of chunk(attemptIds, ID_BATCH)) {
+            const { data: saved, error: savedError } = await this.db.from('cbt_answers')
+                .select('attempt_id, question_id, selected_option_id, essay_answer, metadata').in('attempt_id', ids);
+            if (savedError) throw new BadRequestException('Status penyimpanan jawaban belum dapat dibaca.');
+            for (const answer of saved || []) {
+                if (!questionIds.has(answer.question_id)) continue;
+                const rows = answersByAttempt.get(answer.attempt_id) || [];
+                rows.push(answer); answersByAttempt.set(answer.attempt_id, rows);
+            }
+        }
+        const actorIds = [...new Set([...logs.values()].flat().map(log => log.metadata?.actor_user_id).filter(Boolean))];
+        const actorNames = new Map<string, string>();
+        for (const ids of chunk(actorIds, ID_BATCH)) {
+            const { data: actors } = await this.db.from('cbt_profiles').select('id, full_name').in('id', ids);
+            for (const actor of actors || []) actorNames.set(actor.id, actor.full_name);
+        }
+        const nowRows = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const now = new Date(nowRows[0].now);
+        const rows: any[] = attempts.map(attempt => {
+            const history = (logs.get(attempt.id) || []).map(log => ({
+                type: log.event_type, at: log.created_at,
+                actor_id: log.metadata?.actor_user_id || null,
+                actor_name: actorNames.get(log.metadata?.actor_user_id) || null,
+                reason: log.metadata?.reason || null,
+                previous_deadline: log.metadata?.previous_deadline || null,
+                recovery_until: log.metadata?.recovery_until || null,
+                pending_answer_count: log.metadata?.pendingAnswerCount ?? null,
+                storage_state: log.metadata?.storageState || null,
+                gap_seconds: log.metadata?.gap_seconds ?? null,
+                last_seen_at: log.metadata?.last_seen_at || null,
+            }));
+            if (attempt.started_at) history.push({ type: 'ATTEMPT_STARTED', at: attempt.started_at } as any);
+            if (attempt.finished_at) history.push({ type: attempt.status === 'submitted' ? 'SUBMITTED' : 'AUTO_SUBMITTED', at: attempt.finished_at } as any);
+            history.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+            return { ...attempt,
+                kelas_name: assigned.classByUser.get(attempt.user_id) || '-',
+                violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
+                ...attemptHealth(attempt, exam || {}, answersByAttempt.get(attempt.id) || [], now, questions.length),
+                monitoring_history: history,
+            };
+        });
 
         for (const [userId, profile] of assigned.profileByUser) {
             if (attemptUserIds.has(userId)) continue;
@@ -135,7 +172,7 @@ export class ExamMonitoringService {
             rows.push({
                 id: `unstarted-${userId}`,
                 status: 'belum',
-                total_score: 0,
+                total_score: null,
                 score_irt: null,
                 irt_theta: null,
                 needs_manual_grading: false,
@@ -149,7 +186,9 @@ export class ExamMonitoringService {
                 profiles: profile,
                 kelas_name: assigned.classByUser.get(userId) || '-',
                 violation_breakdown: { pindah_tab: 0, close_tab: 0, lainnya: 0 },
-                connection_status: 'inactive',
+                connection_status: 'inactive', server_now: now.toISOString(),
+                total_questions: questions.length, saved_answer_count: 0, unanswered_count: questions.length,
+                grading_status: 'not_submitted', attention_reasons: [], monitoring_history: [],
             });
         }
 
@@ -163,7 +202,7 @@ export class ExamMonitoringService {
 
         const { data: targets } = await this.db
             .from('cbt_exam_targets')
-            .select('class_id')
+            .select('class_id, additional_class_id')
             .eq('exam_id', examId);
 
         const classIds = [
@@ -178,7 +217,7 @@ export class ExamMonitoringService {
             const { data } = await this.db
                 .from('cbt_class_members')
                 .select(
-                    'user_id, class_id, profiles:cbt_profiles(full_name), classes:cbt_classes(name)',
+                    'user_id, class_id, profiles:cbt_profiles(full_name, identity_number), classes:cbt_classes(name)',
                 )
                 .in('class_id', ids);
 
@@ -192,20 +231,36 @@ export class ExamMonitoringService {
             }
         }
 
+        const additionalIds = (targets || []).map((row: any) => row.additional_class_id).filter(Boolean);
+        for (const ids of chunk(additionalIds, ID_BATCH)) {
+            const { data: members } = await this.db.from('cbt_additional_class_members')
+                .select('user_id, class_id, profiles:cbt_profiles(full_name, identity_number), classes:cbt_additional_classes(name)').in('class_id', ids);
+            for (const row of members || []) {
+                appendClassName(classByUser, row);
+                if (!profileByUser.has(row.user_id)) profileByUser.set(row.user_id, Array.isArray(row.profiles) ? row.profiles[0] : row.profiles);
+            }
+        }
+        const { data: participants } = await this.db.from('cbt_exam_participants').select('user_id').eq('exam_id', examId);
+        const individualIds = (participants || []).map((row: any) => row.user_id).filter((id: string) => !profileByUser.has(id));
+        for (const ids of chunk(individualIds, ID_BATCH)) {
+            const { data: profiles } = await this.db.from('cbt_profiles').select('id, full_name, identity_number').in('id', ids);
+            for (const profile of profiles || []) profileByUser.set(profile.id, profile);
+        }
         return { classByUser, profileByUser };
     }
 
     private async loadSecurityLogs(attemptIds: string[]) {
-        const byAttempt = new Map<string, Array<{ event_type: string; created_at: string }>>();
+        const byAttempt = new Map<string, Array<{ event_type: string; created_at: string; metadata?: Record<string, any> }>>();
         if (attemptIds.length === 0) return byAttempt;
 
         for (const ids of chunk(attemptIds, ID_BATCH)) {
-            const { data } = await this.db
+            const { data, error } = await this.db
                 .from('cbt_attempt_security_logs')
-                .select('attempt_id, event_type, created_at')
+                .select('attempt_id, event_type, created_at, metadata')
                 .in('attempt_id', ids)
                 .order('created_at', { ascending: true });
 
+            if (error) throw new BadRequestException('Riwayat pengerjaan belum dapat dibaca.');
             for (const log of (data as any[]) || []) {
                 (byAttempt.get(log.attempt_id) ??
                     byAttempt.set(log.attempt_id, []).get(log.attempt_id)!)
@@ -369,14 +424,9 @@ export class ExamMonitoringService {
             .eq('id', examId)
             .maybeSingle();
 
-        const bankId = (examRow as { question_bank_id: string | null } | null)?.question_bank_id;
-        const sorted = await loadExamQuestions(
-            this.db,
-            examId,
-            `id, question_text, type, score_default, metadata, dimension_id, created_at,
-             bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, order, metadata)`,
-            bankId,
-        );
+        if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
+        const questionVersionSource = await hasExamQuestionSnapshots(this.db, examId) ? 'frozen' : 'legacy_current_bank';
+        const sorted = await readExamQuestionVersion(this.db, examId) as any[];
         if (sorted.length === 0) return { questions: [], answers: [], detailed: null };
 
         const questionById = new Map(sorted.map((q) => [q.id, q]));
@@ -386,7 +436,8 @@ export class ExamMonitoringService {
             number: index + 1,
             question_text: question.question_text,
             type: question.type,
-            score_default: Number(question.score_default || 1),
+            score_default: Number(question.score_default ?? 1),
+            metadata: question.metadata,
             options: [...(question.bank_question_options || [])]
                 .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
                 .map((option: any) => ({
@@ -394,14 +445,17 @@ export class ExamMonitoringService {
                     option_text: option.option_text,
                     is_correct: option.is_correct === true,
                     order: option.order || 0,
+                    weight: option.weight,
+                    metadata: option.metadata,
                 })),
         }));
 
-        const { data: attemptRows } = await this.db
+        const { data: attemptRows, error: attemptError } = await this.db
             .from('cbt_exam_attempts')
             .select('id, user_id, status, total_score, profiles:cbt_profiles(full_name, identity_number)')
             .eq('exam_id', examId);
 
+        if (attemptError) throw new BadRequestException('Data peserta analisis belum dapat dibaca.');
         const attemptList = (attemptRows as any[]) || [];
         const attemptIds = attemptList.map((a) => a.id);
         if (attemptIds.length === 0) return { questions, answers: [], detailed: null };
@@ -424,12 +478,16 @@ export class ExamMonitoringService {
 
         const raw: any[] = [];
         for (const ids of chunk(attemptIds, ID_BATCH)) {
-            const { data } = await this.db
+            const { data, error: answerError } = await this.db
                 .from('cbt_answers')
                 .select('attempt_id, question_id, is_correct, selected_option_id, essay_answer, score')
                 .in('attempt_id', ids);
 
-            raw.push(...((data as any[]) || []));
+            if (answerError) throw new BadRequestException('Jawaban analisis belum dapat dibaca.');
+            raw.push(...((data as any[]) || []).filter(answer => {
+                const value = answer.essay_answer ?? answer.selected_option_id;
+                return value != null && !['', '[]', '{}', 'null'].includes(String(value).trim());
+            }));
         }
 
         const answers = await this.resolveCorrectness(raw, questionById);
@@ -452,6 +510,11 @@ export class ExamMonitoringService {
             );
         }
 
+        if (detailed) {
+            detailed.question_version_source = questionVersionSource;
+            const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            detailed.generated_at = new Date(clock.now).toISOString();
+        }
         return { questions, answers, detailed };
     }
 

@@ -34,10 +34,16 @@ export function logSecurityViolation(
 }
 
 /** Heartbeat server dipakai layar pengawas untuk membedakan aktif dan terputus. */
-export function heartbeatExamAttempt(attemptId: string) {
+export interface ClientSyncHealth {
+    localAnswerCount: number;
+    pendingAnswerCount: number;
+    storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+}
+
+export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth) {
     return apiSend<{ lastSeenAt: string }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/heartbeat`,
-        { deviceId: getDeviceId() },
+        { deviceId: getDeviceId(), syncHealth },
         'POST',
         { timeoutMs: 15_000 },
     );

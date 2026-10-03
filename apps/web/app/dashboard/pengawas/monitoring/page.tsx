@@ -1,4 +1,5 @@
 "use client";
+import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 
@@ -222,6 +223,8 @@ function MonitoringContent() {
                     </button>
                 </div>
             </div>
+
+            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleReset} />
 
             {/* Quick Stat Pill Tabs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

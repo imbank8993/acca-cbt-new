@@ -1,3 +1,4 @@
+import { MONITORING_EVENTS, validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
 import {
     BadRequestException,
     ForbiddenException,
@@ -21,6 +22,7 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
  * sehingga proktor tetap melihat kolomnya di monitoring.
  */
 const NON_WARNING_EVENTS = [
+    ...MONITORING_EVENTS,
     'RESET_BY_PROCTOR',
     'MAKEUP_EXAM_STARTED',
     'FORCE_TERMINATED',
@@ -210,34 +212,47 @@ export class ProctoringService {
     }
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
-    async heartbeat(user: AuthUser, attemptId: string, deviceId: string) {
-        const { data: attempt } = await this.db
-            .from('cbt_exam_attempts')
-            .select('user_id, status, device_fingerprint')
-            .eq('id', attemptId)
-            .maybeSingle();
-        if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        const row = attempt as {
-            user_id: string;
-            status: string;
-            device_fingerprint: string | null;
-        };
-        if (row.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
-        if (row.status !== 'in_progress') {
-            throw new BadRequestException('Ujian tidak sedang berlangsung.');
-        }
-        if (!deviceId || (row.device_fingerprint && row.device_fingerprint !== deviceId)) {
-            throw new ForbiddenException('Perangkat tidak cocok dengan sesi ujian.');
-        }
-
-        const now = await this.databaseNow(this.db);
-        const { error } = await this.db
-            .from('cbt_exam_attempts')
-            .update({ last_seen_at: now.toISOString() })
-            .eq('id', attemptId)
-            .eq('status', 'in_progress');
-        if (error) throw new BadRequestException('Status koneksi belum dapat diperbarui.');
-        return { lastSeenAt: now.toISOString() };
+    async heartbeat(user: AuthUser, attemptId: string, deviceId: string, syncHealth?: ClientSyncHealth) {
+        let health: ClientSyncHealth | undefined;
+        try { health = validateSyncHealth(syncHealth); }
+        catch { throw new BadRequestException('Laporan penyimpanan tidak valid.'); }
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: attempt, error: readError } = await db.from('cbt_exam_attempts')
+                .select('user_id, status, device_fingerprint, last_seen_at, metadata').eq('id', attemptId).maybeSingle();
+            if (readError) throw new BadRequestException('Status koneksi belum dapat dibaca.');
+            if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
+            if (attempt.status !== 'in_progress') throw new BadRequestException('Ujian tidak sedang berlangsung.');
+            if (!deviceId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId)) {
+                throw new ForbiddenException('Perangkat tidak cocok dengan sesi ujian.');
+            }
+            const now = await this.databaseNow(db);
+            const metadata = { ...(attempt.metadata || {}) };
+            const previous = metadata.sync_health;
+            const lastSeen = Date.parse(attempt.last_seen_at || '');
+            const log = async (event_type: string, details: Record<string, unknown>) => {
+                const { error } = await db.from('cbt_attempt_security_logs').insert({
+                    attempt_id: attemptId, event_type, created_at: now.toISOString(),
+                    metadata: { ...details, source: 'server_monitoring', actor_user_id: user.id },
+                });
+                if (error) throw new BadRequestException('Riwayat koneksi belum tersimpan.');
+            };
+            if (Number.isFinite(lastSeen) && now.getTime() - lastSeen > 45_000) {
+                await log('CONNECTION_GAP_DETECTED', { last_seen_at: attempt.last_seen_at,
+                    observed_again_at: now.toISOString(), gap_seconds: Math.floor((now.getTime() - lastSeen) / 1000) });
+            }
+            if (health) {
+                const changed = !previous || previous.storageState !== health.storageState ||
+                    Boolean(previous.pendingAnswerCount) !== Boolean(health.pendingAnswerCount);
+                if (changed) await log('SYNC_HEALTH_CHANGED', { ...health, evidence: 'client_report' });
+                metadata.sync_health = { ...health, receivedAt: now.toISOString() };
+            }
+            const { error } = await db.from('cbt_exam_attempts')
+                .update({ last_seen_at: now.toISOString(), metadata }).eq('id', attemptId).eq('status', 'in_progress');
+            if (error) throw new BadRequestException('Status koneksi belum dapat diperbarui.');
+            return { lastSeenAt: now.toISOString() };
+        });
     }
 
     /**
@@ -327,6 +342,7 @@ export class ProctoringService {
             const metadataWithoutOldScore = { ...previousMetadata };
             delete metadataWithoutOldScore.base_score;
             delete metadataWithoutOldScore.dimension_scores;
+            delete metadataWithoutOldScore.sync_health;
             updates.metadata = metadataWithoutOldScore;
             if (expired) {
                 recoveryUntil = new Date(
@@ -462,6 +478,7 @@ export class ProctoringService {
             delete previousMetadata.grading_retry_at;
             delete previousMetadata.grading_retry_error;
             delete previousMetadata.grading_recovered_at;
+            delete previousMetadata.sync_health;
 
             const { count: deletedAnswerCount, error: countError } = await db
                 .from('cbt_answers')
@@ -534,7 +551,7 @@ export class ProctoringService {
     }
 
     private async databaseNow(db: DbSession): Promise<Date> {
-        const rows = await db.raw<Array<{ now: Date }>>('SELECT NOW() AS now');
+        const rows = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = rows?.[0]?.now ? new Date(rows[0].now) : null;
         if (!now || !Number.isFinite(now.getTime())) {
             throw new BadRequestException('Waktu server belum dapat diperiksa.');

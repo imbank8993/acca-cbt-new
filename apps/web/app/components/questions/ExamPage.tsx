@@ -125,6 +125,7 @@ export default function ExamPage() {
         serverCount: number;
         recoveryUntil: string;
     } | null>(null);
+    const storageStateRef = useRef<'healthy' | 'fallback' | 'unavailable' | 'unknown'>('unknown');
     const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
     // Security
@@ -251,6 +252,7 @@ export default function ExamPage() {
                 // diperiksa, karena keduanya juga menjadi pagar pemulihan
                 // ketika seluruh endpoint sedang tidak dapat dijangkau.
                 const storageHealth = await inspectExamStorage();
+                storageStateRef.current = !storageHealth.available ? 'unavailable' : storageHealth.mode === 'localstorage' ? 'fallback' : 'healthy';
                 if (!storageHealth.available) {
                     setAccessDenied(true);
                     setAccessError(storageHealth.warning || 'Penyimpanan jawaban tidak tersedia.');
@@ -1138,7 +1140,11 @@ export default function ExamPage() {
         const pulse = async () => {
             try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
             if (!navigator.onLine || offlineRecoveryRef.current) return;
-            await heartbeatExamAttempt(attempt.id).catch(() => undefined);
+            await heartbeatExamAttempt(attempt.id, {
+                localAnswerCount: Object.values(answersRef.current).filter(value => value.trim().length > 0).length,
+                pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
+                storageState: storageStateRef.current,
+            }).catch(() => undefined);
             const securityResult = await flushSecurityEvents().catch(() => null);
             if (!securityResult?.terminated && terminationReasonRef.current) {
                 void confirmPendingTermination(terminationReasonRef.current);
@@ -1221,6 +1227,7 @@ export default function ExamPage() {
             revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(doubtfulRef.current),
         });
+        storageStateRef.current = !localWrite.saved ? 'unavailable' : localWrite.mode === 'localstorage' ? 'fallback' : 'healthy';
         if (!localWrite.saved) {
             setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
         } else if (localWrite.mode === 'localstorage') {
@@ -1275,6 +1282,7 @@ export default function ExamPage() {
             revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(newDoubtful),
         });
+        storageStateRef.current = !localWrite.saved ? 'unavailable' : localWrite.mode === 'localstorage' ? 'fallback' : 'healthy';
         if (!localWrite.saved) {
             setStorageWarning('Snapshot lokal gagal disimpan. Jangan lanjutkan dalam keadaan offline; hubungi proktor.');
         } else if (localWrite.mode === 'localstorage') {

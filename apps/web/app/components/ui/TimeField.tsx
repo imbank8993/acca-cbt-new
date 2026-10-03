@@ -67,7 +67,9 @@ export function TimeField({
     const [selectedMinute, setSelectedMinute] = useState<string>('00');
 
     // Sync state when external value changes
-    useEffect(() => {
+    const [prevValue, setPrevValue] = useState(value);
+    if (value !== prevValue) {
+        setPrevValue(value);
         setInputValue(value || '');
         if (value && value.includes(':')) {
             const [h, m] = value.split(':');
@@ -77,7 +79,7 @@ export function TimeField({
             setSelectedHour('08');
             setSelectedMinute('00');
         }
-    }, [value]);
+    }
 
     const updateCoords = useCallback(() => {
         if (!rootRef.current) return;

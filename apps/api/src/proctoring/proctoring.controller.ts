@@ -9,7 +9,8 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -33,7 +34,21 @@ class LogViolationDto {
     clientEventId?: string;
 }
 
+class SyncHealthDto {
+    @IsInt() @Min(0) @Max(10000)
+    localAnswerCount!: number;
+
+    @IsInt() @Min(0) @Max(10000)
+    pendingAnswerCount!: number;
+
+    @IsIn(['healthy', 'fallback', 'unavailable', 'unknown'])
+    storageState!: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+}
+
 class HeartbeatDto {
+    @IsOptional() @ValidateNested() @Type(() => SyncHealthDto)
+    syncHealth?: SyncHealthDto;
+
     @ApiProperty()
     @IsString()
     @IsNotEmpty()
@@ -107,7 +122,7 @@ export class ProctoringController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: HeartbeatDto,
     ) {
-        return this.proctoring.heartbeat(user, attemptId, dto.deviceId);
+        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth);
     }
 
     @Post('attempts/:attemptId/reset')

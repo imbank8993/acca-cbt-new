@@ -1,10 +1,13 @@
+import { formatAnswerKey, formatStudentAnswer, type DisplayQuestion } from './answer-display';
+import { gradingLabel, monitoringEventLabels, storageLabels } from './monitoring-health';
 import type {
     DetailedItemAnalysisResponse,
     ExamAttemptRecord,
     OrganizationExam,
     StudentAnswerSummary,
+    ExamAnswerRecord,
 } from './api/proctor';
-import type { QuestionOptionRecord } from './api/questions';
+import type { QuestionOptionRecord, QuestionRecord } from './api/questions';
 
 interface ExportItemAnalysis {
     id: string;
@@ -31,6 +34,9 @@ export interface ExportAnalysisOptions {
     attempts: ExamAttemptRecord[];
     analysis: ExportItemAnalysis[];
     detailedAnalysis: DetailedItemAnalysisResponse | null;
+    timeZone?: string;
+    questions?: QuestionRecord[];
+    answers?: ExamAnswerRecord[];
 }
 
 function cleanHtml(text: string | null | undefined): string {
@@ -46,15 +52,17 @@ function cleanHtml(text: string | null | undefined): string {
         .trim();
 }
 
-export async function exportDetailedAnalysisToExcel({
+export async function buildAnalysisWorkbook({
     exam,
     attempts,
     analysis,
     detailedAnalysis,
+    timeZone = 'UTC',
+    questions = [],
+    answers = [],
 }: ExportAnalysisOptions) {
     if (!attempts?.length && !analysis?.length && !detailedAnalysis?.items?.length) {
-        alert('Tidak ada data untuk diekspor');
-        return;
+        throw new Error('Tidak ada data untuk diekspor');
     }
 
     // `xlsx-js-style` mempertahankan API SheetJS yang sudah digunakan aplikasi,
@@ -62,8 +70,87 @@ export async function exportDetailedAnalysisToExcel({
     const XLSX = await import('xlsx-js-style');
     const wb = XLSX.utils.book_new();
 
+    // Reuse the full, type-aware display formatter. Do not export UUID/JSON
+    // fragments or truncated Python display strings as the student's answer.
+    if (detailedAnalysis && questions.length) {
+        detailedAnalysis = structuredClone(detailedAnalysis);
+        const displayQuestions = new Map<string, DisplayQuestion>(questions.map(question => [question.id, {
+            type: question.type, question_text: question.question_text, metadata: question.metadata,
+            options: (question.options || question.bank_question_options || []).map(option => ({ ...option, id: option.id || '' })),
+        }]));
+        for (const item of detailedAnalysis.items) {
+            const question = displayQuestions.get(item.id);
+            if (question) item.key_display = formatAnswerKey(question).join('; ') ||
+                (['essay', 'esay', 'uraian'].includes(question.type) ? 'Rubrik / koreksi manual' : 'Tidak ada kunci objektif');
+        }
+        const raw = new Map(answers.map(answer => [`${answer.attempt_id}:${answer.question_id}`, answer]));
+        for (const student of detailedAnalysis.matrix) {
+            for (const [questionId, cell] of Object.entries(student.items)) {
+                const question = displayQuestions.get(questionId);
+                const answer = raw.get(`${student.attempt_id}:${questionId}`);
+                if (question && answer) cell.display_answer = formatStudentAnswer(question, answer.selected_option_id, answer.essay_answer).join('; ') || '-';
+            }
+        }
+    }
+
     const examTitle = exam?.title || 'Ujian';
-    const safeTitle = examTitle.replace(/[^a-z0-9]/gi, '_');
+    const date = (value?: string | null) => value && Number.isFinite(Date.parse(value))
+        ? new Intl.DateTimeFormat('id-ID', { timeZone, dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value)) : 'Belum tercatat';
+    const generatedAt = new Date().toISOString();
+    const attemptById = new Map(attempts.map(attempt => [attempt.id, attempt]));
+    const addSheet = (name: string, rows: Array<Record<string, string | number>>) => {
+        const sheet = XLSX.utils.json_to_sheet(rows);
+        const keys = Object.keys(rows[0] || {});
+        sheet['!cols'] = keys.map(key => ({ wch: Math.min(55, Math.max(18, key.length + 3)) }));
+        if (sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
+        for (let column = 0; column < keys.length; column++) {
+            const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
+            if (cell) cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2563EB' } }, alignment: { wrapText: true } };
+        }
+        XLSX.utils.book_append_sheet(wb, sheet, name);
+    };
+    addSheet('Ringkasan_Ujian', [
+        { Informasi: 'Ujian', Keterangan: examTitle },
+        { Informasi: 'ID Ujian', Keterangan: exam?.id || detailedAnalysis?.exam_id || '-' },
+        { Informasi: 'Export dibuat (perangkat pengawas)', Keterangan: date(generatedAt) },
+        { Informasi: 'Zona waktu seluruh laporan', Keterangan: timeZone },
+        { Informasi: 'Snapshot monitoring (server)', Keterangan: date(attempts[0]?.server_now) },
+        { Informasi: 'Snapshot analisis (server)', Keterangan: date(detailedAnalysis?.generated_at) },
+        { Informasi: 'Jadwal mulai', Keterangan: date(exam?.start_time) },
+        { Informasi: 'Jadwal berakhir', Keterangan: date(exam?.end_time) },
+        { Informasi: 'Durasi (menit)', Keterangan: exam?.duration_minutes ?? '-' },
+        { Informasi: 'Peserta terdaftar / terpantau', Keterangan: attempts.length },
+        { Informasi: 'Sudah mengumpulkan', Keterangan: attempts.filter(a => ['submitted', 'auto_submitted'].includes(a.status)).length },
+        { Informasi: 'Belum mengumpulkan', Keterangan: attempts.filter(a => !['submitted', 'auto_submitted'].includes(a.status)).length },
+        { Informasi: 'Menunggu penilaian', Keterangan: attempts.filter(a => ['submitted', 'auto_submitted'].includes(a.status) && a.total_score == null).length },
+        { Informasi: 'Versi soal dan kunci', Keterangan: detailedAnalysis?.question_version_source === 'frozen' ? 'Salinan soal saat ujian' : 'Data lama: versi historis tidak tersedia; bank saat ini' },
+        { Informasi: 'Cakupan analisis butir', Keterangan: 'Peserta yang sudah memulai. Analisis saat ujian berlangsung masih sementara. Peserta belum mulai tidak dihitung sebagai jawaban salah.' },
+        { Informasi: 'Nomor soal dan huruf opsi', Keterangan: 'Mengikuti urutan master salinan soal. Posisi di layar siswa dapat berbeda jika pengacakan aktif; cocokkan melalui teks dan ID soal.' },
+        { Informasi: 'Batas laporan perangkat', Keterangan: 'Jumlah lokal dan belum terkirim adalah laporan terakhir perangkat, bukan bukti server menerima jawaban. Tidak ada laporan berarti belum diketahui, bukan nol.' },
+        { Informasi: 'Batas riwayat', Keterangan: 'Koneksi diamati berkala. Jeda heartbeat bukan bukti pasti putus internet. Riwayat teknis lama dan waktu simpan jawaban lama mungkin belum tercatat.' },
+    ]);
+    addSheet('Kendala_Pemulihan', attempts.map(a => ({
+        'ID Pengerjaan': a.id, 'Nama': a.profiles?.full_name || '-', 'NIS': a.profiles?.identity_number || '-', 'Kelas': a.kelas_name || '-',
+        'Koneksi pada snapshot': a.connection_status || 'Belum diketahui', 'Terakhir terhubung': date(a.last_seen_at),
+        'Jawaban tersimpan di server': a.saved_answer_count ?? 'Belum diketahui', 'Simpan terakhir (server)': date(a.last_answer_saved_at),
+        'Jawaban lokal terakhir dilaporkan': a.sync_health?.localAnswerCount ?? 'Belum dilaporkan',
+        'Perubahan belum terkirim terakhir dilaporkan': a.sync_health?.pendingAnswerCount ?? 'Belum dilaporkan',
+        'Laporan perangkat diterima (server)': date(a.sync_health?.receivedAt),
+        'Kesegaran laporan pada snapshot': a.sync_health ? a.sync_health.fresh ? 'Terbaru' : 'Laporan lama' : 'Belum dilaporkan',
+        'Penyimpanan lokal terakhir dilaporkan': storageLabels[a.sync_health?.storageState || 'unknown'],
+        'Perlu perhatian': a.attention_reasons?.join('; ') || '-', 'Tenggat pribadi': date(a.deadline_at),
+        'Jumlah reset / susulan tercatat': (a.monitoring_history || []).filter(event => ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'].includes(event.type)).length,
+    })));
+    const historyRows = attempts.flatMap(a => (a.monitoring_history || []).map(event => ({
+        'ID Pengerjaan': a.id, 'Nama': a.profiles?.full_name || '-', 'NIS': a.profiles?.identity_number || '-',
+        'Waktu': date(event.at), 'Peristiwa': monitoringEventLabels[event.type] || event.type,
+        'Oleh': event.actor_name || event.actor_id || '-', 'ID Pelaksana': event.actor_id || '-', 'Alasan': event.reason || '-',
+        'Tenggat sebelumnya': date(event.previous_deadline), 'Tenggat baru': date(event.recovery_until),
+        'Jeda tanpa kabar (detik, perkiraan)': event.gap_seconds ?? '-',
+        'Perubahan belum terkirim (laporan)': event.pending_answer_count ?? '-',
+        'Penyimpanan lokal (laporan)': storageLabels[event.storage_state || 'unknown'],
+    })));
+    addSheet('Riwayat_Kejadian', historyRows.length ? historyRows : [{ Keterangan: 'Belum ada riwayat tercatat.' }]);
 
     // ─────────────────────────────────────────────────────────────────────────────
     // SHEET 1: Rekap_Hasil (Hasil & Ringkasan Siswa)
@@ -79,7 +166,7 @@ export async function exportDetailedAnalysisToExcel({
                 a.status === 'submitted'
                     ? 'Selesai'
                     : a.status === 'auto_submitted'
-                    ? 'Terminated / Auto'
+                    ? 'Ditutup otomatis / pengawas'
                     : a.status === 'in_progress'
                     ? 'Sedang Mengerjakan'
                     : a.status === 'belum'
@@ -92,7 +179,13 @@ export async function exportDetailedAnalysisToExcel({
                 'NIS / ID': a.profiles?.identity_number || '-',
                 'Kelas': a.kelas_name || '-',
                 'Status': statusLabel,
-                'Nilai Klasik': a.status === 'belum' ? '-' : Number(a.detailed_scores?.classical ?? a.total_score ?? 0).toFixed(2),
+                'Nilai Klasik': !['submitted', 'auto_submitted'].includes(a.status) ? 'Belum dikumpulkan' : a.total_score == null ? 'Menunggu penilaian' : Number(a.detailed_scores?.classical ?? a.total_score).toFixed(2),
+                'Status Penilaian': gradingLabel(a),
+                'ID Pengerjaan': a.id,
+                'Soal terisi di server': a.saved_answer_count ?? 'Belum diketahui',
+                'Soal kosong di server': a.unanswered_count ?? 'Belum diketahui',
+                'Tenggat pribadi': date(a.deadline_at),
+                'Simpan terakhir (server)': date(a.last_answer_saved_at),
                 'Nilai IRT': a.detailed_scores?.irt_1pl != null
                     ? Number(a.detailed_scores.irt_1pl).toFixed(2)
                     : a.score_irt != null
@@ -102,27 +195,14 @@ export async function exportDetailedAnalysisToExcel({
                 'Pindah Tab': bd.pindah_tab,
                 'Close Tab': bd.close_tab,
                 'Pelanggaran Lain': bd.lainnya,
-                'Mulai': a.started_at ? new Date(a.started_at).toLocaleString('id-ID') : '-',
-                'Selesai': a.finished_at ? new Date(a.finished_at).toLocaleString('id-ID') : '-',
+                'Lama pengerjaan (detik)': a.started_at && (a.finished_at || a.server_now) ? Math.max(0, Math.floor((Date.parse(a.finished_at || a.server_now!) - Date.parse(a.started_at)) / 1000)) : '-',
+                'Mulai': date(a.started_at),
+                'Selesai': date(a.finished_at),
             };
         });
 
         const wsHasil = XLSX.utils.json_to_sheet(rowsHasil);
-        wsHasil['!cols'] = [
-            { wch: 5 },
-            { wch: 30 },
-            { wch: 15 },
-            { wch: 15 },
-            { wch: 18 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 15 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 15 },
-            { wch: 20 },
-            { wch: 20 },
-        ];
+        wsHasil['!cols'] = Object.keys(rowsHasil[0]).map(key => ({ wch: /Nama|Penilaian|Status|Tenggat|Simpan|Mulai|Selesai/.test(key) ? 30 : 20 }));
         XLSX.utils.book_append_sheet(wb, wsHasil, 'Rekap_Hasil');
     }
 
@@ -158,7 +238,7 @@ export async function exportDetailedAnalysisToExcel({
 
         const aoaData: Array<Array<string | number>> = [
             [`DATA JAWABAN SISWA — ${examTitle}`],
-            [`Kunci dan jawaban ditampilkan sesuai jenis soal. Diekspor ${new Date().toLocaleString('id-ID')}.`],
+            [`Kunci dan jawaban ditampilkan sesuai jenis soal. Diekspor ${date(generatedAt)} (${timeZone}).`],
             [],
             ['Nama', 'Kelas', ...questionHeaders],
             ['Keterangan', 'Kunci jawaban →', ...sortedItems.map((question) => `Kunci: ${cleanHtml(question.key_display || '-')}`)],
@@ -180,7 +260,7 @@ export async function exportDetailedAnalysisToExcel({
                     : 'Belum dinilai';
                 const answer = cleanHtml(cell?.display_answer || '-') || '-';
                 row.push(
-                    `Jawaban: ${answer}\nStatus: ${status}\nSkor: ${Number(cell?.score || 0).toFixed(2)} / ${Number(question.score_default || 1).toFixed(2)}`,
+                    `Jawaban: ${answer}\nStatus: ${status}\nSkor: ${cell?.status === 'ungraded' || attemptById.get(student.attempt_id)?.total_score == null ? 'Menunggu penilaian' : Number(cell?.score || 0).toFixed(2)} / ${Number(question.score_default || 1).toFixed(2)}`,
                 );
             });
             aoaData.push(row);
@@ -268,6 +348,8 @@ export async function exportDetailedAnalysisToExcel({
                   question_text: a.qText,
                   key_display: a.keyDisplay || '-',
                   total_answered: a.total,
+                  total_participants: attempts.filter(attempt => attempt.status !== 'belum').length,
+                  total_unanswered: Math.max(0, attempts.filter(attempt => attempt.status !== 'belum').length - a.total),
                   total_correct: a.correct,
                   total_incorrect: a.incorrect,
                   total_ungraded: a.ungraded ?? 0,
@@ -311,6 +393,9 @@ export async function exportDetailedAnalysisToExcel({
                 'Benar': item.total_correct,
                 'Salah': item.total_incorrect,
                 'Belum Ternilai': item.total_ungraded ?? 0,
+                'Kosong': item.total_unanswered,
+                '% Benar (peserta mulai)': item.total_participants ? (item.total_correct / item.total_participants * 100).toFixed(1) + '%' : '-',
+                '% Kosong (peserta mulai)': item.total_participants ? (item.total_unanswered / item.total_participants * 100).toFixed(1) + '%' : '-',
                 '% Salah': item.incorrect_percentage.toFixed(1) + '%',
                 'Tingkat Kesukaran': item.difficulty_label ? item.difficulty_label.toUpperCase() : '-',
                 'Indeks Kesukaran (P)': item.difficulty_index != null ? Number(item.difficulty_index).toFixed(3) : '-',
@@ -322,23 +407,7 @@ export async function exportDetailedAnalysisToExcel({
         });
 
         const wsAnalisis = XLSX.utils.json_to_sheet(rowsAnalisis);
-        wsAnalisis['!cols'] = [
-            { wch: 5 },
-            { wch: 12 },
-            { wch: 50 },
-            { wch: 25 },
-            { wch: 10 },
-            { wch: 8 },
-            { wch: 8 },
-            { wch: 13 },
-            { wch: 10 },
-            { wch: 18 },
-            { wch: 18 },
-            { wch: 15 },
-            { wch: 18 },
-            { wch: 60 },
-            { wch: 60 },
-        ];
+        wsAnalisis['!cols'] = Object.keys(rowsAnalisis[0]).map(key => ({ wch: /Soal|Siswa|Jawaban/.test(key) ? 45 : 20 }));
         XLSX.utils.book_append_sheet(wb, wsAnalisis, 'Analisis_Butir_Soal');
     }
 
@@ -410,12 +479,15 @@ export async function exportDetailedAnalysisToExcel({
                     'Nama Siswa': stu.student_name,
                     'NIS / ID': stu.student_nis || '-',
                     'Kelas': stu.class_name || '-',
+                    'ID Pengerjaan': stu.attempt_id,
+                    'ID Soal': q.id,
+                    'Soal': cleanHtml(q.question_text),
                     'No Soal': q.number,
                     'Tipe Soal': (q.type || 'mcq').toUpperCase(),
                     'Kunci Jawaban': cleanHtml(q.key_display || '-'),
                     'Jawaban Siswa': cleanHtml(cell?.display_answer || '-'),
                     'Status': statusLabel,
-                    'Skor Diperoleh': cell ? Number(cell.score || 0).toFixed(2) : '0.00',
+                    'Skor Diperoleh': cell?.status === 'ungraded' || attemptById.get(stu.attempt_id)?.total_score == null ? 'Menunggu penilaian' : cell ? Number(cell.score || 0).toFixed(2) : '0.00',
                     'Skor Maks': Number(q.score_default || 1).toFixed(2),
                 });
             });
@@ -423,27 +495,27 @@ export async function exportDetailedAnalysisToExcel({
 
         if (rowsTranscript.length > 0) {
             const wsTranscript = XLSX.utils.json_to_sheet(rowsTranscript);
-            wsTranscript['!cols'] = [
-                { wch: 28 },
-                { wch: 15 },
-                { wch: 12 },
-                { wch: 8 },
-                { wch: 12 },
-                { wch: 25 },
-                { wch: 30 },
-                { wch: 15 },
-                { wch: 12 },
-                { wch: 10 },
-            ];
+            wsTranscript['!cols'] = Object.keys(rowsTranscript[0]).map(key => ({ wch: /Jawaban|Soal|Status/.test(key) ? 40 : 22 }));
             XLSX.utils.book_append_sheet(wb, wsTranscript, 'Detail_Transkrip_Respon');
         }
     }
 
-    if (wb.SheetNames.includes('Jawaban_Siswa')) {
-        wb.SheetNames = [
-            'Jawaban_Siswa',
-            ...wb.SheetNames.filter((name) => name !== 'Jawaban_Siswa'),
-        ];
+    for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        if (name === 'Ringkasan_Ujian') sheet['!cols'] = [{ wch: 38 }, { wch: 110 }];
+        if (name !== 'Jawaban_Siswa') {
+            for (const address of Object.keys(sheet).filter(key => !key.startsWith('!'))) {
+                const cell = sheet[address];
+                cell.s = { ...cell.s, alignment: { ...cell.s?.alignment, wrapText: true, vertical: 'top' } };
+            }
+        }
     }
+    return wb;
+}
+
+export async function exportDetailedAnalysisToExcel(options: ExportAnalysisOptions) {
+    const wb = await buildAnalysisWorkbook(options);
+    const XLSX = await import('xlsx-js-style');
+    const safeTitle = (options.exam?.title || 'Ujian').replace(/[^a-z0-9]/gi, '_');
     XLSX.writeFile(wb, `Hasil_dan_Jawaban_${safeTitle}.xlsx`, { cellStyles: true });
 }

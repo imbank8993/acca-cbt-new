@@ -1,4 +1,5 @@
 "use client";
+import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
@@ -6,6 +7,7 @@ import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam,Vi
 import type { QuestionOptionRecord } from '@/lib/api/questions';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -58,7 +60,7 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('guru_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('guru_monitoring_analysis', []);
-    const [detailedAnalysis, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('guru_monitoring_detailedAnalysis', null);
+    const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('guru_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
     const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('guru_monitoring_liveAlerts', []);
@@ -289,12 +291,22 @@ function MonitoringContent() {
     const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
     const exportResultsToExcel = async () => {
-        await exportDetailedAnalysisToExcel({
-            exam: exams.find((exam) => exam.id === selectedExamId),
-            attempts,
-            analysis,
-            detailedAnalysis,
-        });
+        try {
+            const [freshAttempts, freshAnalysis, timeZone] = await Promise.all([
+                getExamAttemptsAction(selectedExamId), getExamAnswersForAnalysisAction(selectedExamId), getSchoolTimeZone(),
+            ]);
+            if (!freshAttempts.length) throw new Error('Data peserta belum tersedia. Muat ulang monitoring sebelum export.');
+            if (freshAttempts.some(a => a.status !== 'belum') && (freshAnalysis.questions.length || freshAttempts.some(a => (a.total_questions || 0) > 0)) && !freshAnalysis.detailed) {
+                throw new Error('Analisis rinci belum tersedia. Coba kembali setelah layanan penilaian tersedia.');
+            }
+            await exportDetailedAnalysisToExcel({
+                exam: exams.find(exam => exam.id === selectedExamId), attempts: freshAttempts,
+                analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+            });
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'Export belum dapat dibuat.');
+        }
     };
     if (isLoading) return (
         <div className="flex items-center justify-center min-h-screen">
@@ -356,6 +368,8 @@ function MonitoringContent() {
                     ))}
                 </div>
             )}
+
+            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

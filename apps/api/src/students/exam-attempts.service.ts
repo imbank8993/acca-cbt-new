@@ -525,6 +525,8 @@ export class ExamAttemptsService {
             .eq('attempt_id', attemptId);
         if (readError) throw new BadRequestException('Versi jawaban belum dapat diperiksa.');
         const existing = new Map<string, any>((saved || []).map((row: any) => [row.question_id, row]));
+        const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const savedAt = new Date(clock.now).toISOString();
         const rows = new Map<string, any>();
         for (const answer of answers) {
             const previous = rows.get(answer.questionId) || existing.get(answer.questionId);
@@ -538,7 +540,7 @@ export class ExamAttemptsService {
                 selected_option_id: answer.selected_option_id || null,
                 essay_answer: answer.essay_answer || null,
                 is_doubtful: answer.is_doubtful ?? previous?.is_doubtful ?? false,
-                metadata: { ...(previous?.metadata || {}), answer_revision: revision },
+                metadata: { ...(previous?.metadata || {}), answer_revision: revision, answer_saved_at: savedAt },
             };
             const same = previous && previous.selected_option_id === row.selected_option_id &&
                 previous.essay_answer === row.essay_answer && Boolean(previous.is_doubtful) === row.is_doubtful;

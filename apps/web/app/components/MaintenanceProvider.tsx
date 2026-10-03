@@ -2,11 +2,10 @@
 
 import { useClientMounted } from '@/hooks/useClientMounted';
 import { AlertCircle } from 'lucide-react';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 import { usePathname } from 'next/navigation';
 import React from 'react';
 
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '600', '800'] });
+
 
 export default function MaintenanceProvider({ 
     isMaintenance, 
@@ -32,7 +31,7 @@ export default function MaintenanceProvider({
 
     if (isMaintenance && !isBypassRoute) {
         return (
-            <div className={`min-h-screen flex items-center justify-center bg-[#f1f5f9] p-4 ${jakarta.className}`}>
+            <div className="min-h-screen flex items-center justify-center bg-[#f1f5f9] p-4">
                 <div className="bg-white rounded-3xl shadow-xl p-10 max-w-lg w-full text-center border border-[#e2e8f0]">
                     <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                         <AlertCircle className="w-10 h-10 text-rose-500" />
