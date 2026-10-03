@@ -440,39 +440,10 @@ function MonitoringContent() {
 
     return (
         <div className="pb-24 max-w-7xl mx-auto">
-            {/* Header — Navy gradient */}
-            {/* Stats Cards - Outside Banner */}
-            {selectedExamId && (
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-6">
-                    {[
-                        { label: 'Total Peserta', value: totalStudents, icon: Users },
-                        { label: 'Belum Mengerjakan', value: belumMengerjakan, icon: CheckCircle2 },
-                        { label: 'Mengerjakan', value: inProgress, icon: Activity, pulse: inProgress > 0 },
-                        { label: 'Selesai', value: completed, icon: CheckCircle2 },
-                        { label: 'Pelanggaran', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
-                    ].map((stat, i) => (
-                        <div key={i} className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
-                            <div className={`w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center ${
-                                stat.alert ? 'bg-red-100 border border-red-200' : 'bg-[#3083FF]/10 border border-[#3083FF]/30'
-                            }`}>
-                                <stat.icon size={18} className={`${
-                                    stat.alert ? 'text-red-500' : stat.pulse ? 'text-emerald-500 animate-pulse' : 'text-[#3083FF]'
-                                }`} />
-                            </div>
-                            <p className="text-2xl font-bold text-[#3083FF]">{stat.value}</p>
-                            <p className="text-xs text-slate-500">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
-
-            {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-                <div>
-                    {selectedExamId ? (
-                        <div className="flex gap-1 bg-white border border-[#3083FF]/30 p-1 rounded-lg w-fit shadow-sm">
+            <div className="mb-5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    {selectedExamId && (
+                        <div className="flex w-fit shrink-0 gap-1 rounded-lg border border-[#3083FF]/20 bg-slate-50 p-1">
                             {[
                                 { id: 'live', label: 'Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'results', label: 'Rekap', icon: Users, badge: null as number | null },
@@ -481,84 +452,109 @@ function MonitoringContent() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                    className={`relative flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
                                         activeTab === tab.id
                                             ? 'bg-[#3083FF] text-white shadow-sm'
-                                            : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                                            : 'text-slate-500 hover:bg-white hover:text-slate-800'
                                     }`}
                                 >
                                     <tab.icon size={14} />
                                     {tab.label}
                                     {tab.badge && (
-                                        <span className="ml-0.5 w-5 h-5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                                             {tab.badge}
                                         </span>
                                     )}
                                 </button>
                             ))}
                         </div>
-                    ) : (
-                        <div />
                     )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-                    {/* Pencarian & filter kelas hanya relevan untuk daftar peserta
-                        (Aktif dan Rekap) — tab Pelanggaran berbasis event dan
-                        Analisis berbasis butir soal. */}
-                    {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
-                        <>
-                            <input
-                                type="text"
-                                value={searchName}
-                                onChange={(e) => setSearchName(e.target.value)}
-                                placeholder="Cari nama peserta..."
-                                className="bg-white border border-[#3083FF]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/50 outline-none px-4 py-2 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px] h-[38px]"
+                    <div className="flex min-w-0 flex-1 gap-2">
+                        <div className="min-w-0 flex-1">
+                            <SearchableSelect
+                                options={exams.map(exam => ({
+                                    value: exam.id,
+                                    label: exam.title,
+                                    subLabel: `${exam.exam_type?.toUpperCase() || 'UJIAN'} • ${exam.duration_minutes || 0} menit`,
+                                }))}
+                                value={selectedExamId}
+                                onChange={(val) => setSelectedExamId(String(val || ''))}
+                                placeholder="-- Cari & Pilih Ujian --"
                             />
-                            <div className="w-full sm:w-auto min-w-[170px]">
-                                <MultiSelect
-                                    placeholder="Semua Kelas"
-                                    allSelectedText="Semua Kelas Terpilih"
-                                    options={kelasOptions.map(k => ({ value: k, label: k }))}
-                                    value={filterKelas}
-                                    onChange={(vals) => setFilterKelas(vals)}
-                                    height="38px"
-                                />
-                            </div>
-                            <div className="w-full sm:w-auto min-w-[145px]">
-                                <InlineSelect
-                                    value={filterStatus}
-                                    onChange={(val) => setFilterStatus(val)}
-                                    options={[
-                                        { value: 'all', label: 'Semua Status' },
-                                        { value: 'in_progress', label: 'Sedang Ujian' },
-                                        { value: 'submitted', label: 'Selesai' },
-                                        { value: 'auto_submitted', label: 'Terminated' },
-                                        { value: 'belum', label: 'Belum Mulai' },
-                                    ]}
-                                    height="38px"
-                                />
-                            </div>
-                        </>
-                    )}
-                    <div className="flex-1 min-w-[220px]">
-                        <SearchableSelect
-                            options={exams.map(exam => ({
-                                value: exam.id,
-                                label: exam.title,
-                                subLabel: `${exam.exam_type?.toUpperCase() || 'UJIAN'} • ${exam.duration_minutes || 0} menit`,
-                            }))}
-                            value={selectedExamId}
-                            onChange={(val) => setSelectedExamId(String(val || ''))}
-                            placeholder="-- Cari & Pilih Ujian --"
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Refresh data monitoring"
+                            title="Refresh data monitoring"
+                            onClick={handleRefresh}
+                            disabled={isRefreshing || !selectedExamId}
+                            className="shrink-0 rounded-lg bg-[#3083FF] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2672e8] disabled:cursor-not-allowed disabled:opacity-40">
+                            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+                            <span className="ml-2 hidden sm:inline">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+                {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(180px,1fr)_minmax(170px,0.8fr)_minmax(145px,0.65fr)]">
+                        <input
+                            type="text"
+                            value={searchName}
+                            onChange={(e) => setSearchName(e.target.value)}
+                            placeholder="Cari nama peserta..."
+                            aria-label="Cari nama peserta"
+                            className="h-[38px] min-w-0 rounded-lg border border-slate-200 px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
+                        />
+                        <MultiSelect
+                            placeholder="Semua Kelas"
+                            allSelectedText="Semua Kelas Terpilih"
+                            options={kelasOptions.map(k => ({ value: k, label: k }))}
+                            value={filterKelas}
+                            onChange={(vals) => setFilterKelas(vals)}
+                            height="38px"
+                        />
+                        <InlineSelect
+                            value={filterStatus}
+                            onChange={(val) => setFilterStatus(val)}
+                            options={[
+                                { value: 'all', label: 'Semua Status' },
+                                { value: 'in_progress', label: 'Sedang Ujian' },
+                                { value: 'submitted', label: 'Selesai' },
+                                { value: 'auto_submitted', label: 'Terminated' },
+                                { value: 'belum', label: 'Belum Mulai' },
+                            ]}
+                            height="38px"
                         />
                     </div>
-                    <button onClick={handleRefresh} disabled={isRefreshing || !selectedExamId}
-                        className="shrink-0 bg-[#3083FF] hover:bg-[#3083FF]/90 text-white px-5 py-2 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer h-[38px]">
-                        <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
-                    </button>
-                </div>
+                )}
             </div>
+
+            {selectedExamId && (
+                <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                    {[
+                        { label: 'Total peserta', value: totalStudents, icon: Users },
+                        { label: 'Belum mulai', value: belumMengerjakan, icon: UserX },
+                        { label: 'Mengerjakan', value: inProgress, icon: Activity, pulse: inProgress > 0 },
+                        { label: 'Selesai', value: completed, icon: CheckCircle2 },
+                        { label: 'Pelanggaran', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
+                    ].map((stat) => (
+                        <div key={stat.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                stat.alert ? 'bg-red-50 text-red-600' : 'bg-[#3083FF]/10 text-[#3083FF]'
+                            }`}>
+                                <stat.icon size={17} className={stat.pulse ? 'animate-pulse text-emerald-600' : ''} />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block text-lg font-bold leading-tight text-slate-800">{stat.value}</span>
+                                <span className="block truncate text-[11px] text-slate-500">{stat.label}</span>
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {selectedExamId && (
+                <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
+            )}
 
             {selectedExamId && loadError && (
                 <div role="alert" className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

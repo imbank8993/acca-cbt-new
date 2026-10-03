@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
+import { ChevronDown, ShieldAlert } from 'lucide-react';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
@@ -13,6 +14,7 @@ export function MonitoringHealthPanel({ attempts, onRecover }: {
     const [zone, setZone] = useState<string | null>(null);
     const [historyId, setHistoryId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
+    const [expanded, setExpanded] = useState(false);
     const sampledAt = attempts[0]?.server_now;
     useEffect(() => {
         let alive = true;
@@ -33,27 +35,49 @@ export function MonitoringHealthPanel({ attempts, onRecover }: {
     const pageCount = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pageCount);
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
-    return <section className="my-5 rounded-xl border border-slate-200 bg-white p-4 text-slate-800" aria-label="Keamanan jawaban dan waktu ujian">
+    return <section className="my-4 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm" aria-label="Keamanan jawaban dan waktu ujian">
+        <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(value => !value)}
+            className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><ShieldAlert size={18} /></span>
+            <span className="min-w-0 flex-1">
+                <span className="block font-semibold">Jawaban & waktu ujian</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                    {needingAttention.length > 0
+                        ? `${needingAttention.length} dari ${attempts.length} peserta perlu perhatian`
+                        : `${attempts.length} peserta dipantau`}
+                    {sampledAt ? ` · Data server ${date(sampledAt)}` : ''}
+                </span>
+            </span>
+            {needingAttention.length > 0 && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                    {needingAttention.length} perhatian
+                </span>
+            )}
+            <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+        {expanded && <div className="border-t border-slate-100 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="font-bold">Jawaban & waktu ujian</h2>
-                <p className="text-xs text-slate-500">{needingAttention.length} peserta perlu perhatian · Snapshot server: {date(attempts[0]?.server_now)}</p></div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} />Hanya perlu perhatian</label>
+            <p className="max-w-3xl text-xs leading-relaxed text-slate-500">Jumlah tersimpan berasal dari server. Jawaban lokal dan antrean kiriman adalah laporan terakhir perangkat; tidak dapat dipastikan selama perangkat tidak terhubung.</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} />Hanya perlu perhatian</label>
         </div>
-        <p className="my-3 text-xs text-slate-500">Jumlah tersimpan berasal dari server. Jawaban lokal dan antrean kiriman adalah laporan terakhir perangkat; tidak dapat dipastikan selama perangkat tidak terhubung.</p>
-        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-xs">
-            <thead><tr className="border-b bg-slate-50"><th className="p-2">Peserta</th><th className="p-2">Jawaban server</th><th className="p-2">Laporan perangkat</th><th className="p-2">Waktu & koneksi</th><th className="p-2">Status & riwayat</th></tr></thead>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[850px] text-left text-xs">
+            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold">Jawaban server</th><th className="p-3 font-semibold">Laporan perangkat</th><th className="p-3 font-semibold">Waktu & koneksi</th><th className="p-3 font-semibold">Status & riwayat</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
                 const reasons = monitoringAttention(attempt, elapsed);
                 const remaining = attempt.remaining_seconds == null ? null : Math.max(0, attempt.remaining_seconds - elapsed);
                 const reportAge = health && attempt.server_now ? (Date.parse(attempt.server_now) - Date.parse(health.receivedAt)) / 1000 + elapsed : Infinity;
                 const fresh = health?.fresh && reportAge <= 45;
-                return <tr key={attempt.id} className={`border-b align-top ${reasons.length ? 'bg-amber-50/60' : ''}`}>
-                    <td className="p-2"><strong>{attempt.profiles?.full_name || 'Tanpa nama'}</strong><div>{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div></td>
-                    <td className="p-2"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} soal</strong><div>Kosong di server: {attempt.unanswered_count ?? '—'}</div><div className="mt-1 text-slate-500">Simpan terakhir: {date(attempt.last_answer_saved_at)}</div></td>
-                    <td className="p-2">{health ? <><div>Terakhir dilaporkan: {health.localAnswerCount} terisi lokal</div><div>{health.pendingAnswerCount} perubahan belum terkirim</div><div>Penyimpanan: {storageLabels[health.storageState]}</div><div className="mt-1 text-slate-500">{date(health.receivedAt)}{!fresh && ' · Laporan lama'}</div></> : 'Belum ada laporan perangkat'}</td>
-                    <td className="p-2"><strong>{attempt.status === 'in_progress' && remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong><div>Tenggat: {date(attempt.deadline_at)}</div><div>{attempt.status !== 'in_progress' ? 'Sesi tidak aktif' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terakhir terhubung' : 'Tidak ada kabar terbaru'}</div><div className="text-slate-500">{date(attempt.last_seen_at)}</div></td>
-                    <td className="p-2"><strong>{gradingLabel(attempt)}</strong>{reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
+                return <tr key={attempt.id} className={`border-b align-top last:border-b-0 ${reasons.length ? 'bg-amber-50/60' : 'odd:bg-white even:bg-slate-50/50'} hover:bg-blue-50/50`}>
+                    <td className="p-3"><strong>{attempt.profiles?.full_name || 'Tanpa nama'}</strong><div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div></td>
+                    <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} soal</strong><div className="mt-1">Kosong di server: {attempt.unanswered_count ?? '—'}</div><div className="mt-1 text-slate-500">Simpan terakhir: {date(attempt.last_answer_saved_at)}</div></td>
+                    <td className="p-3">{health ? <><div>Terakhir dilaporkan: {health.localAnswerCount} terisi lokal</div><div>{health.pendingAnswerCount} perubahan belum terkirim</div><div>Penyimpanan: {storageLabels[health.storageState]}</div><div className="mt-1 text-slate-500">{date(health.receivedAt)}{!fresh && ' · Laporan lama'}</div></> : <span className="text-slate-500">Belum ada laporan perangkat</span>}</td>
+                    <td className="p-3"><strong>{attempt.status === 'in_progress' && remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong><div className="mt-1">Tenggat: {date(attempt.deadline_at)}</div><div>{attempt.status !== 'in_progress' ? 'Sesi tidak aktif' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terakhir terhubung' : 'Tidak ada kabar terbaru'}</div><div className="text-slate-500">{date(attempt.last_seen_at)}</div></td>
+                    <td className="p-3"><strong>{gradingLabel(attempt)}</strong>{reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
                         <details className="mt-2" open={historyId === attempt.id} onToggle={event => {
                             if (event.currentTarget.open) setHistoryId(attempt.id);
                             else setHistoryId(current => current === attempt.id ? null : current);
@@ -74,5 +98,6 @@ export function MonitoringHealthPanel({ attempts, onRecover }: {
         </table></div>
         {pageCount > 1 && <div className="mt-3 flex items-center justify-between text-xs"><span>Halaman {currentPage} / {pageCount} · {rows.length} peserta</span><div className="flex gap-3"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Sebelumnya</button><button disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Berikutnya</button></div></div>}
         {!rows.length && <p className="py-4 text-sm text-slate-500">{onlyAttention ? 'Tidak ada peserta pada filter ini.' : 'Data monitoring belum tersedia.'}</p>}
+        </div>}
     </section>;
 }
