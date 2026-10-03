@@ -101,7 +101,7 @@ test('monitoring includes individually assigned unstarted students', async () =>
     assert.equal(unstarted.profiles.identity_number, '002');
 });
 
-test('export roundtrip preserves pending grades, full matching text, timezone, provenance and audit trail', async () => {
+test('export roundtrip keeps result and answer sheets without auxiliary summaries or response transcript', async () => {
     const fullAnswer = 'Jawaban panjang '.repeat(40);
     const options = {
         exam: { id: 'exam', title: 'Ujian', start_time: now, end_time: '2026-09-20T01:00:00Z', duration_minutes: 60 },
@@ -116,18 +116,15 @@ test('export roundtrip preserves pending grades, full matching text, timezone, p
     const workbook = await buildAnalysisWorkbook(options);
     const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const reopened = XLSX.read(bytes, { type: 'buffer' });
-    for (const name of ['Ringkasan_Ujian', 'Rekap_Hasil', 'Jawaban_Siswa', 'Detail_Transkrip_Respon', 'Kendala_Pemulihan', 'Riwayat_Kejadian']) assert.ok(reopened.SheetNames.includes(name));
+    for (const name of ['Rekap_Hasil', 'Jawaban_Siswa']) assert.ok(reopened.SheetNames.includes(name));
+    for (const name of ['Ringkasan_Ujian', 'Kendala_Pemulihan', 'Riwayat_Kejadian', 'Detail_Transkrip_Respon']) {
+        assert.ok(!reopened.SheetNames.includes(name));
+    }
     const recap = XLSX.utils.sheet_to_json(reopened.Sheets.Rekap_Hasil)[0];
     assert.equal(recap['Nilai Klasik'], 'Menunggu penilaian');
-    const detail = XLSX.utils.sheet_to_json(reopened.Sheets.Detail_Transkrip_Respon)[0];
-    assert.ok(detail['Jawaban Siswa'].includes(fullAnswer.trim()));
-    assert.ok(detail['Jawaban Siswa'].includes('Pernyataan'));
-    assert.equal(detail['Skor Diperoleh'], 'Menunggu penilaian');
+    assert.ok(JSON.stringify(reopened.Sheets.Jawaban_Siswa).includes(fullAnswer.trim()));
+    assert.ok(JSON.stringify(reopened.Sheets.Jawaban_Siswa).includes('Pernyataan'));
     assert.equal(reopened.Sheets.Rekap_Hasil.B2.t, 's');
     assert.equal(reopened.Sheets.Rekap_Hasil.B2.f, undefined);
-    const summary = XLSX.utils.sheet_to_json(reopened.Sheets.Ringkasan_Ujian);
-    assert.equal(summary.find(row => row.Informasi === 'Zona waktu seluruh laporan').Keterangan, 'Asia/Makassar');
-    assert.match(summary.find(row => row.Informasi === 'Jadwal mulai').Keterangan, /08[.:]00/);
-    assert.equal(XLSX.utils.sheet_to_json(reopened.Sheets.Riwayat_Kejadian)[0]['Oleh'], 'Proktor');
     assert.equal(options.detailedAnalysis.matrix[0].items.q.display_answer, 'truncated');
 });

@@ -1,5 +1,5 @@
 import { formatAnswerKey, formatStudentAnswer, type DisplayQuestion } from './answer-display';
-import { gradingLabel, monitoringEventLabels, storageLabels } from './monitoring-health';
+import { gradingLabel } from './monitoring-health';
 import type {
     DetailedItemAnalysisResponse,
     ExamAttemptRecord,
@@ -98,60 +98,6 @@ export async function buildAnalysisWorkbook({
         ? new Intl.DateTimeFormat('id-ID', { timeZone, dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value)) : 'Belum tercatat';
     const generatedAt = new Date().toISOString();
     const attemptById = new Map(attempts.map(attempt => [attempt.id, attempt]));
-    const addSheet = (name: string, rows: Array<Record<string, string | number>>) => {
-        const sheet = XLSX.utils.json_to_sheet(rows);
-        const keys = Object.keys(rows[0] || {});
-        sheet['!cols'] = keys.map(key => ({ wch: Math.min(55, Math.max(18, key.length + 3)) }));
-        if (sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
-        for (let column = 0; column < keys.length; column++) {
-            const cell = sheet[XLSX.utils.encode_cell({ r: 0, c: column })];
-            if (cell) cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '2563EB' } }, alignment: { wrapText: true } };
-        }
-        XLSX.utils.book_append_sheet(wb, sheet, name);
-    };
-    addSheet('Ringkasan_Ujian', [
-        { Informasi: 'Ujian', Keterangan: examTitle },
-        { Informasi: 'ID Ujian', Keterangan: exam?.id || detailedAnalysis?.exam_id || '-' },
-        { Informasi: 'Export dibuat (perangkat pengawas)', Keterangan: date(generatedAt) },
-        { Informasi: 'Zona waktu seluruh laporan', Keterangan: timeZone },
-        { Informasi: 'Snapshot monitoring (server)', Keterangan: date(attempts[0]?.server_now) },
-        { Informasi: 'Snapshot analisis (server)', Keterangan: date(detailedAnalysis?.generated_at) },
-        { Informasi: 'Jadwal mulai', Keterangan: date(exam?.start_time) },
-        { Informasi: 'Jadwal berakhir', Keterangan: date(exam?.end_time) },
-        { Informasi: 'Durasi (menit)', Keterangan: exam?.duration_minutes ?? '-' },
-        { Informasi: 'Peserta terdaftar / terpantau', Keterangan: attempts.length },
-        { Informasi: 'Sudah mengumpulkan', Keterangan: attempts.filter(a => ['submitted', 'auto_submitted'].includes(a.status)).length },
-        { Informasi: 'Belum mengumpulkan', Keterangan: attempts.filter(a => !['submitted', 'auto_submitted'].includes(a.status)).length },
-        { Informasi: 'Menunggu penilaian', Keterangan: attempts.filter(a => ['submitted', 'auto_submitted'].includes(a.status) && a.total_score == null).length },
-        { Informasi: 'Versi soal dan kunci', Keterangan: detailedAnalysis?.question_version_source === 'frozen' ? 'Salinan soal saat ujian' : 'Data lama: versi historis tidak tersedia; bank saat ini' },
-        { Informasi: 'Cakupan analisis butir', Keterangan: 'Peserta yang sudah memulai. Analisis saat ujian berlangsung masih sementara. Peserta belum mulai tidak dihitung sebagai jawaban salah.' },
-        { Informasi: 'Nomor soal dan huruf opsi', Keterangan: 'Mengikuti urutan master salinan soal. Posisi di layar siswa dapat berbeda jika pengacakan aktif; cocokkan melalui teks dan ID soal.' },
-        { Informasi: 'Batas laporan perangkat', Keterangan: 'Jumlah lokal dan belum terkirim adalah laporan terakhir perangkat, bukan bukti server menerima jawaban. Tidak ada laporan berarti belum diketahui, bukan nol.' },
-        { Informasi: 'Batas riwayat', Keterangan: 'Koneksi diamati berkala. Jeda heartbeat bukan bukti pasti putus internet. Riwayat teknis lama dan waktu simpan jawaban lama mungkin belum tercatat.' },
-    ]);
-    addSheet('Kendala_Pemulihan', attempts.map(a => ({
-        'ID Pengerjaan': a.id, 'Nama': a.profiles?.full_name || '-', 'NIS': a.profiles?.identity_number || '-', 'Kelas': a.kelas_name || '-',
-        'Koneksi pada snapshot': a.connection_status || 'Belum diketahui', 'Terakhir terhubung': date(a.last_seen_at),
-        'Jawaban tersimpan di server': a.saved_answer_count ?? 'Belum diketahui', 'Simpan terakhir (server)': date(a.last_answer_saved_at),
-        'Jawaban lokal terakhir dilaporkan': a.sync_health?.localAnswerCount ?? 'Belum dilaporkan',
-        'Perubahan belum terkirim terakhir dilaporkan': a.sync_health?.pendingAnswerCount ?? 'Belum dilaporkan',
-        'Laporan perangkat diterima (server)': date(a.sync_health?.receivedAt),
-        'Kesegaran laporan pada snapshot': a.sync_health ? a.sync_health.fresh ? 'Terbaru' : 'Laporan lama' : 'Belum dilaporkan',
-        'Penyimpanan lokal terakhir dilaporkan': storageLabels[a.sync_health?.storageState || 'unknown'],
-        'Perlu perhatian': a.attention_reasons?.join('; ') || '-', 'Tenggat pribadi': date(a.deadline_at),
-        'Jumlah reset / susulan tercatat': (a.monitoring_history || []).filter(event => ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'].includes(event.type)).length,
-    })));
-    const historyRows = attempts.flatMap(a => (a.monitoring_history || []).map(event => ({
-        'ID Pengerjaan': a.id, 'Nama': a.profiles?.full_name || '-', 'NIS': a.profiles?.identity_number || '-',
-        'Waktu': date(event.at), 'Peristiwa': monitoringEventLabels[event.type] || event.type,
-        'Oleh': event.actor_name || event.actor_id || '-', 'ID Pelaksana': event.actor_id || '-', 'Alasan': event.reason || '-',
-        'Tenggat sebelumnya': date(event.previous_deadline), 'Tenggat baru': date(event.recovery_until),
-        'Jeda tanpa kabar (detik, perkiraan)': event.gap_seconds ?? '-',
-        'Perubahan belum terkirim (laporan)': event.pending_answer_count ?? '-',
-        'Penyimpanan lokal (laporan)': storageLabels[event.storage_state || 'unknown'],
-    })));
-    addSheet('Riwayat_Kejadian', historyRows.length ? historyRows : [{ Keterangan: 'Belum ada riwayat tercatat.' }]);
-
     // ─────────────────────────────────────────────────────────────────────────────
     // SHEET 1: Rekap_Hasil (Hasil & Ringkasan Siswa)
     // ─────────────────────────────────────────────────────────────────────────────
@@ -457,52 +403,8 @@ export async function buildAnalysisWorkbook({
         XLSX.utils.book_append_sheet(wb, wsDistraktor, 'Distribusi_Pengecoh');
     }
 
-    // ─────────────────────────────────────────────────────────────────────────────
-    // SHEET 5: Detail_Transkrip_Respon (Detail Respon Per Siswa & Soal)
-    // ─────────────────────────────────────────────────────────────────────────────
-    if (detailedAnalysis?.matrix?.length && detailedAnalysis?.items?.length) {
-        const rowsTranscript: Array<Record<string, string | number>> = [];
-
-        detailedAnalysis.matrix.forEach((stu) => {
-            detailedAnalysis.items.forEach((q) => {
-                const cell = stu.items[q.id];
-                const statusLabel =
-                    !cell || cell.status === 'unanswered'
-                        ? 'Tidak Menjawab'
-                        : cell.status === 'correct'
-                        ? 'Benar'
-                        : cell.status === 'wrong'
-                        ? 'Salah'
-                        : 'Belum Ternilai';
-
-                rowsTranscript.push({
-                    'Nama Siswa': stu.student_name,
-                    'NIS / ID': stu.student_nis || '-',
-                    'Kelas': stu.class_name || '-',
-                    'ID Pengerjaan': stu.attempt_id,
-                    'ID Soal': q.id,
-                    'Soal': cleanHtml(q.question_text),
-                    'No Soal': q.number,
-                    'Tipe Soal': (q.type || 'mcq').toUpperCase(),
-                    'Kunci Jawaban': cleanHtml(q.key_display || '-'),
-                    'Jawaban Siswa': cleanHtml(cell?.display_answer || '-'),
-                    'Status': statusLabel,
-                    'Skor Diperoleh': cell?.status === 'ungraded' || attemptById.get(stu.attempt_id)?.total_score == null ? 'Menunggu penilaian' : cell ? Number(cell.score || 0).toFixed(2) : '0.00',
-                    'Skor Maks': Number(q.score_default || 1).toFixed(2),
-                });
-            });
-        });
-
-        if (rowsTranscript.length > 0) {
-            const wsTranscript = XLSX.utils.json_to_sheet(rowsTranscript);
-            wsTranscript['!cols'] = Object.keys(rowsTranscript[0]).map(key => ({ wch: /Jawaban|Soal|Status/.test(key) ? 40 : 22 }));
-            XLSX.utils.book_append_sheet(wb, wsTranscript, 'Detail_Transkrip_Respon');
-        }
-    }
-
     for (const name of wb.SheetNames) {
         const sheet = wb.Sheets[name];
-        if (name === 'Ringkasan_Ujian') sheet['!cols'] = [{ wch: 38 }, { wch: 110 }];
         if (name !== 'Jawaban_Siswa') {
             for (const address of Object.keys(sheet).filter(key => !key.startsWith('!'))) {
                 const cell = sheet[address];

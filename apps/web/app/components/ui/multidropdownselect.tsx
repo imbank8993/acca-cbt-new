@@ -227,7 +227,7 @@ export function MultiSelectDropdown<T extends string | number = string>({
                     }}
                 >
                     <span className="uimsel-text">{summaryText}</span>
-                    <DropDownIcon size={20} className="uimsel-icon" />
+                    <DropDownIcon size={16} className="uimsel-icon" />
                 </div>
 
                 {isOpen && mounted && coords.width > 0 && typeof document !== 'undefined' && createPortal(

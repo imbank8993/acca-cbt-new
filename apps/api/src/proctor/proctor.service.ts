@@ -108,7 +108,7 @@ export class ProctorService {
             ...empty,
             totalMembers: members.count || 0,
             totalBanks: banks.count || 0,
-            draftExams: rows.filter((e) => !e.is_published).length,
+            draftExams: rows.filter((e) => !e.is_published && e.status !== 'active').length,
             ongoingExams: rows.filter(
                 (e) => e.is_published && e.status === 'active' && withinWindow(e),
             ).length,

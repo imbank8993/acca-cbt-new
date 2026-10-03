@@ -379,7 +379,9 @@ export class TeachersService {
             (e) => e.exam_type !== 'pas' && e.exam_type !== 'pat',
         );
 
-        const draftExams = examRows.filter((e) => !e.is_published).length;
+        const draftExams = examRows.filter(
+            (e) => !e.is_published && e.status !== 'active',
+        ).length;
 
         const ongoingExams = examRows.filter(
             (e) =>

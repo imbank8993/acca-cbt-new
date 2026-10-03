@@ -3,7 +3,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
-import SearchableSelect from '@/components/ui/SearchableSelect';
+import { FilterSearch, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
 import type {
@@ -16,10 +16,10 @@ import type {
 } from '@/lib/api/proctor';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
-import { examTypeLabel } from '@/lib/exam-types';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getSchoolTimeZone } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { useToast } from '@/app/components/ui/Toast';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -49,6 +49,7 @@ import { Suspense,useCallback,useDeferredValue,useEffect,useRef,useState } from 
 export type { ItemAnalysis };
 
 function MonitoringContent() {
+    const { timeZone } = useSchoolTimeZone();
     const searchParams = useSearchParams();
     const router = useRouter();
     const toast = useToast();
@@ -64,7 +65,7 @@ function MonitoringContent() {
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
-    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'answers' | 'results' | 'analysis'>('live');
     const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('proktor_monitoring_liveAlerts', []);
     const [resettingAttemptId, setResettingAttemptId] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
@@ -456,9 +457,10 @@ function MonitoringContent() {
                     {selectedExamId && (
                         <div className="flex w-fit shrink-0 gap-1 rounded-lg border border-[#3083FF]/20 bg-slate-50 p-1">
                             {[
-                                { id: 'live', label: 'Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
-                                { id: 'results', label: 'Rekap', icon: Users, badge: null as number | null },
-                                { id: 'analysis', label: 'Analisis', icon: TrendingUp, badge: null as number | null },
+                                { id: 'live', label: 'Peserta Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
+                                { id: 'answers', label: 'Sinkronisasi Jawaban', icon: ShieldAlert, badge: null as number | null },
+                                { id: 'results', label: 'Hasil Ujian', icon: Users, badge: null as number | null },
+                                { id: 'analysis', label: 'Analisis Soal', icon: TrendingUp, badge: null as number | null },
                             ].map(tab => (
                                 <button
                                     key={tab.id}
@@ -482,15 +484,17 @@ function MonitoringContent() {
                     )}
                     <div className="flex min-w-0 flex-1 gap-2">
                         <div className="min-w-0 flex-1">
-                            <SearchableSelect
+                            <InlineSelect
+                                className="w-full"
+                                minWidth="100%"
+                                height="42px"
+                                title="Pilih ujian"
                                 options={exams.map(exam => ({
                                     value: exam.id,
                                     label: exam.title,
-                                    subLabel: `${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'} • ${exam.duration_minutes || 0} menit`,
                                 }))}
                                 value={selectedExamId}
                                 onChange={(val) => setSelectedExamId(String(val || ''))}
-                                placeholder="-- Cari & Pilih Ujian --"
                             />
                         </div>
                         <button
@@ -506,35 +510,46 @@ function MonitoringContent() {
                     </div>
                 </div>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[minmax(180px,1fr)_minmax(170px,0.8fr)_minmax(145px,0.65fr)]">
-                        <input
-                            type="text"
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                    <FilterToolbar>
+                        <FilterSearch
                             value={searchName}
-                            onChange={(e) => setSearchName(e.target.value)}
+                            onChange={setSearchName}
+                            label="Nama peserta"
                             placeholder="Cari nama peserta..."
-                            aria-label="Cari nama peserta"
-                            className="h-[38px] min-w-0 rounded-lg border border-slate-200 px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
+                            grow={1}
+                            width="220px"
+                            className="[&_.ftb-input]:!text-[13px] [&_.ftb-input]:!font-normal"
                         />
-                        <MultiSelect
-                            placeholder="Semua Kelas"
-                            allSelectedText="Semua Kelas Terpilih"
-                            options={kelasOptions.map(k => ({ value: k, label: k }))}
-                            value={filterKelas}
-                            onChange={(vals) => setFilterKelas(vals)}
-                            height="38px"
-                        />
-                        <InlineSelect
-                            value={filterStatus}
-                            onChange={(val) => setFilterStatus(val)}
-                            options={[
-                                { value: 'all', label: 'Semua Status' },
-                                { value: 'in_progress', label: 'Sedang Ujian' },
-                                { value: 'submitted', label: 'Selesai' },
-                                { value: 'auto_submitted', label: 'Terminated' },
-                                { value: 'belum', label: 'Belum Mulai' },
-                            ]}
-                            height="38px"
-                        />
+                        <div className="min-w-[220px] flex-[1_1_220px]">
+                            <MultiSelect
+                                placeholder="Semua Kelas"
+                                allSelectedText="Semua Kelas Terpilih"
+                                options={kelasOptions.map(k => ({ value: k, label: k }))}
+                                value={filterKelas}
+                                onChange={(vals) => setFilterKelas(vals)}
+                                height="38px"
+                                className="[&_.uimsel-trigger]:!text-[13px] [&_.uimsel-trigger]:!font-normal"
+                            />
+                        </div>
+                        <div className="min-w-[220px] flex-[1_1_220px]">
+                            <InlineSelect
+                                value={filterStatus}
+                                onChange={(val) => setFilterStatus(val)}
+                                title="Filter berdasarkan status"
+                                minWidth="100%"
+                                height="38px"
+                                className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
+                                options={[
+                                    { value: 'all', label: 'Semua Status' },
+                                    { value: 'in_progress', label: 'Sedang Ujian' },
+                                    { value: 'submitted', label: 'Selesai' },
+                                    { value: 'auto_submitted', label: 'Terminated' },
+                                    { value: 'belum', label: 'Belum Mulai' },
+                                ]}
+                            />
+                        </div>
+                    </FilterToolbar>
                     </div>
                 )}
             </div>
@@ -563,7 +578,7 @@ function MonitoringContent() {
                 </div>
             )}
 
-            {selectedExamId && (
+            {selectedExamId && activeTab === 'answers' && (
                 <MonitoringHealthPanel
                     attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     onRecover={handleResetAttempt}
@@ -602,6 +617,50 @@ function MonitoringContent() {
                     <h2 className="text-lg font-bold text-slate-700 mb-2">Pilih Ujian</h2>
                     <p className="text-sm text-slate-500">Pilih ujian untuk mulai memonitoring</p>
                 </div>
+            )}
+
+            {selectedExamId && activeTab === 'live' && (
+                <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Peserta ujian aktif">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+                        <h3 className="font-semibold text-slate-800">Peserta Aktif</h3>
+                        <span className="text-xs text-slate-500">{activeAttempts.length} peserta</span>
+                    </div>
+                    {activeAttempts.length === 0 ? (
+                        <div className="px-5 py-12 text-center text-sm text-slate-500">
+                            {attempts.length ? 'Tidak ada peserta aktif yang cocok dengan filter.' : 'Belum ada peserta yang memulai ujian.'}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[560px] text-left text-sm">
+                                <thead className="bg-white text-xs text-slate-500">
+                                    <tr>
+                                        <th className="px-5 py-3 font-semibold">Nama siswa</th>
+                                        <th className="px-5 py-3 font-semibold">Kelas</th>
+                                        <th className="px-5 py-3 font-semibold">Mulai ujian</th>
+                                        <th className="px-5 py-3 text-right font-semibold">Pelanggaran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeAttempts.map(attempt => {
+                                        const violations = attempt.warning_count ?? 0;
+                                        return (
+                                            <tr key={attempt.id} className="border-t border-slate-100 hover:bg-slate-50">
+                                                <td className="px-5 py-3 font-medium text-slate-800">{attempt.profiles?.full_name || 'Tanpa nama'}</td>
+                                                <td className="px-5 py-3 text-slate-600">{attempt.kelas_name || '—'}</td>
+                                                <td className="px-5 py-3 text-slate-600">
+                                                    {attempt.started_at ? new Date(attempt.started_at).toLocaleString('id-ID', { timeZone }) : 'Belum tercatat'}
+                                                </td>
+                                                <td className={`px-5 py-3 text-right font-semibold ${violations > 0 ? 'text-amber-700' : 'text-slate-500'}`}>
+                                                    {violations}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
             )}
 
             {selectedExamId && (
@@ -649,7 +708,7 @@ function MonitoringContent() {
                                                     : 'Belum ada peserta'}
                                             </p>
                                             {attempts.length > 0 && inProgress === 0 && (
-                                                <p className="text-slate-300 text-xs mt-2">Semua peserta sudah selesai — lihat tab Rekap.</p>
+                                                <p className="text-slate-300 text-xs mt-2">Semua peserta sudah selesai — lihat tab Hasil Ujian.</p>
                                             )}
                                             <button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-[#3083FF]/10 text-[#3083FF] text-xs font-semibold rounded-lg hover:bg-[#3083FF]/20 transition-all">
                                                 <RefreshCw size={12} className="inline mr-1" /> Refresh Data
@@ -810,7 +869,7 @@ function MonitoringContent() {
                                         <div className="hidden md:block overflow-x-auto">
                                             <table className="w-full min-w-[980px]">
                                                 <thead>
-                                                    <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                    <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
                                                         <th className="p-3 text-center font-bold text-[#3083FF] w-12">No</th>
                                                         <th className="p-3 text-left font-bold text-[#3083FF]">Nama Peserta</th>
                                                         <th className="p-3 text-left font-bold text-[#3083FF]">Kelas</th>
@@ -927,20 +986,22 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
+                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                             >
-                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
-                                    <h3 className="font-bold text-[#3083FF]">Rekap Hasil</h3>
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
+                                    <h3 className="font-bold text-slate-800">Rekap Hasil</h3>
                                     <div className="flex gap-2">
                                         {hasIRTScoring && (
-                                            <button onClick={handleCalculateIRT} disabled={isRefreshing}
-                                                className="flex items-center gap-2 bg-[#3083FF] text-white hover:bg-[#3083FF]/90 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50">
-                                                <Calculator size={14} /> Kalkulasi IRT
+                                            <button type="button" onClick={handleCalculateIRT} disabled={isRefreshing}
+                                                aria-label="Kalkulasi IRT" title="Kalkulasi IRT"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50">
+                                                <Calculator size={16} />
                                             </button>
                                         )}
-                                        <button onClick={exportResultsToExcel}
-                                            className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
-                                            <FileSpreadsheet size={14} /> Export
+                                        <button type="button" onClick={exportResultsToExcel}
+                                            aria-label="Ekspor rekap" title="Ekspor rekap"
+                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100">
+                                            <FileSpreadsheet size={16} />
                                         </button>
                                     </div>
                                 </div>
@@ -948,19 +1009,19 @@ function MonitoringContent() {
                                     <table className="w-full min-w-[900px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Nama Peserta</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Kelas</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Status</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Pelanggaran</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Mulai</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Selesai</th>
-                                                <th className="p-4 text-right font-bold text-[#3083FF]">Skor Klasik</th>
-                                                {has1PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 1PL</th>}
-                                                {has2PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 2PL</th>}
-                                                {has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 3PL</th>}
-                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">Skor IRT</th>}
-                                                <th className="p-4 text-center font-bold text-[#3083FF]">Aksi</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Nama Peserta</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Kelas</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Status</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Pelanggaran</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Durasi</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Mulai</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Selesai</th>
+                                                <th className="p-4 text-right font-bold text-slate-600">Skor Klasik</th>
+                                                {has1PL && <th className="p-4 text-right font-bold text-slate-600">IRT 1PL</th>}
+                                                {has2PL && <th className="p-4 text-right font-bold text-slate-600">IRT 2PL</th>}
+                                                {has3PL && <th className="p-4 text-right font-bold text-slate-600">IRT 3PL</th>}
+                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-slate-600">Skor IRT</th>}
+                                                <th className="p-4 text-center font-bold text-slate-600">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -995,9 +1056,9 @@ function MonitoringContent() {
                                                                 if (isBelum) return;
                                                                 router.push(`/dashboard/admin/monitoring/${att.id}`);
                                                             }}
-                                                            className={`border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
+                                                            className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
                                                         >
-                                                            <td className="p-4 font-bold text-[#3083FF]">{att.profiles?.full_name || 'Tanpa Nama'}</td>
+                                                            <td className="p-4 font-bold text-slate-800">{att.profiles?.full_name || 'Tanpa Nama'}</td>
                                                             <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
@@ -1007,7 +1068,7 @@ function MonitoringContent() {
                                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                                         : isBelum
                                                                         ? 'bg-slate-50 text-slate-500 border-slate-200'
-                                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
+                                                                        : 'bg-slate-100 text-slate-600 border-slate-200'
                                                                 }`}>
                                                                     {statusLabel}
                                                                 </span>
@@ -1020,7 +1081,7 @@ function MonitoringContent() {
                                                                     Tab {bd.pindah_tab} · Close {bd.close_tab} · Lain {bd.lainnya}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-4 text-[10px] font-semibold text-[#3083FF]">{duration}</td>
+                                                            <td className="p-4 text-[10px] font-semibold text-slate-600">{duration}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-right">
@@ -1028,22 +1089,22 @@ function MonitoringContent() {
                                                             </td>
                                                             {has1PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has2PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {!has1PL && !has2PL && !has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
+                                                                    <span className="font-bold text-lg text-slate-700">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             <td className="p-4">
@@ -1055,9 +1116,12 @@ function MonitoringContent() {
                                                                             router.push(`/dashboard/admin/monitoring/${att.id}`);
                                                                         }}
                                                                         disabled={isBelum}
-                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        type="button"
+                                                                        aria-label={`Detail ${att.profiles?.full_name || 'peserta'}`}
+                                                                        title="Lihat detail"
+                                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                                                                     >
-                                                                        <Eye size={11} /> Detail
+                                                                        <Eye size={14} />
                                                                     </button>
                                                                     {canReset && (
                                                                         <button
@@ -1066,10 +1130,12 @@ function MonitoringContent() {
                                                                                 handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa');
                                                                             }}
                                                                             disabled={resettingAttemptId === att.id}
-                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                                                                            type="button"
+                                                                            aria-label={`Pulihkan ${att.profiles?.full_name || 'peserta'}`}
+                                                                            title="Susulan / Pulihkan"
+                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
                                                                         >
-                                                                            {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                            Susulan / Pulihkan
+                                                                            {resettingAttemptId === att.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                                                                         </button>
                                                                     )}
                                                                 </div>

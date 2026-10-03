@@ -1,7 +1,6 @@
 'use client';
 
 import { type CSSProperties, type ReactNode } from 'react';
-import { RiArrowDropDownFill } from 'react-icons/ri';
 import './inline-select.css';
 
 export type InlineSelectOption = { value: string; label: string; disabled?: boolean };
@@ -54,7 +53,15 @@ export function InlineSelect({
                 ))}
                 {children}
             </select>
-            <RiArrowDropDownFill size={20} className="uisel-icon" />
+            <svg
+                className="uisel-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+            >
+                <path fill="currentColor" d="M12 16L6 10H18L12 16Z" />
+            </svg>
         </div>
     );
 }

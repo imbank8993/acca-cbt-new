@@ -906,6 +906,9 @@ const ExamsPage = () => {
                                                 </div>
                                             )}
                                             <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{exam.title}</h3>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                Dibuat oleh <span className="font-semibold text-slate-700">{exam.creatorName || 'Tidak diketahui'}</span>
+                                            </p>
                                         </div>
                                     </div>
 
