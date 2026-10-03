@@ -1319,11 +1319,11 @@ function MonitoringContent() {
                             initial={{ scale: 0.96, opacity: 0, y: 12 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.96, opacity: 0, y: 12 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[88dvh] border border-slate-100"
+                            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[88dvh] max-h-[88dvh] min-h-0 overflow-hidden flex flex-col border border-slate-100"
                             onClick={e => e.stopPropagation()}
                         >
                             {/* Modal Header */}
-                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                            <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
                                 <div className="flex items-center gap-3">
                                     <h3 className="font-bold text-slate-800 text-lg">
                                         Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}
@@ -1350,7 +1350,7 @@ function MonitoringContent() {
                             </div>
 
                             {/* Modal Tabs Bar */}
-                            <div className="px-6 pt-2 border-b border-slate-200 bg-white flex items-center gap-2 overflow-x-auto">
+                            <div className="shrink-0 px-6 pt-2 border-b border-slate-200 bg-white flex items-center gap-2 overflow-x-auto">
                                 <button
                                     onClick={() => setModalActiveTab('soal')}
                                     className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
@@ -1406,7 +1406,7 @@ function MonitoringContent() {
                             </div>
 
                             {/* Modal Content */}
-                            <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
+                            <div className="min-h-0 p-6 overflow-y-auto flex-1 bg-slate-50/30">
                                 {modalActiveTab === 'soal' && (
                                     <div className="space-y-5">
                                         <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
@@ -1660,7 +1660,7 @@ function MonitoringContent() {
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <div className="shrink-0 px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
                                 <div className="text-xs text-slate-500">
                                     {viewQuestion.discriminationLabel && (
                                         <span>Daya Beda: <strong className="text-slate-700">{viewQuestion.discriminationLabel}</strong> ({viewQuestion.discriminationIndex?.toFixed(2) ?? '-'})</span>
