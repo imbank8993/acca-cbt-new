@@ -499,10 +499,17 @@ export async function listExamAssignmentsAction(examIds: string[]): Promise<{
 // ── Pemantauan & hasil ───────────────────────────────────────────────────────
 
 export async function getExamAttemptsAction(examId: string): Promise<ExamAttemptRecord[]> {
+    const res = await getExamAttemptsResult(examId);
+    return res.success ? res.attempts : [];
+}
+
+export async function getExamAttemptsResult(examId: string) {
     const res = await apiGet<{ attempts: ExamAttemptRecord[] }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/attempts`,
     );
-    return res.success ? res.attempts : [];
+    return res.success
+        ? { success: true as const, attempts: res.attempts }
+        : { success: false as const, attempts: [] as ExamAttemptRecord[], error: res.error };
 }
 
 export interface ViolationEvent {

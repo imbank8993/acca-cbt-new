@@ -5,7 +5,7 @@ import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { calculateExamIRT } from '@/lib/api/grading';
-import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
+import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
 import type {
     ExamAttemptRecord,
     OrganizationExam,
@@ -42,7 +42,7 @@ PieChart,
 X
 } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
-import { Suspense,useCallback,useDeferredValue,useEffect,useState } from 'react';
+import { Suspense,useCallback,useDeferredValue,useEffect,useRef,useState } from 'react';
 
 export type { ItemAnalysis };
 
@@ -69,6 +69,9 @@ function MonitoringContent() {
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [analysisPage, setAnalysisPage] = useState(1);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const examRequestGenerationRef = useRef(0);
+    const lastRequestedExamIdRef = useRef<string | null>(null);
 
 
     const loadInitialData = useCallback(async () => {
@@ -88,12 +91,26 @@ function MonitoringContent() {
     }, [initialExamId, setExams, setIsLoading]);
 
     const loadExamData = useCallback(async (examId: string, silent = false) => {
+        const generation = ++examRequestGenerationRef.current;
+        if (lastRequestedExamIdRef.current !== examId) {
+            lastRequestedExamIdRef.current = examId;
+            setAttempts([]);
+            setAnalysis([]);
+            setDetailedAnalysis(null);
+            setLoadError(null);
+        }
         if (!silent) setIsRefreshing(true);
         try {
-            const [attData, analysisData] = await Promise.all([
-                getExamAttemptsAction(examId),
+            const [attemptsResult, analysisData] = await Promise.all([
+                getExamAttemptsResult(examId),
                 getExamAnswersForAnalysisAction(examId)
             ]);
+            if (generation !== examRequestGenerationRef.current) return;
+            if (!attemptsResult.success) {
+                setLoadError(attemptsResult.error);
+                return;
+            }
+            const attData = attemptsResult.attempts;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
 
@@ -191,10 +208,15 @@ function MonitoringContent() {
 
                 setAnalysis(analysisArray);
             }
+            setLoadError(null);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
+            if (generation === examRequestGenerationRef.current) {
+                setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
+            }
+        } finally {
+            if (!silent) setIsRefreshing(false);
         }
-        if (!silent) setIsRefreshing(false);
     }, [setAnalysis, setAttempts, setDetailedAnalysis]);
 
     useEffect(() => {
@@ -206,10 +228,17 @@ function MonitoringContent() {
         const timer = window.setTimeout(() => {
             setAnalysisPage(1);
             if (selectedExamId) void loadExamData(selectedExamId);
-            else { setAttempts([]); setAnalysis([]); }
+            else {
+                examRequestGenerationRef.current += 1;
+                lastRequestedExamIdRef.current = null;
+                setAttempts([]);
+                setAnalysis([]);
+                setDetailedAnalysis(null);
+                setLoadError(null);
+            }
         }, 0);
         return () => window.clearTimeout(timer);
-    }, [loadExamData, selectedExamId, setAnalysis, setAttempts]);
+    }, [loadExamData, selectedExamId, setAnalysis, setAttempts, setDetailedAnalysis]);
 
     const handleRefresh = () => { if (selectedExamId) loadExamData(selectedExamId); };
 
@@ -530,6 +559,27 @@ function MonitoringContent() {
                     </button>
                 </div>
             </div>
+
+            {selectedExamId && loadError && (
+                <div role="alert" className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600" />
+                    <div className="min-w-0 flex-1">
+                        <p className="font-semibold">Data monitoring belum berhasil dimuat.</p>
+                        <p className="mt-1 break-words">{loadError}</p>
+                        {attempts.length > 0 && (
+                            <p className="mt-1 text-xs text-red-700">Data yang terlihat mungkin merupakan hasil pemuatan sebelumnya.</p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 disabled:opacity-50"
+                    >
+                        Coba lagi
+                    </button>
+                </div>
+            )}
 
             {/* Empty state */}
             {!selectedExamId && (
