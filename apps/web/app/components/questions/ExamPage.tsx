@@ -1,5 +1,6 @@
 "use client";
 import { getErrorMessage } from '@/lib/errors';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
 import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
@@ -1475,7 +1476,7 @@ export default function ExamPage() {
             doubtfulAnswers={doubtfulAnswers}
             onAnswerChange={(qId, val) => handleAnswerSelect(qId, val as string | string[])}
             onToggleDoubtful={toggleDoubtful}
-            studentName={profile?.full_name || user?.fullName || user?.email || 'Siswa'}
+            studentName={formatStudentName(profile?.full_name || user?.fullName || user?.email, 'Siswa')}
             studentNisn={profile?.identity_number || ''}
             examTitle={exam?.title || ''}
             currentQIndex={currentQIndex}

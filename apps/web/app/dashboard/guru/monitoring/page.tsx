@@ -7,6 +7,7 @@ import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam,Vi
 import type { QuestionOptionRecord } from '@/lib/api/questions';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
@@ -100,7 +101,7 @@ function MonitoringContent() {
 
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
-            attData.forEach((att) => studentByAttempt.set(att.id, att.profiles?.full_name || 'Tanpa Nama'));
+            attData.forEach((att) => studentByAttempt.set(att.id, formatStudentName(att.profiles?.full_name, 'Tanpa Nama')));
 
             const { questions: bankQuestions, answers: ansRows } = analysisData;
             const itemStats: Record<string, { total: number; correct: number; incorrect: number; ungraded: number; wrongStudents: string[]; correctStudents: string[] }> = {};
@@ -576,7 +577,7 @@ function MonitoringContent() {
                                                                     {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-[#3083FF] text-[13px] truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
+                                                                    <p className="font-medium text-[#3083FF] text-xs truncate leading-tight">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</p>
                                                                     {att.kelas_name && att.kelas_name !== '-' && (
                                                                         <p className="text-[9px] text-slate-400 truncate">{att.kelas_name}</p>
                                                                     )}
@@ -646,7 +647,7 @@ function MonitoringContent() {
                                                                 </button>
                                                                 {canReset && (
                                                                     <button
-                                                                        onClick={() => handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa')}
+                                                                        onClick={() => handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'))}
                                                                         disabled={resettingAttemptId === att.id}
                                                                         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                     >
@@ -719,7 +720,7 @@ function MonitoringContent() {
                                                                         }`}>
                                                                             {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                         </div>
-                                                                        <span className="font-bold text-[#3083FF] text-[13px]">{att.profiles?.full_name || 'Tanpa Nama'}</span>
+                                                                        <span className="font-medium text-[#3083FF] text-xs">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
                                                                         {isInProgress && <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse shrink-0" />}
                                                                     </div>
                                                                 </td>
@@ -763,7 +764,7 @@ function MonitoringContent() {
                                                                         </button>
                                                                         {canReset && (
                                                                             <button
-                                                                                onClick={() => handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa')}
+                                                                                onClick={() => handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'))}
                                                                                 disabled={resettingAttemptId === att.id}
                                                                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
@@ -790,7 +791,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden [&_tbody_td:first-child]:text-sm [&_tbody_td:nth-child(n+8):not(:last-child)]:text-base"
+                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
                                 <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
                                     <h3 className="font-bold text-[#3083FF]">Rekap Hasil</h3>
@@ -854,7 +855,7 @@ function MonitoringContent() {
                                                         <tr key={att.id}
                                                             className="border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors"
                                                         >
-                                                            <td className="p-4 font-bold text-[#3083FF]">{att.profiles?.full_name || 'Tanpa Nama'}</td>
+                                                            <td className="p-4 text-xs font-medium text-[#3083FF]">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</td>
                                                             <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
@@ -881,26 +882,26 @@ function MonitoringContent() {
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-right">
-                                                                <span className="font-bold text-lg text-slate-700">{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
+                                                                <span className="font-semibold text-xs text-slate-700">{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
                                                             </td>
                                                             {has1PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has2PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {!has1PL && !has2PL && !has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-[#3083FF]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             <td className="p-4">
@@ -920,7 +921,7 @@ function MonitoringContent() {
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa');
+                                                                                handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'));
                                                                             }}
                                                                             disabled={resettingAttemptId === att.id}
                                                                             className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"

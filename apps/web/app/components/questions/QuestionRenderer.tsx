@@ -128,6 +128,7 @@ interface QuestionRendererProps {
     onAnswerChange: (answer: AnswerValue) => void;
     isPreview?: boolean;
     showFeedback?: boolean;
+    showFeedbackLabels?: boolean;
     showQuestion?: boolean;
     showOptions?: boolean;
     questionNumber?: number;
@@ -165,6 +166,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
     answer,
     onAnswerChange,
     showFeedback = false,
+    showFeedbackLabels = true,
     showQuestion = true,
     showOptions = true,
     questionNumber,
@@ -504,7 +506,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                         <Check size={12} strokeWidth={3} />
                                     </motion.div>
                                 )}
-                                {showFeedback && (
+                                {showFeedback && showFeedbackLabels && (
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {isSelected && isCorrect && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
@@ -674,7 +676,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                 <div className={`flex-1 min-w-0 text-xs sm:text-sm font-normal transition-colors ${textClass}`}>
                                     <QuestionContent content={(opt.option_text || opt.text || '')} />
                                 </div>
-                                {showFeedback && (
+                                {showFeedback && showFeedbackLabels && (
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {isSelected && isCorrect && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">

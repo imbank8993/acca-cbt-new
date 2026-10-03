@@ -2,6 +2,7 @@
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import type { Question } from '@/app/types';
 import { AttemptGradingDetails,getAttemptDetailsForGrading,parseEssaySubmission,submitEssayGrades } from '@/lib/api/teachers';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
@@ -75,7 +76,7 @@ export default function GradeEssayPage() {
         );
     }
 
-    const studentName = details.attempt.profiles?.full_name || 'Tanpa Nama';
+    const studentName = formatStudentName(details.attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = details.attempt.exams?.title || 'Ujian';
 
     return (
@@ -91,7 +92,7 @@ export default function GradeEssayPage() {
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2.5 px-4 py-2 bg-primary/10 rounded-xl border border-primary/20">
                             <User size={14} className="text-primary" />
-                            <span className="font-black text-[10px] text-primary uppercase tracking-widest">{studentName}</span>
+                            <span className="font-semibold text-xs text-primary">{studentName}</span>
                         </div>
                         <span className="text-slate-200">/</span>
                         <div className="flex items-center gap-2 text-slate-500">

@@ -8,6 +8,7 @@ import {
     type OrganizationExam,
 } from '@/lib/api/proctor';
 import { getGuruOrganization } from '@/lib/api/teachers';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
@@ -287,7 +288,7 @@ function GradingContent() {
                                                             onClick={() => router.push(`/dashboard/guru/grading/${att.id}`)}
                                                             className="hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 cursor-pointer"
                                                         >
-                                                            <td className="p-4 font-bold text-slate-700">{att.profiles?.full_name || 'Tanpa Nama'}</td>
+                                                            <td className="p-4 text-xs font-medium text-slate-700">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</td>
                                                             <td className="p-4">
                                                                 <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${att.status === 'submitted' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                                                     {att.status === 'submitted' ? 'SELESAI' : att.status}
@@ -301,7 +302,7 @@ function GradingContent() {
                                                                         BELUM DINILAI
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="font-black text-[#3083FF] text-lg">{Number(att.total_score).toFixed(0)}</span>
+                                                                    <span className="font-semibold text-[#3083FF] text-xs">{Number(att.total_score).toFixed(0)}</span>
                                                                 )}
                                                             </td>
                                                         </tr>

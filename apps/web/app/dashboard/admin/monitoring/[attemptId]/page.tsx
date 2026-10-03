@@ -5,6 +5,7 @@ import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/procto
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { securityViolationLabel } from '@/lib/security-violations';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -26,6 +27,24 @@ XCircle
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useEffect,useMemo,useState } from 'react';
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+    mcq: 'PG',
+    mcq_complex: 'PGK',
+    true_false: 'BS',
+    matching: 'MJ',
+    categorization: 'CAT',
+    short_answer: 'ISIAN',
+    essay: 'ESAI',
+    uraian: 'ESAI',
+    sjt: 'SJT',
+    ordering: 'URUT',
+    likert: 'LIKERT',
+    forced_choice: 'FC',
+    checklist: 'CL',
+    ranking: 'RANK',
+    paired_comparison: 'PC',
+};
 
 export default function AttemptAnalyticsPage() {
     const params = useParams();
@@ -131,7 +150,7 @@ export default function AttemptAnalyticsPage() {
     }
 
     const { attempt, answers, securityLogs } = data;
-    const studentName = attempt.profiles?.full_name || 'Tanpa Nama';
+    const studentName = formatStudentName(attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = attempt.exams?.title || 'Ujian';
 
     return (
@@ -194,7 +213,7 @@ export default function AttemptAnalyticsPage() {
                         </div>
                     </div>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold text-[#3083FF]">
+                        <span className="text-2xl font-bold text-[#3083FF]">
                             {Number(attempt.total_score || 0).toFixed(0)}
                         </span>
                         <span className="text-sm font-semibold text-slate-400">/100</span>
@@ -348,7 +367,7 @@ export default function AttemptAnalyticsPage() {
                                                 <div className="flex flex-wrap gap-2 justify-between items-center mb-3 pb-2.5 border-b border-slate-200">
                                                     <div className="flex gap-2">
                                                         <span className="px-2.5 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-500">
-                                                            {q.type.toUpperCase()}
+                                                            {QUESTION_TYPE_LABELS[q.type] || q.type.replace(/_/g, ' ').toUpperCase()}
                                                         </span>
                                                         <span className="px-2.5 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-500">
                                                             Max: {q.score_default || 1} Pts
@@ -369,6 +388,7 @@ export default function AttemptAnalyticsPage() {
                                                         answer={answer.essay_answer ?? answer.selected_option_id}
                                                         onAnswerChange={() => { }} // Read-only
                                                         showFeedback={true}
+                                                        showFeedbackLabels={false}
                                                     />
                                                 </div>
 
@@ -406,17 +426,17 @@ export default function AttemptAnalyticsPage() {
                         )}
 
                         {activeTab === 'security' && (
-                            <motion.div key="security" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-6">
-                                <div className="p-6 bg-red-50 border border-red-100 rounded-lg flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                                    <div className="w-12 h-12 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
-                                        <Shield size={24} />
+                            <motion.div key="security" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-4">
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex flex-col sm:flex-row items-center gap-3 text-center sm:text-left">
+                                    <div className="w-10 h-10 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-lg shadow-red-500/20 shrink-0">
+                                        <Shield size={20} />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-bold text-red-900">Security Audit Trail</h3>
-                                        <p className="text-sm text-red-700">Log aktivitas pelanggaran sistem keamanan.</p>
+                                        <h3 className="text-base font-bold text-red-900">Security Audit Trail</h3>
+                                        <p className="text-xs text-red-700">Log aktivitas keamanan dan sinkronisasi.</p>
                                     </div>
                                     <div className="sm:ml-auto">
-                                        <p className="text-3xl font-black text-red-600 leading-none mb-1">{securityLogs.length}</p>
+                                        <p className="text-2xl font-black text-red-600 leading-none mb-1">{securityLogs.length}</p>
                                         <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Total Event</p>
                                     </div>
                                 </div>
@@ -430,21 +450,21 @@ export default function AttemptAnalyticsPage() {
                                         <p className="text-slate-500 text-sm">Tidak ada pelanggaran yang tercatat untuk siswa ini.</p>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {securityLogs.map((log) => (
-                                            <div key={log.id} className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-lg hover:border-red-300 transition-colors">
-                                                <div className="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center text-red-500 shrink-0">
-                                                    {log.event_type === 'tab_close' ? <MousePointerClick size={18} /> : <AlertTriangle size={18} />}
+                                            <div key={log.id} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-red-300 transition-colors">
+                                                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center text-red-500 shrink-0">
+                                                    {log.event_type === 'tab_close' ? <MousePointerClick size={16} /> : <AlertTriangle size={16} />}
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className="text-sm font-bold text-slate-800 tracking-tight">{securityViolationLabel(log.event_type)}</p>
-                                                    <p className="text-[10px] font-mono text-slate-400">{log.event_type}</p>
-                                                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                                                    <p className="text-[13px] font-bold text-slate-800 tracking-tight">{securityViolationLabel(log.event_type)}</p>
+                                                    <p className="text-[9px] font-mono text-slate-400">{log.event_type}</p>
+                                                    <p className="text-[11px] font-medium text-slate-500">
                                                         {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                                     </p>
                                                 </div>
                                                 {(log.metadata?.duration || log.metadata?.duration_seconds) && (
-                                                    <span className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded text-xs font-bold whitespace-nowrap">
+                                                    <span className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[11px] font-bold whitespace-nowrap">
                                                         Ditutup {log.metadata?.duration || log.metadata?.duration_seconds}s
                                                     </span>
                                                 )}

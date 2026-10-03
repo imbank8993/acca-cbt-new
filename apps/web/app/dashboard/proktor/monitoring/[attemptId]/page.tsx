@@ -5,6 +5,7 @@ import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/procto
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { securityViolationLabel } from '@/lib/security-violations';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -130,7 +131,7 @@ export default function AttemptAnalyticsPage() {
     }
 
     const { attempt, answers, securityLogs } = data;
-    const studentName = attempt.profiles?.full_name || 'Tanpa Nama';
+    const studentName = formatStudentName(attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = attempt.exams?.title || 'Ujian';
 
     return (
@@ -193,7 +194,7 @@ export default function AttemptAnalyticsPage() {
                         </div>
                     </div>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold text-[#3083FF]">
+                        <span className="text-2xl font-bold text-[#3083FF]">
                             {Number(attempt.total_score || 0).toFixed(0)}
                         </span>
                         <span className="text-sm font-semibold text-slate-400">/100</span>

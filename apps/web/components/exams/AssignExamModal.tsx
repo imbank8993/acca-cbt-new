@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
+import { formatStudentName } from '@/lib/monitoring-health';
 import type {
     ClassStudent,
     OrganizationClass,
@@ -253,7 +254,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                 for (const s of students) {
                     list.push({
                         studentId: s.id,
-                        studentName: s.full_name || s.name || 'Tanpa nama',
+                        studentName: formatStudentName(s.full_name || s.name, 'Tanpa nama'),
                         studentEmail: s.email || s.identity_number || undefined,
                         classId: clsId,
                         className,
@@ -265,7 +266,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                     if (assignment.studentIds.includes(s.id)) {
                         list.push({
                             studentId: s.id,
-                            studentName: s.full_name || s.name || 'Tanpa nama',
+                            studentName: formatStudentName(s.full_name || s.name, 'Tanpa nama'),
                             studentEmail: s.email || s.identity_number || undefined,
                             classId: clsId,
                             className,
@@ -701,7 +702,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                             {item.studentName.charAt(0) || 'S'}
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-xs font-semibold text-slate-800 truncate">
+                                                            <p className="text-xs font-medium text-slate-800 truncate">
                                                                 {item.studentName}
                                                             </p>
                                                             {item.studentEmail && (
@@ -804,8 +805,10 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
 
                                             <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 min-h-0">
                                                 {activeStudents.map((student) => {
-                                                    const name =
-                                                        student.full_name || student.name || 'Tanpa nama';
+                                                    const name = formatStudentName(
+                                                        student.full_name || student.name,
+                                                        'Tanpa nama',
+                                                    );
                                                     const emailOrId =
                                                         student.email || student.identity_number || '';
                                                     return (
@@ -894,10 +897,10 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                             activeAssignment.studentIds.includes(
                                                                 student.id
                                                             );
-                                                        const name =
-                                                            student.full_name ||
-                                                            student.name ||
-                                                            'Tanpa nama';
+                                                        const name = formatStudentName(
+                                                            student.full_name || student.name,
+                                                            'Tanpa nama',
+                                                        );
                                                         const emailOrId =
                                                             student.email ||
                                                             student.identity_number ||

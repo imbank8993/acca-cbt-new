@@ -1,6 +1,7 @@
 "use client";
 import { getAssignmentSubmissionsAction,gradeAssignmentAction } from '@/lib/api/proctor';
 import type { AssignmentSubmission as Submission,OrganizationExam } from '@/lib/api/proctor';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -281,7 +282,7 @@ export default function AssignmentReviewPage() {
                                                     <div className="w-8 h-8 rounded-full bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center text-xs font-bold shrink-0">
                                                         {s.fullName.charAt(0).toUpperCase()}
                                                     </div>
-                                                    <span className="font-medium text-slate-900 truncate max-w-[120px]">{s.fullName}</span>
+                                                    <span className="text-xs font-medium text-slate-900 truncate max-w-[160px]">{formatStudentName(s.fullName, 'Tanpa Nama')}</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-slate-500 hidden sm:table-cell">{s.identityNumber}</td>
@@ -299,7 +300,7 @@ export default function AssignmentReviewPage() {
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 {s.teacherScore !== null ? (
-                                                    <span className={`font-bold text-base ${s.teacherScore >= 75 ? 'text-emerald-600' : s.teacherScore >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
+                                                    <span className={`font-semibold text-xs ${s.teacherScore >= 75 ? 'text-emerald-600' : s.teacherScore >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
                                                         {s.teacherScore}
                                                     </span>
                                                 ) : (

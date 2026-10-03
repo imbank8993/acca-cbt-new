@@ -16,6 +16,7 @@ import type {
 } from '@/lib/api/proctor';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getSchoolTimeZone } from '@/lib/school-time';
@@ -149,7 +150,7 @@ function MonitoringContent() {
                 const studentByAttempt = new Map<string, { name: string; class: string; nis: string }>();
                 attData.forEach((att) => {
                     studentByAttempt.set(att.id, {
-                        name: att.profiles?.full_name || 'Tanpa Nama',
+                        name: formatStudentName(att.profiles?.full_name, 'Tanpa Nama'),
                         class: att.kelas_name || '-',
                         nis: att.profiles?.identity_number || '-',
                     });
@@ -580,7 +581,7 @@ function MonitoringContent() {
 
             {selectedExamId && activeTab === 'answers' && (
                 <MonitoringHealthPanel
-                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     onRecover={handleResetAttempt}
                     onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}
                     defaultExpanded
@@ -645,7 +646,7 @@ function MonitoringContent() {
                                         const violations = attempt.warning_count ?? 0;
                                         return (
                                             <tr key={attempt.id} className="border-t border-slate-100 hover:bg-slate-50">
-                                                <td className="px-5 py-3 text-[13px] font-medium text-slate-800">{attempt.profiles?.full_name || 'Tanpa nama'}</td>
+                                                <td className="px-5 py-3 text-xs font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</td>
                                                 <td className="px-5 py-3 text-slate-600">{attempt.kelas_name || '—'}</td>
                                                 <td className="px-5 py-3 text-slate-600">
                                                     {attempt.started_at ? new Date(attempt.started_at).toLocaleString('id-ID', { timeZone }) : 'Belum tercatat'}
@@ -774,7 +775,7 @@ function MonitoringContent() {
                                                                     {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-bold text-[#3083FF] text-sm truncate leading-tight">{att.profiles?.full_name || 'Tanpa Nama'}</p>
+                                                                    <p className="font-medium text-[#3083FF] text-xs truncate leading-tight">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</p>
                                                                     {att.kelas_name && att.kelas_name !== '-' && (
                                                                         <p className="text-[9px] text-slate-400 truncate">{att.kelas_name}</p>
                                                                     )}
@@ -915,7 +916,7 @@ function MonitoringContent() {
                                                                         }`}>
                                                                             {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                         </div>
-                                                                        <span className="font-bold text-[#3083FF] text-sm">{att.profiles?.full_name || 'Tanpa Nama'}</span>
+                                                                        <span className="font-medium text-[#3083FF] text-xs">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
                                                                         {isInProgress && <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse shrink-0" />}
                                                                     </div>
                                                                 </td>
@@ -959,7 +960,7 @@ function MonitoringContent() {
                                                                         </button>
                                                                         {canReset && (
                                                                             <button
-                                                                                onClick={() => handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa')}
+                                                                                onClick={() => handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'))}
                                                                                 disabled={resettingAttemptId === att.id}
                                                                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
@@ -986,7 +987,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="results"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm [&_tbody_td:first-child]:text-sm [&_tbody_td:nth-child(n+8):not(:last-child)]:text-base"
+                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
                                     <h3 className="font-bold text-slate-800">Rekap Hasil</h3>
@@ -1058,7 +1059,7 @@ function MonitoringContent() {
                                                             }}
                                                             className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
                                                         >
-                                                            <td className="p-4 font-bold text-slate-800">{att.profiles?.full_name || 'Tanpa Nama'}</td>
+                                                            <td className="p-4 text-xs font-medium text-slate-800">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</td>
                                                             <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
@@ -1085,26 +1086,26 @@ function MonitoringContent() {
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-right">
-                                                                <span className="font-bold text-lg text-slate-700">{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
+                                                                <span className="font-semibold text-xs text-slate-700">{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
                                                             </td>
                                                             {has1PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-slate-700">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has2PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-slate-700">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-slate-700">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-slate-700">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {!has1PL && !has2PL && !has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-bold text-lg text-slate-700">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
+                                                                    <span className="font-semibold text-xs text-slate-700">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             <td className="p-4">
@@ -1117,7 +1118,7 @@ function MonitoringContent() {
                                                                         }}
                                                                         disabled={isBelum}
                                                                         type="button"
-                                                                        aria-label={`Detail ${att.profiles?.full_name || 'peserta'}`}
+                                                                        aria-label={`Detail ${formatStudentName(att.profiles?.full_name, 'peserta')}`}
                                                                         title="Lihat detail"
                                                                         className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                                                                     >
@@ -1127,11 +1128,11 @@ function MonitoringContent() {
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                handleResetAttempt(att.id, att.profiles?.full_name || 'Siswa');
+                                                                                handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'));
                                                                             }}
                                                                             disabled={resettingAttemptId === att.id}
                                                                             type="button"
-                                                                            aria-label={`Pulihkan ${att.profiles?.full_name || 'peserta'}`}
+                                                                            aria-label={`Pulihkan ${formatStudentName(att.profiles?.full_name, 'peserta')}`}
                                                                             title="Susulan / Pulihkan"
                                                                             className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
                                                                         >
@@ -1506,7 +1507,7 @@ function MonitoringContent() {
                                                         {viewQuestion.correctStudents.map((st, i) => (
                                                             <tr key={i} className="hover:bg-emerald-50/30 transition-colors">
                                                                 <td className="p-3 text-center font-bold text-slate-400">{i + 1}</td>
-                                                                <td className="p-3 font-semibold text-slate-800">{st.student_name}</td>
+                                                                <td className="p-3 font-medium text-slate-800">{formatStudentName(st.student_name, 'Tanpa Nama')}</td>
                                                                 <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                                 <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                                 <td className="p-3">
@@ -1560,7 +1561,7 @@ function MonitoringContent() {
                                                         {viewQuestion.wrongStudents.map((st, i) => (
                                                             <tr key={i} className="hover:bg-red-50/30 transition-colors">
                                                                 <td className="p-3 text-center font-bold text-slate-400">{i + 1}</td>
-                                                                <td className="p-3 font-semibold text-slate-800">{st.student_name}</td>
+                                                                <td className="p-3 font-medium text-slate-800">{formatStudentName(st.student_name, 'Tanpa Nama')}</td>
                                                                 <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                                 <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                                 <td className="p-3">
@@ -1645,7 +1646,7 @@ function MonitoringContent() {
                                                                                 : 'bg-slate-100 text-slate-700'
                                                                         }`}
                                                                     >
-                                                                        {nm}
+                                                                        {formatStudentName(nm, 'Tanpa Nama')}
                                                                     </span>
                                                                 ))}
                                                             </div>

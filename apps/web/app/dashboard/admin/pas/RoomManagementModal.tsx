@@ -20,6 +20,7 @@ listOrganizationClasses,
 type OrganizationClass,
 } from '@/lib/api/proctor';
 import type { PASPeriod,PASSession } from '@/app/types/pas';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { Plus,Save,Trash2,Users,X } from 'lucide-react';
@@ -416,7 +417,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                                 }}
                                                                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                                             />
-                                                            <span className="text-slate-700">{student.name}</span>
+                                                            <span className="text-xs text-slate-700">{formatStudentName(student.name, 'Tanpa Nama')}</span>
                                                         </label>
                                                     ))
                                                 )}
@@ -443,7 +444,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                     ) : (
                                         selectedRoom.pas_room_students.map((student) => (
                                             <div key={student.user_id} className="flex items-center justify-between p-2 hover:bg-slate-50">
-                                                <span className="text-sm text-slate-700">{student.profiles?.full_name || 'Tanpa Nama'}</span>
+                                                <span className="text-xs text-slate-700">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
                                                 <button
                                                     onClick={() => handleRemoveStudent(student.user_id)}
                                                     className="text-slate-400 hover:text-red-500"

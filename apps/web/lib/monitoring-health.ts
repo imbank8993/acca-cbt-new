@@ -24,3 +24,11 @@ export function monitoringAttention(attempt: ExamAttemptRecord, elapsedSeconds =
     if (attempt.status === 'in_progress' && elapsedSeconds > 45) reasons.push('Data monitoring belum diperbarui');
     return [...new Set(reasons)];
 }
+export function formatStudentName(name?: string | null, fallback = 'Tanpa nama'): string {
+    const trimmed = typeof name === 'string' ? name.trim() : '';
+    if (!trimmed) return fallback;
+    if (trimmed.includes('@')) return trimmed;
+    return trimmed
+        .toLowerCase()
+        .replace(/(^|[\s.-])(\p{L})/gu, (_, sep: string, char: string) => `${sep}${char.toUpperCase()}`);
+}

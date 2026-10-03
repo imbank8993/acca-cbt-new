@@ -3,6 +3,7 @@ import { AnimatePresence,motion } from 'framer-motion';
 import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye,FileText,Flag,Grid3X3,Loader2,Maximize2,Rows3,ShieldAlert,User,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 import type { AnswerValue,Question } from '@/app/types';
+import { formatStudentName } from '@/lib/monitoring-health';
 import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
 
@@ -599,8 +600,8 @@ export function ExamViewer({
                                 <User size={14} className="text-slate-500 dark:text-slate-400" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight max-w-[150px] md:max-w-xs truncate">
-                                    {studentName}
+                                <p className="text-xs font-medium text-slate-800 dark:text-slate-100 leading-tight max-w-[150px] md:max-w-xs truncate">
+                                    {formatStudentName(studentName, 'Peserta Ujian')}
                                 </p>
                                 <p className="text-[11px] text-slate-400 leading-tight truncate max-w-[150px] md:max-w-xs">
                                     {studentNisn ? `NISN ${studentNisn} • ` : ''}{studentClass ? `${studentClass} • ` : ''}{examTitle}
@@ -667,7 +668,7 @@ export function ExamViewer({
                                 <User size={14} className="text-primary" />
                             </div>
                             <div className="min-w-0 flex flex-col leading-tight">
-                                <span className="text-xs font-bold text-slate-700 truncate">{studentName || 'Peserta Ujian'}</span>
+                                <span className="text-xs font-medium text-slate-700 truncate">{formatStudentName(studentName, 'Peserta Ujian')}</span>
                                 {studentNisn && (
                                     <span className="text-[10px] text-slate-400 truncate">NISN {studentNisn}</span>
                                 )}

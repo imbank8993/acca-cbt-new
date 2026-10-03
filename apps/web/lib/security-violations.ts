@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
     FORCE_TERMINATED: 'Ujian diselesaikan otomatis',
     DEVICE_SWITCH_BLOCKED: 'Pergantian perangkat diblokir',
     LATE_ANSWER_SYNC: 'Jawaban terlambat disinkronkan',
+    SYNC_HEALTH_CHANGED: 'Status sinkronisasi jawaban berubah',
 };
 
 export function securityViolationLabel(eventType: string): string {

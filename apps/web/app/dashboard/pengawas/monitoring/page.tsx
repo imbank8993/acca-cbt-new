@@ -15,6 +15,7 @@ getProctorOrganization,
 } from '@/lib/api/proctor';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { examTypeLabel } from '@/lib/exam-types';
 import {
 AlertTriangle,
@@ -368,8 +369,8 @@ function MonitoringContent() {
                                                     key={attempt.id}
                                                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                                                 >
-                                                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                                                        {attempt.profiles?.full_name || 'Peserta'}
+                                                    <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white">
+                                                        {formatStudentName(attempt.profiles?.full_name, 'Peserta')}
                                                     </td>
                                                     <td className="py-3 px-3 text-slate-600 dark:text-slate-300 font-medium">
                                                         {attempt.kelas_name || '-'}
@@ -418,7 +419,7 @@ function MonitoringContent() {
                                                                 onClick={() =>
                                                                     handleReset(
                                                                         attempt.id,
-                                                                        attempt.profiles?.full_name || 'Siswa'
+                                                                        formatStudentName(attempt.profiles?.full_name, 'Siswa')
                                                                     )
                                                                 }
                                                                 disabled={isResetting}
@@ -472,8 +473,8 @@ function MonitoringContent() {
                                         className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700/60"
                                     >
                                         <div className="flex justify-between items-start gap-2 mb-1">
-                                            <p className="font-bold text-xs text-slate-900 dark:text-white">
-                                                {alert.studentName}
+                                            <p className="font-medium text-xs text-slate-900 dark:text-white">
+                                                {formatStudentName(alert.studentName, 'Peserta')}
                                             </p>
                                             <span className="text-[10px] font-bold text-slate-400">
                                                 {formatTime(alert.timestamp)}

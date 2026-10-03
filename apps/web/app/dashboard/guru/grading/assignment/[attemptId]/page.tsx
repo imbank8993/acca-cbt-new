@@ -1,5 +1,6 @@
 "use client";
 import { AttemptGradingDetails,getAttemptDetailsForGrading,parseEssaySubmission,submitEssayGrades } from '@/lib/api/teachers';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { ArrowLeft,ChevronLeft,ChevronRight,FileText,GraduationCap,Loader2,MessageSquare,Save,User } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
@@ -101,7 +102,7 @@ export default function AssignmentReviewerPage() {
     const isPdf = activeFile.toLowerCase().split('?')[0].endsWith('.pdf');
     
     // Attempt details
-    const studentName = details.attempt.profiles?.full_name || 'Tanpa Nama';
+    const studentName = formatStudentName(details.attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = details.attempt.exams?.title || 'Tugas / Ujian';
     const submittedAt = details.attempt.finished_at ? new Date(details.attempt.finished_at).toLocaleString('id-ID') : 'Belum Selesai';
 
@@ -206,7 +207,7 @@ export default function AssignmentReviewerPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <h2 className="text-base font-bold text-white">{studentName}</h2>
+                                    <h2 className="text-sm font-semibold text-white">{studentName}</h2>
                                     <p className="text-xs text-slate-400 mt-0.5">Disubmit: {submittedAt}</p>
                                 </div>
                             </div>
