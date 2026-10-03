@@ -13,6 +13,7 @@ getProctorOrganization,
 type ViolationEvent
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
+import { examTypeLabel } from '@/lib/exam-types';
 import {
 Activity,
 AlertTriangle,
@@ -275,7 +276,7 @@ export default function PengawasDashboard() {
                                 >
                                     <div className="flex items-center justify-between mb-1.5">
                                         <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-200/60 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                            {exam.exam_type || 'Ujian'}
+                                            {exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'}
                                         </span>
                                         <span className="text-[11px] font-bold text-slate-400">
                                             {exam.duration || 60} Menit

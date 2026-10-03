@@ -17,7 +17,7 @@ import {
     ValidateNested,
 } from 'class-validator';
 
-export const EXAM_TYPES = ['daily', 'pas', 'pat', 'lainnya', 'assignment'] as const;
+export const EXAM_TYPES = ['daily', 'pas', 'pat', 'tryout', 'lainnya', 'assignment'] as const;
 export const CLASS_TYPES = ['reguler', 'tambahan'] as const;
 
 /** Bidang ujian yang dipakai baik saat membuat maupun mengubah. */

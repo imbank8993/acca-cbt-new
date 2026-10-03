@@ -20,6 +20,7 @@ import { listOrganizationLabels,listQuestionBanks } from '@/lib/api/questions';
 import type { OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject,SchoolYear } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
+import { matchesExamType } from '@/lib/exam-types';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -272,7 +273,7 @@ const ExamsPage = () => {
     };
 
     const getExamTabFilter = (e: OrganizationExam, tabId: TabId): boolean => {
-        if (typeFilter !== 'all' && e.exam_type !== typeFilter) return false;
+        if (!matchesExamType(e.exam_type, typeFilter)) return false;
         if (tabId === 'all') return getExamStatus(e) !== 'archived';
         return getExamStatus(e) === tabId;
     };
@@ -447,14 +448,14 @@ const ExamsPage = () => {
                 {[
                     { id: 'all', label: 'Semua' },
                     { id: 'daily', label: 'Ulangan Harian' },
-                    { id: 'pas', label: 'ASAS/PAS' },
-                    { id: 'pat', label: 'ASAT/PAT' },
+                    { id: 'asas_asat', label: 'ASAS/ASAT' },
+                    { id: 'tryout', label: 'Try Out' },
                     { id: 'assignment', label: 'Tugas' },
-                    { id: 'lainnya', label: 'Ujian Lainnya' }
+                    { id: 'lainnya', label: 'Lainnya' }
                 ].map(type => {
-                    const total = type.id === 'pas'
+                    const total = type.id === 'asas_asat'
                         ? examConfigs.length
-                        : (type.id === 'all' ? exams : exams.filter(exam => exam.exam_type === type.id)).length;
+                        : (type.id === 'all' ? exams.length : exams.filter(exam => matchesExamType(exam.exam_type, type.id)).length);
                     
                     const isSelected = typeFilter === type.id;
                     
@@ -481,7 +482,7 @@ const ExamsPage = () => {
                 {tabs.map(tab => {
                     const Icon = tab.icon;
                     let count = 0;
-                    if (typeFilter === 'pas') {
+                    if (typeFilter === 'asas_asat') {
                         count = examConfigs.filter(p => {
                             const now = new Date();
                             const start = new Date(p.start_date ?? 0);
@@ -525,7 +526,7 @@ const ExamsPage = () => {
             </div>
 
             {/* Search + Filters + Sort */}
-            {typeFilter !== 'pas' && (
+            {typeFilter !== 'asas_asat' && (
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
                     <div className="relative flex-1">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -545,10 +546,10 @@ const ExamsPage = () => {
                         >
                             <option value="all">Semua Jenis Ujian</option>
                             <option value="daily">Ulangan Harian</option>
-                            <option value="pas">ASAS/PAS</option>
-                            <option value="pat">ASAT/PAT</option>
+                            <option value="asas_asat">ASAS/ASAT</option>
+                            <option value="tryout">Try Out</option>
                             <option value="assignment">Tugas</option>
-                            <option value="lainnya">Ujian Lainnya</option>
+                            <option value="lainnya">Lainnya</option>
                         </select>
                         <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
                     </div>
@@ -574,7 +575,7 @@ const ExamsPage = () => {
             )}
 
             {/* ─────────────── PAS TAB CONTENT ─────────────── */}
-            {typeFilter === 'pas' && (
+            {typeFilter === 'asas_asat' && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-1 sm:p-6 mb-6">
                     <ProctorPASPage activeTab={activeTab} />
                 </div>
@@ -852,7 +853,7 @@ const ExamsPage = () => {
 
 
             {/* Exam List */}
-            {typeFilter !== 'pas' && (
+            {typeFilter !== 'asas_asat' && (
                 isLoading ? (
                 <div className="flex justify-center py-16">
                     <Spinner variant="buble" size={32} />

@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/proctor';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import { getSessionUser } from '@/lib/session';
+import { examTypeLabel } from '@/lib/exam-types';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -319,7 +320,7 @@ export default function AdminDashboard() {
                                                 </span>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
                                                     <span className="text-[10px] text-[#3083FF] font-bold bg-[#3083FF]/10 px-2 py-1 rounded-md">
-                                                        {exam.exam_type.toUpperCase()}
+                                                        {examTypeLabel(exam.exam_type)}
                                                     </span>
                                                 )}
                                                 {exam.start_time && (

@@ -25,6 +25,7 @@ import {
 } from '@/lib/api/proctor';
 import type {
     ClassStudent,
+    ExamInput,
     OrganizationClass,
     OrganizationExam,
     ProctorOrganization,
@@ -33,7 +34,7 @@ import type { QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, utcToSchoolLocalDateTime, addMinutesToLocalDateTime } from '@/lib/school-time';
 
-export type ExamType = 'daily' | 'pas' | 'pat' | 'assignment' | 'lainnya';
+export type ExamType = 'daily' | 'asas_asat' | 'tryout' | 'assignment' | 'lainnya';
 
 export const SCORING_OPTIONS = [
     { value: 'classical', label: 'Penilaian Klasik', info: 'Nilai dihitung berdasarkan proporsi jawaban benar (0-100).' },
@@ -172,7 +173,9 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             const initFormData: ExamFormData = {
                 title: exam.title || '',
                 description: exam.description || '',
-                examType: (exam.exam_type as ExamType) || 'daily',
+                examType: exam?.exam_type === 'pas' || exam?.exam_type === 'pat'
+                    ? 'asas_asat'
+                    : (exam?.exam_type as ExamType) || 'daily',
                 duration: exam.duration_minutes || 60,
                 randomizeQuestions: exam.randomize_questions ?? true,
                 randomizeOptions: exam.randomize_options ?? true,
@@ -290,20 +293,21 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         if (role === 'guru') {
             return [
                 { value: 'daily', label: 'Ulangan Harian' },
+                { value: 'tryout', label: 'Try Out' },
                 { value: 'assignment', label: 'Tugas' },
-                { value: 'lainnya', label: 'Ujian Lainnya' },
+                { value: 'lainnya', label: 'Lainnya' },
             ];
         }
         return [
             { value: 'daily', label: 'Ulangan Harian' },
-            { value: 'pas', label: 'ASAS/PAS' },
-            { value: 'pat', label: 'ASAT/PAT' },
+            { value: 'asas_asat', label: 'ASAS/ASAT' },
+            { value: 'tryout', label: 'Try Out' },
             { value: 'assignment', label: 'Tugas' },
-            { value: 'lainnya', label: 'Ujian Lainnya' },
+            { value: 'lainnya', label: 'Lainnya' },
         ];
     }, [role]);
 
-    const isBankRequired = formData.examType !== 'pas' && (formData.examType !== 'assignment' || formData.requireBank);
+    const isBankRequired = formData.examType !== 'asas_asat' && (formData.examType !== 'assignment' || formData.requireBank);
     const isBankMissing = !isEdit && isBankRequired && (!formData.bankId || availableBanks.length === 0);
 
     // Hitung total siswa yang akan menerima penugasan
@@ -356,7 +360,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             return;
         }
 
-        const skipBankValidation = formData.examType === 'pas' ||
+        const skipBankValidation = formData.examType === 'asas_asat' ||
             (formData.examType === 'assignment' && !formData.requireBank);
 
         if (!skipBankValidation && !formData.bankId && !isEdit) {
@@ -400,12 +404,15 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             const parsedDuration = formData.duration === '' ? 60 : parseInt(String(formData.duration), 10);
             const validDuration = isNaN(parsedDuration) ? 60 : parsedDuration;
             const finalDuration = formData.examType === 'assignment' && !formData.requireBank ? 0 : Math.max(0, validDuration);
+            const storedExamType: ExamInput['examType'] = formData.examType === 'asas_asat'
+                ? (exam?.exam_type === 'pat' ? 'pat' : 'pas')
+                : formData.examType;
 
             const payload = {
                 title: formData.title.trim(),
                 description: formData.description.trim() || undefined,
                 duration: finalDuration,
-                examType: formData.examType,
+                examType: storedExamType,
                 startTime: formData.isForever ? undefined : (formData.startTime || undefined),
                 endTime: formData.isForever ? undefined : (formData.endTime || undefined),
                 randomizeQuestions: formData.randomizeQuestions,
@@ -574,7 +581,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     </div>
 
                     {/* Bank Soal & Durasi (Jika bukan PAS dan bukan Assignment) */}
-                    {formData.examType !== 'pas' && formData.examType !== 'assignment' && (
+                    {formData.examType !== 'asas_asat' && formData.examType !== 'assignment' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ModalField
                                 label="Bank Soal"

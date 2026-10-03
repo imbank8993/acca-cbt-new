@@ -15,6 +15,7 @@ getProctorOrganization,
 } from '@/lib/api/proctor';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { examTypeLabel } from '@/lib/exam-types';
 import {
 AlertTriangle,
 ArrowLeft,
@@ -209,7 +210,7 @@ function MonitoringContent() {
                         >
                             {exams.map((exam) => (
                                 <option key={exam.id} value={exam.id}>
-                                    {exam.title} ({exam.exam_type || 'Ujian'})
+                                    {exam.title} ({exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})
                                 </option>
                             ))}
                         </select>

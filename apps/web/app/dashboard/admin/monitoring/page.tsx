@@ -16,6 +16,7 @@ import type {
 } from '@/lib/api/proctor';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
+import { examTypeLabel } from '@/lib/exam-types';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getSchoolTimeZone } from '@/lib/school-time';
@@ -485,7 +486,7 @@ function MonitoringContent() {
                                 options={exams.map(exam => ({
                                     value: exam.id,
                                     label: exam.title,
-                                    subLabel: `${exam.exam_type?.toUpperCase() || 'UJIAN'} • ${exam.duration_minutes || 0} menit`,
+                                    subLabel: `${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'} • ${exam.duration_minutes || 0} menit`,
                                 }))}
                                 value={selectedExamId}
                                 onChange={(val) => setSelectedExamId(String(val || ''))}
@@ -563,7 +564,12 @@ function MonitoringContent() {
             )}
 
             {selectedExamId && (
-                <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
+                <MonitoringHealthPanel
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    onRecover={handleResetAttempt}
+                    onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}
+                    defaultExpanded
+                />
             )}
 
             {selectedExamId && loadError && (
@@ -607,7 +613,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="live"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="space-y-4"
+                                className={activeTab === 'live' ? 'hidden' : 'space-y-4'}
                             >
                                 {/* Status pemantauan. Datanya disegarkan berkala, bukan
                                     didorong seketika, jadi jedanya disebutkan apa adanya

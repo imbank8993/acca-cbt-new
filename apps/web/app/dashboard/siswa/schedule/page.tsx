@@ -4,6 +4,7 @@ import { getStudentExamsResult,type StudentScheduledExam } from '@/lib/api/stude
 import { formatSchoolDate,formatSchoolTimeRange } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
+import { examTypeLabel } from '@/lib/exam-types';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { motion } from 'framer-motion';
@@ -168,7 +169,7 @@ const SchedulePage = () => {
                                             <div className="flex flex-wrap items-center gap-2 mb-1">
                                                 <h3 className="font-bold text-slate-800 text-base truncate group-hover:text-[#3083FF] transition-colors">{exam.title}</h3>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{exam.exam_type}</span>
+                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{examTypeLabel(exam.exam_type)}</span>
                                                 )}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium font-sans">
@@ -217,7 +218,7 @@ const SchedulePage = () => {
                                             <div className="flex flex-wrap items-center gap-2 mb-1">
                                                 <h3 className="font-bold text-slate-800 text-base truncate">{exam.title}</h3>
                                                 {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{exam.exam_type}</span>
+                                                    <span className="px-2.5 py-0.5 bg-violet-50 text-violet-600 text-[9px] font-bold uppercase rounded-md border border-violet-100/50">{examTypeLabel(exam.exam_type)}</span>
                                                 )}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium font-sans">
