@@ -2,11 +2,12 @@
 import { Spinner } from '@/app/components/ui/Spinner';
 import { clearActiveRoleInStorage,getDashboardPath,lockActiveRole,setActiveRoleInStorage,type Role } from '@/lib/rbac';
 import { clearCbtSession,resetAndRetrySso } from '@/lib/session-reset';
+import { clearSessionCache,fetchSessionUser } from '@/lib/session';
 import { clearMemoryCache } from '@/lib/useMemoryState';
 import { useRouter } from 'next/navigation';
 import { useEffect,useState } from 'react';
 
-type SsoFailure = { title: string; message: string };
+type SsoFailure = { title: string; message: string; retryOnly?: boolean };
 
 export default function Home() {
     const router = useRouter();
@@ -19,6 +20,8 @@ export default function Home() {
     useEffect(() => {
         let isRedirecting = false;
         let settled = false; // true begitu sesi CBT ditemukan
+        let cancelled = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
         // Authoritative role forwarded by the acca-app SSO hand-off (?sso_role=).
         // It is fresh (derived from acca-app's users table) and lets us skip the
@@ -30,15 +33,17 @@ export default function Home() {
         // Jika baru berpindah dari sistem induk via SSO, bersihkan seluruh jejak peran
         // dan memori pengguna sebelumnya di peramban ini agar akun tidak tertukar.
         if (ssoRoleParam) {
+            clearSessionCache();
             try {
                 clearActiveRoleInStorage();
                 clearMemoryCache();
             } catch {}
         }
 
-        const fail = (title: string, message: string) => {
+        const fail = (title: string, message: string, retryOnly = false) => {
+            if (cancelled) return;
             isRedirecting = true;
-            setFailure({ title, message });
+            setFailure({ title, message, retryOnly });
         };
 
         /**
@@ -48,9 +53,9 @@ export default function Home() {
          */
         const checkCbtSession = async (): Promise<boolean> => {
             try {
-                const res = await fetch('/api/auth/me', { cache: 'no-store' });
-                const body = await res.json().catch(() => null);
-                if (!res.ok || !body?.success || !body?.id) return false;
+                const body = await fetchSessionUser();
+                if (cancelled) return true;
+                if (!body) return false;
 
                 settled = true;
                 isRedirecting = true;
@@ -72,10 +77,9 @@ export default function Home() {
                 router.push(getDashboardPath(role));
                 return true;
             } catch {
-                // Jaringan putus. Bukan berarti sesinya tidak ada, jadi jangan
-                // langsung dipantulkan — percobaan kedua setelah jeda di bawah
-                // yang memutuskan.
-                return false;
+                fail('Sesi belum dapat diperiksa',
+                    'Server atau koneksi sedang bermasalah. Sesi Anda tetap disimpan. Silakan coba lagi.', true);
+                return true;
             }
         };
 
@@ -103,10 +107,10 @@ export default function Home() {
                 history.replaceState(null, '', window.location.pathname + window.location.search);
             }
 
-            // Beri jeda singkat: cookie bisa saja baru mendarat sesaat setelah
-            // pengalihan dari `/api/auth/sso`.
-            setTimeout(async () => {
-                if (settled || isRedirecting) return;
+            // Konfirmasi respons 401 sebelum menghapus sesi. Gangguan sementara
+            // pada percobaan mana pun menampilkan retry tanpa logout.
+            retryTimer = setTimeout(async () => {
+                if (cancelled || settled || isRedirecting) return;
                 if (await checkCbtSession()) return;
 
                 // Benar-benar tidak ada sesi dan tidak ada hand-off — CBT dibuka
@@ -114,11 +118,16 @@ export default function Home() {
                 // dulu, baru arahkan ke acca-app untuk memulai dari awal.
                 isRedirecting = true;
                 await clearCbtSession();
+                if (cancelled) return;
                 const accaUrl = process.env.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id';
                 window.location.href = `${accaUrl}/login?error=cbt-no-session&v=3&hash=0`;
             }, 1500);
         };
         checkSession();
+        return () => {
+            cancelled = true;
+            if (retryTimer) clearTimeout(retryTimer);
+        };
     }, [router]);
 
     if (failure) {
@@ -129,11 +138,15 @@ export default function Home() {
                     <h1 className="text-xl font-bold text-slate-800 mb-2">{failure.title}</h1>
                     <p className="text-slate-500 mb-6 text-sm leading-relaxed">{failure.message}</p>
                     <button
-                        onClick={async () => { setResetting(true); await resetAndRetrySso(); }}
+                        onClick={async () => {
+                            if (failure.retryOnly) { window.location.reload(); return; }
+                            setResetting(true);
+                            await resetAndRetrySso();
+                        }}
                         disabled={resetting}
                         className="w-full bg-[#3083FF] hover:bg-[#2563EB] disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-all shadow-sm"
                     >
-                        {resetting ? 'Membersihkan…' : 'Bersihkan Sesi & Coba Lagi'}
+                        {failure.retryOnly ? 'Coba Lagi' : resetting ? 'Membersihkan…' : 'Bersihkan Sesi & Coba Lagi'}
                     </button>
                     <a
                         href={`${accaUrl}/dashboard`}

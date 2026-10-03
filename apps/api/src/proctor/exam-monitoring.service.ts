@@ -416,7 +416,7 @@ export class ExamMonitoringService {
      * salah, dan angkanya menyesatkan justru saat ujian sedang berlangsung.
      */
     async getItemAnalysis(user: AuthUser, examId: string) {
-        await this.authz.assertExamStaff(user, examId);
+        await this.authz.assertExamMonitoring(user, examId);
 
         const { data: examRow } = await this.db
             .from('cbt_exams')

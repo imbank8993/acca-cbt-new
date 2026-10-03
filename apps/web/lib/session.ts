@@ -29,7 +29,8 @@ export const SESSION_REQUEST_TIMEOUT_MS = 10_000;
 let cached: { user: AuthUser | null; at: number } | null = null;
 let inFlight: Promise<AuthUser | null> | null = null;
 
-async function fetchMe(): Promise<AuthUser | null> {
+/** Null hanya berarti server menolak sesi (401); gangguan lain melempar error. */
+export async function fetchSessionUser(): Promise<AuthUser | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS);
     try {
@@ -37,33 +38,36 @@ async function fetchMe(): Promise<AuthUser | null> {
             cache: 'no-store',
             signal: controller.signal,
         });
-        if (!res.ok) return null;
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error('Pemeriksaan sesi gagal. Silakan coba lagi.');
         const body = await res.json().catch(() => null);
-        if (!body?.success || !body?.id) return null;
+        if (!body?.success || !body?.id) throw new Error('Balasan pemeriksaan sesi tidak valid.');
         return body as AuthUser;
-    } catch {
-        // Gangguan jaringan tidak menghapus identitas cache. Nilai ini hanya
-        // dipakai UI; setiap operasi tetap diverifikasi backend.
-        return cached?.user ?? null;
     } finally {
         clearTimeout(timeout);
     }
 }
 
-/** Pengguna yang sedang masuk, atau null. */
+/** Pengguna aktif, null untuk 401, atau error sementara bila belum ada cache. */
 export async function getSessionUser(options: { refresh?: boolean } = {}): Promise<AuthUser | null> {
     if (!options.refresh && cached && Date.now() - cached.at < TTL_MS) {
         return cached.user;
     }
     if (!options.refresh && inFlight) return inFlight;
 
-    inFlight = fetchMe().then((user) => {
-        cached = { user, at: Date.now() };
-        inFlight = null;
+    const request = fetchSessionUser().then((user) => {
+        if (inFlight === request) cached = { user, at: Date.now() };
         return user;
+    }).catch((error: unknown) => {
+        // Identitas cache hanya untuk UI; backend tetap memverifikasi akses.
+        // Jangan cache kegagalan sementara sebagai sesi yang sudah berakhir.
+        if (cached?.user) return cached.user;
+        throw error;
+    }).finally(() => {
+        if (inFlight === request) inFlight = null;
     });
-
-    return inFlight;
+    inFlight = request;
+    return request;
 }
 
 /** Buang cache — dipanggil setelah sesi dihapus. */

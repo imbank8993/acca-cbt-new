@@ -1,4 +1,5 @@
 import { clearActiveRoleInStorage } from '@/lib/rbac';
+import { clearSessionCache } from '@/lib/session';
 
 /**
  * Buang SELURUH jejak sesi CBT di perangkat ini.
@@ -10,6 +11,7 @@ import { clearActiveRoleInStorage } from '@/lib/rbac';
  * bersihkan, lalu mulai hand-off SSO dari awal.
  */
 export async function clearCbtSession(): Promise<void> {
+    clearSessionCache();
     // `cbt_session` adalah cookie httpOnly: JavaScript halaman tidak bisa
     // menghapusnya sendiri. Hanya server yang bisa, lewat route logout.
     try {

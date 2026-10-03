@@ -77,7 +77,7 @@ test('NET-05: pemeriksaan sesi juga memiliki timeout', async () => {
     try {
         const { getSessionUser, SESSION_REQUEST_TIMEOUT_MS } = require('../../web/lib/session.ts');
         assert.equal(SESSION_REQUEST_TIMEOUT_MS, 10_000);
-        assert.equal(await getSessionUser({ refresh: true }), null);
+        await assert.rejects(getSessionUser({ refresh: true }), /aborted/);
         assert.equal(aborted, true);
     } finally {
         global.fetch = originalFetch;
@@ -87,6 +87,6 @@ test('NET-05: pemeriksaan sesi juga memiliki timeout', async () => {
 
 test('NET-06: gangguan sesi memakai cache dan tidak melewati otorisasi backend', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../../web/lib/session.ts'), 'utf8');
-    assert.match(source, /return cached\?\.user \?\? null/);
+    assert.match(source, /if \(cached\?\.user\) return cached.user/);
     assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), SESSION_REQUEST_TIMEOUT_MS\)/);
 });

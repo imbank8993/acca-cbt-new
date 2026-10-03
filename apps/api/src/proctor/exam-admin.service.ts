@@ -43,8 +43,8 @@ export class ExamAdminService {
     /**
      * Daftar ujian satu organisasi.
      *
-     * Guru hanya melihat ujian buatannya sendiri — ujian milik proktor atau guru
-     * lain tidak boleh muncul.
+     * Guru melihat ujian buatannya sendiri DAN ujian yang menggunakan bank soal
+     * miliknya — ujian milik guru lain tanpa kaitan bank soal tidak muncul.
      */
     async list(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgMonitoring(user, organizationId);
@@ -55,7 +55,22 @@ export class ExamAdminService {
             (await this.isElevated(user, organizationId)) ||
             (await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']));
         if (!canSeeAll) {
-            query = query.eq('created_by', user.id);
+            // Cari bank soal milik guru ini
+            const { data: ownedBanks } = await this.db
+                .from('cbt_question_banks')
+                .select('id')
+                .eq('organization_id', organizationId)
+                .eq('created_by', user.id);
+            const bankIds = ((ownedBanks as Array<{ id: string }>) || []).map((b) => b.id);
+
+            if (bankIds.length > 0) {
+                // Ujian buatan sendiri ATAU ujian yang menggunakan bank soal miliknya
+                query = query.or(
+                    `created_by.eq.${user.id},question_bank_id.in.(${bankIds.join(',')})`,
+                );
+            } else {
+                query = query.eq('created_by', user.id);
+            }
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });

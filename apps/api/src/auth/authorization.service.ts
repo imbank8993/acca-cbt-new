@@ -254,14 +254,15 @@ export class AuthorizationService {
 
     /**
      * Otorisasi pemantauan ujian dan log pelanggaran.
-     * Dapat diakses oleh Proktor, Admin, Pengawas di organisasinya, serta Guru (untuk ujiannya sendiri).
+     * Dapat diakses oleh Proktor, Admin, Pengawas di organisasinya,
+     * Guru (untuk ujiannya sendiri), serta pemilik bank soal yang dipakai ujian.
      */
     async assertExamMonitoring(user: AuthUser, examId: string): Promise<void> {
         if (!examId) throw new NotFoundException('Data tidak ditemukan.');
 
         const { data: exam } = await this.db
             .from('cbt_exams')
-            .select('exam_type, created_by, organization_id')
+            .select('exam_type, created_by, organization_id, question_bank_id')
             .eq('id', examId)
             .maybeSingle();
 
@@ -271,6 +272,7 @@ export class AuthorizationService {
             exam_type: string | null;
             created_by: string | null;
             organization_id: string | null;
+            question_bank_id: string | null;
         };
 
         if (this.isElevatedGlobally(user)) return;
@@ -286,6 +288,16 @@ export class AuthorizationService {
         // Guru boleh memantau ujian buatannya sendiri
         const isTeacher = await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
         if (isTeacher && record.created_by === user.id) return;
+
+        // Guru boleh memantau ujian yang menggunakan bank soal miliknya
+        if (isTeacher && record.question_bank_id) {
+            const { data: bank } = await this.db
+                .from('cbt_question_banks')
+                .select('created_by')
+                .eq('id', record.question_bank_id)
+                .maybeSingle();
+            if ((bank as { created_by?: string } | null)?.created_by === user.id) return;
+        }
 
         throw new ForbiddenException('Anda tidak memiliki izin memantau ujian ini.');
     }
