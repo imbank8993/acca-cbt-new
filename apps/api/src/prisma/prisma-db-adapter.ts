@@ -441,7 +441,7 @@ export class PostgrestQueryBuilder implements PromiseLike<QueryResult> {
 
   private async execute(): Promise<QueryResult> {
     try {
-      await this.registry.ensureLoaded();
+      await this.registry.ensureLoaded(this.table);
 
       switch (this.operation) {
         case 'select':

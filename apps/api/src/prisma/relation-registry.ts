@@ -37,6 +37,7 @@ export class RelationRegistry {
   private edges: FkEdge[] = [];
   private loaded = false;
   private loading: Promise<void> | null = null;
+  private readonly missingTableRetryAt = new Map<string, number>();
 
   /** PK satu kolom per tabel, dipakai saat menyambung relasi has-many. */
   private primaryKeys = new Map<string, string>();
@@ -51,11 +52,16 @@ export class RelationRegistry {
    * sekaligus — pemanggil kedua menunggu promise yang sama, bukan menembak
    * query kedua ke database.
    */
-  async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
+  async ensureLoaded(table?: string): Promise<void> {
     if (this.loading) return this.loading;
+    // A migration can create a table after this process cached the schema.
+    // Reload before compiling its predicates, rather than sending UUIDs as text.
+    if (this.loaded && (!table || this.columnTypes.has(table) ||
+        (this.missingTableRetryAt.get(table) || 0) > Date.now())) return;
 
-    this.loading = this.load().finally(() => {
+    this.loading = this.load().then(() => {
+      if (table && !this.columnTypes.has(table)) this.missingTableRetryAt.set(table, Date.now() + 30_000);
+    }).finally(() => {
       this.loading = null;
     });
     return this.loading;
@@ -87,7 +93,7 @@ export class RelationRegistry {
         AND tc.table_schema = 'public'
     `);
 
-    this.edges = fkRows.map((r) => ({
+    const edges = fkRows.map((r) => ({
       srcTable: r.src_table,
       srcColumn: r.src_column,
       tgtTable: r.tgt_table,
@@ -108,11 +114,12 @@ export class RelationRegistry {
         AND tc.table_schema = 'public'
     `);
 
+    const primaryKeys = new Map<string, string>();
     for (const row of pkRows) {
       // PK gabungan tidak bisa dipakai menyambung relasi has-many lewat satu
       // kolom, jadi sengaja dilewati. Tabel seperti itu tetap bisa diakses
       // sebagai relasi belongs-to karena arah itu memakai kolom FK-nya sendiri.
-      if (row.n === 1) this.primaryKeys.set(row.table_name, row.column_name);
+      if (row.n === 1) primaryKeys.set(row.table_name, row.column_name);
     }
 
     const columnRows = await this.prisma.$queryRawUnsafe<
@@ -123,15 +130,20 @@ export class RelationRegistry {
        WHERE table_schema = 'public'
     `);
 
+    const columnTypes = new Map<string, Map<string, string>>();
     for (const row of columnRows) {
-      let columns = this.columnTypes.get(row.table_name);
+      let columns = columnTypes.get(row.table_name);
       if (!columns) {
         columns = new Map<string, string>();
-        this.columnTypes.set(row.table_name, columns);
+        columnTypes.set(row.table_name, columns);
       }
       columns.set(row.column_name, row.udt_name);
     }
 
+    // Publish one complete snapshot; failed refreshes retain the previous map.
+    this.edges = edges;
+    this.primaryKeys = primaryKeys;
+    this.columnTypes = columnTypes;
     this.loaded = true;
     this.logger.log(
       `Peta skema dimuat: ${this.edges.length} foreign key, ` +

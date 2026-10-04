@@ -13,6 +13,8 @@ interface BottomNavProps {
 }
 
 const PAGE_LABELS: Record<string, string> = {
+    '/learning': 'Bahan Ajar',
+    '/dashboard/learning': 'Bahan Ajar',
     '/dashboard': 'Beranda',
     '/classes': 'Kelas',
     '/questions': 'Bank Soal',

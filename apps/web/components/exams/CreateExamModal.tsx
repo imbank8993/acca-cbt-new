@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     AlertCircle,
     FileText,
+    FolderOpen,
     Globe,
     Loader2,
     Plus,
@@ -16,10 +18,12 @@ import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
 import { AssignExamModal } from './AssignExamModal';
+import { createPASPeriodAction } from '@/lib/api/pas';
 import {
     createExamAction,
     editExamAction,
     assignExamAction,
+    getActiveSchoolYear,
     listExamAssignmentsAction,
     listClassStudents,
 } from '@/lib/api/proctor';
@@ -32,7 +36,7 @@ import type {
 } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
-import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, utcToSchoolLocalDateTime, addMinutesToLocalDateTime } from '@/lib/school-time';
+import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, schoolTodayDate, utcToSchoolLocalDateTime, addMinutesToLocalDateTime } from '@/lib/school-time';
 
 export type ExamType = 'daily' | 'asas_asat' | 'tryout' | 'assignment' | 'lainnya';
 
@@ -80,6 +84,11 @@ interface ExamFormData {
     allowFileUpload: boolean;
     allowedFileTypes: string[];
     requireBank: boolean;
+    pasType: 'pas' | 'pat';
+    pasSemester: 'ganjil' | 'genap';
+    pasSchoolYear: string;
+    pasStartDate: string;
+    pasEndDate: string;
 }
 
 const DEFAULT_FORM_DATA: ExamFormData = {
@@ -106,6 +115,11 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     allowFileUpload: false,
     allowedFileTypes: ['pdf'],
     requireBank: true,
+    pasType: 'pas',
+    pasSemester: 'ganjil',
+    pasSchoolYear: '',
+    pasStartDate: '',
+    pasEndDate: '',
 };
 
 export const CreateExamModal: React.FC<CreateExamModalProps> = ({
@@ -119,6 +133,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
     classStudents = {},
     role = 'admin',
 }) => {
+    const router = useRouter();
     const isEdit = Boolean(exam);
 
     const availableBanks = useMemo(() => {
@@ -170,6 +185,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
           if (exam) {
             // MODE EDIT
             const isForever = !exam.start_time && !exam.end_time;
+            const todayDate = schoolTodayDate(zone);
             const initFormData: ExamFormData = {
                 title: exam.title || '',
                 description: exam.description || '',
@@ -200,6 +216,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 allowFileUpload: exam.metadata?.allow_file_upload ?? false,
                 allowedFileTypes: exam.metadata?.allowed_file_types || ['pdf'],
                 requireBank: exam.metadata?.require_bank ?? true,
+                pasType: exam?.exam_type === 'pat' ? 'pat' : 'pas',
+                pasSemester: 'ganjil',
+                pasSchoolYear: '',
+                pasStartDate: todayDate,
+                pasEndDate: todayDate,
             };
             setFormData(initFormData);
 
@@ -253,11 +274,29 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             for (const cls of classes) {
                 defaults[cls.id] = { mode: 'all', studentIds: [] };
             }
+            const todayDate = schoolTodayDate(zone);
+            const nextWeekDate = new Date(`${todayDate}T12:00:00`);
+            nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+            const defaultEndDate = nextWeekDate.toISOString().slice(0, 10);
+            const currentYear = new Date().getFullYear();
+            const fallbackSchoolYear = `${currentYear}/${currentYear + 1}`;
+
             setFormData({
                 ...DEFAULT_FORM_DATA,
                 bankId: defaultBankId,
                 classAssignments: defaults,
+                pasStartDate: todayDate,
+                pasEndDate: defaultEndDate,
+                pasSchoolYear: fallbackSchoolYear,
             });
+
+            void getActiveSchoolYear()
+                .then((activeYear) => {
+                    if (isMounted && activeYear?.year) {
+                        setFormData((prev) => ({ ...prev, pasSchoolYear: activeYear.year }));
+                    }
+                })
+                .catch(() => undefined);
           }
           }, 0);
           return initializeId;
@@ -300,13 +339,14 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         }
         return [
             { value: 'daily', label: 'Ulangan Harian' },
-            { value: 'asas_asat', label: 'ASAS/ASAT' },
+            { value: 'asas_asat', label: 'ASAS/ASAT (Folder Ujian)' },
             { value: 'tryout', label: 'Try Out' },
             { value: 'assignment', label: 'Tugas' },
             { value: 'lainnya', label: 'Lainnya' },
         ];
     }, [role]);
 
+    const isPasFolderCreate = !isEdit && formData.examType === 'asas_asat';
     const isBankRequired = formData.examType !== 'asas_asat' && (formData.examType !== 'assignment' || formData.requireBank);
     const isBankMissing = !isEdit && isBankRequired && (!formData.bankId || availableBanks.length === 0);
 
@@ -357,6 +397,55 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
         const user = await getSessionUser();
         if (!user) {
             setError('Sesi telah berakhir. Silakan login kembali.');
+            return;
+        }
+
+        // Mode Pembuatan Rumah / Folder Ujian ASAS/ASAT
+        if (!isEdit && formData.examType === 'asas_asat') {
+            if (!formData.title.trim()) {
+                setError('Nama Folder / Ujian ASAS/ASAT wajib diisi.');
+                return;
+            }
+            if (!formData.pasSchoolYear.trim()) {
+                setError('Tahun Ajaran wajib diisi.');
+                return;
+            }
+            if (!formData.pasStartDate || !formData.pasEndDate) {
+                setError('Tanggal Mulai dan Tanggal Selesai periode wajib diisi.');
+                return;
+            }
+            if (formData.pasStartDate > formData.pasEndDate) {
+                setError('Tanggal Selesai harus sama atau setelah Tanggal Mulai.');
+                return;
+            }
+
+            setIsSubmitting(true);
+            try {
+                const res = await createPASPeriodAction({
+                    name: formData.title.trim(),
+                    type: formData.pasType,
+                    school_year: formData.pasSchoolYear.trim(),
+                    semester: formData.pasSemester,
+                    start_date: formData.pasStartDate,
+                    end_date: formData.pasEndDate,
+                });
+
+                if (!res.success) {
+                    setError(res.error || 'Gagal membuat folder ujian ASAS/ASAT.');
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                onClose();
+                await onSuccess();
+                if (res.id && (role === 'admin' || role === 'proktor')) {
+                    router.push(`/dashboard/${role}/exams/pas/${res.id}`);
+                }
+            } catch (err: unknown) {
+                setError(err instanceof Error ? err.message : 'Terjadi kesalahan sistem.');
+            } finally {
+                setIsSubmitting(false);
+            }
             return;
         }
 
@@ -503,10 +592,12 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 onClose={onClose}
                 size="xl"
                 variant={isEdit ? 'default' : 'add'}
-                icon={isEdit ? <Settings size={18} /> : <Plus size={18} />}
+                icon={isEdit ? <Settings size={18} /> : isPasFolderCreate ? <FolderOpen size={18} /> : <Plus size={18} />}
                 title={
                     isEdit
                         ? `Edit ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`
+                        : isPasFolderCreate
+                        ? 'Buat Folder Ujian ASAS/ASAT'
                         : `Buat ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'} Baru`
                 }
                 labelledBy="modal-exam-form"
@@ -538,27 +629,105 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 }}
                             />
                         </ModalField>
-                        <ModalField label="Sistem Penilaian" required>
-                            <MultiSelect
-                                options={SCORING_OPTIONS.map((opt) => ({
-                                    value: opt.value,
-                                    label: opt.label,
-                                }))}
-                                value={formData.scoringTypes}
-                                onChange={(selectedVals) => {
-                                    const hasIRT = selectedVals.some((type) => type.startsWith('irt_'));
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        scoringTypes: selectedVals,
-                                        ...(hasIRT ? { showResults: false } : {}),
-                                    }));
-                                }}
-                                placeholder="Pilih Sistem Penilaian..."
-                                allSelectedText="Semua Terpilih"
-                            />
-                        </ModalField>
+                        {isPasFolderCreate ? (
+                            <ModalField label="Kategori Asesmen" required>
+                                <InlineSelect
+                                    options={[
+                                        { value: 'pas', label: 'ASAS / PAS (Akhir Semester)' },
+                                        { value: 'pat', label: 'ASAT / PAT (Akhir Tahun)' },
+                                    ]}
+                                    value={formData.pasType}
+                                    onChange={(val) => setFormData((prev) => ({ ...prev, pasType: val as 'pas' | 'pat' }))}
+                                />
+                            </ModalField>
+                        ) : (
+                            <ModalField label="Sistem Penilaian" required>
+                                <MultiSelect
+                                    options={SCORING_OPTIONS.map((opt) => ({
+                                        value: opt.value,
+                                        label: opt.label,
+                                    }))}
+                                    value={formData.scoringTypes}
+                                    onChange={(selectedVals) => {
+                                        const hasIRT = selectedVals.some((type) => type.startsWith('irt_'));
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            scoringTypes: selectedVals,
+                                            ...(hasIRT ? { showResults: false } : {}),
+                                        }));
+                                    }}
+                                    placeholder="Pilih Sistem Penilaian..."
+                                    allSelectedText="Semua Terpilih"
+                                />
+                            </ModalField>
+                        )}
                     </div>
 
+                    {isPasFolderCreate ? (
+                        <>
+                            <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-xl flex items-start gap-3">
+                                <FolderOpen size={18} className="text-[#3083FF] shrink-0 mt-0.5" />
+                                <div className="text-xs text-slate-700 leading-relaxed">
+                                    <p className="font-bold text-slate-900 mb-0.5">Rumah / Folder Ujian ASAS/ASAT</p>
+                                    <p>
+                                        Tipe ujian ini berfungsi sebagai <strong>Folder Ujian</strong>. Setelah folder dibuat, Anda akan langsung masuk ke dalam folder untuk memilih berbagai <strong>Bank Soal</strong> dan menjadwalkannya ke kelas/siswa. Semua jadwal bank soal di dalamnya akan tampil ke siswa dengan nama ujian yang sama dengan nama folder ini.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <ModalField label="Nama Folder / Nama Ujian" required hint="Nama ini juga menjadi judul ujian yang tampil di halaman siswa">
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="Contoh: ASAS Ganjil 2025/2026"
+                                        value={formData.title}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                                    />
+                                </ModalField>
+                                <ModalField label="Semester" required>
+                                    <InlineSelect
+                                        options={[
+                                            { value: 'ganjil', label: 'Semester Ganjil' },
+                                            { value: 'genap', label: 'Semester Genap' },
+                                        ]}
+                                        value={formData.pasSemester}
+                                        onChange={(val) => setFormData((prev) => ({ ...prev, pasSemester: val as 'ganjil' | 'genap' }))}
+                                    />
+                                </ModalField>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <ModalField label="Tahun Ajaran" required>
+                                    <input
+                                        required
+                                        type="text"
+                                        placeholder="Contoh: 2025/2026"
+                                        value={formData.pasSchoolYear}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, pasSchoolYear: e.target.value }))}
+                                    />
+                                </ModalField>
+                                <ModalField label="Tanggal Mulai Periode" required>
+                                    <input
+                                        required
+                                        type="date"
+                                        value={formData.pasStartDate}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, pasStartDate: e.target.value }))}
+                                    />
+                                </ModalField>
+                                <ModalField label="Tanggal Selesai Periode" required>
+                                    <input
+                                        required
+                                        type="date"
+                                        min={formData.pasStartDate || undefined}
+                                        value={formData.pasEndDate}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, pasEndDate: e.target.value }))}
+                                    />
+                                </ModalField>
+                            </div>
+                        </>
+                    ) : (
+                        <>
                     {/* Identitas ujian */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <ModalField label={`Judul ${formData.examType === 'assignment' ? 'Tugas' : 'Ujian'}`} required>
@@ -1066,6 +1235,8 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             </span>
                         </label>
                     </div>
+                        </>
+                    )}
                 </ModalBody>
                 <ModalFooter>
                     <Button
@@ -1084,7 +1255,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         disabled={isSubmitting || isBankMissing}
                         icon={isSubmitting ? undefined : "save"}
                     >
-                        {isEdit ? 'Simpan Perubahan' : 'Simpan sebagai Draft'}
+                        {isPasFolderCreate
+                            ? 'Buat Folder & Pilih Bank Soal'
+                            : isEdit
+                            ? 'Simpan Perubahan'
+                            : 'Simpan sebagai Draft'}
                     </Button>
                 </ModalFooter>
             </form>

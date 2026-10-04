@@ -7,8 +7,8 @@ import { MultiSelect } from '@/components/ui/MultiSelect';
 import SearchableSelect from '@/components/ui/SearchableSelect';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam,purgeTrialExam,setExamArchived } from '@/lib/api/exams';
-import type { ExamConfig,ExamConfigBank } from '@/app/types/pas';
-import { listSubjects } from '@/lib/api/pas';
+import type { ExamConfig,ExamConfigBank,PASPeriod } from '@/app/types/pas';
+import { listPASPeriods,listSubjects } from '@/lib/api/pas';
 import {
 createSchoolYearAction,
 getProctorOrganization,
@@ -42,6 +42,7 @@ FileText,
 FolderOpen,
 Globe,GlobeLock,
 Loader2,
+Lock,
 Plus,Search,
 Settings,
 Trash2,
@@ -77,8 +78,9 @@ const ExamsPage = () => {
     // Subjects state
     const [subjects, setSubjects] = useMemoryState<SchoolSubject[]>('proktor_exams_subjects', []);
 
-    // FOLDER / Exam Config state
+    // FOLDER / Exam Config & PAS Period state
     const [examConfigs, setExamConfigs] = useMemoryState<ExamConfig[]>('proktor_exams_examConfigs', []);
+    const [pasPeriods, setPasPeriods] = useMemoryState<PASPeriod[]>('admin_exams_pasPeriods', []);
     const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
     const [selectedConfig, setSelectedConfig] = useState<ExamConfig | null>(null);
     const [configBanks, setConfigBanks] = useMemoryState<ExamConfigBank[]>('proktor_exams_configBanks', []);
@@ -129,11 +131,12 @@ const ExamsPage = () => {
                 const organization = await getProctorOrganization();
                 if (organization) {
                     setOrg(organization);
-                    const [examList, bankList, classList, pasPeriodList, labelList, subjectList, schoolYearList] = await Promise.all([
+                    const [examList, bankList, classList, pasPeriodList, realPasPeriods, labelList, subjectList, schoolYearList] = await Promise.all([
                         listOrganizationExams(),
                         listQuestionBanks(true),
                         listOrganizationClasses({ activeYearOnly: true }),
                         listExamConfigs(),
+                        listPASPeriods(),
                         listOrganizationLabels(),
                         listSubjects(),
                         listSchoolYears(),
@@ -168,6 +171,7 @@ const ExamsPage = () => {
                     setQBanks(bankList || []);
                     setClasses(classList || []);
                     setExamConfigs(pasPeriodList || []);
+                    setPasPeriods(realPasPeriods || []);
                     setClasses(classList || []);
                     setLabels(labelList || []);
                     setSubjects(subjectList || []);
@@ -186,7 +190,7 @@ const ExamsPage = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [setClasses, setExamConfigs, setExams, setIsLoading, setLabels, setQBanks, setSchoolYears, setSubjects]);
+    }, [setClasses, setExamConfigs, setExams, setIsLoading, setLabels, setPasPeriods, setQBanks, setSchoolYears, setSubjects]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadData(), 0);
@@ -277,10 +281,31 @@ const ExamsPage = () => {
         return 'unknown';
     };
 
+    const isPasGeneratedExam = (e: OrganizationExam): boolean => {
+        return e.metadata?.is_pas_exam === true || e.exam_type === 'pas' || e.exam_type === 'pat';
+    };
+
     const getExamTabFilter = (e: OrganizationExam, tabId: TabId): boolean => {
+        if (isPasGeneratedExam(e)) return false;
         if (!matchesExamType(e.exam_type, typeFilter)) return false;
         if (tabId === 'all') return getExamStatus(e) !== 'archived';
         return getExamStatus(e) === tabId;
+    };
+
+    const matchesPasPeriodTab = (p: PASPeriod, tabId: TabId): boolean => {
+        const now = new Date();
+        const start = new Date(p.start_date ?? 0);
+        const end = new Date(p.end_date ?? 0);
+        end.setHours(23, 59, 59, 999);
+        const isActive = start <= now && end >= now && !p.is_locked;
+        const isFinished = end < now;
+        const isDraft = !isActive && !isFinished;
+
+        if (tabId === 'all') return true;
+        if (tabId === 'draft') return isDraft;
+        if (tabId === 'active') return isActive;
+        if (tabId === 'finished') return isFinished;
+        return false;
     };
 
     const filterByTab = (examList: OrganizationExam[]): OrganizationExam[] => {
@@ -300,6 +325,13 @@ const ExamsPage = () => {
             e.title?.toLowerCase().includes(searchQuery.toLowerCase())
         )
     );
+
+    const filteredPasFolders = typeFilter === 'all'
+        ? pasPeriods.filter(p =>
+            matchesPasPeriodTab(p, activeTab) &&
+            p.name?.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : [];
 
     const tabs: { id: TabId; label: string; icon: LucideIcon; color: string }[] = [
         { id: 'all', label: 'Semua', icon: FolderOpen, color: 'text-slate-500' },
@@ -458,9 +490,12 @@ const ExamsPage = () => {
                     { id: 'assignment', label: 'Tugas' },
                     { id: 'lainnya', label: 'Lainnya' }
                 ].map(type => {
+                    const nonPasExams = exams.filter(exam => !isPasGeneratedExam(exam));
                     const total = type.id === 'asas_asat'
-                        ? examConfigs.length
-                        : (type.id === 'all' ? exams.length : exams.filter(exam => matchesExamType(exam.exam_type, type.id)).length);
+                        ? pasPeriods.length
+                        : (type.id === 'all'
+                            ? nonPasExams.length + pasPeriods.length
+                            : nonPasExams.filter(exam => matchesExamType(exam.exam_type, type.id)).length);
                     
                     const isSelected = typeFilter === type.id;
                     
@@ -488,20 +523,9 @@ const ExamsPage = () => {
                     const Icon = tab.icon;
                     let count = 0;
                     if (typeFilter === 'asas_asat') {
-                        count = examConfigs.filter(p => {
-                            const now = new Date();
-                            const start = new Date(p.start_date ?? 0);
-                            const end = new Date(p.end_date ?? 0);
-                            const isActive = start <= now && end >= now && !p.is_locked;
-                            const isFinished = end < now;
-                            const isDraft = !isActive && !isFinished;
-                            
-                            if (tab.id === 'all') return true;
-                            if (tab.id === 'draft') return isDraft;
-                            if (tab.id === 'active') return isActive;
-                            if (tab.id === 'finished') return isFinished;
-                            return false;
-                        }).length;
+                        count = pasPeriods.filter(p => matchesPasPeriodTab(p, tab.id)).length;
+                    } else if (typeFilter === 'all') {
+                        count = exams.filter(e => getExamTabFilter(e, tab.id)).length + pasPeriods.filter(p => matchesPasPeriodTab(p, tab.id)).length;
                     } else {
                         count = exams.filter(e => getExamTabFilter(e, tab.id)).length;
                     }
@@ -863,7 +887,7 @@ const ExamsPage = () => {
                 <div className="flex justify-center py-16">
                     <Spinner variant="buble" size={32} />
                 </div>
-            ) : filteredExams.length === 0 ? (
+            ) : (filteredExams.length === 0 && filteredPasFolders.length === 0) ? (
                 <div className="py-16 text-center text-slate-400 border-2 border-dashed border-[#3083FF]/30 rounded-lg">
                     <ClipboardCheck size={40} className="mx-auto mb-3 opacity-40" />
                     <p className="font-medium">Tidak ada ujian{activeTab === 'draft' ? ' draft' : activeTab === 'active' ? ' aktif' : ''}</p>
@@ -871,6 +895,63 @@ const ExamsPage = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+                    {filteredPasFolders.map((period) => {
+                        const bankCount = period._count?.pas_subjects || 0;
+                        const scheduleCount = period._count?.pas_class_schedules || 0;
+                        const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+                        return (
+                            <div
+                                key={`pas-folder-${period.id}`}
+                                onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
+                                className="bg-white border border-amber-200 hover:border-amber-400 rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer"
+                            >
+                                <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                                            <FolderOpen size={20} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                                    FOLDER UJIAN {period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
+                                                </span>
+                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                                    {period.school_year}
+                                                </span>
+                                                {period.is_locked && (
+                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 flex items-center gap-1">
+                                                        <Lock size={10} /> Terkunci
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{period.name}</h3>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                Rumah jadwal bank soal ASAS/ASAT — seluruh bank soal di dalam folder ini tampil ke siswa dengan nama ujian <strong>&ldquo;{period.name}&rdquo;</strong>
+                                            </p>
+                                            <div className="flex flex-wrap items-center gap-3 mt-2.5 text-xs text-slate-600">
+                                                <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 font-semibold flex items-center gap-1.5">
+                                                    <BookOpen size={12} /> {bankCount} Bank Soal • {scheduleCount} Jadwal Kelas
+                                                </span>
+                                                <span className="flex items-center gap-1.5 text-slate-500">
+                                                    <Calendar size={12} className="text-slate-400" />
+                                                    {fmtDate(period.start_date)} — {fmtDate(period.end_date)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                            onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
+                                            className="px-4 py-2.5 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20"
+                                        >
+                                            <FolderOpen size={14} />
+                                            Buka Folder & Jadwalkan Bank Soal
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
                     {filteredExams.map((exam) => {
                         const bank = qBanks.find(b => b.id === exam.question_bank_id);
                         const assignment = examAssignments[exam.id] || { classCount: 0, studentCount: 0 };

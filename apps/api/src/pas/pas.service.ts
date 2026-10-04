@@ -51,7 +51,7 @@ export class PasService {
 
         const { data, error } = await this.db
             .from('cbt_pas_periods')
-            .select('*, _count:cbt_pas_class_schedules(count)')
+            .select('*, schedules:cbt_pas_class_schedules(id, bank_id, exam_id), _count:cbt_pas_class_schedules(count)')
             .eq('organization_id', organizationId)
             .order('created_at', { ascending: false });
 
@@ -60,13 +60,23 @@ export class PasService {
             return [];
         }
 
-        return ((data as any[]) || []).map((period) => ({
-            ...period,
-            _count: {
-                pas_subjects: 0,
-                pas_class_schedules: period._count?.pas_class_schedules || 0,
-            },
-        }));
+        return ((data as any[]) || []).map(({ schedules, ...period }) => {
+            const scheduleRows = Array.isArray(schedules) ? schedules : [];
+            const rawCount = Array.isArray(period._count)
+                ? period._count[0]?.count
+                : period._count?.pas_class_schedules;
+            const scheduleCount = scheduleRows.length || Number(rawCount) || 0;
+            const uniqueBankCount = new Set(
+                scheduleRows.map((s: any) => s.bank_id).filter(Boolean),
+            ).size;
+            return {
+                ...period,
+                _count: {
+                    pas_subjects: uniqueBankCount,
+                    pas_class_schedules: scheduleCount,
+                },
+            };
+        });
     }
 
     async getPeriod(user: AuthUser, periodId: string) {

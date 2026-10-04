@@ -87,3 +87,6 @@ tools/test-parser.js
 tools/generate-template.js
 tools/generate-template.mjs
 apps/web/lib/doc-parser-node.js
+
+# Generated from the installed PDF.js version before web dev/build
+/apps/web/public/pdfjs/lms.worker.min.mjs

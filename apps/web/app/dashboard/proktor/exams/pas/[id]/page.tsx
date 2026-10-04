@@ -21,12 +21,17 @@ import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
 ArrowLeft,
+BookOpen,
 Calendar,
 Check,
 Clock,
+FolderOpen,
 Loader2,
 Lock,
+Monitor,
+Plus,
 Settings,
+Table,
 Trash2,
 X,
 Zap
@@ -106,18 +111,38 @@ export default function ProctorPASDetailPage() {
         }));
     };
 
+    const handleBankChange = (bankId: string) => {
+        const selectedBank = qBanks.find(b => b.id === bankId);
+        let matchedSubjectId = scheduleForm.subject_id;
+        const bankSubject = selectedBank?.subject?.trim().toLowerCase();
+        if (bankSubject) {
+            const foundSubject = subjects.find(
+                s => s.name.trim().toLowerCase() === bankSubject
+            );
+            if (foundSubject) {
+                matchedSubjectId = foundSubject.id;
+            }
+        }
+        setScheduleForm(prev => ({
+            ...prev,
+            bank_id: bankId,
+            subject_id: matchedSubjectId,
+        }));
+    };
+
     const handleAddSchedule = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!scheduleForm.bank_id || !scheduleForm.subject_id || scheduleForm.class_ids.length === 0 || !scheduleForm.scheduled_date || !scheduleForm.session_id) {
-            alert('Lengkapi bank soal, mata pelajaran, minimal satu kelas, tanggal, dan sesi.');
+        if (!scheduleForm.bank_id || scheduleForm.class_ids.length === 0 || !scheduleForm.scheduled_date || !scheduleForm.session_id) {
+            alert('Lengkapi bank soal, minimal satu kelas, tanggal, dan sesi.');
             return;
         }
         setIsSubmitting(true);
+        const createdIds: string[] = [];
         for (const classId of scheduleForm.class_ids) {
             const result = await addPASScheduleAction({
                 pas_period_id: periodId,
                 bank_id: scheduleForm.bank_id,
-                subject_id: scheduleForm.subject_id,
+                subject_id: scheduleForm.subject_id || undefined,
                 class_id: classId,
                 scheduled_date: scheduleForm.scheduled_date,
                 session_id: scheduleForm.session_id,
@@ -129,6 +154,12 @@ export default function ProctorPASDetailPage() {
                 setIsSubmitting(false);
                 return;
             }
+            if (result.id) {
+                createdIds.push(result.id);
+            }
+        }
+        if (createdIds.length > 0) {
+            await generateExamsFromSchedulesAction(createdIds);
         }
         setIsAddScheduleOpen(false);
         setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90, room: '' });
@@ -147,15 +178,16 @@ export default function ProctorPASDetailPage() {
         setSelectedScheduleIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
-    const handleGenerateExams = async () => {
-        if (selectedScheduleIds.length === 0) { alert('Pilih jadwal terlebih dahulu.'); return; }
-        if (!confirm(`Generate ${selectedScheduleIds.length} ujian?`)) return;
+    const handleGenerateExams = async (idsToGenerate?: string[]) => {
+        const targetIds = idsToGenerate || selectedScheduleIds;
+        if (targetIds.length === 0) { alert('Pilih jadwal terlebih dahulu.'); return; }
+        if (!confirm(`Generate dan aktifkan ${targetIds.length} jadwal ujian di dalam folder "${period?.name || 'ASAS/ASAT'}"?`)) return;
         setIsGenerating(true);
-        const result = await generateExamsFromSchedulesAction(selectedScheduleIds);
+        const result = await generateExamsFromSchedulesAction(targetIds);
         if (result.success) {
             const skipped = result.skipped || [];
             alert([
-                `${result.created} ujian berhasil dibuat.`,
+                `${result.created} ujian berhasil dibuat dengan nama "${period?.name}".`,
                 skipped.length > 0 ? `${skipped.length} jadwal dilewati:\n${skipped.join('\n')}` : '',
             ].filter(Boolean).join('\n\n'));
             const skippedIds = new Set(skipped.map((item) => item.split(':')[0].trim()));
@@ -223,6 +255,9 @@ export default function ProctorPASDetailPage() {
     }
 
     const schedules = period.pas_class_schedules || [];
+    const uniqueBankCount = new Set(schedules.map(sc => sc.bank_id).filter(Boolean)).size;
+    const readySchedulesCount = schedules.filter(sc => Boolean(sc.exam_id)).length;
+    const ungeneratedIds = schedules.filter(sc => !sc.exam_id).map(sc => sc.id);
     
     // Live Today filter
     const todayStr = schoolTodayDate(timeZone);
@@ -233,27 +268,45 @@ export default function ProctorPASDetailPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            {/* ── Hero Header — Navy Gradient ── */}
-                        {/* Period Details Bar */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex items-start gap-4">
-                <Link href="/dashboard/proktor/exams" className="mt-1 p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all border border-slate-200">
-                    <ArrowLeft size={18} />
-                </Link>
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
-                            period.is_locked ? "bg-red-50 text-red-600 border border-red-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                        }`}>
-                            {period.type?.toUpperCase()} {period.semester === "ganjil" ? "GANJIL" : "GENAP"}
-                        </span>
-                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wider rounded-full border border-slate-200">{period.school_year}</span>
-                        {period.is_locked && <span className="px-2.5 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold tracking-wider rounded-full flex items-center gap-1"><Lock size={10} /> TERKUNCI</span>}
+            {/* Period Details Bar */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                    <Link href="/dashboard/proktor/exams" className="mt-1 p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all border border-slate-200">
+                        <ArrowLeft size={18} />
+                    </Link>
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">
+                        <FolderOpen size={24} />
                     </div>
-                    <h1 className="text-xl font-bold text-slate-800 mb-1">{period.name}</h1>
-                    <p className="text-slate-500 text-xs font-semibold flex items-center gap-1.5">
-                        <Calendar size={13} />
-                        {formatDate(period.start_date)} — {formatDate(period.end_date)}
-                    </p>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                FOLDER UJIAN {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === "ganjil" ? "GANJIL" : "GENAP"}
+                            </span>
+                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wider rounded-full border border-slate-200">{period.school_year}</span>
+                            {period.is_locked && <span className="px-2.5 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold tracking-wider rounded-full flex items-center gap-1"><Lock size={10} /> TERKUNCI</span>}
+                        </div>
+                        <h1 className="text-xl font-bold text-slate-800 mb-1">{period.name}</h1>
+                        <p className="text-slate-500 text-xs font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-600">
+                                <Calendar size={13} />
+                                {formatDate(period.start_date)} — {formatDate(period.end_date)}
+                            </span>
+                            <span>•</span>
+                            <span>Semua bank soal yang dijadwalkan di folder ini menggunakan nama ujian <strong>&ldquo;{period.name}&rdquo;</strong></span>
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                    <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-bold flex items-center gap-1.5">
+                        <BookOpen size={14} /> {uniqueBankCount} Bank Soal
+                    </span>
+                    <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5">
+                        <Calendar size={14} /> {schedules.length} Jadwal Kelas
+                    </span>
+                    <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
+                        <Check size={14} /> {readySchedulesCount}/{schedules.length} Siap Ujian
+                    </span>
                 </div>
             </div>
 
@@ -263,7 +316,7 @@ export default function ProctorPASDetailPage() {
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                         activeTab === 'schedules' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    <Calendar size={15} /> Semua Jadwal
+                    <Calendar size={15} /> Daftar Bank Soal Terjadwal
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${activeTab === 'schedules' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'}`}>
                         {schedules.length}
                     </span>
@@ -284,7 +337,7 @@ export default function ProctorPASDetailPage() {
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                         activeTab === 'detail' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    <Settings size={15} /> Detail
+                    <Settings size={15} /> Detail Folder
                 </button>
             </div>
 
@@ -292,15 +345,41 @@ export default function ProctorPASDetailPage() {
             {(activeTab === 'schedules' || activeTab === 'live_today') && (
                 <div className="space-y-6">
                     {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
-                        <div className="flex justify-end gap-3 flex-wrap">
-                            <button onClick={() => setIsRoomManagementOpen(true)}
-                                className="px-4 py-2 text-sm bg-slate-100 text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-200 flex items-center gap-2 font-medium">
-                                <Settings size={16} /> Pengaturan Sesi & Ruang
-                            </button>
-                            <button onClick={() => setIsBulkInputOpen(true)}
-                                className="px-4 py-2 text-sm bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center gap-2 shadow-lg shadow-primary/20 font-medium">
-                                <Calendar size={16} /> Atur Jadwal
-                            </button>
+                        <div className="flex items-center justify-between gap-3 flex-wrap bg-slate-50/80 border border-slate-200/80 p-3.5 rounded-2xl">
+                            <div className="text-xs text-slate-600">
+                                Pilih <strong>Bank Soal</strong> untuk dijadwalkan ke satu atau beberapa kelas sekaligus di dalam folder <strong>{period.name}</strong>.
+                            </div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                {ungeneratedIds.length > 0 && (
+                                    <button
+                                        onClick={() => void handleGenerateExams(ungeneratedIds)}
+                                        disabled={isGenerating}
+                                        className="px-4 py-2 text-xs font-bold bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                                    >
+                                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                                        Aktifkan Semua ({ungeneratedIds.length})
+                                    </button>
+                                )}
+                                <button onClick={() => setIsRoomManagementOpen(true)}
+                                    className="px-3.5 py-2 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center gap-1.5 font-semibold">
+                                    <Settings size={15} /> Pengaturan Sesi & Ruang
+                                </button>
+                                <button onClick={() => setIsBulkInputOpen(true)}
+                                    className="px-3.5 py-2 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center gap-1.5 font-semibold">
+                                    <Table size={15} /> Tabel Jadwal Massal
+                                </button>
+                                <button onClick={() => {
+                                    setScheduleForm(prev => ({
+                                        ...prev,
+                                        scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
+                                        session_id: prev.session_id || sessions[0]?.id || '',
+                                    }));
+                                    setIsAddScheduleOpen(true);
+                                }}
+                                    className="px-4 py-2 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center gap-1.5 shadow-md shadow-primary/20 font-bold">
+                                    <Plus size={16} /> Pilih & Jadwalkan Bank Soal
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -321,15 +400,40 @@ export default function ProctorPASDetailPage() {
                         <div className="py-16 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
                             <Calendar size={40} className="mx-auto mb-3 opacity-40" />
                             <p className="font-medium text-slate-600">Tidak ada jadwal ujian hari ini</p>
-                            <p className="text-sm mt-1">Ujian PAS untuk hari ini belum dijadwalkan atau Anda sedang salah hari.</p>
+                            <p className="text-sm mt-1">Belum ada bank soal di folder ini yang dijadwalkan untuk hari ini.</p>
                         </div>
                     )}
 
                     {(!isBulkInputOpen && activeTab === 'schedules' && schedules.length === 0) && (
-                        <div className="py-16 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
-                            <Calendar size={40} className="mx-auto mb-3 opacity-40" />
-                            <p className="font-medium">Belum ada jadwal</p>
-                            <p className="text-sm mt-1">Tambahkan jadwal ujian per kelas</p>
+                        <div className="py-16 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
+                            <FolderOpen size={44} className="mx-auto mb-3 text-amber-400" />
+                            <p className="font-bold text-slate-700 text-base">Folder Ujian Ini Masih Kosong</p>
+                            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                                Pilih bank soal yang ingin dimasukkan ke folder <strong>{period.name}</strong> dan jadwalkan ke kelas tujuan.
+                            </p>
+                            {!period.is_locked && (
+                                <div className="mt-5 flex items-center justify-center gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setScheduleForm(prev => ({
+                                                ...prev,
+                                                scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
+                                                session_id: prev.session_id || sessions[0]?.id || '',
+                                            }));
+                                            setIsAddScheduleOpen(true);
+                                        }}
+                                        className="px-4 py-2.5 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 inline-flex items-center gap-1.5 font-bold shadow-md shadow-primary/20"
+                                    >
+                                        <Plus size={16} /> Pilih & Jadwalkan Bank Soal
+                                    </button>
+                                    <button
+                                        onClick={() => setIsBulkInputOpen(true)}
+                                        className="px-4 py-2.5 text-xs bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 inline-flex items-center gap-1.5 font-semibold"
+                                    >
+                                        <Table size={15} /> Tabel Jadwal Massal
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -382,13 +486,14 @@ export default function ProctorPASDetailPage() {
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                                     <span className="font-bold text-slate-800 text-base">{getBankTitle(sc.bank_id, sc)}</span>
-                                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">
-                                                                        {sc.classes?.name || 'Semua Kelas'}
+                                                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold rounded-md">
+                                                                        Kelas {sc.classes?.name || 'Semua Kelas'}
                                                                     </span>
                                                                     {sc.room && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-md">R. {sc.room}</span>}
                                                                 </div>
                                                                 
                                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                                                    <span className="text-slate-600 font-medium">Ujian: <strong>{period.name}</strong></span>
                                                                     <span className="flex items-center gap-1.5"><Clock size={12}/> {sc.duration_minutes} mnt</span>
                                                                     <span className="flex items-center gap-1.5"><AlertTriangle size={12}/> Tutup {sc.window_end_time} {getSchoolTimeZoneLabel(timeZone)}</span>
                                                                 </div>
@@ -407,18 +512,29 @@ export default function ProctorPASDetailPage() {
                                                                 </span>
                                                                 <div className="flex items-center gap-1 mt-0.5">
                                                                     {sc.exam_id ? (
-                                                                        <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-medium"><Check size={10}/> Siap Ujian</span>
+                                                                        <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold"><Check size={10}/> Siap Ujian</span>
                                                                     ) : (
-                                                                        <span className="text-[10px] text-amber-500 font-medium italic">Belum digenerate</span>
+                                                                        <span className="text-[10px] text-amber-600 font-semibold italic">Belum diaktifkan</span>
                                                                     )}
                                                                 </div>
                                                             </div>
 
-                                                            {!period.is_locked && (
-                                                                <button onClick={() => handleRemoveSchedule(sc.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all">
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            )}
+                                                            <div className="flex items-center gap-1.5">
+                                                                {sc.exam_id && (
+                                                                    <Link
+                                                                        href={`/dashboard/proktor/monitoring?exam=${sc.exam_id}`}
+                                                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-primary/10 text-slate-700 hover:text-primary text-[11px] font-bold flex items-center gap-1 transition-all"
+                                                                        title="Monitor ujian kelas ini"
+                                                                    >
+                                                                        <Monitor size={12} /> Monitor
+                                                                    </Link>
+                                                                )}
+                                                                {!period.is_locked && (
+                                                                    <button onClick={() => handleRemoveSchedule(sc.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all" title="Hapus jadwal">
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -436,11 +552,11 @@ export default function ProctorPASDetailPage() {
                             <Zap size={20} className="text-amber-600 shrink-0" />
                             <div className="flex-1">
                                 <p className="text-sm font-semibold text-amber-800">{selectedScheduleIds.length} jadwal dipilih</p>
-                                <p className="text-xs text-amber-600">Akan dibuat record ujian untuk dikerjakan siswa</p>
+                                <p className="text-xs text-amber-600">Akan dibuat/diperbarui ujian dengan nama &ldquo;{period.name}&rdquo; untuk dikerjakan siswa</p>
                             </div>
-                            <button onClick={handleGenerateExams} disabled={isGenerating} className="px-5 py-2.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-md">
+                            <button onClick={() => void handleGenerateExams()} disabled={isGenerating} className="px-5 py-2.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-md">
                                 {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
-                                {isGenerating ? 'Generating...' : 'Generate Ujian'}
+                                {isGenerating ? 'Memproses...' : 'Generate Ujian'}
                             </button>
                         </div>
                     )}
@@ -452,12 +568,12 @@ export default function ProctorPASDetailPage() {
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Nama</p>
+                            <p className="text-xs text-slate-400 font-medium mb-1">Nama Folder / Nama Ujian</p>
                             <p className="text-sm font-semibold text-slate-900">{period.name}</p>
                         </div>
                         <div>
                             <p className="text-xs text-slate-400 font-medium mb-1">Tipe</p>
-                            <p className="text-sm font-semibold text-slate-900 uppercase">{period.type}</p>
+                            <p className="text-sm font-semibold text-slate-900 uppercase">{period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'}</p>
                         </div>
                         <div>
                             <p className="text-xs text-slate-400 font-medium mb-1">Tahun Ajaran</p>
@@ -493,14 +609,16 @@ export default function ProctorPASDetailPage() {
                         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white w-full max-w-md rounded-2xl p-6 relative z-10 max-h-[90vh] overflow-y-auto">
                             <button onClick={() => setIsAddScheduleOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button>
                             <div className="flex items-center gap-3 mb-1">
-                                <Calendar size={20} className="text-primary" />
-                                <h3 className="text-lg font-semibold text-slate-900">Tambah Jadwal Ujian</h3>
+                                <FolderOpen size={20} className="text-amber-600" />
+                                <h3 className="text-lg font-semibold text-slate-900">Jadwalkan Bank Soal ke Folder</h3>
                             </div>
-                            <p className="text-xs text-slate-500 mb-5">Bank soal + kelas + waktu ujian</p>
+                            <p className="text-xs text-slate-500 mb-5">
+                                Pilih bank soal untuk dijadwalkan di dalam folder <strong>{period.name}</strong>.
+                            </p>
                             <form onSubmit={handleAddSchedule} className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-medium text-slate-600 mb-1.5 block">Bank Soal</label>
-                                    <select required value={scheduleForm.bank_id} onChange={e => setScheduleForm(p => ({ ...p, bank_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
+                                    <label className="text-xs font-medium text-slate-600 mb-1.5 block">Bank Soal *</label>
+                                    <select required value={scheduleForm.bank_id} onChange={e => handleBankChange(e.target.value)} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
                                         <option value="">Pilih Bank Soal</option>
                                         {qBanks.map((b) => (
                                             <option key={b.id} value={b.id}>{b.title} — {b.subject} ({b.question_count} soal)</option>
@@ -508,17 +626,31 @@ export default function ProctorPASDetailPage() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-medium text-slate-600 mb-1.5 block">Mata Pelajaran</label>
-                                    <select required value={scheduleForm.subject_id} onChange={e => setScheduleForm(p => ({ ...p, subject_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
-                                        <option value="">Pilih Mata Pelajaran</option>
+                                    <label className="text-xs font-medium text-slate-600 mb-1.5 block">Mata Pelajaran (Opsional)</label>
+                                    <select value={scheduleForm.subject_id} onChange={e => setScheduleForm(p => ({ ...p, subject_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
+                                        <option value="">Otomatis dari Bank Soal</option>
                                         {subjects.map((s) => (
                                             <option key={s.id} value={s.id}>{s.name}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kelas ({scheduleForm.class_ids.length} dipilih)</label>
-                                    <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-medium text-slate-600">Kelas Tujuan * ({scheduleForm.class_ids.length} dipilih)</label>
+                                        {classes.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setScheduleForm(p => ({
+                                                    ...p,
+                                                    class_ids: p.class_ids.length === classes.length ? [] : classes.map(c => c.id),
+                                                }))}
+                                                className="text-[11px] font-bold text-primary hover:underline"
+                                            >
+                                                {scheduleForm.class_ids.length === classes.length ? 'Reset Pilihan' : 'Pilih Semua Kelas'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2.5 bg-slate-50 rounded-xl border border-slate-200">
                                         {classes.map((c) => (
                                             <button key={c.id} type="button" onClick={() => toggleClass(c.id)}
                                                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${scheduleForm.class_ids.includes(c.id) ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}>
@@ -530,11 +662,11 @@ export default function ProctorPASDetailPage() {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tanggal ({getSchoolTimeZoneLabel(timeZone)})</label>
-                                        <input type="date" required value={scheduleForm.scheduled_date} onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm" />
+                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tanggal ({getSchoolTimeZoneLabel(timeZone)}) *</label>
+                                        <input type="date" required min={period.start_date?.split('T')[0]} max={period.end_date?.split('T')[0]} value={scheduleForm.scheduled_date} onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm" />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Sesi Ujian</label>
+                                        <label className="text-xs font-medium text-slate-600 mb-1.5 block">Sesi Ujian *</label>
                                         <select required value={scheduleForm.session_id} onChange={e => setScheduleForm(p => ({ ...p, session_id: e.target.value }))} className="w-full border border-slate-200 rounded-xl p-3 text-sm">
                                             <option value="">Pilih Sesi</option>
                                             {sessions.map((s) => (
@@ -543,7 +675,7 @@ export default function ProctorPASDetailPage() {
                                         </select>
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-400 -mt-1">Siswa bebas buka kapan saja dalam window. Durasi mulai saat siswa klik mulai.</p>
+                                <p className="text-xs text-slate-400 -mt-1">Siswa di kelas terpilih akan melihat ujian bernama <strong>&ldquo;{period.name}&rdquo;</strong> pada jadwal ini.</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-xs font-medium text-slate-600 mb-1.5 block">Durasi (menit)</label>
@@ -554,9 +686,9 @@ export default function ProctorPASDetailPage() {
                                         <input type="text" value={scheduleForm.room} onChange={e => setScheduleForm(p => ({ ...p, room: e.target.value }))} placeholder="101" className="w-full border border-slate-200 rounded-xl p-3 text-sm" />
                                     </div>
                                 </div>
-                                <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+                                <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-primary/20">
                                     {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                    {isSubmitting ? 'Menyimpan...' : `Simpan — ${scheduleForm.class_ids.length} kelas`}
+                                    {isSubmitting ? 'Menjadwalkan & Mengaktifkan...' : `Jadwalkan ke ${scheduleForm.class_ids.length} Kelas`}
                                 </button>
                             </form>
                         </motion.div>

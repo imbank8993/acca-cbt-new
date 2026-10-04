@@ -59,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, [mobileOpen]);
 
     const pageTitle = useMemo(() => {
+        if (pathname.includes('/learning')) return 'Bahan Ajar';
         if (pathname.includes('/classes')) return 'Kelas';
         if (pathname.includes('/questions')) return 'Bank Soal';
         if (pathname.includes('/exams')) return 'Ujian';
@@ -271,6 +272,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     const isQuestionEditRoute = pathname.includes('/questions/') && pathname.endsWith('/edit');
+    const isLearningReaderRoute = /^\/dashboard\/learning\/[^/]+\/?$/.test(pathname);
+
+    if (isLearningReaderRoute) {
+        return <div className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">{children}</div>;
+    }
 
     if (isQuestionEditRoute) {
         return (

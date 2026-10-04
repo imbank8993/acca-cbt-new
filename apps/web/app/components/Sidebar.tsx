@@ -87,6 +87,7 @@ export default function Sidebar({
     const menuConfig: Record<string, MenuItem[]> = useMemo(() => ({
         'Superadmin': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/admin' },
+            { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/admin/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/admin/questions' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },
@@ -95,6 +96,7 @@ export default function Sidebar({
         ],
         'Admin': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/admin' },
+            { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/admin/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/admin/questions' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },
@@ -110,6 +112,7 @@ export default function Sidebar({
         ],
         'Guru': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/guru' },
+            { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
             { icon: 'fa-bell', label: 'Notifikasi', href: '/dashboard/notifications' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/guru/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/guru/questions' },
@@ -118,6 +121,7 @@ export default function Sidebar({
         ],
         'Siswa': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/siswa' },
+            { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
             { icon: 'fa-bell', label: 'Notifikasi', href: '/dashboard/notifications' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/siswa/classes' },
             { icon: 'fa-calendar', label: 'Jadwal', href: '/dashboard/siswa/schedule' },

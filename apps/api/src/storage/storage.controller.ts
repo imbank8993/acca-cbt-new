@@ -88,6 +88,10 @@ export class StorageController {
       throw new BadRequestException('Object key tidak valid.');
     }
 
+    if (key.startsWith('lms-private/')) {
+      throw new NotFoundException('Berkas tidak ditemukan.');
+    }
+
     const obj = await this.storage.getObject(key);
     if (!obj) {
       throw new NotFoundException('Berkas tidak ditemukan.');

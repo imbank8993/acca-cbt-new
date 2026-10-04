@@ -381,13 +381,17 @@ export class PasSchedulesService {
                 return `${scheduleId}: jendela waktu ujian tidak valid`;
             }
 
+            const bankTitle = (bank as { title?: string }).title || 'Ujian';
+            const className = (cls as { name?: string }).name || 'N/A';
+            const folderName = String(periodRow.name || '').trim();
+
             const payload = {
                 organization_id: periodRow.organization_id,
                 question_bank_id: schedule.bank_id,
                 subject_id: schedule.subject_id || null,
-                title: (bank as { title?: string }).title || 'Ujian',
+                title: folderName || bankTitle,
                 description:
-                    `Kelas ${(cls as { name?: string }).name || 'N/A'} | ` +
+                    `${bankTitle} • Kelas ${className} | ` +
                     `${periodRow.school_year} | ${String(periodRow.type || '').toUpperCase()} ${periodRow.semester}`,
                 duration_minutes: duration,
                 start_time: startTime,
@@ -395,13 +399,16 @@ export class PasSchedulesService {
                 randomize_questions: true,
                 randomize_options: true,
                 show_results: false,
-                is_published: false,
+                is_published: true,
                 status: 'scheduled',
                 exam_type: periodRow.type || 'pas',
                 metadata: {
                     is_safe_mode: true,
                     is_pas_exam: true,
+                    pas_period_id: schedule.pas_period_id,
+                    pas_period_name: folderName || null,
                     pas_schedule_id: scheduleId,
+                    bank_title: bankTitle,
                     window_open: schedule.scheduled_time,
                     window_close: closeTime,
                     exam_duration: duration,
