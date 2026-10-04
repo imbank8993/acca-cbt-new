@@ -6,6 +6,7 @@ import { type AuthUser, type LoginResponse } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUsersRepository } from './auth-users.repository';
+import { LoginHistoryService } from './login-history.service';
 import { CbtRolesService } from './cbt-roles.service';
 import { SingleSchoolService } from './single-school.service';
 
@@ -24,9 +25,10 @@ export class AuthService {
     private readonly db: DbService,
     private readonly prisma: PrismaService,
     private readonly schoolScope: SingleSchoolService,
+    private readonly loginHistory: LoginHistoryService,
   ) {}
 
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string, ipAddress?: string, userAgent?: string): Promise<LoginResponse> {
     const identifier = (email || '').trim().toLowerCase();
     const user = await this.authUsers.findByEmail(identifier);
 
@@ -43,10 +45,25 @@ export class AuthService {
     const valid = await this.authUsers.verifyPassword(password, user.encrypted_password);
     if (!valid) {
       this.logger.warn(`Login gagal: password salah untuk '${identifier}'`);
+      void this.loginHistory.record({
+        userId: user.id,
+        loginMethod: 'password',
+        ipAddress,
+        userAgent,
+        success: false,
+        failureReason: 'Password salah',
+      });
       throw new UnauthorizedException('Email atau password salah.');
     }
 
     await this.authUsers.touchLastSignIn(user.id);
+    void this.loginHistory.record({
+      userId: user.id,
+      loginMethod: 'password',
+      ipAddress,
+      userAgent,
+      success: true,
+    });
     return this.issueSession(user.id, user.email || identifier, user.raw_user_meta_data);
   }
 
@@ -63,7 +80,7 @@ export class AuthService {
    * itu tidak diperlukan lagi: tiket diverifikasi, peran disinkronkan, lalu CBT
    * menerbitkan tokennya sendiri.
    */
-  async exchangeSsoTicket(token: string): Promise<LoginResponse> {
+  async exchangeSsoTicket(token: string, ipAddress?: string, userAgent?: string): Promise<LoginResponse> {
     const secret = this.config.get<string>('CBT_SSO_SECRET');
     if (!secret) {
       throw new UnauthorizedException('CBT_SSO_SECRET belum diset di server.');
@@ -124,6 +141,13 @@ export class AuthService {
       publicUsers[0]?.nip,
     );
     await this.authUsers.touchLastSignIn(userId);
+    void this.loginHistory.record({
+      userId,
+      loginMethod: 'sso',
+      ipAddress,
+      userAgent,
+      success: true,
+    });
 
     return this.issueSession(
       userId,

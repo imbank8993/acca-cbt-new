@@ -15,6 +15,10 @@ const TWELVE_HOURS = 12 * 60 * 60;
 export async function POST(request: NextRequest) {
     const { email, password } = await request.json().catch(() => ({}));
 
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ipAddress = forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
+    const userAgent = request.headers.get('user-agent') || undefined;
+
     if (!email || !password) {
         return NextResponse.json(
             { success: false, error: 'Email dan password wajib diisi.' },
@@ -29,7 +33,7 @@ export async function POST(request: NextRequest) {
         message?: string;
     }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, ipAddress, userAgent }),
     });
 
     if (status !== 200 || !body?.access_token) {

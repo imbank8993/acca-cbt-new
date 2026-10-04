@@ -13,3 +13,11 @@ export function examDeadline(
         : exam.end_time ? Date.parse(exam.end_time) : Infinity;
     return new Date(Math.min(personal, cap));
 }
+
+/** A recorded upload may finish for two minutes; abandoned uploads cannot block closure forever. */
+export function hasActiveSubmitIntent(metadata: Record<string, unknown> | null | undefined, now: Date): boolean {
+    const raw = metadata?.submit_intent_at;
+    const started = typeof raw === 'string' ? Date.parse(raw) : NaN;
+    const age = now.getTime() - started;
+    return Number.isFinite(started) && age >= 0 && age < 120_000;
+}

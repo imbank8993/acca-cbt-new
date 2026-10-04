@@ -1327,11 +1327,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
     );
     const isMultiTopic = !!metadata?.is_multi_topic && topicOptions.length > 0;
 
-    // Ketikan TIDAK boleh menunggu blur untuk tersimpan: saat waktu habis
-    // (auto-submit), force-logout pelanggaran (reload), atau tab tertutup,
-    // blur tidak pernah terjadi dan teks sejak blur terakhir hilang total
-    // (tidak di state, localStorage, maupun server). Flush via debounce.
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Publish each edit immediately so submit and local persistence see the last keystroke.
     // Teks terakhir yang kita kirim ke parent — dipakai untuk mengabaikan
     // echo prop `answer` agar ketikan yang lebih baru tidak tertimpa balik.
     const lastSentRef = useRef<string | null>(null);
@@ -1339,7 +1335,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
     // hanya menambal bagiannya sendiri (lihat commitAnswer) — dulu semua
     // handler mengirim empat nilai dari closure-nya, sehingga upload yang
     // selesai belakangan menimpa teks yang diketik selama upload berjalan.
-    const latestRef = useRef<{ text: string; files: string[]; video: string; topic: string; dirty: boolean }>({ text: '', files: [], video: '', topic: '', dirty: false });
+    const latestRef = useRef<{ text: string; files: string[]; video: string; topic: string }>({ text: '', files: [], video: '', topic: '' });
 
     const parseCurrentAnswer = (ans: AnswerValue) => {
         let text = '';
@@ -1367,14 +1363,14 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
 
     useEffect(() => {
         const { text, files, video, topic } = parseCurrentAnswer(answer);
-        // Echo dari flush kita sendiri (debounce) — jangan sinkronkan balik,
+        // Echo dari perubahan kita sendiri — jangan sinkronkan balik,
         // pengguna mungkin sudah mengetik lebih jauh sejak flush itu dikirim.
         if (lastSentRef.current !== null && text === lastSentRef.current) return;
         setLocalEssay(text);
         setFileUrls(files);
         setVideoUrl(video);
         setTopicId(topic);
-        latestRef.current = { text, files, video, topic, dirty: false };
+        latestRef.current = { text, files, video, topic };
     }, [answer]);
 
     /**
@@ -1383,11 +1379,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
      * pernah mengembalikan teks/video ke nilai lama.
      */
     const commitAnswer = (patch: Partial<{ text: string; files: string[]; video: string; topic: string }>) => {
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-            debounceRef.current = null;
-        }
-        const merged = { ...latestRef.current, ...patch, dirty: false };
+        const merged = { ...latestRef.current, ...patch };
         latestRef.current = merged;
         lastSentRef.current = merged.text;
         // If metadata doesn't allow files/video, we don't save them
@@ -1407,17 +1399,9 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
     const commitRef = useRef(commitAnswer);
     commitRef.current = commitAnswer;
 
-    /** Debounce bersama untuk semua field ketikan (uraian + link video). */
-    const scheduleCommit = (patch: Partial<{ text: string; video: string }>) => {
-        latestRef.current = { ...latestRef.current, ...patch, dirty: true };
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => commitRef.current({}), 600);
+    const publishEdit = (patch: Partial<{ text: string; video: string }>) => {
+        commitRef.current(patch);
     };
-
-    useEffect(() => () => {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        if (latestRef.current.dirty) commitRef.current({});
-    }, []);
 
     if (showFeedback) {
         return (
@@ -1534,7 +1518,7 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                         onChange={(e) => {
                             const v = e.target.value;
                             setLocalEssay(v);
-                            scheduleCommit({ text: v });
+                            publishEdit({ text: v });
                         }}
                         onBlur={() => commitAnswer({ text: localEssay })}
                         placeholder="Ketik jawaban uraian di sini..."
@@ -1578,13 +1562,13 @@ const EssayInput = React.memo(({ answer, showFeedback, onAnswerChange, metadata,
                             <input
                                 type="url"
                                 value={videoUrl}
-                                // Ikut debounce seperti textarea: kalau hanya onBlur,
+                                // Langsung teruskan seperti textarea: jika hanya onBlur,
                                 // link yang baru diketik hilang saat waktu ujian habis
                                 // atau siswa ter-logout paksa (blur tidak pernah terjadi).
                                 onChange={(e) => {
                                     const v = e.target.value;
                                     setVideoUrl(v);
-                                    scheduleCommit({ video: v });
+                                    publishEdit({ video: v });
                                 }}
                                 onBlur={() => commitAnswer({ video: videoUrl })}
                                 placeholder="Contoh: https://youtube.com/watch?v=..."
@@ -1626,49 +1610,35 @@ const ShortAnswerInline = React.memo(({
     const studentInputs = parseAnswer<string[]>(answer, new Array(Math.max(0, blanksCount)).fill(''));
 
     const [localInputs, setLocalInputs] = useState(studentInputs);
-    // Debounce + echo-guard: sama seperti EssayInput — ketikan harus mengalir
-    // ke parent tanpa menunggu blur agar tidak hilang saat waktu habis/reload.
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Publish text immediately, including the final keystroke before expiry.
     const lastSentRef = useRef<string | null>(null);
-    const latestRef = useRef<{ inputs: string[]; dirty: boolean }>({ inputs: studentInputs, dirty: false });
+    const latestRef = useRef<{ inputs: string[] }>({ inputs: studentInputs });
 
     useEffect(() => {
         const parsed = parseAnswer<string[]>(answer, new Array(Math.max(0, blanksCount)).fill(''));
         if (lastSentRef.current !== null && JSON.stringify(parsed) === lastSentRef.current) return;
         setLocalInputs(parsed);
-        latestRef.current = { inputs: parsed, dirty: false };
+        latestRef.current = { inputs: parsed };
     }, [answer, blanksCount]);
 
     const pushAnswer = (inputs: string[]) => {
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-            debounceRef.current = null;
-        }
         const payload = JSON.stringify(inputs);
         lastSentRef.current = payload;
-        latestRef.current = { inputs, dirty: false };
+        latestRef.current = { inputs };
         onAnswerChange(payload);
     };
     const pushAnswerRef = useRef(pushAnswer);
     pushAnswerRef.current = pushAnswer;
 
-    useEffect(() => () => {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        const latest = latestRef.current;
-        if (latest.dirty) pushAnswerRef.current(latest.inputs);
-    }, []);
-
     const handleChange = (idx: number, value: string) => {
-        const next = [...localInputs];
+        const next = [...latestRef.current.inputs];
         next[idx] = value;
         setLocalInputs(next);
-        latestRef.current = { inputs: next, dirty: true };
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => pushAnswerRef.current(next), 600);
+        pushAnswerRef.current(next);
     };
 
     const handleBlur = () => {
-        pushAnswer(localInputs);
+        pushAnswer(latestRef.current.inputs);
     };
 
     let counter = 0;

@@ -91,7 +91,7 @@ test('RECLOAD-04: fallback cache hanya dipakai untuk kegagalan jaringan yang ret
 
 test('RECLOAD-05: sinkronisasi terkunci sampai server mengakui attempt yang sama', () => {
     assert.match(examPage, /if \(!att\?\.id \|\| offlineRecoveryRef\.current\) return false/);
-    assert.match(examPage, /if \(!navigator\.onLine \|\| offlineRecoveryRef\.current\) \{[\s\S]*setWaitingForSyncAndSubmit\(true\)/);
+    assert.match(examPage, /if \(!navigator\.onLine\) \{[\s\S]*setWaitingForSyncAndSubmit\(true\)/);
     assert.match(examPage, /result\.attempt\?\.id !== localAttempt\.id/);
     assert.ok(
         examPage.indexOf('await revalidateOfflineSession()') <

@@ -8,6 +8,8 @@ import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAtte
 import { getDeviceId,setDeviceId } from '@/lib/device-id';
 import {
 createSecurityEventId,
+freezeExamSnapshot,
+type ExamAnswerSnapshot,
 enqueueSecurityEvent,
 inspectExamStorage,
 readExamRecoverySession,
@@ -141,6 +143,9 @@ export default function ExamPage() {
     const terminationReasonRef = useRef<string | null>(null);
     // Prevents concurrent / repeated submits (manual double-click, auto-submit retry loop).
     const submitInFlightRef = useRef(false);
+    const frozenSnapshotRef = useRef<ExamAnswerSnapshot | null>(null);
+    const [submissionOnly, setSubmissionOnly] = useState(false);
+    const pendingAssignmentRef = useRef<{ documentUrl?: string; videoUrl?: string } | undefined>(undefined);
     const autoRetryCountRef = useRef(0);
     const autoRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleSubmitExamRef = useRef<(
@@ -153,9 +158,8 @@ export default function ExamPage() {
     // backgrounding/throttling the tab cannot "pause" the timer to gain time.
     const deadlineRef = useRef<number | null>(null);
     // True bila halaman dibuka dari paket IndexedDB karena server tidak dapat
-    // dijangkau. Tidak ada request jawaban/submit/heartbeat yang boleh dikirim
-    // sebelum endpoint start memvalidasi ulang attempt, siswa, perangkat, dan
-    // waktu ujian.
+    // dijangkau. Autosave dan heartbeat menunggu validasi endpoint start.
+    // Pengumpulan salinan terkunci diverifikasi langsung oleh endpoint submit.
     const offlineRecoveryRef = useRef(false);
     const [usingOfflineRecovery, setUsingOfflineRecovery] = useState(false);
     const toast = useToast();
@@ -194,7 +198,7 @@ export default function ExamPage() {
      */
     const retryFailedAnswers = useCallback(async () => {
         const att = attemptRef.current;
-        if (!att?.id || failedSyncRef.current.size === 0) return;
+        if (!att?.id || failedSyncRef.current.size === 0 || frozenSnapshotRef.current) return;
         if (offlineRecoveryRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
 
         const ids = Array.from(failedSyncRef.current);
@@ -226,7 +230,7 @@ export default function ExamPage() {
      */
     const beaconPendingAnswers = useCallback(() => {
         const att = attemptRef.current;
-        if (!att?.id) return;
+        if (!att?.id || frozenSnapshotRef.current) return;
         const rows = collectPendingRows();
         if (rows.length === 0) return;
         try {
@@ -275,6 +279,7 @@ export default function ExamPage() {
                         examId,
                         deviceId: durableDeviceId,
                         userId: knownUserId,
+                        allowExpiredForSubmission: true,
                     });
                     if (!checked.valid) {
                         if (checked.reason === 'expired') {
@@ -292,7 +297,18 @@ export default function ExamPage() {
                     const session = checked.session;
                     const local = await readExamSnapshot(session.attemptId).catch(() => null);
                     const restoredAnswers = local?.answers || {};
+                    const locked = session.deadlineAt <= Date.now() || Boolean(local?.frozenSubmission) || session.attempt.metadata?.recovery_submit_only === true;
+                    if (local?.frozenSubmission) frozenSnapshotRef.current = local;
+                    setSubmissionOnly(locked);
+                    if (locked) setWaitingForSyncAndSubmit(true);
+                    answersRef.current = restoredAnswers;
                     revisionsRef.current = { ...(local?.revisions || {}) };
+                    try {
+                        const assignment = local?.assignmentData || JSON.parse(localStorage.getItem(`exam_assignment_${session.attemptId}`) || '{}');
+                        if (Array.isArray(assignment.fileUrls)) setAssignmentFileUrls(assignment.fileUrls);
+                        setAssignmentTextNote(assignment.textSubmission || assignment.textNote || '');
+                        pendingAssignmentRef.current = { documentUrl: assignment.documentUrl, videoUrl: assignment.videoUrl };
+                    } catch { /* The frozen answer snapshot remains usable without optional attachments. */ }
                     const restoredDoubtful = new Set(local?.doubtfulAnswers || []);
                     const restoredQuestions = session.questions;
                     const remaining = Math.max(0, Math.floor((session.deadlineAt - Date.now()) / 1000));
@@ -305,6 +321,7 @@ export default function ExamPage() {
                     setExam(session.exam);
                     setQuestions(restoredQuestions);
                     setAttempt(session.attempt);
+                    attemptRef.current = session.attempt;
                     setViolationCount(Number(session.attempt.warning_count || 0));
                     setAnswers(restoredAnswers);
                     setDoubtfulAnswers(restoredDoubtful);
@@ -408,6 +425,9 @@ export default function ExamPage() {
                 clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
                 if (!result.success) {
                     if (result.retryable && await restoreOfflineSession(authUser.id)) return;
+                    const pendingSession = await readExamRecoverySession(examId).catch(() => null);
+                    if (result.expiredAttemptId && pendingSession?.attemptId === result.expiredAttemptId &&
+                        pendingSession.deadlineAt <= Date.now() && await restoreOfflineSession(authUser.id)) return;
                     // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
                     // atau perangkat berbeda) mengalahkan paket lama. Snapshot
                     // jawaban tetap dipertahankan untuk pemulihan proktor.
@@ -447,6 +467,9 @@ export default function ExamPage() {
                     }
                 }
                 setAttempt(result.attempt);
+                attemptRef.current = result.attempt;
+                const recoverySubmitOnly = result.attempt.metadata?.recovery_submit_only === true;
+                setSubmissionOnly(recoverySubmitOnly);
                 // Lanjutkan hitungan pelanggaran dari DB — kalau mulai dari 0
                 // lagi setiap reload, siswa dapat "jatah" 3 pelanggaran baru
                 // sementara warning_count di server terus terakumulasi (angka
@@ -498,6 +521,7 @@ export default function ExamPage() {
                 try {
                     const parsed = await readExamSnapshot(result.attempt.id);
                     if (parsed) {
+                        if (parsed.frozenSubmission) { frozenSnapshotRef.current = parsed; setSubmissionOnly(true); setWaitingForSyncAndSubmit(true); }
                         if (parsed.answers) {
                             localAnswerIds = Object.keys(parsed.answers)
                                 .filter(qId => loadedQuestions.some((question) => question.id === qId));
@@ -555,7 +579,7 @@ export default function ExamPage() {
                 // Setelah proktor mereset attempt, statusnya kembali in_progress.
                 // Pada titik inilah salinan lokal boleh dipulihkan melalui jalur
                 // biasa yang memeriksa perangkat dan batas waktu di server.
-                if (localAnswerIds.length > 0 && navigator.onLine) {
+                if (localAnswerIds.length > 0 && navigator.onLine && !recoverySubmitOnly && !frozenSnapshotRef.current) {
                     const rows = localAnswerIds.map(qId => answerRow(
                         loadedQuestions.find((question) => question.id === qId),
                         qId,
@@ -649,11 +673,10 @@ export default function ExamPage() {
         return () => clearTimeout(timer);
     }, [examId, attempt?.id, currentQIndex, isCompleted]);
 
-    // Auto-submit terus mencoba sampai server mengonfirmasi status final.
+    // Semua pengumpulan dicoba ulang sampai server mengonfirmasi status final.
     // Backoff berhenti naik pada 30 detik dan hanya satu timer boleh aktif.
     // Server idempoten, jadi respons sukses yang hilang aman untuk diulang.
-    const scheduleAutoRetry = useCallback((opts?: { isAuto?: boolean }) => {
-        if (!opts?.isAuto) return;
+    const scheduleAutoRetry = useCallback(() => {
         if (autoRetryTimerRef.current) return;
         const delay = examAutoRetryDelay(autoRetryCountRef.current);
         autoRetryCountRef.current += 1;
@@ -666,42 +689,55 @@ export default function ExamPage() {
     const handleSubmitExam = useCallback(async (assignmentSubmission?: { documentUrl?: string, videoUrl?: string }, opts?: { isAuto?: boolean }) => {
         // Ref-based guard (not the async `submitting` state) so a second call in the same
         // tick — or an auto-submit retry after a failure — can't slip through.
-        if (!user || submitInFlightRef.current) return;
+        if (!user || submitInFlightRef.current || terminationReasonRef.current) return;
 
         const isAssignment = exam?.exam_type === 'assignment';
+        if (assignmentSubmission) pendingAssignmentRef.current = assignmentSubmission;
 
-        // Offline atau sesi hasil recovery: jangan tembak request sebelum
-        // jaringan pulih dan attempt yang sama diverifikasi server. Ini berlaku
-        // juga untuk tugas; lampiran memang membutuhkan koneksi aktif.
-        if (!navigator.onLine || offlineRecoveryRef.current) {
+        const activeAttempt = attemptRef.current;
+        if (!activeAttempt) return;
+        if (!frozenSnapshotRef.current) {
+            frozenSnapshotRef.current = {
+                answers: { ...answersRef.current }, revisions: { ...revisionsRef.current },
+                doubtfulAnswers: Array.from(doubtfulRef.current),
+                ...(activeAttempt.started_at && activeAttempt.personal_end_time ? {
+                    frozenSubmission: { startedAt: activeAttempt.started_at, personalEndTime: activeAttempt.personal_end_time },
+                } : {}),
+                assignmentData: isAssignment ? {
+                    ...pendingAssignmentRef.current, fileUrls: [...assignmentFileUrls], textSubmission: assignmentTextNote,
+                } : undefined,
+            };
+        }
+        setSubmissionOnly(true);
+        submitInFlightRef.current = true;
+        try {
+            frozenSnapshotRef.current = await freezeExamSnapshot(activeAttempt.id, frozenSnapshotRef.current);
+        } catch (error) {
+            setStorageWarning(getErrorMessage(error));
+        }
+        const snapshot = frozenSnapshotRef.current;
+        if (!navigator.onLine) {
+            submitInFlightRef.current = false;
             setWaitingForSyncAndSubmit(true);
             return;
         }
-
-        if (opts?.isAuto && autoRetryTimerRef.current) {
+        // This submission endpoint validates owner, device and attempt generation itself.
+        offlineRecoveryRef.current = false;
+        if (autoRetryTimerRef.current) {
             clearTimeout(autoRetryTimerRef.current);
             autoRetryTimerRef.current = null;
         }
-
-        submitInFlightRef.current = true;
         setSubmitting(true);
-        const assignmentData = isAssignment ? {
-            documentUrl: assignmentSubmission?.documentUrl,
-            videoUrl: assignmentSubmission?.videoUrl,
-            fileUrls: assignmentFileUrls,
-            textSubmission: assignmentTextNote,
-        } : undefined;
 
         try {
-            // Submit records its start with the server before sending this
-            // complete local snapshot, so an upload already in progress can
-            // finish even if the recovery deadline passes meanwhile.
+            // Retry the same frozen payload; the server validates its attempt and device.
             const result = await submitExamAction(
                 examId,
-                answersRef.current,
-                assignmentData,
-                attempt?.id,
-                { ...revisionsRef.current },
+                snapshot.answers,
+                snapshot.assignmentData,
+                activeAttempt.id,
+                snapshot.revisions,
+                snapshot.frozenSubmission,
             );
             if (result.success) {
                 autoRetryCountRef.current = 0;
@@ -724,22 +760,30 @@ export default function ExamPage() {
                 router.push('/dashboard/siswa/results');
                 // keep submitInFlightRef = true so nothing re-submits after success
             } else {
+                if (result.retryable === false) {
+                    setSubmitting(false);
+                    submitInFlightRef.current = false;
+                    setWaitingForSyncAndSubmit(false);
+                    setAccessDenied(true);
+                    setAccessError((result.error || 'Pengumpulan ditolak.') + ' Salinan jawaban tetap tersimpan di perangkat ini.');
+                    return;
+                }
                 if (!opts?.isAuto || autoRetryCountRef.current === 0) {
                     toast.error(isAssignment ? 'Gagal mengumpulkan tugas' : 'Gagal submit ujian', result.error || 'Terjadi kesalahan');
                 }
                 setSubmitting(false);
-                setWaitingForSyncAndSubmit(Boolean(opts?.isAuto));
+                setWaitingForSyncAndSubmit(true);
                 submitInFlightRef.current = false;
-                scheduleAutoRetry(opts);
+                scheduleAutoRetry();
             }
         } catch (err) {
             if (!opts?.isAuto || autoRetryCountRef.current === 0) {
                 toast.error('Gagal submit ujian', getErrorMessage(err) || 'Terjadi kesalahan');
             }
             setSubmitting(false);
-            setWaitingForSyncAndSubmit(Boolean(opts?.isAuto));
+            setWaitingForSyncAndSubmit(true);
             submitInFlightRef.current = false;
-            scheduleAutoRetry(opts);
+            scheduleAutoRetry();
         }
     }, [user, examId, exam, assignmentFileUrls, assignmentTextNote, router, toast, attempt, scheduleAutoRetry]);
 
@@ -803,6 +847,7 @@ export default function ExamPage() {
      * attempt yang sama sebelum satu pun jawaban, heartbeat, atau submit keluar.
      */
     const revalidateOfflineSession = useCallback(async (): Promise<boolean> => {
+        if (frozenSnapshotRef.current || submissionOnly || clockRef.current.remainingSeconds() <= 0) return true;
         if (!offlineRecoveryRef.current) return true;
         const localAttempt = attemptRef.current;
         if (!localAttempt?.id || !navigator.onLine) return false;
@@ -857,7 +902,7 @@ export default function ExamPage() {
             // boleh membatalkan sinkronisasi jawaban yang sedang menunggu.
         }
         return true;
-    }, [examId]);
+    }, [examId, submissionOnly]);
 
     /** Tutup UI hanya setelah server benar-benar mengonfirmasi terminasi. */
     const confirmPendingTermination = useCallback(async (reason: string): Promise<boolean> => {
@@ -938,6 +983,10 @@ export default function ExamPage() {
                 if (!await revalidateOfflineSession()) return;
                 setIsOffline(false);
                 if (!attemptRef.current?.id) return;
+                if (submissionOnly || frozenSnapshotRef.current || clockRef.current.remainingSeconds() <= 0) {
+                    await handleSubmitExam(undefined, { isAuto: true });
+                    return;
+                }
                 const answersSynced = waitingForSyncAndSubmit
                     ? true
                     : await syncPendingAnswers();
@@ -959,13 +1008,13 @@ export default function ExamPage() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [attempt, syncPendingAnswers, flushSecurityEvents, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
+    }, [attempt, submissionOnly, syncPendingAnswers, flushSecurityEvents, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
 
     // `online` tidak selalu ditembakkan bila Wi-Fi tetap terhubung tetapi API
     // sempat mati. Paket recovery memeriksa ulang server secara berkala; setelah
     // valid, jawaban langsung disusulkan melalui jalur yang sama.
     useEffect(() => {
-        if (!usingOfflineRecovery || !attempt?.id || isCompleted || accessDenied) return;
+        if (!usingOfflineRecovery || !attempt?.id || isCompleted || accessDenied || submissionOnly) return;
         let active = true;
         const retry = async () => {
             if (!navigator.onLine) return;
@@ -980,13 +1029,13 @@ export default function ExamPage() {
             active = false;
             clearInterval(interval);
         };
-    }, [usingOfflineRecovery, attempt?.id, isCompleted, accessDenied, revalidateOfflineSession, syncPendingAnswers, flushSecurityEvents]);
+    }, [usingOfflineRecovery, attempt?.id, isCompleted, accessDenied, submissionOnly, revalidateOfflineSession, syncPendingAnswers, flushSecurityEvents]);
 
     // Event `online` tidak selalu muncul ketika Wi-Fi tetap tersambung tetapi
     // backend sempat tidak dapat dijangkau. Selama submit menunggu, periksa ulang
     // snapshot dan server secara berkala tanpa menghapus salinan lokal.
     useEffect(() => {
-        if (!waitingForSyncAndSubmit || !attempt?.id || isCompleted) return;
+        if (!waitingForSyncAndSubmit || !attempt?.id || isCompleted || accessDenied) return;
         let active = true;
         const retry = async () => {
             if (!navigator.onLine || submitInFlightRef.current) return;
@@ -1001,11 +1050,11 @@ export default function ExamPage() {
             active = false;
             clearInterval(interval);
         };
-    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, handleSubmitExam, revalidateOfflineSession]);
+    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession]);
 
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {
-        if (!attempt || isCompleted || loading || accessDenied) return;
+        if (!attempt || isCompleted || loading || accessDenied || submissionOnly) return;
         if (exam?.metadata?.is_safe_mode === false) return;
 
         const handleSecurityViolation = async (type: string) => {
@@ -1108,16 +1157,16 @@ export default function ExamPage() {
             document.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers]);
+    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers]);
 
     // Retry berkala untuk autosave yang gagal. Sebelumnya jawaban yang gagal
     // tersimpan hanya tersusul kalau kebetulan ada event 'online' — kegagalan
     // saat koneksi tetap menyala tidak pernah dicoba ulang sama sekali.
     useEffect(() => {
-        if (!attempt?.id || isCompleted || accessDenied) return;
+        if (!attempt?.id || isCompleted || accessDenied || submissionOnly) return;
         const iv = setInterval(() => { retryFailedAnswers(); }, 15000);
         return () => clearInterval(iv);
-    }, [attempt?.id, isCompleted, accessDenied, retryFailedAnswers]);
+    }, [attempt?.id, isCompleted, accessDenied, submissionOnly, retryFailedAnswers]);
 
     // Tab ditutup / berpindah ke background: titipkan jawaban yang belum pasti
     // tersimpan lewat sendBeacon. Server action yang masih mengantre di klien
@@ -1132,21 +1181,25 @@ export default function ExamPage() {
             window.removeEventListener('pagehide', onPageHide);
             document.removeEventListener('visibilitychange', onHidden);
         };
-    }, [attempt?.id, isCompleted, accessDenied, beaconPendingAnswers]);
+    }, [attempt?.id, isCompleted, accessDenied, submissionOnly, beaconPendingAnswers]);
 
     // Heartbeat lokal mendeteksi tab yang pernah ditutup; heartbeat server
     // memberi layar pengawas status online/offline yang dapat dipercaya.
     useEffect(() => {
-        if (!attempt || isCompleted || accessDenied) return;
+        if (!attempt || isCompleted || accessDenied || submissionOnly) return;
         const key = `exam_lastseen_${attempt.id}`;
         const pulse = async () => {
             try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
             if (!navigator.onLine || offlineRecoveryRef.current) return;
-            await heartbeatExamAttempt(attempt.id, {
+            const heartbeat = await heartbeatExamAttempt(attempt.id, {
                 localAnswerCount: Object.values(answersRef.current).filter(value => value.trim().length > 0).length,
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
                 storageState: storageStateRef.current,
             }).catch(() => undefined);
+            if (heartbeat?.success && heartbeat.submissionOnly) {
+                setSubmissionOnly(true);
+                return;
+            }
             const securityResult = await flushSecurityEvents().catch(() => null);
             if (!securityResult?.terminated && terminationReasonRef.current) {
                 void confirmPendingTermination(terminationReasonRef.current);
@@ -1155,7 +1208,7 @@ export default function ExamPage() {
         void pulse();
         const iv = setInterval(() => { void pulse(); }, 15000);
         return () => clearInterval(iv);
-    }, [attempt, isCompleted, accessDenied, flushSecurityEvents, confirmPendingTermination]);
+    }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination]);
 
     // ── Timer ─────────────────────────────────────────────────
     useEffect(() => {
@@ -1194,21 +1247,13 @@ export default function ExamPage() {
         if (autoSubmittedRef.current) return;
         autoSubmittedRef.current = true;
 
-        if (isOffline) {
-            setTimeout(() => {
-                setWaitingForSyncAndSubmit(true);
-            }, 0);
-        } else {
-            setTimeout(() => {
-                handleSubmitExam(undefined, { isAuto: true });
-            }, 0);
-        }
+        void handleSubmitExam(undefined, { isAuto: true });
     }, [timeLeft, isOffline, submitting, isCompleted, user, attempt, loading, accessDenied, handleSubmitExam]);
 
 
 
     const handleAnswerSelect = useCallback(async (questionId: string, answer: string | string[]) => {
-        if (submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
+        if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;
         const answerStr = Array.isArray(answer) ? answer.join(',') : answer;
@@ -1248,6 +1293,7 @@ export default function ExamPage() {
         // dan flush penutupan bisa menyusulkannya.
         inFlightRef.current.add(questionId);
         await saveQueueRef.current.enqueue(questionId, async () => {
+            if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
                 const res = await saveAnswerAction(att.id, questionId, payload);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
@@ -1256,10 +1302,10 @@ export default function ExamPage() {
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [markFailed]);
+    }, [markFailed, submissionOnly]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
-        if (submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
+        if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;
         const newDoubtful = new Set(doubtfulRef.current);
@@ -1298,6 +1344,7 @@ export default function ExamPage() {
 
         inFlightRef.current.add(questionId);
         await saveQueueRef.current.enqueue(questionId, async () => {
+            if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
                 const res = await saveAnswerAction(att.id, questionId, payload);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
@@ -1306,7 +1353,7 @@ export default function ExamPage() {
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [toast, markFailed]);
+    }, [toast, markFailed, submissionOnly]);
 
     const handleRequestFullscreen = useCallback(() => {
         // Sebagian perangkat (iPhone/iPad Safari, sebagian WebView Android)
@@ -1413,6 +1460,20 @@ export default function ExamPage() {
         );
     }
 
+    if (submissionOnly && !waitingForSyncAndSubmit) {
+        return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="max-w-md w-full rounded-xl bg-white p-8 text-center border border-slate-200">
+                <h1 className="text-xl font-bold mb-3">Jawaban Terkunci</h1>
+                <p className="text-slate-600 mb-5">Anda hanya dapat mengirim jawaban yang sudah tersimpan. Jawaban dan lampiran tidak dapat diubah.</p>
+                {recoverySummary && <p className="text-sm text-slate-500 mb-4">Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.</p>}
+                {storageWarning && <p className="text-sm text-amber-700 mb-4">{storageWarning}</p>}
+                <button disabled={submitting} onClick={() => void handleSubmitExam()} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50">
+                    {submitting ? 'Mengirim jawaban...' : 'Kirim Jawaban'}
+                </button>
+            </div>
+        </div>;
+    }
+
     if (waitingForSyncAndSubmit) {
         return (
             <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
@@ -1426,12 +1487,13 @@ export default function ExamPage() {
                         {timeLeft <= 0 ? 'Waktu Habis' : 'Menunggu Koneksi'}
                     </h1>
                     <p className="text-slate-300 mb-6 text-base leading-relaxed">
-                        Menunggu koneksi internet pulih untuk mengirim jawaban ujian Anda. Jawaban tersimpan aman di perangkat ini. <br/><strong className="text-rose-400">Mohon jangan tutup atau refresh halaman ini!</strong>
+                        Jawaban telah dikunci dan akan dikirim otomatis saat koneksi tersedia. Anda tidak perlu meminta pemulihan proktor. <br/><strong>Tetap buka halaman ini sampai pengiriman selesai.</strong>
                     </p>
                     <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
                         <RefreshCw size={16} className="animate-spin" />
-                        Mencoba terhubung kembali...
+                        Mengirim otomatis saat terhubung...
                     </div>
+                    {storageWarning && <p className="mt-4 text-sm text-amber-300">{storageWarning}</p>}
                 </div>
             </div>
         );

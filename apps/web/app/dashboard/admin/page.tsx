@@ -34,6 +34,7 @@ Users
 import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from './RecentLoginsCard';
+import { TopScorersCard } from './TopScorersCard';
 
 type LoggedInUser = RecentLogin & { lastLoginAt: string };
 const hasLoginTime = (login: RecentLogin): login is LoggedInUser => typeof login.lastLoginAt === 'string';
@@ -422,6 +423,11 @@ export default function AdminDashboard() {
                     )}
 
                 </div>
+            </div>
+
+            {/* ── Ringkasan Nilai Tertinggi per Ujian ── */}
+            <div className="mt-4">
+                <TopScorersCard examLimit={6} />
             </div>
 
             {/* Popup Modal Informasi */}

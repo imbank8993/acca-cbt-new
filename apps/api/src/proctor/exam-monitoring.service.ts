@@ -1,7 +1,7 @@
 import { attemptHealth } from '../common/attempt-health';
 import { MONITORING_EVENTS } from '../common/exam-monitoring';
 import { readExamQuestionVersion, hasExamQuestionSnapshots } from '../common/exam-question-snapshots';
-import { examDeadline } from '../common/exam-deadline';
+import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
@@ -305,14 +305,13 @@ export class ExamMonitoringService {
                         .eq('id', attempt.id).maybeSingle();
                     if (readError) throw new Error(readError.message);
                     if (!current || current.status !== 'in_progress') return false;
-                    if (typeof current.metadata?.submit_intent_at === 'string' &&
-                        Number.isFinite(Date.parse(current.metadata.submit_intent_at))) return false;
                     const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
                     const now = new Date(clock.now);
+                    if (hasActiveSubmitIntent(current.metadata, now)) return false;
                     const deadline = examDeadline(current, exam).getTime();
                     if (!Number.isFinite(deadline) || deadline + AUTO_FINISH_GRACE_MS > now.getTime()) return false;
                     const { data: updated, error } = await db.from('cbt_exam_attempts')
-                        .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                        .update({ status: 'auto_submitted', finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
                         .eq('id', attempt.id).eq('status', 'in_progress').select('id').maybeSingle();
                     if (error) throw new Error(error.message);
                     return Boolean(updated);

@@ -177,7 +177,7 @@ function MonitoringContent() {
         const modeInput = window.prompt(
             `Pilih tindakan untuk ${studentName}:\n\n` +
             `Ketik SUSULAN untuk menghapus jawaban lama dan mengerjakan dari awal.\n` +
-            `Ketik PULIHKAN untuk melanjutkan jawaban lama.`,
+            `Ketik PULIHKAN untuk mengirim jawaban tersimpan tanpa mengubah atau mengisi jawaban.`,
             'SUSULAN',
         );
         if (!modeInput) return;

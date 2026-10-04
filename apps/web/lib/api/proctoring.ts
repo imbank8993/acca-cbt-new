@@ -41,7 +41,7 @@ export interface ClientSyncHealth {
 }
 
 export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth) {
-    return apiSend<{ lastSeenAt: string }>(
+    return apiSend<{ lastSeenAt: string; submissionOnly?: boolean }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/heartbeat`,
         { deviceId: getDeviceId(), syncHealth },
         'POST',
@@ -108,7 +108,8 @@ export function promptRecoveryDuration(studentName: string, purpose: 'susulan' |
     const isRecovery = purpose === 'pemulihan';
     const value = window.prompt(
         `Berapa menit waktu ${isRecovery ? 'pemulihan' : 'ujian susulan'} untuk ${studentName}?\n\n` +
-        `Tenggat dihitung sejak ${isRecovery ? 'pemulihan' : 'ujian susulan'} diaktifkan. Masukkan 1–1440 menit.`,
+        `Tenggat dihitung sejak ${isRecovery ? 'pemulihan' : 'ujian susulan'} diaktifkan. Masukkan 1–1440 menit.` +
+        (isRecovery ? '\nPemulihan hanya membuka pengiriman jawaban tersimpan, bukan waktu untuk mengerjakan soal.' : ''),
         isRecovery ? '15' : '60',
     );
     if (value === null) return null;

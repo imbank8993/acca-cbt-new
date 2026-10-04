@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -14,15 +15,19 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Masuk dengan email dan password' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.email, dto.password);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    const ip = dto.ipAddress || req.ip;
+    const ua = dto.userAgent || req.headers['user-agent'];
+    return this.authService.login(dto.email, dto.password, ip, ua);
   }
 
   @Post('sso')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Tukar tiket SSO acca-app dengan sesi CBT' })
-  sso(@Body() dto: SsoTicketDto) {
-    return this.authService.exchangeSsoTicket(dto.token);
+  sso(@Body() dto: SsoTicketDto, @Req() req: Request) {
+    const ip = dto.ipAddress || req.ip;
+    const ua = dto.userAgent || req.headers['user-agent'];
+    return this.authService.exchangeSsoTicket(dto.token, ip, ua);
   }
 
   @Get('me')

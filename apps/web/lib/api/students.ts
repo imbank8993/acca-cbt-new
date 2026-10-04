@@ -76,7 +76,7 @@ export async function getStudentExamsResult() {
     const res = await apiGet<{ exams: StudentScheduledExam[] }>('/api/students/exams');
     return res.success
         ? { success: true as const, exams: res.exams }
-        : { success: false as const, error: res.error };
+        : { success: false as const, error: res.error, retryable: res.retryable };
 }
 
 export interface StudentResultExam {
@@ -186,6 +186,8 @@ export interface StudentExam {
 export type StudentExamQuestion = Question;
 
 export interface StudentExamAttempt {
+    started_at?: string;
+    personal_end_time?: string;
     id: string;
     status: string;
     warning_count?: number;
@@ -294,7 +296,7 @@ export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPa
 }
 
 export async function beginSubmitAction(attemptId: string) {
-    return apiSend<{ attemptId: string; startedAt: string }>(
+    return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
         { deviceId: getDeviceId() },
         'POST',
@@ -330,17 +332,18 @@ export async function submitExamAction(
     },
     attemptId?: string,
     answerRevisions?: Record<string, number>,
+    frozenSubmission?: { startedAt: string; personalEndTime: string },
 ) {
     const finalAnswers = { ...studentAnswers };
     const finalRevisions = answerRevisions ? { ...answerRevisions } : undefined;
     if (attemptId) {
         const intent = await beginSubmitAction(attemptId);
-        if (!intent.success) return { success: false as const, error: intent.error };
+        if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
     }
 
     const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-        { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId() },
+        { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission },
         'POST',
         { timeoutMs: 30_000 },
     );

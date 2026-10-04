@@ -88,16 +88,17 @@ test('scoring outage leaves a durable submitted answer and an idempotent pending
 
 test('submit intent recorded before deadline keeps the full snapshot receivable after deadline', async () => {
     const db = fixture();
+    db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T00:59:30Z') }] : [{ id: 'locked' }];
     const attempts = service(db);
     const intent = await attempts.beginSubmit(user, 'attempt', device);
-    assert.equal(intent.startedAt, '2026-09-20T00:00:00.000Z');
+    assert.equal(intent.startedAt, '2026-09-20T00:59:30.000Z');
 
     db.raw = async sql => /clock_timestamp/.test(sql)
         ? [{ now: new Date('2026-09-20T01:01:00Z') }]
         : [{ id: 'locked' }];
     assert.deepEqual(
         await attempts.beginSubmit(user, 'attempt', device),
-        { attemptId: 'attempt', startedAt: '2026-09-20T00:00:00.000Z' },
+        { attemptId: 'attempt', startedAt: '2026-09-20T00:59:30.000Z' },
     );
     await attempts.autoFinish('attempt', new Date('2026-09-20T01:01:00Z'));
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
@@ -116,10 +117,12 @@ test('submit intent cannot be created for the first time after the deadline', as
         ? [{ now: new Date('2026-09-20T01:00:01Z') }]
         : [{ id: 'locked' }];
 
-    await assert.rejects(
-        service(db).beginSubmit(user, 'attempt', device),
-        error => error.getStatus?.() === 403 && error.getResponse?.().code === 'EXAM_TIME_EXPIRED',
-    );
+    const intent = await service(db).beginSubmit(user, 'attempt', device);
+    assert.equal(intent.savedAnswersOnly, true);
+    const result = await service(db).submit(user, 'exam', { q: 'late edit' }, undefined, 'attempt', device, { q: 1 });
+    assert.equal(result.savedAnswersOnly, true);
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
+    assert.equal(db.tables.cbt_answers.length, 0);
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_at, undefined);
 });
 
@@ -225,4 +228,117 @@ test('durable fallback keeps the answer revision through reload', async () => {
     } finally {
         if (previous) Object.defineProperty(globalThis, 'localStorage', previous); else delete globalThis.localStorage;
     }
+});
+
+test('lost submit response can retry the entire intent and submit sequence', async () => {
+    const db = fixture();
+    const attempts = service(db);
+    await attempts.beginSubmit(user, 'attempt', device);
+    await attempts.submit(user, 'exam', { q: 'final' }, undefined, 'attempt', device, { q: 1 });
+    assert.equal((await attempts.beginSubmit(user, 'attempt', device)).alreadySubmitted, true);
+    const retry = await attempts.submit(user, 'exam', { q: 'changed' }, undefined, 'attempt', device, { q: 2 });
+    assert.equal(retry.alreadySubmitted, true);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'final');
+    await assert.rejects(attempts.beginSubmit(user, 'attempt', 'wrong-device'));
+    await assert.rejects(attempts.beginSubmit({ id: 'other' }, 'attempt', device));
+});
+
+test('abandoned intent expires and monitoring closes the attempt without accepting late edits', async () => {
+    const db = fixture();
+    const attempts = service(db);
+    await attempts.beginSubmit(user, 'attempt', device);
+    db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-21T01:00:00Z') }] : [{ id: 'locked' }];
+    const monitor = new ExamMonitoringService(db, {}, {}, grading, {});
+    await monitor.finalizeExpired('exam');
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
+    const intent = await attempts.beginSubmit(user, 'attempt', device);
+    assert.equal(intent.alreadySubmitted, true);
+    const result = await attempts.submit(user, 'exam', { q: 'late' }, undefined, 'attempt', device, { q: 1 });
+    assert.equal(result.savedAnswersOnly, true);
+    assert.equal(db.tables.cbt_answers.length, 0);
+});
+
+test('browser submit wrapper reaches finalization at zero and recovers a lost response', async () => {
+    const { submitExamAction } = require('../../web/lib/api/students.ts');
+    const original = { fetch: global.fetch, window: global.window, localStorage: global.localStorage };
+    global.window = {};
+    global.localStorage = { getItem: () => device, setItem: () => {} };
+    try {
+        for (const expired of [false, true]) {
+            const db = fixture();
+            const attempts = service(db);
+            if (expired) db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T01:00:00Z') }] : [{ id: 'locked' }];
+            let loseResponse = !expired;
+            const calls = [];
+            global.fetch = async (url, init) => {
+                calls.push(url);
+                const body = JSON.parse(init.body);
+                const intent = url.endsWith('/submit-intent');
+                const result = intent
+                    ? await attempts.beginSubmit(user, 'attempt', body.deviceId)
+                    : await attempts.submit(user, 'exam', body.answers, body.assignmentData, body.attemptId, body.deviceId, body.answerRevisions);
+                if (!intent && loseResponse) { loseResponse = false; throw new Error('response lost'); }
+                return new Response(JSON.stringify({ success: true, ...result }), { status: 200 });
+            };
+            let result = await submitExamAction('exam', { q: 'final' }, undefined, 'attempt', { q: 1 });
+            if (!expired) {
+                assert.equal(result.success, false);
+                assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+                result = await submitExamAction('exam', { q: 'final' }, undefined, 'attempt', { q: 1 });
+                assert.equal(result.alreadySubmitted, true);
+                assert.equal(db.tables.cbt_answers[0].essay_answer, 'final');
+            }
+            assert.equal(result.success, true);
+            assert.equal(result.savedAnswersOnly, expired);
+            assert.equal(calls.filter(url => url.endsWith('/submit')).length, expired ? 1 : 2);
+        }
+    } finally {
+        global.fetch = original.fetch;
+        if (original.window === undefined) delete global.window; else global.window = original.window;
+        if (original.localStorage === undefined) delete global.localStorage; else global.localStorage = original.localStorage;
+    }
+});
+
+test('essay and short-answer edits reach the parent before any timer or blur', () => {
+    const fs = require('node:fs');
+    const vm = require('node:vm');
+    const ts = require('typescript');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/QuestionRenderer.tsx'), 'utf8');
+    function render(name, props) {
+        const start = source.indexOf('const ' + name + ' = React.memo');
+        const end = source.indexOf(name + '.displayName', start);
+        const code = ts.transpileModule(source.slice(start, end) + '; globalThis.component = ' + name, {
+            compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 }, fileName: 'input.tsx',
+        }).outputText;
+        const context = {
+            React: { memo: fn => fn, useId: () => 'test', useMemo: fn => fn(), createElement: (type, props, ...children) => ({ type, props: { ...props, children } }) },
+            useState: value => [value, () => {}], useRef: current => ({ current }), useEffect: () => {},
+            AlertTriangle: 'alert', QuestionContent: 'content', safeExternalUrl: x => x,
+            normalizeShortAnswer: value => String(value || '').trim().toLowerCase(),
+            parseAnswer: (value, fallback) => value ? JSON.parse(value) : fallback,
+            setTimeout: () => { throw new Error('Answer publication must not wait for a timer'); },
+        };
+        vm.runInNewContext(code, context);
+        return context.component(props);
+    }
+    function find(tree, type, result = []) {
+        if (Array.isArray(tree)) tree.forEach(child => find(child, type, result));
+        else if (tree && typeof tree === 'object') {
+            if (tree.type === type) result.push(tree);
+            find(tree.props?.children, type, result);
+        }
+        return result;
+    }
+    const essay = [];
+    const tree = render('EssayInput', { answer: '', options: [], metadata: { allow_video_link: true }, onAnswerChange: value => essay.push(JSON.parse(value)) });
+    find(tree, 'textarea')[0].props.onChange({ target: { value: 'last keystroke' } });
+    assert.equal(essay.at(-1).text, 'last keystroke');
+    find(tree, 'input')[0].props.onChange({ target: { value: 'https://example.com/video' } });
+    assert.equal(essay.at(-1).text, 'last keystroke');
+    assert.equal(essay.at(-1).videoUrl, 'https://example.com/video');
+    const short = [];
+    const inputs = find(render('ShortAnswerInline', { questionText: '.... plus ....', answer: '', allVariations: [], onAnswerChange: value => short.push(JSON.parse(value)) }), 'input');
+    inputs[0].props.onChange({ target: { value: 'one' } });
+    inputs[1].props.onChange({ target: { value: 'two' } });
+    assert.deepEqual(short.at(-1), ['one', 'two']);
 });

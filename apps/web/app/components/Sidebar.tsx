@@ -206,7 +206,16 @@ export default function Sidebar({
 
                             {/* MAIN MENU ITEMS */}
                             {menuItems.map((item, index) => {
-                                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                                // Hanya SATU menu yang aktif: yang href-nya paling panjang dan
+                                // cocok dengan path. Tanpa ini, tautan Dashboard per peran
+                                // (mis. /dashboard/admin) ikut aktif di semua sub-halamannya.
+                                const matches = (href: string) =>
+                                    !!href && (pathname === href || pathname.startsWith(href.endsWith('/') ? href : `${href}/`));
+                                const activeHref = menuItems
+                                    .map((m) => m.href)
+                                    .filter(matches)
+                                    .sort((a, b) => b.length - a.length)[0];
+                                const isActive = item.href === activeHref;
 
                                 return (
                                     <div

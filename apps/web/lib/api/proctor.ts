@@ -35,6 +35,30 @@ export interface RecentLogin {
     role: string;
 }
 
+export interface LoginHistoryRecord {
+    id: string;
+    userId: string;
+    fullName: string;
+    avatarUrl: string | null;
+    role: string | null;
+    loginMethod: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+    deviceType: string | null;
+    browser: string | null;
+    os: string | null;
+    success: boolean;
+    failureReason: string | null;
+    createdAt: string;
+}
+
+export interface LoginStats {
+    todayTotal: number;
+    todayUnique: number;
+    weekTotal: number;
+    todayFailed: number;
+}
+
 export interface OrganizationStats {
     totalMembers: number;
     totalBanks: number;
@@ -303,6 +327,39 @@ export async function getRecentLogins(limit = 10): Promise<RecentLogin[]> {
     const query = new URLSearchParams({ limit: String(limit) });
     const res = await apiGet<{ logins: RecentLogin[] }>(`/api/proctor/recent-logins?${query}`);
     return res.success ? res.logins : [];
+}
+
+export async function getLoginHistory(limit = 20): Promise<{ history: LoginHistoryRecord[]; stats: LoginStats | null }> {
+    const query = new URLSearchParams({ limit: String(limit) });
+    const res = await apiGet<{ history: LoginHistoryRecord[]; stats: LoginStats }>(`/api/proctor/login-history?${query}`);
+    return res.success
+        ? { history: res.history ?? [], stats: res.stats ?? null }
+        : { history: [], stats: null };
+}
+
+export interface TopScorer {
+    rank: number;
+    userId: string;
+    fullName: string;
+    identityNumber: string | null;
+    score: number;
+    finishedAt: string | null;
+}
+
+export interface ExamTopScorers {
+    examId: string;
+    title: string;
+    examType: string | null;
+    participantCount: number;
+    lastFinishedAt: string | null;
+    topScorers: TopScorer[];
+}
+
+/** Dua peraih nilai tertinggi untuk ujian-ujian yang paling baru dikerjakan. */
+export async function getTopScorers(examLimit = 6): Promise<ExamTopScorers[]> {
+    const query = new URLSearchParams({ limit: String(examLimit) });
+    const res = await apiGet<{ exams: ExamTopScorers[] }>(`/api/proctor/top-scorers?${query}`);
+    return res.success ? res.exams ?? [] : [];
 }
 
 // ── Tahun ajaran & mata pelajaran ────────────────────────────────────────────

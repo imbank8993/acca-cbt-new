@@ -70,7 +70,7 @@ test('ANS-02: backoff auto-submit terus tersedia tanpa batas tiga percobaan', ()
         'utf8',
     );
     assert.doesNotMatch(source, /autoRetryCountRef\.current\s*>=\s*3/);
-    assert.match(source, /setWaitingForSyncAndSubmit\(Boolean\(opts\?\.isAuto\)\)/);
+    assert.match(source, /setWaitingForSyncAndSubmit\(true\)/);
     assert.match(source, /examAutoRetryDelay\(autoRetryCountRef\.current\)/);
 });
 
@@ -84,6 +84,6 @@ test('ANS-08: submit mengambil snapshot jawaban terbaru dari ref', () => {
         source.indexOf('handleSubmitExamRef.current = handleSubmitExam'),
     );
 
-    assert.match(handler, /submitExamAction\([\s\S]*answersRef\.current/);
+    assert.match(handler, /submitExamAction\([\s\S]*snapshot\.answers/);
     assert.doesNotMatch(handler, /Promise\.race/);
 });

@@ -48,7 +48,8 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
     assert.equal(result.serverAnswerCount, 2);
     assert.equal(result.recoveryUntil, '2026-09-20T00:25:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
-    assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, null);
+    assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, 'old-device');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.recovery_submit_only, true);
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.preserved, true);
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_at, undefined);
     assert.equal(

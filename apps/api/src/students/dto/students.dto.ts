@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
     IsArray,
+    IsDateString,
     IsBoolean,
     IsNotEmpty,
     IsObject,
@@ -108,7 +109,20 @@ export class SyncAnswersDto {
 
 export class SyncLateAnswersDto extends SyncAnswersDto {}
 
+export class FrozenSubmissionDto {
+    @IsDateString()
+    startedAt!: string;
+
+    @IsDateString()
+    personalEndTime!: string;
+}
+
 export class SubmitExamDto {
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => FrozenSubmissionDto)
+    frozenSubmission?: FrozenSubmissionDto;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsObject()

@@ -69,6 +69,10 @@ export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
     const origin = resolvePublicOrigin(request);
 
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ipAddress = forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
+    const userAgent = request.headers.get('user-agent') || undefined;
+
     if (!token) {
         return NextResponse.redirect(new URL('/?error=missing-token', origin));
     }
@@ -78,7 +82,7 @@ export async function GET(request: NextRequest) {
         user?: { bestRole?: string };
         error?: string;
         message?: string;
-    }>('/auth/sso', { method: 'POST', body: JSON.stringify({ token }) });
+    }>('/auth/sso', { method: 'POST', body: JSON.stringify({ token, ipAddress, userAgent }) });
 
     if (status !== 200 || !body?.access_token) {
         const message = body?.error || body?.message || 'Tiket SSO tidak valid.';

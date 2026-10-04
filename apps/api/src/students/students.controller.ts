@@ -186,6 +186,7 @@ export class StudentsController {
             dto.attemptId,
             dto.deviceId,
             dto.answerRevisions,
+            dto.frozenSubmission,
         );
     }
 }

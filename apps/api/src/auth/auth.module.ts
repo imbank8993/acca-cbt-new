@@ -9,6 +9,7 @@ import { AuthorizationService } from './authorization.service';
 import { CbtRolesService } from './cbt-roles.service';
 import { JwtStrategy } from './jwt.strategy';
 import { SingleSchoolService } from './single-school.service';
+import { LoginHistoryService } from './login-history.service';
 
 @Global()
 @Module({
@@ -31,7 +32,8 @@ import { SingleSchoolService } from './single-school.service';
     CbtRolesService,
     SingleSchoolService,
     JwtStrategy,
+    LoginHistoryService,
   ],
-  exports: [AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService, SingleSchoolService],
+  exports: [AuthService, AuthUsersRepository, AuthorizationService, CbtRolesService, SingleSchoolService, LoginHistoryService],
 })
 export class AuthModule {}

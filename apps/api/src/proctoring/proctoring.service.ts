@@ -249,7 +249,7 @@ export class ProctoringService {
             const { error } = await db.from('cbt_exam_attempts')
                 .update({ last_seen_at: now.toISOString(), metadata }).eq('id', attemptId).eq('status', 'in_progress');
             if (error) throw new BadRequestException('Status koneksi belum dapat diperbarui.');
-            return { lastSeenAt: now.toISOString() };
+            return { lastSeenAt: now.toISOString(), submissionOnly: metadata.recovery_submit_only === true };
         });
     }
 
@@ -257,7 +257,7 @@ export class ProctoringService {
      * Kembalikan attempt yang sudah tertutup ke `in_progress` dengan jawaban utuh.
      *
      * Berlaku untuk attempt yang DITUTUP SISTEM maupun yang SUDAH DISUBMIT siswa
-     * (salah pencet "Selesai", atau guru meminta perbaikan). Attempt yang masih
+     * Pengumpulan hanya menerima salinan jawaban lama; untuk mengerjakan ulang gunakan susulan. Attempt yang masih
      * berjalan tidak perlu — dan tidak boleh — di-reset.
      */
     async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number) {
@@ -332,9 +332,6 @@ export class ProctoringService {
                 needs_manual_grading: false,
                 warning_count: 0,
                 tab_switch_count: 0,
-                // Kunci perangkat dilepas supaya siswa bisa melanjutkan di perangkat
-                // yang kini ia pegang — justru itu inti dari reset oleh proktor.
-                device_fingerprint: null,
             };
 
             const recoveryUntil = new Date(
@@ -349,6 +346,8 @@ export class ProctoringService {
             updates.metadata = {
                 ...metadataWithoutOldScore,
                 proctor_recovery_until: recoveryUntil,
+                recovery_submit_only: true,
+                recovery_source_deadline: previousMetadata.recovery_source_deadline || previousDeadline,
             };
 
             const { error: updateError } = await db
@@ -477,6 +476,10 @@ export class ProctoringService {
             delete previousMetadata.grading_recovered_at;
             delete previousMetadata.sync_health;
             delete previousMetadata.submit_intent_at;
+            delete previousMetadata.recovery_submit_only;
+            delete previousMetadata.recovery_source_deadline;
+            delete previousMetadata.closed_by_expiry;
+            delete previousMetadata.frozen_submission_received_at;
 
             const { count: deletedAnswerCount, error: countError } = await db
                 .from('cbt_answers')

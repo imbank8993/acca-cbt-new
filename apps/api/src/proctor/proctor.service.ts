@@ -5,6 +5,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { listOperationalSubjects } from '../common/subject-catalog';
 import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { PrismaService } from '../prisma/prisma.service';
 
 /** Format tahun ajaran yang diterima, mis. `2025/2026`. */
 const SCHOOL_YEAR_PATTERN = /^\d{4}\/\d{4}$/;
@@ -55,7 +56,120 @@ export class ProctorService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly authUsers: AuthUsersRepository,
+        private readonly prisma: PrismaService,
     ) {}
+
+    /**
+     * Peraih nilai tertinggi per ujian, untuk ringkasan dasbor.
+     *
+     * Satu query dengan ROW_NUMBER() supaya tidak menarik seluruh pengerjaan ke
+     * memori. Hanya pengerjaan yang SUDAH dikumpulkan dan SUDAH bernilai yang
+     * dihitung — esai yang menunggu koreksi (total_score null) dilewati agar
+     * peringkat tidak menyesatkan. Nilai sama diurutkan menurut siapa yang
+     * lebih dulu mengumpulkan. Ujian yang diarsipkan tidak ditampilkan.
+     */
+    async getTopScorers(
+        user: AuthUser,
+        organizationId: string,
+        opts: { examLimit: number; perExam: number },
+    ) {
+        await this.authz.assertOrgMonitoring(user, organizationId);
+
+        const rows = await this.prisma.$queryRawUnsafe<
+            Array<{
+                exam_id: string;
+                exam_title: string;
+                exam_type: string | null;
+                last_finished_at: Date | null;
+                participant_count: number;
+                rank: number;
+                user_id: string;
+                full_name: string | null;
+                identity_number: string | null;
+                total_score: string | number;
+                finished_at: Date | null;
+            }>
+        >(
+            `WITH scored AS (
+                SELECT a.exam_id, a.user_id, a.total_score, a.finished_at,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY a.exam_id
+                           ORDER BY a.total_score DESC, a.finished_at ASC NULLS LAST
+                       ) AS rank,
+                       COUNT(*) OVER (PARTITION BY a.exam_id)::int AS participant_count,
+                       MAX(a.finished_at) OVER (PARTITION BY a.exam_id) AS last_finished_at
+                  FROM public.cbt_exam_attempts a
+                  JOIN public.cbt_exams e ON e.id = a.exam_id
+                 WHERE e.organization_id = $1::uuid
+                   AND COALESCE(e.metadata->>'archived_at', '') = ''
+                   AND COALESCE(e.exam_type, '') <> 'assignment'
+                   AND a.status IN ('submitted', 'auto_submitted')
+                   AND a.total_score IS NOT NULL
+             ),
+             recent_exams AS (
+                SELECT exam_id
+                  FROM scored
+                 GROUP BY exam_id
+                 ORDER BY MAX(last_finished_at) DESC NULLS LAST
+                 LIMIT $2
+             )
+             SELECT s.exam_id, e.title AS exam_title, e.exam_type,
+                    s.last_finished_at, s.participant_count, s.rank::int AS rank,
+                    s.user_id, p.full_name, p.identity_number,
+                    s.total_score, s.finished_at
+               FROM scored s
+               JOIN recent_exams r ON r.exam_id = s.exam_id
+               JOIN public.cbt_exams e ON e.id = s.exam_id
+               LEFT JOIN public.cbt_profiles p ON p.id = s.user_id
+              WHERE s.rank <= $3
+              ORDER BY s.last_finished_at DESC NULLS LAST, s.exam_id, s.rank`,
+            organizationId,
+            opts.examLimit,
+            opts.perExam,
+        );
+
+        const iso = (d: Date | null) => (d instanceof Date ? d.toISOString() : d ? String(d) : null);
+        const byExam = new Map<string, {
+            examId: string;
+            title: string;
+            examType: string | null;
+            participantCount: number;
+            lastFinishedAt: string | null;
+            topScorers: Array<{
+                rank: number;
+                userId: string;
+                fullName: string;
+                identityNumber: string | null;
+                score: number;
+                finishedAt: string | null;
+            }>;
+        }>();
+
+        for (const r of rows) {
+            let exam = byExam.get(r.exam_id);
+            if (!exam) {
+                exam = {
+                    examId: r.exam_id,
+                    title: r.exam_title,
+                    examType: r.exam_type,
+                    participantCount: Number(r.participant_count) || 0,
+                    lastFinishedAt: iso(r.last_finished_at),
+                    topScorers: [],
+                };
+                byExam.set(r.exam_id, exam);
+            }
+            exam.topScorers.push({
+                rank: Number(r.rank),
+                userId: r.user_id,
+                fullName: r.full_name || 'Tanpa nama',
+                identityNumber: r.identity_number,
+                score: Math.round(Number(r.total_score) * 100) / 100,
+                finishedAt: iso(r.finished_at),
+            });
+        }
+
+        return [...byExam.values()];
+    }
 
     /** Angka ringkas untuk kartu dasbor. */
     async getStats(user: AuthUser, organizationId: string) {

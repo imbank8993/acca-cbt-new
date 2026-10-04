@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
-import { examDeadline } from '../common/exam-deadline';
+import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import {
     ensureExamQuestionSnapshotsInTransaction,
     loadFrozenExamQuestions,
@@ -175,7 +175,7 @@ export class ExamAttemptsService {
             .maybeSingle();
         const recoveryUntil = this.proctorRecoveryUntil(existing as any);
         const recoveryActive = recoveryUntil !== null && now < recoveryUntil;
-        const submitPending = this.hasSubmitIntent((existing as any)?.metadata);
+        const submitPending = hasActiveSubmitIntent((existing as any)?.metadata, now);
 
         if (!row.is_published) {
             return this.refuse('Ujian belum dipublikasikan oleh proktor.');
@@ -190,8 +190,11 @@ export class ExamAttemptsService {
 
         if (row.end_time && now > new Date(row.end_time) && !recoveryActive && !submitPending) {
             if (existing) await this.autoFinish((existing as { id: string }).id, now);
+            const { data: closed } = existing ? { data: existing } : await this.db.from('cbt_exam_attempts')
+                .select('id').eq('user_id', user.id).eq('exam_id', examId)
+                .in('status', ['submitted', 'auto_submitted']).order('finished_at', { ascending: false }).limit(1).maybeSingle();
             return this.refuse('Waktu ujian telah berakhir.', {
-                expiredAttemptId: (existing as { id: string } | null)?.id,
+                expiredAttemptId: (closed as { id: string } | null)?.id,
             });
         }
 
@@ -335,7 +338,7 @@ export class ExamAttemptsService {
 
         const personalEnd = this.resolvePersonalEnd(attempt, exam, now);
 
-        if (now >= personalEnd && !this.hasSubmitIntent((attempt as any).metadata)) {
+        if (now >= personalEnd && !hasActiveSubmitIntent((attempt as any).metadata, now)) {
             await this.autoFinish(attempt.id, now);
             // `expiredAttemptId` dikembalikan supaya klien masih bisa menyusulkan
             // jawaban yang hanya sempat tersimpan di localStorage — tanpa itu,
@@ -452,11 +455,6 @@ export class ExamAttemptsService {
         return Number.isFinite(value.getTime()) ? value : null;
     }
 
-    private hasSubmitIntent(metadata: Record<string, unknown> | null | undefined): boolean {
-        const submittedAt = metadata?.submit_intent_at;
-        return typeof submittedAt === 'string' && Number.isFinite(Date.parse(submittedAt));
-    }
-
     /**
      * Tutup pengerjaan yang kehabisan waktu, DAN nilai dari jawaban tersimpan.
      *
@@ -470,10 +468,10 @@ export class ExamAttemptsService {
             const { data: current, error: readError } = await db.from('cbt_exam_attempts')
                 .select('status, metadata').eq('id', attemptId).maybeSingle();
             if (readError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
-            if (!current || current.status !== 'in_progress' || this.hasSubmitIntent(current.metadata)) return false;
+            if (!current || current.status !== 'in_progress' || hasActiveSubmitIntent(current.metadata, now)) return false;
             const { data: updated, error } = await db
                 .from('cbt_exam_attempts')
-                .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                .update({ status: 'auto_submitted', finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
                 .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
             if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
             return Boolean(updated);
@@ -540,29 +538,26 @@ export class ExamAttemptsService {
                 .eq('id', attemptId).maybeSingle();
             if (error || !attempt) throw new ForbiddenException('Sesi pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
-            if (attempt.status !== 'in_progress') {
-                throw new ForbiddenException('Ujian tidak sedang berlangsung.');
-            }
             if (attempt.device_fingerprint && attempt.device_fingerprint !== device) {
                 throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
             }
-            if (this.hasSubmitIntent(attempt.metadata)) {
-                return { attemptId, startedAt: attempt.metadata.submit_intent_at };
+            if (['submitted', 'auto_submitted'].includes(attempt.status)) {
+                return { attemptId, startedAt: null, alreadySubmitted: true };
             }
-
-            await this.assertOwnedAndRunning(user, attemptId, db, device);
+            if (attempt.status !== 'in_progress') throw new ForbiddenException('Ujian tidak sedang berlangsung.');
             const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
             const now = new Date(clock.now);
             const { data: exam, error: examError } = await db.from('cbt_exams')
                 .select('end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
             if (examError || !exam) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
             const deadline = this.resolvePersonalEnd(attempt, exam, now);
-            if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
-                throw new ForbiddenException({
-                    code: 'EXAM_TIME_EXPIRED',
-                    message: 'Waktu ujian telah berakhir sebelum pengumpulan dimulai.',
-                });
+            if (hasActiveSubmitIntent(attempt.metadata, now)) {
+                return { attemptId, startedAt: attempt.metadata.submit_intent_at };
             }
+            if (!Number.isFinite(deadline.getTime())) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
+            // Let submit finalize saved answers, without granting permission for late edits.
+            if (now >= deadline) return { attemptId, startedAt: null, savedAnswersOnly: true };
+            await this.assertOwnedAndRunning(user, attemptId, db, device, true);
             const startedAt = now.toISOString();
             const { error: updateError } = await db.from('cbt_exam_attempts')
                 .update({ metadata: { ...(attempt.metadata || {}), submit_intent_at: startedAt } })
@@ -695,7 +690,10 @@ export class ExamAttemptsService {
         if (attempt.status !== 'in_progress') {
             throw new ForbiddenException('Ujian tidak sedang berlangsung.');
         }
-        const submitIntentRecorded = this.hasSubmitIntent(attempt.metadata);
+        if (attempt.metadata?.recovery_submit_only === true && !allowRecordedSubmitIntent) {
+            throw new ForbiddenException('Pemulihan hanya mengizinkan pengumpulan jawaban, bukan perubahan jawaban.');
+        }
+
         if (attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) {
             throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
         }
@@ -708,7 +706,7 @@ export class ExamAttemptsService {
         const now = new Date(clock.now);
         const deadline = this.resolvePersonalEnd(attempt, exam, now);
         if (!Number.isFinite(deadline.getTime()) ||
-            (now >= deadline && !(allowRecordedSubmitIntent && submitIntentRecorded))) {
+            (now >= deadline && !(allowRecordedSubmitIntent && hasActiveSubmitIntent(attempt.metadata, now)))) {
             throw new ForbiddenException({ code: 'EXAM_TIME_EXPIRED', message: 'Waktu ujian telah berakhir. Jawaban baru tidak dapat diterima.' });
         }
         if (exam.start_time && now < new Date(exam.start_time)) {
@@ -763,6 +761,37 @@ export class ExamAttemptsService {
         );
     }
 
+    /** Accept a sealed local snapshot once, never through the editable autosave endpoints.
+     * The browser enforces freezing; offline content cannot be attested by server time.
+     */
+    private async assertFrozenSubmission(
+        user: AuthUser, attempt: any,
+        snapshot: { startedAt: string; personalEndTime: string }, device: string, db: DbSession,
+    ): Promise<void> {
+        if (attempt.user_id !== user.id || attempt.device_fingerprint !== device ||
+            Date.parse(attempt.started_at || '') !== Date.parse(snapshot.startedAt)) {
+            throw new ForbiddenException('Salinan jawaban tidak cocok dengan sesi atau perangkat ini.');
+        }
+        const recovery = attempt.metadata?.recovery_submit_only === true;
+        const sourceDeadline = recovery ? attempt.metadata?.recovery_source_deadline : attempt.personal_end_time;
+        const matchesDeadline = Date.parse(snapshot.personalEndTime) === Date.parse(sourceDeadline || '') ||
+            (recovery && Date.parse(snapshot.personalEndTime) === Date.parse(attempt.personal_end_time || ''));
+        if (!matchesDeadline) throw new ForbiddenException('Salinan jawaban berasal dari sesi yang sudah diganti.');
+        if (attempt.status !== 'in_progress' &&
+            !(attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true && !recovery)) {
+            throw new ForbiddenException('Sesi ditutup oleh pengawas atau pelanggaran; hubungi proktor.');
+        }
+        const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const now = new Date(clock.now);
+        if (recovery && now >= new Date(attempt.personal_end_time)) {
+            throw new ForbiddenException('Jendela pengumpulan pemulihan telah berakhir.');
+        }
+        const { data: exam, error } = await db.from('cbt_exams')
+            .select('start_time, end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+        if (error || !exam) throw new BadRequestException('Ujian belum dapat diverifikasi.');
+        if (exam.start_time && now < new Date(exam.start_time)) throw new ForbiddenException('Ujian belum dimulai.');
+    }
+
     // ── Pengumpulan ──────────────────────────────────────────────────────────
 
     /**
@@ -781,15 +810,17 @@ export class ExamAttemptsService {
         clientAttemptId?: string,
         deviceId?: string,
         answerRevisions?: Record<string, number>,
+        frozenSubmission?: { startedAt: string; personalEndTime: string },
     ) {
         const device = this.requireDeviceId(deviceId);
+        if (frozenSubmission && !clientAttemptId) throw new BadRequestException('Sesi salinan jawaban wajib diisi.');
         // Pengerjaan milik orang lain di perangkat ini: pencarian berdasarkan
         // pengguna di bawah akan berakhir "tidak ada sesi aktif", yang membingungkan.
         // Kasusnya dikenali lebih dulu supaya pesannya menyebut sebab sebenarnya.
         if (clientAttemptId) {
             const { data } = await this.db
                 .from('cbt_exam_attempts')
-                .select('user_id, exam_id, status, total_score')
+                .select('user_id, exam_id, status, total_score, device_fingerprint, started_at')
                 .eq('id', clientAttemptId)
                 .maybeSingle();
 
@@ -798,6 +829,8 @@ export class ExamAttemptsService {
                 exam_id: string;
                 status: string;
                 total_score: number | null;
+                device_fingerprint: string | null;
+                started_at: string | null;
             } | null;
 
             if (!owned || owned.exam_id !== examId) {
@@ -810,7 +843,12 @@ export class ExamAttemptsService {
                         'kembali dengan akun Anda sendiri sebelum mengumpulkan ujian.',
                 );
             }
-            if (owned && ['submitted', 'auto_submitted'].includes(owned.status)) {
+            if (frozenSubmission && (owned.device_fingerprint !== device ||
+                Date.parse(owned.started_at || '') !== Date.parse(frozenSubmission.startedAt))) {
+                throw new ForbiddenException('Salinan jawaban tidak cocok dengan sesi atau perangkat ini.');
+            }
+            if (owned && ['submitted', 'auto_submitted'].includes(owned.status) &&
+                !(frozenSubmission && owned.status === 'auto_submitted')) {
                 return {
                     score: owned.total_score ?? null,
                     alreadySubmitted: true,
@@ -829,7 +867,9 @@ export class ExamAttemptsService {
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
         const exam = examRow as { exam_type: string | null };
 
-        const attempt = await this.resolveAttemptForSubmit(user, examId, clientAttemptId);
+        const attempt = frozenSubmission && clientAttemptId
+            ? { id: clientAttemptId }
+            : await this.resolveAttemptForSubmit(user, examId, clientAttemptId);
 
         if (!attempt) {
             // Tidak ada pengerjaan aktif, tetapi mungkin sudah pernah dikumpulkan —
@@ -866,9 +906,10 @@ export class ExamAttemptsService {
             committed = await this.db.transaction(async db => {
                 await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
                 const { data: current, error: readError } = await db.from('cbt_exam_attempts')
-                    .select('status, total_score, metadata').eq('id', attempt.id).maybeSingle();
+                    .select('status, total_score, metadata, user_id, device_fingerprint, started_at, personal_end_time, exam_id').eq('id', attempt.id).maybeSingle();
                 if (readError || !current) throw new BadRequestException('Sesi pengerjaan tidak dapat dibaca.');
-                if (['submitted', 'auto_submitted'].includes(current.status)) {
+                if (['submitted', 'auto_submitted'].includes(current.status) &&
+                    !(frozenSubmission && current.status === 'auto_submitted')) {
                     return {
                         score: current.total_score ?? null,
                         alreadySubmitted: true,
@@ -876,7 +917,12 @@ export class ExamAttemptsService {
                         ...(current.total_score == null ? { gradingPending: true } : {}),
                     };
                 }
-                await this.assertOwnedAndRunning(user, attempt.id, db, device, true);
+                if (frozenSubmission) {
+                    await this.assertFrozenSubmission(user, current, frozenSubmission, device, db);
+                } else {
+                    if (current.metadata?.recovery_submit_only === true) throw new BadRequestException('Pemulihan memerlukan salinan jawaban terkunci.');
+                    await this.assertOwnedAndRunning(user, attempt.id, db, device, true);
+                }
                 const questions = await readExamQuestionVersion(db, examId);
                 const byId = new Map(questions.map(question => [question.id, question]));
                 const rows: AnswerInput[] = Object.entries(studentAnswers).map(([questionId, raw]) => {
@@ -898,10 +944,14 @@ export class ExamAttemptsService {
                 const finishedAt = new Date(clock.now).toISOString();
                 const metadata: Record<string, unknown> = { ...(current.metadata || {}) };
                 if (assignmentData) metadata.assignment_submission = assignmentData;
+                if (frozenSubmission) {
+                    metadata.frozen_submission_received_at = finishedAt;
+                    metadata.frozen_submission_deadline = frozenSubmission.personalEndTime;
+                }
                 const { error } = await db.from('cbt_exam_attempts').update({
                     status: 'submitted', total_score: null, finished_at: finishedAt, metadata,
                     needs_manual_grading: exam.exam_type === 'assignment' || questions.some(q => isEssayType(q.type)),
-                }).eq('id', attempt.id).eq('status', 'in_progress');
+                }).eq('id', attempt.id).eq('status', current.status);
                 if (error) throw new BadRequestException('Pengumpulan belum tersimpan. Silakan coba lagi.');
                 return { score: null, alreadySubmitted: false, savedAnswersOnly: false,
                     gradingPending: true, finishedAt, answers };

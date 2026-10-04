@@ -18,6 +18,9 @@ const RECOVERY_SESSION_STORE = 'recovery-sessions';
 const MIN_FREE_BYTES = 5 * 1024 * 1024;
 
 export interface ExamAnswerSnapshot {
+    frozenSubmission?: { startedAt: string; personalEndTime: string };
+    assignmentData?: { documentUrl?: string; videoUrl?: string; fileUrls?: string[]; textSubmission?: string };
+
     answers: Record<string, string>;
     doubtfulAnswers: string[];
     revisions?: Record<string, number>;
@@ -98,7 +101,13 @@ function normalizeSnapshot(value: unknown): ExamAnswerSnapshot | null {
     const revisions = row.revisions && typeof row.revisions === 'object'
         ? Object.fromEntries(Object.entries(row.revisions).filter(([, value]) => Number.isSafeInteger(value) && value >= 0))
         : undefined;
-    return { answers, doubtfulAnswers, ...(revisions ? { revisions } : {}) };
+    const frozen = row.frozenSubmission;
+    const frozenSubmission = frozen && typeof frozen.startedAt === 'string' && typeof frozen.personalEndTime === 'string' &&
+        Number.isFinite(Date.parse(frozen.startedAt)) && Number.isFinite(Date.parse(frozen.personalEndTime)) ? frozen : undefined;
+    return { answers, doubtfulAnswers, ...(revisions ? { revisions } : {}),
+        ...(frozenSubmission ? { frozenSubmission } : {}),
+        ...(row.assignmentData && typeof row.assignmentData === 'object' ? { assignmentData: row.assignmentData } : {}),
+    };
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -246,7 +255,7 @@ export async function clearExamRecoverySessions(): Promise<void> {
 
 export function validateExamRecoverySession(
     session: ExamRecoverySession | null,
-    expected: { examId: string; deviceId: string; userId?: string | null; now?: number },
+    expected: { examId: string; deviceId: string; userId?: string | null; now?: number; allowExpiredForSubmission?: boolean },
 ): RecoverySessionValidation {
     if (!session) return { valid: false, reason: 'missing' };
     if (!normalizeRecoverySession(session)) return { valid: false, reason: 'invalid' };
@@ -255,7 +264,7 @@ export function validateExamRecoverySession(
     if (!expected.deviceId || session.deviceId !== expected.deviceId) {
         return { valid: false, reason: 'device' };
     }
-    if (session.deadlineAt <= (expected.now ?? Date.now())) {
+    if (session.deadlineAt <= (expected.now ?? Date.now()) && !expected.allowExpiredForSubmission) {
         return { valid: false, reason: 'expired' };
     }
     return { valid: true, session };
@@ -398,6 +407,8 @@ async function idbPut(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<
             answers: snapshot.answers,
             doubtfulAnswers: snapshot.doubtfulAnswers,
             revisions: snapshot.revisions,
+            frozenSubmission: snapshot.frozenSubmission,
+            assignmentData: snapshot.assignmentData,
             updatedAt: new Date().toISOString(),
         } satisfies StoredSnapshot);
         request.onerror = () => reject(request.error);
@@ -481,7 +492,12 @@ export async function writeExamSnapshot(
     attemptId: string,
     snapshot: ExamAnswerSnapshot,
 ): Promise<ExamStorageWriteResult> {
-    return enqueueSnapshotOperation(attemptId, () => writeSnapshotNow(attemptId, snapshot));
+    return enqueueSnapshotOperation(attemptId, async () => {
+        const durable = await idbGet(attemptId).catch(() => null);
+        const current = durable || readLegacy(attemptId);
+        if (current?.frozenSubmission) return { saved: true, mode: durable ? 'indexeddb' as const : 'localstorage' as const };
+        return writeSnapshotNow(attemptId, snapshot);
+    });
 }
 
 export async function readExamSnapshot(attemptId: string): Promise<ExamAnswerSnapshot | null> {
@@ -592,4 +608,15 @@ export async function inspectExamStorage(): Promise<ExamStorageHealth> {
             };
         }
     }
+}
+
+/** Freeze after queued edits have settled. Repeated attempts reuse the identical payload. */
+export async function freezeExamSnapshot(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<ExamAnswerSnapshot> {
+    return enqueueSnapshotOperation(attemptId, async () => {
+        const current = await idbGet(attemptId).catch(() => null) || readLegacy(attemptId);
+        const frozen = current?.frozenSubmission ? current : snapshot;
+        const result = await writeSnapshotNow(attemptId, frozen);
+        if (!result.saved) throw new Error('Salinan jawaban terkunci belum tersimpan di perangkat. Jangan tutup halaman.');
+        return frozen;
+    });
 }

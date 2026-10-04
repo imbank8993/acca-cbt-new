@@ -15,7 +15,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
+import { AuthorizationService } from '../auth/authorization.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LoginHistoryService } from '../auth/login-history.service';
+import { SettingsService } from '../settings/settings.service';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -58,6 +61,9 @@ export class ProctorController {
         private readonly classes: ClassesService,
         private readonly exams: ExamAdminService,
         private readonly monitoring: ExamMonitoringService,
+        private readonly loginHistory: LoginHistoryService,
+        private readonly authz: AuthorizationService,
+        private readonly settings: SettingsService,
     ) {}
 
     // ── Organisasi & identitas ───────────────────────────────────────────────
@@ -91,6 +97,38 @@ export class ProctorController {
         return {
             logins: await this.proctor.getRecentLogins(user, organizationId, query.limit ?? 10),
         };
+    }
+
+    @Get('top-scorers')
+    @ApiOperation({ summary: 'Dua peraih nilai tertinggi per ujian (ringkasan dasbor)' })
+    async getTopScorers(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Query() query: RecentLoginsQueryDto,
+    ) {
+        return {
+            exams: await this.proctor.getTopScorers(user, organizationId, {
+                examLimit: Math.min(query.limit ?? 6, 50),
+                perExam: 2,
+            }),
+        };
+    }
+
+    @Get('login-history')
+    @ApiOperation({ summary: 'Riwayat login detail seluruh anggota organisasi (khusus Proktor/Admin)' })
+    async getLoginHistory(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Query() query: RecentLoginsQueryDto,
+    ) {
+        // Memuat IP & perangkat seluruh anggota — jangan buka untuk Guru/Pengawas.
+        await this.authz.assertProktor(user, organizationId);
+        const timeZone = (await this.settings.getSchoolTimeZone().catch(() => null)) || 'Asia/Jakarta';
+        const [history, stats] = await Promise.all([
+            this.loginHistory.getRecent(organizationId, query.limit ?? 20),
+            this.loginHistory.getStats(organizationId, timeZone),
+        ]);
+        return { history, stats };
     }
 
     // ── Tahun ajaran & mata pelajaran ────────────────────────────────────────
