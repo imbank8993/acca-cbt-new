@@ -100,7 +100,7 @@ export class ProctorController {
     }
 
     @Get('top-scorers')
-    @ApiOperation({ summary: 'Dua peraih nilai tertinggi per ujian (ringkasan dasbor)' })
+    @ApiOperation({ summary: 'Tiga peraih nilai tertinggi per ujian (ringkasan dasbor)' })
     async getTopScorers(
         @CurrentUser() user: AuthUser,
         @CurrentSchoolId() organizationId: string,
@@ -109,7 +109,7 @@ export class ProctorController {
         return {
             exams: await this.proctor.getTopScorers(user, organizationId, {
                 examLimit: Math.min(query.limit ?? 6, 50),
-                perExam: 2,
+                perExam: 3,
             }),
         };
     }

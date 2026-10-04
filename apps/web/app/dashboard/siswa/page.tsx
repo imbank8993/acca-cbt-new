@@ -58,8 +58,13 @@ export default function SiswaDashboard() {
     }, [router, setAnnouncements, setExams, setLoading, setResults]);
 
     useEffect(() => {
-        const timer = window.setTimeout(() => void loadData(), 0);
-        return () => window.clearTimeout(timer);
+        const refresh = () => { void loadData(); };
+        const timer = window.setTimeout(refresh, 0);
+        window.addEventListener('exam-submission-synced', refresh);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener('exam-submission-synced', refresh);
+        };
     }, [loadData]);
 
     // Jadwal dan hasil disegarkan berkala. Dulu keduanya didorong langganan

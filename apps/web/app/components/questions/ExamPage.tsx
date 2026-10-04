@@ -17,6 +17,7 @@ readExamSnapshot,
 readSecurityEvents,
 removeExamRecoverySession,
 removeExamSnapshot,
+removeExamSubmissionRegistration,
 removeSecurityEvent,
 resolveDurableDeviceId,
 updateExamRecoveryPosition,
@@ -751,6 +752,7 @@ export default function ExamPage() {
                 }
                 if (attempt?.id && !result.savedAnswersOnly) {
                     await removeExamSnapshot(attempt.id);
+                    await removeExamSubmissionRegistration(attempt.id, activeAttempt.started_at, activeAttempt.personal_end_time);
                     try {
                         localStorage.removeItem(`exam_assignment_${attempt.id}`);
                     } catch { /* Server has confirmed the commit; cache cleanup must not change its outcome. */ }

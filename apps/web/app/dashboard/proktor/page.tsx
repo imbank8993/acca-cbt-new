@@ -34,6 +34,7 @@ Users
 import { useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 import { RecentLoginsCard } from './RecentLoginsCard';
+import { TopScorersCard } from '../admin/TopScorersCard';
 
 type LoggedInUser = RecentLogin & { lastLoginAt: string };
 const hasLoginTime = (login: RecentLogin): login is LoggedInUser => typeof login.lastLoginAt === 'string';
@@ -263,20 +264,20 @@ export default function ProktorDashboard() {
                 ))}
             </div>
 
-            {/* ── Layout: Ujian (3 card width) dan Ringkasan (2 card width) ── */}
+            {/* ── Layout: Daftar Ujian (Kiri) dan Nilai Tertinggi & Informasi (Kanan) ── */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
 
-                {/* ── Left: Exam List (3/5 width - mengikuti 3 card di atas) ── */}
+                {/* ── Left: Daftar Ujian ── */}
                 <div className="md:col-span-3 bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
                     <div className="px-6 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent">
                         <div>
-                            <h2 className="text-base font-bold text-slate-900">Ujian</h2>
+                            <h2 className="text-base font-bold text-slate-900">Daftar Ujian</h2>
                             <p className="text-xs text-slate-400 mt-0.5">{exams.length} total ujian</p>
                         </div>
                     </div>
 
                     {exams.length > 0 ? (
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-slate-100">
                             {exams.slice(0, 6).map((exam, idx) => {
                                 const isPublished = !!exam.is_published;
                                 const isDraft = !isPublished;
@@ -380,12 +381,8 @@ export default function ProktorDashboard() {
                     )}
                 </div>
 
-                {/* ── Right: Ringkasan (2/5 width - mengikuti 2 card di atas) ── */}
+                {/* ── Right: Informasi & Nilai Tertinggi per Ujian ── */}
                 <div className="md:col-span-2 space-y-4">
-
-                    {/* Aktivitas Login Pengguna */}
-                    <RecentLoginsCard initialLogins={logins} />
-                    {/* Informasi / Pengumuman */}
                     {announcements.length > 0 && (
                         <div className="bg-white rounded-lg border border-blue-200 overflow-hidden shadow-sm">
                             <div className="px-5 py-4 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-transparent flex justify-between items-center">
@@ -421,7 +418,13 @@ export default function ProktorDashboard() {
                         </div>
                     )}
 
+                    <TopScorersCard monitoringBasePath="/dashboard/proktor/monitoring" />
                 </div>
+            </div>
+
+            {/* ── Aktivitas Login Pengguna (di bagian bawah) ── */}
+            <div className="mt-4">
+                <RecentLoginsCard initialLogins={logins} />
             </div>
 
             {/* Popup Modal Informasi */}

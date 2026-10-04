@@ -355,7 +355,7 @@ export interface ExamTopScorers {
     topScorers: TopScorer[];
 }
 
-/** Dua peraih nilai tertinggi untuk ujian-ujian yang paling baru dikerjakan. */
+/** Tiga peraih nilai tertinggi untuk ujian-ujian yang paling baru dikerjakan. */
 export async function getTopScorers(examLimit = 6): Promise<ExamTopScorers[]> {
     const query = new URLSearchParams({ limit: String(examLimit) });
     const res = await apiGet<{ exams: ExamTopScorers[] }>(`/api/proctor/top-scorers?${query}`);

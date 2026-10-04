@@ -3,8 +3,7 @@
 import { getLoginHistory } from '@/lib/api/proctor';
 import type { LoginHistoryRecord, LoginStats, RecentLogin } from '@/lib/api/proctor';
 import {
-    Activity, Check, ChevronDown, ChevronUp, Clock, Globe, KeyRound,
-    Loader2, LogIn, Monitor, Smartphone, Tablet, X, Shield, RefreshCw,
+    Activity, Loader2, LogIn, Monitor, Smartphone, Tablet, X, RefreshCw,
     Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -24,7 +23,6 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     const [searchAll, setSearchAll] = useState('');
     const [filterMethod, setFilterMethod] = useState<string>('all');
     const [filterStatus, setFilterStatus] = useState<string>('all');
-    const [showStats, setShowStats] = useState(true);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
     const inFlightRef = useRef(false);
 
@@ -87,7 +85,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
             const d = new Date(iso);
             return d.toLocaleString('id-ID', {
                 day: '2-digit', month: 'short', year: 'numeric',
-                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour: '2-digit', minute: '2-digit',
             });
         } catch { return '-'; }
     };
@@ -97,7 +95,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
         const past = new Date(dateString);
         const diffMs = now.getTime() - past.getTime();
         const diffSecs = Math.floor(diffMs / 1000);
-        if (diffSecs < 60) return `${diffSecs} dtk lalu`;
+        if (diffSecs < 60) return 'Baru saja';
         const diffMins = Math.floor(diffSecs / 60);
         if (diffMins < 60) return `${diffMins} mnt lalu`;
         const diffHours = Math.floor(diffMins / 60);
@@ -109,24 +107,24 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     // Icon perangkat
     const DeviceIcon = ({ type }: { type: string | null }) => {
         switch (type) {
-            case 'mobile': return <Smartphone size={12} className="text-slate-400" />;
-            case 'tablet': return <Tablet size={12} className="text-slate-400" />;
-            default: return <Monitor size={12} className="text-slate-400" />;
+            case 'mobile': return <Smartphone size={11} className="text-[#3083FF]/60" />;
+            case 'tablet': return <Tablet size={11} className="text-[#3083FF]/60" />;
+            default: return <Monitor size={11} className="text-[#3083FF]/60" />;
         }
     };
 
-    // Badge metode login
+    // Badge metode login — senada nuansa biru
     const MethodBadge = ({ method }: { method: string }) => {
         if (method === 'sso') {
             return (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-600 border border-purple-200">
-                    <Shield size={9} /> SSO
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/20">
+                    SSO
                 </span>
             );
         }
         return (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-200">
-                <KeyRound size={9} /> Password
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-50 text-sky-600 border border-sky-200/70">
+                Password
             </span>
         );
     };
@@ -141,92 +139,104 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     });
 
     // Render satu baris riwayat login
-    const renderHistoryRow = (record: LoginHistoryRecord) => (
-        <div
-            key={record.id}
-            className={`flex items-start gap-3 p-2.5 rounded-lg transition-colors ${
-                record.success
-                    ? 'hover:bg-slate-50'
-                    : 'bg-red-50/50 hover:bg-red-50'
-            }`}
-        >
-            {/* Avatar + Status */}
-            <div className="relative shrink-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    record.success ? 'bg-[#3083FF]/10' : 'bg-red-100'
-                }`}>
-                    <span className={`text-xs font-bold ${
-                        record.success ? 'text-[#3083FF]' : 'text-red-500'
+    const renderHistoryRow = (record: LoginHistoryRecord) => {
+        const deviceLabel = [record.browser, record.os].filter(Boolean).join(' · ');
+        return (
+            <div
+                key={record.id}
+                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+                    record.success
+                        ? 'border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03]'
+                        : 'bg-rose-50/40 border-rose-100/80 hover:bg-rose-50/70'
+                }`}
+            >
+                {/* Avatar + Status Dot */}
+                <div className="relative shrink-0">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${
+                        record.success
+                            ? 'bg-gradient-to-br from-[#3083FF]/15 to-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
+                            : 'bg-rose-50 border-rose-200 text-rose-500'
                     }`}>
-                        {record.fullName.charAt(0).toUpperCase()}
+                        <span className="text-xs font-bold">
+                            {record.fullName.charAt(0).toUpperCase()}
+                        </span>
+                    </div>
+                    <span
+                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                            record.success ? 'bg-[#3083FF]' : 'bg-rose-500'
+                        }`}
+                    />
+                </div>
+
+                {/* Info utama */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-slate-800 truncate group-hover:text-[#3083FF] transition-colors">
+                            {record.fullName}
+                        </p>
+                        <MethodBadge method={record.loginMethod} />
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 truncate">
+                        {record.role && (
+                            <span className="font-semibold text-[#3083FF]/80 shrink-0">{record.role}</span>
+                        )}
+                        {record.role && (deviceLabel || record.ipAddress) && (
+                            <span className="text-slate-300">•</span>
+                        )}
+                        {deviceLabel && (
+                            <span className="truncate">{deviceLabel}</span>
+                        )}
+                        {record.ipAddress && (
+                            <>
+                                {deviceLabel && <span className="text-slate-300">•</span>}
+                                <span className="text-slate-400/90 tabular-nums shrink-0">{record.ipAddress}</span>
+                            </>
+                        )}
+                    </div>
+                    {!record.success && record.failureReason && (
+                        <p className="text-[10px] text-rose-500 font-medium mt-0.5 truncate">
+                            {record.failureReason}
+                        </p>
+                    )}
+                </div>
+
+                {/* Waktu */}
+                <div className="shrink-0 text-right">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold whitespace-nowrap ${
+                        record.success
+                            ? 'bg-[#3083FF]/[0.07] text-[#3083FF]'
+                            : 'bg-rose-100/70 text-rose-600'
+                    }`}>
+                        {getTimeAgo(record.createdAt)}
                     </span>
                 </div>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 border-white ${
-                    record.success ? 'bg-emerald-500' : 'bg-red-500'
-                }`}>
-                    {record.success
-                        ? <Check size={7} className="text-white" strokeWidth={3} />
-                        : <X size={7} className="text-white" strokeWidth={3} />
-                    }
-                </div>
             </div>
-
-            {/* Info utama */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-slate-800 truncate">{record.fullName}</p>
-                    <MethodBadge method={record.loginMethod} />
-                </div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {record.role && (
-                        <span className="text-[10px] text-slate-500 font-medium">{record.role}</span>
-                    )}
-                    {record.browser && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
-                            <DeviceIcon type={record.deviceType} />
-                            {record.browser}
-                            {record.os ? ` · ${record.os}` : ''}
-                        </span>
-                    )}
-                    {record.ipAddress && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
-                            <Globe size={9} /> {record.ipAddress}
-                        </span>
-                    )}
-                </div>
-                {!record.success && record.failureReason && (
-                    <p className="text-[10px] text-red-500 mt-0.5">⚠ {record.failureReason}</p>
-                )}
-            </div>
-
-            {/* Waktu */}
-            <div className="shrink-0 text-right">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border bg-slate-100 text-slate-500 border-slate-200">
-                    <Clock size={9} />
-                    {getTimeAgo(record.createdAt)}
-                </span>
-            </div>
-        </div>
-    );
+        );
+    };
 
     // Fallback: render baris lama (data dari getRecentLogins)
     const renderFallbackRow = (login: LoginUser) => (
-        <div key={login.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                login.isActive ? 'bg-[#3083FF]/10' : 'bg-slate-100'
+        <div
+            key={login.id}
+            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03] transition-all"
+        >
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border ${
+                login.isActive
+                    ? 'bg-gradient-to-br from-[#3083FF]/15 to-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
+                    : 'bg-slate-50 border-slate-200/80 text-slate-400'
             }`}>
-                <span className={`text-xs font-bold ${
-                    login.isActive ? 'text-[#3083FF]' : 'text-slate-400'
-                }`}>
+                <span className="text-xs font-bold">
                     {login.fullName.charAt(0).toUpperCase()}
                 </span>
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-800 truncate">{login.fullName}</p>
-                <p className="text-[10px] text-slate-400">{login.role}</p>
+                <p className="text-xs font-bold text-slate-800 truncate group-hover:text-[#3083FF] transition-colors">
+                    {login.fullName}
+                </p>
+                <p className="text-[11px] font-medium text-[#3083FF]/80 mt-0.5">{login.role}</p>
             </div>
             <div className="shrink-0 text-right">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border bg-slate-100 text-slate-500 border-slate-200">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF] whitespace-nowrap">
                     {getTimeAgo(login.lastLoginAt)}
                 </span>
             </div>
@@ -236,11 +246,17 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     if (loading) {
         return (
             <div className="bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
-                <div className="px-5 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent">
-                    <h2 className="text-sm font-bold text-slate-900">Aktivitas Login</h2>
+                <div className="px-5 py-4 border-b border-[#3083FF]/15 bg-gradient-to-r from-[#3083FF]/[0.05] via-[#3083FF]/[0.02] to-transparent flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#3083FF]/10 border border-[#3083FF]/20 flex items-center justify-center text-[#3083FF]">
+                        <Activity size={15} />
+                    </div>
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900 leading-tight">Aktivitas Login</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Memuat riwayat masuk...</p>
+                    </div>
                 </div>
-                <div className="py-10 flex items-center justify-center">
-                    <Loader2 size={24} className="text-[#3083FF] animate-spin" />
+                <div className="py-12 flex items-center justify-center">
+                    <Loader2 size={22} className="text-[#3083FF] animate-spin" />
                 </div>
             </div>
         );
@@ -249,70 +265,46 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     return (
         <div className="bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
             {/* Header */}
-            <div className="px-5 py-3 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-slate-900">Aktivitas Login</h2>
+            <div className="px-5 py-3.5 border-b border-[#3083FF]/15 bg-gradient-to-r from-[#3083FF]/[0.05] via-[#3083FF]/[0.02] to-transparent flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#3083FF]/10 border border-[#3083FF]/20 flex items-center justify-center text-[#3083FF] shrink-0">
+                        <Activity size={15} />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-sm font-bold text-slate-900 leading-tight truncate">Aktivitas Login</h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                            Diperbarui {lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
                     <button
                         type="button"
                         onClick={() => void loadHistory()}
                         disabled={refreshing}
-                        title="Muat ulang aktivitas login"
-                        className="text-[9px] text-slate-400 hover:text-[#3083FF] flex items-center gap-1 transition-colors disabled:cursor-wait"
+                        title={`Muat ulang (Terakhir: ${lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`}
+                        className="w-7 h-7 rounded-lg text-[#3083FF]/70 hover:text-[#3083FF] hover:bg-[#3083FF]/10 flex items-center justify-center transition-colors disabled:cursor-wait"
                     >
-                        <RefreshCw size={9} className={refreshing ? 'animate-spin' : ''} />
-                        {lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                     </button>
-                </div>
-                <div className="flex items-center gap-2">
-                    {hasHistoryData && (
-                        <button
-                            onClick={() => setShowStats(!showStats)}
-                            className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                            {showStats ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                    )}
                     <button
                         onClick={openAllModal}
-                        className="text-[11px] font-bold text-[#3083FF] hover:text-[#3083FF] px-2.5 py-1 rounded-lg border border-[#3083FF]/30 hover:bg-[#3083FF]/5 transition-colors"
+                        className="text-[11px] font-semibold text-[#3083FF] bg-[#3083FF]/[0.08] hover:bg-[#3083FF]/15 border border-[#3083FF]/20 px-3 py-1.5 rounded-lg transition-colors"
                     >
                         Lihat Semua
                     </button>
                 </div>
             </div>
 
-            {/* Statistik */}
-            {hasHistoryData && stats && showStats && (
-                <div className="grid grid-cols-4 gap-0 border-b border-slate-100">
-                    <div className="px-3 py-2.5 text-center border-r border-slate-100">
-                        <p className="text-base font-extrabold text-[#3083FF] tabular-nums">{stats.todayTotal}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">Hari Ini</p>
-                    </div>
-                    <div className="px-3 py-2.5 text-center border-r border-slate-100">
-                        <p className="text-base font-extrabold text-[#3083FF] tabular-nums">{stats.todayUnique}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">Unik</p>
-                    </div>
-                    <div className="px-3 py-2.5 text-center border-r border-slate-100">
-                        <p className="text-base font-extrabold text-slate-600 tabular-nums">{stats.weekTotal}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">7 Hari</p>
-                    </div>
-                    <div className="px-3 py-2.5 text-center">
-                        <p className={`text-base font-extrabold tabular-nums ${
-                            stats.todayFailed > 0 ? 'text-red-500' : 'text-slate-400'
-                        }`}>{stats.todayFailed}</p>
-                        <p className="text-[9px] text-slate-400 font-medium">Gagal</p>
-                    </div>
-                </div>
-            )}
-
             {/* Daftar riwayat */}
-            <div className="p-3 max-h-80 overflow-y-auto">
+            <div className="p-2.5 max-h-80 overflow-y-auto">
                 {hasHistoryData && history.length > 0 ? (
-                    <div className="space-y-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                         {history.map(renderHistoryRow)}
                     </div>
                 ) : fallbackLogins.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                         {[...fallbackLogins]
                             .sort((a, b) => {
                                 const ta = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
@@ -322,11 +314,11 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                             .map(renderFallbackRow)}
                     </div>
                 ) : (
-                    <div className="py-8 text-center">
-                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Activity size={20} className="text-slate-400" />
+                    <div className="py-10 text-center">
+                        <div className="w-12 h-12 bg-[#3083FF]/5 border border-[#3083FF]/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                            <Activity size={20} className="text-[#3083FF]/50" />
                         </div>
-                        <p className="text-xs text-slate-500">Belum ada aktivitas login</p>
+                        <p className="text-xs font-medium text-slate-500">Belum ada aktivitas login</p>
                     </div>
                 )}
             </div>
@@ -338,43 +330,50 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                     onClick={() => setShowAllModal(false)}
                 >
                     <div
-                        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85dvh]"
+                        className="bg-white rounded-2xl border border-[#3083FF]/20 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85dvh]"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal header */}
-                        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                            <div>
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                    <LogIn size={18} className="text-[#3083FF]" />
-                                    Riwayat Aktivitas Login
-                                </h3>
-                                {!allLoading && (
-                                    <p className="text-[11px] text-slate-500 mt-0.5">
-                                        {filteredAllHistory.length} catatan
-                                    </p>
-                                )}
+                        <div className="px-5 py-4 border-b border-[#3083FF]/15 flex items-center justify-between bg-gradient-to-r from-[#3083FF]/[0.06] via-[#3083FF]/[0.02] to-transparent">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-[#3083FF]/10 border border-[#3083FF]/20 flex items-center justify-center text-[#3083FF]">
+                                    <LogIn size={17} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900">
+                                        Riwayat Aktivitas Login
+                                    </h3>
+                                    {!allLoading && (
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Menampilkan {filteredAllHistory.length} aktivitas tercatat
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                            <button onClick={() => setShowAllModal(false)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
+                            <button
+                                onClick={() => setShowAllModal(false)}
+                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-[#3083FF]/10 rounded-lg transition-colors"
+                            >
                                 <X size={16} />
                             </button>
                         </div>
 
                         {/* Filter bar */}
-                        <div className="px-4 pt-3 pb-2 flex items-center gap-2 border-b border-slate-100">
-                            <div className="flex-1 relative">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50">
+                            <div className="flex-1 min-w-[180px] relative">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3083FF]/60" />
                                 <input
                                     type="text"
                                     value={searchAll}
                                     onChange={(e) => setSearchAll(e.target.value)}
-                                    placeholder="Cari nama..."
-                                    className="w-full bg-white border border-slate-200 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/40 outline-none pl-9 pr-3 py-2 rounded-lg text-sm"
+                                    placeholder="Cari nama pengguna..."
+                                    className="w-full bg-white border border-[#3083FF]/20 text-slate-800 placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/20 outline-none pl-9 pr-3 py-1.5 rounded-lg text-xs"
                                 />
                             </div>
                             <select
                                 value={filterMethod}
                                 onChange={(e) => setFilterMethod(e.target.value)}
-                                className="bg-white border border-slate-200 text-slate-700 text-xs font-medium px-3 py-2 rounded-lg focus:ring-2 focus:ring-[#3083FF]/40 outline-none"
+                                className="bg-white border border-[#3083FF]/20 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-lg focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                             >
                                 <option value="all">Semua Metode</option>
                                 <option value="password">Password</option>
@@ -383,7 +382,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                             <select
                                 value={filterStatus}
                                 onChange={(e) => setFilterStatus(e.target.value)}
-                                className="bg-white border border-slate-200 text-slate-700 text-xs font-medium px-3 py-2 rounded-lg focus:ring-2 focus:ring-[#3083FF]/40 outline-none"
+                                className="bg-white border border-[#3083FF]/20 text-slate-700 text-xs font-medium px-3 py-1.5 rounded-lg focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
                             >
                                 <option value="all">Semua Status</option>
                                 <option value="success">Berhasil</option>
@@ -394,78 +393,85 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                         {/* Content */}
                         <div className="p-3 overflow-y-auto flex-1">
                             {allLoading ? (
-                                <div className="py-10 flex items-center justify-center">
+                                <div className="py-12 flex items-center justify-center">
                                     <Loader2 size={24} className="text-[#3083FF] animate-spin" />
                                 </div>
                             ) : filteredAllHistory.length > 0 ? (
                                 <div className="space-y-1">
-                                    {filteredAllHistory.map((record) => (
-                                        <div
-                                            key={record.id}
-                                            className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                                                record.success
-                                                    ? 'hover:bg-slate-50'
-                                                    : 'bg-red-50/50 hover:bg-red-50'
-                                            }`}
-                                        >
-                                            {/* Avatar */}
-                                            <div className="relative shrink-0">
-                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                                                    record.success ? 'bg-[#3083FF]/10' : 'bg-red-100'
-                                                }`}>
-                                                    <span className={`text-sm font-bold ${
-                                                        record.success ? 'text-[#3083FF]' : 'text-red-500'
+                                    {filteredAllHistory.map((record) => {
+                                        const deviceLabel = [record.browser, record.os].filter(Boolean).join(' · ');
+                                        return (
+                                            <div
+                                                key={record.id}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                                    record.success
+                                                        ? 'border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03]'
+                                                        : 'bg-rose-50/40 border-rose-100/80 hover:bg-rose-50/70'
+                                                }`}
+                                            >
+                                                {/* Avatar */}
+                                                <div className="relative shrink-0">
+                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${
+                                                        record.success
+                                                            ? 'bg-gradient-to-br from-[#3083FF]/15 to-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
+                                                            : 'bg-rose-50 border-rose-200 text-rose-500'
                                                     }`}>
-                                                        {record.fullName.charAt(0).toUpperCase()}
+                                                        <span className="text-xs font-bold">
+                                                            {record.fullName.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <span
+                                                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                                                            record.success ? 'bg-[#3083FF]' : 'bg-rose-500'
+                                                        }`}
+                                                    />
+                                                </div>
+
+                                                {/* Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className="text-xs font-bold text-slate-800 truncate">{record.fullName}</p>
+                                                        <MethodBadge method={record.loginMethod} />
+                                                        {record.role && (
+                                                            <span className="text-[10px] bg-[#3083FF]/[0.06] text-[#3083FF] px-1.5 py-0.5 rounded font-semibold">
+                                                                {record.role}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 flex-wrap">
+                                                        {deviceLabel && (
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <DeviceIcon type={record.deviceType} />
+                                                                {deviceLabel}
+                                                            </span>
+                                                        )}
+                                                        {record.ipAddress && (
+                                                            <>
+                                                                {deviceLabel && <span className="text-slate-300">•</span>}
+                                                                <span className="tabular-nums">{record.ipAddress}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    {!record.success && record.failureReason && (
+                                                        <p className="text-[11px] text-rose-500 font-medium mt-1">
+                                                            {record.failureReason}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* Waktu */}
+                                                <div className="shrink-0 text-right">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF]">
+                                                        {getTimeAgo(record.createdAt)}
                                                     </span>
-                                                </div>
-                                                <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center border-2 border-white ${
-                                                    record.success ? 'bg-emerald-500' : 'bg-red-500'
-                                                }`}>
-                                                    {record.success
-                                                        ? <Check size={7} className="text-white" strokeWidth={3} />
-                                                        : <X size={7} className="text-white" strokeWidth={3} />
-                                                    }
+                                                    <p className="text-[10px] text-slate-400 mt-1 tabular-nums">{formatTime(record.createdAt)}</p>
                                                 </div>
                                             </div>
-
-                                            {/* Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="text-sm font-semibold text-slate-800 truncate">{record.fullName}</p>
-                                                    <MethodBadge method={record.loginMethod} />
-                                                    {record.role && (
-                                                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{record.role}</span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                                    {record.browser && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
-                                                            <DeviceIcon type={record.deviceType} />
-                                                            {record.browser}{record.os ? ` · ${record.os}` : ''}
-                                                        </span>
-                                                    )}
-                                                    {record.ipAddress && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
-                                                            <Globe size={10} /> {record.ipAddress}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {!record.success && record.failureReason && (
-                                                    <p className="text-[11px] text-red-500 mt-1">⚠ {record.failureReason}</p>
-                                                )}
-                                            </div>
-
-                                            {/* Waktu */}
-                                            <div className="shrink-0 text-right">
-                                                <p className="text-[11px] font-medium text-slate-600">{getTimeAgo(record.createdAt)}</p>
-                                                <p className="text-[10px] text-slate-400">{formatTime(record.createdAt)}</p>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
-                                <p className="py-8 text-center text-xs text-slate-400">Tidak ada data yang cocok</p>
+                                <p className="py-10 text-center text-xs text-slate-400">Tidak ada data yang cocok</p>
                             )}
                         </div>
                     </div>
@@ -474,3 +480,4 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
         </div>
     );
 }
+

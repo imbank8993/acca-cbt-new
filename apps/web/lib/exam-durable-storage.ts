@@ -210,6 +210,7 @@ export async function writeExamRecoverySession(
         ...session,
         cachedAt: session.cachedAt || new Date().toISOString(),
     };
+    await registerExamSubmission(value);
     await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
         const request = store.put(value);
         request.onsuccess = () => resolve();
@@ -618,5 +619,127 @@ export async function freezeExamSnapshot(attemptId: string, snapshot: ExamAnswer
         const result = await writeSnapshotNow(attemptId, frozen);
         if (!result.saved) throw new Error('Salinan jawaban terkunci belum tersimpan di perangkat. Jangan tutup halaman.');
         return frozen;
+    });
+}
+
+export interface ExamSubmissionRegistration {
+    attemptId: string;
+    examId: string;
+    userId: string;
+    deviceId: string;
+    startedAt: string;
+    personalEndTime: string;
+    deadlineAt: number;
+    assignment: boolean;
+    registeredAt?: number;
+}
+const SUBMISSION_PREFIX = 'exam_submission_';
+export const EXAM_SUBMISSION_QUEUE_CHANGED = 'exam-submission-queue-changed';
+
+function submissionRegistration(session: ExamRecoverySession): ExamSubmissionRegistration | null {
+    const { started_at: startedAt, personal_end_time: personalEndTime } = session.attempt;
+    if (!startedAt || !personalEndTime || !Number.isFinite(Date.parse(startedAt)) || !Number.isFinite(Date.parse(personalEndTime))) return null;
+    return { attemptId: session.attemptId, examId: session.examId, userId: session.userId,
+        deviceId: session.deviceId, startedAt, personalEndTime, deadlineAt: session.deadlineAt,
+        assignment: session.exam.exam_type === 'assignment', registeredAt: Date.parse(session.cachedAt) || 0 };
+}
+function validRegistration(value: unknown): value is ExamSubmissionRegistration {
+    if (!value || typeof value !== 'object') return false;
+    const row = value as ExamSubmissionRegistration;
+    return ['attemptId', 'examId', 'userId', 'deviceId', 'startedAt', 'personalEndTime'].every(key =>
+        typeof row[key as keyof ExamSubmissionRegistration] === 'string' && Boolean(row[key as keyof ExamSubmissionRegistration])) &&
+        Number.isFinite(row.deadlineAt) && Number.isFinite(Date.parse(row.startedAt)) && Number.isFinite(Date.parse(row.personalEndTime));
+}
+async function writeSubmissionRegistration(entry: ExamSubmissionRegistration): Promise<void> {
+    const key = SUBMISSION_PREFIX + entry.attemptId;
+    let mirrored = false;
+    try { localStorage.setItem(key, JSON.stringify(entry)); mirrored = true; } catch { /* IndexedDB may still work. */ }
+    try {
+        const db = await openDatabase();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+            tx.objectStore(SETTINGS_STORE).put({ key, value: entry });
+            tx.oncomplete = () => resolve();
+            tx.onabort = tx.onerror = () => reject(tx.error || new Error('Antrean pengiriman belum tersimpan.'));
+        });
+    } catch (error) { if (!mirrored) throw error; }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new Event(EXAM_SUBMISSION_QUEUE_CHANGED));
+    }
+}
+/** Minimal ownership index; it survives removal of the offline question cache at logout. */
+export async function registerExamSubmission(session: ExamRecoverySession): Promise<void> {
+    const entry = submissionRegistration(session);
+    if (entry) await writeSubmissionRegistration(entry);
+}
+export async function listExamSubmissionRegistrations(): Promise<ExamSubmissionRegistration[]> {
+    const entries = new Map<string, ExamSubmissionRegistration>();
+    const keepNewest = (entry: ExamSubmissionRegistration) => {
+        const previous = entries.get(entry.attemptId);
+        if (!previous || Date.parse(entry.startedAt) > Date.parse(previous.startedAt) ||
+            (Date.parse(entry.startedAt) === Date.parse(previous.startedAt) && (entry.registeredAt || 0) >= (previous.registeredAt || 0))) {
+            entries.set(entry.attemptId, entry);
+        }
+    };
+    // Older installations have recovery sessions but no minimal queue index yet.
+    try {
+        const sessions = await recoveryStoreRequest<unknown[]>('readonly', (store, resolve, reject) => {
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        for (const value of sessions) {
+            const session = normalizeRecoverySession(value);
+            const entry = session && submissionRegistration(session);
+            if (entry) keepNewest(entry);
+        }
+    } catch { /* Legacy browser fallback below. */ }
+    try {
+        for (let index = 0; index < localStorage.length; index++) {
+            const key = localStorage.key(index);
+            if (!key?.startsWith(SUBMISSION_PREFIX)) continue;
+            try {
+                const value: unknown = JSON.parse(localStorage.getItem(key) || 'null');
+                if (validRegistration(value)) keepNewest(value);
+            } catch { /* One damaged entry must not hide other attempts. */ }
+        }
+    } catch { /* IndexedDB can be used without localStorage. */ }
+    try {
+        const db = await openDatabase();
+        const rows = await new Promise<Array<{ key: string; value: unknown }>>((resolve, reject) => {
+            const request = db.transaction(SETTINGS_STORE, 'readonly').objectStore(SETTINGS_STORE).getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        for (const row of rows) if (row.key.startsWith(SUBMISSION_PREFIX) && validRegistration(row.value)) {
+            keepNewest(row.value);
+        }
+    } catch { /* Mirrored entries remain available. */ }
+    return [...entries.values()];
+}
+/** Remove only the generation whose delivery was confirmed, preserving a later makeup/recovery. */
+export async function removeExamSubmissionRegistration(attemptId: string, startedAt?: string, personalEndTime?: string): Promise<void> {
+    const key = SUBMISSION_PREFIX + attemptId;
+    const matches = (entry: unknown) => validRegistration(entry) && entry.startedAt === startedAt && entry.personalEndTime === personalEndTime;
+    try {
+        const db = await openDatabase();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SETTINGS_STORE, 'readwrite');
+            const store = tx.objectStore(SETTINGS_STORE);
+            const request = store.get(key);
+            request.onsuccess = () => { if (matches(request.result?.value)) store.delete(key); };
+            tx.oncomplete = () => resolve();
+            tx.onabort = tx.onerror = () => reject(tx.error);
+        });
+    } catch { /* Clean the fallback independently. */ }
+    try { if (matches(JSON.parse(localStorage.getItem(key) || 'null'))) localStorage.removeItem(key); } catch { /* optional mirror */ }
+}
+export async function removeConfirmedExamSnapshot(attemptId: string, context: NonNullable<ExamAnswerSnapshot['frozenSubmission']>): Promise<void> {
+    await enqueueSnapshotOperation(attemptId, async () => {
+        const current = await idbGet(attemptId).catch(() => null) || readLegacy(attemptId);
+        if (!current?.frozenSubmission || current.frozenSubmission.startedAt !== context.startedAt ||
+            current.frozenSubmission.personalEndTime !== context.personalEndTime) return;
+        try { await idbDelete(attemptId); } catch { /* Clean fallback independently. */ }
+        try { localStorage.removeItem(legacyKey(attemptId)); } catch { /* optional mirror */ }
     });
 }

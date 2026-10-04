@@ -1,3 +1,4 @@
+import { ExamSubmissionSync } from '@/app/components/ExamSubmissionSync';
 import { ExamPwaRegistration } from "@/app/components/ExamPwaRegistration";
 import MaintenanceProvider from "@/app/components/MaintenanceProvider";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
@@ -94,6 +95,7 @@ export default async function RootLayout({
         <ExamPwaRegistration />
         <ErrorBoundary>
           <ToastProvider>
+            <ExamSubmissionSync />
             <MaintenanceProvider isMaintenance={isMaintenance}>
               {children}
             </MaintenanceProvider>

@@ -1,3 +1,4 @@
+import { withExamSubmissionLock } from '../exam-submission-lock';
 import { getDeviceId } from '../device-id';
 import { apiGet,apiSend } from './client';
 import type { Question } from '@/app/types';
@@ -295,6 +296,16 @@ export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPa
     );
 }
 
+export function getExamSubmissionStatus(attemptId: string) {
+    return apiSend<{
+        examId: string; status: string; startedAt: string; personalEndTime: string;
+        remainingSeconds: number; submissionOnly: boolean; canRecover: boolean;
+    }>(
+        `/api/students/attempts/${encodeURIComponent(attemptId)}/submission-status`,
+        { deviceId: getDeviceId() }, 'POST', { timeoutMs: 15_000 },
+    );
+}
+
 export async function beginSubmitAction(attemptId: string) {
     return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
@@ -336,25 +347,27 @@ export async function submitExamAction(
 ) {
     const finalAnswers = { ...studentAnswers };
     const finalRevisions = answerRevisions ? { ...answerRevisions } : undefined;
-    if (attemptId) {
-        const intent = await beginSubmitAction(attemptId);
-        if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
-    }
+    return withExamSubmissionLock(attemptId || examId, async () => {
+        if (attemptId) {
+            const intent = await beginSubmitAction(attemptId);
+            if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
+        }
 
-    const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
-        `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-        { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission },
-        'POST',
-        { timeoutMs: 30_000 },
-    );
+        const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
+            `/api/students/exams/${encodeURIComponent(examId)}/submit`,
+            { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission },
+            'POST',
+            { timeoutMs: 30_000 },
+        );
 
-    return res.success
-        ? {
-              success: true as const,
-              score: res.score,
-              alreadySubmitted: res.alreadySubmitted ?? false,
-              savedAnswersOnly: res.savedAnswersOnly ?? false,
-              gradingPending: res.gradingPending ?? false,
-          }
-        : { success: false as const, error: res.error };
+        return res.success
+            ? {
+                  success: true as const,
+                  score: res.score,
+                  alreadySubmitted: res.alreadySubmitted ?? false,
+                  savedAnswersOnly: res.savedAnswersOnly ?? false,
+                  gradingPending: res.gradingPending ?? false,
+              }
+            : { success: false as const, error: res.error, retryable: res.retryable };
+    });
 }

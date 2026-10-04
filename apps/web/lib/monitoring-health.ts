@@ -32,3 +32,14 @@ export function formatStudentName(name?: string | null, fallback = 'Tanpa nama')
         .toLowerCase()
         .replace(/(^|[\s.-])(\p{L})/gu, (_, sep: string, char: string) => `${sep}${char.toUpperCase()}`);
 }
+
+export function getScoreColorClass(score?: number | string | null): string {
+    if (score == null || score === '') return 'text-slate-400';
+    const numeric = Number(score);
+    if (!Number.isFinite(numeric)) return 'text-slate-400';
+    if (numeric <= 50) return 'text-red-600';
+    if (numeric < 75) return 'text-orange-500';
+    if (numeric <= 90) return 'text-emerald-600';
+    return 'text-blue-600';
+}
+

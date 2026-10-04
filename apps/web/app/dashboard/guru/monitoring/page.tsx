@@ -7,7 +7,7 @@ import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam,Vi
 import type { QuestionOptionRecord } from '@/lib/api/questions';
 import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
-import { formatStudentName } from '@/lib/monitoring-health';
+import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
@@ -882,26 +882,26 @@ function MonitoringContent() {
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
                                                             <td className="p-4 text-right">
-                                                                <span className="font-semibold text-xs text-slate-700">{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
+                                                                <span className={`font-bold text-xs ${getScoreColorClass(isBelum ? null : (att.detailed_scores?.classical ?? att.total_score ?? 0))}`}>{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
                                                             </td>
                                                             {has1PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
+                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_1pl)}`}>{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has2PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
+                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_2pl)}`}>{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
+                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_3pl)}`}>{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             {!has1PL && !has2PL && !has3PL && (
                                                                 <td className="p-4 text-right">
-                                                                    <span className="font-semibold text-xs text-[#3083FF]">{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
+                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.score_irt)}`}>{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
                                                                 </td>
                                                             )}
                                                             <td className="p-4">

@@ -529,6 +529,33 @@ export class ExamAttemptsService {
         return { attemptId, saved: answers.length };
     }
 
+    /** Read-only preflight for the application-wide delivery queue. */
+    async submissionStatus(user: AuthUser, attemptId: string, deviceId?: string) {
+        const device = this.requireDeviceId(deviceId);
+        const { data: attempt, error } = await this.db.from('cbt_exam_attempts')
+            .select('id, exam_id, user_id, status, started_at, personal_end_time, device_fingerprint, metadata')
+            .eq('id', attemptId).maybeSingle();
+        if (error) throw new BadRequestException('Status pengiriman belum dapat dibaca.');
+        if (!attempt || attempt.user_id !== user.id || attempt.device_fingerprint !== device) {
+            throw new ForbiddenException('Sesi atau perangkat pengiriman tidak cocok.');
+        }
+        const { data: exam, error: examError } = await this.db.from('cbt_exams')
+            .select('end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+        if (examError || !exam) throw new BadRequestException('Batas waktu belum dapat diperiksa.');
+        const now = await this.serverNow();
+        const deadline = examDeadline(attempt, exam);
+        if (!Number.isFinite(deadline.getTime())) throw new BadRequestException('Batas waktu tidak valid.');
+        return {
+            examId: attempt.exam_id, status: attempt.status, startedAt: attempt.started_at,
+            personalEndTime: attempt.personal_end_time,
+            remainingSeconds: Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 1000)),
+            submissionOnly: attempt.metadata?.recovery_submit_only === true,
+            canRecover: attempt.status === 'in_progress' || attempt.status === 'submitted' ||
+                (attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true &&
+                    attempt.metadata?.recovery_submit_only !== true),
+        };
+    }
+
     async beginSubmit(user: AuthUser, attemptId: string, deviceId?: string) {
         const device = this.requireDeviceId(deviceId);
         return this.db.transaction(async db => {
