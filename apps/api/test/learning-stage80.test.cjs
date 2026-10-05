@@ -64,16 +64,16 @@ test('LMS: unduhan draf memerlukan pemilik/admin dan key tidak diberikan pada pe
 });
 test('LMS: semua ekstensi disimpan binary, bukan HTML publik', async () => {
     const { service, storage } = setup();
-    const result = await service.upload(teacher, 'school', 'material', { originalname: '../a.html', size: 4, buffer: Buffer.from('test') }, 1);
+    const result = await service.upload(teacher, 'school', 'material', { originalname: '../a.html', size: 4, buffer: Buffer.from('test') }, 1, update({ status: 'draft' }));
     assert.match(storage.put[0][0], /^lms-private\/school\/material\/.+\.bin$/);
     assert.equal(storage.put[0][2], 'application/octet-stream');
-    assert.equal(result.material.content_html, ''); assert.equal(result.material.format, 'attachment');
+    assert.equal(result.material.content_html, '<h1>Aljabar</h1>'); assert.equal(result.material.format, 'word');
     assert.equal(result.material.revision, 2); assert.equal(result.material.file_name.includes('/'), false);
     assert.deepEqual(storage.removed, ['lms-private/school/material/source.bin']);
 });
 test('LMS: kegagalan unggah mempertahankan sumber lama', async () => {
     const { service, storage, db } = setup(); storage.putObject = async () => ({ success: false });
-    await assert.rejects(service.upload(teacher, 'school', 'material', { originalname: 'a.exe', size: 1, buffer: Buffer.from('x') }, 1), /mengunggah/);
+    await assert.rejects(service.upload(teacher, 'school', 'material', { originalname: 'a.exe', size: 1, buffer: Buffer.from('x') }, 1, update({ status: 'draft' })), /mengunggah/);
     assert.equal(storage.removed.length, 0); assert.equal(db.tables.cbt_learning_materials[0].file_name, 'materi.docx');
 });
 test('LMS: berkas terbit tidak bisa diganti sebelum dijadikan draf', async () => {

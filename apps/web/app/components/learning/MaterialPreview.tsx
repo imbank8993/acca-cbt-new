@@ -1,16 +1,21 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, Loader2 } from 'lucide-react';
 import type { LearningMaterial } from '@/lib/learning-api';
 import { learningPreviewDocument } from '@/lib/learning-preview';
 import { PdfPreview } from './PdfPreview';
 
-export function MaterialPreview({ material, fullPage = false }: { material: LearningMaterial; fullPage?: boolean }) {
+export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage }: { material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void }) {
+    const frame = useRef<HTMLIFrameElement>(null);
+    useEffect(() => {
+        const receive = (event: MessageEvent) => { if (event.source === frame.current?.contentWindow) onActivityMessage?.(event); };
+        window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
+    }, [onActivityMessage]);
     const document = useMemo(() => typeof window !== 'undefined' && material.content_html
-        ? learningPreviewDocument(material.content_html, material.format === 'html', fullPage) : '', [material.content_html, material.format, fullPage]);
+        ? learningPreviewDocument(material.content_html, material.format === 'html', bridge) : '', [material.content_html, material.format, bridge]);
     return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}`}>
         {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
-        {document ? <iframe title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} referrerPolicy="no-referrer" srcDoc={document} />
+        {document ? <iframe ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} referrerPolicy="no-referrer" srcDoc={document} />
             : material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)
                 ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} />
                 : <div className="learn-media"><div><FileDown size={40} style={{ margin: '0 auto 14px' }} /><p>{material.hasFile ? 'Berkas ini dapat dibaca melalui unduhan.' : 'Unggah dokumen untuk melihat hasil konversi di sini.'}</p></div></div>}

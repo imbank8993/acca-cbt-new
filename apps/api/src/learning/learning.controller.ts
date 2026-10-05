@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthUser } from '@acca-cbt/shared';
 import type { Response } from 'express';
@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import { MAX_UPLOAD_BYTES } from '../storage/storage.service';
-import { CreateMaterialDto, ProgressDto, UpdateMaterialDto } from './learning.dto';
+import { ActivityDto, CreateMaterialDto, ProgressDto, UpdateMaterialDto } from './learning.dto';
 import { LearningService } from './learning.service';
 
 @Controller('learning')
@@ -22,9 +22,9 @@ export class LearningController {
     @Put(':id')
     update(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMaterialDto) { return this.learning.update(user, org, id, dto); }
     @Post(':id/file')
-    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 1 } }))
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, fieldSize: 8 * 1024 * 1024, files: 1, fields: 12 } }))
     upload(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string,
-        @UploadedFile() file: Express.Multer.File | undefined, @Body('revision', ParseIntPipe) revision: number) { return this.learning.upload(user, org, id, file, revision); }
+        @UploadedFile() file: Express.Multer.File | undefined, @Body() dto: UpdateMaterialDto) { return this.learning.upload(user, org, id, file, dto.revision, dto); }
     @Get(':id/file')
     async file(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
         const { object, name } = await this.learning.file(user, org, id);
@@ -37,5 +37,11 @@ export class LearningController {
         object.stream.pipe(res);
     }
     @Put(':id/progress')
-    progress(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto) { return this.learning.progress(user, org, id, dto.completed); }
+    progress(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto) { return this.learning.progress(user, org, id, dto.completed, dto.contentVersion); }
+    @Get(':id/activity')
+    activity(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string) { return this.learning.activity(user, org, id); }
+    @Put(':id/activity')
+    saveActivity(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ActivityDto) { return this.learning.saveActivity(user, org, id, dto); }
+    @Get(':id/activity-results')
+    results(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string) { return this.learning.activityResults(user, org, id); }
 }

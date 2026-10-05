@@ -4,15 +4,15 @@ import { randomUUID } from 'node:crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { MAX_UPLOAD_BYTES, StorageService } from '../storage/storage.service';
-import { CreateMaterialDto, UpdateMaterialDto } from './learning.dto';
+import { ActivityDto, CreateMaterialDto, UpdateMaterialDto } from './learning.dto';
 
 export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
-    subject: string; status: 'draft' | 'published'; format: string; content_html: string;
+    subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
     conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
-    revision: number; created_at: string; updated_at: string; published_at: string | null;
+    revision: number; content_version: number; created_at: string; updated_at: string; published_at: string | null;
 }
-const LIST_COLUMNS = 'id, organization_id, created_by, title, description, subject, status, format, file_name, file_size, revision, created_at, updated_at, published_at';
+const LIST_COLUMNS = 'id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
 
 @Injectable()
 export class LearningService {
@@ -53,19 +53,23 @@ export class LearningService {
         if (error) throw new InternalServerErrorException('Gagal membaca materi. Pastikan migrasi LMS sudah diterapkan.');
         const rows = (data || []) as MaterialRow[];
         const ids = rows.map(row => row.id);
-        const progress = ids.length ? await this.db.from('cbt_learning_progress').select('material_id, completed').eq('user_id', user.id).in('material_id', ids) : { data: [], error: null };
+        const progress = ids.length ? await this.db.from('cbt_learning_progress').select('material_id, completed, completed_version').eq('user_id', user.id).in('material_id', ids) : { data: [], error: null };
         if (progress.error) throw new InternalServerErrorException('Gagal membaca progres belajar.');
-        const completed = new Set((progress.data || []).filter((p: { completed: boolean }) => p.completed).map((p: { material_id: string }) => p.material_id));
-        return { materials: rows.map(row => ({ ...row, completed: completed.has(row.id) })), canManage };
+        return { materials: rows.map(row => {
+            const p = (progress.data || []).find((item: { material_id: string }) => item.material_id === row.id);
+            const updated = !!p?.completed && (p.completed_version || 1) !== (row.content_version || 1);
+            return { ...row, completed: !!p?.completed && !updated, materialUpdated: updated };
+        }), canManage };
     }
     async detail(user: AuthUser, org: string, id: string) {
         await this.reader(user, org);
         const row = await this.row(org, id);
         if (row.status !== 'published') await this.editable(user, row);
         const canEdit = await this.allowed(user, org, ['Guru', 'Admin']) && (row.created_by === user.id || await this.allowed(user, org, ['Admin']));
-        const { data, error } = await this.db.from('cbt_learning_progress').select('completed').eq('material_id', id).eq('user_id', user.id).maybeSingle();
+        const { data, error } = await this.db.from('cbt_learning_progress').select('completed, completed_version').eq('material_id', id).eq('user_id', user.id).maybeSingle();
         if (error) throw new InternalServerErrorException('Gagal membaca progres belajar.');
-        return { material: this.publicRow(row), canEdit, completed: data?.completed === true };
+        const materialUpdated = !!data?.completed && (data.completed_version || 1) !== (row.content_version || 1);
+        return { material: this.publicRow(row), canEdit, completed: data?.completed === true && !materialUpdated, materialUpdated };
     }
     async create(user: AuthUser, org: string, dto: CreateMaterialDto) {
         await this.manager(user, org);
@@ -86,8 +90,10 @@ export class LearningService {
         if (!dto.title.trim()) throw new BadRequestException('Judul wajib diisi.');
         if (dto.status === 'published' && !dto.contentHtml.trim() && !row.file_key) throw new BadRequestException('Unggah berkas atau isi materi sebelum menerbitkan.');
         const { data, error } = await this.db.from('cbt_learning_materials').update({
+            grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(), status: dto.status,
             format: dto.format, content_html: dto.contentHtml, conversion_notes: dto.conversionNotes,
+            content_version: (row.content_version || 1) + (row.content_html !== dto.contentHtml || row.format !== dto.format ? 1 : 0),
             revision: dto.revision + 1, updated_at: new Date().toISOString(),
             published_at: dto.status === 'published' ? (row.published_at || new Date().toISOString()) : null,
         }).eq('id', id).eq('organization_id', org).eq('revision', dto.revision).select('*').maybeSingle();
@@ -95,12 +101,13 @@ export class LearningService {
         if (!data) throw new ConflictException('Materi telah berubah di tab lain. Muat ulang sebelum menyimpan.');
         return { material: this.publicRow(data) };
     }
-    async upload(user: AuthUser, org: string, id: string, file: Express.Multer.File | undefined, revision: number) {
+    async upload(user: AuthUser, org: string, id: string, file: Express.Multer.File | undefined, revision: number, dto?: UpdateMaterialDto) {
         const row = await this.row(org, id);
         await this.editable(user, row);
         if (!file || !file.size || file.size > MAX_UPLOAD_BYTES) throw new BadRequestException('Pilih berkas berukuran 1 byte hingga 25 MB.');
         if (row.status !== 'draft') throw new BadRequestException('Simpan sebagai draf sebelum mengganti berkas.');
         if (row.revision !== revision) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah.');
+        if (!dto || !dto.title.trim() || dto.status !== 'draft') throw new BadRequestException('Isi hasil konversi dan informasi draf wajib dikirim bersama berkas.');
         const previousKey = row.file_key;
         // Store every source as binary, under a reserved prefix never served by the public storage endpoint.
         const key = `lms-private/${org}/${id}/${randomUUID()}.bin`;
@@ -108,7 +115,10 @@ export class LearningService {
         if (!uploaded.success) throw new InternalServerErrorException('Gagal mengunggah berkas. Periksa penyimpanan R2.');
         const name = file.originalname.replace(/[\\/\x00-\x1f\x7f]/g, '_').slice(0, 240);
         const { data, error } = await this.db.from('cbt_learning_materials').update({ file_key: key, file_name: name,
-            file_size: file.size, content_html: '', conversion_notes: '', format: 'attachment',
+            file_size: file.size, content_html: dto.contentHtml, conversion_notes: dto.conversionNotes, format: dto.format,
+            grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
+            title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(),
+            content_version: (row.content_version || 1) + 1,
             revision: revision + 1, updated_at: new Date().toISOString(),
         }).eq('id', id).eq('revision', revision).eq('status', 'draft').select('*').maybeSingle();
         if (error || !data) {
@@ -128,12 +138,44 @@ export class LearningService {
         if (!object) throw new NotFoundException('Berkas tidak tersedia di penyimpanan.');
         return { object, name: row.file_name || 'bahan-ajar' };
     }
-    async progress(user: AuthUser, org: string, id: string, completed: boolean) {
+    async progress(user: AuthUser, org: string, id: string, completed: boolean, contentVersion?: number) {
         await this.reader(user, org);
         const row = await this.row(org, id);
         if (row.status !== 'published') throw new BadRequestException('Materi belum diterbitkan.');
-        const { error } = await this.db.from('cbt_learning_progress').upsert({ material_id: id, user_id: user.id, completed, updated_at: new Date().toISOString() }, { onConflict: 'material_id,user_id' });
+        if (contentVersion !== undefined && contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi telah diperbarui. Muat ulang sebelum menandai selesai.');
+        const { error } = await this.db.from('cbt_learning_progress').upsert({ material_id: id, user_id: user.id, completed, completed_version: row.content_version || 1, updated_at: new Date().toISOString() }, { onConflict: 'material_id,user_id' });
         if (error) throw new InternalServerErrorException('Gagal menyimpan progres belajar.');
         return { completed };
+    }
+
+    async activity(user: AuthUser, org: string, id: string) {
+        await this.reader(user, org);
+        const row = await this.row(org, id);
+        if (row.status !== 'published') throw new ForbiddenException('Aktivitas hanya tersedia pada materi terbit.');
+        const { data, error } = await this.db.from('cbt_learning_activity').select('state, revision').eq('material_id', id).eq('user_id', user.id).eq('content_version', row.content_version || 1).maybeSingle();
+        if (error) throw new InternalServerErrorException('Gagal membaca jawaban aktivitas.');
+        return { state: data?.state || {}, revision: data?.revision || 0, contentVersion: row.content_version || 1, userId: user.id };
+    }
+    async saveActivity(user: AuthUser, org: string, id: string, dto: ActivityDto) {
+        await this.reader(user, org);
+        const row = await this.row(org, id);
+        if (row.status !== 'published' || row.format !== 'html') throw new ForbiddenException('Aktivitas HTML belum tersedia.');
+        if (dto.contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi diperbarui. Jawaban lama tidak ditimpa; muat ulang materi.');
+        if (Buffer.byteLength(JSON.stringify(dto.state), 'utf8') > 128 * 1024) throw new BadRequestException('Data aktivitas terlalu besar (maksimum 128 KB).');
+        const payload = { state: dto.state, revision: dto.revision + 1, updated_at: new Date().toISOString() };
+        const result = dto.revision === 0
+            ? await this.db.from('cbt_learning_activity').insert({ material_id: id, user_id: user.id, content_version: dto.contentVersion, ...payload }).select('revision').single()
+            : await this.db.from('cbt_learning_activity').update(payload).eq('material_id', id).eq('user_id', user.id).eq('content_version', dto.contentVersion).eq('revision', dto.revision).select('revision').maybeSingle();
+        if (result.error?.code === '23505' || (!result.error && !result.data)) throw new ConflictException('Aktivitas berubah di tab lain. Jawaban lokal tetap disimpan; muat ulang untuk memeriksa.');
+        if (result.error) throw new InternalServerErrorException('Gagal menyimpan jawaban aktivitas.');
+        return { revision: dto.revision + 1 };
+    }
+    async activityResults(user: AuthUser, org: string, id: string) {
+        const row = await this.row(org, id); await this.editable(user, row);
+        const { data, error } = await this.db.from('cbt_learning_activity').select('user_id, content_version, state, updated_at').eq('material_id', id).order('updated_at', { ascending: false }).limit(500);
+        if (error) throw new InternalServerErrorException('Gagal membaca hasil aktivitas.');
+        const ids = [...new Set((data || []).map((entry: { user_id: string }) => entry.user_id))];
+        const profiles = ids.length ? await this.db.from('cbt_profiles').select('id, full_name').in('id', ids) : { data: [], error: null };
+        return { results: (data || []).map((entry: { user_id: string }) => ({ ...entry, name: profiles.data?.find((p: { id: string }) => p.id === entry.user_id)?.full_name || entry.user_id })) };
     }
 }

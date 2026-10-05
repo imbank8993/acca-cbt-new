@@ -141,3 +141,26 @@ docker compose restart cbt-api
 docker stats
 ```
 
+
+## Perbaikan sesi SSO dan HTTPS (5 Oktober 2026)
+
+Pada domain CBT produksi, HTTP harus dialihkan di aaPanel/Nginx **sebelum** mencapai Next.js. Jangan mengalihkan berdasarkan protokol koneksi internal Docker: koneksi Nginx ke port 3008 memang HTTP, walaupun browser memakai HTTPS.
+
+1. Set `NEXT_PUBLIC_SITE_URL=https://acca-cbt.icgowa.sch.id` dan `NEXT_PUBLIC_ACCA_URL=https://acca.icgowa.sch.id` pada `.env` VPS. Nilai build dan runtime harus sama. Bawaan domain lama `accav2-cbt` sudah diganti.
+2. Aktifkan **Force HTTPS** di SSL situs aaPanel. HTTP port 80 harus mengembalikan 301/308 ke `https://acca-cbt.icgowa.sch.id$request_uri`, bukan menyajikan halaman login dengan status 200. Pertahankan pengecualian ACME yang dikelola panel.
+3. Pada lokasi reverse proxy situs TLS, pastikan header berikut ditetapkan Nginx, bukan diteruskan mentah dari klien:
+
+   ```nginx
+   proxy_set_header Host $host;
+   proxy_set_header X-Forwarded-Host $host;
+   proxy_set_header X-Forwarded-Proto https;
+   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+   ```
+
+   `https` di sini khusus lokasi yang menerima trafik HTTPS setelah pengalihan HTTP. Untuk TLS yang berakhir di proxy lain, atur rantai proxy tepercaya agar menyampaikan protokol browser secara benar.
+4. Periksa `nginx -t` sebelum reload Nginx, lalu rilis kode ini dan bangun ulang `cbt-web` dengan konfigurasi tersebut. Restart tanpa build tidak memperbarui variabel `NEXT_PUBLIC_*` yang tertanam.
+5. Verifikasi tanpa akun: HTTP `/` beralih ke HTTPS; HTTPS `/api/auth/sso` tanpa tiket beralih ke **HTTPS** `/?error=missing-token`; HTTPS `/dashboard/siswa` tanpa sesi beralih ke **HTTPS** `/`. Selanjutnya uji tombol CBT dari ACCA pada browser bermasalah.
+
+Kode baru memakai `__Host-cbt_session` (Secure, HttpOnly, Path=/, tanpa Domain) untuk login produksi sehingga cookie `cbt_session` lama tidak mengalahkannya. Sesi lama tetap dapat dibaca sampai login berikutnya; logout menghapus kedua nama. Jangan menonaktifkan Secure atau membagikan cookie ke semua subdomain untuk mengatasi masalah ini. Respons auth tidak boleh dicache reverse proxy/CDN. Middleware mengirim HSTS untuk host CBT pada produksi.
+
+Tidak ada migrasi database. Mengubah kode lokal belum menerapkan Force HTTPS atau merilis perubahan ke VPS.

@@ -1,7 +1,7 @@
 import DOMPurify from 'dompurify';
 
 /** Opaque-origin iframe + restrictive CSP: uploaded scripts never receive the app origin. */
-export function learningPreviewDocument(html: string, interactive = false, fullPage = false): string {
+export function learningPreviewDocument(html: string, interactive = false, bridge?: string): string {
     const source = interactive ? html : DOMPurify.sanitize(html, { USE_PROFILES: { html: true, mathMl: true, svg: true } });
     const document = new DOMParser().parseFromString(source, 'text/html');
     document.querySelectorAll('base, meta[http-equiv], iframe, object, embed').forEach(node => node.remove());
@@ -20,10 +20,14 @@ export function learningPreviewDocument(html: string, interactive = false, fullP
     document.head.prepend(csp);
     const style = document.createElement('style');
     style.textContent = 'html{scroll-behavior:smooth;color-scheme:light}body{font:17px/1.8 system-ui,sans-serif;color:#172b3a;background:white;margin:0;padding:28px;overflow-wrap:anywhere}body>article{max-width:860px;margin:auto}h1,h2,h3{line-height:1.3;scroll-margin-top:20px}h1{font-size:2em}h2{margin-top:2em}img,video{max-width:100%;height:auto}table{border-collapse:collapse;display:block;overflow:auto;max-width:100%}td,th{border:1px solid #dce5ec;padding:10px}pre{white-space:pre-wrap;background:#f3f6f9;padding:16px;border-radius:12px}code{font-size:.9em}math[display=block]{overflow:auto;padding:12px}details{padding:16px 20px;background:#f1f7f7;border-radius:12px;margin-bottom:28px}summary{cursor:pointer;font-weight:600}a{color:#0f766e}blockquote{border-left:3px solid #0d9488;padding-left:20px;color:#526475}@media(max-width:600px){body{padding:18px;font-size:16px}}';
-    if (interactive && fullPage) {
+    if (interactive) {
         // Let the uploaded activity own its layout; defaults precede author styles.
         style.textContent = 'html{min-height:100%;color-scheme:light}body{margin:0;min-height:100vh}';
         csp.after(style);
     } else document.head.append(style);
+    if (interactive && bridge) {
+        const script = document.createElement('script'); script.textContent = bridge;
+        csp.after(script);
+    }
     return '<!doctype html>' + document.documentElement.outerHTML;
 }

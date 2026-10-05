@@ -1,4 +1,5 @@
-import { encodeSessionCookie,SESSION_COOKIE,sessionCookieOptions } from '@/lib/app-jwt';
+import { requestPublicOrigin, resolvePublicOrigin } from '@/lib/public-origin';
+import { encodeSessionCookie,sessionCookieName,sessionCookieOptions } from '@/lib/app-jwt';
 import { nestFetchInternal } from '@/lib/nest-api';
 import { NextRequest,NextResponse } from 'next/server';
 
@@ -31,43 +32,16 @@ const TWELVE_HOURS = 12 * 60 * 60;
  * JWT CBT sendiri. Token itu masuk ke cookie httpOnly. Tidak ada token di URL,
  * tidak ada keluarga refresh token bersama, dan tidak ada Supabase.
  */
-function resolvePublicOrigin(request: NextRequest): string {
-    // 1. Cek header reverse proxy (Nginx / Traefik / Cloudflare)
-    const forwardedHost = request.headers.get('x-forwarded-host');
-    const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
-    if (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.startsWith('127.') && !forwardedHost.endsWith(':3008')) {
-        return `${forwardedProto}://${forwardedHost}`;
-    }
-
-    // 2. Cek variabel lingkungan NEXT_PUBLIC_SITE_URL (misal https://accav2-cbt.icgowa.sch.id di VPS)
-    const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-    if (envSiteUrl && !envSiteUrl.includes('0.0.0.0') && (envSiteUrl.startsWith('https://') || !envSiteUrl.includes('localhost'))) {
-        return envSiteUrl.replace(/\/$/, '');
-    }
-
-    // 3. Cek header host standar jika berupa domain publik
-    const host = request.headers.get('host');
-    if (host && !host.includes('0.0.0.0') && !host.startsWith('127.') && !host.endsWith(':3008')) {
-        const proto = request.headers.get('x-forwarded-proto') || 'https';
-        return `${proto}://${host}`;
-    }
-
-    // 4. Fallback ke NEXT_PUBLIC_SITE_URL apa pun yang valid
-    if (envSiteUrl && !envSiteUrl.includes('0.0.0.0')) {
-        return envSiteUrl.replace(/\/$/, '');
-    }
-
-    // 5. Fallback lokal untuk dev
-    const origin = request.nextUrl.origin;
-    if (origin.includes('0.0.0.0') || origin.includes('127.0.0.1')) {
-        return 'http://localhost:3008';
-    }
-    return origin;
-}
-
 export async function GET(request: NextRequest) {
     const token = request.nextUrl.searchParams.get('token');
     const origin = resolvePublicOrigin(request);
+    // Move to the canonical host BEFORE exchanging the ticket or issuing a host-only cookie.
+    if (new URL(requestPublicOrigin(request)).host !== new URL(origin).host) {
+        const redirect = NextResponse.redirect(new URL(request.nextUrl.pathname + request.nextUrl.search, origin));
+        redirect.headers.set('Cache-Control', 'no-store');
+        redirect.headers.set('Referrer-Policy', 'no-referrer');
+        return redirect;
+    }
 
     const forwarded = request.headers.get('x-forwarded-for');
     const ipAddress = forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || undefined;
@@ -98,9 +72,11 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(new URL(`/?sso_role=${role}`, origin));
 
     response.cookies.set(
-        SESSION_COOKIE,
+        sessionCookieName(),
         encodeSessionCookie(body.access_token),
         sessionCookieOptions(TWELVE_HOURS),
     );
+    response.headers.set('Cache-Control', 'no-store');
+    response.headers.set('Referrer-Policy', 'no-referrer');
     return response;
 }

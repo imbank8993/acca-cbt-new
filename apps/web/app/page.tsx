@@ -113,6 +113,12 @@ export default function Home() {
                 if (cancelled || settled || isRedirecting) return;
                 if (await checkCbtSession()) return;
 
+                if (ssoRoleParam) {
+                    fail('Sesi CBT belum tersimpan',
+                        'Proses masuk dari ACCA selesai, tetapi cookie sesi CBT belum terbaca. Pastikan alamat menggunakan HTTPS dan cookie situs diizinkan, lalu coba masuk kembali.');
+                    return;
+                }
+
                 // Benar-benar tidak ada sesi dan tidak ada hand-off — CBT dibuka
                 // langsung tanpa login. Bersihkan sisa cookie yang mungkin rusak
                 // dulu, baru arahkan ke acca-app untuk memulai dari awal.

@@ -17,6 +17,10 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || '');
 
 /** Nama cookie sesi CBT. Terpisah dari `acca_session` milik acca-new. */
 export const SESSION_COOKIE = 'cbt_session';
+export const SECURE_SESSION_COOKIE = '__Host-cbt_session';
+export function sessionCookieName(): string {
+    return process.env.NODE_ENV === 'production' ? SECURE_SESSION_COOKIE : SESSION_COOKIE;
+}
 
 export interface AppJwtPayload {
     sub: string;
@@ -87,7 +91,7 @@ export function extractRequestToken(request: {
     cookies?: { get: (name: string) => { value: string } | undefined };
 }): string {
     if (request.cookies) {
-        const token = decodeSessionCookie(request.cookies.get(SESSION_COOKIE)?.value || '');
+        const token = decodeSessionCookie(request.cookies.get(SECURE_SESSION_COOKIE)?.value || request.cookies.get(SESSION_COOKIE)?.value || '');
         if (token) return token;
     }
 

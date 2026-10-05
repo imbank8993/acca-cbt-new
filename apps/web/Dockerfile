@@ -20,7 +20,7 @@ RUN npm run build:shared
 COPY apps/web ./apps/web
 
 ARG NEXT_PUBLIC_ACCA_URL=https://acca.icgowa.sch.id
-ARG NEXT_PUBLIC_SITE_URL=https://accav2-cbt.icgowa.sch.id
+ARG NEXT_PUBLIC_SITE_URL=https://acca-cbt.icgowa.sch.id
 
 
 ENV NEXT_TELEMETRY_DISABLED=1 \

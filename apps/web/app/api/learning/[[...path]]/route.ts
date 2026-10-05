@@ -5,7 +5,7 @@ import { proxyGet, proxyJson } from '@/lib/nest-proxy';
 type Context = { params: Promise<{ path?: string[] }> };
 async function handle(request: NextRequest, context: Context) {
     const { path = [] } = await context.params;
-    if (path.length > 2 || (path[0] && !/^[0-9a-f-]{36}$/i.test(path[0])) || (path[1] && !['file', 'progress'].includes(path[1]))) {
+    if (path.length > 2 || (path[0] && !/^[0-9a-f-]{36}$/i.test(path[0])) || (path[1] && !['file', 'progress', 'activity', 'activity-results'].includes(path[1]))) {
         return NextResponse.json({ success: false, error: 'Alamat tidak ditemukan.' }, { status: 404 });
     }
     const target = `/learning${path.length ? '/' + path.join('/') : ''}`;

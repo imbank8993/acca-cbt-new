@@ -44,7 +44,7 @@ test('temporary failure preserves cached identity, but 401 removes it', async ()
     assert.equal(await api.getSessionUser(), null);
 });
 
-async function home(statuses, cancel = false) {
+async function home(statuses, cancel = false, search = '?sso_role=Siswa') {
     const events = [], timers = [], failures = [];
     let effect;
     const api = session(async () => {
@@ -54,7 +54,7 @@ async function home(statuses, cancel = false) {
     });
     const context = {
         exports: {}, process: { env: {} }, URLSearchParams,
-        window: { location: { search: '?sso_role=Siswa', hash: '', href: '' } },
+        window: { location: { search, hash: '', href: '' } },
         setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {},
         require(name) {
             if (name === 'react') return {
@@ -92,7 +92,7 @@ test('SSO landing preserves session on server or network errors, including after
 
 test('SSO landing routes valid students and redirects only confirmed missing sessions', async () => {
     assert.deepEqual((await home([200])).events, ['/dashboard/siswa']);
-    const missing = await home([401, 401]);
+    const missing = await home([401, 401], false, '');
     assert.deepEqual(missing.events, ['logout']);
     assert.match(missing.href, /login\?error=cbt-no-session/);
 });
@@ -101,4 +101,11 @@ test('unmounted SSO landing cannot redirect or clear session', async () => {
     const result = await home([401, 401], true);
     assert.deepEqual(result.events, []);
     assert.equal(result.href, '');
+});
+
+test('failed cookie handoff shows recovery without logout redirect loop', async () => {
+    const result = await home([401, 401]);
+    assert.deepEqual(result.events, []);
+    assert.equal(result.href, '');
+    assert.equal(result.failures[0].title, 'Sesi CBT belum tersimpan');
 });

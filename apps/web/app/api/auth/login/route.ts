@@ -1,4 +1,4 @@
-import { encodeSessionCookie,SESSION_COOKIE,sessionCookieOptions } from '@/lib/app-jwt';
+import { encodeSessionCookie,sessionCookieName,sessionCookieOptions } from '@/lib/app-jwt';
 import { nestFetchInternal } from '@/lib/nest-api';
 import { NextRequest,NextResponse } from 'next/server';
 
@@ -45,9 +45,10 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ success: true, user: body.user });
     response.cookies.set(
-        SESSION_COOKIE,
+        sessionCookieName(),
         encodeSessionCookie(body.access_token),
         sessionCookieOptions(TWELVE_HOURS),
     );
+    response.headers.set('Cache-Control', 'no-store');
     return response;
 }

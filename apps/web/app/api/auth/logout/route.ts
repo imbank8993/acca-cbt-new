@@ -1,10 +1,12 @@
-import { SESSION_COOKIE,sessionCookieOptions } from '@/lib/app-jwt';
+import { SECURE_SESSION_COOKIE,SESSION_COOKIE,sessionCookieOptions } from '@/lib/app-jwt';
 import { NextResponse } from 'next/server';
 
 function clearSession(response: NextResponse): NextResponse {
     // Opsi lainnya harus sama persis dengan saat cookie diterbitkan, jika
     // tidak browser membuat cookie kedua alih-alih menimpa yang lama.
     response.cookies.set(SESSION_COOKIE, '', sessionCookieOptions(0));
+    response.cookies.set(SECURE_SESSION_COOKIE, '', { ...sessionCookieOptions(0), secure: true });
+    response.headers.set('Cache-Control', 'no-store');
     return response;
 }
 

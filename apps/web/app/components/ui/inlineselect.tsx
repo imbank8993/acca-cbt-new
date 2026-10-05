@@ -21,6 +21,9 @@ export function InlineSelect({
     height,
     className = '',
     style,
+    id,
+    name,
+    'aria-label': ariaLabel,
 }: {
     value: string;
     onChange: (value: string) => void;
@@ -33,6 +36,9 @@ export function InlineSelect({
     height?: string;
     className?: string;
     style?: CSSProperties;
+    id?: string;
+    name?: string;
+    'aria-label'?: string;
 }) {
     return (
         <div
@@ -40,6 +46,9 @@ export function InlineSelect({
             style={{ minWidth, ...(height ? { ['--uisel-h' as string]: height } : null), ...style }}
         >
             <select
+                id={id}
+                name={name}
+                aria-label={ariaLabel}
                 className="uisel-input"
                 value={value}
                 onChange={e => onChange(e.target.value)}

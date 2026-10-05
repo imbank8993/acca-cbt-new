@@ -1,3 +1,4 @@
+import { resolvePublicOrigin } from '@/lib/public-origin';
 import { extractRequestToken,verifyAppToken } from '@/lib/app-jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -16,23 +17,24 @@ import { NextResponse } from 'next/server';
  * menentukan "ada sesi sah atau tidak". Setiap keputusan otorisasi dibuat
  * NestJS, yang membaca ulang peran dari database pada tiap permintaan.
  */
+function protectResponse(response: NextResponse, authRoute: boolean) {
+    if (process.env.NODE_ENV === 'production') response.headers.set('Strict-Transport-Security', 'max-age=31536000');
+    if (authRoute) response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+}
 export async function middleware(req: NextRequest) {
+    const authRoute = req.nextUrl.pathname.startsWith('/api/auth/');
     const token = extractRequestToken(req);
     if (token && (await verifyAppToken(token))) {
-        return NextResponse.next({ request: req });
+        return protectResponse(NextResponse.next({ request: req }), authRoute);
     }
 
     if (req.nextUrl.pathname.startsWith('/dashboard')) {
-        const forwardedHost = req.headers.get('x-forwarded-host');
-        const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-        const base = (forwardedHost && !forwardedHost.includes('0.0.0.0') && !forwardedHost.endsWith(':3008'))
-            ? `${forwardedProto}://${forwardedHost}`
-            : (siteUrl && !siteUrl.includes('0.0.0.0') ? siteUrl : req.url);
-        return NextResponse.redirect(new URL('/', base));
+        const base = resolvePublicOrigin(req);
+        return protectResponse(NextResponse.redirect(new URL('/', base)), true);
     }
 
-    return NextResponse.next({ request: req });
+    return protectResponse(NextResponse.next({ request: req }), authRoute);
 }
 
 export const config = {
