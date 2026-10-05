@@ -16,7 +16,8 @@ RUN npm ci
 COPY packages/shared ./packages/shared
 RUN npm run build:shared
 
-# Salin kode sumber frontend Next.js
+# Salin berkas tools dan kode sumber frontend Next.js
+COPY tools ./tools
 COPY apps/web ./apps/web
 
 ARG NEXT_PUBLIC_ACCA_URL=https://acca.icgowa.sch.id
