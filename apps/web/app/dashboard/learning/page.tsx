@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, FileText, Plus, RotateCcw, Search } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Plus, RotateCcw, Search } from 'lucide-react';
 import { learningRequest, type LearningMaterial } from '@/lib/learning-api';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import '@/app/components/learning/learning.css';
@@ -237,28 +237,20 @@ export default function LearningLibrary() {
                 <div className="learn-grid">
                     {visible.map(item => (
                         <article className="learn-card" key={item.id}>
-                            <div className="learn-card-top">
-                                <span className="learn-format">
-                                    <FileText size={14} />
-                                    {item.format}
-                                </span>
-                                {manage ? (
-                                    <span className={`learn-status ${item.status}`}>
-                                        {item.status === 'published' ? 'Terbit' : 'Draf'}
-                                    </span>
-                                ) : (
-                                    item.completed && (
-                                        <CheckCircle2 size={19} color="#3083FF" aria-label="Selesai dipelajari" />
-                                    )
-                                )}
-                            </div>
-                            <div className="learn-card-body">
-                                <div className="learn-subject">
-                                    {item.subject || 'Materi umum'}{item.grade_level ? ` / Kelas ${item.grade_level}` : ' / Lintas kelas'}
+                            {(manage || item.completed) && (
+                                <div className="learn-card-top">
+                                    {manage ? (
+                                        <span className={`learn-status ${item.status}`}>
+                                            {item.status === 'published' ? 'Terbit' : 'Draf'}
+                                        </span>
+                                    ) : (
+                                        item.completed && (
+                                            <CheckCircle2 size={19} color="#3083FF" aria-label="Selesai dipelajari" />
+                                        )
+                                    )}
                                 </div>
-                                {(item.topic || item.subtopic) && (
-                                    <p>{[item.topic, item.subtopic].filter(Boolean).join(' / ')}</p>
-                                )}
+                            )}
+                            <div className="learn-card-body">
                                 {item.materialUpdated && (
                                     <span className="learn-status">Materi diperbarui</span>
                                 )}
