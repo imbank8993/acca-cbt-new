@@ -51,7 +51,7 @@ export async function nestFetchAsUser<T = unknown>(
         });
         return { status: response.status, body: (await readBody(response)) as T };
     } catch (error) {
-        console.error(`[nest-api] ${path} gagal:`, (error as Error).message);
+        console.warn(`[nest-api] ${path} gagal:`, (error as Error).message);
         return { status: 503, body: { error: 'Backend tidak dapat dihubungi.' } as T };
     }
 }
@@ -79,7 +79,7 @@ export async function nestFetchInternal<T = unknown>(
         });
         return { status: response.status, body: (await readBody(response)) as T };
     } catch (error) {
-        console.error(`[nest-api] internal ${path} gagal:`, (error as Error).message);
+        console.warn(`[nest-api] internal ${path} gagal:`, (error as Error).message);
         return { status: 503, body: { error: 'Backend tidak dapat dihubungi.' } as T };
     }
 }

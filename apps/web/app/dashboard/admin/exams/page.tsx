@@ -903,16 +903,16 @@ const ExamsPage = () => {
                             <div
                                 key={`pas-folder-${period.id}`}
                                 onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
-                                className="bg-white border border-amber-200 hover:border-amber-400 rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer"
+                                className="bg-white border border-blue-200 hover:border-blue-400 rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer"
                             >
                                 <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-[#1E40AF] border border-blue-200 flex items-center justify-center shrink-0">
                                             <FolderOpen size={20} />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1E40AF] border border-blue-200">
                                                     FOLDER UJIAN {period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>
                                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
@@ -925,10 +925,7 @@ const ExamsPage = () => {
                                                 )}
                                             </div>
                                             <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{period.name}</h3>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                Rumah jadwal bank soal ASAS/ASAT — seluruh bank soal di dalam folder ini tampil ke siswa dengan nama ujian <strong>&ldquo;{period.name}&rdquo;</strong>
-                                            </p>
-                                            <div className="flex flex-wrap items-center gap-3 mt-2.5 text-xs text-slate-600">
+                                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-600">
                                                 <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 font-semibold flex items-center gap-1.5">
                                                     <BookOpen size={12} /> {bankCount} Bank Soal • {scheduleCount} Jadwal Kelas
                                                 </span>
@@ -942,10 +939,10 @@ const ExamsPage = () => {
                                     <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
-                                            className="px-4 py-2.5 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20"
+                                            className="px-4 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20"
                                         >
                                             <FolderOpen size={14} />
-                                            Buka Folder & Jadwalkan Bank Soal
+                                            Buka Folder
                                         </button>
                                     </div>
                                 </div>

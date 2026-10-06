@@ -1,30 +1,46 @@
 "use client";
 import {
-assignProctorsToRoomAction,
-assignStudentsToRoomAction,
-createPASRoomAction,
-createPASSessionAction,
-deletePASRoomAction,
-deletePASSessionAction,
-listPASRooms,
-listPASSessions,
-listTeachersAndInvigilators,
-type PASRoom,
-type PASStaffMember,
-removeStudentFromRoomAction
+    assignProctorsToRoomAction,
+    assignStudentsToRoomAction,
+    createPASRoomAction,
+    createPASSessionAction,
+    deletePASRoomAction,
+    deletePASSessionAction,
+    listPASRooms,
+    listPASSessions,
+    listTeachersAndInvigilators,
+    type PASRoom,
+    type PASStaffMember,
+    removeStudentFromRoomAction
 } from '@/lib/api/pas';
 import {
-type ClassStudent,
-getStudentsByClassAction,
-listOrganizationClasses,
-type OrganizationClass,
+    type ClassStudent,
+    getStudentsByClassAction,
+    listOrganizationClasses,
+    type OrganizationClass,
 } from '@/lib/api/proctor';
-import type { PASPeriod,PASSession } from '@/app/types/pas';
+import type { PASPeriod, PASSession } from '@/app/types/pas';
+import { InlineSelect } from '@/components/ui/InlineSelect';
+import { MultiSelect } from '@/components/ui/MultiSelect';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
-import { Plus,Save,Trash2,Users,X } from 'lucide-react';
-import { useCallback,useEffect,useState } from 'react';
+import {
+    Check,
+    Clock,
+    DoorOpen,
+    FolderOpen,
+    Loader2,
+    Plus,
+    Save,
+    ShieldCheck,
+    Trash2,
+    UserCheck,
+    Users,
+    X,
+    AlertCircle
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface RoomManagementModalProps {
     period: PASPeriod;
@@ -65,6 +81,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isProctorSaved, setIsProctorSaved] = useState(false);
 
     const assignedStudentIds = new Set<string>(
         selectedRoom?.pas_room_students?.map((student) => student.user_id) || [],
@@ -103,12 +120,17 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const handleCreateRoom = async () => {
         if (!newRoomName.trim()) return;
         setIsSaving(true);
-        const result = await createPASRoomAction(period.id, newRoomName, newRoomCapacity);
+        const result = await createPASRoomAction(period.id, newRoomName.trim(), newRoomCapacity);
         if (result.success) {
             setNewRoomName('');
             setNewRoomCapacity(30);
             setIsCreatingRoom(false);
             await loadData();
+            const updatedRooms = await listPASRooms(period.id);
+            if (result.id) {
+                const found = updatedRooms.find(r => r.id === result.id);
+                if (found) handleSelectRoom(found);
+            }
         } else {
             alert(result.error);
         }
@@ -116,7 +138,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleDeleteRoom = async (roomId: string) => {
-        if (!confirm('Yakin ingin menghapus ruang ini? Semua pengaturan pengawas dan siswa di dalamnya akan hilang.')) return;
+        if (!confirm('Hapus ruang ini beserta seluruh pengaturan pengawas dan siswa di dalamnya?')) return;
         setIsSaving(true);
         const result = await deletePASRoomAction(roomId);
         if (result.success) {
@@ -131,6 +153,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const handleSelectRoom = (room: PASRoom) => {
         setSelectedRoom(room);
         setSelectedProctorIds(room.pas_room_invigilators?.map((invigilator) => invigilator.user_id) || []);
+        setIsProctorSaved(false);
     };
 
     const handleSaveProctors = async () => {
@@ -139,10 +162,11 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         const result = await assignProctorsToRoomAction(selectedRoom.id, selectedProctorIds);
         if (result.success) {
             await loadData();
-            // Update selected room reference
-            const updatedRoom = await listPASRooms(period.id).then(res => res.find(r => r.id === selectedRoom.id));
+            const updatedRooms = await listPASRooms(period.id);
+            const updatedRoom = updatedRooms.find(r => r.id === selectedRoom.id);
             if (updatedRoom) handleSelectRoom(updatedRoom);
-            alert('Pengawas berhasil disimpan!');
+            setIsProctorSaved(true);
+            setTimeout(() => setIsProctorSaved(false), 3000);
         } else {
             alert(result.error);
         }
@@ -151,6 +175,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     const handleLoadClassStudents = async (classId: string) => {
         setSelectedClassId(classId);
+        setSelectedStudentIds([]);
         if (!classId) {
             setClassStudents([]);
             return;
@@ -164,17 +189,17 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const handleAddStudentsToRoom = async () => {
         if (!selectedRoom || selectedStudentIds.length === 0) return;
         if (exceedsCapacity) {
-            alert(`Kapasitas ruang tidak cukup. Tersedia ${remainingCapacity} tempat.`);
+            alert(`Kapasitas ruang tidak mencukupi. Tersedia ${remainingCapacity} kursi.`);
             return;
         }
         setIsSaving(true);
         const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
         if (result.success) {
             await loadData();
-            const updatedRoom = await listPASRooms(period.id).then(res => res.find(r => r.id === selectedRoom.id));
+            const updatedRooms = await listPASRooms(period.id);
+            const updatedRoom = updatedRooms.find(r => r.id === selectedRoom.id);
             if (updatedRoom) handleSelectRoom(updatedRoom);
             setSelectedStudentIds([]);
-            alert('Siswa berhasil ditambahkan!');
         } else {
             alert(result.error);
         }
@@ -187,7 +212,8 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         const result = await removeStudentFromRoomAction(period.id, userId);
         if (result.success) {
             await loadData();
-            const updatedRoom = await listPASRooms(period.id).then(res => res.find(r => r.id === selectedRoom.id));
+            const updatedRooms = await listPASRooms(period.id);
+            const updatedRoom = updatedRooms.find(r => r.id === selectedRoom.id);
             if (updatedRoom) handleSelectRoom(updatedRoom);
         } else {
             alert(result.error);
@@ -199,7 +225,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         if (period.is_locked) return;
         if (!newSessionName.trim() || !newSessionStart || !newSessionEnd) return;
         setIsSaving(true);
-        const result = await createPASSessionAction(period.id, newSessionName, newSessionStart, newSessionEnd);
+        const result = await createPASSessionAction(period.id, newSessionName.trim(), newSessionStart, newSessionEnd);
         if (result.success) {
             setNewSessionName('');
             setIsCreatingSession(false);
@@ -212,7 +238,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     const handleDeleteSession = async (sessionId: string) => {
         if (period.is_locked) return;
-        if (!confirm('Yakin ingin menghapus sesi ini?')) return;
+        if (!confirm('Hapus sesi ini?')) return;
         setIsSaving(true);
         const result = await deletePASSessionAction(sessionId);
         if (result.success) {
@@ -224,339 +250,468 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 overflow-hidden">
-                <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-800">Manajemen Ruangan & Sesi</h2>
-                        <p className="text-sm text-slate-500">Periode: {period.name}</p>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                            <DoorOpen size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-slate-900">Manajemen Ruangan & Sesi</h2>
+                            <p className="text-xs text-slate-500">Folder: <span className="font-semibold text-slate-700">{period.name}</span></p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors"
+                        title="Tutup"
+                    >
                         <X size={20} />
                     </button>
                 </div>
                 
-                <div className="flex border-b border-slate-200 px-4 pt-2 bg-slate-50/30">
+                {/* Tabs */}
+                <div className="flex border-b border-slate-200 px-6 pt-2 bg-slate-50/30 gap-2">
                     <button
                         onClick={() => setActiveTab('rooms')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'rooms' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                            activeTab === 'rooms'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
                     >
+                        <Users size={15} />
                         Ruangan & Pengawas
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'rooms' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-600'}`}>
+                            {rooms.length}
+                        </span>
                     </button>
                     <button
                         onClick={() => setActiveTab('sessions')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'sessions' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                            activeTab === 'sessions'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
                     >
+                        <Clock size={15} />
                         Sesi Ujian
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'sessions' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-600'}`}>
+                            {sessions.length}
+                        </span>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                    {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{timeZoneError}</div>}
-                    {activeTab === 'rooms' && (
-                        <>
-                            {/* Room List Section */}
-                    <div>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <Users size={18} className="text-indigo-500" />
-                                Daftar Ruang Ujian
-                            </h3>
-                            <button
-                                onClick={() => setIsCreatingRoom(!isCreatingRoom)}
-                                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-                            >
-                                <Plus size={16} /> Tambah Ruang
-                            </button>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {timeZoneError && (
+                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 font-medium">
+                            {timeZoneError}
                         </div>
+                    )}
 
-                        {isCreatingRoom && (
-                            <div className="p-3 mb-4 bg-indigo-50 border border-indigo-100 rounded-xl flex gap-2 items-end">
-                                <div className="flex-1">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Nama Ruang</label>
-                                    <input
-                                        type="text"
-                                        value={newRoomName}
-                                        onChange={e => setNewRoomName(e.target.value)}
-                                        placeholder="Misal: Ruang 01"
-                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
-                                    />
-                                </div>
-                                <div className="w-24">
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Kapasitas</label>
-                                    <input
-                                        type="number"
-                                        value={newRoomCapacity}
-                                        onChange={e => setNewRoomCapacity(parseInt(e.target.value) || 0)}
-                                        className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
-                                    />
-                                </div>
-                                <button
-                                    onClick={handleCreateRoom}
-                                    disabled={!newRoomName.trim() || isSaving}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-                                >
-                                    Simpan
-                                </button>
-                            </div>
-                        )}
-
-                        {isLoading ? (
-                            <div className="text-center py-4 text-slate-400 text-sm">Memuat data...</div>
-                        ) : rooms.length === 0 ? (
-                            <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-500 text-sm">
-                                Belum ada ruang yang dibuat.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-3">
-                                {rooms.map(room => (
-                                    <div
-                                        key={room.id}
-                                        onClick={() => handleSelectRoom(room)}
-                                        className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                                            selectedRoom?.id === room.id
-                                                ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                                                : 'border-slate-200 bg-white hover:border-indigo-300'
-                                        }`}
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <span className="font-semibold text-slate-800">{room.name}</span>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id); }}
-                                                className="text-slate-400 hover:text-red-500 p-1"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                        <div className="mt-2 text-xs text-slate-500 space-y-1">
-                                            <div>Siswa: <span className={(room.pas_room_students?.length ?? 0) > room.capacity ? 'text-red-500 font-bold' : ''}>{room.pas_room_students?.length || 0} / {room.capacity}</span></div>
-                                            <div>Pengawas: {room.pas_room_invigilators?.length || 0}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Room Details & Assignment */}
-                    {selectedRoom && (
-                        <div className="border-t border-slate-200 pt-6 animate-in fade-in duration-300">
-                            <h3 className="font-semibold text-slate-800 text-lg mb-4">Pengaturan {selectedRoom.name}</h3>
-
-                            {/* Proctor Assignment */}
-                            <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    {/* ─── TAB: RUANGAN & PENGAWAS ─── */}
+                    {activeTab === 'rooms' && (
+                        <div className="space-y-6">
+                            {/* Room Header & Actions */}
+                            <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <h4 className="font-medium text-slate-700 text-sm">Pengawas Ruang</h4>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-sm">Daftar Ruang Ujian</h3>
+                                        <p className="text-xs text-slate-400">Pilih ruangan di bawah untuk menentukan pengawas dan alokasi siswa.</p>
+                                    </div>
                                     <button
-                                        onClick={handleSaveProctors}
-                                        disabled={isSaving}
-                                        className="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium hover:bg-indigo-200 flex items-center gap-1"
+                                        onClick={() => setIsCreatingRoom(!isCreatingRoom)}
+                                        className="text-xs bg-primary text-white hover:bg-primary/90 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 shadow-xs transition-all"
                                     >
-                                        <Save size={12} /> Simpan Pengawas
+                                        <Plus size={15} /> Tambah Ruang
                                     </button>
                                 </div>
-                                <div className="max-h-40 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
-                                    {teachers.length === 0 ? (
-                                        <div className="text-xs text-slate-400 p-2">Tidak ada daftar guru/pengawas.</div>
-                                    ) : (
-                                        teachers.map(teacher => (
-                                            <label key={teacher.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedProctorIds.includes(teacher.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) setSelectedProctorIds([...selectedProctorIds, teacher.id]);
-                                                        else setSelectedProctorIds(selectedProctorIds.filter(id => id !== teacher.id));
-                                                    }}
-                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <span className="text-sm text-slate-700">{teacher.name}</span>
-                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{teacher.roles.join(', ')}</span>
-                                            </label>
-                                        ))
-                                    )}
-                                </div>
+
+                                {/* Form Buat Ruang */}
+                                {isCreatingRoom && (
+                                    <div className="p-4 mb-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row gap-3 items-end">
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Ruang *</label>
+                                            <input
+                                                type="text"
+                                                value={newRoomName}
+                                                onChange={e => setNewRoomName(e.target.value)}
+                                                placeholder="Misal: Ruang 01, Lab Komputer 1"
+                                                className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                            />
+                                        </div>
+                                        <div className="w-full sm:w-32">
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kapasitas Kursi</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={newRoomCapacity}
+                                                onChange={e => setNewRoomCapacity(parseInt(e.target.value) || 0)}
+                                                className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 w-full sm:w-auto">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsCreatingRoom(false)}
+                                                className="px-3.5 py-2 h-[40px] text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
+                                            >
+                                                Batal
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleCreateRoom}
+                                                disabled={!newRoomName.trim() || isSaving}
+                                                className="px-4 py-2 h-[40px] bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs"
+                                            >
+                                                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                Simpan
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Daftar Kartu Ruang */}
+                                {isLoading ? (
+                                    <div className="text-center py-8 text-slate-400 text-xs flex items-center justify-center gap-2">
+                                        <Loader2 size={16} className="animate-spin text-primary" /> Memuat data ruangan...
+                                    </div>
+                                ) : rooms.length === 0 ? (
+                                    <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
+                                        <DoorOpen size={36} className="mx-auto mb-2 text-slate-300" />
+                                        <p className="font-bold text-slate-700 text-sm">Belum ada ruang yang dibuat</p>
+                                        <p className="text-xs text-slate-400 mt-0.5 max-w-sm mx-auto">
+                                            Tambahkan ruang ujian terlebih dahulu, lalu pilih ruangan untuk menetapkan pengawas dan alokasi siswa.
+                                        </p>
+                                        <button
+                                            onClick={() => setIsCreatingRoom(true)}
+                                            className="mt-3.5 px-3.5 py-1.5 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 inline-flex items-center gap-1.5 font-semibold shadow-xs"
+                                        >
+                                            <Plus size={14} /> Tambah Ruang Baru
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        {rooms.map(room => {
+                                            const isSelected = selectedRoom?.id === room.id;
+                                            const studentCount = room.pas_room_students?.length || 0;
+                                            const proctorCount = room.pas_room_invigilators?.length || 0;
+                                            const isOverCapacity = studentCount > room.capacity;
+
+                                            return (
+                                                <div
+                                                    key={room.id}
+                                                    onClick={() => handleSelectRoom(room)}
+                                                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                                                        isSelected
+                                                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs'
+                                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-2xs'
+                                                    }`}
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isSelected ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                                                <DoorOpen size={16} />
+                                                            </div>
+                                                            <span className="font-bold text-slate-800 text-sm truncate">{room.name}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); void handleDeleteRoom(room.id); }}
+                                                            className="text-slate-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                                            title="Hapus Ruangan"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                                                        <span className={`font-semibold flex items-center gap-1 ${isOverCapacity ? 'text-red-600' : 'text-slate-600'}`}>
+                                                            <Users size={12} className="text-slate-400" />
+                                                            {studentCount} / {room.capacity} Siswa
+                                                        </span>
+                                                        <span className="font-semibold text-slate-600 flex items-center gap-1">
+                                                            <ShieldCheck size={12} className="text-primary" />
+                                                            {proctorCount} Pengawas
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Student List */}
-                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                                <div className="flex items-center justify-between mb-3">
-                                    <h4 className="font-medium text-slate-700 text-sm">Daftar Siswa di Ruang Ini</h4>
-                                    <span className="text-xs font-medium px-2 py-1 bg-slate-100 rounded-full text-slate-600">
-                                        Total: {assignedStudentIds.size} / {selectedRoom.capacity} · Sisa {remainingCapacity}
-                                    </span>
-                                </div>
-                                
-                                <div className="mb-4 space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                    <h5 className="text-xs font-semibold text-slate-600">Tambah Siswa dari Kelas</h5>
-                                    <select
-                                        value={selectedClassId}
-                                        onChange={e => handleLoadClassStudents(e.target.value)}
-                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="">-- Pilih Kelas --</option>
-                                        {classes.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                    
-                                    {selectedClassId && (
-                                        <div className="space-y-2">
-                                            <div className="max-h-40 overflow-y-auto border border-slate-200 rounded bg-white p-2 text-sm space-y-1">
-                                                {classStudents.length === 0 ? (
-                                                    <div className="text-slate-400 p-2 text-xs">Tidak ada siswa di kelas ini.</div>
-                                                ) : (
-                                                    classStudents.map(student => (
-                                                        <label key={student.id} className="flex items-center gap-2 p-1 hover:bg-slate-50 cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedStudentIds.includes(student.id)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) setSelectedStudentIds([...selectedStudentIds, student.id]);
-                                                                    else setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
-                                                                }}
-                                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                                            />
-                                                            <span className="text-xs text-slate-700">{formatStudentName(student.name, 'Tanpa Nama')}</span>
-                                                        </label>
-                                                    ))
+                            {/* ── Detail Ruang Terpilih: Pengawas & Siswa ── */}
+                            {selectedRoom && (
+                                <div className="border-t border-slate-200 pt-6 space-y-5 animate-in fade-in duration-200">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                                                <span>Pengaturan: {selectedRoom.name}</span>
+                                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md border border-slate-200">
+                                                    Kapasitas: {selectedRoom.capacity} Kursi
+                                                </span>
+                                            </h3>
+                                            <p className="text-xs text-slate-400">Atur guru pengawas yang bertugas dan alokasi siswa untuk ruangan ini.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* 1. Pengawas Ruangan */}
+                                    <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4.5 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                                                <ShieldCheck size={15} className="text-primary" />
+                                                Pengawas Ruangan
+                                                {selectedProctorIds.length > 0 && (
+                                                    <span className="text-primary font-normal lowercase">({selectedProctorIds.length} dipilih)</span>
                                                 )}
                                             </div>
-                                            <button
-                                                onClick={handleAddStudentsToRoom}
-                                                disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving}
-                                                className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-                                            >
-                                                Tambahkan {selectedStudentIds.length} Siswa ke Ruang
-                                            </button>
-                                            {exceedsCapacity && (
-                                                <p className="text-xs text-red-600">
-                                                    Pilihan melebihi sisa kapasitas {remainingCapacity} tempat.
-                                                </p>
+                                            {isProctorSaved && (
+                                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                                    <Check size={13} /> Pengawas Disimpan
+                                                </span>
                                             )}
                                         </div>
-                                    )}
-                                </div>
 
-                                <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
-                                    {(!selectedRoom.pas_room_students || selectedRoom.pas_room_students.length === 0) ? (
-                                        <div className="text-xs text-slate-400 p-4 text-center">Belum ada siswa di ruang ini.</div>
-                                    ) : (
-                                        selectedRoom.pas_room_students.map((student) => (
-                                            <div key={student.user_id} className="flex items-center justify-between p-2 hover:bg-slate-50">
-                                                <span className="text-xs text-slate-700">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
-                                                <button
-                                                    onClick={() => handleRemoveStudent(student.user_id)}
-                                                    className="text-slate-400 hover:text-red-500"
-                                                >
-                                                    <X size={14} />
-                                                </button>
+                                        <div className="flex flex-col sm:flex-row gap-2.5 items-center">
+                                            <div className="flex-1 w-full">
+                                                <MultiSelect
+                                                    options={teachers.map(t => ({
+                                                        value: t.id,
+                                                        label: `${t.name}${t.roles?.length ? ` (${t.roles.join(', ')})` : ''}`,
+                                                    }))}
+                                                    value={selectedProctorIds}
+                                                    onChange={setSelectedProctorIds}
+                                                    placeholder="— Pilih Guru / Pengawas Ruangan —"
+                                                    allSelectedText="Semua Pengawas Terpilih"
+                                                    height="40px"
+                                                    minWidth="100%"
+                                                    showQuickActions={true}
+                                                />
                                             </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveProctors}
+                                                disabled={isSaving}
+                                                className="w-full sm:w-auto h-[40px] px-4 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs shrink-0 transition-all cursor-pointer"
+                                            >
+                                                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                                Simpan Pengawas
+                                            </button>
+                                        </div>
+                                    </div>
 
+                                    {/* 2. Alokasi Siswa */}
+                                    <div className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4.5 space-y-4">
+                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                            <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
+                                                <UserCheck size={15} className="text-primary" />
+                                                Daftar Siswa di Ruangan Ini
+                                            </div>
+                                            <span className="text-xs font-semibold px-2.5 py-1 bg-white rounded-lg text-slate-600 border border-slate-200 shadow-2xs">
+                                                Terisi: <strong className="text-slate-800">{assignedStudentIds.size}</strong> / {selectedRoom.capacity} · Sisa <strong className={remainingCapacity === 0 ? 'text-red-600' : 'text-emerald-600'}>{remainingCapacity}</strong> kursi
+                                            </span>
+                                        </div>
+
+                                        {/* Pilih Siswa per Kelas */}
+                                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
+                                            <p className="text-xs font-semibold text-slate-700">Tambah Siswa ke Ruangan:</p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                <InlineSelect
+                                                    value={selectedClassId}
+                                                    onChange={val => void handleLoadClassStudents(val)}
+                                                    minWidth="100%"
+                                                    height="40px"
+                                                    title="Pilih Kelas Asal"
+                                                    options={[
+                                                        { value: '', label: '— Pilih Kelas Asal —' },
+                                                        ...classes.map(c => ({ value: c.id, label: c.name })),
+                                                    ]}
+                                                />
+                                                {selectedClassId && (
+                                                    <MultiSelect
+                                                        options={classStudents.map(s => ({
+                                                            value: s.id,
+                                                            label: formatStudentName(s.name, 'Tanpa Nama'),
+                                                        }))}
+                                                        value={selectedStudentIds}
+                                                        onChange={setSelectedStudentIds}
+                                                        placeholder="— Pilih Siswa —"
+                                                        allSelectedText="Semua Siswa Terpilih"
+                                                        height="40px"
+                                                        minWidth="100%"
+                                                        showQuickActions={true}
+                                                    />
+                                                )}
+                                            </div>
+
+                                            {selectedClassId && selectedStudentIds.length > 0 && (
+                                                <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+                                                    {exceedsCapacity ? (
+                                                        <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                                                            <AlertCircle size={13} /> Pilihan melebihi sisa kapasitas ({remainingCapacity} kursi tersisa).
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-500 font-medium">
+                                                            {selectedStudentIds.length} siswa siap dimasukkan ke ruang ini.
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAddStudentsToRoom}
+                                                        disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving}
+                                                        className="px-4 py-2 h-[38px] bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-1.5 shadow-xs transition-all ml-auto cursor-pointer"
+                                                    >
+                                                        {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                                                        Tambahkan ({selectedStudentIds.length}) Siswa
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Daftar Siswa yang Telah Masuk Ruang */}
+                                        <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-100">
+                                            {(!selectedRoom.pas_room_students || selectedRoom.pas_room_students.length === 0) ? (
+                                                <div className="text-xs text-slate-400 p-6 text-center">
+                                                    Belum ada siswa yang dialokasikan ke ruangan ini.
+                                                </div>
+                                            ) : (
+                                                selectedRoom.pas_room_students.map((student, idx) => (
+                                                    <div key={student.user_id} className="flex items-center justify-between px-3.5 py-2 hover:bg-slate-50/80 transition-colors">
+                                                        <div className="flex items-center gap-2.5 text-xs text-slate-700">
+                                                            <span className="text-[10px] text-slate-400 font-bold w-5">{idx + 1}.</span>
+                                                            <span className="font-semibold">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleRemoveStudent(student.user_id)}
+                                                            className="text-slate-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                                                            title="Keluarkan dari ruang"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
-                    </>
-                    )}
 
+                    {/* ─── TAB: SESI UJIAN ─── */}
                     {activeTab === 'sessions' && (
-                        <div className="animate-in fade-in duration-300">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between mb-2">
                                 <div>
-                                    <h3 className="font-semibold text-slate-700">Daftar Sesi Ujian</h3>
-                                    <p className="text-xs text-slate-500">Pilih sesi saat membuat jadwal kelas.</p>
+                                    <h3 className="font-bold text-slate-800 text-sm">Daftar Sesi Ujian</h3>
+                                    <p className="text-xs text-slate-400">Jam mulai dan selesai sesi ujian pada folder ini.</p>
                                 </div>
                                 {period.is_locked ? (
-                                    <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
-                                        Periode terkunci
+                                    <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                                        Periode Terkunci
                                     </span>
                                 ) : (
                                     <button
                                         onClick={() => setIsCreatingSession(!isCreatingSession)}
-                                        className="text-sm bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors"
+                                        className="text-xs bg-primary text-white hover:bg-primary/90 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 shadow-xs transition-all"
                                     >
-                                        <Plus size={16} /> Tambah Sesi
+                                        <Plus size={15} /> Tambah Sesi
                                     </button>
                                 )}
                             </div>
 
+                            {/* Form Tambah Sesi */}
                             {!period.is_locked && isCreatingSession && (
-                                <div className="p-4 mb-4 bg-indigo-50 border border-indigo-100 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                                     <div className="sm:col-span-2">
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Nama Sesi</label>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Sesi *</label>
                                         <input
                                             type="text"
                                             value={newSessionName}
                                             onChange={e => setNewSessionName(e.target.value)}
-                                            placeholder="Misal: Sesi 1"
-                                            className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
+                                            placeholder="Misal: Sesi 1, Sesi Pagi"
+                                            className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Mulai ({getSchoolTimeZoneLabel(timeZone)})</label>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Jam Mulai ({getSchoolTimeZoneLabel(timeZone)}) *</label>
                                         <input
                                             type="time"
                                             value={newSessionStart}
                                             onChange={e => setNewSessionStart(e.target.value)}
-                                            className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
+                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-600 mb-1">Jam Selesai ({getSchoolTimeZoneLabel(timeZone)})</label>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Jam Selesai ({getSchoolTimeZoneLabel(timeZone)}) *</label>
                                         <input
                                             type="time"
                                             value={newSessionEnd}
                                             onChange={e => setNewSessionEnd(e.target.value)}
-                                            className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-indigo-500"
+                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
                                         />
                                     </div>
-                                    <div className="sm:col-span-4 flex justify-end gap-2 mt-2">
+                                    <div className="sm:col-span-4 flex justify-end gap-2 mt-1">
                                         <button
+                                            type="button"
                                             onClick={() => setIsCreatingSession(false)}
-                                            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                                            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-all"
                                         >
                                             Batal
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={handleCreateSession}
                                             disabled={!newSessionName.trim() || isSaving}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                                            className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
                                         >
+                                            {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                                             Simpan Sesi
                                         </button>
                                     </div>
                                 </div>
                             )}
 
+                            {/* Daftar Sesi */}
                             {isLoading ? (
-                                <div className="text-center py-4 text-slate-400 text-sm">Memuat data...</div>
+                                <div className="text-center py-8 text-slate-400 text-xs flex items-center justify-center gap-2">
+                                    <Loader2 size={16} className="animate-spin text-primary" /> Memuat data sesi...
+                                </div>
                             ) : sessions.length === 0 ? (
-                                <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-500 text-sm">
-                                    Belum ada sesi yang dibuat. Silakan tambah sesi ujian.
+                                <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
+                                    <Clock size={36} className="mx-auto mb-2 text-slate-300" />
+                                    <p className="font-bold text-slate-700 text-sm">Belum ada sesi yang dibuat</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">Silakan tambah sesi ujian untuk digunakan saat penjadwalan kelas.</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                     {sessions.map(session => (
                                         <div
                                             key={session.id}
-                                            className="p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 transition-all flex items-center justify-between group"
+                                            className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all flex items-center justify-between group shadow-2xs"
                                         >
-                                            <div>
-                                                <div className="font-semibold text-slate-800 mb-1">{session.name}</div>
-                                                <div className="text-xs text-slate-500 font-medium">
-                                                    {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {getSchoolTimeZoneLabel(timeZone)}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                    <Clock size={16} className="text-primary" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-slate-800 text-sm">{session.name}</div>
+                                                    <div className="text-xs text-slate-500 font-medium">
+                                                        {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {getSchoolTimeZoneLabel(timeZone)}
+                                                    </div>
                                                 </div>
                                             </div>
                                             {!period.is_locked && (
                                                 <button
-                                                    onClick={() => handleDeleteSession(session.id)}
-                                                    className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => void handleDeleteSession(session.id)}
+                                                    className="text-slate-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg hover:bg-red-50"
                                                     title="Hapus Sesi"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Trash2 size={15} />
                                                 </button>
                                             )}
                                         </div>
@@ -565,7 +720,6 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                             )}
                         </div>
                     )}
-                    
                 </div>
             </div>
         </div>
