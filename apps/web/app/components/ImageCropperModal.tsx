@@ -1,11 +1,12 @@
 "use client";
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Crop, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crop, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import type { Area, Point } from 'react-easy-crop';
 import Cropper from 'react-easy-crop';
 import { useClientMounted } from '@/hooks/useClientMounted';
 import { createPortal } from 'react-dom';
+import { Button } from '@/components/ui/button';
 
 interface ImageCropperModalProps {
     isOpen: boolean;
@@ -115,37 +116,40 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete, aspect }
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/80"
+                        className="absolute inset-0 bg-black/70 backdrop-blur-xs"
                         onClick={onClose}
                     />
                     <motion.div
-                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        initial={{ scale: 0.95, opacity: 0, y: 12 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                        className="relative w-full max-w-4xl bg-white border border-slate-100 rounded-[32px] overflow-hidden shadow-2xl flex flex-col h-[80vh]"
+                        exit={{ scale: 0.95, opacity: 0, y: 12 }}
+                        className="relative w-full max-w-2xl bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[75vh] max-h-[580px]"
                     >
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-primary/10 rounded-xl text-primary font-black">
-                                    <Crop size={20} />
+                        {/* Header */}
+                        <div className="px-5 py-3.5 border-b border-slate-200/80 flex justify-between items-center bg-white">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                                    <Crop size={16} />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-primary uppercase tracking-tight">Crop &amp; Potong Gambar</h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">
-                                        {aspect === 1
-                                            ? 'Potong ke rasio 1:1 (persegi)'
-                                            : aspect
-                                            ? `Potong ke rasio ${aspect}`
-                                            : 'Sesuaikan tampilan gambar sesuai keinginan'}
-                                    </p>
+                                    <h3 className="text-sm font-bold text-slate-800 leading-tight">Sesuaikan Foto Cover</h3>
+                                    {aspect === 1 && (
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">Rasio persegi (1:1)</p>
+                                    )}
                                 </div>
                             </div>
-                            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                                <X size={24} />
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                aria-label="Tutup"
+                            >
+                                <X size={18} />
                             </button>
                         </div>
 
-                        <div className="relative flex-1 bg-slate-100 overflow-hidden">
+                        {/* Cropper Container */}
+                        <div className="relative flex-1 bg-slate-900 overflow-hidden">
                             <Cropper
                                 image={imageSrc}
                                 crop={crop}
@@ -159,63 +163,68 @@ const ImageCropperModal = ({ isOpen, onClose, imageSrc, onCropComplete, aspect }
                             />
                         </div>
 
-                        <div className="p-8 space-y-6 bg-white border-t border-slate-100">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-4">
-                                    <label className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        <span>Zoom</span>
-                                        <span className="text-primary">{Math.round(zoom * 100)}%</span>
-                                    </label>
-                                    <div className="flex items-center gap-4">
-                                        <ZoomOut size={16} className="text-slate-400" />
+                        {/* Controls & Actions */}
+                        <div className="p-4 sm:p-5 space-y-4 bg-white border-t border-slate-200/80">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="font-medium text-slate-600">Perbesar (Zoom)</span>
+                                        <span className="font-semibold text-primary">{Math.round(zoom * 100)}%</span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5">
+                                        <ZoomOut size={14} className="text-slate-400 flex-shrink-0" />
                                         <input
                                             type="range"
                                             value={zoom}
                                             min={1}
                                             max={3}
                                             step={0.1}
-                                            aria-labelledby="Zoom"
+                                            aria-label="Zoom"
                                             onChange={(e) => onZoomChange(Number(e.target.value))}
-                                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
+                                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#3083FF]"
                                         />
-                                        <ZoomIn size={16} className="text-slate-400" />
+                                        <ZoomIn size={14} className="text-slate-400 flex-shrink-0" />
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        <span>Rotation</span>
-                                        <span className="text-primary">{rotation}°</span>
-                                    </label>
-                                    <div className="flex items-center gap-4">
-                                        <RotateCcw size={16} className="text-slate-400" />
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="font-medium text-slate-600">Rotasi</span>
+                                        <span className="font-semibold text-primary">{rotation}°</span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5">
+                                        <RotateCcw size={14} className="text-slate-400 flex-shrink-0" />
                                         <input
                                             type="range"
                                             value={rotation}
                                             min={0}
                                             max={360}
                                             step={1}
-                                            aria-labelledby="Rotation"
+                                            aria-label="Rotasi"
                                             onChange={(e) => setRotation(Number(e.target.value))}
-                                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary"
+                                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#3083FF]"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-4 pt-4 border-t border-slate-50">
-                                <button
+                            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+                                <Button
+                                    type="button"
+                                    variant="cancel"
                                     onClick={onClose}
-                                    className="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all border border-transparent"
+                                    icon="cancel"
                                 >
-                                    Cancel
-                                </button>
-                                <button
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="primary"
                                     onClick={handleConfirm}
-                                    className="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-primary text-white flex items-center gap-2 hover:bg-primary-light transition-all shadow-xl shadow-primary/20 active:scale-95"
+                                    icon="save"
                                 >
-                                    <Check size={16} /> Potong &amp; Gunakan
-                                </button>
+                                    Gunakan Gambar
+                                </Button>
                             </div>
                         </div>
                     </motion.div>

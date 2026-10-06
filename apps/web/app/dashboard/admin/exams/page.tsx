@@ -282,7 +282,7 @@ const ExamsPage = () => {
     };
 
     const isPasGeneratedExam = (e: OrganizationExam): boolean => {
-        return e.metadata?.is_pas_exam === true || e.exam_type === 'pas' || e.exam_type === 'pat';
+        return Boolean(e.metadata?.is_pas_exam === true || e.metadata?.pas_period_id);
     };
 
     const getExamTabFilter = (e: OrganizationExam, tabId: TabId): boolean => {

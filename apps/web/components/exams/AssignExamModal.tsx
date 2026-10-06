@@ -465,7 +465,6 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                     )}
                 </span>
             }
-            subtitle={`${selectedClassIds.length} Kelas dipilih • ${allSelectedStudents.length} Siswa terpilih`}
             className="md:h-[620px] max-h-[92vh] flex flex-col"
             overlayClassName={overlayClassName}
         >
@@ -651,14 +650,9 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                 /* ── VIEW: ALL SELECTED STUDENTS ACROSS ALL CLASSES ── */
                                 <div className="flex flex-col h-full min-h-0">
                                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                                        <div>
-                                            <h4 className="text-sm font-bold text-slate-900">
-                                                Daftar Siswa Terpilih
-                                            </h4>
-                                            <p className="text-[11px] text-slate-400 mt-0.5">
-                                                Menampilkan seluruh siswa yang akan menerima ujian beserta kelasnya
-                                            </p>
-                                        </div>
+                                        <h4 className="text-sm font-bold text-slate-900">
+                                            Daftar Siswa Terpilih
+                                        </h4>
                                         <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
                                             {allSelectedStudents.length} Siswa
                                         </span>
@@ -747,15 +741,15 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                 <div className="flex flex-col h-full min-h-0">
                                     {/* Class Detail Header */}
                                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="text-sm font-bold text-slate-900 truncate">
-                                                    Kelas {activeClass.name}
-                                                </h4>
-                                                <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                    {activeStudents.length} Siswa
-                                                </span>
-                                            </div>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <h4 className="text-sm font-bold text-slate-800 truncate">
+                                                {activeClass.name.toLowerCase().startsWith('kelas ')
+                                                    ? activeClass.name
+                                                    : `Kelas ${activeClass.name}`}
+                                            </h4>
+                                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                                                {activeStudents.length} Siswa
+                                            </span>
                                         </div>
 
                                         {/* Minimalist Mode Toggle */}
@@ -768,7 +762,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                 className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1 ${
                                                     activeAssignment.mode === 'all'
                                                         ? 'bg-white text-slate-900 shadow-xs'
-                                                        : 'text-slate-500 hover:text-slate-900'
+                                                    : 'text-slate-500 hover:text-slate-900'
                                                 }`}
                                             >
                                                 <UserCheck size={12} />
@@ -794,49 +788,43 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                     {/* Mode: ALL STUDENTS */}
                                     {activeAssignment.mode === 'all' ? (
                                         <div className="flex-1 flex flex-col min-h-0 mt-3 overflow-hidden">
-                                            <div className="flex items-center justify-between mb-2 px-0.5">
-                                                <span className="text-[11px] font-medium text-slate-500">
-                                                    Seluruh siswa di kelas ini terpilih secara otomatis:
-                                                </span>
-                                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                                                    {activeStudents.length} Siswa Terdaftar
-                                                </span>
-                                            </div>
-
                                             <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 min-h-0">
-                                                {activeStudents.map((student) => {
-                                                    const name = formatStudentName(
-                                                        student.full_name || student.name,
-                                                        'Tanpa nama',
-                                                    );
-                                                    const emailOrId =
-                                                        student.email || student.identity_number || '';
-                                                    return (
-                                                        <div
-                                                            key={student.id}
-                                                            className="flex items-center justify-between p-2 rounded-xl border border-slate-200/80 bg-slate-50/50"
-                                                        >
-                                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                                                    ✓
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    <p className="text-xs font-medium text-slate-800 truncate">
-                                                                        {name}
-                                                                    </p>
-                                                                    {emailOrId && (
-                                                                        <p className="text-[10px] text-slate-400 truncate">
-                                                                            {emailOrId}
+                                                {activeStudents.length === 0 ? (
+                                                    <div className="text-center py-8 text-slate-400 text-xs">
+                                                        Belum ada siswa terdaftar di kelas ini.
+                                                    </div>
+                                                ) : (
+                                                    activeStudents.map((student) => {
+                                                        const name = formatStudentName(
+                                                            student.full_name || student.name,
+                                                            'Tanpa nama',
+                                                        );
+                                                        const emailOrId =
+                                                            student.email || student.identity_number || '';
+                                                        return (
+                                                            <div
+                                                                key={student.id}
+                                                                className="flex items-center justify-between p-2 rounded-xl border border-slate-200/80 bg-slate-50/50"
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                                        ✓
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-xs font-medium text-slate-800 truncate">
+                                                                            {name}
                                                                         </p>
-                                                                    )}
+                                                                        {emailOrId && (
+                                                                            <p className="text-[10px] text-slate-400 truncate">
+                                                                                {emailOrId}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shrink-0">
-                                                                {activeClass.name}
-                                                            </span>
-                                                        </div>
-                                                    );
-                                                })}
+                                                        );
+                                                    })
+                                                )}
                                             </div>
                                         </div>
                                     ) : (
@@ -877,11 +865,9 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                 </button>
                                             </div>
 
-                                            <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 mb-1.5 px-0.5">
-                                                <span>Pilih siswa:</span>
-                                                <span className="font-bold text-[#3083FF] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                                                    {activeAssignment.studentIds.length} dari{' '}
-                                                    {activeStudents.length} dipilih
+                                            <div className="flex items-center justify-end text-[11px] mb-1.5 px-0.5">
+                                                <span className="font-semibold text-[#3083FF] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                                                    {activeAssignment.studentIds.length} dari {activeStudents.length} siswa dipilih
                                                 </span>
                                             </div>
 
@@ -947,10 +933,6 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                                         )}
                                                                     </div>
                                                                 </div>
-
-                                                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md shrink-0">
-                                                                    {activeClass.name}
-                                                                </span>
                                                             </label>
                                                         );
                                                     })

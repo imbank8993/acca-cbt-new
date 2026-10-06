@@ -442,45 +442,45 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                     </ModalField>
 
                     {/* Cover Bank Soal (Preview & Upload) */}
-                    <ModalField label="Cover Bank Soal" hint="Format gambar JPG, PNG, atau WebP (opsional, rasio 1:1)">
+                    <ModalField label="Cover Bank Soal">
                         {formData.imageUrl ? (
-                            <div className="flex items-center gap-3.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                                <div className="relative w-16 h-16 aspect-square rounded-xl overflow-hidden bg-slate-200 flex-shrink-0 border border-slate-300 shadow-xs">
-                                    <QuestionBankCover
-                                        imageUrl={formData.imageUrl}
-                                        title="Cover bank soal"
-                                        width={64}
-                                        height={64}
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                                    <span className="text-xs font-semibold text-slate-700">Cover Terpasang</span>
-                                    <div className="flex items-center gap-3">
-                                        <label className="text-xs font-medium text-primary hover:text-primary/80 cursor-pointer flex items-center gap-1">
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                disabled={uploadingImage}
-                                            />
-                                            <Upload size={12} />
-                                            {uploadingImage ? 'Mengunggah...' : 'Ganti Cover'}
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
-                                            disabled={uploadingImage}
-                                            className="text-xs font-medium text-rose-500 hover:text-rose-600 flex items-center gap-1"
-                                        >
-                                            <Trash2 size={12} />
-                                            Hapus
-                                        </button>
+                            <div className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="relative w-10 h-10 aspect-square rounded-lg overflow-hidden bg-slate-200 flex-shrink-0 border border-slate-300 shadow-xs">
+                                        <QuestionBankCover
+                                            imageUrl={formData.imageUrl}
+                                            title="Cover bank soal"
+                                            width={40}
+                                            height={40}
+                                        />
                                     </div>
+                                    <span className="text-xs font-semibold text-slate-700 truncate">Cover Terpasang</span>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    <label className="text-xs font-medium text-primary hover:text-primary/80 cursor-pointer flex items-center gap-1">
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={handleImageUpload}
+                                            disabled={uploadingImage}
+                                        />
+                                        <Upload size={12} />
+                                        {uploadingImage ? 'Mengunggah...' : 'Ganti'}
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
+                                        disabled={uploadingImage}
+                                        className="text-xs font-medium text-rose-500 hover:text-rose-600 flex items-center gap-1"
+                                    >
+                                        <Trash2 size={12} />
+                                        Hapus
+                                    </button>
                                 </div>
                             </div>
                         ) : (
-                            <label className="flex items-center gap-3 p-3.5 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-slate-50/60 transition-all">
+                            <label className="flex items-center gap-2.5 p-2 px-3 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-slate-50/60 transition-all">
                                 <input
                                     type="file"
                                     className="hidden"
@@ -488,19 +488,16 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                                     onChange={handleImageUpload}
                                     disabled={uploadingImage}
                                 />
-                                <div className="w-12 h-12 aspect-square rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">
                                     {uploadingImage ? (
-                                        <Loader2 size={18} className="animate-spin text-primary" />
+                                        <Loader2 size={15} className="animate-spin text-primary" />
                                     ) : (
-                                        <Upload size={18} />
+                                        <Upload size={15} />
                                     )}
                                 </div>
-                                <div className="min-w-0">
-                                    <span className="text-sm font-medium text-slate-700 block">
-                                        {uploadingImage ? 'Sedang mengunggah cover...' : 'Klik untuk unggah cover'}
-                                    </span>
-                                    <p className="text-xs text-slate-400">Rekomendasi rasio 1:1 (persegi)</p>
-                                </div>
+                                <span className="text-xs font-medium text-slate-700">
+                                    {uploadingImage ? 'Sedang mengunggah cover...' : 'Klik untuk unggah cover'}
+                                </span>
                             </label>
                         )}
                     </ModalField>

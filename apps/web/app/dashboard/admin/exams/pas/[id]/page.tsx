@@ -197,9 +197,18 @@ export default function AdminPASDetailPage() {
         setIsGenerating(false);
     };
 
-    const formatDate = (dateStr: string) => {
+    const formatDate = (dateStr: string | null | undefined) => {
         if (!dateStr) return '-';
-        return new Date(`${dateStr}T12:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        const d = new Date(`${cleanDate}T12:00:00`);
+        if (isNaN(d.getTime())) {
+            const fallback = new Date(dateStr);
+            if (!isNaN(fallback.getTime())) {
+                return fallback.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            }
+            return '-';
+        }
+        return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
     const getBankTitle = (bankId: string | null, sc?: PASClassSchedule) => {
@@ -239,7 +248,7 @@ export default function AdminPASDetailPage() {
     if (isLoading) {
         return (
             <div className="flex justify-center py-20">
-                <Loader2 size={48} className="text-primary animate-spin" />
+                <Loader2 size={36} className="text-primary animate-spin" />
             </div>
         );
     }
@@ -266,123 +275,121 @@ export default function AdminPASDetailPage() {
     const groupedSchedules = getSchedulesByDateAndTime(activeTab === 'live_today' ? liveSchedules : schedules);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6 pb-20">
+        <div className="max-w-7xl mx-auto space-y-5 pb-20">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            {/* Period Details Bar */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-4">
-                    <Link href="/dashboard/admin/exams" className="mt-1 p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all border border-slate-200">
-                        <ArrowLeft size={18} />
+            
+            {/* Period Details Header Card */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                    <Link
+                        href="/dashboard/admin/exams"
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 shrink-0"
+                        title="Kembali ke Daftar Ujian"
+                    >
+                        <ArrowLeft size={16} />
                     </Link>
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">
-                        <FolderOpen size={24} />
+                    <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+                        <FolderOpen size={20} />
                     </div>
-                    <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                                FOLDER UJIAN {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === "ganjil" ? "GANJIL" : "GENAP"}
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === "ganjil" ? "Ganjil" : "Genap"}
                             </span>
-                            <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold tracking-wider rounded-full border border-slate-200">{period.school_year}</span>
-                            {period.is_locked && <span className="px-2.5 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold tracking-wider rounded-full flex items-center gap-1"><Lock size={10} /> TERKUNCI</span>}
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md border border-slate-200">{period.school_year}</span>
+                            {period.is_locked && <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded-md flex items-center gap-1"><Lock size={10} /> Terkunci</span>}
                         </div>
-                        <h1 className="text-xl font-bold text-slate-800 mb-1">{period.name}</h1>
-                        <p className="text-slate-500 text-xs font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-600">
-                                <Calendar size={13} />
-                                {formatDate(period.start_date)} — {formatDate(period.end_date)}
-                            </span>
-                            <span>•</span>
-                            <span>Semua bank soal yang dijadwalkan di folder ini menggunakan nama ujian <strong>&ldquo;{period.name}&rdquo;</strong></span>
+                        <h1 className="text-lg font-bold text-slate-800 truncate">{period.name}</h1>
+                        <p className="text-slate-400 text-xs font-medium flex items-center gap-1.5 mt-0.5">
+                            <Calendar size={12} className="text-slate-400" />
+                            <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-                    <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-bold flex items-center gap-1.5">
-                        <BookOpen size={14} /> {uniqueBankCount} Bank Soal
+                <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0">
+                    <span className="px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-1.5">
+                        <BookOpen size={13} /> {uniqueBankCount} Bank Soal
                     </span>
-                    <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5">
-                        <Calendar size={14} /> {schedules.length} Jadwal Kelas
+                    <span className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5">
+                        <Calendar size={13} /> {schedules.length} Jadwal Kelas
                     </span>
-                    <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
-                        <Check size={14} /> {readySchedulesCount}/{schedules.length} Siap Ujian
+                    <span className="px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5">
+                        <Check size={13} /> {readySchedulesCount}/{schedules.length} Siap
                     </span>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl w-max">
-                <button onClick={() => setActiveTab('schedules')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        activeTab === 'schedules' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}>
-                    <Calendar size={15} /> Daftar Bank Soal Terjadwal
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${activeTab === 'schedules' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'}`}>
-                        {schedules.length}
-                    </span>
-                </button>
-                <button onClick={() => setActiveTab('live_today')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        activeTab === 'live_today' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}>
-                    <Zap size={15} className={activeTab === 'live_today' ? 'text-amber-500' : ''} /> Live Hari Ini
-                    {liveSchedules.length > 0 && (
-                        <span className="flex h-2 w-2 relative ml-1">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            {/* Tabs & Toolbar Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
+                <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl">
+                    <button onClick={() => setActiveTab('schedules')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            activeTab === 'schedules' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}>
+                        <Calendar size={14} /> Daftar Bank Soal
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${activeTab === 'schedules' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'}`}>
+                            {schedules.length}
                         </span>
-                    )}
-                </button>
-                <button onClick={() => setActiveTab('detail')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                        activeTab === 'detail' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}>
-                    <Settings size={15} /> Detail Folder
-                </button>
+                    </button>
+                    <button onClick={() => setActiveTab('live_today')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            activeTab === 'live_today' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}>
+                        <Zap size={14} className={activeTab === 'live_today' ? 'text-amber-500' : ''} /> Live Hari Ini
+                        {liveSchedules.length > 0 && (
+                            <span className="flex h-2 w-2 relative ml-0.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                        )}
+                    </button>
+                    <button onClick={() => setActiveTab('detail')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            activeTab === 'detail' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}>
+                        <Settings size={14} /> Detail Folder
+                    </button>
+                </div>
+
+                {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {ungeneratedIds.length > 0 && (
+                            <button
+                                onClick={() => void handleGenerateExams(ungeneratedIds)}
+                                disabled={isGenerating}
+                                className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                            >
+                                {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                                Aktifkan Semua ({ungeneratedIds.length})
+                            </button>
+                        )}
+                        <button onClick={() => setIsRoomManagementOpen(true)}
+                            className="px-3 py-1.5 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-medium transition-all shadow-2xs">
+                            <Settings size={14} /> Sesi & Ruang
+                        </button>
+                        <button onClick={() => setIsBulkInputOpen(true)}
+                            className="px-3 py-1.5 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-medium transition-all shadow-2xs">
+                            <Table size={14} /> Jadwal Massal
+                        </button>
+                        <button onClick={() => {
+                            setScheduleForm(prev => ({
+                                ...prev,
+                                scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
+                                session_id: prev.session_id || sessions[0]?.id || '',
+                            }));
+                            setIsAddScheduleOpen(true);
+                        }}
+                            className="px-3.5 py-1.5 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center gap-1.5 shadow-xs font-semibold transition-all">
+                            <Plus size={15} /> Jadwalkan Bank Soal
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* ─── SCHEDULES & LIVE TAB ─── */}
             {(activeTab === 'schedules' || activeTab === 'live_today') && (
-                <div className="space-y-6">
-                    {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
-                        <div className="flex items-center justify-between gap-3 flex-wrap bg-slate-50/80 border border-slate-200/80 p-3.5 rounded-2xl">
-                            <div className="text-xs text-slate-600">
-                                Pilih <strong>Bank Soal</strong> untuk dijadwalkan ke satu atau beberapa kelas sekaligus di dalam folder <strong>{period.name}</strong>.
-                            </div>
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                                {ungeneratedIds.length > 0 && (
-                                    <button
-                                        onClick={() => void handleGenerateExams(ungeneratedIds)}
-                                        disabled={isGenerating}
-                                        className="px-4 py-2 text-xs font-bold bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                                    >
-                                        {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                                        Aktifkan Semua ({ungeneratedIds.length})
-                                    </button>
-                                )}
-                                <button onClick={() => setIsRoomManagementOpen(true)}
-                                    className="px-3.5 py-2 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center gap-1.5 font-semibold">
-                                    <Settings size={15} /> Pengaturan Sesi & Ruang
-                                </button>
-                                <button onClick={() => setIsBulkInputOpen(true)}
-                                    className="px-3.5 py-2 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center gap-1.5 font-semibold">
-                                    <Table size={15} /> Tabel Jadwal Massal
-                                </button>
-                                <button onClick={() => {
-                                    setScheduleForm(prev => ({
-                                        ...prev,
-                                        scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
-                                        session_id: prev.session_id || sessions[0]?.id || '',
-                                    }));
-                                    setIsAddScheduleOpen(true);
-                                }}
-                                    className="px-4 py-2 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center gap-1.5 shadow-md shadow-primary/20 font-bold">
-                                    <Plus size={16} /> Pilih & Jadwalkan Bank Soal
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
+                <div className="space-y-4">
                     {isBulkInputOpen && (
                         <BulkScheduleGrid
                             periodId={periodId}
@@ -397,22 +404,24 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {(!isBulkInputOpen && activeTab === 'live_today' && liveSchedules.length === 0) && (
-                        <div className="py-16 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                            <Calendar size={40} className="mx-auto mb-3 opacity-40" />
-                            <p className="font-medium text-slate-600">Tidak ada jadwal ujian hari ini</p>
-                            <p className="text-sm mt-1">Belum ada bank soal di folder ini yang dijadwalkan untuk hari ini.</p>
+                        <div className="py-14 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl bg-white">
+                            <Calendar size={36} className="mx-auto mb-2.5 opacity-40 text-slate-400" />
+                            <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal ujian hari ini</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Belum ada bank soal di folder ini yang dijadwalkan untuk hari ini.</p>
                         </div>
                     )}
 
                     {(!isBulkInputOpen && activeTab === 'schedules' && schedules.length === 0) && (
-                        <div className="py-16 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-white">
-                            <FolderOpen size={44} className="mx-auto mb-3 text-amber-400" />
-                            <p className="font-bold text-slate-700 text-base">Folder Ujian Ini Masih Kosong</p>
-                            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                                Pilih bank soal yang ingin dimasukkan ke folder <strong>{period.name}</strong> dan jadwalkan ke kelas tujuan.
+                        <div className="py-14 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl bg-white p-6">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-500 mx-auto mb-3">
+                                <FolderOpen size={24} />
+                            </div>
+                            <p className="font-bold text-slate-800 text-sm">Folder Ujian Masih Kosong</p>
+                            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                                Jadwalkan bank soal ke kelas tujuan untuk memulai periode ujian ini.
                             </p>
                             {!period.is_locked && (
-                                <div className="mt-5 flex items-center justify-center gap-3">
+                                <div className="mt-4 flex items-center justify-center gap-2.5">
                                     <button
                                         onClick={() => {
                                             setScheduleForm(prev => ({
@@ -422,15 +431,15 @@ export default function AdminPASDetailPage() {
                                             }));
                                             setIsAddScheduleOpen(true);
                                         }}
-                                        className="px-4 py-2.5 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 inline-flex items-center gap-1.5 font-bold shadow-md shadow-primary/20"
+                                        className="px-3.5 py-2 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 inline-flex items-center gap-1.5 font-semibold shadow-xs transition-all"
                                     >
-                                        <Plus size={16} /> Pilih & Jadwalkan Bank Soal
+                                        <Plus size={15} /> Jadwalkan Bank Soal
                                     </button>
                                     <button
                                         onClick={() => setIsBulkInputOpen(true)}
-                                        className="px-4 py-2.5 text-xs bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 inline-flex items-center gap-1.5 font-semibold"
+                                        className="px-3.5 py-2 text-xs bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 inline-flex items-center gap-1.5 font-medium transition-all"
                                     >
-                                        <Table size={15} /> Tabel Jadwal Massal
+                                        <Table size={14} /> Jadwal Massal
                                     </button>
                                 </div>
                             )}
@@ -438,19 +447,16 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {!isBulkInputOpen && groupedSchedules.map((dayGroup) => (
-                        <div key={dayGroup.date} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <div key={dayGroup.date} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
                             {/* Header Tanggal */}
-                            <div className="bg-slate-800 p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-slate-700 flex flex-col items-center justify-center text-white">
-                                        <span className="text-xs font-bold -mb-1">{new Date(`${dayGroup.date}T12:00:00`).toLocaleDateString('id-ID', { weekday: 'short' })}</span>
-                                        <span className="text-sm font-black">{Number(dayGroup.date.slice(-2))}</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-white font-bold text-lg leading-tight">{formatDate(dayGroup.date)}</h3>
-                                        <p className="text-slate-400 text-xs">{dayGroup.sessions.length} Sesi Ujian</p>
-                                    </div>
+                            <div className="bg-slate-50 border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5 font-semibold text-slate-800 text-sm">
+                                    <Calendar size={15} className="text-[#3083FF]" />
+                                    <span>{formatDate(dayGroup.date)}</span>
                                 </div>
+                                <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs">
+                                    {dayGroup.sessions.length} Sesi Ujian
+                                </span>
                             </div>
 
                             {/* Daftar Sesi dalam Tanggal tersebut */}

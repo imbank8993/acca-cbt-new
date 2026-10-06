@@ -1144,36 +1144,56 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     </div>
 
                     {/* Opsi Pengaturan Tambahan */}
-                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 flex flex-wrap gap-x-5 gap-y-2.5 select-none">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.randomizeQuestions}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, randomizeQuestions: e.target.checked }))}
-                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
-                            />
-                            <span className="text-xs font-medium text-slate-700">Acak Soal</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.randomizeOptions}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, randomizeOptions: e.target.checked }))}
-                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
-                            />
-                            <span className="text-xs font-medium text-slate-700">Acak Opsi</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.isSafeMode}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, isSafeMode: e.target.checked }))}
-                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
-                            />
-                            <span className="text-xs font-medium text-slate-700">Mode Aman (Proctoring)</span>
-                        </label>
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2.5 select-none">
+                        <div className="flex flex-wrap gap-x-5 gap-y-2.5 items-center">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.randomizeQuestions}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, randomizeQuestions: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
+                                />
+                                <span className="text-xs font-medium text-slate-700">Acak soal</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.randomizeOptions}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, randomizeOptions: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
+                                />
+                                <span className="text-xs font-medium text-slate-700">Acak Opsi</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.isSafeMode}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, isSafeMode: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
+                                />
+                                <span className="text-xs font-medium text-slate-700">Mode Aman</span>
+                            </label>
+                            <label
+                                className={`flex items-center gap-2 ${
+                                    formData.scoringTypes.some((t) => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={formData.showResults}
+                                    disabled={formData.scoringTypes.some((t) => t.startsWith('irt_'))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, showResults: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200"
+                                />
+                                <span className="text-xs font-medium text-slate-700">
+                                    Tampilkan Nilai
+                                    {formData.scoringTypes.some((t) => t.startsWith('irt_')) && ' (Nonaktif untuk IRT)'}
+                                </span>
+                            </label>
+                        </div>
+
                         {formData.isSafeMode && (
-                            <div className="basis-full mt-1 rounded-lg border border-blue-100 bg-blue-50/70 p-3">
+                            <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
                                 <p className="text-xs font-semibold text-slate-700 mb-2">Tindakan setelah pelanggaran</p>
                                 <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                                     <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
@@ -1217,23 +1237,6 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 </div>
                             </div>
                         )}
-                        <label
-                            className={`flex items-center gap-2 ${
-                                formData.scoringTypes.some((t) => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                            }`}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={formData.showResults}
-                                disabled={formData.scoringTypes.some((t) => t.startsWith('irt_'))}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, showResults: e.target.checked }))}
-                                className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200"
-                            />
-                            <span className="text-xs font-medium text-slate-700">
-                                Tampilkan Nilai
-                                {formData.scoringTypes.some((t) => t.startsWith('irt_')) && ' (Nonaktif untuk IRT)'}
-                            </span>
-                        </label>
                     </div>
                         </>
                     )}
