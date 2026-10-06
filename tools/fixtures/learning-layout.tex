@@ -1,0 +1,36 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=22mm]{geometry}
+\usepackage{amsmath,booktabs,multicol,tikz,fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Modul Matematika}
+\fancyhead[R]{Kelas X}
+\fancyfoot[C]{\thepage}
+\newcommand{\tujuan}[1]{\noindent\fbox{\parbox{0.94\linewidth}{#1}}}
+\begin{document}
+\begin{center}{\LARGE Persamaan Kuadrat}\end{center}
+\tujuan{Tujuan: memahami bentuk, akar, dan grafik persamaan kuadrat.}
+\section{Materi dan Rumus}
+\begin{multicols}{2}
+Persamaan kuadrat memiliki bentuk $ax^2+bx+c=0$.
+\[x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}\]
+\columnbreak
+\begin{tabular}{lr}\toprule
+Koefisien & Nilai\\\midrule
+$a$ & 1\\ $b$ & -3\\ $c$ & 2\\\bottomrule
+\end{tabular}
+\end{multicols}
+\section{Grafik}
+\begin{center}\begin{tikzpicture}[scale=0.7]
+\draw[->] (-1,0)--(4,0) node[right] {$x$};
+\draw[->] (0,-2)--(0,4) node[above] {$y$};
+\draw[blue,thick,domain=-0.3:3.3,samples=60] plot (\x,{\x*\x-3*\x+2});
+\end{tikzpicture}\end{center}
+\newpage
+\section{Latihan}
+Halaman ini harus tetap menjadi halaman kedua.
+\begin{enumerate}
+\item Tentukan akar $x^2-3x+2=0$.
+\item Jelaskan hubungan diskriminan dengan banyaknya akar real.
+\end{enumerate}
+\end{document}

@@ -1,4 +1,18 @@
 services:
+  cbt-latex:
+    build: ./apps/latex-renderer
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [latex-network]
+    # No published port, secrets, host mounts, or external network.
+
   # ─── 1. Scoring & IRT Service (FastAPI / Python) ───────────────────────────
   cbt-scoring:
     build:
@@ -26,17 +40,21 @@ services:
     depends_on:
       cbt-scoring:
         condition: service_started
+      cbt-latex:
+        condition: service_started
     env_file:
       - .env
     environment:
       - PORT=3009
       - HOST=0.0.0.0
       - SCORING_API_URL=http://cbt-scoring:8000
+      - LATEX_RENDERER_URL=http://cbt-latex:8010
     # Memungkinkan container menjangkau PostgreSQL di host VPS lewat host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - cbt-network
+      - latex-network
     # Port 3009 sengaja TIDAK dipublish ke host. Hanya diakses oleh Next.js route handler.
 
   # ─── 3. Frontend Web (Next.js 16 / Standalone) ─────────────────────────────
@@ -67,6 +85,8 @@ services:
       - cbt-network
 
 networks:
+  latex-network:
+    internal: true
   cbt-network:
     name: cbt-network
     driver: bridge

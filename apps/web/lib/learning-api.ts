@@ -2,7 +2,7 @@ export type MaterialFormat = 'html' | 'word' | 'latex' | 'text' | 'pdf' | 'image
 export interface LearningMaterial {
     grade_level: string; topic: string; subtopic: string;
     id: string; title: string; description: string; subject: string; status: 'draft' | 'published';
-    format: MaterialFormat; content_html: string; conversion_notes: string; hasFile: boolean;
+    format: MaterialFormat; content_html: string; conversion_notes: string; hasFile: boolean; hasRenderedPdf?: boolean;
     file_name: string | null; file_size: number | null; revision: number; content_version: number; updated_at: string; completed?: boolean; materialUpdated?: boolean;
 }
 export class LearningRequestError extends Error { constructor(message: string, public status: number) { super(message); } }

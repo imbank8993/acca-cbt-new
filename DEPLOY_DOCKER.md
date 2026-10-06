@@ -164,3 +164,9 @@ Pada domain CBT produksi, HTTP harus dialihkan di aaPanel/Nginx **sebelum** menc
 Kode baru memakai `__Host-cbt_session` (Secure, HttpOnly, Path=/, tanpa Domain) untuk login produksi sehingga cookie `cbt_session` lama tidak mengalahkannya. Sesi lama tetap dapat dibaca sampai login berikutnya; logout menghapus kedua nama. Jangan menonaktifkan Secure atau membagikan cookie ke semua subdomain untuk mengatasi masalah ini. Respons auth tidak boleh dicache reverse proxy/CDN. Middleware mengirim HSTS untuk host CBT pada produksi.
 
 Tidak ada migrasi database. Mengubah kode lokal belum menerapkan Force HTTPS atau merilis perubahan ke VPS.
+
+## Renderer LaTeX bahan ajar (6 Oktober 2026)
+
+Rilis ini menambahkan service internal `cbt-latex`. Terapkan migrasi `20261006_01_learning_rendered_pdf.sql`, kemudian build dan jalankan ulang `cbt-latex`, `cbt-api`, serta `cbt-web`. Build pertama memasang paket TeX Live dan lebih besar dari service API. Compose membatasi worker tanpa akses internet, tanpa kredensial, dan tanpa port publik. API memperoleh `LATEX_RENDERER_URL` dari Compose; instalasi di luar Compose harus menyediakan worker terisolasi yang setara.
+
+Pada reverse proxy, gunakan `proxy_read_timeout 90s` untuk memungkinkan kompilasi tiga pass (maksimum 60 detik). Jika compiler tidak tersedia atau sumber memiliki kesalahan, unggahan dibatalkan dengan pesan galat; materi yang sudah tersimpan tidak diganti. Materi TeX lama perlu diunggah ulang agar memperoleh PDF. Lihat `docs/LMS.md` untuk engine dan batas dokumen.

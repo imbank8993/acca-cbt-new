@@ -1,3 +1,4 @@
+import { LearningLatexService } from './learning-latex.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { randomUUID } from 'node:crypto';
@@ -9,14 +10,14 @@ import { ActivityDto, CreateMaterialDto, UpdateMaterialDto } from './learning.dt
 export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
     subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
-    conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
+    rendered_pdf_key: string | null; conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
     revision: number; content_version: number; created_at: string; updated_at: string; published_at: string | null;
 }
 const LIST_COLUMNS = 'id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
 
 @Injectable()
 export class LearningService {
-    constructor(private readonly db: DbService, private readonly authz: AuthorizationService, private readonly storage: StorageService) {}
+    constructor(private readonly db: DbService, private readonly authz: AuthorizationService, private readonly storage: StorageService, private readonly latex: LearningLatexService) {}
 
     private async allowed(user: AuthUser, org: string, roles: string[]) {
         try { await this.authz.assertOrgRole(user, org, roles, roles.join('/')); return true; }
@@ -39,8 +40,8 @@ export class LearningService {
         return data as MaterialRow;
     }
     private publicRow(row: MaterialRow) {
-        const { file_key, ...safe } = row;
-        return { ...safe, hasFile: !!file_key };
+        const { file_key, rendered_pdf_key, ...safe } = row;
+        return { ...safe, hasFile: !!file_key, hasRenderedPdf: !!rendered_pdf_key };
     }
     async list(user: AuthUser, org: string, manage = false) {
         await this.reader(user, org);
@@ -88,6 +89,7 @@ export class LearningService {
         const row = await this.row(org, id);
         await this.editable(user, row);
         if (!dto.title.trim()) throw new BadRequestException('Judul wajib diisi.');
+        if (row.rendered_pdf_key && (dto.format !== 'latex' || dto.contentHtml !== row.content_html)) throw new BadRequestException('Unggah ulang file TeX untuk mengubah isi dokumen PDF.');
         if (dto.status === 'published' && !dto.contentHtml.trim() && !row.file_key) throw new BadRequestException('Unggah berkas atau isi materi sebelum menerbitkan.');
         const { data, error } = await this.db.from('cbt_learning_materials').update({
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
@@ -108,14 +110,24 @@ export class LearningService {
         if (row.status !== 'draft') throw new BadRequestException('Simpan sebagai draf sebelum mengganti berkas.');
         if (row.revision !== revision) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah.');
         if (!dto || !dto.title.trim() || dto.status !== 'draft') throw new BadRequestException('Isi hasil konversi dan informasi draf wajib dikirim bersama berkas.');
+        const isTex = /\.(tex|latex|zip)$/i.test(file.originalname);
+        // Compile first. A compiler failure must never replace the existing source or preview.
+        const pdf = isTex ? await this.latex.compile(file.buffer, /\.zip$/i.test(file.originalname)) : null;
+        const content = isTex ? { ...dto, format: 'latex', contentHtml: '', conversionNotes: 'Tampilan PDF hasil kompilasi LaTeX. Tata letak mengikuti dokumen sumber.' } : dto;
         const previousKey = row.file_key;
+        const previousPdfKey = row.rendered_pdf_key;
+        const pdfKey = pdf ? `lms-private/${org}/${id}/${randomUUID()}.bin` : null;
         // Store every source as binary, under a reserved prefix never served by the public storage endpoint.
         const key = `lms-private/${org}/${id}/${randomUUID()}.bin`;
         const uploaded = await this.storage.putObject(key, file.buffer, 'application/octet-stream');
         if (!uploaded.success) throw new InternalServerErrorException('Gagal mengunggah berkas. Periksa penyimpanan R2.');
+        if (pdf && pdfKey) {
+            const stored = await this.storage.putObject(pdfKey, pdf, 'application/octet-stream');
+            if (!stored.success) { await this.storage.deleteObject(key); throw new InternalServerErrorException('Gagal menyimpan PDF hasil kompilasi.'); }
+        }
         const name = file.originalname.replace(/[\\/\x00-\x1f\x7f]/g, '_').slice(0, 240);
         const { data, error } = await this.db.from('cbt_learning_materials').update({ file_key: key, file_name: name,
-            file_size: file.size, content_html: dto.contentHtml, conversion_notes: dto.conversionNotes, format: dto.format,
+            file_size: file.size, rendered_pdf_key: pdfKey, content_html: content.contentHtml, conversion_notes: content.conversionNotes, format: content.format,
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(),
             content_version: (row.content_version || 1) + 1,
@@ -123,20 +135,23 @@ export class LearningService {
         }).eq('id', id).eq('revision', revision).eq('status', 'draft').select('*').maybeSingle();
         if (error || !data) {
             await this.storage.deleteObject(key);
+            if (pdfKey) await this.storage.deleteObject(pdfKey);
             if (!error) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah.');
             throw new InternalServerErrorException('Gagal menyimpan lampiran.');
         }
         if (previousKey) await this.storage.deleteObject(previousKey);
+        if (previousPdfKey) await this.storage.deleteObject(previousPdfKey);
         return { material: this.publicRow(data) };
     }
-    async file(user: AuthUser, org: string, id: string) {
+    async file(user: AuthUser, org: string, id: string, rendered = false) {
         await this.reader(user, org);
         const row = await this.row(org, id);
         if (row.status !== 'published') await this.editable(user, row);
-        if (!row.file_key) throw new NotFoundException('Lampiran tidak tersedia.');
-        const object = await this.storage.getObject(row.file_key);
+        const key = rendered ? row.rendered_pdf_key : row.file_key;
+        if (!key) throw new NotFoundException(rendered ? 'PDF belum tersedia. Unggah ulang sumber TeX untuk mengompilasi.' : 'Lampiran tidak tersedia.');
+        const object = await this.storage.getObject(key);
         if (!object) throw new NotFoundException('Berkas tidak tersedia di penyimpanan.');
-        return { object, name: row.file_name || 'bahan-ajar' };
+        return { object, name: rendered ? (row.file_name || 'bahan-ajar').replace(/\.(tex|latex|zip)$/i, '') + '.pdf' : row.file_name || 'bahan-ajar' };
     }
     async progress(user: AuthUser, org: string, id: string, completed: boolean, contentVersion?: number) {
         await this.reader(user, org);

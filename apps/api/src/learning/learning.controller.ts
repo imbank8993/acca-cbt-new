@@ -36,6 +36,17 @@ export class LearningController {
         object.stream.on('error', () => res.destroy());
         object.stream.pipe(res);
     }
+    @Get(':id/pdf')
+    async pdf(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+        const { object, name } = await this.learning.file(user, org, id, true);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (object.contentLength !== undefined) res.setHeader('Content-Length', object.contentLength);
+        object.stream.on('error', () => res.destroy());
+        object.stream.pipe(res);
+    }
     @Put(':id/progress')
     progress(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto) { return this.learning.progress(user, org, id, dto.completed, dto.contentVersion); }
     @Get(':id/activity')

@@ -23,17 +23,19 @@ Terapkan juga `node tools/apply-migrations.js --files=20261005_01_learning_resil
 | Sumber | Hasil |
 | --- | --- |
 | `.docx`, `.dotx` | Konversi menjadi HTML, dengan judul, paragraf, daftar, tabel, dan gambar yang didukung Mammoth. Daftar isi dibuat dari heading. |
-| `.tex`, `.latex` | Konversi struktur dokumen umum dan rumus menjadi HTML/MathML. Mendukung judul, section/subsection, daftar, verbatim, tabular sederhana, dan persamaan termasuk align. |
+| `.tex`, `.latex`, ZIP proyek dengan `main.tex` | Kompilasi menjadi PDF dengan pdfLaTeX/XeLaTeX; margin, halaman, header/footer, tabel, rumus, dan TikZ mengikuti sumber. File TeX asli tetap tersedia. |
 | `.html`, `.htm` | Halaman interaktif terisolasi; JavaScript/CSS tertanam dapat berjalan. |
 | PDF, gambar raster, audio, video | Pratinjau sesuai kemampuan browser serta unduhan sumber. |
 | Teks, Markdown, CSV, JSON | Teks yang dapat dibaca langsung, bukan eksekusi kode. Markdown ditampilkan sebagai teks. |
-| Jenis berkas lainnya | Lampiran unduhan. Termasuk Word lama `.doc`/`.dot`, arsip, dan format yang belum memiliki pratinjau. |
+| Jenis berkas lainnya | Lampiran unduhan. Termasuk Word lama `.doc`/`.dot`, arsip selain ZIP proyek, dan format yang belum memiliki pratinjau. |
 
 Konversi Word menyusun ulang isi untuk layar, bukan meniru tata letak cetak secara persis. Word lama harus disimpan ulang menjadi DOCX/DOTX untuk konversi. Rumus Word, objek tertanam, dan fitur Word khusus harus diperiksa pada pratinjau; sumber asli tetap tersedia.
 
-LaTeX dibaca dengan parser terbatas, bukan compiler TeX. Paket, makro khusus, TikZ, gambar dari berkas pendamping, input/include, dan perintah shell tidak dijalankan. Perintah yang belum didukung ditampilkan dengan catatan konversi, bukan diam-diam dianggap berhasil. Batas sumber LaTeX 500.000 karakter; hasil HTML maksimal 6 juta karakter. Rumus menggunakan [opsi KaTeX](https://katex.org/docs/options.html) dengan `trust: false` dan pembatas ekspansi. Konversi Word menggunakan [Mammoth](https://github.com/mwilliamson/mammoth.js/) dengan akses berkas eksternal dimatikan.
+LaTeX baru dikompilasi oleh layanan terisolasi `cbt-latex`, bukan parser HTML. Batas sumber 500 KB (UTF-8), PDF 25 MB, hingga tiga pass untuk referensi/daftar isi. Compiler bawaan pdfLaTeX; `fontspec`/`polyglossia` menggunakan XeLaTeX. Directive `% !TeX program = xelatex` atau `pdflatex` dapat menentukan engine. Unggah proyek ZIP dengan `main.tex` di folder teratas untuk menyertakan gambar, bagian `.tex`, kelas, dan font lokal. Berkas atau paket yang tidak tersedia menghasilkan galat kompilasi. Bibliografi yang memerlukan proses BibTeX/Biber terpisah belum dijalankan otomatis. Engine dan font yang sama dengan sumber dibutuhkan untuk hasil visual yang sama. Shell escape dan instalasi paket otomatis dinonaktifkan.
 
-Dokumen Word/LaTeX menjadi halaman baca dengan navigasi bagian dan progres selesai. Kuis atau simulasi tidak dibuat otomatis dari isi dokumen; gunakan HTML untuk aktivitas khusus. Hasil aktivitas HTML tersimpan per akun dan versi materi, tetapi tidak otomatis menjadi nilai CBT.
+Materi LaTeX lama tetap dapat dibaca dalam HTML. Guru perlu menyimpannya sebagai draf dan mengunggah ulang TeX untuk memperoleh PDF asli. Isi PDF diubah dengan mengunggah ulang sumber, bukan menyunting HTML.
+
+Dokumen Word menjadi halaman baca dengan navigasi bagian; LaTeX memakai navigasi halaman PDF. Keduanya memiliki progres selesai. Kuis atau simulasi tidak dibuat otomatis dari isi dokumen; gunakan HTML untuk aktivitas khusus. Hasil aktivitas HTML tersimpan per akun dan versi materi, tetapi tidak otomatis menjadi nilai CBT.
 
 ## Jawaban, draf, dan pembaruan
 
@@ -72,3 +74,20 @@ Jalankan migrasi `20261005_02_learning_classification.sql` untuk kolom tingkatan
 ## Navigasi halaman baca
 
 Tombol **Navigasi bahan ajar** membuka/menyembunyikan daftar mata pelajaran, materi, submateri, dan modul. Cabang modul aktif terbuka otomatis; modul aktif ditandai dan kelas ditampilkan pada tiap tautan. Sidebar memakai daftar materi terbit yang boleh diakses pengguna; draf yang sedang dibaca pengelola hanya ditambahkan pada navigasinya sendiri. Pada desktop daftar terbuka di sisi kiri, pada ponsel tersembunyi awalnya dan dapat dibuka di atas area baca. Menyembunyikan daftar tidak memuat ulang aktivitas. Perubahan ini tidak memerlukan migrasi.
+
+## Mengaktifkan kompilasi TeX
+
+- Terapkan `node tools/apply-migrations.js --files=20261006_01_learning_rendered_pdf.sql --confirm`.
+- Deploy ulang `cbt-api`, `cbt-web`, dan layanan baru `cbt-latex` melalui Compose. Docker belum tersedia di lingkungan Windows pengembangan ini; jangan menjalankan unggahan TeX tak tepercaya langsung menggunakan compiler host.
+- Compose memasang TeX Live pada worker tanpa kredensial aplikasi, tanpa volume host, tanpa port publik, dan hanya pada jaringan internal khusus. API memakai `LATEX_RENDERER_URL=http://cbt-latex:8010`. Worker memakai filesystem read-only, temporary filesystem terbatas, satu kompilasi sekaligus, batas CPU/memori/waktu, serta shell escape dimatikan.
+- Atur `proxy_read_timeout 90s` pada reverse proxy untuk unggahan kompilasi; batas API ke worker 70 detik. Jika worker tidak tersedia, unggahan TeX menampilkan galat dan materi sebelumnya tetap tersedia.
+- Endpoint `/api/learning/:id/pdf` memerlukan sesi dan izin baca yang sama dengan sumber. PDF disajikan lewat canvas agar aksi/script PDF tidak dieksekusi.
+- Pemeriksaan: `node --test --test-isolation=none apps/api/test/learning-pdf-stage84.test.cjs` dan `python -m unittest discover -s apps/latex-renderer -p 'test_*.py'`. Dokumen `tools/fixtures/learning-layout.tex` mencakup dua halaman, header/footer, dua kolom, rumus, tabel, makro, dan TikZ.
+
+## Proyek LaTeX bergambar (ZIP)
+
+Unggah ZIP maksimum 25 MB melalui pilihan berkas bahan ajar. `main.tex` (huruf kecil, maksimum 500 KB, UTF-8) wajib berada di folder teratas ZIP, bukan di dalam folder pembungkus. Sertakan gambar PNG/JPG/PDF dan bagian TeX sesuai path sumber, misalnya `main.tex` merujuk `\includegraphics{gambar/grafik.png}` dan arsip berisi `gambar/grafik.png`. Nama/path harus sama persis, termasuk huruf besar-kecil. Kompilasi berjalan dari folder utama proyek.
+
+Batas ekstraksi: 200 berkas, 400 entri, dan 50 MB total; symlink, path keluar folder, berkas terenkripsi, nama duplikat, serta arsip rusak ditolak. Jangan sertakan output compiler (`main.pdf`, `.aux`, `.log`) dalam ZIP. Font lokal TTF/OTF, kelas/style LaTeX dan data TXT/CSV/DAT diperbolehkan. ZIP diperlakukan sebagai proyek LaTeX; ZIP tanpa main.tex tidak lagi menjadi lampiran generik.
+
+Arsip asli tetap bisa diunduh, PDF hasil kompilasi tersedia terpisah. Contoh proyek bergambar: `tools/fixtures/learning-project.zip`. Tidak memerlukan migrasi baru di luar migrasi PDF `20261006_01_learning_rendered_pdf.sql`; layanan API, web, dan `cbt-latex` harus menggunakan kode terbaru.

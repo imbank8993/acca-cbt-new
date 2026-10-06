@@ -1,5 +1,5 @@
 import type { MaterialFormat } from './learning-api';
-import { convertLearningLatex, escapeLearningHtml } from './learning-latex';
+import { escapeLearningHtml } from './learning-latex';
 
 export interface ConvertedMaterial { format: MaterialFormat; html: string; notes: string[] }
 export async function convertLearningFile(file: File): Promise<ConvertedMaterial> {
@@ -13,8 +13,9 @@ export async function convertLearningFile(file: File): Promise<ConvertedMaterial
         const converted = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() }, { externalFileAccess: false,
             styleMap: ["p[style-name='Title'] => h1:fresh", "p[style-name='Subtitle'] => p.subtitle:fresh"] });
         result = { format: 'word', html: converted.value, notes: ['Tata letak Word disesuaikan untuk layar. Periksa rumus, gambar, dan tabel sebelum menerbitkan.', ...converted.messages.map(item => item.message).slice(0, 20)] };
-    } else if (['tex', 'latex'].includes(ext)) {
-        result = { format: 'latex', ...convertLearningLatex(await file.text()) };
+    } else if (['tex', 'latex', 'zip'].includes(ext)) {
+        if (ext !== 'zip' && file.size > 500_000) throw new Error('Ukuran sumber TeX maksimum 500 KB.');
+        result = { format: 'latex', html: '', notes: ['Dokumen akan dikompilasi menjadi PDF di server untuk mempertahankan tata letak aslinya.'] };
     } else if (['txt', 'md', 'csv', 'json'].includes(ext)) {
         result = { format: 'text', html: `<pre>${escapeLearningHtml(await file.text())}</pre>`, notes: [] };
     } else {

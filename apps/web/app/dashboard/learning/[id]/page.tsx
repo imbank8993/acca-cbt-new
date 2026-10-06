@@ -47,6 +47,7 @@ export default function LearningReader() {
             {material && <div className="learn-reader-actions">
                 <button aria-label="Informasi bahan ajar" title="Informasi bahan ajar" aria-expanded={showInfo} aria-controls="learning-reader-info" onClick={() => setShowInfo(value => !value)}><Info size={18} /></button>
                 {material.hasFile && <a className="learn-button" href={`/api/learning/${id}/file`} download aria-label="Unduh berkas asli" title="Unduh berkas asli"><Download size={18} /></a>}
+                {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download aria-label="Unduh PDF hasil LaTeX" title="Unduh PDF hasil LaTeX">PDF</a>}
                 {canEdit && <Link className="learn-button" href={`/dashboard/learning/${id}/edit`} aria-label="Edit materi" title="Edit materi"><Pencil size={18} /></Link>}
                 {material.status === 'published' && <button className={completed ? '' : 'learn-primary'} disabled={busy} onClick={() => void mark()} aria-label={completed ? 'Tandai belum selesai' : 'Tandai selesai'} title={completed ? 'Materi sudah dipelajari. Tandai belum selesai' : 'Tandai selesai'}><CheckCircle2 size={18} /><span>{busy ? 'Menyimpan…' : completed ? 'Selesai' : 'Tandai selesai'}</span></button>}
             </div>}

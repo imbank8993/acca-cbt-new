@@ -22,6 +22,8 @@ const id = '00000000-0000-4000-8000-000000000080';
         const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, serviceWorkers: 'allow' });
         await context.addCookies([{ name: 'cbt_session', value: token, url: base, httpOnly: true, sameSite: 'Lax' }]);
         let role = 'Guru', completed = false, pdfBytes, blockAutosave = false;
+        const { jsPDF: FixturePdf } = require('jspdf'); const texFallback = new FixturePdf(); texFallback.text('LaTeX fixture page 1', 20, 20); texFallback.addPage(); texFallback.text('LaTeX fixture page 2', 20, 20);
+        const texPdf = process.env.LMS_TEST_PDF ? fs.readFileSync(process.env.LMS_TEST_PDF) : Buffer.from(texFallback.output('arraybuffer'));
         let activity = { state: {}, revision: 0, contentVersion: 1, userId: 'lms-fixture' };
         let material = { id, title: 'Mengenal Persamaan Kuadrat', subject: 'Matematika', description: 'Jelajahi bentuk persamaan kuadrat, pahami rumusnya, dan coba aktivitas belajar.', status: 'draft', format: 'attachment', content_html: '', conversion_notes: '', revision: 1, content_version: 1, grade_level: '', topic: '', subtopic: '', hasFile: false, file_name: null, file_size: null, updated_at: '2026-10-04T10:00:00Z' };
         await context.route('**/api/**', async route => {
@@ -37,10 +39,11 @@ const id = '00000000-0000-4000-8000-000000000080';
             }
             if (url.pathname === `/api/learning/${id}/activity-results`) return reply({ results: [{ user_id: 'lms-fixture', name: 'Siswa Uji', content_version: 1, updated_at: new Date().toISOString(), state: activity.state }] });
             if (url.pathname === `/api/learning/${id}/progress`) { completed = request.postDataJSON().completed; return reply({ completed }); }
+            if (url.pathname === `/api/learning/${id}/pdf`) return route.fulfill({ contentType: 'application/pdf', body: texPdf });
             if (url.pathname === `/api/learning/${id}/file` && request.method() === 'GET' && pdfBytes) return route.fulfill({ contentType: 'application/octet-stream', body: pdfBytes });
             if (url.pathname === `/api/learning/${id}/file` && request.method() === 'POST') {
                 const data = await new Response(request.postDataBuffer(), { headers: { 'content-type': request.headers()['content-type'] } }).formData();
-                material = { ...material, revision: material.revision + 1, hasFile: true, file_name: data.get('file').name, file_size: 512, content_html: data.get('contentHtml'), format: data.get('format') };
+                material = { ...material, revision: material.revision + 1, hasFile: true, hasRenderedPdf: data.get('format') === 'latex', file_name: data.get('file').name, file_size: 512, content_html: data.get('contentHtml'), format: data.get('format') };
                 return reply({ material });
             }
             if (url.pathname === `/api/learning/${id}`) {
@@ -61,9 +64,19 @@ const id = '00000000-0000-4000-8000-000000000080';
         });
         await page.getByLabel('Unggah bahan ajar').setInputFiles({ name: 'aljabar.tex', mimeType: 'text/plain', buffer: Buffer.from(String.raw`\documentclass{article}\begin{document}\section{Tujuan}Memahami akar persamaan.\section{Rumus}$x=\frac{-b}{2a}$\end{document}`) });
         await page.getByText('Dokumen dan hasil konversi tersimpan bersama sebagai draf.', { exact: false }).waitFor();
-        await page.frameLocator('iframe').locator('math').waitFor();
-        await page.frameLocator('iframe').getByText('Daftar isi', { exact: true }).waitFor();
-        console.log('PASS: LaTeX upload → rendered math + table of contents');
+        await page.getByRole('button', { name: 'Berikutnya', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Berikutnya', exact: true }).click();
+        await page.getByText('Halaman 2 / 2', { exact: true }).waitFor();
+        assert.equal(await page.locator('iframe').count(), 0);
+        await page.screenshot({ path: path.join(output, 'latex-pdf-editor.png'), fullPage: true });
+        console.log('PASS: TeX upload uses compiled PDF with original page boundaries instead of HTML');
+        await page.getByLabel('Unggah bahan ajar').setInputFiles({ name: 'proyek.zip', mimeType: 'application/zip', buffer: fs.readFileSync(path.join(root, 'tools/fixtures/learning-project.zip')) });
+        await page.getByText('Dokumen dan hasil konversi tersimpan bersama sebagai draf.', { exact: false }).waitFor();
+        await page.getByRole('button', { name: 'Berikutnya', exact: true }).waitFor();
+        assert.equal(material.format, 'latex'); assert.equal(material.hasRenderedPdf, true); assert.equal(material.file_name, 'proyek.zip');
+        await page.getByRole('button', { name: 'Berikutnya', exact: true }).click();
+        await page.getByText('Halaman 2 / 2', { exact: true }).waitFor();
+        console.log('PASS: ZIP project upload selects LaTeX compilation and PDF preview');
         const docx = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph({ text: 'Tujuan Pembelajaran', heading: HeadingLevel.HEADING_1 }), new Paragraph('Memahami persamaan kuadrat.'), new Paragraph({ text: 'Latihan', heading: HeadingLevel.HEADING_1 }), new Paragraph('Tentukan akar persamaan.') ] }] }));
         await page.getByLabel('Unggah bahan ajar').setInputFiles({ name: 'materi.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: docx });
         await page.frameLocator('iframe').getByRole('heading', { name: 'Tujuan Pembelajaran' }).waitFor();
