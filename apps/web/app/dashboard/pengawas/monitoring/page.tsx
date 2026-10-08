@@ -1,4 +1,6 @@
 "use client";
+import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
@@ -33,6 +35,7 @@ import { useRouter,useSearchParams } from 'next/navigation';
 import { Suspense,useCallback,useEffect,useState } from 'react';
 
 function MonitoringContent() {
+    const monitoringNow = useMonitoringExamClock();
     const searchParams = useSearchParams();
     const router = useRouter();
     const initialExamId = searchParams.get('exam') || '';
@@ -56,7 +59,7 @@ function MonitoringContent() {
 
             const org = await getProctorOrganization();
             if (org) {
-                const examList = await listOrganizationExams();
+                const examList = sortMonitoringExams(await listOrganizationExams());
                 setExams(examList);
 
                 const currentExamId = selectedExamId || initialExamId || (examList.length > 0 ? examList[0].id : '');
@@ -209,9 +212,9 @@ function MonitoringContent() {
                             onChange={(e) => handleExamChange(e.target.value)}
                             className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold px-3 py-2.5 rounded-xl appearance-none pr-8 shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
                         >
-                            {exams.map((exam) => (
+                            {sortMonitoringExams(exams, monitoringNow).map((exam) => (
                                 <option key={exam.id} value={exam.id}>
-                                    {exam.title} ({exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})
+                                    {monitoringExamLabel(exam, monitoringNow)} ({exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})
                                 </option>
                             ))}
                         </select>

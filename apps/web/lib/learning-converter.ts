@@ -1,5 +1,6 @@
 import type { MaterialFormat } from './learning-api';
 import { escapeLearningHtml } from './learning-latex';
+import { assertLearningContentSize } from './learning-content-limit';
 
 export interface ConvertedMaterial { format: MaterialFormat; html: string; notes: string[] }
 export async function convertLearningFile(file: File): Promise<ConvertedMaterial> {
@@ -25,6 +26,6 @@ export async function convertLearningFile(file: File): Promise<ConvertedMaterial
             ? 'Word format lama disimpan sebagai lampiran. Simpan ulang sebagai .docx atau .dotx untuk konversi otomatis.'
             : 'Berkas ini tersedia sebagai lampiran unduhan.'] : [] };
     }
-    if (result.html.length > 6_000_000) throw new Error('Hasil konversi terlalu besar. Kurangi ukuran gambar atau pecah dokumen menjadi beberapa materi.');
+    assertLearningContentSize(result.html);
     return result;
 }

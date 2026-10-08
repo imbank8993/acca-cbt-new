@@ -4,9 +4,17 @@ import MaintenanceProvider from "@/app/components/MaintenanceProvider";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { getSettingServer } from "@/lib/api/settings.server";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Open_Sans, Poppins } from "next/font/google";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",

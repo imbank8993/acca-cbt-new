@@ -51,6 +51,7 @@ const QuestionEditorModal = dynamic(() => import('@/app/components/questions/Que
 const BulkImportModal = dynamic(() => import('@/app/components/questions/BulkImportModal'), { ssr: false });
 const PreviewModal = dynamic(() => import('@/app/components/questions/PreviewModal'), { ssr: false });
 const ExamPrintView = dynamic(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
+const BankValidationFeedbackTab = dynamic(() => import('@/app/components/questions/BankValidationFeedbackTab'), { ssr: false });
 
 type QuestionBankRole = 'admin' | 'guru' | 'proktor';
 
@@ -74,7 +75,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [filterType, setFilterType] = useState<string>('all');
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi'>('questions');
+    const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi' | 'validations'>('questions');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
     const [selectedType, setSelectedType] = useState<QuestionType>('mcq');
@@ -557,6 +558,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         >
                             Kisi-kisi Soal
                         </button>
+                        <button
+                            onClick={() => setActiveTab('validations')}
+                            className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'validations' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Catatan Validasi
+                        </button>
                     </div>
                 </div>
             </div>
@@ -571,6 +578,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     <DimensionManager bankId={bankId} />
                 ) : activeTab === 'kisikisi' ? (
                     <KisiKisiTab bankId={bankId} />
+                ) : activeTab === 'validations' ? (
+                    <BankValidationFeedbackTab
+                        bankId={bankId}
+                        questions={questions}
+                        onEditQuestion={handleOpenEditor}
+                    />
                 ) : (
                     <>
                         {/* Stats */}

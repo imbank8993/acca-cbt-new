@@ -124,6 +124,15 @@ export class PasController {
         };
     }
 
+    @Get('master-rooms')
+    @ApiOperation({ summary: 'Ruang aktif dari master ruang ACCA-new' })
+    async listMasterRooms(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+    ) {
+        return { rooms: await this.rooms.listMasterRooms(user, organizationId) };
+    }
+
     @Get('staff')
     @ApiOperation({ summary: 'Guru dan pengawas organisasi, untuk penugasan ruang' })
     async listStaff(

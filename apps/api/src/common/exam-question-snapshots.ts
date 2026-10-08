@@ -117,3 +117,29 @@ export async function loadFrozenExamQuestions(
     ensureExamQuestionSnapshotsInTransaction(transaction, examId, knownDirectBankId),
   );
 }
+
+/** Perbarui snapshot ujian aktif bila sebuah butir soal diperbaiki di bank soal. */
+export async function updateExamQuestionSnapshots(
+  db: DbSession,
+  questionId: string,
+): Promise<number> {
+  const { data: updatedQuestion, error: qErr } = await db
+    .from('cbt_bank_questions')
+    .select(EXAM_QUESTION_SNAPSHOT_SELECT)
+    .eq('id', questionId)
+    .maybeSingle();
+
+  if (qErr || !updatedQuestion) return 0;
+
+  const snapshot = JSON.parse(JSON.stringify(updatedQuestion)) as FrozenExamQuestion;
+  const { data: updatedRows, error: upErr } = await db
+    .from('cbt_exam_question_snapshots')
+    .update({ question_snapshot: snapshot })
+    .eq('question_id', questionId)
+    .select('id');
+
+  if (upErr) {
+    throw new BadRequestException(`Gagal menyinkronkan snapshot soal ujian: ${upErr.message}`);
+  }
+  return ((updatedRows as any[]) || []).length;
+}

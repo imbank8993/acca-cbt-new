@@ -1,6 +1,6 @@
 /* =========================================================
-   BOTTOM NAV — Navigasi Utama Mobile (Persis ACCA NEW)
-   Prefix: .bnav-*
+   BOTTOM NAV — navigasi utama mobile
+   Prefix global: .bnav-*  (jangan dipakai untuk hal lain)
    ========================================================= */
 
 .bnav {
@@ -13,19 +13,109 @@
     }
 
     .bnav {
+        /* Warna permukaan bilah dipegang variabel, BUKAN ditulis langsung di
+           `background`. Pelatnya kini SATU lapis warna rata yang dipotong
+           `mask` (lihat `.bnav::after`), jadi mode gelap cukup menimpa dua
+           variabel ini.
+
+           Nilainya SENGAJA disamakan dengan `--header-bg` / `--header-border`
+           di components/header.css: header dan bilah nav adalah dua ujung
+           bingkai yang sama, dan dulu keduanya sempat berbeda di mode gelap
+           (bilah #0f172a padahal header #000000).
+
+           PEKAT PENUH, tanpa alpha sama sekali — sama seperti header mobile di
+           components/header.css yang juga `#ffffff` pekat dan justru mematikan
+           backdrop-filter-nya. Header dan bilah bawah mengapit halaman yang
+           sama; begitu salah satunya tembus pandang, keduanya terbaca sebagai
+           dua bahan berbeda.
+
+           Mode gelap sudah lebih dulu dikembalikan ke `#000000` pekat; nilai
+           terang ini menyusulkannya supaya kedua tema sekali lagi seragam.
+
+           Konsekuensinya blur di pelat ikut dilepas: di balik permukaan yang
+           menutup penuh, `backdrop-filter` tidak menghasilkan apa pun selain
+           satu lapis komposit tambahan tiap frame. Lihat catatan di
+           `::after`. */
         --bnav-face: #ffffff;
         --bnav-line: #E1E2E9;
 
-        /* Siluet pelat dengan notch bertakik */
+        /* BENTUK pelat — dipakai sebagai `mask`, bukan sebagai isian.
+
+           Sistem koordinat SVG = piksel bilah digeser 20px ke bawah, jadi tepi
+           atas bilah jatuh di y=20,5 (garis 1px tepat menutupi baris piksel
+           pertama) dan pusat tombol tengah di (80, 32) — 12px di bawah tepi
+           bilah. Jari-jari takik 27 = 23 untuk cakram biru + 4 untuk jarak
+           bebasnya.
+
+           `path` adalah permukaan bilah dengan takik DIKURANGKAN darinya;
+           `circle` mengembalikan isian di dalam takik sekaligus menambahkan
+           mahkota yang menyembul 15px di atas tepi bilah. Gabungan keduanya =
+           siluet pelat.
+
+           `stroke-width='1'` pada keduanya MELEBARKAN siluet 0,5px ke luar.
+           Itu bukan hiasan: garis tepi digambar terpisah di ATAS pelat, tepat
+           di kontur ini, dan tanpa pelebaran itu separuh luar garisnya ikut
+           terpangkas mask sehingga tinggal setengah piksel.
+
+           Angka 26,09 dan 54,47 (beserta cerminnya) bukan karangan: itu solusi
+           lingkaran fillet r=30 yang menyinggung garis datar DAN takik
+           sekaligus. Fillet selebar ini yang membuat mulut takiknya melandai:
+           lebarnya 108px, jadi tepi bilah sudah mulai turun jauh sebelum
+           menyentuh lingkaran. Pada r=8 mulutnya cuma 67px dan pertemuannya
+           masih terbaca menyudut. Mengubah salah satu dari 27, 30, atau posisi
+           tombol berarti semua titik singgungnya harus dihitung ulang.
+
+           Satu berkas untuk dua tema — mask cuma membaca alpha, warnanya tak
+           berpengaruh. Ini juga sebabnya bentuk dan warna kini terpisah: dulu
+           warna permukaan ikut dipanggang ke dalam data URI, sehingga tiap
+           ganti warna header ada empat tempat yang harus diubah. */
         --bnav-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='70' viewBox='0 0 160 70'%3E%3Cg fill='%23000000' stroke='%23000000' stroke-width='1'%3E%3Ccircle cx='80' cy='32' r='27'/%3E%3Cpath d='M0 20.5 L26.09 20.5 A30 30 0 0 1 54.47 40.76 A27 27 0 0 0 105.53 40.76 A30 30 0 0 1 133.91 20.5 L160 20.5 L160 70 L0 70 Z'/%3E%3C/g%3E%3C/svg%3E");
 
-        /* Garis tepi di atas pelat */
+        /* GARIS TEPI di sekitar takik — digambar di atas pelat, terpisah dari
+           siluetnya. Ruas datar kiri-kanannya dua lapis lain di `::after`.
+
+           `circle` di sini MELINGKAR PENUH, dan itu bukan hiasan. Tanpanya
+           kontur cuma tergambar di bagian takik yang menempel pada pelat —
+           yakni di bawah tepi bilah. Pusat tombol hanya 12px di bawah tepi
+           sedangkan jari-jarinya 27, jadi 15px teratas cincin tidak punya garis
+           sama sekali dan mata membaca cakram beserta tembereng bawahnya
+           sebagai satu bentuk LONJONG, bukan lingkaran di dalam lubang.
+
+           Alphanya ikut dipanggang seperti `--bnav-line`, sebab pelat tidak
+           lagi dipudarkan ramai-ramai oleh `opacity`. Data URI tidak bisa
+           membaca variabel CSS, jadi nilainya harus sejalan dengan
+           `--bnav-line` di atas. */
         --bnav-line-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='70' viewBox='0 0 160 70'%3E%3Cg fill='none' stroke='%23E1E2E9' stroke-width='1'%3E%3Ccircle cx='80' cy='32' r='27'/%3E%3Cpath d='M0 20.5 L26.09 20.5 A30 30 0 0 1 54.47 40.76 A27 27 0 0 0 105.53 40.76 A30 30 0 0 1 133.91 20.5 L160 20.5'/%3E%3C/g%3E%3C/svg%3E");
 
+        /* `sticky`, BUKAN `fixed`.
+           Di Safari iOS `position: fixed` menempel ke LAYOUT viewport, yang
+           tingginya dihitung seolah bilah alamat selalu menyusut. Begitu bilah
+           alamat mengembang — persis yang terjadi saat menggulir — dasar layout
+           viewport jatuh di bawah area terlihat dan bilah nav terpotong.
+           Sebelumnya itu ditambal dengan mengangkat `bottom` sebesar selisih
+           yang dibaca dari window.visualViewport, tapi event-nya menyusul di
+           iOS sehingga koreksinya baru datang SETELAH gulirannya berhenti.
+
+           Sticky diposisikan terhadap scrollport, bukan layout viewport, jadi
+           browser sendiri yang menjaganya — tanpa JS, tanpa jeda.
+
+           Syaratnya ada tiga, dan ketiganya gampang dilanggar tanpa sadar:
+
+           1. `overflow-x` html/body harus `clip`, bukan `hidden` (lihat
+              catatan di app/globals.css).
+           2. Bilah ini harus jadi elemen ALIRAN terakhir di dalam
+              .dashboard-content-wrapper, supaya slot alirnya jatuh di ujung
+              dokumen. Di app/(dashboard)/layout.tsx ada
+              .sidebar-mobile-backdrop yang dirender setelahnya — itu aman
+              HANYA karena ia `position: fixed` sehingga tidak ikut aliran.
+              Menaruh elemen beraliran normal di bawah bilah ini akan
+              memendekkan jangkauan lengketnya.
+           3. Tinggi dokumen harus ikut berubah saat bilah alamat iOS
+              beranimasi. Karena itu html/body memakai `100dvh` dan BUKAN
+              `-webkit-fill-available`, yang membeku pada tinggi viewport saat
+              bilah alamat terkembang. */
         position: sticky;
         bottom: 0;
-        left: 0;
-        right: 0;
         z-index: 400;
         -webkit-backface-visibility: hidden;
         backface-visibility: hidden;
@@ -38,13 +128,76 @@
         padding-bottom: env(safe-area-inset-bottom);
         box-sizing: border-box;
 
+        /* Latar dan garis atas TIDAK dipasang di sini, melainkan digambar
+           sebagai pelat terpisah di `::after`.
+
+           Sebabnya: tepi atas bilah bukan garis lurus. Ia melandai turun dan
+           mengitari BAWAH tombol tengah, dan mulut takik itu harus dibulatkan
+           (fillet) — bentuk yang tidak bisa dinyatakan oleh `background` +
+           `border-top` biasa. Mask juga bukan jalan keluarnya: dipasang di
+           `.bnav` sendiri, masking ikut menghapus anak-anaknya, termasuk
+           tombol-tombolnya.
+
+           Bilahnya sendiri tinggal jadi kotak transparan: tanpa sudut membulat
+           dan tanpa bayangan angkat, sebab ia menempel ke dasar layar. */
         background: transparent;
         border-top: none;
         border-radius: 0;
         box-shadow: none;
     }
 
-    /* Pelat bilah bertakik menggunakan mask */
+    /* BILAH PEKAT — tidak ada lagi `backdrop-filter` di sini.
+       ---------------------------------------------------------------------
+       Riwayatnya perlu dicatat, sebab blur itu dulu memecahkan masalah nyata
+       dan gampang dipasang kembali tanpa sadar.
+
+       Bilah ini sempat tembus pandang supaya kanvas halaman terbaca menerus
+       sampai dasar layar. Blur-nya dipasang di PELAT (`::after`), bukan di
+       `.bnav`, karena backdrop-filter memburamkan seluruh KOTAK elemen — dan
+       kotak `.bnav` berhenti di tepi bilah sedangkan mahkota takik menjulur
+       15px di atasnya. Akibatnya 15px teratas takik tidak kebagian blur
+       maupun `saturate(180%)` sementara bilah di sebelahnya kebagian, dan
+       selisih saturasi itu terbaca sebagai kerah abu gelap memeluk tombol
+       tengah. Memindahkannya ke pelat yang di-`mask` membereskannya, sebab
+       mask ikut memangkas backdrop-filter mengikuti kontur takik.
+
+       Semua itu kini TIDAK RELEVAN: permukaannya pekat penuh, jadi tidak ada
+       yang bisa menembus dan tidak ada selisih saturasi yang bisa muncul.
+       Blur-nya dilepas karena di balik permukaan yang menutup ia tidak
+       menghasilkan apa pun selain satu lapis komposit tambahan tiap frame.
+
+       Kalau suatu saat bilah ini dibuat tembus pandang lagi, kerah abu itu
+       akan kembali — dan obatnya bukan menambal dengan cakram buram terpisah
+       di balik tombol: selama `.bnav` sendiri punya backdrop-filter, ia jadi
+       backdrop root dan anak-anaknya tak lagi bisa melihat halaman di
+       belakang bilah. Blur-nya harus di pelat yang di-mask, bukan di `.bnav`.
+
+       `mask` di `::after` tetap dipakai, tapi kini murni untuk MEMBENTUK
+       siluet bertakik — jangan ikut dihapus bersama blur-nya. */
+
+    /* PELAT BILAH — permukaan + garis tepi atas yang bertakik.
+
+       Permukaannya SATU lapis warna rata sepenuh kotak, lalu dipotong jadi
+       siluet bertakik oleh `mask`. Dulu ia enam lapisan background yang
+       menyusun bentuk itu sendiri (potongan tengah + dua isian atas + isian
+       bawah + dua garis), dan susunan itulah yang memaksa dua tambalan: warna
+       harus pekat lalu dipudarkan ramai-ramai oleh `opacity` (sebab warna
+       ber-alpha tersusun dua kali di tiap tumpangan dan meninggalkan pita
+       gelap), dan isian bawah harus menyusup 6px ke balik potongan tengah biar
+       tak ada garis rambut subpiksel di sambungannya. Dengan satu lapis, tidak
+       ada sambungan dan tidak ada tumpangan — kedua tambalan itu hilang.
+
+       Mask boleh bertumpangan sesuka hati: lapisannya dikomposit `add` dan
+       alphanya mentok di 1, jadi tidak ada efek tersusun dua kali.
+
+       Kotaknya sengaja ditarik 20px KE ATAS tepi bilah (`top: -20px`): mahkota
+       takik menjulur 15px di atas tepi, dan background dipangkas oleh kotak
+       elemennya sendiri. Semua lapisan datar lalu digeser 20px turun agar
+       tetap jatuh di tepi bilah yang sebenarnya.
+
+       `z-index: -1` menaruhnya di belakang seluruh tombol, tapi tetap di depan
+       latar halaman. Dulu ada pasangannya di `::before` pada -2; slot itu kini
+       kosong (lihat catatan di bawah). */
     .bnav::after {
         content: '';
         position: absolute;
@@ -55,6 +208,8 @@
         z-index: -1;
         pointer-events: none;
 
+        /* Garis tepi di ATAS permukaan: lengkung takik, lalu dua ruas datar
+           kiri & kanan. Permukaannya sepenuh kotak — siluetnya urusan mask. */
         background-repeat: no-repeat;
         background-image:
             var(--bnav-line-tile),
@@ -72,6 +227,31 @@
             right 20px,
             left top;
 
+        /* SILUET pelat. Ukuran potongan tengah tetap dalam piksel (bukan
+           persen) supaya lingkarannya tidak pernah gepeng; dua ruas datar
+           mengisi sisa kiri-kanan dari tepi bilah sampai dasar, dan lapis
+           terakhir menutup seluruh lebar di bawah potongan tengah.
+
+           76, BUKAN 80: kedua ruas datar MENYUSUP 4px ke balik potongan tengah.
+           Potongan itu lebarnya 160px dan dipasang di tengah, jadi tepinya
+           jatuh tepat di `50% - 80px`. Dengan ruas datar yang berhenti persis
+           di angka itu, keduanya cuma BERSENTUHAN — dan pada lebar layar yang
+           membuat `50%` jatuh di antara piksel perangkat, pembulatannya
+           menyisakan celah selebar satu piksel tempat mask-nya tembus. Yang
+           tampak: dua garis rambut tegak menembus bilah, sejajar di kiri dan
+           kanan tombol tengah, memperlihatkan konten halaman di baliknya.
+
+           Aman disusupkan sejauh ini karena tepi atas pelat baru mulai
+           melandai di `50% - 53,91px` (titik singgung fillet, lihat catatan
+           `--bnav-shape`); 76 masih di luar itu, jadi ruas datar tidak pernah
+           menyenggol lengkung takik. Menyusup lebih dari ~26px akan mulai
+           mengisi mulut takiknya.
+
+           Tumpang tindih ini gratis KHUSUS di mask: lapisannya dikomposit
+           `add` dan alphanya mentok di 1, jadi bagian yang bertumpuk tidak jadi
+           lebih pekat. Trik yang sama TIDAK boleh dipakai pada lapisan garis di
+           `background-image` di atas — alpha di sana benar-benar bertumpuk dan
+           akan meninggalkan ruas garis yang lebih gelap. */
         -webkit-mask-repeat: no-repeat;
         mask-repeat: no-repeat;
         -webkit-mask-image:
@@ -105,9 +285,28 @@
             right 20px,
             left bottom;
     }
+
+    /* TIDAK ADA `::before` DI SINI — dan itu disengaja.
+
+       Slot ini pernah dipakai dua kali: mula-mula pita BURAM, lalu pita PUDAR
+       ber-gradien, keduanya untuk melembutkan baris daftar yang menyelinap ke
+       balik bilah. Dua-duanya dilepas atas permintaan. Yang buram mencoreng
+       hurufnya; yang pudar — justru karena ia gradien — membuat jalur setinggi
+       48px tepat di atas bilah TIDAK pernah putih penuh: di 30% ke atas
+       alphanya sudah 0,85, jadi konten di baliknya menembus dan menodai
+       warnanya.
+
+       Sekarang konten berhenti tegas di tepi bilah. Yang menutup halaman murni
+       pelat pekat di `::after`, jadi seluruh permukaan bilah benar-benar satu
+       warna — tanpa gradien, tanpa blur, tanpa lapisan setengah tembus di mana
+       pun.
+
+       Kalau nanti ada yang ingin melembutkannya lagi, ingat konsekuensinya:
+       apa pun yang ditaruh di slot ini berupa lapisan tembus di atas konten,
+       dan itu berarti area tepat di atas bilah berhenti jadi putih murni. */
+
 }
 
-/* Nav Item */
 .bnav__item {
     display: flex;
     flex-direction: column;
@@ -171,7 +370,7 @@
     box-sizing: border-box;
     border-radius: 999px;
     background: #3083FF;
-    color: #ffffff;
+    color: #E0ECFF;
     font-size: 0.62rem;
     font-weight: 800;
     line-height: 16px;
@@ -179,7 +378,7 @@
 }
 
 /* =========================================================
-   CENTER ELEVATED FAB
+   CENTER ELEVATED FAB — lingkaran putih dengan cincin transparan
    ========================================================= */
 
 .bnav__center-wrapper {
@@ -189,9 +388,28 @@
     position: relative;
 }
 
+/* MENYEMBUL di atas bilah — lingkaran, bukan kotak membulat di dalam baris.
+   Menonjol begini bukan sekadar gaya: tombol ini satu-satunya AKSI di antara
+   empat tombol NAVIGASI, dan bentuk yang berbeda itulah yang membedakannya
+   tanpa perlu label.
+
+   Jarak bebas 4px yang memisahkannya dari isi bilah TIDAK lagi digambar di
+   sini sebagai cincin. Dulu cincin itu berwarna sama dengan bilah supaya
+   terbaca menyatu, tapi sebagai lingkaran utuh yang ditempel di atas kotak, ia
+   memotong garis tepi bilah dan meninggalkan dua sudut lancip di kaki
+   kirinya-kanannya. Sekarang jarak itu bagian dari BENTUK bilahnya: takik di
+   `.bnav::after` sudah berjari-jari 27 (23 + 4), lengkap dengan fillet di kedua
+   mulutnya, jadi tombolnya benar-benar duduk di dalam lubang.
+
+   Syaratnya `.bnav` tidak boleh `overflow: hidden`; separuh atas lingkaran ini
+   berada di luar kotaknya. */
 .bnav__fab {
     position: absolute;
     left: 50%;
+    /* Cakram 46px pada -11px: pusatnya jatuh 12px di bawah tepi bilah, sama
+       persis dengan pusat takik di `--bnav-shape`. Kedua angka ini sepasang —
+       menggesernya tanpa menghitung ulang jalur SVG membuat tombol tidak lagi
+       sepusat dengan takiknya. */
     top: -11px;
     transform: translateX(-50%);
     width: 46px;
@@ -199,6 +417,20 @@
     border-radius: 50%;
     background: #3083FF;
     border: none;
+
+    /* TANPA bayangan — mengikuti bahasa header mobile, yang putih pekat dengan
+       garis rambut dan tidak memberi cahaya berwarna pada kontrol mana pun.
+
+       Sebelumnya di sini ada `0 6px 16px rgba(48, 131, 255, 0.32)`: cahaya biru
+       ber-blur 16px yang terbaca sebagai halo berkabut mengelilingi cakram —
+       satu-satunya efek kabur yang tersisa di bilah ini setelah blur pelat dan
+       pita di atasnya dilepas.
+
+       Kesan terangkatnya tidak hilang bersama bayangan itu, sebab yang
+       menyampaikannya memang bukan bayangan melainkan BENTUK: cakram ini duduk
+       di dalam takik dengan jarak bebas 4px mengelilinginya, dan takik itu
+       sendiri sudah menyatakan bahwa tombolnya menyembul dari bilah. Mode gelap
+       sudah lama `none` dengan alasan yang sama; nilai ini menyusulkannya. */
     box-shadow: none;
     display: flex;
     align-items: center;
@@ -210,25 +442,80 @@
     padding: 0;
 }
 
+/* translateX ikut ditulis ulang: `transform` menimpa seluruh nilai, jadi tanpa
+   ini tombolnya meloncat ke kanan setiap kali ditekan. */
 .bnav__fab:active {
     transform: translateX(-50%) scale(0.92);
 }
 
+/* Wujud diam: halaman tanpa aksi utama cuma memperlihatkan lambang. Tidak ada
+   yang terjadi saat disentuh, jadi tidak ada pula umpan balik tekan — cakram
+   yang mengempis tapi tak melakukan apa-apa justru menjanjikan aksi. */
+.bnav__fab--static {
+    cursor: default;
+    pointer-events: none;
+}
+
+.bnav__fab--static:active {
+    transform: translateX(-50%);
+}
+
+/* Lambang bottomnav.svg digambar putih penuh (#FEFEFE), jadi ia mengandalkan
+   cakram biru di belakangnya. Tingginya yang memimpin: berkasnya lebih jangkung
+   dari lebarnya (20 × 23mm), sehingga menyamakan lebar malah bikin ia jadi
+   lebih besar dari ikon Lucide 24px yang menggantikannya. */
 .bnav__fab-logo {
     display: block;
     height: 24px;
     width: auto;
 }
 
+/* SVG Lucide, bukan lagi glif font. `color` yang menggerakkan garisnya lewat
+   `stroke="currentColor"` bawaan Lucide.
+
+   `fill` JANGAN disetel di sini. Lucide memasang `fill="none"` sebagai atribut
+   presentasi pada elemen svg-nya, dan CSS mengalahkan atribut presentasi —
+   sekali diberi warna, seluruh ikon jadi gumpalan pejal. */
 .bnav__fab-icon {
     display: block;
     color: #ffffff;
 }
 
+.bnav__fab .bnav__badge {
+    top: -4px;
+    right: -4px;
+    left: auto;
+    transform: none;
+    background: #3083FF;
+    color: #E0ECFF;
+    font-size: 0.6rem;
+    font-weight: 800;
+    box-shadow: 0 2px 6px rgba(17, 46, 89, 0.25);
+}
+
 /* =========================================================
-   BOTTOM SHEET DRAWER (Pintasan Menu)
+   BOTTOM SHEET DRAWER (TABS ACTION SHEET)
    ========================================================= */
 
+/* Tirai polos, TANPA blur — sejalan dengan pita pudar di atas bilah.
+
+   Dulu `blur(8px)` yang memisahkan sheet dari halaman di belakangnya. Setelah
+   dilepas, pemisahan itu harus dipikul tirainya sendiri, jadi kepekatannya
+   dinaikkan 0,55 -> 0,66. Tanpa kenaikan itu konten di belakang tetap terbaca
+   jelas dan bersaing dengan isi sheet — blur-nya bukan cuma hiasan, ia memang
+   sedang mengerjakan sesuatu.
+
+   Warnanya tetap #112E59 ber-alpha, bukan hitam netral: nila ini dipakai juga
+   di `.bnav__item` dan bayangan lembar, jadi tirainya terbaca sebagai bagian
+   dari palet yang sama, bukan lapisan asing.
+
+   Satu nilai untuk dua tema. Di mode gelap tirai ini menutup latar yang sudah
+   gelap, jadi hasilnya sekadar makin gelap — tidak ada gejala terbalik seperti
+   pada pita pudar, yang memang harus ganti warna karena ia menyatu dengan
+   permukaan bilah.
+
+   `animation: bnavFadeIn` sudah memudarkan kemunculannya; itu bagian dari efek
+   yang sama dan sengaja dipertahankan. */
 .bnav__sheet-backdrop {
     position: fixed;
     inset: 0;
@@ -299,7 +586,12 @@
 .bnav__sheet-badge {
     font-size: 0.72rem;
     font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.01em;
     color: #3083FF;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .bnav__sheet-close {
@@ -316,6 +608,8 @@
     cursor: pointer;
     transition: all 0.15s ease;
     flex-shrink: 0;
+    align-self: center;
+    margin: 0;
 }
 
 .bnav__sheet-close:active {
@@ -395,8 +689,22 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.18s ease;
 }
 
+.bnav__sheet-tab-check-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.bnav__sheet-tab-check {
+    color: #3083FF;
+}
+
+/* Active tab state */
 .bnav__sheet-tab-btn.is-active {
     background: #E0ECFF;
 }
@@ -411,16 +719,133 @@
     font-weight: 700;
 }
 
-.bnav__sheet-tab-check {
+/* =========================================================
+   ACTION SHEET (Menu Aksi & Jadwal Lengkap)
+   ========================================================= */
+
+.bnav__sheet-badge--action {
     color: #3083FF;
+}
+
+.bnav__action-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 13px 15px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1.5px solid #E2E8F0;
+    color: #1e293b;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.bnav__action-item:hover {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.bnav__action-item:active {
+    transform: scale(0.985);
+    background: #f8fafc;
+}
+
+.bnav__action-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(48, 131, 255, 0.1);
+    color: #3083FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.18s ease;
+}
+
+.bnav__action-item:hover .bnav__action-icon,
+.bnav__action-item:active .bnav__action-icon {
+    background: rgba(48, 131, 255, 0.18);
+    color: #3083FF;
+}
+
+.bnav__action-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.bnav__action-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bnav__action-desc {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bnav__action-arrow {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.bnav__action-item:hover .bnav__action-arrow {
+    background: #3083ff;
+    color: #ffffff;
+    transform: translate(1px, -1px);
 }
 
 /* =========================================================
    DARK MODE
    ========================================================= */
 
+/* Warna di sini PEKAT, dan itu berlaku untuk SEMUA browser — tidak ada lagi
+   blok @supports mana pun yang menurunkannya jadi ber-alpha, baik di tema
+   gelap maupun terang.
+
+   Bayangan dilepas bersama sudut membulatnya — bilahnya menempel ke dasar
+   layar, tidak mengambang di atasnya.
+
+   Bentuk pelat (`--bnav-shape`) tidak ikut ditimpa: mask cuma membaca alpha,
+   jadi siluet yang sama dipakai dua tema. Yang harus ditulis ulang tinggal
+   potongan garisnya, sebab warna di dalam data URI tidak bisa membaca variabel
+   CSS.
+
+   Tidak ada lagi versi ber-alpha di mode gelap: bilah gelap dikembalikan ke
+   hitam pekat di kedua jalur, jadi blok @supports khusus gelap yang dulu
+   memudarkannya ke 0,55 sudah dihapus. */
 .dark .bnav {
-    --bnav-face: #0d1221;
+    /* #000000 + #1a73e8 = persis `--header-bg` / `--header-border` gelap.
+
+       Pekat penuh, bukan lagi dipudarkan di atas kanvas: header dan bilah bawah
+       mengapit halaman yang sama dan keduanya harus hitam yang sama. Karena
+       pelatnya kembali menutup, dasar takik jadi jelas terbedakan dari kanvas
+       lagi dan garis birunya tinggal menegaskan, bukan satu-satunya penanda. */
+    --bnav-face: #0b1329;
     --bnav-line: rgba(37, 99, 235, 0.45);
     --bnav-line-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='70' viewBox='0 0 160 70'%3E%3Cg fill='none' stroke='%232563eb' stroke-opacity='0.45' stroke-width='1'%3E%3Ccircle cx='80' cy='32' r='27'/%3E%3Cpath d='M0 20.5 L26.09 20.5 A30 30 0 0 1 54.47 40.76 A27 27 0 0 0 105.53 40.76 A30 30 0 0 1 133.91 20.5 L160 20.5'/%3E%3C/g%3E%3C/svg%3E");
     background: transparent;
@@ -440,7 +865,7 @@
 }
 
 .dark .bnav__fab {
-    background: #3083FF;
+    background: #1a73e8;
     box-shadow: none;
 }
 
@@ -449,12 +874,8 @@
 }
 
 .dark .bnav__sheet {
-    background: #0d1221;
+    background: #0b1329;
     border-top-color: rgba(59, 130, 246, 0.3);
-}
-
-.dark .bnav__sheet-handle {
-    background: #334155 !important;
 }
 
 .dark .bnav__sheet-header {
@@ -486,8 +907,14 @@
 
 .dark .bnav__sheet-tab-btn {
     background: transparent;
+    border: none;
     border-bottom: 1px solid rgba(59, 130, 246, 0.18);
     color: #f8fafc;
+    box-shadow: none;
+}
+
+.dark .bnav__sheet-tab-btn:last-child {
+    border-bottom: none;
 }
 
 .dark .bnav__sheet-tab-btn:active {
@@ -520,3 +947,54 @@
 .dark .bnav__sheet-tab-check {
     color: #60a5fa;
 }
+
+.dark .bnav__sheet-badge--action {
+    color: #60a5fa;
+}
+
+.dark .bnav__action-item {
+    background: rgba(15, 23, 42, 0.7);
+    border-color: rgba(59, 130, 246, 0.25);
+    color: #f8fafc;
+    box-shadow: none;
+}
+
+.dark .bnav__action-item:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.dark .bnav__action-item:active {
+    background: rgba(30, 41, 59, 0.9);
+}
+
+.dark .bnav__action-icon {
+    background: rgba(59, 130, 246, 0.18);
+    color: #60a5fa;
+}
+
+.dark .bnav__action-item:hover .bnav__action-icon,
+.dark .bnav__action-item:active .bnav__action-icon {
+    background: rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+}
+
+.dark .bnav__action-title {
+    color: #f8fafc;
+}
+
+.dark .bnav__action-desc {
+    color: #94a3b8;
+}
+
+.dark .bnav__action-arrow {
+    background: rgba(30, 41, 59, 0.8);
+    color: #64748b;
+}
+
+.dark .bnav__action-item:hover .bnav__action-arrow {
+    background: #3b82f6;
+    color: #ffffff;
+}
+
+

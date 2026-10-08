@@ -169,8 +169,16 @@ mjx-container svg {
 }
 
 /* Base Styles */
+html,
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow-x: clip;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 html {
-  overflow-x: hidden;
   scroll-behavior: smooth;
 }
 
@@ -180,10 +188,81 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
-  min-height: 100vh;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (max-width: 1023.98px) {
+  html,
+  body {
+    min-height: 100% !important;
+    min-height: 100dvh !important;
+    overflow-x: clip !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
+
+/* =========================================================
+   MOBILE FULL-BLEED AMBIENT CANVAS (Edge-to-Edge)
+   Fixed background canvas element pinned to 100vw x 100dvh.
+========================================================= */
+.acca-ambient-bg {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  background: #EBECF1 !important;
+  background-color: #EBECF1 !important;
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+}
+
+html.dark .acca-ambient-bg,
+.dark .acca-ambient-bg {
+  background: 
+    radial-gradient(ellipse 120% 90% at 50% 15%, rgba(29, 78, 216, 0.45) 0%, rgba(17, 44, 122, 0.35) 45%, rgba(5, 14, 45, 0.75) 80%, #020718 100%),
+    radial-gradient(ellipse 120% 90% at 50% 85%, rgba(29, 78, 216, 0.38) 0%, rgba(17, 44, 122, 0.3) 45%, rgba(5, 14, 45, 0.75) 80%, #020718 100%),
+    radial-gradient(circle at 50% 50%, rgba(30, 64, 175, 0.3) 0%, rgba(10, 25, 75, 0.5) 50%, transparent 85%),
+    #020718 !important;
+  background-color: #020718 !important;
+}
+
+@media (min-width: 1024px) {
+  .acca-ambient-bg {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+   iOS AUTO-ZOOM FIX
+========================================================= */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  input[type="password"] {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
+    letter-spacing: 0.06em;
+  }
 }
 
 button,

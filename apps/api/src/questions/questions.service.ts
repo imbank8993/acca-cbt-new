@@ -4,6 +4,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { updateExamQuestionSnapshots } from '../common/exam-question-snapshots';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -64,13 +65,12 @@ export class QuestionsService {
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
 
-        // Begitu ada attempt, komposisi bank adalah bagian dari bukti ujian.
-        // Menambah soal baru sama merusaknya dengan mengubah soal lama: review
-        // historis akan memperoleh penyebut dan nomor soal yang berbeda.
-        if (await this.bankHasAttempts(dto.bankId)) {
+        // Menambah soal baru pada bank yang sudah memiliki attempt tidak diizinkan
+        // karena akan mengubah jumlah butir dan urutan ujian yang sedang berjalan.
+        if (!dto.id && await this.bankHasAttempts(dto.bankId)) {
             throw new ConflictException(
-                'Bank soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah. ' +
-                'Buat bank baru untuk perubahan berikutnya.',
+                'Bank soal sudah dipakai dalam pengerjaan ujian dan tidak dapat menambah butir baru. ' +
+                'Buat bank baru untuk penambahan butir.',
             );
         }
 
@@ -79,12 +79,6 @@ export class QuestionsService {
                 .select('id').eq('id', dto.id).eq('bank_id', dto.bankId).maybeSingle();
             if (error) throw new BadRequestException(error.message);
             if (!existing) throw new NotFoundException('Soal tidak ditemukan di bank soal ini.');
-            if (await this.questionHasHistoricalUse(dto.id, dto.bankId)) {
-                throw new ConflictException(
-                    'Soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah. ' +
-                    'Buat soal tersebut pada bank baru untuk versi berikutnya.',
-                );
-            }
         }
         // Validate every supplied option ID before changing the question or deleting options.
         const optionIds = (dto.options || []).flatMap(option => option.id ? [option.id] : []);
@@ -181,6 +175,7 @@ export class QuestionsService {
                 await this.replaceOptions(questionId, dto.options, db);
             }
             await this.touchBank(dto.bankId, db);
+            await updateExamQuestionSnapshots(db, questionId);
             return { questionId, replayed: false };
         });
 

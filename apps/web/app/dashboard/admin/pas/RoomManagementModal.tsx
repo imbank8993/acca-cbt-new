@@ -1,4 +1,5 @@
 "use client";
+import { PASRoomInput } from "@/app/components/PASRoomInput";
 import {
     assignProctorsToRoomAction,
     assignStudentsToRoomAction,
@@ -334,13 +335,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                     <div className="p-4 mb-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row gap-3 items-end">
                                         <div className="flex-1 w-full">
                                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Ruang *</label>
-                                            <input
-                                                type="text"
-                                                value={newRoomName}
-                                                onChange={e => setNewRoomName(e.target.value)}
-                                                placeholder="Misal: Ruang 01, Lab Komputer 1"
-                                                className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
-                                            />
+                                            <PASRoomInput value={newRoomName} onChange={setNewRoomName} onCapacityChange={setNewRoomCapacity} />
                                         </div>
                                         <div className="w-full sm:w-32">
                                             <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kapasitas Kursi</label>

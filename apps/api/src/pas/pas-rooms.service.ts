@@ -4,6 +4,7 @@ import {
     Injectable,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -26,6 +27,19 @@ export class PasRoomsService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
     ) {}
+
+    async listMasterRooms(user: AuthUser, organizationId: string) {
+        await this.authz.assertOrgStaff(user, organizationId);
+        // ACCA-new master data is shared by this single-school installation.
+        const { data, error } = await this.db.from('master_ruangan')
+            .select('id, kode, nama, lokasi, kapasitas')
+            .eq('aktif', true).order('nama');
+        if (error) throw new ServiceUnavailableException('Master ruang belum dapat dimuat. Anda tetap dapat mengisi ruang secara manual.');
+        return (data || []).map((room: { id: string | number; kode: string | null; nama: string; lokasi: string | null; kapasitas: number | null }) => ({
+            id: String(room.id), name: room.nama, code: room.kode,
+            location: room.lokasi, capacity: room.kapasitas,
+        }));
+    }
 
     async listRooms(user: AuthUser, periodId: string) {
         await this.authz.assertStaffByRecord(user, 'cbt_pas_periods', periodId);

@@ -1,4 +1,6 @@
 "use client";
+import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { InlineSelect } from '@/components/ui/InlineSelect';
@@ -51,6 +53,7 @@ export type { ItemAnalysis };
 
 function MonitoringContent() {
     const { timeZone } = useSchoolTimeZone();
+    const monitoringNow = useMonitoringExamClock();
     const searchParams = useSearchParams();
     const router = useRouter();
     const toast = useToast();
@@ -86,7 +89,7 @@ function MonitoringContent() {
             const org = await getProctorOrganization();
             console.log('[Monitoring] Org:', org);
             if (org) {
-                const examList = await listOrganizationExams();
+                const examList = sortMonitoringExams(await listOrganizationExams());
                 console.log('[Monitoring] Exams:', examList);
                 setExams(examList);
                 if (!initialExamId && examList.length > 0) setSelectedExamId(examList[0].id);
@@ -490,9 +493,9 @@ function MonitoringContent() {
                                 minWidth="100%"
                                 height="42px"
                                 title="Pilih ujian"
-                                options={exams.map(exam => ({
+                                options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
                                     value: exam.id,
-                                    label: exam.title,
+                                    label: monitoringExamLabel(exam, monitoringNow),
                                 }))}
                                 value={selectedExamId}
                                 onChange={(val) => setSelectedExamId(String(val || ''))}

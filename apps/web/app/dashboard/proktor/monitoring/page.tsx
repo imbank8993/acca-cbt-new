@@ -1,4 +1,6 @@
 "use client";
+import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -50,6 +52,7 @@ interface ItemAnalysis {
 }
 
 function MonitoringContent() {
+    const monitoringNow = useMonitoringExamClock();
     const searchParams = useSearchParams();
     const router = useRouter();
     const initialExamId = searchParams.get('exam') || '';
@@ -81,7 +84,7 @@ function MonitoringContent() {
             const org = await getProctorOrganization();
             console.log('[Monitoring] Org:', org);
             if (org) {
-                const examList = await listOrganizationExams();
+                const examList = sortMonitoringExams(await listOrganizationExams());
                 console.log('[Monitoring] Exams:', examList);
                 setExams(examList);
                 if (!initialExamId && examList.length > 0) setSelectedExamId(examList[0].id);
@@ -449,8 +452,8 @@ function MonitoringContent() {
                             className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
                         >
                             <option value="" className="text-slate-500">-- Pilih Ujian --</option>
-                            {exams.map(exam => (
-                                <option key={exam.id} value={exam.id} className="text-slate-800">{exam.title}</option>
+                            {sortMonitoringExams(exams, monitoringNow).map(exam => (
+                                <option key={exam.id} value={exam.id} className="text-slate-800">{monitoringExamLabel(exam, monitoringNow)}</option>
                             ))}
                         </select>
                         <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />

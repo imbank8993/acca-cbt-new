@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsByteLength, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateMaterialDto {
@@ -15,7 +15,7 @@ export class UpdateMaterialDto {
     @IsString() @MaxLength(100) subject!: string;
     @IsIn(['draft', 'published']) status!: 'draft' | 'published';
     @IsIn(['html', 'word', 'latex', 'text', 'pdf', 'image', 'audio', 'video', 'attachment']) format!: string;
-    @IsString() @MaxLength(6_000_000) contentHtml!: string;
+    @IsString() @MaxLength(6_000_000) @IsByteLength(0, 8 * 1024 * 1024 - 1, { message: 'Isi materi harus kurang dari 8 MB.' }) contentHtml!: string;
     @IsString() @MaxLength(8000) conversionNotes!: string;
 }
 export class ProgressDto {

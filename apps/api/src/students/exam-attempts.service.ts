@@ -132,6 +132,28 @@ export class ExamAttemptsService {
         };
     }
 
+    /**
+     * Periksa pembaruan soal saat ujian sedang berlangsung (hot-update).
+     */
+    async checkQuestionUpdates(
+        user: AuthUser,
+        examId: string,
+        knownRevisions: Record<string, number> = {},
+    ) {
+        const full = await this.getQuestions(user, examId);
+        const updatedQuestions = full.questions.filter((q) => {
+            const clientRev = knownRevisions[q.id] ?? 1;
+            const currentRev = (q as any).revision ?? 1;
+            return currentRev > clientRev;
+        });
+
+        return {
+            hasUpdates: updatedQuestions.length > 0,
+            updatedQuestionIds: updatedQuestions.map((q) => q.id),
+            questions: updatedQuestions,
+        };
+    }
+
     // ── Memulai / melanjutkan ────────────────────────────────────────────────
 
     /**

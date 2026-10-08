@@ -3,6 +3,7 @@ import { getErrorMessage } from '@/lib/errors';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
+import { apiSend } from '@/lib/api/client';
 import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
 import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
 import { getDeviceId,setDeviceId } from '@/lib/device-id';
@@ -171,6 +172,67 @@ export default function ExamPage() {
     useEffect(() => { questionsRef.current = questions; }, [questions]);
     useEffect(() => { attemptRef.current = attempt; }, [attempt]);
     useEffect(() => { violationCountRef.current = violationCount; }, [violationCount]);
+
+    // ── Live exam question update polling ─────────────────────
+    useEffect(() => {
+        if (!examId || isCompleted || accessDenied || loading) return;
+
+        const checkUpdates = async () => {
+            if (!navigator.onLine || questionsRef.current.length === 0) return;
+            try {
+                const currentRevs: Record<string, number> = {};
+                questionsRef.current.forEach(q => {
+                    currentRevs[q.id] = (q as any).revision || 1;
+                });
+
+                const res = await apiSend<{
+                    hasUpdates: boolean;
+                    updatedQuestionIds: string[];
+                    questions: StudentExamQuestion[];
+                }>(
+                    `/api/students/exams/${encodeURIComponent(examId)}/questions/check-updates`,
+                    { revisions: currentRevs },
+                    'POST',
+                );
+
+                if (res.success && res.hasUpdates && res.updatedQuestionIds?.length > 0) {
+                    const updatedMap = new Map((res.questions || []).map(q => [q.id, q]));
+
+                    // Merge into questions state
+                    setQuestions(prev => {
+                        const next = prev.map(q => updatedMap.get(q.id) || q);
+                        questionsRef.current = next;
+                        return next;
+                    });
+
+                    // Add to updatedQuestionIds for badge & red pulse indicator
+                    setUpdatedQuestionIds(prev => new Set([...prev, ...res.updatedQuestionIds]));
+
+                    // If student already answered any of these updated questions, recommend review
+                    setDoubtfulAnswers(prev => {
+                        const next = new Set(prev);
+                        res.updatedQuestionIds.forEach(id => {
+                            if (answersRef.current[id]) {
+                                next.add(id);
+                            }
+                        });
+                        doubtfulRef.current = next;
+                        return next;
+                    });
+
+                    toast.warning(
+                        'Pembaruan Soal Ujian',
+                        `Ada ${res.updatedQuestionIds.length} butir soal yang baru saja diperbarui oleh guru. Silakan baca ulang soal tersebut.`,
+                    );
+                }
+            } catch {
+                // Ignore silent background update check errors
+            }
+        };
+
+        const timer = setInterval(checkUpdates, 15000);
+        return () => clearInterval(timer);
+    }, [examId, isCompleted, accessDenied, loading, toast]);
 
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */
     const markFailed = useCallback((questionId: string, failed: boolean) => {

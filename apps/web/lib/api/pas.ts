@@ -30,6 +30,20 @@ export interface PASRoom {
     pas_room_students?: PASRoomMember[];
 }
 
+export interface MasterRoom {
+    id: string;
+    name: string;
+    code: string | null;
+    location: string | null;
+    capacity: number | null;
+}
+
+export async function listMasterRooms(): Promise<MasterRoom[]> {
+    const res = await apiGet<{ rooms: MasterRoom[] }>('/api/pas/master-rooms');
+    if (!res.success) throw new Error(res.error || 'Master ruang belum dapat dimuat.');
+    return res.rooms;
+}
+
 /**
  * Penilaian Akhir Semester / Tahun (PAS/PAT).
  * Menggantikan `app/actions/pas.ts`.

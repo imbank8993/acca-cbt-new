@@ -13,6 +13,7 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { localDateTimeToUtc } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
+import { assignedPasExamIds } from '../common/pas-monitoring-access';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
 /** Jenis ujian yang hanya boleh dibuat dan diubah Proktor/Admin. */
@@ -63,14 +64,11 @@ export class ExamAdminService {
                 .eq('created_by', user.id);
             const bankIds = ((ownedBanks as Array<{ id: string }>) || []).map((b) => b.id);
 
-            if (bankIds.length > 0) {
-                // Ujian buatan sendiri ATAU ujian yang menggunakan bank soal miliknya
-                query = query.or(
-                    `created_by.eq.${user.id},question_bank_id.in.(${bankIds.join(',')})`,
-                );
-            } else {
-                query = query.eq('created_by', user.id);
-            }
+            const assignedIds = await assignedPasExamIds(this.db, user.id, organizationId);
+            const conditions = [`created_by.eq.${user.id}`];
+            if (bankIds.length) conditions.push(`question_bank_id.in.(${bankIds.join(',')})`);
+            if (assignedIds.length) conditions.push(`id.in.(${assignedIds.join(',')})`);
+            query = query.or(conditions.join(','));
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });

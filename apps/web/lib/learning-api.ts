@@ -1,3 +1,4 @@
+import { assertLearningContentSize } from './learning-content-limit';
 export type MaterialFormat = 'html' | 'word' | 'latex' | 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'attachment';
 export interface LearningMaterial {
     grade_level: string; topic: string; subtopic: string;
@@ -13,7 +14,8 @@ export async function learningRequest<T>(path = '', init: RequestInit = {}): Pro
     if (!response.ok || body?.success === false || !body) throw new LearningRequestError(body?.error || body?.message || (response.status === 413 ? 'Berkas terlalu besar untuk server.' : 'Permintaan gagal. Silakan coba lagi.'), response.status);
     return body as T;
 }
-export function saveMaterial(material: LearningMaterial, status = material.status) {
+export async function saveMaterial(material: LearningMaterial, status = material.status) {
+    assertLearningContentSize(material.content_html);
     return learningRequest<{ material: LearningMaterial }>(`/${material.id}`, { method: 'PUT', body: JSON.stringify({
         gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '',
         revision: material.revision, title: material.title, description: material.description, subject: material.subject,

@@ -51,6 +51,7 @@ export function studentQuestion(question: Row, seed: string) {
         question_text: question.question_text,
         type: question.type,
         score_default: question.score_default,
+        revision: question.revision || 1,
         metadata,
         stimulus: content(question.stimulus),
         instruction: content(question.instruction),

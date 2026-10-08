@@ -1,4 +1,5 @@
 "use client";
+import { PASRoomInput } from "@/app/components/PASRoomInput";
 import RoomManagementModal from '@/app/dashboard/admin/pas/RoomManagementModal';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
@@ -719,13 +720,7 @@ export default function AdminPASDetailPage() {
                                     </div>
                                     <div>
                                         <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Ruang (opsional)</label>
-                                        <input
-                                            type="text"
-                                            value={scheduleForm.room}
-                                            onChange={e => setScheduleForm(p => ({ ...p, room: e.target.value }))}
-                                            placeholder="Contoh: 101"
-                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-                                        />
+                                        <PASRoomInput value={scheduleForm.room} onChange={room => setScheduleForm(p => ({ ...p, room }))} />
                                     </div>
                                 </div>
 

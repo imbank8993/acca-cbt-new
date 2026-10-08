@@ -9,10 +9,15 @@ import { InlineSelect } from '@/components/ui/InlineSelect';
 import '@/app/components/learning/learning.css';
 
 export default function LearningLibrary() {
+    const [manage, setManage] = useState(false);
+    return <LearningLibraryContent key={String(manage)} manage={manage} setManage={setManage} />;
+}
+
+function LearningLibraryContent({ manage, setManage }: { manage: boolean; setManage: (value: boolean) => void }) {
+    const request = useRef<AbortController | null>(null);
     const router = useRouter();
     const [materials, setMaterials] = useState<LearningMaterial[]>([]);
     const [canManage, setCanManage] = useState(false);
-    const [manage, setManage] = useState(false);
     const [query, setQuery] = useState('');
     const [grade, setGrade] = useState('');
     const [subject, setSubject] = useState('');
@@ -24,22 +29,26 @@ export default function LearningLibrary() {
     const createId = useRef('');
 
     const load = useCallback(async () => {
+        request.current?.abort();
+        const controller = new AbortController();
+        request.current = controller;
         setLoading(true);
         setError('');
         try {
-            const data = await learningRequest<{ materials: LearningMaterial[]; canManage: boolean }>(manage ? '?manage=1' : '');
+            const data = await learningRequest<{ materials: LearningMaterial[]; canManage: boolean }>(manage ? '?manage=1' : '', { signal: controller.signal });
+            if (controller.signal.aborted) return;
             setMaterials(data.materials);
             setCanManage(data.canManage);
         } catch (err) {
-            setError((err as Error).message);
+            if (!controller.signal.aborted) setError((err as Error).message);
         } finally {
-            setLoading(false);
+            if (!controller.signal.aborted) setLoading(false);
         }
     }, [manage]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => { void load(); }, 0);
-        return () => window.clearTimeout(timer);
+        return () => { window.clearTimeout(timer); request.current?.abort(); };
     }, [load]);
 
     const create = async () => {

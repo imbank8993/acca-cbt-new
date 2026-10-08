@@ -111,6 +111,17 @@ export class StudentsController {
         return this.attempts.getQuestions(user, examId);
     }
 
+    @Post('exams/:examId/questions/check-updates')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Periksa pembaruan butir soal saat ujian sedang berlangsung' })
+    checkQuestionUpdates(
+        @CurrentUser() user: AuthUser,
+        @Param('examId', ParseUUIDPipe) examId: string,
+        @Body() body: { revisions?: Record<string, number> },
+    ) {
+        return this.attempts.checkQuestionUpdates(user, examId, body?.revisions || {});
+    }
+
     @Post('exams/:examId/attempts')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Mulai atau lanjutkan pengerjaan' })

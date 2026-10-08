@@ -3,6 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { CbtRolesService } from './cbt-roles.service';
 import { SingleSchoolService } from './single-school.service';
+import { assignedPasExamIds } from '../common/pas-monitoring-access';
 
 /**
  * Otorisasi per-organisasi, dipindahkan dari `apps/web/lib/server-authz.ts`.
@@ -275,6 +276,7 @@ export class AuthorizationService {
             question_bank_id: string | null;
         };
 
+        await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return;
 
         // Proktor, Admin, dan Pengawas boleh memantau seluruh ujian di organisasinya
@@ -288,6 +290,9 @@ export class AuthorizationService {
         // Guru boleh memantau ujian buatannya sendiri
         const isTeacher = await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
         if (isTeacher && record.created_by === user.id) return;
+
+        if (isTeacher && record.organization_id &&
+            (await assignedPasExamIds(this.db, user.id, record.organization_id)).includes(examId)) return;
 
         // Guru boleh memantau ujian yang menggunakan bank soal miliknya
         if (isTeacher && record.question_bank_id) {

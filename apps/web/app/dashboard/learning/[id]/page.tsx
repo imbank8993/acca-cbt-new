@@ -11,6 +11,11 @@ import '@/app/components/learning/learning.css';
 
 export default function LearningReader() {
     const { id } = useParams<{ id: string }>();
+    return <LearningReaderContent key={id} id={id} />;
+}
+
+function LearningReaderContent({ id }: { id: string }) {
+    const request = useRef<AbortController | null>(null);
     const [material, setMaterial] = useState<LearningMaterial | null>(null);
     const [navigationOpen, setNavigationOpen] = useState(false);
     const navigationToggle = useRef<HTMLButtonElement>(null);
@@ -28,14 +33,18 @@ export default function LearningReader() {
     const [showInfo, setShowInfo] = useState(false);
     const [materialUpdated, setMaterialUpdated] = useState(false);
     const load = useCallback(async () => {
-        setError('');
-        try { const result = await learningRequest<{ material: LearningMaterial; canEdit: boolean; completed: boolean; materialUpdated: boolean }>(`/${id}`); setMaterial(result.material); setCanEdit(result.canEdit); setCompleted(result.completed); setMaterialUpdated(result.materialUpdated); }
-        catch (err) { setError((err as Error).message); }
+        request.current?.abort();
+        const controller = new AbortController();
+        request.current = controller;
+        setMaterial(null); setCanEdit(false); setError('');
+        try { const result = await learningRequest<{ material: LearningMaterial; canEdit: boolean; completed: boolean; materialUpdated: boolean }>(`/${id}`, { signal: controller.signal }); if (controller.signal.aborted) return; setMaterial(result.material); setCanEdit(result.canEdit); setCompleted(result.completed); setMaterialUpdated(result.materialUpdated); }
+        catch (err) { if (!controller.signal.aborted) setError((err as Error).message); }
     }, [id]);
-    useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
+    useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => { window.clearTimeout(timer); request.current?.abort(); }; }, [load]);
     const mark = async () => {
+        if (!material || material.id !== id || busy) return;
         setBusy(true); setError('');
-        try { const result = await learningRequest<{ completed: boolean }>(`/${id}/progress`, { method: 'PUT', body: JSON.stringify({ completed: !completed, contentVersion: material?.content_version }) }); setCompleted(result.completed); setMaterialUpdated(false); }
+        try { const result = await learningRequest<{ completed: boolean }>(`/${material.id}/progress`, { method: 'PUT', body: JSON.stringify({ completed: !completed, contentVersion: material.content_version }) }); setCompleted(result.completed); setMaterialUpdated(false); }
         catch (err) { setError((err as Error).message); }
         finally { setBusy(false); }
     };

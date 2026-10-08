@@ -63,9 +63,8 @@ export function ActivityPlayer({ material }: { material: LearningMaterial }) {
             if (controller.signal.aborted) return;
             if (result.contentVersion !== material.content_version) throw new Error('Materi sudah diperbarui. Muat ulang halaman.');
             const prefix = `lms-activity:${result.userId}:${material.id}:${result.contentVersion}`;
-            let tabId = channel;
-            try { tabId = sessionStorage.getItem('lms-tab') || channel; sessionStorage.setItem('lms-tab', tabId); } catch { /* In-memory identity remains usable. */ }
-            storageKey.current = `${prefix}:${tabId}`;
+            // A fresh mount identity is never inherited by a duplicated tab.
+            storageKey.current = `${prefix}:${channel}`;
             try {
                 // Each tab owns its queue; another tab must never erase this copy on acknowledgement.
                 const own = localStorage.getItem(storageKey.current);

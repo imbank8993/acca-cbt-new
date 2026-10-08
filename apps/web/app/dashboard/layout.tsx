@@ -60,6 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const pageTitle = useMemo(() => {
         if (pathname.includes('/learning')) return 'Bahan Ajar';
+        if (pathname.includes('/validations')) return 'Validasi Soal';
         if (pathname.includes('/classes')) return 'Kelas';
         if (pathname.includes('/questions')) return 'Bank Soal';
         if (pathname.includes('/exams')) return 'Ujian';
@@ -314,7 +315,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     pageSubtitle={appSubtitle}
                 />
                 <main
-                    className={`dashboard-main min-h-screen pt-[var(--app-header-h,70px)] transition-all duration-300 ${
+                    className={`dashboard-main transition-all duration-300 ${
                         isCollapsed ? 'collapsed' : ''
                     }`}
                 >
@@ -323,7 +324,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                 </main>
                 <BottomNav
+                    user={currentUser}
                     activeRole={activeRoleCtx?.role}
+                    onNavigate={(p) => router.push(p)}
                     onOpenMenu={() => setMobileOpen(true)}
                 />
                 {mobileOpen && (
@@ -454,7 +457,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }
 
                     .dashboard-main {
-                        padding-bottom: calc(var(--app-bottomnav-h, 62px) + env(safe-area-inset-bottom) + 16px) !important;
+                        padding-top: calc(var(--app-header-h, 56px) + env(safe-area-inset-top) + 12px) !important;
+                        padding-bottom: 12px !important;
+                        min-height: calc(100vh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;
+                        min-height: calc(100dvh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;
+                        box-sizing: border-box !important;
                     }
                 }
 
@@ -467,6 +474,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }
                     .dashboard-main {
                         margin-left: var(--app-sidebar-w, 258px);
+                        padding-top: calc(var(--app-header-h, 70px) + env(safe-area-inset-top));
+                        min-height: 100vh;
+                        min-height: 100dvh;
                         transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
                     }
                     .dashboard-main.collapsed {
