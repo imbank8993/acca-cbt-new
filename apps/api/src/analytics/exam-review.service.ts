@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
-import { orderQuestionsForStudent } from '../common/question-order';
+import { examUsesQuestionGroups, orderQuestionsForStudent } from '../common/question-order';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /**
@@ -110,6 +110,7 @@ export class ExamReviewService {
             userId: record.user_id,
             examId: record.exam_id,
             randomize: record.exams?.randomize_questions,
+            groups: examUsesQuestionGroups(record.exams?.metadata),
         });
 
         const { data: answers } = await this.db

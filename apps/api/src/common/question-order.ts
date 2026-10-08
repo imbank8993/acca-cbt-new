@@ -38,6 +38,67 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
     return a;
 }
 
+/** Nilai `cbt_exams.metadata.question_order` untuk ujian yang memakai pengacakan lama (tanpa grup). */
+export const LEGACY_QUESTION_ORDER = 'legacy';
+
+/** Ujian memakai pengacakan berkelompok kecuali ditandai legacy oleh migrasi. */
+export function examUsesQuestionGroups(examMetadata: unknown): boolean {
+    return (examMetadata as { question_order?: unknown } | null | undefined)?.question_order !== LEGACY_QUESTION_ORDER;
+}
+
+/**
+ * Kunci grup sebuah soal, atau `null` bila soal berdiri sendiri.
+ *
+ * - Penanda manual `metadata.group_key` didahulukan — guru dapat menyatukan
+ *   soal yang tidak berbagi stimulus (mis. soal bertahap 5a, 5b, 5c), atau
+ *   memisahkan soal dari grup stimulusnya dengan memberi kunci berbeda.
+ * - Selain itu, soal yang memakai stimulus yang sama otomatis satu grup.
+ *
+ * Kunci manual dicakup per bank: ujian yang menggabungkan beberapa bank tidak
+ * boleh menyatukan "Grup A" bank satu dengan "Grup A" bank lain.
+ */
+export function questionGroupKey(question: {
+    metadata?: any;
+    bank_id?: unknown;
+    stimulus_id?: unknown;
+    stimulus?: { id?: unknown } | null;
+}): string | null {
+    const manual = typeof question.metadata?.group_key === 'string' ? question.metadata.group_key.trim() : '';
+    if (manual) return `manual:${String(question.bank_id ?? '')}:${manual.toLowerCase()}`;
+    const stimulusId = question.stimulus?.id ?? question.stimulus_id;
+    if (stimulusId) return `stimulus:${String(stimulusId)}`;
+    return null;
+}
+
+/**
+ * Acak dua tingkat: urutan blok diacak, lalu isi tiap blok diacak. Soal dalam
+ * satu grup selalu berdampingan; posisi blok pada urutan dasar mengikuti soal
+ * pertamanya.
+ *
+ * Bila tidak ada grup berisi lebih dari satu soal, setiap blok berukuran satu
+ * dan pengacakan isi blok tidak memakai angka acak sama sekali — hasilnya
+ * identik dengan `shuffle(ordered, rand)` versi lama.
+ */
+function shuffleInGroups<T extends { metadata?: any }>(ordered: T[], rand: () => number): T[] {
+    const blocks: T[][] = [];
+    const byKey = new Map<string, T[]>();
+    for (const question of ordered) {
+        const key = questionGroupKey(question as any);
+        if (key === null) {
+            blocks.push([question]);
+            continue;
+        }
+        let block = byKey.get(key);
+        if (!block) {
+            block = [];
+            byKey.set(key, block);
+            blocks.push(block);
+        }
+        block.push(question);
+    }
+    return shuffle(blocks, rand).flatMap(block => shuffle(block, rand));
+}
+
 /**
  * Susun soal persis seperti yang diterima siswa.
  *
@@ -47,10 +108,15 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
  *
  * Pengacakan diseed dengan `userId:examId`, bukan angka acak: siswa yang memuat
  * ulang halaman di tengah ujian harus menerima urutan yang sama.
+ *
+ * Dengan `groups` aktif (bawaan), soal satu grup — stimulus yang sama atau
+ * `metadata.group_key` yang sama — tetap berdampingan; lihat `shuffleInGroups`.
+ * `groups: false` hanya untuk ujian lama yang attempt-nya sudah memakai urutan
+ * tanpa grup, agar nomor soal di review tidak bergeser.
  */
 export function orderQuestionsForStudent<T extends { metadata?: any; __exam_source_order?: number }>(
     questions: T[],
-    options: { userId: string; examId: string; randomize?: boolean | null },
+    options: { userId: string; examId: string; randomize?: boolean | null; groups?: boolean },
 ): T[] {
     const ordered = [...questions].sort((a, b) => {
         if (a.__exam_source_order !== undefined && b.__exam_source_order !== undefined &&
@@ -64,7 +130,8 @@ export function orderQuestionsForStudent<T extends { metadata?: any; __exam_sour
     });
 
     if (!options.randomize) return ordered;
-    return shuffle(ordered, mulberry32(`${options.userId}:${options.examId}`));
+    const rand = mulberry32(`${options.userId}:${options.examId}`);
+    return options.groups === false ? shuffle(ordered, rand) : shuffleInGroups(ordered, rand);
 }
 
 /** Hanya tipe ini yang urutan opsinya tidak membawa makna. */

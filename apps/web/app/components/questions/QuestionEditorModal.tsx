@@ -667,6 +667,27 @@ export default function QuestionEditorModal({
                             />
                         </div>
 
+                        {/* ── Grup Soal (both) ── */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Layers size={11}/> Grup Soal</label>
+                            <input
+                                type="text"
+                                value={typeof metadata?.group_key === 'string' ? metadata.group_key : ''}
+                                onChange={(e) => {
+                                    const value = e.target.value.slice(0, 50);
+                                    const next = { ...metadata };
+                                    if (value.trim()) next.group_key = value;
+                                    else delete next.group_key;
+                                    setMetadata(next);
+                                }}
+                                placeholder={stimulusId ? 'Otomatis: grup stimulus' : 'Mis. A, Soal-5'}
+                                className="w-full px-4 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
+                            />
+                            <p className="text-[10px] leading-snug text-slate-400">
+                                Soal dengan grup (atau stimulus) yang sama tetap berdampingan saat diacak; urutan di dalam grup ikut diacak.
+                            </p>
+                        </div>
+
                         {/* ── Petunjuk (both) ── */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Eye size={11}/> Petunjuk Pengerjaan</label>

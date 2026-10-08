@@ -15,6 +15,7 @@ import {
     readExamQuestionVersion,
 } from '../common/exam-question-snapshots';
 import {
+    examUsesQuestionGroups,
     orderQuestionsForStudent,
     shuffleOptionsForStudent,
 } from '../common/question-order';
@@ -119,6 +120,7 @@ export class ExamAttemptsService {
             userId: user.id,
             examId,
             randomize: row.randomize_questions,
+            groups: examUsesQuestionGroups((exam as { metadata?: unknown }).metadata),
         });
 
         return {
