@@ -14,7 +14,7 @@ import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { DatePicker } from '@/app/components/ui/DatePicker';
 import { listTeachersAndInvigilators, type PASStaffMember } from '@/lib/api/pas';
-import { createValidation, type ApprovalRule } from '@/lib/api/validations';
+import { listValidations, createValidation, type ApprovalRule } from '@/lib/api/validations';
 import type { QuestionBank } from '@/lib/api/questions';
 
 interface AssignValidationModalProps {
@@ -39,6 +39,10 @@ export function AssignValidationModal({
     const [deadline, setDeadline] = useState('');
     const [approvalRule, setApprovalRule] = useState<ApprovalRule>('unanimous');
 
+    const [bankSearchQuery, setBankSearchQuery] = useState('');
+    const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
+    const [existingTitles, setExistingTitles] = useState<string[]>([]);
+
     const [staffList, setStaffList] = useState<PASStaffMember[]>([]);
     const [teacherSearch, setTeacherSearch] = useState('');
     const [staffLoading, setStaffLoading] = useState(false);
@@ -48,20 +52,23 @@ export function AssignValidationModal({
     useEffect(() => {
         if (selectedBank) {
             setTargetBankId(selectedBank.id);
-            setTitle(`Validasi Soal: ${selectedBank.title}`);
-        } else if (targetBankId) {
-            const b = banks.find(x => x.id === targetBankId);
-            if (b) setTitle(`Validasi Soal: ${b.title}`);
+            setTitle(prev => prev || `Validasi Soal: ${selectedBank.title}`);
         }
-    }, [selectedBank, targetBankId, banks]);
+    }, [selectedBank]);
 
     useEffect(() => {
         if (!isOpen) return;
         setStaffLoading(true);
-        listTeachersAndInvigilators()
-            .then(res => setStaffList(res))
-            .catch(() => setStaffList([]))
-            .finally(() => setStaffLoading(false));
+        Promise.all([
+            listTeachersAndInvigilators().catch(() => []),
+            listValidations().catch(() => []),
+        ]).then(([staffRes, valRes]) => {
+            setStaffList(staffRes);
+            const titles = Array.from(
+                new Set(valRes.map(v => v.title).filter((t): t is string => Boolean(t && t.trim())))
+            );
+            setExistingTitles(titles);
+        }).finally(() => setStaffLoading(false));
     }, [isOpen]);
 
     const toggleValidator = (id: string) => {
@@ -75,12 +82,36 @@ export function AssignValidationModal({
         return staff.name.toLowerCase().includes(query);
     });
 
+    const filteredBanks = banks.filter(b => {
+        const q = bankSearchQuery.toLowerCase();
+        return (
+            b.title.toLowerCase().includes(q) ||
+            (b.subject && b.subject.toLowerCase().includes(q)) ||
+            (b.class_level && b.class_level.toLowerCase().includes(q))
+        );
+    });
+
+    const selectedBankObj = banks.find(b => b.id === targetBankId);
+
+    const handleSelectBank = (bank: QuestionBank) => {
+        setTargetBankId(bank.id);
+        setIsBankDropdownOpen(false);
+        setBankSearchQuery('');
+        if (!title || title.startsWith('Validasi Soal:')) {
+            setTitle(`Validasi Soal: ${bank.title}`);
+        }
+    };
+
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         setErrorMessage(null);
 
         if (!targetBankId) {
             setErrorMessage('Pilih bank soal yang akan divalidasi.');
+            return;
+        }
+        if (!title.trim()) {
+            setErrorMessage('Judul tugas validasi wajib diisi.');
             return;
         }
         if (selectedValidatorIds.length === 0) {
@@ -112,14 +143,6 @@ export function AssignValidationModal({
         }
     };
 
-    const bankOptions = [
-        { value: '', label: '-- Pilih Bank Soal --' },
-        ...banks.map(b => ({
-            value: b.id,
-            label: `${b.title} (${b.subject || '-'}, ${b.class_level || '-'})`,
-        })),
-    ];
-
     const approvalOptions = [
         { value: 'unanimous', label: 'Semua Validator Harus Setuju (Mutlak)' },
         { value: 'any', label: 'Cukup Salah Satu Setuju' },
@@ -142,7 +165,7 @@ export function AssignValidationModal({
                     </div>
                 )}
 
-                {/* Bank Soal Selection */}
+                {/* Bank Soal Selection (Searchable) */}
                 <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         Bank Soal yang Divalidasi <span className="text-red-500">*</span>
@@ -159,29 +182,112 @@ export function AssignValidationModal({
                                 Terpilih
                             </span>
                         </div>
+                    ) : selectedBankObj ? (
+                        <div className="p-2.5 px-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center justify-between h-[38px]">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <BookOpen size={14} className="text-primary shrink-0" />
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                                    {selectedBankObj.title}
+                                </span>
+                                <span className="text-[11px] text-slate-400 shrink-0">
+                                    ({selectedBankObj.subject || 'Mapel'}, {selectedBankObj.class_level || '-'})
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setTargetBankId('');
+                                    setIsBankDropdownOpen(true);
+                                }}
+                                className="text-[11px] font-bold text-primary hover:underline shrink-0 ml-2"
+                            >
+                                Ganti
+                            </button>
+                        </div>
                     ) : (
-                        <InlineSelect
-                            value={targetBankId}
-                            onChange={setTargetBankId}
-                            options={bankOptions}
-                            minWidth="100%"
-                            height="38px"
-                        />
+                        <div className="relative">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                <input
+                                    type="text"
+                                    value={bankSearchQuery}
+                                    onFocus={() => setIsBankDropdownOpen(true)}
+                                    onChange={e => {
+                                        setBankSearchQuery(e.target.value);
+                                        setIsBankDropdownOpen(true);
+                                    }}
+                                    placeholder="Cari dan pilih bank soal..."
+                                    className="w-full h-[38px] pl-9 pr-3 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                                />
+                            </div>
+
+                            {isBankDropdownOpen && (
+                                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50 p-1 space-y-0.5">
+                                    {filteredBanks.length === 0 ? (
+                                        <p className="text-xs text-slate-400 p-3 text-center">
+                                            Tidak ditemukan bank soal yang sesuai.
+                                        </p>
+                                    ) : (
+                                        filteredBanks.map(b => (
+                                            <div
+                                                key={b.id}
+                                                onClick={() => handleSelectBank(b)}
+                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors text-xs flex items-center justify-between"
+                                            >
+                                                <div>
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{b.title}</p>
+                                                    <p className="text-[11px] text-slate-400">
+                                                        {b.subject || 'Mapel Umum'} • {b.class_level || 'Semua Kelas'}
+                                                    </p>
+                                                </div>
+                                                <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">
+                                                    Pilih
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
 
-                {/* Judul Penugasan */}
+                {/* Judul Penugasan (Wajib + Auto-suggest judul sebelumnya) */}
                 <div>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                        Judul Tugas Validasi
+                        Judul Tugas Validasi <span className="text-red-500">*</span>
                     </label>
                     <input
                         type="text"
+                        list="validation-title-suggestions"
                         value={title}
                         onChange={e => setTitle(e.target.value)}
                         placeholder="Contoh: Validasi Soal PAS Ganjil - Biologi XII"
-                        className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none"
+                        className="w-full h-[38px] px-3.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none"
                     />
+                    <datalist id="validation-title-suggestions">
+                        {existingTitles.map(t => (
+                            <option key={t} value={t} />
+                        ))}
+                    </datalist>
+
+                    {/* Rekomendasi Judul Sebelumnya */}
+                    {existingTitles.length > 0 && (
+                        <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto pb-1">
+                            <span className="text-[10px] text-slate-400 font-semibold shrink-0">Gunakan judul sebelumnya:</span>
+                            {existingTitles.slice(0, 3).map(t => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setTitle(t)}
+                                    className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary rounded text-[10px] text-slate-600 dark:text-slate-300 font-medium transition-colors shrink-0 truncate max-w-[200px]"
+                                    title={t}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Pilih Guru Validator (Dapat di-search) */}
@@ -203,7 +309,7 @@ export function AssignValidationModal({
                             value={teacherSearch}
                             onChange={e => setTeacherSearch(e.target.value)}
                             placeholder="Cari nama guru validator..."
-                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+                            className="w-full h-[38px] pl-9 pr-3 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
                         />
                     </div>
 
@@ -278,7 +384,7 @@ export function AssignValidationModal({
                             onChange={val => setApprovalRule(val as ApprovalRule)}
                             options={approvalOptions}
                             minWidth="100%"
-                            height="34px"
+                            height="38px"
                         />
                     </div>
                 </div>
@@ -316,7 +422,7 @@ export function AssignValidationModal({
                     ) : (
                         <>
                             <ShieldCheck size={14} />
-                            Terbitkan Tugas Validasi
+                            Simpan
                         </>
                     )}
                 </Button>

@@ -141,24 +141,17 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                 />
                 <FilterActions>
                     <Button
-                        variant="outline"
-                        onClick={loadData}
-                        className="flex items-center gap-1.5 text-xs font-bold"
-                    >
-                        <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
-                    </Button>
-                    <Button
                         onClick={() => setIsAssignModalOpen(true)}
                         className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-md shadow-primary/20"
                     >
-                        <Plus size={15} /> Tugaskan Validasi Baru
+                        <Plus size={15} /> Tambah Validasi
                     </Button>
                 </FilterActions>
             </FilterToolbar>
 
-            {/* List / Cards */}
+            {/* List Data / Desktop Table */}
             {loading ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <div className="py-20 flex flex-col items-center justify-center gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                     <Spinner size={32} />
                     <p className="text-xs text-slate-400 font-medium">Memuat data validasi bank soal...</p>
                 </div>
@@ -177,111 +170,116 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         onClick={() => setIsAssignModalOpen(true)}
                         className="bg-primary text-white font-bold text-xs"
                     >
-                        <Plus size={14} className="mr-1.5" /> Buat Penugasan Validasi
+                        <Plus size={14} className="mr-1.5" /> Tambah Validasi
                     </Button>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filtered.map(item => {
-                        const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
-                        const totalValidators = item.validators?.length || 0;
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    <th className="py-3 px-4">Bank Soal</th>
+                                    <th className="py-3 px-4">Tim Guru Validator</th>
+                                    <th className="py-3 px-4">Status Validasi</th>
+                                    <th className="py-3 px-4">Batas Waktu</th>
+                                    <th className="py-3 px-4 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                {filtered.map(item => {
+                                    const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
+                                    const totalValidators = item.validators?.length || 0;
+                                    const creatorName = item.bank?.creator_name || (item.bank as any)?.creator?.full_name || 'Guru Mapel';
 
-                        return (
-                            <div
-                                key={item.id}
-                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between"
-                            >
-                                <div>
-                                    <div className="flex items-start justify-between gap-3 mb-3">
-                                        {getStatusBadge(item.status)}
-                                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                                            <Calendar size={12} />
-                                            {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : '-'}
-                                        </span>
-                                    </div>
+                                    return (
+                                        <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                            {/* Bank Soal */}
+                                            <td className="py-3.5 px-4 max-w-xs">
+                                                <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
+                                                    {item.title}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                    <Layers size={11} />
+                                                    {item.bank?.subject || 'Mapel Umum'} • {creatorName}
+                                                </p>
+                                            </td>
 
-                                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 line-clamp-2 mb-1">
-                                        {item.title}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-1.5">
-                                        <Layers size={13} className="text-slate-400" />
-                                        {item.bank?.subject || 'Mapel Umum'} • {item.bank?.class_level || 'Semua Kelas'}
-                                    </p>
-
-                                    {/* Tim Validator & Progres */}
-                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 mb-4 border border-slate-100 dark:border-slate-800">
-                                        <div className="flex items-center justify-between text-xs font-semibold">
-                                            <span className="text-slate-500 flex items-center gap-1">
-                                                <UserCheck size={13} /> Guru Validator
-                                            </span>
-                                            <span className="text-slate-700 dark:text-slate-300 font-bold">
-                                                {submittedCount} / {totalValidators} Selesai
-                                            </span>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            {item.validators?.map(v => (
-                                                <div
-                                                    key={v.id}
-                                                    className="flex items-center justify-between text-[11px] py-0.5"
-                                                >
-                                                    <span className="text-slate-700 dark:text-slate-300 font-medium truncate max-w-[150px]">
-                                                        {v.profile?.full_name || 'Validator'}
-                                                    </span>
-                                                    <span
-                                                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                                            v.status === 'submitted'
-                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                                                : v.status === 'in_progress'
-                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400'
-                                                                : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
-                                                        }`}
-                                                    >
-                                                        {v.status === 'submitted'
-                                                            ? 'Selesai'
-                                                            : v.status === 'in_progress'
-                                                            ? 'Memvalidasi'
-                                                            : 'Belum'}
-                                                    </span>
+                                            {/* Tim Validator */}
+                                            <td className="py-3.5 px-4">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                                        <UserCheck size={12} className="text-primary" />
+                                                        <span>{submittedCount} / {totalValidators} Selesai</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                                        {item.validators?.map(v => (
+                                                            <span
+                                                                key={v.id}
+                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                                                    v.status === 'submitted'
+                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900'
+                                                                        : v.status === 'in_progress'
+                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900'
+                                                                        : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                                }`}
+                                                            >
+                                                                {v.profile?.full_name || 'Validator'}
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                            </td>
 
-                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs gap-2">
-                                    <span className="text-[11px] text-slate-400">
-                                        {item.deadline
-                                            ? `Batas: ${new Date(item.deadline).toLocaleDateString('id-ID')}`
-                                            : 'Tanpa batas'}
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setReportValId(item.id)}
-                                            className="text-slate-500 hover:text-primary dark:hover:text-primary font-semibold flex items-center gap-1 text-xs px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                            title="Cetak Laporan Validasi"
-                                        >
-                                            <Printer size={13} /> Laporan
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedDetailVal(item)}
-                                            className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold flex items-center gap-0.5 text-xs px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        >
-                                            Rincian <ChevronRight size={13} />
-                                        </button>
-                                        <Link
-                                            href={`/dashboard/guru/validations/${item.id}/review`}
-                                            className="px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0"
-                                        >
-                                            <Play size={12} className="fill-white" /> Validasi
-                                        </Link>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                            {/* Status Validasi */}
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
+                                                {getStatusBadge(item.status)}
+                                            </td>
+
+                                            {/* Batas Waktu */}
+                                            <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
+                                                {item.deadline ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar size={12} className="text-slate-400" />
+                                                        {new Date(item.deadline).toLocaleDateString('id-ID')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400">Tanpa batas</span>
+                                                )}
+                                            </td>
+
+                                            {/* Aksi */}
+                                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReportValId(item.id)}
+                                                        className="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-primary font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
+                                                        title="Cetak Laporan Validasi"
+                                                    >
+                                                        <Printer size={13} /> Laporan
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedDetailVal(item)}
+                                                        className="text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
+                                                    >
+                                                        Rincian <ChevronRight size={13} />
+                                                    </button>
+                                                    <Link
+                                                        href={`/dashboard/guru/validations/${item.id}/review`}
+                                                        className="px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0"
+                                                    >
+                                                        <Play size={12} className="fill-white" /> Validasi
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 

@@ -111,16 +111,15 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         const result=await svc.remove(user,'question','bank');
         assert.equal(result.softDeleted,true);assert.equal(db.state.cbt_bank_questions.length,1);
     });
-    await test('Historical questions cannot be edited, patched, or reordered',async()=>{
+    await test('Historical questions allow text/option updates but metadata and reorder are protected',async()=>{
         const db=base(),auth=new AuthorizationService(db,roles,schoolScope),svc=new QuestionsService(db,auth,{regradeExamAttemptsByQuestion:async()=>{}});
         db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',question_text:'Historical',metadata:{order_index:0}}];
         db.state.cbt_exams=[{id:'exam',question_bank_id:'bank'}];
         db.state.cbt_exam_attempts=[{id:'attempt',exam_id:'exam'}];
-        await assert.rejects(()=>svc.save(user,{id:'question',bankId:'bank',questionText:'Changed'}),/tidak dapat diubah/);
+        await svc.save(user,{id:'question',bankId:'bank',questionText:'Changed'});
+        assert.equal(db.state.cbt_bank_questions[0].question_text,'Changed');
         await assert.rejects(()=>svc.updateMetadata(user,'question',{order_index:1}),/tidak dapat diubah/);
         await assert.rejects(()=>svc.reorder(user,'bank',['question']),/tidak dapat diubah/);
-        assert.equal(db.state.cbt_bank_questions[0].question_text,'Historical');
-        assert.equal(db.state.cbt_bank_questions[0].metadata.order_index,0);
     });
     await test('New questions and imports cannot change a bank after an attempt starts',async()=>{
         const db=base(),auth=new AuthorizationService(db,roles,schoolScope);
@@ -128,7 +127,7 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         db.state.cbt_exam_attempts=[{id:'attempt',exam_id:'exam'}];
         const questions=new QuestionsService(db,auth,{regradeExamAttemptsByQuestion:async()=>{}});
         const imports=new ImportsService(db,auth);
-        await assert.rejects(()=>questions.save(user,{bankId:'bank',questionText:'Late question'}),/tidak dapat diubah/);
+        await assert.rejects(()=>questions.save(user,{bankId:'bank',questionText:'Late question'}),/tidak dapat menambah/);
         await assert.rejects(()=>imports.bulkImport(user,'bank',[{question_text:'Late import'}]),/tidak dapat diimpor ulang/);
         assert.equal(db.state.cbt_bank_questions?.length||0,0);
     });

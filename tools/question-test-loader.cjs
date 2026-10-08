@@ -3,8 +3,9 @@ const path = require('node:path');
 const ts = require('typescript');
 const { createRequire } = require('node:module');
 const modules = new Map();
+const rootDir = path.resolve(__dirname, '..');
 function load(filename) {
-    const file = path.resolve(filename);
+    const file = path.isAbsolute(filename) ? filename : path.resolve(rootDir, filename);
     if (modules.has(file)) return modules.get(file).exports;
     let source = fs.readFileSync(file, 'utf8');
     if (file.endsWith('doc-parser.ts')) source += '\nexport { parseQuestionTable, parseAllTables };';
@@ -12,7 +13,7 @@ function load(filename) {
     const module = {exports:{}}; modules.set(file,module);
     const nodeRequire = createRequire(file);
     const req = name => {
-        let resolved = name.startsWith('.') ? path.resolve(path.dirname(file),name) : name.startsWith('@/') ? path.resolve('apps/web',name.slice(2)) : null;
+        let resolved = name.startsWith('.') ? path.resolve(path.dirname(file),name) : name.startsWith('@/') ? path.resolve(rootDir, 'apps/web',name.slice(2)) : null;
         if (resolved && fs.existsSync(resolved+'.ts')) return load(resolved+'.ts');
         return nodeRequire(name);
     };
