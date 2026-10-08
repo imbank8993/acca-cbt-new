@@ -612,7 +612,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                 </div>
                                 {period.is_locked ? (
                                     <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
-                                        Periode Terkunci
+                                        Periode terkunci
                                     </span>
                                 ) : (
                                     <button

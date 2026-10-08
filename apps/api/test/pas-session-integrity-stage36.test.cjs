@@ -144,7 +144,7 @@ test('SESSION-08: UI Admin dan Proktor menyembunyikan mutasi saat terkunci', () 
             'utf8',
         );
         assert.match(source, /if \(period\.is_locked\) return/);
-        assert.match(source, /Periode terkunci/);
+        assert.match(source, /Periode terkunci/i);
         assert.match(source, /!period\.is_locked && isCreatingSession/);
         assert.match(source, /!period\.is_locked && \(/);
     }
