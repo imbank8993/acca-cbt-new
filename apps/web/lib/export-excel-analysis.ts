@@ -52,6 +52,31 @@ function cleanHtml(text: string | null | undefined): string {
         .trim();
 }
 
+const QUESTION_TYPE_INDONESIAN_LABELS: Record<string, string> = {
+    mcq: 'PG',
+    mcq_complex: 'PGK',
+    true_false: 'B/S',
+    matching: 'Menjodohkan',
+    categorization: 'Kategori',
+    short_answer: 'Isian',
+    essay: 'Esai',
+    uraian: 'Esai',
+    esay: 'Esai',
+    sjt: 'SJT',
+    ordering: 'Urutan',
+    likert: 'Likert',
+    forced_choice: 'Pilihan Paksa',
+    checklist: 'Ceklis',
+    ranking: 'Peringkat',
+    paired_comparison: 'Berpasangan',
+};
+
+function formatQuestionTypeID(type?: string): string {
+    if (!type) return 'PG';
+    const key = type.toLowerCase().trim();
+    return QUESTION_TYPE_INDONESIAN_LABELS[key] || type.replace(/_/g, ' ').toUpperCase();
+}
+
 export async function buildAnalysisWorkbook({
     exam,
     attempts,
@@ -179,7 +204,7 @@ export async function buildAnalysisWorkbook({
                 .filter(Boolean)
                 .join('\n');
             const questionText = cleanHtml(question.question_text).substring(0, 180);
-            return `Soal Nomor ${question.number} [${String(question.type || 'soal').toUpperCase()}]\n${questionText}${options ? `\nOpsi:\n${options}` : ''}`;
+            return `Soal Nomor ${question.number} [${formatQuestionTypeID(question.type)}]\n${questionText}${options ? `\nOpsi:\n${options}` : ''}`;
         });
 
         const aoaData: Array<Array<string | number>> = [
@@ -332,7 +357,7 @@ export async function buildAnalysisWorkbook({
 
             return {
                 'No': item.number,
-                'Tipe Soal': (item.type || 'mcq').toUpperCase(),
+                'Tipe Soal': formatQuestionTypeID(item.type),
                 'Teks Soal': cleanHtml(item.question_text).substring(0, 200),
                 'Kunci Jawaban': cleanHtml(item.key_display || '-'),
                 'Menjawab': item.total_answered,

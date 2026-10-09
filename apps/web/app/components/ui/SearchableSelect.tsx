@@ -18,6 +18,7 @@ export interface SearchableSelectProps {
   placeholder?: string;
   label?: string;
   className?: string;
+  triggerClassName?: string;
   disabled?: boolean;
   multiple?: boolean;
   placement?: 'top' | 'bottom';
@@ -25,7 +26,7 @@ export interface SearchableSelectProps {
   showQuickActions?: boolean;
 }
 
-function DropDownIcon({ size = 20, className = '' }: { size?: number; className?: string }) {
+function DropDownIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
   return (
     <svg
       stroke="currentColor"
@@ -135,6 +136,7 @@ export function SearchableSelect({
   placeholder = 'Pilih...',
   label,
   className = '',
+  triggerClassName = '',
   disabled = false,
   multiple = false,
   placement = 'bottom',
@@ -143,6 +145,7 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -185,6 +188,39 @@ export function SearchableSelect({
         opt.label.toLowerCase().includes(q) || (opt.subLabel && opt.subLabel.toLowerCase().includes(q))
     );
   }, [options, search]);
+
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [search]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const idx = filteredOptions.findIndex(o => o.value === value);
+      setHighlightedIndex(idx >= 0 ? idx : 0);
+    }
+  }, [isOpen]);
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        e.preventDefault();
+        setIsOpen(true);
+      }
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1) % Math.max(1, filteredOptions.length));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 + Math.max(1, filteredOptions.length)) % Math.max(1, filteredOptions.length));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredOptions[highlightedIndex]) {
+        pick(filteredOptions[highlightedIndex]);
+      }
+    }
+  };
 
   const toggle = (e: React.MouseEvent) => {
     if (disabled) return;
@@ -252,7 +288,7 @@ export function SearchableSelect({
 
       {/* Main Input & Trigger Box */}
       <div
-        className={`ss__trigger ${isOpen ? 'is-open' : ''}`}
+        className={`ss__trigger ${isOpen ? 'is-open' : ''} ${triggerClassName}`.trim()}
         onClick={toggle}
       >
         {multiple && selectedOptions.length > 0 && !search && (
@@ -262,10 +298,11 @@ export function SearchableSelect({
         <input
           ref={inputRef}
           type="text"
-          className="ss__mainInput"
+          className={`ss__mainInput ${selectedOptions.length > 0 && !search ? 'ss__mainInput--selected' : ''}`}
           placeholder={dynamicPlaceholder}
           value={search}
           disabled={disabled}
+          onKeyDown={handleInputKeyDown}
           onChange={(e) => {
             setSearch(e.target.value);
             if (!isOpen) setIsOpen(true);
@@ -292,7 +329,7 @@ export function SearchableSelect({
           )}
 
           <DropDownIcon
-            size={20}
+            size={16}
             className={`ss__chev ${isOpen ? 'rot' : ''}`}
             aria-hidden="true"
           />
@@ -329,15 +366,17 @@ export function SearchableSelect({
                 <span>Tidak ada data yang cocok</span>
               </div>
             ) : (
-              filteredOptions.map((opt) => {
+              filteredOptions.map((opt, idx) => {
                 const active = multiple
                   ? (Array.isArray(value) ? value : []).includes(opt.value)
                   : opt.value === value;
+                const isHighlighted = idx === highlightedIndex;
                 return (
                   <button
                     type="button"
                     key={opt.value}
-                    className={`ss__item ${active ? 'is-active' : ''}`}
+                    className={`ss__item ${active ? 'is-active' : ''} ${isHighlighted ? 'is-highlighted' : ''}`}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
                     onClick={(e) => {
                       e.stopPropagation();
                       pick(opt);

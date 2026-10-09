@@ -14,10 +14,6 @@ import {
   WifiOff,
   Wifi,
   RotateCcw,
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  FileText,
 } from 'lucide-react';
 
 export interface AttemptHistoryModalProps {
@@ -72,34 +68,34 @@ export function AttemptHistoryModal({
       return {
         label,
         icon: WifiOff,
-        style: 'bg-amber-100 text-amber-800 border-amber-300',
+        color: 'text-amber-700 dark:text-amber-400',
       };
     }
     if (type.includes('reconnect') || type.includes('heartbeat') || type.includes('online')) {
       return {
         label,
         icon: Wifi,
-        style: 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30',
+        color: 'text-[#3083FF] dark:text-blue-400',
       };
     }
     if (type.includes('reset') || type.includes('recovery') || type.includes('makeup')) {
       return {
         label,
         icon: RotateCcw,
-        style: 'bg-purple-100 text-purple-800 border-purple-300',
+        color: 'text-purple-700 dark:text-purple-400',
       };
     }
     if (type.includes('terminate') || type.includes('violation')) {
       return {
         label,
         icon: ShieldAlert,
-        style: 'bg-red-100 text-red-800 border-red-300',
+        color: 'text-red-700 dark:text-red-400',
       };
     }
     return {
       label,
       icon: Clock,
-      style: 'bg-slate-100 text-slate-700 border-slate-300',
+      color: 'text-slate-800 dark:text-slate-100',
     };
   };
 
@@ -114,7 +110,6 @@ export function AttemptHistoryModal({
       <ModalHeader
         id="history-modal-title"
         title="Riwayat Kontak & Pemantauan Sesi"
-        subtitle={`Jejak riwayat aktivitas dan koneksi server untuk ${studentName}`}
         icon={<History className="text-[#3083FF]" size={20} />}
         onClose={onClose}
       />
@@ -136,14 +131,6 @@ export function AttemptHistoryModal({
           <span className="rounded-md bg-white px-2.5 py-1 border border-slate-200 font-bold text-[#3083FF]">
             Total {historyList.length} Catatan Riwayat
           </span>
-        </div>
-
-        {/* Informative Note */}
-        <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3 text-xs text-blue-900 flex items-start gap-2.5">
-          <Info size={16} className="text-[#3083FF] shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            Kontak server diperiksa secara berkala. Jeda koneksi dapat disebabkan oleh jaringan terputus, browser ditutup, atau perangkat masuk mode tidur — <em>bukan bukti pasti kecurangan</em>. Waktu perangkat merupakan laporan lokal siswa.
-          </p>
         </div>
 
         {/* Timeline Events List */}
@@ -176,12 +163,12 @@ export function AttemptHistoryModal({
 
                     {/* Event Card */}
                     <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs transition-all hover:border-[#3083FF]/30 hover:shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold border ${badge.style}`}>
-                          <EventIcon size={13} />
-                          {badge.label}
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className={`inline-flex items-center gap-1.5 text-xs font-semibold leading-none ${badge.color}`}>
+                          <EventIcon size={14} className="shrink-0" />
+                          <span className="leading-none">{badge.label}</span>
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 leading-none">
                           {formatDate(event.at)}
                         </span>
                       </div>

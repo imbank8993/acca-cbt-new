@@ -25,7 +25,8 @@
   align-items: center;
   gap: 8px;
 
-  padding: 7px 10px 7px 12px;
+  min-height: var(--ss-h, 42px);
+  padding: 6px 10px 6px 12px;
   border-radius: 10px;
   border: 1.5px solid var(--n-border, #cbd5e1);
   background: var(--n-card, #ffffff);
@@ -36,12 +37,12 @@
 }
 
 .ss__trigger:hover:not(.ss--disabled) {
-  border-color: var(--n-primary, #3b82f6);
+  border-color: var(--n-primary, #3083FF);
 }
 
 .ss__trigger.is-open {
-  border-color: var(--n-primary, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: var(--n-primary, #3083FF);
+  box-shadow: 0 0 0 3px rgba(48, 131, 255, 0.15);
 }
 
 .ss__badge {
@@ -54,8 +55,8 @@
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 700;
-  background: rgba(59, 130, 246, 0.14);
-  color: var(--n-primary, #3b82f6);
+  background: rgba(48, 131, 255, 0.14);
+  color: var(--n-primary, #3083FF);
   flex-shrink: 0;
 }
 
@@ -74,6 +75,19 @@
 .ss__mainInput::placeholder {
   color: #64748b;
   font-weight: 400;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.ss__mainInput--selected::placeholder {
+  color: var(--n-ink, #0f172a);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.ss__mainInput--selected:focus::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+  opacity: 0.6;
 }
 
 .ss__triggerActions {
@@ -209,12 +223,13 @@
   border-bottom: none;
 }
 
-.ss__item:hover {
-  background: rgba(59, 130, 246, 0.06);
+.ss__item:hover,
+.ss__item.is-highlighted:not(.is-active) {
+  background: rgba(48, 131, 255, 0.08);
 }
 
 .ss__item.is-active {
-  background: rgba(59, 130, 246, 0.10);
+  background: rgba(48, 131, 255, 0.12);
 }
 
 .ss__checkbox {
@@ -307,7 +322,18 @@
 .dark .ss__itemSub {
   color: #94a3b8 !important;
 }
-.dark .ss__item:hover {
+.dark .ss__mainInput--selected::placeholder {
+  color: #f1f5f9 !important;
+  font-weight: 600;
+  opacity: 1;
+}
+.dark .ss__mainInput--selected:focus::placeholder {
+  color: #94a3b8 !important;
+  font-weight: 400;
+  opacity: 0.6;
+}
+.dark .ss__item:hover,
+.dark .ss__item.is-highlighted:not(.is-active) {
   background: rgba(59, 130, 246, 0.15) !important;
 }
 .dark .ss__item.is-active {

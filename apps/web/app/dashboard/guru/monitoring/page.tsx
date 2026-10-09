@@ -4,6 +4,8 @@ import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import SearchableSelect from '@/components/ui/SearchableSelect';
+import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
@@ -295,8 +297,8 @@ function MonitoringContent() {
     const has1PL = attempts.some(a => a.detailed_scores?.irt_1pl !== undefined);
     const has2PL = attempts.some(a => a.detailed_scores?.irt_2pl !== undefined);
     const has3PL = attempts.some(a => a.detailed_scores?.irt_3pl !== undefined);
-    // Jumlah kolom tabel Rekap dinamis (9 kolom dasar + kolom IRT yang tampil)
-    const rekapColCount = 9 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
+    // Jumlah kolom tabel Rekap dinamis (7 kolom dasar + kolom IRT yang tampil)
+    const rekapColCount = 7 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
 
     // Tombol Kalkulasi IRT hanya relevan jika sistem penilaian ujian memuat
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
@@ -411,23 +413,43 @@ function MonitoringContent() {
                             </div>
                         </>
                     )}
-                    <div className="relative flex-1 sm:flex-none">
-                        <select
+                    <div className="relative flex-1 min-w-0 sm:flex-none sm:min-w-[280px]">
+                        <SearchableSelect
+                            className="w-full"
+                            placeholder="Cari atau pilih ujian..."
+                            options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
+                                value: exam.id,
+                                label: monitoringExamLabel(exam, monitoringNow),
+                            }))}
                             value={selectedExamId}
-                            onChange={(e) => setSelectedExamId(e.target.value)}
-                            className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full sm:w-auto sm:min-w-[220px] cursor-pointer"
-                        >
-                            <option value="" className="text-slate-500">-- Pilih Ujian --</option>
-                            {sortMonitoringExams(exams, monitoringNow).map(exam => (
-                                <option key={exam.id} value={exam.id} className="text-slate-800">{monitoringExamLabel(exam, monitoringNow)}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                            onChange={(val) => setSelectedExamId(String(val || ''))}
+                        />
                     </div>
                     <button onClick={handleRefresh} disabled={isRefreshing || !selectedExamId}
                         className="bg-[#3083FF] hover:bg-[#3083FF] text-white px-5 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer">
                         <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
                     </button>
+                    {selectedExamId && activeTab === 'results' && (
+                        <>
+                            {hasIRTScoring && (
+                                <Button
+                                    variant="outline"
+                                    onClick={handleCalculateIRT}
+                                    disabled={isRefreshing}
+                                    leftIcon={<Calculator size={14} />}
+                                >
+                                    Kalkulasi IRT
+                                </Button>
+                            )}
+                            <Button
+                                variant="outline"
+                                icon="export"
+                                onClick={exportResultsToExcel}
+                            >
+                                Export
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -767,32 +789,15 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
-                                    <h3 className="font-bold text-[#3083FF]">Rekap Hasil</h3>
-                                    <div className="flex gap-2">
-                                        {hasIRTScoring && (
-                                            <button onClick={handleCalculateIRT} disabled={isRefreshing}
-                                                className="flex items-center gap-2 bg-[#3083FF] text-white hover:bg-[#3083FF]/90 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50">
-                                                <Calculator size={14} /> Kalkulasi IRT
-                                            </button>
-                                        )}
-                                        <button onClick={exportResultsToExcel}
-                                            className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
-                                            <FileSpreadsheet size={14} /> Export
-                                        </button>
-                                    </div>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[900px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Nama Peserta</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Kelas</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Peserta</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Status</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Pelanggaran</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Mulai</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Selesai</th>
+                                                <th className="p-4 text-left font-bold text-[#3083FF]">Mulai / Selesai</th>
                                                 <th className="p-4 text-right font-bold text-[#3083FF]">Skor Klasik</th>
                                                 {has1PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 1PL</th>}
                                                 {has2PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 2PL</th>}
@@ -829,8 +834,14 @@ function MonitoringContent() {
                                                         <tr key={att.id}
                                                             className="border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors"
                                                         >
-                                                            <td className="p-4 text-xs font-medium text-[#3083FF]">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</td>
-                                                            <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
+                                                            <td className="p-4">
+                                                                <div className="text-xs font-medium text-[#3083FF] leading-tight">
+                                                                    {formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}
+                                                                </div>
+                                                                <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                                                    {att.kelas_name || '-'}
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
                                                                     isTerminated
@@ -853,8 +864,14 @@ function MonitoringContent() {
                                                                 </span>
                                                             </td>
                                                             <td className="p-4 text-[10px] font-semibold text-[#3083FF]">{duration}</td>
-                                                            <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
-                                                            <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
+                                                            <td className="p-4 whitespace-nowrap">
+                                                                <div className="text-[10px] font-mono text-slate-600">
+                                                                    {att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}
+                                                                </div>
+                                                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                                                                    {att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4 text-right">
                                                                 <span className={`font-bold text-xs ${getScoreColorClass(isBelum ? null : (att.detailed_scores?.classical ?? att.total_score ?? 0))}`}>{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
                                                             </td>
@@ -891,19 +908,6 @@ function MonitoringContent() {
                                                                     >
                                                                         <Eye size={11} /> Detail
                                                                     </button>
-                                                                    {canReset && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleResetAttempt(att);
-                                                                            }}
-                                                                            disabled={resettingAttemptId === att.id}
-                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
-                                                                        >
-                                                                            {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                            Susulan / Pulihkan
-                                                                        </button>
-                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -923,17 +927,10 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
-                                    <h3 className="font-bold text-[#3083FF]">Analisis Butir Soal</h3>
-                                    <button onClick={exportResultsToExcel}
-                                        className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
-                                        <FileSpreadsheet size={14} /> Export
-                                    </button>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[600px]">
                                         <thead>
-                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                            <tr className="bg-[#3083FF]/5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
                                                 <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF]">Menjawab</th>
@@ -951,30 +948,27 @@ function MonitoringContent() {
                                                     const isCritical = anl.incorrectPercentage > 50;
                                                     return (
                                                         <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
-                                                            <td className="p-4 text-center font-bold text-[#3083FF]">{anl.number}</td>
+                                                            <td className="p-4 text-center font-bold text-[#3083FF] text-[11px]">{anl.number}</td>
                                                             <td className="p-4">
-                                                                <div className="flex items-start gap-2">
-                                                                    {isCritical && <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
-                                                                            <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => { setViewQuestion(anl); setViewQuestionFilter('salah'); }}
-                                                                            className="mt-2 text-xs font-semibold text-[#3083FF] hover:text-[#3083FF] flex items-center gap-1 transition-colors"
-                                                                        >
-                                                                            <Eye size={12} /> Lihat Soal & Siapa yang Menjawab
-                                                                        </button>
+                                                                <div className="min-w-0">
+                                                                    <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
+                                                                        <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                                     </div>
+                                                                    <button
+                                                                        onClick={() => { setViewQuestion(anl); setViewQuestionFilter('salah'); }}
+                                                                        className="mt-2 text-[11px] font-semibold text-[#3083FF] hover:text-[#2563EB] transition-colors"
+                                                                    >
+                                                                        Detail Jawaban
+                                                                    </button>
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 text-center font-bold text-slate-500">{anl.total}</td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-emerald-600">{anl.correct}</span></td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-red-500">{anl.incorrect}</span></td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-slate-400">{anl.ungraded ?? 0}</span></td>
+                                                            <td className="p-4 text-center font-bold text-slate-500 text-[11px]">{anl.total}</td>
+                                                            <td className="p-4 text-center"><span className="font-bold text-emerald-600 text-[11px]">{anl.correct}</span></td>
+                                                            <td className="p-4 text-center"><span className="font-bold text-red-500 text-[11px]">{anl.incorrect}</span></td>
+                                                            <td className="p-4 text-center"><span className="font-bold text-slate-400 text-[11px]">{anl.ungraded ?? 0}</span></td>
                                                             <td className="p-4 text-right">
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className={`font-bold text-lg ${isCritical ? 'text-red-600' : 'text-[#3083FF]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
+                                                                    <span className={`font-bold text-[11px] ${isCritical ? 'text-red-600' : 'text-[#3083FF]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
                                                                     <div className="w-20 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
                                                                         <div className={`h-full rounded-full ${isCritical ? 'bg-red-500' : 'bg-[#3083FF]'}`} style={{ width: `${anl.incorrectPercentage}%` }} />
                                                                     </div>
@@ -1118,6 +1112,11 @@ function MonitoringContent() {
             <ResetExamModal
                 open={!!selectedResetAttempt}
                 attempt={selectedResetAttempt}
+                examDuration={
+                    exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??
+                    selectedExam?.duration_minutes ??
+                    selectedExam?.duration
+                }
                 onClose={() => setSelectedResetAttempt(null)}
                 onSuccess={() => {
                     if (selectedExamId) loadExamData(selectedExamId);

@@ -6,8 +6,10 @@ import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { InlineSelect } from '@/components/ui/InlineSelect';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
-import { FilterSearch, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { FilterActions, FilterSearch, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
 import type {
@@ -52,6 +54,31 @@ import { useRouter,useSearchParams } from 'next/navigation';
 import { Suspense,useCallback,useDeferredValue,useEffect,useRef,useState } from 'react';
 
 export type { ItemAnalysis };
+
+const QUESTION_TYPE_INDONESIAN_LABELS: Record<string, string> = {
+    mcq: 'PG',
+    mcq_complex: 'PGK',
+    true_false: 'B/S',
+    matching: 'Menjodohkan',
+    categorization: 'Kategori',
+    short_answer: 'Isian',
+    essay: 'Esai',
+    uraian: 'Esai',
+    esay: 'Esai',
+    sjt: 'SJT',
+    ordering: 'Urutan',
+    likert: 'Likert',
+    forced_choice: 'Pilihan Paksa',
+    checklist: 'Ceklis',
+    ranking: 'Peringkat',
+    paired_comparison: 'Berpasangan',
+};
+
+function formatQuestionType(type?: string): string {
+    if (!type) return 'PG';
+    const key = type.toLowerCase().trim();
+    return QUESTION_TYPE_INDONESIAN_LABELS[key] || type.replace(/_/g, ' ').toUpperCase();
+}
 
 function MonitoringContent() {
     const { timeZone } = useSchoolTimeZone();
@@ -396,8 +423,8 @@ function MonitoringContent() {
     const has1PL = attempts.some(a => a.detailed_scores?.irt_1pl !== undefined);
     const has2PL = attempts.some(a => a.detailed_scores?.irt_2pl !== undefined);
     const has3PL = attempts.some(a => a.detailed_scores?.irt_3pl !== undefined);
-    // Jumlah kolom tabel Rekap dinamis (9 kolom dasar + kolom IRT yang tampil)
-    const rekapColCount = 9 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
+    // Jumlah kolom tabel Rekap dinamis (7 kolom dasar + kolom IRT yang tampil)
+    const rekapColCount = 7 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
 
     // Tombol Kalkulasi IRT hanya relevan jika sistem penilaian ujian memuat
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
@@ -456,11 +483,9 @@ function MonitoringContent() {
                     )}
                     <div className="flex min-w-0 flex-1 gap-2">
                         <div className="min-w-0 flex-1">
-                            <InlineSelect
+                            <SearchableSelect
                                 className="w-full"
-                                minWidth="100%"
-                                height="42px"
-                                title="Pilih ujian"
+                                placeholder="Cari atau pilih ujian..."
                                 options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
                                     value: exam.id,
                                     label: monitoringExamLabel(exam, monitoringNow),
@@ -483,7 +508,7 @@ function MonitoringContent() {
                 </div>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
                     <div className="mt-3 border-t border-slate-100 pt-3">
-                    <FilterToolbar>
+                    <FilterToolbar actionsInline>
                         <FilterSearch
                             value={searchName}
                             onChange={setSearchName}
@@ -521,6 +546,27 @@ function MonitoringContent() {
                                 ]}
                             />
                         </div>
+                        {activeTab === 'results' && (
+                            <FilterActions>
+                                {hasIRTScoring && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleCalculateIRT}
+                                        disabled={isRefreshing}
+                                        leftIcon={<Calculator size={16} />}
+                                    >
+                                        Kalkulasi IRT
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    icon="export"
+                                    onClick={exportResultsToExcel}
+                                >
+                                    Export
+                                </Button>
+                            </FilterActions>
+                        )}
                     </FilterToolbar>
                     </div>
                 )}
@@ -960,34 +1006,15 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
-                                    <h3 className="font-bold text-slate-800">Rekap Hasil</h3>
-                                    <div className="flex gap-2">
-                                        {hasIRTScoring && (
-                                            <button type="button" onClick={handleCalculateIRT} disabled={isRefreshing}
-                                                aria-label="Kalkulasi IRT" title="Kalkulasi IRT"
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50">
-                                                <Calculator size={16} />
-                                            </button>
-                                        )}
-                                        <button type="button" onClick={exportResultsToExcel}
-                                            aria-label="Ekspor rekap" title="Ekspor rekap"
-                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100">
-                                            <FileSpreadsheet size={16} />
-                                        </button>
-                                    </div>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[900px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="p-4 text-left font-bold text-slate-600">Nama Peserta</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Kelas</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Peserta</th>
                                                 <th className="p-4 text-left font-bold text-slate-600">Status</th>
                                                 <th className="p-4 text-left font-bold text-slate-600">Pelanggaran</th>
                                                 <th className="p-4 text-left font-bold text-slate-600">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Mulai</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Selesai</th>
+                                                <th className="p-4 text-left font-bold text-slate-600">Mulai / Selesai</th>
                                                 <th className="p-4 text-right font-bold text-slate-600">Skor Klasik</th>
                                                 {has1PL && <th className="p-4 text-right font-bold text-slate-600">IRT 1PL</th>}
                                                 {has2PL && <th className="p-4 text-right font-bold text-slate-600">IRT 2PL</th>}
@@ -1030,8 +1057,14 @@ function MonitoringContent() {
                                                             }}
                                                             className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
                                                         >
-                                                            <td className="p-4 text-xs font-medium text-slate-800">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</td>
-                                                            <td className="p-4 text-[10px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
+                                                            <td className="p-4">
+                                                                <div className="text-xs font-medium text-slate-800 leading-tight">
+                                                                    {formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}
+                                                                </div>
+                                                                <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                                                    {att.kelas_name || '-'}
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
                                                                     isTerminated
@@ -1054,8 +1087,14 @@ function MonitoringContent() {
                                                                 </span>
                                                             </td>
                                                             <td className="p-4 text-[10px] font-semibold text-slate-600">{duration}</td>
-                                                            <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}</td>
-                                                            <td className="p-4 text-[10px] font-mono text-slate-500 uppercase">{att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}</td>
+                                                            <td className="p-4 whitespace-nowrap">
+                                                                <div className="text-[10px] font-mono text-slate-600">
+                                                                    {att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}
+                                                                </div>
+                                                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                                                                    {att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}
+                                                                </div>
+                                                            </td>
                                                             <td className="p-4 text-right">
                                                                 <span className={`font-bold text-xs ${getScoreColorClass(isBelum ? null : (att.detailed_scores?.classical ?? att.total_score ?? 0))}`}>{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
                                                             </td>
@@ -1095,21 +1134,6 @@ function MonitoringContent() {
                                                                     >
                                                                         <Eye size={14} />
                                                                     </button>
-                                                                    {canReset && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                handleResetAttempt(att);
-                                                                            }}
-                                                                            disabled={resettingAttemptId === att.id}
-                                                                            type="button"
-                                                                            aria-label={`Pulihkan ${formatStudentName(att.profiles?.full_name, 'peserta')}`}
-                                                                            title="Susulan / Pulihkan"
-                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
-                                                                        >
-                                                                            {resettingAttemptId === att.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                                                                        </button>
-                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -1129,17 +1153,10 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="px-5 py-4 border-b border-[#3083FF]/20 flex flex-wrap items-center justify-between gap-2 bg-[#3083FF]/5">
-                                    <h3 className="font-bold text-[#3083FF]">Analisis Butir Soal</h3>
-                                    <button onClick={exportResultsToExcel}
-                                        className="flex items-center gap-2 bg-[#3083FF]/10 text-[#3083FF] hover:bg-[#3083FF]/20 px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border border-[#3083FF]/30">
-                                        <FileSpreadsheet size={14} /> Export
-                                    </button>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[700px]">
                                         <thead>
-                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                            <tr className="bg-[#3083FF]/5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
                                                 <th className="p-4 text-center font-bold text-[#3083FF] w-14">No</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Soal</th>
                                                 <th className="p-4 text-center font-bold text-[#3083FF] w-20">Tipe</th>
@@ -1167,48 +1184,45 @@ function MonitoringContent() {
 
                                                     return (
                                                         <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
-                                                            <td className="p-4 text-center font-bold text-[#3083FF]">{anl.number}</td>
+                                                            <td className="p-4 text-center font-bold text-[#3083FF] text-[11px]">{anl.number}</td>
                                                             <td className="p-4">
-                                                                <div className="flex items-start gap-2">
-                                                                    {isCritical && <AlertTriangle size={13} className="text-red-500 mt-0.5 shrink-0" />}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
-                                                                            <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setViewQuestion(anl);
-                                                                                setModalActiveTab('soal');
-                                                                            }}
-                                                                            className="mt-2 text-xs font-semibold text-[#3083FF] hover:text-[#2563EB] flex items-center gap-1 transition-colors"
-                                                                        >
-                                                                            <Eye size={12} /> Detail Soal & Jawaban Siswa
-                                                                        </button>
+                                                                <div className="min-w-0">
+                                                                    <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
+                                                                        <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                                     </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setViewQuestion(anl);
+                                                                            setModalActiveTab('soal');
+                                                                        }}
+                                                                        className="mt-2 text-[11px] font-semibold text-[#3083FF] hover:text-[#2563EB] transition-colors"
+                                                                    >
+                                                                        Detail Jawaban
+                                                                    </button>
                                                                 </div>
                                                             </td>
                                                             <td className="p-4 text-center">
-                                                                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-bold uppercase text-slate-600">
-                                                                    {anl.type || 'mcq'}
+                                                                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-bold uppercase text-slate-600">
+                                                                    {formatQuestionType(anl.type)}
                                                                 </span>
                                                             </td>
                                                             <td className="p-4 text-center">
                                                                 {anl.difficultyLabel ? (
-                                                                    <span className={`px-2 py-0.5 border rounded text-[10px] font-bold uppercase ${diffColor}`}>
+                                                                    <span className={`px-2 py-0.5 border rounded text-[11px] font-bold uppercase ${diffColor}`}>
                                                                         {anl.difficultyLabel}
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-xs text-slate-400">-</span>
+                                                                    <span className="text-[11px] text-slate-400">-</span>
                                                                 )}
                                                             </td>
-                                                            <td className="p-4 text-center font-bold text-slate-500">{anl.total}</td>
+                                                            <td className="p-4 text-center font-bold text-slate-500 text-[11px]">{anl.total}</td>
                                                             <td className="p-4 text-center">
                                                                 <button
                                                                     onClick={() => {
                                                                         setViewQuestion(anl);
                                                                         setModalActiveTab('benar');
                                                                     }}
-                                                                    className="px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold transition-all text-xs"
+                                                                    className="px-2.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold transition-all text-[11px]"
                                                                     title="Klik untuk melihat siswa yang menjawab benar"
                                                                 >
                                                                     {anl.correct}
@@ -1220,16 +1234,16 @@ function MonitoringContent() {
                                                                         setViewQuestion(anl);
                                                                         setModalActiveTab('salah');
                                                                     }}
-                                                                    className="px-2.5 py-1 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold transition-all text-xs"
+                                                                    className="px-2.5 py-0.5 rounded bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold transition-all text-[11px]"
                                                                     title="Klik untuk melihat siswa yang menjawab salah"
                                                                 >
                                                                     {anl.incorrect}
                                                                 </button>
                                                             </td>
-                                                            <td className="p-4 text-center"><span className="font-bold text-slate-400">{anl.ungraded ?? 0}</span></td>
+                                                            <td className="p-4 text-center"><span className="font-bold text-slate-400 text-[11px]">{anl.ungraded ?? 0}</span></td>
                                                             <td className="p-4 text-right">
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className={`font-bold text-lg ${isCritical ? 'text-red-600' : 'text-[#3083FF]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
+                                                                    <span className={`font-bold text-[11px] ${isCritical ? 'text-red-600' : 'text-[#3083FF]'}`}>{anl.incorrectPercentage.toFixed(0)}%</span>
                                                                     <div className="w-20 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
                                                                         <div className={`h-full rounded-full ${isCritical ? 'bg-red-500' : 'bg-[#3083FF]'}`} style={{ width: `${anl.incorrectPercentage}%` }} />
                                                                     </div>
@@ -1300,7 +1314,7 @@ function MonitoringContent() {
                                         Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}
                                     </h3>
                                     <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[11px] font-bold uppercase tracking-wider">
-                                        {viewQuestion.type || 'mcq'}
+                                        {formatQuestionType(viewQuestion.type)}
                                     </span>
                                     {viewQuestion.difficultyLabel && (
                                         <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold uppercase tracking-wider ${
@@ -1652,6 +1666,11 @@ function MonitoringContent() {
             <ResetExamModal
                 open={!!selectedResetAttempt}
                 attempt={selectedResetAttempt}
+                examDuration={
+                    exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??
+                    selectedExam?.duration_minutes ??
+                    selectedExam?.duration
+                }
                 onClose={() => setSelectedResetAttempt(null)}
                 onSuccess={() => {
                     if (selectedExamId) loadExamData(selectedExamId);

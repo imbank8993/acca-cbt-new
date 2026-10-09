@@ -3,6 +3,7 @@ import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 
@@ -169,19 +170,17 @@ function MonitoringContent() {
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     {/* Pilih Ujian */}
-                    <div className="relative flex-1 sm:w-64">
-                        <select
+                    <div className="relative flex-1 sm:w-72">
+                        <SearchableSelect
+                            className="w-full"
+                            placeholder="Cari atau pilih ujian..."
+                            options={sortMonitoringExams(exams, monitoringNow).map((exam) => ({
+                                value: exam.id,
+                                label: `${monitoringExamLabel(exam, monitoringNow)} (${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})`,
+                            }))}
                             value={selectedExamId}
-                            onChange={(e) => handleExamChange(e.target.value)}
-                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-bold px-3 py-2.5 rounded-xl appearance-none pr-8 shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        >
-                            {sortMonitoringExams(exams, monitoringNow).map((exam) => (
-                                <option key={exam.id} value={exam.id}>
-                                    {monitoringExamLabel(exam, monitoringNow)} ({exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})
-                                </option>
-                            ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
+                            onChange={(val) => handleExamChange(String(val || ''))}
+                        />
                     </div>
 
                     <button
@@ -466,6 +465,11 @@ function MonitoringContent() {
             <ResetExamModal
                 open={!!selectedResetAttempt}
                 attempt={selectedResetAttempt}
+                examDuration={
+                    exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??
+                    exams.find(e => e.id === selectedExamId)?.duration_minutes ??
+                    exams.find(e => e.id === selectedExamId)?.duration
+                }
                 onClose={() => setSelectedResetAttempt(null)}
                 onSuccess={() => {
                     void loadData(true);

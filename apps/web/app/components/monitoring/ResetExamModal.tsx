@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
-  Sparkles,
   BookOpen,
   Flame,
 } from 'lucide-react';
@@ -22,6 +21,7 @@ export type ResetMode = 'PULIHKAN' | 'SUSULAN';
 export interface ResetExamModalProps {
   open: boolean;
   attempt: ExamAttemptRecord | null;
+  examDuration?: number;
   onClose: () => void;
   onSuccess?: () => void;
   onConfirm?: (attemptId: string, mode: ResetMode, reason: string, durationMinutes: number) => Promise<void>;
@@ -30,7 +30,7 @@ export interface ResetExamModalProps {
 const PRESET_REASONS = [
   'Gangguan koneksi internet',
   'Listrik padam / Laptop mati',
-  'Browser crash atau terkeluar',
+  'Browser crash/keluar',
   'Izin sakit / Ujian susulan',
   'Salah menekan tombol selesai',
 ];
@@ -40,6 +40,7 @@ const QUICK_DURATIONS = [15, 30, 45, 60, 90, 120];
 export function ResetExamModal({
   open,
   attempt,
+  examDuration,
   onClose,
   onSuccess,
   onConfirm,
@@ -49,6 +50,13 @@ export function ResetExamModal({
   const [duration, setDuration] = useState<number>(15);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const resolvedExamDuration = Number(
+    examDuration ??
+    attempt?.exams?.duration_minutes ??
+    attempt?.exams?.duration ??
+    60
+  ) || 60;
 
   // Reset form state when modal opens with attempt
   useEffect(() => {
@@ -63,12 +71,16 @@ export function ResetExamModal({
   // Adjust default duration when mode changes
   const handleModeSelect = (newMode: ResetMode) => {
     setMode(newMode);
-    if (newMode === 'PULIHKAN' && duration > 45) {
+    if (newMode === 'PULIHKAN') {
       setDuration(15);
-    } else if (newMode === 'SUSULAN' && duration < 30) {
-      setDuration(60);
+    } else if (newMode === 'SUSULAN') {
+      setDuration(resolvedExamDuration);
     }
   };
+
+  const quickDurations = Array.from(
+    new Set([...QUICK_DURATIONS, resolvedExamDuration])
+  ).sort((a, b) => a - b);
 
   if (!open || !attempt) return null;
 
@@ -125,13 +137,12 @@ export function ResetExamModal({
       open={open}
       onClose={() => { if (!isSubmitting) onClose(); }}
       size="lg"
-      variant={mode === 'SUSULAN' ? 'delete' : 'add'}
+      variant="default"
       labelledBy="reset-exam-modal-title"
     >
       <ModalHeader
         id="reset-exam-modal-title"
         title="Tindakan Pemulihan / Susulan Ujian"
-        subtitle={`Atur sesi pengerjaan ujian untuk ${studentName}`}
         icon={<RotateCcw className="text-[#3083FF]" size={20} />}
         onClose={isSubmitting ? undefined : onClose}
       />
@@ -170,42 +181,33 @@ export function ResetExamModal({
 
           {/* Mode Selection Cards */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">
               Pilih Jenis Tindakan <span className="text-red-500">*</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* Option 1: PULIHKAN */}
               <button
                 type="button"
                 onClick={() => handleModeSelect('PULIHKAN')}
-                className={`relative flex flex-col justify-between rounded-xl border-2 p-4 text-left transition-all ${
+                className={`relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
                   mode === 'PULIHKAN'
-                    ? 'border-[#3083FF] bg-blue-50/60 shadow-md ring-2 ring-[#3083FF]/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    ? 'border-[#3083FF] bg-[#3083FF]/5 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                        mode === 'PULIHKAN' ? 'bg-[#3083FF] text-white' : 'bg-blue-100 text-[#3083FF]'
-                      }`}>
-                        <ShieldCheck size={18} />
-                      </span>
-                      <span className="font-bold text-sm text-slate-800">PULIHKAN</span>
+                      <ShieldCheck size={16} className={mode === 'PULIHKAN' ? 'text-[#3083FF]' : 'text-slate-400'} />
+                      <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">PULIHKAN</span>
                     </div>
                     {mode === 'PULIHKAN' && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3083FF] text-white">
-                        <CheckCircle2 size={14} />
-                      </span>
+                      <CheckCircle2 size={15} className="text-[#3083FF]" />
                     )}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                    Mempertahankan semua jawaban tersimpan di server. Mengaktifkan kembali sesi agar siswa bisa melanjutkan / mengirim jawaban.
+                  <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                    Mempertahankan semua jawaban tersimpan di server. Mengaktifkan kembali sesi agar siswa bisa melanjutkan atau mengirim jawaban.
                   </p>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-[#3083FF] bg-white/80 border border-blue-200/80 rounded-lg px-2.5 py-1 w-fit">
-                  <Sparkles size={12} /> Jawaban Lama Dipertahankan
                 </div>
               </button>
 
@@ -213,34 +215,25 @@ export function ResetExamModal({
               <button
                 type="button"
                 onClick={() => handleModeSelect('SUSULAN')}
-                className={`relative flex flex-col justify-between rounded-xl border-2 p-4 text-left transition-all ${
+                className={`relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all ${
                   mode === 'SUSULAN'
-                    ? 'border-amber-500 bg-amber-50/60 shadow-md ring-2 ring-amber-500/20'
-                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    ? 'border-amber-500 bg-amber-50/40 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                        mode === 'SUSULAN' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-600'
-                      }`}>
-                        <Flame size={18} />
-                      </span>
-                      <span className="font-bold text-sm text-slate-800">SUSULAN</span>
+                      <Flame size={16} className={mode === 'SUSULAN' ? 'text-amber-500' : 'text-slate-400'} />
+                      <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">SUSULAN</span>
                     </div>
                     {mode === 'SUSULAN' && (
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white">
-                        <CheckCircle2 size={14} />
-                      </span>
+                      <CheckCircle2 size={15} className="text-amber-500" />
                     )}
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                  <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
                     Menghapus SEMUA jawaban & nilai lama. Memulai sesi baru dari awal dengan waktu pengerjaan utuh.
                   </p>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-white/80 border border-amber-200/80 rounded-lg px-2.5 py-1 w-fit">
-                  <AlertTriangle size={12} /> Jawaban Lama Dihapus
                 </div>
               </button>
             </div>
@@ -256,7 +249,7 @@ export function ResetExamModal({
                   Durasi Tambahan / Ujian (Menit) <span className="text-red-500">*</span>
                 </label>
                 <span className="text-[11px] text-slate-500">
-                  {mode === 'PULIHKAN' ? 'Default: 15 menit' : 'Default: 60 menit'}
+                  {mode === 'PULIHKAN' ? 'Default: 15 menit' : `Default: ${resolvedExamDuration} menit`}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -269,7 +262,7 @@ export function ResetExamModal({
                   className="h-9 w-28 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-800 outline-none focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
                 />
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {QUICK_DURATIONS.map((mins) => (
+                  {quickDurations.map((mins) => (
                     <button
                       key={mins}
                       type="button"

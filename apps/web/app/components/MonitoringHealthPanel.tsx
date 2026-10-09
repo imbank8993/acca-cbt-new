@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { ChevronDown, History, Search, ShieldAlert, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, History, Search, ShieldAlert, X } from 'lucide-react';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, gradingLabel, monitoringAttention, storageLabels } from '@/lib/monitoring-health';
@@ -246,7 +246,31 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 </tr>;
             })}</tbody>
         </table></div>
-        {pageCount > 1 && <div className="mt-3 flex items-center justify-between text-xs"><span>Halaman {currentPage} / {pageCount} · {rows.length} peserta</span><div className="flex gap-3"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Sebelumnya</button><button disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Berikutnya</button></div></div>}
+        {pageCount > 1 && (
+            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                <span>
+                    Halaman <strong className="font-semibold text-slate-700">{currentPage}</strong> / {pageCount} · {rows.length} peserta
+                </span>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage(currentPage - 1)}
+                        className="inline-flex items-center gap-1 font-semibold text-slate-600 transition-colors hover:text-[#3083FF] cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-slate-600"
+                    >
+                        <ChevronLeft size={14} /> Sebelumnya
+                    </button>
+                    <button
+                        type="button"
+                        disabled={currentPage >= pageCount}
+                        onClick={() => setPage(currentPage + 1)}
+                        className="inline-flex items-center gap-1 font-semibold text-slate-600 transition-colors hover:text-[#3083FF] cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-slate-600"
+                    >
+                        Berikutnya <ChevronRight size={14} />
+                    </button>
+                </div>
+            </div>
+        )}
         {!rows.length && <p className="py-4 text-sm text-slate-500">{hasActiveFilter ? 'Tidak ada peserta pada filter ini.' : 'Data monitoring belum tersedia.'}</p>}
         </div>}
 
