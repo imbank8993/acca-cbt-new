@@ -1,4 +1,5 @@
 'use client';
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { learningRequest, LearningRequestError, type LearningMaterial } from '@/lib/learning-api';
 import { fetchSessionUser } from '@/lib/session';
@@ -109,7 +110,7 @@ export function ActivityPlayer({ material }: { material: LearningMaterial }) {
         const link = document.createElement('a'); link.href = url; link.download = 'salinan-jawaban.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
     return <><div className="learn-activity-status" role="status">{status}
-        {conflict && <><button onClick={downloadLocal}>Unduh salinan lokal</button><button onClick={() => { if (window.confirm('Gunakan jawaban server? Unduh salinan lokal dahulu jika diperlukan.')) { try { localStorage.removeItem(storageKey.current); sessionStorage.setItem(`lms-server:lms-activity:${activity?.userId}:${material.id}:${material.content_version}`, '1'); window.location.reload(); } catch { setStatus('Tidak dapat menghapus salinan lokal. Unduh jawaban terlebih dahulu.'); } } }}>Gunakan versi server</button></>}
+        {conflict && <><button onClick={downloadLocal}>Unduh salinan lokal</button><button onClick={async () => { if (await confirmDialog({ title: 'Gunakan Versi Server?', text: 'Gunakan jawaban server? Unduh salinan lokal dahulu jika diperlukan.', confirmText: 'Gunakan Versi Server', variant: 'warning' })) { try { localStorage.removeItem(storageKey.current); sessionStorage.setItem(`lms-server:lms-activity:${activity?.userId}:${material.id}:${material.content_version}`, '1'); window.location.reload(); } catch { setStatus('Tidak dapat menghapus salinan lokal. Unduh jawaban terlebih dahulu.'); } } }}>Gunakan versi server</button></>}
         {!activity && <button onClick={() => window.location.reload()}>Muat ulang</button>}
     </div>{activity && <MaterialPreview material={material} fullPage bridge={bridge} onActivityMessage={receive} />}</>;
 }

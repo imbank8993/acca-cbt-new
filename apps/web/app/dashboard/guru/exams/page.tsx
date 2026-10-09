@@ -1,6 +1,8 @@
 "use client";
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
 import { CreateExamModal } from '@/components/exams/CreateExamModal';
+import { DeleteExamModal } from '@/components/exams/DeleteExamModal';
+import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam,setExamArchived } from '@/lib/api/exams';
@@ -117,6 +119,7 @@ const ExamsPage = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);
+    const [examToDelete, setExamToDelete] = useState<OrganizationExam | null>(null);
 
     const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
@@ -223,25 +226,32 @@ const ExamsPage = () => {
         }
     };
 
-    const handleDeleteExam = async (examId: string) => {
-        if (!confirm('Hapus ujian ini? Ujian hanya dapat dihapus jika belum pernah dikerjakan siswa.')) return;
-        setIsLoading(true);
-        const result = await deleteExam(examId);
-        if (result.success) await loadData();
-        else alert(result.error || 'Ujian gagal dihapus.');
-        setIsLoading(false);
+    const handleDeleteExam = (exam: OrganizationExam) => {
+        setExamToDelete(exam);
     };
 
     const handleArchiveExam = async (exam: OrganizationExam) => {
         const archive = exam.status !== 'archived';
-        const message = archive
-            ? 'Arsipkan ujian ini? Jawaban dan nilai tetap disimpan.'
-            : 'Pulihkan ujian ini sebagai draft?';
-        if (!confirm(message)) return;
+        const confirmed = await confirmDialog({
+            title: archive ? 'Arsipkan Ujian?' : 'Pulihkan Ujian?',
+            text: archive
+                ? 'Arsipkan ujian ini? Jawaban dan nilai tetap disimpan.'
+                : 'Pulihkan ujian ini sebagai draft?',
+            variant: archive ? 'warning' : 'info',
+            confirmText: archive ? 'Ya, Arsipkan' : 'Ya, Pulihkan',
+        });
+        if (!confirmed) return;
         setIsLoading(true);
         const result = await setExamArchived(exam.id, archive);
-        if (result.success) await loadData();
-        else alert(result.error || 'Status arsip gagal diubah.');
+        if (result.success) {
+            await loadData();
+        } else {
+            await alertDialog({
+                title: 'Gagal',
+                text: result.error || 'Status arsip gagal diubah.',
+                variant: 'danger',
+            });
+        }
         setIsLoading(false);
     };
 
@@ -1010,7 +1020,7 @@ const ExamsPage = () => {
 
                                     {/* Delete */}
                                     <button
-                                        onClick={() => handleDeleteExam(exam.id)}
+                                        onClick={() => handleDeleteExam(exam)}
                                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200"
                                     >
                                         <Trash2 size={14} />
@@ -1058,6 +1068,14 @@ const ExamsPage = () => {
                 exam={selectedExam}
                 classes={classes}
                 classStudents={classStudents}
+                onSuccess={loadData}
+            />
+
+            {/* ─────────────── DELETE MODAL ─────────────── */}
+            <DeleteExamModal
+                isOpen={!!examToDelete}
+                onClose={() => setExamToDelete(null)}
+                exam={examToDelete}
                 onSuccess={loadData}
             />
         </div>

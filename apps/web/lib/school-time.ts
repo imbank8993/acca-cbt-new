@@ -1,6 +1,13 @@
-import { getSettings, type AppConfig } from '@/lib/api/settings';
+import { apiGet } from '@/lib/api/client';
 
 export const DEFAULT_SCHOOL_TIME_ZONE = 'Asia/Jakarta';
+
+interface SchoolTimeZoneResponse {
+    timeZone: string;
+    source: 'site_settings' | 'app_config' | 'default';
+}
+
+let cachedSchoolTimeZone: Promise<string> | null = null;
 
 export const SCHOOL_TIME_ZONES = [
     { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat' },
@@ -17,13 +24,19 @@ export function assertValidSchoolTimeZone(timeZone: string): string {
     }
 }
 
-export async function getSchoolTimeZone(): Promise<string> {
-    const result = await getSettings();
-    if (!result.success) throw new Error(`Gagal membaca zona waktu sekolah: ${result.error}`);
-    const appConfigRow = result.settings.find((setting) => setting.key === 'app_config');
-    const config = appConfigRow?.value as AppConfig | undefined;
-    const timeZone = config?.time_zone || DEFAULT_SCHOOL_TIME_ZONE;
-    return assertValidSchoolTimeZone(timeZone);
+export function getSchoolTimeZone(): Promise<string> {
+    if (!cachedSchoolTimeZone) {
+        const request = apiGet<SchoolTimeZoneResponse>('/api/settings/school-timezone')
+            .then((result) => {
+                if (!result.success) throw new Error(`Gagal membaca zona waktu sekolah: ${result.error}`);
+                return assertValidSchoolTimeZone(result.timeZone);
+            });
+        cachedSchoolTimeZone = request;
+        void request.catch(() => {
+            if (cachedSchoolTimeZone === request) cachedSchoolTimeZone = null;
+        });
+    }
+    return cachedSchoolTimeZone;
 }
 
 export function getSchoolTimeZoneLabel(timeZone = DEFAULT_SCHOOL_TIME_ZONE): string {

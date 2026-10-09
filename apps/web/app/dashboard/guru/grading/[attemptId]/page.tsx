@@ -1,4 +1,5 @@
 "use client";
+import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import type { Question } from '@/app/types';
 import { AttemptGradingDetails,getAttemptDetailsForGrading,parseEssaySubmission,submitEssayGrades } from '@/lib/api/teachers';
@@ -45,14 +46,19 @@ export default function GradeEssayPage() {
     };
 
     const handleSave = async () => {
-        if (!confirm('Simpan nilai uraian? Total nilai akhir akan dihitung kembali dan status ujian akan berubah menjadi Selesai.')) return;
+        if (!await confirmDialog({
+            title: 'Simpan Nilai Uraian?',
+            text: 'Simpan nilai uraian? Total nilai akhir akan dihitung kembali dan status ujian akan berubah menjadi Selesai.',
+            variant: 'info',
+            confirmText: 'Ya, Simpan Nilai',
+        })) return;
         setSubmitting(true);
         const res = await submitEssayGrades(attemptId, grades);
         if (res.success) {
-            alert('Berhasil menyimpan nilai!');
+            await alertDialog({ title: 'Berhasil', text: 'Berhasil menyimpan nilai!', variant: 'success' });
             router.push('/dashboard/guru/grading');
         } else {
-            alert('Gagal: ' + res.error);
+            await alertDialog({ title: 'Gagal Memproses', text: 'Gagal: ' + res.error, variant: 'danger' });
             setSubmitting(false);
         }
     };

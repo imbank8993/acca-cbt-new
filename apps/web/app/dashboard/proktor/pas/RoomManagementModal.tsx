@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import {
     assignProctorsToRoomAction,
@@ -139,7 +140,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleDeleteRoom = async (roomId: string) => {
-        if (!confirm('Hapus ruang ini beserta seluruh pengaturan pengawas dan siswa di dalamnya?')) return;
+        if (!await deleteConfirmDialog('Hapus Ruang Ujian?', 'Hapus ruang ini beserta seluruh pengaturan pengawas dan siswa di dalamnya?')) return;
         setIsSaving(true);
         const result = await deletePASRoomAction(roomId);
         if (result.success) {
@@ -239,7 +240,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     const handleDeleteSession = async (sessionId: string) => {
         if (period.is_locked) return;
-        if (!confirm('Hapus sesi ini?')) return;
+        if (!await deleteConfirmDialog('Hapus Sesi Ujian?', 'Hapus sesi ini?')) return;
         setIsSaving(true);
         const result = await deletePASSessionAction(sessionId);
         if (result.success) {

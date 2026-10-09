@@ -138,16 +138,21 @@ test('DEL-08: delete dan generate memakai lock induk serta lock sumber yang sama
 });
 
 test('DEL-09: UI tidak lagi menjanjikan penghapusan hasil dan menampilkan kegagalan', () => {
+    const deleteModal = fs.readFileSync(
+        path.resolve(__dirname, '../../web/components/exams/DeleteExamModal.tsx'),
+        'utf8',
+    );
     for (const role of ['admin', 'guru', 'proktor']) {
         const ui = fs.readFileSync(
             path.resolve(__dirname, `../../web/app/dashboard/${role}/exams/page.tsx`),
             'utf8',
         );
         assert.doesNotMatch(ui, /Semua data pengerjaan akan ikut terhapus/);
-        assert.match(ui, /hanya dapat dihapus jika belum pernah dikerjakan siswa/);
-        assert.match(ui, /else alert\(result\.error \|\| 'Ujian gagal dihapus\.'/);
-        assert.match(ui, /else if \(!result\.success\) alert\('Gagal: ' \+ result\.error\)/);
+        assert.match(ui, /DeleteExamModal/);
     }
+    assert.match(deleteModal, /hanya dapat dihapus jika belum pernah dikerjakan siswa/);
+    assert.match(deleteModal, /setError\(result\.error \|\| 'Ujian gagal dihapus\.'\)/);
+    assert.match(deleteModal, /setError\(purge\.error \|\| 'Data uji coba gagal dihapus\.'\)/);
 });
 
 test('DEL-10: purge uji coba wajib tidak dipublikasikan dan judul harus sama', async () => {
@@ -211,11 +216,13 @@ test('DEL-13: purge hanya tersedia untuk Admin/Proktor dan UI memakai konfirmasi
     const controller = fs.readFileSync(path.resolve(__dirname, '../src/exams/exams.controller.ts'), 'utf8');
     const admin = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/admin/exams/page.tsx'), 'utf8');
     const proctor = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/proktor/exams/page.tsx'), 'utf8');
+    const deleteModal = fs.readFileSync(path.resolve(__dirname, '../../web/components/exams/DeleteExamModal.tsx'), 'utf8');
     assert.match(controller, /@Roles\('ADMIN', 'PROKTOR'\)/);
     assert.match(controller, /purge-trial/);
     for (const ui of [admin, proctor]) {
-        assert.match(ui, /purgeTrialExam/);
-        assert.match(ui, /ketik judul berikut/);
-        assert.match(ui, /Batalkan publikasi ujian terlebih dahulu/);
+        assert.match(ui, /DeleteExamModal/);
     }
+    assert.match(deleteModal, /purgeTrialExam/);
+    assert.match(deleteModal, /ketik judul berikut/);
+    assert.match(deleteModal, /Batalkan publikasi ujian terlebih dahulu/);
 });

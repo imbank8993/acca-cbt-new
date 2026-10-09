@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
 createDimension,
 createDimensionInterpretation,
@@ -93,7 +94,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Yakin ingin menghapus dimensi ini? Soal yang terhubung akan kehilangan dimensi ini.')) return;
+        if (!await deleteConfirmDialog('Hapus Dimensi?', 'Yakin ingin menghapus dimensi ini? Soal yang terhubung akan kehilangan dimensi ini.')) return;
         await deleteDimension(id);
         void loadData();
     };
@@ -133,7 +134,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
     };
 
     const handleDeleteInterp = async (id: string) => {
-        if (!confirm('Hapus interpretasi ini?')) return;
+        if (!await deleteConfirmDialog('Hapus Interpretasi?', 'Hapus interpretasi ini?')) return;
         await deleteDimensionInterpretation(id);
         void loadData();
     };

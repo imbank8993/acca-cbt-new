@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 
 import { motion } from 'framer-motion';
@@ -63,7 +64,13 @@ export default function BackupRestorePage() {
     }
 
     // Confirmation dialog
-    if (!confirm('PERINGATAN KRITIKAL!\n\nMemulihkan data akan MENGHAPUS BERSIH seluruh data sekolah Anda saat ini (Kelas, Soal, Ujian, Nilai) dan menggantinya dengan data dari file backup.\n\nApakah Anda yakin ingin melanjutkan?')) {
+    if (!await confirmDialog({
+      title: 'PERINGATAN KRITIKAL!',
+      text: 'Memulihkan data akan MENGHAPUS BERSIH seluruh data sekolah Anda saat ini (Kelas, Soal, Ujian, Nilai) dan menggantinya dengan data dari file backup.\n\nApakah Anda yakin ingin melanjutkan?',
+      variant: 'danger',
+      confirmText: 'Ya, Pulihkan Data',
+      cancelText: 'Batal',
+    })) {
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }

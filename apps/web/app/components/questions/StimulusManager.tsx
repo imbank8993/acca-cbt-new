@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
@@ -141,7 +142,7 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Yakin ingin menghapus stimulus ini? Soal yang terhubung akan kehilangan stimulus ini.')) return;
+        if (!await deleteConfirmDialog('Hapus Stimulus Soal?', 'Yakin ingin menghapus stimulus ini? Soal yang terhubung akan kehilangan stimulus ini.')) return;
         await deleteStimulus(id);
         await loadStimuli();
     };

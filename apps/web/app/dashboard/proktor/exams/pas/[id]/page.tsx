@@ -1,4 +1,5 @@
 "use client";
+import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import RoomManagementModal from '@/app/dashboard/proktor/pas/RoomManagementModal';
 import { InlineSelect } from '@/components/ui/InlineSelect';
@@ -162,10 +163,10 @@ export default function ProctorPASDetailPage() {
     };
 
     const handleRemoveSchedule = async (scheduleId: string) => {
-        if (!confirm('Hapus jadwal ini?')) return;
+        if (!await deleteConfirmDialog('Hapus Jadwal Ujian?', 'Hapus jadwal ini?')) return;
         const result = await removePASScheduleAction(scheduleId);
         if (result.success) await loadData();
-        else alert(result.error);
+        else await alertDialog({ title: 'Gagal', text: result.error, variant: 'danger' });
     };
 
     const toggleScheduleSelect = (id: string) => {
@@ -174,20 +175,32 @@ export default function ProctorPASDetailPage() {
 
     const handleGenerateExams = async (idsToGenerate?: string[]) => {
         const targetIds = idsToGenerate || selectedScheduleIds;
-        if (targetIds.length === 0) { alert('Pilih jadwal terlebih dahulu.'); return; }
-        if (!confirm(`Generate dan aktifkan ${targetIds.length} jadwal ujian di dalam folder "${period?.name || 'ASAS/ASAT'}"?`)) return;
+        if (targetIds.length === 0) {
+            await alertDialog({ title: 'Perhatian', text: 'Pilih jadwal terlebih dahulu.', variant: 'warning' });
+            return;
+        }
+        if (!await confirmDialog({
+            title: 'Generate & Aktifkan Ujian?',
+            text: `Generate dan aktifkan ${targetIds.length} jadwal ujian di dalam folder "${period?.name || 'ASAS/ASAT'}"?`,
+            confirmText: 'Ya, Generate & Aktifkan',
+            variant: 'primary',
+        })) return;
         setIsGenerating(true);
         const result = await generateExamsFromSchedulesAction(targetIds);
         if (result.success) {
             const skipped = result.skipped || [];
-            alert([
-                `${result.created} ujian berhasil dibuat dengan nama "${period?.name}".`,
-                skipped.length > 0 ? `${skipped.length} jadwal dilewati:\n${skipped.join('\n')}` : '',
-            ].filter(Boolean).join('\n\n'));
+            await alertDialog({
+                title: 'Berhasil Generate Ujian',
+                text: [
+                    `${result.created} ujian berhasil dibuat dengan nama "${period?.name}".`,
+                    skipped.length > 0 ? `${skipped.length} jadwal dilewati:\n${skipped.join('\n')}` : '',
+                ].filter(Boolean).join('\n\n'),
+                variant: 'success',
+            });
             const skippedIds = new Set(skipped.map((item) => item.split(':')[0].trim()));
             setSelectedScheduleIds((ids) => ids.filter((id) => skippedIds.has(id)));
             await loadData();
-        } else { alert(result.error || 'Gagal generate'); }
+        } else { await alertDialog({ title: 'Gagal', text: result.error || 'Gagal generate', variant: 'danger' }); }
         setIsGenerating(false);
     };
 

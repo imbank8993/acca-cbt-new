@@ -483,7 +483,11 @@ export async function getStudentsByClassAction(
 // ── Ujian ────────────────────────────────────────────────────────────────────
 
 export async function listOrganizationExams(): Promise<OrganizationExam[]> {
-    const res = await apiGet<{ exams: OrganizationExam[] }>('/api/proctor/exams');
+    let res = await apiGet<{ exams: OrganizationExam[] }>('/api/proctor/exams');
+    if (!res.success && res.retryable) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        res = await apiGet<{ exams: OrganizationExam[] }>('/api/proctor/exams');
+    }
     return res.success ? res.exams : [];
 }
 

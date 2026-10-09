@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
 createKisiKisi,
 deleteKisiKisi,
@@ -85,7 +86,7 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Yakin ingin menghapus kisi-kisi ini? Soal yang merujuk pada kisi-kisi ini akan kehilangan relasinya.')) return;
+        if (!await deleteConfirmDialog('Hapus Kisi-Kisi Soal?', 'Yakin ingin menghapus kisi-kisi ini? Soal yang merujuk pada kisi-kisi ini akan kehilangan relasinya.')) return;
         await deleteKisiKisi(id);
         void loadKisiKisi();
     };

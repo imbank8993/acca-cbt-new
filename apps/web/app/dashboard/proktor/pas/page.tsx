@@ -1,4 +1,5 @@
 "use client";
+import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
     createPASPeriodAction,
     deletePASPeriodAction,
@@ -112,20 +113,25 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
     };
 
     const handleToggleLock = async (periodId: string, currentLock: boolean) => {
-        if (!confirm(currentLock
-            ? 'Buka kunci folder ujian ini?'
-            : 'Kunci folder ujian ini? Jadwal di dalamnya tidak bisa diubah setelah dikunci.')) return;
+        if (!await confirmDialog({
+            title: currentLock ? 'Buka Kunci Folder Ujian?' : 'Kunci Folder Ujian?',
+            text: currentLock
+                ? 'Buka kunci folder ujian ini?'
+                : 'Kunci folder ujian ini? Jadwal di dalamnya tidak bisa diubah setelah dikunci.',
+            variant: currentLock ? 'info' : 'warning',
+            confirmText: currentLock ? 'Ya, Buka Kunci' : 'Ya, Kunci Folder',
+        })) return;
 
         const result = await lockPASPeriodAction(periodId, !currentLock);
         if (result.success) await loadData();
-        else alert(result.error);
+        else await alertDialog({ title: 'Gagal', text: result.error, variant: 'danger' });
     };
 
     const handleDeletePeriod = async (periodId: string) => {
-        if (!confirm('Yakin menghapus folder ujian ASAS/ASAT ini beserta jadwal yang belum dikerjakan?')) return;
+        if (!await deleteConfirmDialog('Hapus Folder Ujian?', 'Yakin menghapus folder ujian ASAS/ASAT ini beserta jadwal yang belum dikerjakan?')) return;
         const result = await deletePASPeriodAction(periodId);
         if (result.success) await loadData();
-        else alert(result.error);
+        else await alertDialog({ title: 'Gagal', text: result.error, variant: 'danger' });
     };
 
     const formatDate = (dateStr: string) => {

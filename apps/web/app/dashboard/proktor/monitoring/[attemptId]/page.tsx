@@ -1,4 +1,5 @@
 "use client";
+import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
@@ -73,26 +74,38 @@ export default function AttemptAnalyticsPage() {
         if (!reason) return;
         const durationMinutes = promptRecoveryDuration(studentName, 'pemulihan');
         if (!durationMinutes) return;
-        if (!confirm(
-            `Pulihkan ujian siswa "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
-        )) return;
+        if (!await confirmDialog({
+            title: 'Pulihkan Ujian Siswa?',
+            text: `Pulihkan ujian siswa "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
+            variant: 'warning',
+            confirmText: 'Ya, Pulihkan Ujian',
+        })) return;
 
         setResetting(true);
         const res = await resetExamAttempt(attemptId, reason, durationMinutes);
         if (res.success) {
-            alert(`Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan. Tenggat: ${new Date(res.recoveryUntil).toLocaleString('id-ID')}.`);
+            await alertDialog({
+                title: 'Berhasil Dipulihkan',
+                text: `Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan. Tenggat: ${new Date(res.recoveryUntil).toLocaleString('id-ID')}.`,
+                variant: 'success',
+            });
             router.push('/dashboard/proktor/monitoring');
         } else {
-            alert('Gagal memulihkan: ' + res.error);
+            await alertDialog({ title: 'Gagal Memulihkan', text: res.error, variant: 'danger' });
         }
         setResetting(false);
     };
     const handleSave = async () => {
-        if (!confirm('Simpan perubahan nilai? Total nilai akhir akan dihitung kembali.')) return;
+        if (!await confirmDialog({
+            title: 'Simpan Perubahan Nilai?',
+            text: 'Simpan perubahan nilai? Total nilai akhir akan dihitung kembali.',
+            variant: 'info',
+            confirmText: 'Ya, Simpan Nilai',
+        })) return;
         setSubmitting(true);
         const res = await submitEssayGrades(attemptId, grades);
         if (res.success) {
-            alert('Berhasil menyimpan nilai!');
+            await alertDialog({ title: 'Berhasil', text: 'Berhasil menyimpan nilai!', variant: 'success' });
             // Reload data
             const updated = await getAttemptFullDetailsAction(attemptId);
             if (updated) setData(updated);

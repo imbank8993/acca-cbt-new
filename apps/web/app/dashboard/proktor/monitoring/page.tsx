@@ -2,6 +2,8 @@
 import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
+import { ResetExamModal } from '@/app/components/monitoring';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
@@ -176,65 +178,22 @@ function MonitoringContent() {
         return () => clearInterval(interval);
     }, [loadExamData, selectedExamId]);
 
-    const handleResetAttempt = async (attemptId: string, studentName: string) => {
-        const modeInput = window.prompt(
-            `Pilih tindakan untuk ${studentName}:\n\n` +
-            `Ketik SUSULAN untuk menghapus jawaban lama dan mengerjakan dari awal.\n` +
-            `Ketik PULIHKAN untuk mengirim jawaban tersimpan tanpa mengubah atau mengisi jawaban.`,
-            'SUSULAN',
-        );
-        if (!modeInput) return;
-        const mode = modeInput.trim().toUpperCase();
-        if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
-            alert('Pilihan harus SUSULAN atau PULIHKAN.');
-            return;
-        }
+    const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
-        const reason = promptRecoveryReason(studentName);
-        if (!reason) return;
-        const durationMinutes = promptRecoveryDuration(
-            studentName,
-            mode === 'SUSULAN' ? 'susulan' : 'pemulihan',
-        );
-        if (!durationMinutes) return;
-
-        const confirmed = window.confirm(
-            mode === 'SUSULAN'
-                ? `Aktifkan ujian susulan untuk "${studentName}" selama ${durationMinutes} menit?\n\nSEMUA JAWABAN DAN NILAI LAMA SISWA INI AKAN DIHAPUS. Hasil baru tetap masuk ke rekap ujian yang sama.\n\nAlasan: ${reason}`
-                : `Pulihkan ujian "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
-        );
-        if (!confirmed) return;
-
-        setResettingAttemptId(attemptId);
-        try {
-            const result = mode === 'SUSULAN'
-                ? await startMakeupExam(attemptId, reason, durationMinutes)
-                : await resetExamAttempt(attemptId, reason, durationMinutes);
-            if (result.success) {
-                const deadline = result.recoveryUntil
-                    ? ` Tenggat: ${new Date(result.recoveryUntil).toLocaleString('id-ID')}.`
-                    : '';
-                const detail = mode === 'SUSULAN'
-                    ? ` ${'deletedAnswerCount' in result ? result.deletedAnswerCount : 0} jawaban lama dihapus.`
-                    : ` ${'serverAnswerCount' in result ? result.serverAnswerCount : 0} jawaban lama dipertahankan.`;
-                alert(`${mode === 'SUSULAN' ? 'Ujian susulan' : 'Pemulihan'} untuk "${studentName}" berhasil.${detail}${deadline}`);
-                if (selectedExamId) loadExamData(selectedExamId);
-            } else {
-                alert(`Tindakan gagal: ${result.error}`);
-            }
-        } catch {
-            alert('Terjadi kesalahan saat mengatur ulang ujian.');
-        }
-        setResettingAttemptId(null);
+    const handleResetAttempt = (attempt: ExamAttemptRecord) => {
+        setSelectedResetAttempt(attempt);
     };
     const handleCalculateIRT = async () => {
         if (!selectedExamId) return;
         const orgId = exams.find(e => e.id === selectedExamId)?.organization_id;
         if (!orgId) return;
 
-        const confirmed = window.confirm(
-            `Kalkulasi Skor IRT akan menghitung ulang nilai semua peserta ujian ini berdasarkan tingkat kesulitan soal yang dijawab.\n\nLanjutkan?`
-        );
+        const confirmed = await confirmDialog({
+            title: 'Kalkulasi Skor IRT?',
+            text: 'Kalkulasi Skor IRT akan menghitung ulang nilai semua peserta ujian ini berdasarkan tingkat kesulitan butir soal yang dijawab.',
+            confirmText: 'Ya, Hitung Skor IRT',
+            variant: 'primary',
+        });
         if (!confirmed) return;
 
         setIsRefreshing(true);
@@ -244,13 +203,25 @@ function MonitoringContent() {
                 const warnings = res.warnings?.length
                     ? `\n\nPeringatan:\n${res.warnings.map((warning) => `• ${warning}`).join('\n')}`
                     : '';
-                alert(`Kalkulasi selesai. ${res.count} skor peserta telah diperbarui.${warnings}`);
+                await alertDialog({
+                    title: 'Kalkulasi IRT Selesai',
+                    text: `Kalkulasi selesai. ${res.count ?? 0} skor peserta telah diperbarui.${warnings}`,
+                    variant: 'success',
+                });
                 loadExamData(selectedExamId);
             } else {
-                alert(`Gagal kalkulasi: ${res.error}`);
+                await alertDialog({
+                    title: 'Gagal Kalkulasi IRT',
+                    text: res.error || 'Terjadi kesalahan sistem',
+                    variant: 'danger',
+                });
             }
         } catch {
-            alert('Terjadi kesalahan saat kalkulasi IRT');
+            await alertDialog({
+                title: 'Kesalahan Sistem',
+                text: 'Terjadi kesalahan saat kalkulasi IRT',
+                variant: 'danger',
+            });
         }
         setIsRefreshing(false);
     };
@@ -656,7 +627,7 @@ function MonitoringContent() {
                                                                 </button>
                                                                 {canReset && (
                                                                     <button
-                                                                        onClick={() => handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'))}
+                                                                        onClick={() => handleResetAttempt(att)}
                                                                         disabled={resettingAttemptId === att.id}
                                                                         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                     >
@@ -773,7 +744,7 @@ function MonitoringContent() {
                                                                         </button>
                                                                         {canReset && (
                                                                             <button
-                                                                                onClick={() => handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'))}
+                                                                                onClick={() => handleResetAttempt(att)}
                                                                                 disabled={resettingAttemptId === att.id}
                                                                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
                                                                             >
@@ -932,7 +903,7 @@ function MonitoringContent() {
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
-                                                                                handleResetAttempt(att.id, formatStudentName(att.profiles?.full_name, 'Siswa'));
+                                                                                handleResetAttempt(att);
                                                                             }}
                                                                             disabled={resettingAttemptId === att.id}
                                                                             className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
@@ -1151,6 +1122,15 @@ function MonitoringContent() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <ResetExamModal
+                open={!!selectedResetAttempt}
+                attempt={selectedResetAttempt}
+                onClose={() => setSelectedResetAttempt(null)}
+                onSuccess={() => {
+                    if (selectedExamId) loadExamData(selectedExamId);
+                }}
+            />
         </div>
     );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
 AlignCenter,
 AlignLeft,
@@ -401,8 +402,8 @@ function ImageEditorModalContent({
               {onDelete && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Hapus gambar ini dari soal?')) {
+                  onClick={async () => {
+                    if (await deleteConfirmDialog('Hapus Gambar?', 'Hapus gambar ini dari soal?')) {
                       onDelete();
                       onClose();
                     }

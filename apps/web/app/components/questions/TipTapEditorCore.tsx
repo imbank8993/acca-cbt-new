@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Extension, Node, type Editor, type JSONContent } from '@tiptap/core';
 import BulletList from '@tiptap/extension-bullet-list';
 import { Color } from '@tiptap/extension-color';
@@ -1396,8 +1397,8 @@ export default function TipTapEditorCore({
           }).run();
           setShowTableModal(false);
         }}
-        onDeleteTable={() => {
-          if (confirm('Apakah Anda yakin ingin menghapus seluruh tabel ini?')) {
+        onDeleteTable={async () => {
+          if (await deleteConfirmDialog('Hapus Tabel?', 'Apakah Anda yakin ingin menghapus seluruh tabel ini?')) {
             editor?.chain().focus().deleteTable().run();
             setShowTableModal(false);
           }

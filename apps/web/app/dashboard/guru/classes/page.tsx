@@ -1,4 +1,5 @@
 "use client";
+import { alertDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { editClassAction,getProctorOrganization,getStudentsByClassAction,type ClassStudent,type OrganizationClass,type ProctorOrganization } from '@/lib/api/proctor';
 import { createTambahanClass,deleteTambahanClass,listGuruClasses } from '@/lib/api/teachers';
@@ -160,13 +161,13 @@ export default function GuruClassesPage() {
     };
 
     const handleDeleteClass = async (classId: string) => {
-        if (!confirm('Yakin ingin menghapus kelas ini? Semua data terkait akan ikut terhapus.')) return;
+        if (!await deleteConfirmDialog('Hapus Kelas?', 'Yakin ingin menghapus kelas ini? Semua data terkait akan ikut terhapus.')) return;
         setIsSubmitting(true);
         const result = await deleteTambahanClass(classId);
         if (result.success) {
             await loadData();
         } else {
-            alert(result.error || 'Gagal menghapus kelas');
+            await alertDialog({ title: 'Gagal', text: result.error || 'Gagal menghapus kelas', variant: 'danger' });
         }
         setIsSubmitting(false);
     };

@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { TipTapEditor } from '@/app/components/questions/TipTapEditor';
 import {
@@ -145,7 +146,7 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Yakin ingin menghapus petunjuk ini? Soal yang terhubung akan kehilangan petunjuk ini.')) return;
+        if (!await deleteConfirmDialog('Hapus Petunjuk Pengerjaan?', 'Yakin ingin menghapus petunjuk ini? Soal yang terhubung akan kehilangan petunjuk ini.')) return;
         await deleteInstruction(id);
         void loadInstructions();
     };

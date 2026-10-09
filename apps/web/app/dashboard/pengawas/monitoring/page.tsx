@@ -2,6 +2,7 @@
 import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { ResetExamModal } from '@/app/components/monitoring';
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 
@@ -105,48 +106,10 @@ function MonitoringContent() {
         }
     };
 
-    const handleReset = async (attemptId: string, studentName: string) => {
-        const modeInput = window.prompt(
-            'Ketik SUSULAN untuk mulai dari awal, atau PULIHKAN untuk mempertahankan jawaban lama.',
-            'SUSULAN',
-        );
-        if (!modeInput) return;
-        const mode = modeInput.trim().toUpperCase();
-        if (!['SUSULAN', 'PULIHKAN'].includes(mode)) {
-            alert('Pilihan harus SUSULAN atau PULIHKAN.');
-            return;
-        }
-        const reason = promptRecoveryReason(studentName);
-        if (!reason) return;
-        const durationMinutes = promptRecoveryDuration(
-            studentName,
-            mode === 'SUSULAN' ? 'susulan' : 'pemulihan',
-        );
-        if (!durationMinutes) return;
-        if (!confirm(
-            mode === 'SUSULAN'
-                ? `Mulai ujian susulan ${studentName} selama ${durationMinutes} menit? Semua jawaban dan nilai lama akan dihapus.`
-                : `Pulihkan ujian ${studentName} selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?`,
-        )) return;
+    const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
-        setResettingId(attemptId);
-        try {
-            const res = mode === 'SUSULAN'
-                ? await startMakeupExam(attemptId, reason, durationMinutes)
-                : await resetExamAttempt(attemptId, reason, durationMinutes);
-            if (res.success) {
-                alert(mode === 'SUSULAN'
-                    ? `${'deletedAnswerCount' in res ? res.deletedAnswerCount : 0} jawaban lama dihapus. Siswa dapat mengerjakan dari awal.`
-                    : `${'serverAnswerCount' in res ? res.serverAnswerCount : 0} jawaban lama dipertahankan. Siswa dapat melanjutkan.`);
-                await loadData(true);
-            } else {
-                alert(`Tindakan gagal: ${res.error}`);
-            }
-        } catch (err) {
-            alert(`Terjadi kesalahan: ${getErrorMessage(err) || 'Gagal mengatur ulang ujian'}`);
-        } finally {
-            setResettingId(null);
-        }
+    const handleReset = (attempt: ExamAttemptRecord) => {
+        setSelectedResetAttempt(attempt);
     };
     // Ekstraksi kelas unik
     const availableClasses = Array.from(
@@ -420,10 +383,7 @@ function MonitoringContent() {
                                                         {isFinished && !attempt.id.startsWith('unstarted-') && (
                                                             <button
                                                                 onClick={() =>
-                                                                    handleReset(
-                                                                        attempt.id,
-                                                                        formatStudentName(attempt.profiles?.full_name, 'Siswa')
-                                                                    )
+                                                                    handleReset(attempt)
                                                                 }
                                                                 disabled={isResetting}
                                                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all disabled:opacity-50"
@@ -498,6 +458,15 @@ function MonitoringContent() {
                     </div>
                 </div>
             </div>
+
+            <ResetExamModal
+                open={!!selectedResetAttempt}
+                attempt={selectedResetAttempt}
+                onClose={() => setSelectedResetAttempt(null)}
+                onSuccess={() => {
+                    void loadData(true);
+                }}
+            />
         </div>
     );
 }

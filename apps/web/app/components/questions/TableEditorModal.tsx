@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Check,Minus,Plus,Table as TableIcon,Trash2,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -411,8 +412,8 @@ function TableEditorModalContent({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm('Apakah Anda yakin ingin menghapus seluruh tabel ini?')) {
+                  onClick={async () => {
+                    if (await deleteConfirmDialog('Hapus Tabel?', 'Apakah Anda yakin ingin menghapus seluruh tabel ini?')) {
                       onDeleteTable();
                       onClose();
                     }

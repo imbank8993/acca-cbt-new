@@ -1,4 +1,5 @@
 "use client";
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Check,Monitor,Play,Trash2,X,Youtube } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
@@ -341,8 +342,8 @@ function VideoEditorModalContent({
           {isEdit && onDelete ? (
             <button
               type="button"
-              onClick={() => {
-                if (confirm('Hapus video ini dari naskah soal?')) {
+              onClick={async () => {
+                if (await deleteConfirmDialog('Hapus Video?', 'Hapus video ini dari naskah soal?')) {
                   onDelete();
                   onClose();
                 }

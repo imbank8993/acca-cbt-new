@@ -1,16 +1,17 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { ChevronDown, Search, ShieldAlert, X } from 'lucide-react';
+import { ChevronDown, History, Search, ShieldAlert, X } from 'lucide-react';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { formatStudentName, gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
+import { formatStudentName, gradingLabel, monitoringAttention, storageLabels } from '@/lib/monitoring-health';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
+import { AttemptHistoryModal } from '@/app/components/monitoring';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
 export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defaultExpanded = false }: {
     attempts: ExamAttemptRecord[];
-    onRecover?: (id: string, name: string) => Promise<void>;
+    onRecover?: (attempt: ExamAttemptRecord) => Promise<void> | void;
     onViewDetails?: (id: string) => void;
     defaultExpanded?: boolean;
 }) {
@@ -20,9 +21,10 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const [classFilter, setClassFilter] = useState('');
     const [elapsed, setElapsed] = useState(0);
     const [zone, setZone] = useState<string | null>(null);
-    const [historyId, setHistoryId] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [expanded, setExpanded] = useState(defaultExpanded);
+    const [selectedHistoryAttempt, setSelectedHistoryAttempt] = useState<ExamAttemptRecord | null>(null);
+
     const sampledAt = attempts[0]?.server_now;
     useEffect(() => {
         let alive = true;
@@ -217,28 +219,28 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                             {gradingLabel(attempt)}
                         </span>
                         {reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
-                        <details className="mt-2" open={historyId === attempt.id} onToggle={event => {
-                            if (event.currentTarget.open) setHistoryId(attempt.id);
-                            else setHistoryId(current => current === attempt.id ? null : current);
-                        }}><summary className="cursor-pointer text-blue-700">Riwayat ({attempt.monitoring_history?.length || 0})</summary>
-                            <p className="my-2 text-slate-500">Kontak server diperiksa berkala. Jeda dapat disebabkan jaringan, browser tertutup, atau perangkat tidur; bukan bukti kecurangan. Waktu perangkat merupakan laporan siswa, bukan waktu terverifikasi server.</p>
-                            {historyId === attempt.id && <ol className="max-h-60 space-y-2 overflow-auto">{attempt.monitoring_history?.map((event, index) => <li key={`${event.at}:${index}`} className="border-l-2 pl-2">
-                                <strong>{monitoringEventLabels[event.type] || event.type}</strong><div>{date(event.at)}</div>
-                                {event.actor_id && <div>Oleh: {event.actor_name || event.actor_id}</div>}{event.reason && <div>Alasan: {event.reason === 'browser_offline' ? 'Browser mendeteksi jaringan offline' : event.reason === 'server_unreachable' ? 'Permintaan ke server ujian tidak berhasil' : event.reason}</div>}
-                                {event.recovery_until && <div>Tenggat baru: {date(event.recovery_until)}</div>}
-                                {event.last_seen_at && <div>Kontak server terakhir: {date(event.last_seen_at)}</div>}
-                                {event.observed_again_at && <div>Terhubung kembali: {date(event.observed_again_at)}</div>}
-                                {event.disconnected_at && <div>Gangguan terdeteksi perangkat: {date(event.disconnected_at)} (laporan perangkat; diterima server pada waktu catatan)</div>}
-                                {event.remaining_at_disconnect_seconds != null && <div>Sisa waktu saat gangguan (perangkat): {Math.floor(event.remaining_at_disconnect_seconds / 60)} menit {event.remaining_at_disconnect_seconds % 60} detik</div>}
-                                {event.remaining_at_last_seen_seconds != null && <div>Sisa waktu saat kontak terakhir: {Math.floor(event.remaining_at_last_seen_seconds / 60)} menit {event.remaining_at_last_seen_seconds % 60} detik</div>}
-                                {event.remaining_at_reconnect_seconds != null && <div>Sisa waktu saat terhubung kembali: {Math.floor(event.remaining_at_reconnect_seconds / 60)} menit {event.remaining_at_reconnect_seconds % 60} detik</div>}
-                                {event.gap_seconds != null && <div>Jeda tanpa kabar: {event.gap_seconds} detik (perkiraan)</div>}
-                                {event.pending_answer_count != null && <div>Dilaporkan belum terkirim: {event.pending_answer_count}</div>}
-                            </li>)}</ol>}
-                        </details>
+
+                        <div className="mt-2">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedHistoryAttempt(attempt)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-xs cursor-pointer"
+                            >
+                                <History size={13} /> Riwayat ({attempt.monitoring_history?.length || 0})
+                            </button>
+                        </div>
+
                         <div className="mt-2 flex flex-wrap gap-2">
-                            {onViewDetails && <button className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50" onClick={() => onViewDetails(attempt.id)}>Detail</button>}
-                            {onRecover && ['submitted', 'auto_submitted'].includes(attempt.status) && <button className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50" onClick={() => void onRecover(attempt.id, formatStudentName(attempt.profiles?.full_name, 'Siswa'))}>Susulan / Pulihkan</button>}
+                            {onViewDetails && <button className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(attempt.id)}>Detail</button>}
+                            {onRecover && ['submitted', 'auto_submitted'].includes(attempt.status) && (
+                                <button
+                                    type="button"
+                                    className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium"
+                                    onClick={() => void onRecover(attempt)}
+                                >
+                                    Susulan / Pulihkan
+                                </button>
+                            )}
                         </div>
                     </td>
                 </tr>;
@@ -247,5 +249,12 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
         {pageCount > 1 && <div className="mt-3 flex items-center justify-between text-xs"><span>Halaman {currentPage} / {pageCount} · {rows.length} peserta</span><div className="flex gap-3"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Sebelumnya</button><button disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Berikutnya</button></div></div>}
         {!rows.length && <p className="py-4 text-sm text-slate-500">{hasActiveFilter ? 'Tidak ada peserta pada filter ini.' : 'Data monitoring belum tersedia.'}</p>}
         </div>}
+
+        {/* Shared Modals */}
+        <AttemptHistoryModal
+            open={!!selectedHistoryAttempt}
+            attempt={selectedHistoryAttempt}
+            onClose={() => setSelectedHistoryAttempt(null)}
+        />
     </section>;
 }
