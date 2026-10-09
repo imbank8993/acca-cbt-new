@@ -116,3 +116,9 @@ export class ResolveNoteDto {
     @IsBoolean()
     resolved: boolean;
 }
+
+export class DecideValidationDto {
+    @ApiProperty({ enum: ['approved', 'revision_needed', 'rejected'] })
+    @IsIn(['approved', 'revision_needed', 'rejected'])
+    status: 'approved' | 'revision_needed' | 'rejected';
+}

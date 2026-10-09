@@ -35,6 +35,9 @@ class LogViolationDto {
 }
 
 class SyncHealthDto {
+    @IsOptional() @IsObject()
+    interruption?: { at: string; remainingSeconds: number; reason: 'browser_offline' | 'server_unreachable' };
+
     @IsInt() @Min(0) @Max(10000)
     localAnswerCount!: number;
 

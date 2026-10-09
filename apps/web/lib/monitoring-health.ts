@@ -4,6 +4,7 @@ export const monitoringEventLabels: Record<string, string> = {
     ATTEMPT_STARTED: 'Mulai ujian', SUBMITTED: 'Dikumpulkan siswa', AUTO_SUBMITTED: 'Ditutup otomatis',
     RESET_BY_PROCTOR: 'Pemulihan dibuka', MAKEUP_EXAM_STARTED: 'Ujian susulan dibuka',
     FORCE_TERMINATED: 'Dihentikan pengawas', SYNC_HEALTH_CHANGED: 'Laporan penyimpanan berubah',
+    CONNECTION_INTERRUPTION_REPORTED: 'Perangkat melaporkan gangguan koneksi',
     CONNECTION_GAP_DETECTED: 'Perangkat kembali terhubung setelah jeda',
     tab_switch: 'Berpindah tab', window_blur: 'Jendela kehilangan fokus', tab_close: 'Halaman dibuka kembali',
 };

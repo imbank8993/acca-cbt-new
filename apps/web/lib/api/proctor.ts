@@ -201,6 +201,11 @@ export interface ExamAttemptRecord {
 }
 
 export interface MonitoringHistoryEvent {
+    observed_again_at?: string | null;
+    disconnected_at?: string | null;
+    remaining_at_disconnect_seconds?: number | null;
+    remaining_at_last_seen_seconds?: number | null;
+    remaining_at_reconnect_seconds?: number | null;
     type: string;
     at: string;
     actor_id?: string | null;

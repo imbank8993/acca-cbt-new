@@ -20,6 +20,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
     CreateValidationDto,
+    DecideValidationDto,
     ResolveNoteDto,
     SaveValidationNoteDto,
     SubmitValidationDto,
@@ -42,6 +43,7 @@ export class ValidationsController {
     }
 
     @Get()
+    @Roles('ADMIN', 'PROKTOR')
     @ApiOperation({ summary: 'Daftar penugasan validasi sekolah (Admin & Proktor)' })
     list(@CurrentUser() user: AuthUser, @Query('bankId') bankId?: string) {
         return this.validations.list(user, bankId);
@@ -109,6 +111,18 @@ export class ValidationsController {
         @Body() dto: SubmitValidationDto,
     ) {
         return this.validations.submitReview(user, id, dto);
+    }
+
+    @Post(':id/decision')
+    @Roles('ADMIN', 'PROKTOR')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Simpan keputusan akhir Admin/Proktor sebagai catatan validasi' })
+    decide(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: DecideValidationDto,
+    ) {
+        return this.validations.decide(user, id, dto.status);
     }
 
     @Patch('notes/:noteId/resolve')

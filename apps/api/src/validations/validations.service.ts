@@ -8,6 +8,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import {
     CreateValidationDto,
     SaveValidationNoteDto,
@@ -96,7 +97,7 @@ export class ValidationsService {
      * Daftar seluruh penugasan validasi di sekolah (Admin & Proktor).
      */
     async list(user: AuthUser, bankId?: string) {
-        await this.authz.assertOrgStaff(user, user.organizationId);
+        await this.authz.assertProktor(user, user.organizationId);
 
         let query = this.db
             .from('cbt_question_bank_validations')
@@ -104,7 +105,7 @@ export class ValidationsService {
                 `id, bank_id, title, instructions, deadline, approval_rule, status, allow_edit_during_exam, created_at, updated_at,
                  bank:cbt_question_banks(id, title, subject, class_level, is_published, created_by, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name, email)),
                  creator:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name),
-                 validators:cbt_question_bank_validators(id, validator_id, status, general_recommendation, profile:cbt_profiles(full_name, email))`,
+                 validators:cbt_question_bank_validators(id, validator_id, status, general_recommendation, general_comment, profile:cbt_profiles(full_name, email))`,
             )
             .eq('organization_id', user.organizationId)
             .order('created_at', { ascending: false });
@@ -148,6 +149,13 @@ export class ValidationsService {
             throw new ForbiddenException('Akses ke sesi validasi sekolah lain ditolak.');
         }
 
+        await this.authz.assertOrgStaff(user, (val as any).organization_id);
+        const { data: assignment, error: assignmentError } = await this.db
+            .from('cbt_question_bank_validators').select('id')
+            .eq('validation_id', validationId).eq('validator_id', user.id).maybeSingle();
+        if (assignmentError) throw new BadRequestException('Gagal memeriksa penugasan validator.');
+        if (!assignment) await this.authz.assertBankAccess(user, (val as any).bank_id);
+
         return val;
     }
 
@@ -180,15 +188,7 @@ export class ValidationsService {
      * Data lengkap untuk layar review simulasi validasi soal bagi guru validator.
      */
     async getReviewData(user: AuthUser, validationId: string) {
-        const { data: validation, error: valErr } = await this.db
-            .from('cbt_question_bank_validations')
-            .select('*, bank:cbt_question_banks(*)')
-            .eq('id', validationId)
-            .maybeSingle();
-
-        if (valErr || !validation) {
-            throw new NotFoundException('Sesi validasi tidak ditemukan.');
-        }
+        const validation = await this.getDetail(user, validationId);
 
         // Pastikan user adalah validator atau proktor/admin
         const { data: vAssignment } = await this.db
@@ -197,10 +197,6 @@ export class ValidationsService {
             .eq('validation_id', validationId)
             .eq('validator_id', user.id)
             .maybeSingle();
-
-        if (!vAssignment && !user.isPlatformAdmin) {
-            await this.authz.assertProktor(user, (validation as any).organization_id);
-        }
 
         // Ambil butir soal lengkap
         const bankId = (validation as any).bank_id;
@@ -257,18 +253,44 @@ export class ValidationsService {
         }
 
         const note = await this.db.transaction(async (tx) => {
+            await advisoryTransactionLock(tx, `validation:${validationId}`);
+            const { data: session, error: sessionError } = await tx
+                .from('cbt_question_bank_validations').select('bank_id, organization_id')
+                .eq('id', validationId).single();
+            if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
+            await this.authz.assertOrgStaff(user, session.organization_id);
+            const { data: question, error: questionError } = await tx
+                .from('cbt_bank_questions').select('id, metadata')
+                .eq('id', dto.questionId).eq('bank_id', session.bank_id).maybeSingle();
+            if (questionError || !question || question.metadata?._deleted) {
+                throw new BadRequestException('Soal tidak ditemukan pada bank yang divalidasi.');
+            }
+            if (dto.targetScope === 'option') {
+                if (!dto.targetOptionId) throw new BadRequestException('Pilih opsi jawaban yang diberi catatan.');
+                const { data: option, error: optionError } = await tx
+                    .from('cbt_bank_question_options').select('id')
+                    .eq('id', dto.targetOptionId).eq('question_id', dto.questionId).maybeSingle();
+                if (optionError || !option) throw new BadRequestException('Opsi bukan bagian dari soal ini.');
+            } else if (dto.targetOptionId) {
+                throw new BadRequestException('Opsi hanya boleh disertakan untuk catatan opsi jawaban.');
+            }
+            if (!dto.comment.trim()) throw new BadRequestException('Catatan tidak boleh kosong.');
+
             // Update status validator dan validasi ke in_progress jika masih assigned/pending
             if ((validator as any).status === 'assigned') {
-                await tx
+                const { error: assignmentError } = await tx
                     .from('cbt_question_bank_validators')
                     .update({ status: 'in_progress', updated_at: new Date().toISOString() })
-                    .eq('id', (validator as any).id);
+                    .eq('id', (validator as any).id)
+                    .eq('status', 'assigned');
+                if (assignmentError) throw new BadRequestException('Gagal memperbarui penugasan validator.');
 
-                await tx
+                const { error: statusError } = await tx
                     .from('cbt_question_bank_validations')
                     .update({ status: 'in_progress', updated_at: new Date().toISOString() })
                     .eq('id', validationId)
                     .eq('status', 'pending');
+                if (statusError) throw new BadRequestException('Gagal memperbarui status validasi.');
             }
 
             const { data: newNote, error } = await tx
@@ -330,74 +352,66 @@ export class ValidationsService {
             throw new ForbiddenException('Anda bukan validator untuk tugas ini.');
         }
 
-        const now = new Date().toISOString();
-
         await this.db.transaction(async (tx) => {
-            // Update validator
-            await tx
+            await advisoryTransactionLock(tx, `validation:${validationId}`);
+            const { data: session, error: sessionError } = await tx
+                .from('cbt_question_bank_validations').select('approval_rule, organization_id, status')
+                .eq('id', validationId).single();
+            if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
+            await this.authz.assertOrgStaff(user, session.organization_id);
+            const now = new Date().toISOString();
+            const { error: submitError } = await tx
                 .from('cbt_question_bank_validators')
                 .update({
-                    status: 'submitted',
-                    general_recommendation: dto.generalRecommendation,
-                    general_comment: dto.generalComment?.trim() || '',
-                    submitted_at: now,
-                    updated_at: now,
-                })
-                .eq('id', (vAssignment as any).id);
+                    status: 'submitted', general_recommendation: dto.generalRecommendation,
+                    general_comment: dto.generalComment?.trim() || '', submitted_at: now, updated_at: now,
+                }).eq('id', (vAssignment as any).id);
+            if (submitError) throw new BadRequestException('Gagal menyimpan rekomendasi validator.');
 
-            // Periksa aturan kelulusan (approval rule)
-            const { data: valInfo } = await tx
-                .from('cbt_question_bank_validations')
-                .select('approval_rule, bank_id')
-                .eq('id', validationId)
-                .single();
-
-            const { data: allValidators } = await tx
-                .from('cbt_question_bank_validators')
-                .select('status, general_recommendation')
+            const { data: validators, error: validatorsError } = await tx
+                .from('cbt_question_bank_validators').select('status, general_recommendation')
                 .eq('validation_id', validationId);
-
-            const rule = (valInfo as any)?.approval_rule || 'unanimous';
-            const vList = (allValidators as any[]) || [];
-            const allSubmitted = vList.length > 0 && vList.every((v) => v.status === 'submitted');
-
-            let newValidationStatus: string | null = null;
-
-            if (rule === 'any') {
-                if (dto.generalRecommendation === 'approved') {
-                    newValidationStatus = 'approved';
-                } else if (allSubmitted && vList.every((v) => v.general_recommendation === 'rejected')) {
-                    newValidationStatus = 'rejected';
-                } else if (allSubmitted) {
-                    newValidationStatus = 'revision_needed';
-                }
-            } else if (rule === 'unanimous') {
-                if (allSubmitted) {
-                    const allApproved = vList.every((v) => v.general_recommendation === 'approved');
-                    const hasRevision = vList.some((v) => v.general_recommendation === 'revision_needed');
-                    if (allApproved) {
-                        newValidationStatus = 'approved';
-                    } else if (hasRevision) {
-                        newValidationStatus = 'revision_needed';
-                    } else {
-                        newValidationStatus = 'rejected';
-                    }
-                } else {
-                    // Jika belum semua submit tetapi ada yang minta revisi
-                    if (dto.generalRecommendation === 'revision_needed') {
-                        newValidationStatus = 'revision_needed';
-                    }
-                }
+            if (validatorsError || !validators?.length) throw new BadRequestException('Gagal membaca rekomendasi validator.');
+            const allSubmitted = validators.every((v: any) => v.status === 'submitted');
+            const hasApproved = validators.some((v: any) => v.status === 'submitted' && v.general_recommendation === 'approved');
+            const hasRevision = validators.some((v: any) => v.status === 'submitted' && v.general_recommendation === 'revision_needed');
+            let status = 'in_progress';
+            if (session.approval_rule === 'any') {
+                if (hasApproved) status = 'approved';
+                else if (allSubmitted) status = hasRevision ? 'revision_needed' : 'rejected';
+            } else if (session.approval_rule === 'unanimous') {
+                if (hasRevision) status = 'revision_needed';
+                else if (allSubmitted) status = validators.every((v: any) => v.general_recommendation === 'approved') ? 'approved' : 'rejected';
+            } else {
+                // Rekomendasi guru tidak menimpa keputusan Admin/Proktor.
+                status = session.status === 'pending' ? 'in_progress' : session.status;
             }
-
-            if (newValidationStatus) {
-                await tx
-                    .from('cbt_question_bank_validations')
-                    .update({ status: newValidationStatus, updated_at: now })
-                    .eq('id', validationId);
-            }
+            const { error: statusError } = await tx.from('cbt_question_bank_validations')
+                .update({ status, updated_at: now }).eq('id', validationId);
+            if (statusError) throw new BadRequestException('Gagal memperbarui status validasi.');
         });
+        return { success: true };
+    }
 
+    async decide(user: AuthUser, validationId: string, status: 'approved' | 'revision_needed' | 'rejected') {
+        await this.db.transaction(async (tx) => {
+            await advisoryTransactionLock(tx, `validation:${validationId}`);
+            const { data: session, error } = await tx.from('cbt_question_bank_validations')
+                .select('organization_id, approval_rule').eq('id', validationId).single();
+            if (error || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
+            await this.authz.assertProktor(user, session.organization_id);
+            if (session.approval_rule !== 'admin_decides') {
+                throw new BadRequestException('Sesi ini menggunakan keputusan otomatis dari rekomendasi validator.');
+            }
+            const { data: validators, error: validatorsError } = await tx.from('cbt_question_bank_validators')
+                .select('status').eq('validation_id', validationId);
+            if (validatorsError || !validators?.length || validators.some((v: any) => v.status !== 'submitted')) {
+                throw new BadRequestException('Tunggu seluruh validator menyelesaikan rekomendasinya.');
+            }
+            const { error: updateError } = await tx.from('cbt_question_bank_validations')
+                .update({ status, updated_at: new Date().toISOString() }).eq('id', validationId);
+            if (updateError) throw new BadRequestException('Gagal menyimpan keputusan validasi.');
+        });
         return { success: true };
     }
 

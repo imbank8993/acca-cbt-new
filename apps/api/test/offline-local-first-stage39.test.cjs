@@ -52,5 +52,5 @@ test('OFFLINE-04: auto-submit menunggu konfirmasi sinkronisasi jawaban', () => {
 test('OFFLINE-05: pemulihan berkala tidak bergantung pada event online', () => {
     assert.match(examPage, /if \(!waitingForSyncAndSubmit \|\| !attempt\?\.id \|\| isCompleted \|\| accessDenied\) return/);
     assert.match(examPage, /const interval = setInterval\(\(\) => \{ void retry\(\); \}, 15_000\)/);
-    assert.match(examPage, /Object\.keys\(answers\)\.length} jawaban tersimpan di perangkat/);
+    assert.match(examPage, /Object\.keys\(answers\)\.length} jawaban tersedia di perangkat/);
 });

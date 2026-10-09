@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
     ShieldCheck,
@@ -58,6 +58,25 @@ export default function ValidatorReviewPage() {
     const [category, setCategory] = useState<NoteCategory>('typo');
     const [statusItem, setStatusItem] = useState<NoteStatusItem>('revision');
     const [isSavingNote, setIsSavingNote] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const drafts = useRef<Record<string, {
+        selectedText: string; targetScope: typeof targetScope; selectedOptionId?: string;
+        commentText: string; category: NoteCategory; statusItem: NoteStatusItem;
+    }>>({});
+    const changeQuestion = (index: number) => {
+        if (isSavingNote || index === currentIndex || !questions[index]) return;
+        drafts.current[questions[currentIndex].id] = { selectedText, targetScope, selectedOptionId, commentText, category, statusItem };
+        const draft = drafts.current[questions[index].id];
+        setSelectedText(draft?.selectedText || '');
+        setTargetScope(draft?.targetScope || 'question_text');
+        setSelectedOptionId(draft?.selectedOptionId);
+        setCommentText(draft?.commentText || '');
+        setCategory(draft?.category || 'typo');
+        setStatusItem(draft?.statusItem || 'revision');
+        setActionError(null);
+        window.getSelection()?.removeAllRanges();
+        setCurrentIndex(index);
+    };
 
     // Final submit modal
     const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -118,6 +137,7 @@ export default function ValidatorReviewPage() {
     const handleSaveNote = async () => {
         if (!currentQuestion || !commentText.trim()) return;
         setIsSavingNote(true);
+        setActionError(null);
         try {
             const res = await saveValidationNote(validationId, {
                 questionId: currentQuestion.id,
@@ -129,13 +149,17 @@ export default function ValidatorReviewPage() {
                 statusItem,
             });
 
+            if (!res.success) throw new Error(res.error || 'Gagal menyimpan catatan.');
+            if (!res.id) throw new Error('Gagal menyimpan catatan.');
             if (res.success && res.id) {
                 setNotes(prev => [...prev, res as unknown as ValidationNote]);
                 setCommentText('');
                 setSelectedText('');
+                setSelectedOptionId(undefined);
+                setTargetScope('question_text');
             }
         } catch (e) {
-            console.error('Failed to save note', e);
+            setActionError(e instanceof Error ? e.message : 'Gagal menyimpan catatan.');
         } finally {
             setIsSavingNote(false);
         }
@@ -347,6 +371,7 @@ export default function ValidatorReviewPage() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {actionError && <p role="alert" className="text-xs text-red-600">{actionError}</p>}
                         {/* Form Input Catatan Baru */}
                         <div className="p-4 bg-slate-50 dark:bg-[#111728] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                             <div className="flex items-center justify-between">
@@ -395,6 +420,19 @@ export default function ValidatorReviewPage() {
                                 </select>
                             </div>
 
+                            <label className="block text-xs font-semibold">
+                                Bagian yang diberi catatan
+                                <select value={targetScope} onChange={event => {
+                                    const scope = event.target.value as typeof targetScope;
+                                    setTargetScope(scope);
+                                    if (scope !== 'option') setSelectedOptionId(undefined);
+                                }} className="mt-1 w-full rounded-lg border p-2 bg-white dark:bg-slate-800">
+                                    <option value="question_text">Teks soal</option>
+                                    <option value="stimulus">Stimulus</option>
+                                    <option value="general">Umum</option>
+                                    {selectedOptionId && <option value="option">Opsi jawaban yang dipilih</option>}
+                                </select>
+                            </label>
                             <textarea
                                 rows={3}
                                 value={commentText}
@@ -470,8 +508,8 @@ export default function ValidatorReviewPage() {
             {/* Bottom Number Navigation Bar */}
             <footer className="h-16 bg-white dark:bg-[#0d1221] border-t border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0 gap-3">
                 <button
-                    onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
-                    disabled={currentIndex === 0}
+                    onClick={() => changeQuestion(currentIndex - 1)}
+                    disabled={isSavingNote || currentIndex === 0}
                     className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
                 >
                     <ChevronLeft size={16} /> Sebelumnya
@@ -486,7 +524,8 @@ export default function ValidatorReviewPage() {
                         return (
                             <button
                                 key={q.id || idx}
-                                onClick={() => setCurrentIndex(idx)}
+                                onClick={() => changeQuestion(idx)}
+                                disabled={isSavingNote}
                                 className={`w-8 h-8 rounded-lg text-xs font-bold shrink-0 transition-all relative ${
                                     isCurrent
                                         ? 'bg-primary text-white shadow-md shadow-primary/30 ring-2 ring-primary/40'
@@ -505,8 +544,8 @@ export default function ValidatorReviewPage() {
                 </div>
 
                 <button
-                    onClick={() => setCurrentIndex(prev => Math.min(questions.length - 1, prev + 1))}
-                    disabled={currentIndex === questions.length - 1}
+                    onClick={() => changeQuestion(currentIndex + 1)}
+                    disabled={isSavingNote || currentIndex === questions.length - 1}
                     className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold disabled:opacity-30 hover:bg-slate-200 flex items-center gap-1"
                 >
                     Selanjutnya <ChevronRight size={16} />

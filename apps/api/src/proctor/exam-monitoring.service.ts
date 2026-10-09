@@ -154,6 +154,11 @@ export class ExamMonitoringService {
                 storage_state: log.metadata?.storageState || null,
                 gap_seconds: log.metadata?.gap_seconds ?? null,
                 last_seen_at: log.metadata?.last_seen_at || null,
+                observed_again_at: log.metadata?.observed_again_at || null,
+                disconnected_at: log.metadata?.disconnected_at || null,
+                remaining_at_disconnect_seconds: log.metadata?.remaining_at_disconnect_seconds ?? null,
+                remaining_at_last_seen_seconds: log.metadata?.remaining_at_last_seen_seconds ?? null,
+                remaining_at_reconnect_seconds: log.metadata?.remaining_at_reconnect_seconds ?? null,
             }));
             if (attempt.started_at) history.push({ type: 'ATTEMPT_STARTED', at: attempt.started_at } as any);
             if (attempt.finished_at) history.push({ type: attempt.status === 'submitted' ? 'SUBMITTED' : 'AUTO_SUBMITTED', at: attempt.finished_at } as any);

@@ -167,6 +167,10 @@ export function submitValidationReview(validationId: string, input: SubmitValida
     return apiCreate<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/submit`, input);
 }
 
+export function decideValidation(validationId: string, status: 'approved' | 'revision_needed' | 'rejected') {
+    return apiCreate<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/decision`, { status });
+}
+
 export function resolveValidationNote(noteId: string, resolved: boolean) {
     return apiSend<ValidationNote>(
         `/api/validations/notes/${encodeURIComponent(noteId)}/resolve`,

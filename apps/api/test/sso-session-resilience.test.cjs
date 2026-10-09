@@ -54,7 +54,7 @@ async function home(statuses, cancel = false, search = '?sso_role=Siswa') {
     });
     const context = {
         exports: {}, process: { env: {} }, URLSearchParams,
-        window: { location: { search, hash: '', href: '' } },
+        window: { location: { search, hash: '', href: '', replace: p => events.push(p) } },
         setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {},
         require(name) {
             if (name === 'react') return {
@@ -108,4 +108,12 @@ test('failed cookie handoff shows recovery without logout redirect loop', async 
     assert.deepEqual(result.events, []);
     assert.equal(result.href, '');
     assert.equal(result.failures[0].title, 'Sesi CBT belum tersimpan');
+});
+
+
+test('rejected dashboard session offers CBT recovery without redirecting to ACCA login', async () => {
+    const result = await home([], false, '?error=cbt-session-unavailable');
+    assert.deepEqual(result.events, []);
+    assert.equal(result.href, '');
+    assert.match(result.failures[0].message, /memperbarui sesi/);
 });

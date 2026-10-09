@@ -28,6 +28,7 @@ import {
 import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import {
     listValidations,
+    decideValidation,
     type ValidationSession,
     type ValidationStatus,
 } from '@/lib/api/validations';
@@ -48,6 +49,25 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedDetailVal, setSelectedDetailVal] = useState<ValidationSession | null>(null);
     const [reportValId, setReportValId] = useState<string | null>(null);
+    const [decision, setDecision] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
+    const [savingDecision, setSavingDecision] = useState(false);
+    const [decisionError, setDecisionError] = useState<string | null>(null);
+
+    const saveDecision = async () => {
+        if (!selectedDetailVal) return;
+        setSavingDecision(true);
+        setDecisionError(null);
+        try {
+            const result = await decideValidation(selectedDetailVal.id, decision);
+            if (!result.success) throw new Error(result.error || 'Gagal menyimpan keputusan.');
+            setSelectedDetailVal(current => current?.id === selectedDetailVal.id ? { ...current, status: decision } : current);
+            await loadData();
+        } catch (error) {
+            setDecisionError(error instanceof Error ? error.message : 'Gagal menyimpan keputusan.');
+        } finally {
+            setSavingDecision(false);
+        }
+    };
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -261,7 +281,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setSelectedDetailVal(item)}
+                                                        onClick={() => {
+                                                            setSelectedDetailVal(item);
+                                                            setDecision(['approved', 'revision_needed', 'rejected'].includes(item.status)
+                                                                ? item.status as 'approved' | 'revision_needed' | 'rejected' : 'approved');
+                                                            setDecisionError(null);
+                                                        }}
                                                         className="text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
                                                     >
                                                         Rincian <ChevronRight size={13} />
@@ -309,6 +334,27 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     icon={<ShieldCheck size={20} />}
                 >
                     <ModalBody className="space-y-4">
+                        {selectedDetailVal.approval_rule === 'admin_decides' && (
+                            <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-xs">
+                                <label htmlFor="validation-decision" className="font-bold">Keputusan akhir Admin/Proktor</label>
+                                <p className="text-slate-500">Keputusan ini menjadi catatan dan pemberitahuan; Guru tetap dapat memublikasikan bank soal.</p>
+                                <select id="validation-decision" value={decision}
+                                    onChange={event => setDecision(event.target.value as typeof decision)}
+                                    disabled={savingDecision}
+                                    className="w-full rounded-lg border border-slate-300 bg-white p-2 dark:bg-slate-900">
+                                    <option value="approved">Disetujui</option>
+                                    <option value="revision_needed">Perlu Revisi</option>
+                                    <option value="rejected">Ditolak</option>
+                                </select>
+                                {(!selectedDetailVal.validators?.length || selectedDetailVal.validators.some(v => v.status !== 'submitted')) && (
+                                    <p className="text-amber-600">Menunggu seluruh validator menyelesaikan rekomendasinya.</p>
+                                )}
+                                {decisionError && <p role="alert" className="text-red-600">{decisionError}</p>}
+                                <Button onClick={saveDecision} disabled={savingDecision || !selectedDetailVal.validators?.length || selectedDetailVal.validators.some(v => v.status !== 'submitted')}>
+                                    {savingDecision ? 'Menyimpan...' : 'Simpan Keputusan'}
+                                </Button>
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs">
                             <div>
                                 <span className="text-slate-400">Status Validasi:</span>

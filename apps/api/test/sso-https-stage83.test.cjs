@@ -47,7 +47,7 @@ test('new protected cookie takes precedence over duplicate legacy cookies; legac
 test('dashboard rejection returns HTTPS even with HTTP proxy headers', async () => {
     const middleware = load('middleware.ts', env, { '@/lib/public-origin': origin, '@/lib/app-jwt': jwt });
     const response = await middleware.middleware(request('acca-cbt.icgowa.sch.id', '/dashboard/siswa'));
-    assert.equal(response.headers.get('location'), `${env.NEXT_PUBLIC_SITE_URL}/`);
+    assert.equal(response.headers.get('location'), `${env.NEXT_PUBLIC_SITE_URL}/?error=cbt-session-unavailable`);
 });
 test('logout clears both current and legacy cookies', async () => {
     const route = load('app/api/auth/logout/route.ts', env, { '@/lib/app-jwt': jwt });

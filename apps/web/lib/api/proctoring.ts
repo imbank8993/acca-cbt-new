@@ -35,6 +35,7 @@ export function logSecurityViolation(
 
 /** Heartbeat server dipakai layar pengawas untuk membedakan aktif dan terputus. */
 export interface ClientSyncHealth {
+    interruption?: { at: string; remainingSeconds: number; reason: 'browser_offline' | 'server_unreachable' };
     localAnswerCount: number;
     pendingAnswerCount: number;
     storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';

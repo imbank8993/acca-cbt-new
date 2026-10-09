@@ -123,6 +123,9 @@ export default function ExamPage() {
     const [accessError, setAccessError] = useState('');
 
     // Offline Tolerance
+    const [serverUnavailableAt, setServerUnavailableAt] = useState<string | null>(null);
+    const connectionReportRef = useRef<{ at: string; remainingSeconds: number; reason: 'browser_offline' | 'server_unreachable' } | null>(null);
+    const connectionAttemptRef = useRef<string | null>(null);
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
     const [waitingForSyncAndSubmit, setWaitingForSyncAndSubmit] = useState(false);
     const [recoverySummary, setRecoverySummary] = useState<{
@@ -1041,6 +1044,18 @@ export default function ExamPage() {
     }, [confirmPendingTermination]);
 
     // ── Network Detection ────────────────────────────────────
+    const recordConnectionInterruption = useCallback((reason: 'browser_offline' | 'server_unreachable') => {
+        const current = attemptRef.current;
+        if (!current?.id) return;
+        if (connectionAttemptRef.current !== current.id) {
+            connectionAttemptRef.current = current.id;
+            connectionReportRef.current = null;
+        }
+        connectionReportRef.current ||= { at: new Date().toISOString(), remainingSeconds: Math.max(0, Math.ceil(clockRef.current.remainingSeconds())), reason };
+        setServerUnavailableAt(connectionReportRef.current.at);
+        try { localStorage.setItem(`exam_connection_${current.id}`, JSON.stringify(connectionReportRef.current)); } catch { /* Retain the report in memory. */ }
+    }, []);
+
     useEffect(() => {
         const handleOnline = () => {
             void (async () => {
@@ -1065,14 +1080,14 @@ export default function ExamPage() {
                 }
             })();
         };
-        const handleOffline = () => setIsOffline(true);
+        const handleOffline = () => { setIsOffline(true); recordConnectionInterruption('browser_offline'); };
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [attempt, submissionOnly, syncPendingAnswers, flushSecurityEvents, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
+    }, [recordConnectionInterruption, attempt, submissionOnly, syncPendingAnswers, flushSecurityEvents, confirmPendingTermination, waitingForSyncAndSubmit, handleSubmitExam, revalidateOfflineSession]);
 
     // `online` tidak selalu ditembakkan bila Wi-Fi tetap terhubung tetapi API
     // sempat mati. Paket recovery memeriksa ulang server secara berkala; setelah
@@ -1252,14 +1267,41 @@ export default function ExamPage() {
     useEffect(() => {
         if (!attempt || isCompleted || accessDenied || submissionOnly) return;
         const key = `exam_lastseen_${attempt.id}`;
+        let running = false;
+        let cancelled = false;
         const pulse = async () => {
+            if (running || cancelled) return;
+            running = true;
+            try {
+            if (connectionAttemptRef.current !== attempt.id) {
+                connectionAttemptRef.current = attempt.id;
+                connectionReportRef.current = null;
+                setServerUnavailableAt(null);
+            }
+            if (!connectionReportRef.current) {
+                try {
+                    const saved = JSON.parse(localStorage.getItem(`exam_connection_${attempt.id}`) || 'null');
+                    if (saved && Number.isFinite(Date.parse(saved.at)) && Number.isInteger(saved.remainingSeconds) && saved.remainingSeconds >= 0 && saved.remainingSeconds <= 604800 && ['browser_offline', 'server_unreachable'].includes(saved.reason)) connectionReportRef.current = saved;
+                } catch { /* Optional local telemetry. */ }
+            }
             try { localStorage.setItem(key, String(Date.now())); } catch { /* optional heartbeat */ }
-            if (!navigator.onLine || offlineRecoveryRef.current) return;
+            if (!navigator.onLine) { recordConnectionInterruption('browser_offline'); return; }
+            if (offlineRecoveryRef.current) return;
+            const report = connectionReportRef.current;
             const heartbeat = await heartbeatExamAttempt(attempt.id, {
                 localAnswerCount: Object.values(answersRef.current).filter(value => value.trim().length > 0).length,
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
                 storageState: storageStateRef.current,
+                ...(report ? { interruption: report } : {}),
             }).catch(() => undefined);
+            if (cancelled) return;
+            if (heartbeat?.success) {
+                if (navigator.onLine && connectionReportRef.current === report) setServerUnavailableAt(null);
+                if (report && connectionReportRef.current === report) {
+                    connectionReportRef.current = null;
+                    try { localStorage.removeItem(`exam_connection_${attempt.id}`); } catch { /* Optional telemetry. */ }
+                }
+            } else recordConnectionInterruption('server_unreachable');
             if (heartbeat?.success && heartbeat.submissionOnly) {
                 setSubmissionOnly(true);
                 return;
@@ -1268,11 +1310,12 @@ export default function ExamPage() {
             if (!securityResult?.terminated && terminationReasonRef.current) {
                 void confirmPendingTermination(terminationReasonRef.current);
             }
+            } finally { running = false; }
         };
         void pulse();
         const iv = setInterval(() => { void pulse(); }, 15000);
-        return () => clearInterval(iv);
-    }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination]);
+        return () => { cancelled = true; clearInterval(iv); };
+    }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination, recordConnectionInterruption]);
 
     // ── Timer ─────────────────────────────────────────────────
     useEffect(() => {
@@ -1565,22 +1608,24 @@ export default function ExamPage() {
 
     return (
         <>
-            {isOffline && !waitingForSyncAndSubmit && (
-                <div className="fixed top-0 left-0 right-0 z-[10005] bg-rose-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
+            {(isOffline || serverUnavailableAt) && !waitingForSyncAndSubmit && (
+                <div role="alert" className="fixed top-0 left-0 right-0 z-[10005] bg-rose-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
                     <AlertTriangle size={16} />
                     <span>
-                        {usingOfflineRecovery ? 'Ujian dipulihkan setelah halaman dibuka ulang. ' : 'Koneksi terputus. '}
-                        {Object.keys(answers).length} jawaban tersimpan di perangkat dan akan dikirim setelah sesi diverifikasi saat jaringan pulih.
+                        {usingOfflineRecovery ? 'Ujian dipulihkan setelah halaman dibuka ulang. ' : isOffline ? 'Jaringan perangkat terputus. ' : 'Koneksi ke server ujian belum berhasil. '}
+                        {serverUnavailableAt && `Terdeteksi ${new Date(serverUnavailableAt).toLocaleTimeString('id-ID')}. `}
+                        Waktu ujian tetap berjalan. Jangan tutup halaman.{' '}
+                        {storageWarning ? `${storageWarning} Hubungi pengawas bila perlu bantuan.` : `${Object.keys(answers).length} jawaban tersedia di perangkat; pengiriman dicoba kembali saat koneksi pulih.`}
                     </span>
                 </div>
             )}
-            {!isOffline && !waitingForSyncAndSubmit && failedSyncCount > 0 && (
+            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount > 0 && (
                 <div className="fixed top-0 left-0 right-0 z-[10005] bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
                     <RefreshCw size={16} className="animate-spin" />
                     <span>{failedSyncCount} jawaban belum tersimpan ke server. Mencoba mengirim ulang otomatis — jangan tutup halaman.</span>
                 </div>
             )}
-            {!isOffline && !waitingForSyncAndSubmit && failedSyncCount === 0 && recoverySummary && (
+            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount === 0 && recoverySummary && (
                 <div className="fixed top-0 left-0 right-0 z-[10005] bg-blue-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
                     <ShieldCheck size={16} />
                     <span>
@@ -1589,7 +1634,7 @@ export default function ExamPage() {
                     </span>
                 </div>
             )}
-            {!isOffline && !waitingForSyncAndSubmit && failedSyncCount === 0 && !recoverySummary && storageWarning && (
+            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount === 0 && !recoverySummary && storageWarning && (
                 <div className="fixed top-0 left-0 right-0 z-[10005] bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
                     <AlertTriangle size={16} />
                     <span>{storageWarning}</span>

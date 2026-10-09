@@ -1,4 +1,5 @@
 import { MONITORING_EVENTS, validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
+import { examDeadline } from '../common/exam-deadline';
 import {
     BadRequestException,
     ForbiddenException,
@@ -217,7 +218,7 @@ export class ProctoringService {
         return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt, error: readError } = await db.from('cbt_exam_attempts')
-                .select('user_id, status, device_fingerprint, last_seen_at, metadata').eq('id', attemptId).maybeSingle();
+                .select('user_id, status, device_fingerprint, last_seen_at, metadata, exam_id, started_at, personal_end_time').eq('id', attemptId).maybeSingle();
             if (readError) throw new BadRequestException('Status koneksi belum dapat dibaca.');
             if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
@@ -237,8 +238,24 @@ export class ProctoringService {
                 if (error) throw new BadRequestException('Riwayat koneksi belum tersimpan.');
             };
             if (Number.isFinite(lastSeen) && now.getTime() - lastSeen > 45_000) {
+                const { data: exam, error: examError } = await db.from('cbt_exams')
+                    .select('end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+                if (examError) throw new BadRequestException('Batas waktu ujian belum dapat dibaca.');
+                const deadline = exam ? examDeadline(attempt, exam).getTime() : NaN;
                 await log('CONNECTION_GAP_DETECTED', { last_seen_at: attempt.last_seen_at,
-                    observed_again_at: now.toISOString(), gap_seconds: Math.floor((now.getTime() - lastSeen) / 1000) });
+                    observed_again_at: now.toISOString(), gap_seconds: Math.floor((now.getTime() - lastSeen) / 1000),
+                    evidence: 'server_observation',
+                    remaining_at_last_seen_seconds: Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - lastSeen) / 1000)) : null,
+                    remaining_at_reconnect_seconds: Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - now.getTime()) / 1000)) : null,
+                });
+            }
+            if (health?.interruption && metadata.last_connection_report_at !== health.interruption.at) {
+                await log('CONNECTION_INTERRUPTION_REPORTED', {
+                    evidence: 'client_report', disconnected_at: health.interruption.at,
+                    remaining_at_disconnect_seconds: health.interruption.remainingSeconds,
+                    reason: health.interruption.reason, received_at: now.toISOString(),
+                });
+                metadata.last_connection_report_at = health.interruption.at;
             }
             if (health) {
                 const changed = !previous || previous.storageState !== health.storageState ||

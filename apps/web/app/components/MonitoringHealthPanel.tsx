@@ -172,7 +172,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 const violationCount = attempt.warning_count ?? 0;
                 const breakdown = attempt.violation_breakdown;
                 const statusLabel = attempt.status === 'in_progress'
-                    ? attempt.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan'
+                    ? attempt.connection_status === 'offline' ? 'Tidak ada kontak terbaru' : 'Mengerjakan'
                     : attempt.status === 'auto_submitted'
                         ? 'Ditutup otomatis'
                         : attempt.status === 'submitted' ? 'Selesai' : 'Belum mulai';
@@ -205,8 +205,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3">
                         <strong>{attempt.status === 'in_progress' && remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong>
                         <div className="mt-1">Batas: {date(attempt.deadline_at)}</div>
-                        <div>{attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Koneksi terputus'}</div>
-                        <div className="text-slate-500">{date(attempt.last_seen_at)}</div>
+                        <div>{attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'}</div>
+                        <div className="text-slate-500">Kontak server terakhir: {date(attempt.last_seen_at)}</div>
                         <div className="mt-1 text-slate-500">Mulai: {date(attempt.started_at)}</div>
                         <div className="mt-1 text-slate-500">Durasi: {durationMinutes === null ? '—' : `${Math.floor(durationMinutes / 60)}j ${durationMinutes % 60}m`}</div>
                     </td>
@@ -221,11 +221,17 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                             if (event.currentTarget.open) setHistoryId(attempt.id);
                             else setHistoryId(current => current === attempt.id ? null : current);
                         }}><summary className="cursor-pointer text-blue-700">Riwayat ({attempt.monitoring_history?.length || 0})</summary>
-                            <p className="my-2 text-slate-500">Catatan dibuat berkala; data lama mungkin tidak lengkap.</p>
+                            <p className="my-2 text-slate-500">Kontak server diperiksa berkala. Jeda dapat disebabkan jaringan, browser tertutup, atau perangkat tidur; bukan bukti kecurangan. Waktu perangkat merupakan laporan siswa, bukan waktu terverifikasi server.</p>
                             {historyId === attempt.id && <ol className="max-h-60 space-y-2 overflow-auto">{attempt.monitoring_history?.map((event, index) => <li key={`${event.at}:${index}`} className="border-l-2 pl-2">
                                 <strong>{monitoringEventLabels[event.type] || event.type}</strong><div>{date(event.at)}</div>
-                                {event.actor_id && <div>Oleh: {event.actor_name || event.actor_id}</div>}{event.reason && <div>Alasan: {event.reason}</div>}
+                                {event.actor_id && <div>Oleh: {event.actor_name || event.actor_id}</div>}{event.reason && <div>Alasan: {event.reason === 'browser_offline' ? 'Browser mendeteksi jaringan offline' : event.reason === 'server_unreachable' ? 'Permintaan ke server ujian tidak berhasil' : event.reason}</div>}
                                 {event.recovery_until && <div>Tenggat baru: {date(event.recovery_until)}</div>}
+                                {event.last_seen_at && <div>Kontak server terakhir: {date(event.last_seen_at)}</div>}
+                                {event.observed_again_at && <div>Terhubung kembali: {date(event.observed_again_at)}</div>}
+                                {event.disconnected_at && <div>Gangguan terdeteksi perangkat: {date(event.disconnected_at)} (laporan perangkat; diterima server pada waktu catatan)</div>}
+                                {event.remaining_at_disconnect_seconds != null && <div>Sisa waktu saat gangguan (perangkat): {Math.floor(event.remaining_at_disconnect_seconds / 60)} menit {event.remaining_at_disconnect_seconds % 60} detik</div>}
+                                {event.remaining_at_last_seen_seconds != null && <div>Sisa waktu saat kontak terakhir: {Math.floor(event.remaining_at_last_seen_seconds / 60)} menit {event.remaining_at_last_seen_seconds % 60} detik</div>}
+                                {event.remaining_at_reconnect_seconds != null && <div>Sisa waktu saat terhubung kembali: {Math.floor(event.remaining_at_reconnect_seconds / 60)} menit {event.remaining_at_reconnect_seconds % 60} detik</div>}
                                 {event.gap_seconds != null && <div>Jeda tanpa kabar: {event.gap_seconds} detik (perkiraan)</div>}
                                 {event.pending_answer_count != null && <div>Dilaporkan belum terkirim: {event.pending_answer_count}</div>}
                             </li>)}</ol>}

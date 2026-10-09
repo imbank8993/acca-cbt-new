@@ -31,7 +31,7 @@ export async function middleware(req: NextRequest) {
 
     if (req.nextUrl.pathname.startsWith('/dashboard')) {
         const base = resolvePublicOrigin(req);
-        return protectResponse(NextResponse.redirect(new URL('/', base)), true);
+        return protectResponse(NextResponse.redirect(new URL('/?error=cbt-session-unavailable', base)), true);
     }
 
     return protectResponse(NextResponse.next({ request: req }), authRoute);

@@ -58,6 +58,9 @@ test('connection gaps are observations, not security violations', async () => {
     await service.heartbeat(user, 'attempt', 'device-1', { localAnswerCount: 1, pendingAnswerCount: 0, storageState: 'healthy' });
     const gap = db.tables.cbt_attempt_security_logs.find(row => row.event_type === 'CONNECTION_GAP_DETECTED');
     assert.equal(gap.metadata.gap_seconds, 120);
+    assert.equal(gap.metadata.remaining_at_last_seen_seconds, 3720);
+    assert.equal(gap.metadata.remaining_at_reconnect_seconds, 3600);
+    assert.equal(gap.metadata.observed_again_at, now);
     const result = await service.logViolation(user, 'attempt', 'tab_switch');
     assert.equal(result.warningCount, 1);
 });
@@ -127,4 +130,24 @@ test('export roundtrip keeps result and answer sheets without auxiliary summarie
     assert.equal(reopened.Sheets.Rekap_Hasil.B2.t, 's');
     assert.equal(reopened.Sheets.Rekap_Hasil.B2.f, undefined);
     assert.equal(options.detailedAnalysis.matrix[0].items.q.display_answer, 'truncated');
+});
+
+
+test('device interruption report is validated, retried idempotently and never counts as a violation', async () => {
+    const db = fixture();
+    const service = new ProctoringService(db, {}, {});
+    const health = { localAnswerCount: 1, pendingAnswerCount: 1, storageState: 'healthy',
+        interruption: { at: '2026-09-19T23:59:00Z', remainingSeconds: 3660, reason: 'browser_offline' } };
+    await service.heartbeat(user, 'attempt', 'device-1', health);
+    await service.heartbeat(user, 'attempt', 'device-1', health);
+    const logs = db.tables.cbt_attempt_security_logs.filter(row => row.event_type === 'CONNECTION_INTERRUPTION_REPORTED');
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].created_at, now);
+    assert.equal(logs[0].metadata.evidence, 'client_report');
+    assert.equal(logs[0].metadata.remaining_at_disconnect_seconds, 3660);
+    const rows = await monitor(db).listAttempts({}, 'exam');
+    assert.equal(rows[0].violation_breakdown.lainnya, 0);
+    assert.equal(rows[0].monitoring_history.find(event => event.type === 'CONNECTION_INTERRUPTION_REPORTED').disconnected_at, health.interruption.at);
+    await assert.rejects(service.heartbeat(user, 'attempt', 'device-1', { ...health, interruption: { ...health.interruption, remainingSeconds: -1 } }), e => e.getStatus() === 400);
+    await assert.rejects(service.heartbeat(user, 'attempt', 'device-1', { ...health, interruption: { ...health.interruption, at: 'bad' } }), e => e.getStatus() === 400);
 });

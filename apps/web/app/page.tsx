@@ -74,7 +74,8 @@ export default function Home() {
 
                 setActiveRoleInStorage(role === 'Superadmin' ? 'Admin' : role);
                 lockActiveRole();
-                router.push(getDashboardPath(role));
+                // A fresh document avoids a cached dashboard redirect from the old session.
+                window.location.replace(getDashboardPath(role));
                 return true;
             } catch {
                 fail('Sesi belum dapat diperiksa',
@@ -87,7 +88,9 @@ export default function Home() {
             // Kesalahan yang dilaporkan route SSO (tiket kedaluwarsa, tidak lengkap, dll).
             if (window.location.search.includes('error=')) {
                 const urlParams = new URLSearchParams(window.location.search);
-                const msg = urlParams.get('msg') || urlParams.get('error') || 'Terjadi kesalahan pada proses masuk.';
+                const msg = urlParams.get('error') === 'cbt-session-unavailable'
+                    ? 'Sesi CBT belum terbaca atau sudah berakhir. Gunakan tombol di bawah untuk memperbarui sesi dari ACCA tanpa berpindah browser. Pastikan cookie situs diizinkan.'
+                    : urlParams.get('msg') || urlParams.get('error') || 'Terjadi kesalahan pada proses masuk.';
                 fail('Gagal Masuk ke CBT', msg);
                 return;
             }
