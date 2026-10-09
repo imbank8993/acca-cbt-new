@@ -10,6 +10,15 @@ export function safeExternalUrl(raw: unknown): string {
     if (typeof raw !== 'string') return '';
     const trimmed = raw.trim();
     if (!trimmed) return '';
+    // Private attachments are same-origin and deliberately do not expose a bucket URL.
+    if (trimmed.startsWith('/api/storage/file/') && !/[\\\s]/.test(trimmed)) {
+        try {
+            const local = new URL(trimmed, 'https://attachment.invalid');
+            if (local.origin === 'https://attachment.invalid' && local.pathname.startsWith('/api/storage/file/')) {
+                return local.pathname + local.search + local.hash;
+            }
+        } catch { return ''; }
+    }
     try {
         const parsed = new URL(trimmed);
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;

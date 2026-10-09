@@ -1,7 +1,7 @@
 /* ACCA CBT — service worker terbatas untuk shell ujian siswa. */
 'use strict';
 
-const VERSION = 'acca-exam-shell-v1';
+const VERSION = 'acca-exam-shell-v2';
 const EXAM_CACHE = `${VERSION}:exam`;
 const ASSET_CACHE = `${VERSION}:assets`;
 const OWNED_CACHE_PREFIX = 'acca-exam-shell-';
@@ -22,7 +22,7 @@ function canonicalExamRequest(input) {
 }
 
 async function cacheSafe(cacheName, request, response) {
-    if (!response || !response.ok || response.type === 'opaque') return response;
+    if (!response || !response.ok || response.type === 'opaque' || (cacheName === ASSET_CACHE && /private|no-store/i.test(response.headers.get('cache-control') || ''))) return response;
     const cache = await caches.open(cacheName);
     await cache.put(request, response.clone());
     return response;
@@ -75,9 +75,7 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    const isStaticAsset = url.pathname.startsWith('/_next/static/') ||
-        url.pathname.startsWith('/_next/image') ||
-        ['script', 'style', 'font', 'image'].includes(request.destination);
+    const isStaticAsset = url.pathname.startsWith('/_next/static/');
     if (!isStaticAsset) return;
 
     event.respondWith((async () => {
@@ -117,7 +115,7 @@ self.addEventListener('message', event => {
                 const assetCache = await caches.open(ASSET_CACHE);
                 const results = await Promise.allSettled(assets.map(async value => {
                     const assetUrl = new URL(value, self.location.origin);
-                    if (assetUrl.origin !== self.location.origin || !assetUrl.pathname.startsWith('/_next/')) return;
+                    if (assetUrl.origin !== self.location.origin || !assetUrl.pathname.startsWith('/_next/static/')) return;
                     const request = new Request(assetUrl.toString(), { credentials: 'same-origin' });
                     const assetResponse = await fetch(request);
                     if (assetResponse.ok && assetResponse.type !== 'opaque') {

@@ -85,7 +85,7 @@ export class ExamAttemptsService {
         const { data: exam } = await this.db
             .from('cbt_exams')
             .select(
-                'id, organization_id, metadata, start_time, question_bank_id, is_published, exam_type, randomize_questions, randomize_options',
+                'id, organization_id, metadata, start_time, end_time, duration_minutes, question_bank_id, is_published, exam_type, randomize_questions, randomize_options',
             )
             .eq('id', examId)
             .maybeSingle();
@@ -94,6 +94,16 @@ export class ExamAttemptsService {
         await assertExamAccess(this.db, user, exam);
         if (exam.start_time && await this.serverNow() < new Date(exam.start_time)) {
             throw new ForbiddenException('Soal belum tersedia sebelum ujian dimulai.');
+        }
+
+        const { data: active, error: attemptError } = await this.db.from('cbt_exam_attempts')
+            .select('id, started_at, personal_end_time, metadata')
+            .eq('exam_id', examId).eq('user_id', user.id).eq('status', 'in_progress').maybeSingle();
+        if (attemptError) throw new BadRequestException('Sesi pengerjaan belum dapat diperiksa.');
+        const deadline = active ? examDeadline(active, exam) : new Date(NaN);
+        if (!active || active.metadata?.recovery_submit_only === true ||
+            !Number.isFinite(deadline.getTime()) || await this.serverNow() >= deadline) {
+            throw new ForbiddenException('Soal hanya tersedia selama sesi pengerjaan aktif.');
         }
 
         const row = exam as {
@@ -812,9 +822,7 @@ export class ExamAttemptsService {
         );
     }
 
-    /** Accept a sealed local snapshot once, never through the editable autosave endpoints.
-     * The browser enforces freezing; offline content cannot be attested by server time.
-     */
+    /** Client freezing is not proof of when answers were written. Late uploads require staff recovery. */
     private async assertFrozenSubmission(
         user: AuthUser, attempt: any,
         snapshot: { startedAt: string; personalEndTime: string }, device: string, db: DbSession,
@@ -841,6 +849,12 @@ export class ExamAttemptsService {
             .select('start_time, end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
         if (error || !exam) throw new BadRequestException('Ujian belum dapat diverifikasi.');
         if (exam.start_time && now < new Date(exam.start_time)) throw new ForbiddenException('Ujian belum dimulai.');
+        const deadline = examDeadline(attempt, exam);
+        if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
+            throw new ForbiddenException({ code: 'RECOVERY_REQUIRED',
+                message: 'Waktu ujian telah berakhir. Jawaban lokal tetap disimpan; hubungi proktor untuk membuka pemulihan.' });
+        }
+
     }
 
     // ── Pengumpulan ──────────────────────────────────────────────────────────
@@ -854,6 +868,19 @@ export class ExamAttemptsService {
      * mengulang tanpa henti pada ujian yang sebenarnya sudah tersimpan.
      */
     async submit(
+        user: AuthUser, examId: string, studentAnswers: Record<string, string>,
+        assignmentData?: Record<string, unknown>, clientAttemptId?: string, deviceId?: string,
+        answerRevisions?: Record<string, number>,
+        frozenSubmission?: { startedAt: string; personalEndTime: string },
+    ) {
+        const result = await this.submitInternal(user, examId, studentAnswers, assignmentData,
+            clientAttemptId, deviceId, answerRevisions, frozenSubmission);
+        const { data: visibility, error } = await this.db.from('cbt_exams')
+            .select('show_results').eq('id', examId).maybeSingle();
+        return { ...result, score: !error && visibility?.show_results === true ? result.score : null };
+    }
+
+    private async submitInternal(
         user: AuthUser,
         examId: string,
         studentAnswers: Record<string, string>,

@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@/lib/errors';
-import { resolveStorageUrl } from '@/lib/safe-url';
+import { ensureAbsoluteUrl, resolveStorageUrl } from '@/lib/safe-url';
 
 /**
  * Helper untuk upload dan delete file
@@ -69,7 +69,7 @@ export async function uploadToHosting(
 
         return {
             success: true,
-            url: resolveStorageUrl(result.url || ''),
+            url: ensureAbsoluteUrl(resolveStorageUrl(result.url || '')),
             provider: result.provider,
         };
     } catch (err) {
@@ -83,7 +83,7 @@ export async function uploadToHosting(
  * @param fileUrl URL publik file yang akan dihapus
  */
 export async function deleteFromHosting(fileUrl: string): Promise<{ success: boolean; error?: string }> {
-    if (!fileUrl || !fileUrl.startsWith('http')) return { success: false };
+    if (!fileUrl || (!fileUrl.startsWith('http') && !fileUrl.startsWith('/api/storage/file/'))) return { success: false };
 
     try {
         const resp = await fetch(STORAGE_ENDPOINT, {

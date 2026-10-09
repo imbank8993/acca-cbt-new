@@ -104,10 +104,23 @@ export class StorageService {
 
   /** URL publik sebuah object key. */
   publicUrlForKey(key: string): string {
-    if (this.publicUrl && !this.publicUrl.includes('.r2.dev')) {
-      return `${this.publicUrl}/${key}`;
+    return `/api/storage/file/${key.split('/').map(encodeURIComponent).join('/')}`;
+  }
+
+  /** Rewrite legacy bucket URLs in JSON/HTML responses to the authenticated gateway. */
+  protectUrls(value: unknown): unknown {
+    if (typeof value === 'string') {
+      return value.replace(/https?:\/\/[^\s<>"']+/g, url => {
+        const key = this.objectKeyFromUrl(url.replace(/&amp;/g, '&'));
+        return key
+          ? `/api/storage/file/${key.split('/').map(encodeURIComponent).join('/')}` : url;
+      });
     }
-    return `/api/storage/file/${key}`;
+    if (Array.isArray(value)) return value.map(item => this.protectUrls(item));
+    if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.protectUrls(item)]));
+    }
+    return value;
   }
 
   /**

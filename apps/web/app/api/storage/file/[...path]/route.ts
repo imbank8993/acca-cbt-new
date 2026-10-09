@@ -1,3 +1,4 @@
+import { extractRequestToken } from '@/lib/app-jwt';
 import { NextRequest, NextResponse } from 'next/server';
 
 const NEST_API_URL = process.env.NEST_API_URL || 'http://127.0.0.1:3009/api';
@@ -20,15 +21,15 @@ export async function GET(
     return NextResponse.json({ error: 'Object key tidak ditentukan.' }, { status: 400 });
   }
 
-  const backendUrl = `${NEST_API_URL}/storage/file/${encodeURI(key)}`;
+  const backendUrl = `${NEST_API_URL}/storage/file/${key.split('/').map(encodeURIComponent).join('/')}`;
 
   try {
     const res = await fetch(backendUrl, {
       method: 'GET',
       headers: {
-        ...(process.env.INTERNAL_API_KEY ? { 'x-internal-key': process.env.INTERNAL_API_KEY } : {}),
+        ...(extractRequestToken(request) ? { Authorization: `Bearer ${extractRequestToken(request)}` } : {}),
       },
-      cache: 'force-cache',
+      cache: 'no-store',
     });
 
     if (!res.ok) {
@@ -38,12 +39,14 @@ export async function GET(
     const headers = new Headers();
     const contentType = res.headers.get('content-type');
     const contentLength = res.headers.get('content-length');
-    const cacheControl = res.headers.get('cache-control') || 'public, max-age=31536000, immutable';
+    const cacheControl = res.headers.get('cache-control') || 'private, no-store';
     const etag = res.headers.get('etag');
 
     if (contentType) headers.set('Content-Type', contentType);
     if (contentLength) headers.set('Content-Length', contentLength);
     headers.set('Cache-Control', cacheControl);
+    headers.set('Vary', 'Cookie, Authorization');
+    headers.set('X-Content-Type-Options', 'nosniff');
     if (etag) headers.set('ETag', etag);
 
     return new NextResponse(res.body, {

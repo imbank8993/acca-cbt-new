@@ -103,6 +103,8 @@ test('QA-02 / BUG-11: start, render, autosave, submit, review, and historical de
 
     // Fixture relasi menyimpan nested row secara eksplisit; service review tetap
     // menjalankan query dan perhitungan aslinya pada state hasil submit di atas.
+    db.tables.cbt_exams[0].end_time = '2026-09-19T23:59:00Z';
+    db.tables.cbt_exams[0].metadata.show_answer_keys = true;
     db.tables.cbt_exam_attempts[0].exams = structuredClone(db.tables.cbt_exams[0]);
     const reviewService = new ExamReviewService(db, { assertExamStaff: async () => {} });
     const beforeDelete = await reviewService.getReview(student, attemptId);

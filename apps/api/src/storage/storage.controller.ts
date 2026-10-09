@@ -23,8 +23,9 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nes
 import type { AuthUser } from '@acca-cbt/shared';
 import type { Request, Response } from 'express';
 import { AllowInternalKey } from '../auth/allow-internal-key.decorator';
-import { Public } from '../auth/public.decorator';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { StorageAuthGuard } from './storage-auth.guard';
+import { StorageAccessService } from './storage-access.service';
+import { fileKey, isPublicFile } from './storage-file-policy';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
 
@@ -57,11 +58,11 @@ function sanitizeFolder(raw: string, callerId: string): string {
 @ApiTags('storage')
 @ApiBearerAuth()
 @Controller('storage')
-@UseGuards(JwtAuthGuard)
+@UseGuards(StorageAuthGuard)
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
-  constructor(private readonly storage: StorageService) {}
+  constructor(private readonly storage: StorageService, private readonly access: StorageAccessService) {}
 
   @Get('status')
   @ApiOperation({ summary: 'Status konfigurasi penyimpanan R2' })
@@ -71,27 +72,19 @@ export class StorageController {
 
   /**
    * Sajikan berkas dari penyimpanan Cloudflare R2 secara streaming.
-   * Endpoint ini bersifat publik agar elemen <img>, <audio>, <video> pada lembar soal
-   * dan halaman ujian siswa dapat memuat berkas tanpa dependensi DNS eksternal atau auth header.
+   * Lampiran privat memerlukan identitas dan hak akses; hanya avatar/logo yang publik.
+   * Proxy web meneruskan cookie sesi sebagai token untuk elemen media.
    */
   @Get('file/*')
-  @Public()
-  @AllowInternalKey()
   @ApiOperation({ summary: 'Sajikan berkas dari penyimpanan R2 secara streaming' })
-  async serveFile(@Req() req: Request, @Res() res: Response) {
-    const prefix = '/storage/file/';
-    const idx = req.url.indexOf(prefix);
-    const rawKey = idx >= 0 ? req.url.slice(idx + prefix.length).split('?')[0] : '';
-    const key = decodeURIComponent(rawKey).replace(/^\/+/, '');
-
-    if (!key) {
-      throw new BadRequestException('Object key tidak valid.');
-    }
+  async serveFile(@Req() req: Request, @Res() res: Response, @CurrentUser() user: AuthUser) {
+    const key = fileKey(req.url);
 
     if (key.startsWith('lms-private/')) {
       throw new NotFoundException('Berkas tidak ditemukan.');
     }
 
+    if (!isPublicFile(key)) await this.access.assertRead(user, key);
     const obj = await this.storage.getObject(key);
     if (!obj) {
       throw new NotFoundException('Berkas tidak ditemukan.');
@@ -104,7 +97,9 @@ export class StorageController {
     if (obj.etag) {
       res.setHeader('ETag', obj.etag);
     }
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Cache-Control', isPublicFile(key) ? 'public, max-age=3600' : 'private, no-store');
+    res.setHeader('Vary', 'Cookie, Authorization');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     obj.stream.pipe(res);
   }
@@ -201,7 +196,7 @@ export class StorageController {
     @Body() body: { url?: string },
   ) {
     const fileUrl = body?.url || '';
-    if (!fileUrl || !/^https?:\/\//.test(fileUrl)) {
+    if (!fileUrl || (!/^https?:\/\//.test(fileUrl) && !fileUrl.startsWith('/api/storage/file/'))) {
       throw new BadRequestException('URL tidak valid.');
     }
 

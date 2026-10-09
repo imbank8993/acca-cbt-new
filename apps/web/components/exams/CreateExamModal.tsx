@@ -68,6 +68,7 @@ interface ExamFormData {
     randomizeQuestions: boolean;
     randomizeOptions: boolean;
     showResults: boolean;
+    showAnswerKeys: boolean;
     isSafeMode: boolean;
     maxViolations: number | null;
     bankId: string;
@@ -99,6 +100,7 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     randomizeQuestions: true,
     randomizeOptions: true,
     showResults: false,
+    showAnswerKeys: false,
     isSafeMode: true,
     maxViolations: 3,
     bankId: '',
@@ -196,6 +198,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 randomizeQuestions: exam.randomize_questions ?? true,
                 randomizeOptions: exam.randomize_options ?? true,
                 showResults: exam.show_results ?? false,
+                showAnswerKeys: exam.metadata?.show_answer_keys === true,
                 isSafeMode: exam.metadata?.is_safe_mode ?? true,
                 maxViolations: exam.metadata?.max_violations === null
                     ? null
@@ -507,6 +510,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 randomizeQuestions: formData.randomizeQuestions,
                 randomizeOptions: formData.randomizeOptions,
                 showResults: formData.showResults,
+                showAnswerKeys: formData.showAnswerKeys,
                 isSafeMode: formData.isSafeMode,
                 maxViolations: formData.maxViolations,
                 scoringType: formData.scoringTypes.join(','),
@@ -1191,6 +1195,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 </span>
                             </label>
                         </div>
+
+                        <label className="flex items-start gap-2 text-xs text-slate-700">
+                            <input type="checkbox" checked={formData.showAnswerKeys}
+                                onChange={(e) => setFormData(prev => ({ ...prev, showAnswerKeys: e.target.checked }))} />
+                            <span>Buka kunci jawaban dan pembahasan setelah jadwal ujian berakhir.
+                                Memerlukan Tampilkan Nilai aktif dan seluruh sesi pengerjaan berakhir.</span>
+                        </label>
 
                         {formData.isSafeMode && (
                             <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">

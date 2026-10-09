@@ -1,3 +1,7 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { StorageUrlsInterceptor } from './storage-urls.interceptor';
+import { StorageAuthGuard } from './storage-auth.guard';
+import { StorageAccessService } from './storage-access.service';
 import { Global, Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { StorageController } from './storage.controller';
@@ -20,7 +24,7 @@ import { StorageService } from './storage.service';
     }),
   ],
   controllers: [StorageController],
-  providers: [StorageService],
+  providers: [StorageService, StorageAccessService, StorageAuthGuard, { provide: APP_INTERCEPTOR, useClass: StorageUrlsInterceptor }],
   exports: [StorageService],
 })
 export class StorageModule {}

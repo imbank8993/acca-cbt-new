@@ -18,7 +18,7 @@ function database(extra = {}, errors = []) {
     const tables = {
         cbt_organization_members: [{ user_id: user.id, organization_id: 'school', is_active: true }],
         cbt_class_members: [], cbt_additional_class_members: [], cbt_exam_participants: [],
-        cbt_exam_targets: [], cbt_exams: [exam], cbt_bank_questions: [], cbt_exam_attempts: [],
+        cbt_exam_targets: [], cbt_exams: [exam], cbt_bank_questions: [], cbt_exam_attempts: [{ id: "active", user_id: user.id, exam_id: exam.id, status: "in_progress", personal_end_time: "2026-09-19T01:00:00Z" }],
         cbt_profiles: [], ...extra,
     };
     const queries = [];
@@ -166,7 +166,7 @@ for (const status of ['in_progress', 'submitted', 'auto_submitted']) {
 }
 test('SEC-04: matching completed submission stays idempotent', async () => {
     const db = database({ cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, exam_id: 'exam', status: 'submitted', total_score: 80 }] });
-    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), { score: 80, alreadySubmitted: true, savedAnswersOnly: false });
+    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), { score: null, alreadySubmitted: true, savedAnswersOnly: false });
 });
 
 test('SEC-14 / UX-04: results exclude active attempts and redact unreleased scores', async () => {

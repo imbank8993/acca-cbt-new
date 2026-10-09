@@ -13,7 +13,6 @@ import {
 } from '@/lib/api/proctor';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import { getSessionUser } from '@/lib/session';
-import { examTypeLabel } from '@/lib/exam-types';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -21,7 +20,6 @@ import { motion } from 'framer-motion';
 import {
 Activity,
 AlertCircle,
-ArrowRight,
 BookOpen,CheckCircle2,
 ChevronRight,
 ClipboardCheck,
@@ -129,18 +127,6 @@ export default function ProktorDashboard() {
 
     const statCards = [
         {
-            label: 'Total Anggota',
-            value: stats.totalMembers,
-            icon: Users,
-            gradient: 'from-[#3083FF] to-[#2563EB]',
-            iconBg: 'bg-[#3083FF]/10',
-            iconColor: 'text-[#3083FF]',
-            borderColor: 'border-[#3083FF]/40',
-            valueColor: 'text-[#3083FF]',
-            description: 'Guru & Siswa aktif',
-            onClick: openMembers,
-        },
-        {
             label: 'Bank Soal',
             value: stats.totalBanks,
             icon: BookOpen,
@@ -225,7 +211,7 @@ export default function ProktorDashboard() {
             {/* Back to Admin button removed per request */}
 
             {/* ── Stats Grid ── */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-x-2 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 mb-4">
                 {statCards.map((item, i) => (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -238,7 +224,7 @@ export default function ProktorDashboard() {
                         aria-label={`${item.label}: ${item.value} — ${item.description}`}
                         onClick={() => item.onClick?.()}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick?.(); } }}
-                        className="group relative bg-white rounded-lg px-4 py-4 border border-[#3083FF]/20 hover:border-[#3083FF] hover:shadow-lg hover:shadow-[#3083FF]/10 transition-all duration-300 cursor-pointer overflow-hidden text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2"
+                        className="group relative min-h-[112px] bg-white rounded-xl sm:rounded-lg px-3 py-3 sm:px-4 sm:py-4 border border-[#3083FF]/20 shadow-sm sm:shadow-none hover:border-[#3083FF] hover:shadow-lg hover:shadow-[#3083FF]/10 transition-all duration-300 cursor-pointer overflow-hidden text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2"
                     >
                         {/* Top accent line */}
                         <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${item.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
@@ -248,16 +234,16 @@ export default function ProktorDashboard() {
 
                         <div className="relative flex flex-col items-center">
                             {/* Icon dan Label berdampingan */}
-                            <div className="flex items-center gap-2 mb-3">
-                                <div className={`w-8 h-8 ${item.iconBg} rounded-lg flex items-center justify-center ${item.borderColor} group-hover:scale-110 transition-transform duration-300`}>
+                            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 ${item.iconBg} rounded-lg flex items-center justify-center ${item.borderColor} group-hover:scale-110 transition-transform duration-300`}>
                                     <item.icon size={16} className={item.iconColor} />
                                 </div>
-                                <p className="text-sm font-semibold text-slate-700">{item.label}</p>
+                                <p className="text-xs sm:text-sm font-semibold leading-tight text-slate-700">{item.label}</p>
                             </div>
                             {/* Angka dan Keterangan */}
                             <div className="space-y-0.5">
-                                <p className={`text-3xl font-extrabold ${item.valueColor} leading-none tabular-nums tracking-tight`}>{(item.value ?? 0).toLocaleString('id-ID')}</p>
-                                <p className="text-xs text-slate-400">{item.description}</p>
+                                <p className={`text-2xl sm:text-3xl font-extrabold ${item.valueColor} leading-none tabular-nums tracking-tight`}>{(item.value ?? 0).toLocaleString('id-ID')}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 leading-tight">{item.description}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -269,11 +255,14 @@ export default function ProktorDashboard() {
 
                 {/* ── Left: Daftar Ujian ── */}
                 <div className="md:col-span-3 bg-white rounded-lg border border-[#3083FF]/30 overflow-hidden shadow-sm">
-                    <div className="px-6 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent">
-                        <div>
-                            <h2 className="text-base font-bold text-slate-900">Daftar Ujian</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">{exams.length} total ujian</p>
-                        </div>
+                    <div className="px-5 py-4 border-b border-[#3083FF]/20 bg-gradient-to-r from-[#3083FF]/[.02] to-transparent flex items-center justify-between gap-2">
+                        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <ClipboardCheck size={16} className="text-[#3083FF] shrink-0" />
+                            <span>Daftar Ujian</span>
+                        </h2>
+                        <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-xs font-bold bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/20 tabular-nums">
+                            {exams.length}
+                        </span>
                     </div>
 
                     {exams.length > 0 ? (
@@ -294,69 +283,63 @@ export default function ProktorDashboard() {
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.05 }}
                                         key={exam.id}
-                                        className="group px-6 py-4 flex items-center gap-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                        className="group px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
                                         onClick={() => router.push('/dashboard/proktor/monitoring?exam=' + exam.id)}
                                     >
-                                        {/* Icon */}
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-all ${
-                                            isOngoing
-                                                ? 'bg-[#3083FF]/10 group-hover:bg-[#3083FF]/15'
-                                                : isPublished
-                                                ? 'bg-[#3083FF]/10 group-hover:bg-[#3083FF]/15'
-                                                : 'bg-slate-50 group-hover:bg-slate-100'
-                                        }`}>
-                                            <ClipboardCheck size={18} className={
-                                                isOngoing ? 'text-[#3083FF]'
-                                                : isPublished ? 'text-[#3083FF]' : 'text-slate-400'
-                                            } />
-                                        </div>
-
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-[#3083FF] transition-colors">{exam.title}</p>
-                                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                                <span className="text-[11px] font-medium text-slate-600 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md">
-                                                    <Clock size={12} />
-                                                    {exam.duration_minutes} mnt
-                                                </span>
-                                                {exam.exam_type && exam.exam_type !== 'daily' && (
-                                                    <span className="text-[10px] text-[#3083FF] font-bold bg-[#3083FF]/10 px-2 py-1 rounded-md">
-                                                        {examTypeLabel(exam.exam_type)}
-                                                    </span>
+                                            <p className="text-sm font-semibold leading-snug text-slate-800 whitespace-normal break-words group-hover:text-[#3083FF] transition-colors">{exam.title}</p>
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
+                                                {exam.creatorName && exam.creatorName !== 'Unknown' && (
+                                                    <span className="font-medium text-slate-600">{exam.creatorName}</span>
+                                                )}
+                                                {exam.creatorName && exam.creatorName !== 'Unknown' && exam.start_time && (
+                                                    <span className="text-slate-300">|</span>
                                                 )}
                                                 {exam.start_time && (
-                                                    <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md whitespace-nowrap">
-                                                        {new Date(exam.start_time).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} • {new Date(exam.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
+                                                    <>
+                                                        <span>
+                                                            {new Date(exam.start_time).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                        <span className="text-slate-300">|</span>
+                                                        <span>
+                                                            {new Date(exam.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                            {exam.duration_minutes ? ` (${exam.duration_minutes} mnt)` : ''}
+                                                        </span>
+                                                    </>
+                                                )}
+                                                {!exam.start_time && exam.duration_minutes && (
+                                                    <>
+                                                        {exam.creatorName && exam.creatorName !== 'Unknown' && (
+                                                            <span className="text-slate-300">|</span>
+                                                        )}
+                                                        <span>{exam.duration_minutes} mnt</span>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* Status & Creator */}
-                                        <div className="shrink-0 flex flex-col items-end justify-center">
-                                            <div className="flex items-center gap-3">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                                                    isOngoing
-                                                        ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
-                                                        : isDraft
-                                                        ? 'bg-red-50 text-red-600 border-red-200'
-                                                        : isFinished
-                                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/20'
-                                                }`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                                        isOngoing ? 'bg-[#3083FF] animate-pulse shadow-lg shadow-[#3083FF]/50'
-                                                        : isDraft ? 'bg-red-500'
-                                                        : isFinished ? 'bg-emerald-500' : 'bg-[#3083FF]'
-                                                    }`} />
-                                                    {isOngoing ? 'Aktif' : isDraft ? 'Draft' : isFinished ? 'Selesai' : 'Terjadwal'}
+                                        {/* Status */}
+                                        <div className="shrink-0 flex items-center self-start sm:self-center">
+                                            {isOngoing ? (
+                                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3083FF]">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#3083FF] animate-pulse" />
+                                                    Aktif
                                                 </span>
-                                                <ArrowRight size={14} className="text-slate-300 group-hover:text-[#3083FF] group-hover:translate-x-0.5 transition-all" />
-                                            </div>
-                                            
-                                            {exam.creatorName && exam.creatorName !== 'Unknown' && (
-                                                <span className="text-[10px] text-slate-400 mt-1.5 mr-6 pr-1">
-                                                    oleh: <span className="font-semibold text-slate-600">{exam.creatorName}</span>
+                                            ) : isDraft ? (
+                                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                                    Draft
+                                                </span>
+                                            ) : isFinished ? (
+                                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3083FF]" title="Selesai">
+                                                    <CheckCircle2 size={15} className="text-[#3083FF]" />
+                                                    <span className="hidden sm:inline">Selesai</span>
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3083FF]">
+                                                    <Clock size={13} className="text-[#3083FF]" />
+                                                    Terjadwal
                                                 </span>
                                             )}
                                         </div>

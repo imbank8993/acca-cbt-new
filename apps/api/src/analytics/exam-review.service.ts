@@ -1,3 +1,4 @@
+import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -95,6 +96,8 @@ export class ExamReviewService {
         if (!record.exams?.show_results) {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');
         }
+
+        if (record.user_id === user.id) await assertAnswerKeysReleased(this.db, record.exams);
 
         // Soal diambil dari bank milik ujian — sumber yang sama dengan yang
         // dibaca layar ujian. Soal yang TIDAK dijawab ikut terbawa, sehingga

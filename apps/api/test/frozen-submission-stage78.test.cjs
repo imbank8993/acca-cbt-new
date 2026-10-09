@@ -25,18 +25,12 @@ function fixture(status = 'in_progress') {
 const submit = (service, answers = { q: 'written offline' }, ctx = context, student = user, fromDevice = device) =>
     service.submit(student, 'exam', answers, undefined, 'attempt', fromDevice, { q: 1 }, ctx);
 
-test('offline answers submit after expiry without a proctor, whether still open or auto-closed', async () => {
+test('expired frozen payloads require proctor recovery and cannot change saved answers', async () => {
     for (const status of ['in_progress', 'auto_submitted']) {
         const { db, service } = fixture(status);
-        const result = await submit(service);
-        assert.equal(result.savedAnswersOnly, false);
-        assert.equal(result.gradingPending, true);
-        assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
-        assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
-        assert.ok(db.tables.cbt_exam_attempts[0].metadata.frozen_submission_received_at);
-        const retry = await submit(service, { q: 'must never replace' });
-        assert.equal(retry.alreadySubmitted, true);
-        assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
+        await assert.rejects(submit(service), error => error.getStatus() === 403);
+        assert.equal(db.tables.cbt_answers.length, 0);
+        assert.equal(db.tables.cbt_exam_attempts[0].status, status);
     }
 });
 
@@ -75,13 +69,13 @@ test('proctor recovery permits only a frozen submission and keeps the original d
     assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
 });
 
-test('monitoring expiry preserves eligibility for exactly one offline submission', async () => {
+test('monitoring expiry requires staff approval for offline submission', async () => {
     const { db, service } = fixture();
     const monitor = new ExamMonitoringService(db, {}, {}, grading, {});
     await monitor.finalizeExpired('exam');
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.closed_by_expiry, true);
-    await submit(service);
-    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+    await assert.rejects(submit(service), error => error.getStatus() === 403);
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
 });
 
 test('frozen snapshot survives reload and refuses later local edits or changed retry payloads', async () => {
@@ -113,9 +107,11 @@ test('expired offline session can reload only through the explicit submit-only o
     assert.equal(validateExamRecoverySession(session, { ...expected, deviceId: 'other', allowExpiredForSubmission: true }).valid, false);
 });
 
-test('browser sends the frozen context and retries after a lost response without proctor recovery', async () => {
+test('browser sends the frozen context and retries after a lost response after proctor recovery', async () => {
     const { submitExamAction } = require('../../web/lib/api/students.ts');
     const { db, service } = fixture('auto_submitted');
+    const proctor = new ProctoringService(db, { assertExamStaff: async () => {} }, grading);
+    await proctor.resetAttempt({ id: 'proctor' }, 'attempt', 'Verified network failure', 15);
     const original = { fetch: global.fetch, window: global.window, localStorage: global.localStorage };
     global.window = {};
     global.localStorage = { getItem: () => device, setItem: () => {} };

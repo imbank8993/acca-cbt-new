@@ -319,7 +319,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         isCollapsed ? 'collapsed' : ''
                     }`}
                 >
-                    <div className="px-3 sm:px-4 lg:px-6 py-6 print:p-0!">
+                    <div className="px-3 sm:px-4 lg:px-6 py-3 sm:py-6 print:p-0!">
                         {children}
                     </div>
                 </main>
@@ -457,7 +457,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }
 
                     .dashboard-main {
-                        padding-top: calc(var(--app-header-h, 56px) + env(safe-area-inset-top) + 12px) !important;
+                        padding-top: calc(var(--app-header-h, 56px) + env(safe-area-inset-top) + 4px) !important;
                         padding-bottom: 12px !important;
                         min-height: calc(100vh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;
                         min-height: calc(100dvh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;

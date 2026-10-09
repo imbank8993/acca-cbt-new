@@ -134,6 +134,7 @@ export interface OrganizationExam {
     scoring_type?: string | null;
     creatorName?: string | null;
     metadata?: {
+        show_answer_keys?: boolean;
         assignment_description?: string;
         allow_file_upload?: boolean;
         allowed_file_types?: string[];
@@ -501,6 +502,7 @@ export interface ExamInput {
     randomizeQuestions?: boolean;
     randomizeOptions?: boolean;
     showResults?: boolean;
+    showAnswerKeys?: boolean;
     isSafeMode?: boolean;
     maxViolations?: number | null;
     scoringType?: string;

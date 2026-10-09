@@ -1,3 +1,4 @@
+import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import {
     BadRequestException,
     ConflictException,
@@ -335,7 +336,7 @@ export class StudentsService {
             .select(
                 `id, total_score, status, needs_manual_grading, user_id, started_at, finished_at,
                  personal_end_time, score_irt, metadata,
-                 exams:cbt_exams(id, title, show_results, question_bank_id, scoring_type)`,
+                 exams:cbt_exams(id, title, show_results, question_bank_id, scoring_type, end_time, duration_minutes, metadata)`,
             )
             .eq('id', attemptId)
             .maybeSingle();
@@ -352,6 +353,8 @@ export class StudentsService {
         if (row.exams?.show_results !== true) {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');
         }
+
+        await assertAnswerKeysReleased(this.db, row.exams);
 
         const { data: answers, error } = await this.db
             .from('cbt_answers')

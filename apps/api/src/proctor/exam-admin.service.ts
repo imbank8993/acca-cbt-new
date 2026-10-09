@@ -598,6 +598,7 @@ export class ExamAdminService {
 
         return {
             ...existing,
+            show_answer_keys: dto.showAnswerKeys ?? existing.show_answer_keys ?? false,
             is_safe_mode: dto.isSafeMode ?? existing.is_safe_mode ?? true,
             // `null` adalah pilihan eksplisit "tanpa batas". Ujian lama yang
             // belum memiliki bidang ini tetap memakai perilaku lama: 3.

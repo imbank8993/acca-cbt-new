@@ -441,6 +441,38 @@ export default function ExamPage() {
                 const examData = detail.exam;
                 setExam(examData);
 
+                // Start or resume attempt (bound to this device — see device lock)
+                const startRequestedAt = performance.now();
+                const result = await startExamAttemptAction(examId, durableDeviceId);
+                clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
+                if (!result.success) {
+                    if (result.retryable && await restoreOfflineSession(authUser.id)) return;
+                    const pendingSession = await readExamRecoverySession(examId).catch(() => null);
+                    if (result.expiredAttemptId && pendingSession?.attemptId === result.expiredAttemptId &&
+                        pendingSession.deadlineAt <= Date.now() && await restoreOfflineSession(authUser.id)) return;
+                    // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
+                    // atau perangkat berbeda) mengalahkan paket lama. Snapshot
+                    // jawaban tetap dipertahankan untuk pemulihan proktor.
+                    await removeExamRecoverySession(examId).catch(() => undefined);
+                    await removeExamOfflineShell(examId).catch(() => undefined);
+                    const expiredId = 'expiredAttemptId' in result ? result.expiredAttemptId : undefined;
+                    let localCount = 0;
+                    if (expiredId) {
+                        const cached = await readExamSnapshot(expiredId);
+                        localCount = Object.keys(cached?.answers || {}).length;
+                    }
+                    setAccessDenied(true);
+                    setAccessError(
+                        (result.error || 'Tidak bisa mengakses ujian ini.') +
+                        (expiredId
+                            ? ` ${localCount} jawaban tersimpan di perangkat ini. ` +
+                              'Hubungi proktor untuk membuka pemulihan; jangan hapus data browser atau berpindah perangkat.'
+                            : ''),
+                    );
+                    setLoading(false);
+                    return;
+                }
+
                 // Get questions from the bank — WAJIB lewat server action.
                 // Query langsung dari browser (anon key) membuat RLS bisa
                 // memblokir embed opsi secara diam-diam → "soal tanpa opsi".
@@ -448,7 +480,9 @@ export default function ExamPage() {
                 // Endpoint backend menyatukan `question_bank_id` dan seluruh
                 // `cbt_exam_question_sources`; browser tidak boleh menebak
                 // sumber hanya dari kolom bank langsung.
-                const qRes = await getExamQuestionsAction(examId);
+                const qRes = result.attempt.metadata?.recovery_submit_only === true
+                    ? { success: true as const, questions: [] as StudentExamQuestion[] }
+                    : await getExamQuestionsAction(examId);
                 if (!qRes.success) {
                     if (qRes.retryable && await restoreOfflineSession(authUser.id)) return;
                     console.error('[ExamPage] Failed to load questions:', qRes.error);
@@ -478,41 +512,9 @@ export default function ExamPage() {
                     }));
                     loadedQuestions = deduplicatedData;
                     setQuestions(deduplicatedData);
-                } else if (examData.exam_type !== 'assignment') {
+                } else if (examData.exam_type !== 'assignment' && result.attempt.metadata?.recovery_submit_only !== true) {
                     setAccessDenied(true);
                     setAccessError('Bank soal belum tersedia untuk ujian ini.');
-                    setLoading(false);
-                    return;
-                }
-
-                // Start or resume attempt (bound to this device — see device lock)
-                const startRequestedAt = performance.now();
-                const result = await startExamAttemptAction(examId, durableDeviceId);
-                clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
-                if (!result.success) {
-                    if (result.retryable && await restoreOfflineSession(authUser.id)) return;
-                    const pendingSession = await readExamRecoverySession(examId).catch(() => null);
-                    if (result.expiredAttemptId && pendingSession?.attemptId === result.expiredAttemptId &&
-                        pendingSession.deadlineAt <= Date.now() && await restoreOfflineSession(authUser.id)) return;
-                    // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
-                    // atau perangkat berbeda) mengalahkan paket lama. Snapshot
-                    // jawaban tetap dipertahankan untuk pemulihan proktor.
-                    await removeExamRecoverySession(examId).catch(() => undefined);
-                    await removeExamOfflineShell(examId).catch(() => undefined);
-                    const expiredId = 'expiredAttemptId' in result ? result.expiredAttemptId : undefined;
-                    let localCount = 0;
-                    if (expiredId) {
-                        const cached = await readExamSnapshot(expiredId);
-                        localCount = Object.keys(cached?.answers || {}).length;
-                    }
-                    setAccessDenied(true);
-                    setAccessError(
-                        (result.error || 'Tidak bisa mengakses ujian ini.') +
-                        (expiredId
-                            ? ` ${localCount} jawaban tersimpan di perangkat ini. ` +
-                              'Hubungi proktor untuk membuka pemulihan; jangan hapus data browser atau berpindah perangkat.'
-                            : ''),
-                    );
                     setLoading(false);
                     return;
                 }

@@ -69,6 +69,10 @@ class ExamFieldsDto {
     @IsBoolean()
     showResults?: boolean;
 
+    @IsOptional()
+    @IsBoolean()
+    showAnswerKeys?: boolean;
+
     @ApiPropertyOptional({ default: true })
     @IsOptional()
     @IsBoolean()
