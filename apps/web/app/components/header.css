@@ -592,6 +592,29 @@ html.dark .header-collapse-toggle:hover {
   overflow: hidden;
 }
 
+.user-menu-profile-avatar {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  max-width: 40px !important;
+  max-height: 40px !important;
+  flex: 0 0 40px !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  flex-shrink: 0 !important;
+}
+
+.user-menu-profile-avatar img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+
 .user-menu-info {
   padding: 20px;
   border-bottom: 1px solid var(--header-border);
@@ -998,6 +1021,7 @@ html.dark .user_menu_nip {
     margin: 0 !important;
   }
 
+  .header .user-menu-trigger .user-avatar-small,
   .header .user-avatar-small {
     width: 32px !important;
     height: 32px !important;
@@ -1010,6 +1034,32 @@ html.dark .user_menu_nip {
     border: 1.5px solid #E0ECFF !important;
     background: #E0ECFF !important;
     box-shadow: 0 1px 3px rgba(17, 46, 89, 0.06) !important;
+  }
+
+  /* Pastikan foto profil di dalam dropdown menu selalu 40x40 bulat sempurna (tidak gepeng/melebar) */
+  .header .user-menu-dropdown .user-menu-profile-avatar,
+  .user-menu-dropdown .user-menu-profile-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    max-width: 40px !important;
+    max-height: 40px !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 40px !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+  }
+
+  .header .user-menu-dropdown .user-menu-profile-avatar img,
+  .user-menu-dropdown .user-menu-profile-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: 1 / 1 !important;
+    object-fit: cover !important;
+    border-radius: 50% !important;
+    display: block !important;
   }
 
   .dark .header .user-avatar-small,

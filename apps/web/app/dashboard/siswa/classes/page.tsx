@@ -1,26 +1,39 @@
 "use client";
-import { getErrorMessage } from '@/lib/errors';
+
 import { useToast } from '@/app/components/ui/Toast';
-import { joinClassAction,leaveClassAction,listStudentClasses,type StudentClass } from '@/lib/api/students';
+import { joinClassAction, leaveClassAction, listStudentClasses, type StudentClass } from '@/lib/api/students';
+import { getErrorMessage } from '@/lib/errors';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { AnimatePresence,motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-AlertCircle,
-Check,
-GraduationCap,
-KeyRound,
-Loader2,
-LogOut,
-School
+    AlertCircle,
+    Check,
+    ChevronRight,
+    GraduationCap,
+    KeyRound,
+    Loader2,
+    LogOut,
+    Plus,
+    School,
+    X,
 } from 'lucide-react';
-import React,{ useCallback,useEffect,useState } from 'react';
+import Link from 'next/link';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+
+type FilterTab = 'all' | 'reguler' | 'tambahan';
 
 export default function SiswaClassesPage() {
     const [classes, setClasses] = useMemoryState<StudentClass[]>('siswa_classes_classes', []);
     const [isLoading, setIsLoading] = useMemoryState('siswa_classes_isLoading', true);
+    const [selectedTab, setSelectedTab] = useState<FilterTab>('all');
+
+    // State Gabung Kelas Modal
+    const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
     const [joinCode, setJoinCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // State Keluar Kelas
     const [userId, setUserId] = useState<string | null>(null);
     const [leavingClassId, setLeavingClassId] = useState<string | null>(null);
     const [classToLeave, setClassToLeave] = useState<{ id: string; name: string } | null>(null);
@@ -57,6 +70,7 @@ export default function SiswaClassesPage() {
             if (result.success) {
                 toast.success('Berhasil Bergabung', `Anda telah masuk ke kelas: ${result.className}`);
                 setJoinCode('');
+                setIsJoinModalOpen(false);
                 void loadData();
             } else {
                 toast.error('Gagal Bergabung', result.error || 'Kode kelas tidak valid.');
@@ -87,150 +101,293 @@ export default function SiswaClassesPage() {
         }
     };
 
+    // Filter & hitung kelas
+    const counts = useMemo(() => {
+        const reguler = classes.filter(c => c.type === 'reguler').length;
+        const tambahan = classes.filter(c => c.type !== 'reguler').length;
+        return { total: classes.length, reguler, tambahan };
+    }, [classes]);
+
+    const filteredClasses = useMemo(() => {
+        if (selectedTab === 'reguler') return classes.filter(c => c.type === 'reguler');
+        if (selectedTab === 'tambahan') return classes.filter(c => c.type !== 'reguler');
+        return classes;
+    }, [classes, selectedTab]);
+
     return (
-        <div className="max-w-7xl mx-auto pb-24 space-y-6">
+        <div className="max-w-7xl mx-auto pb-24 space-y-5 px-3 sm:px-6">
 
-            {/* ── Gabung Kelas Baru (Compact & Sleek) ── */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
-                <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center shrink-0 border border-blue-100/60 dark:border-[#3083FF]/20 shadow-2xs">
-                        <KeyRound size={18} />
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">
-                            Gabung Kelas Tambahan
-                        </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            Punya kode akses dari Guru atau Proktor? Masukkan di sini untuk mendaftar.
-                        </p>
-                    </div>
-                </div>
-
-                <form onSubmit={handleJoinClass} className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto shrink-0">
-                    <div className="relative w-full sm:w-64">
-                        <input
-                            required
-                            type="text"
-                            placeholder="KODE KELAS (MISAL: X9A)"
-                            value={joinCode}
-                            onChange={e => setJoinCode(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 rounded-xl py-2 px-3.5 focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono tracking-wider uppercase transition-all text-xs"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={isSubmitting || !joinCode.trim()}
-                        className="w-full sm:w-auto bg-[#3083FF] hover:bg-[#2563EB] text-white font-semibold px-4 py-2 rounded-xl shadow-xs shadow-[#3083FF]/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 text-xs shrink-0"
-                    >
-                        {isSubmitting ? (
-                            <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                            <Check size={14} />
-                        )}
-                        <span>Bergabung</span>
-                    </button>
-                </form>
-            </div>
-
-            {/* ── Daftar Kelas Aktif ── */}
-            <div className="space-y-4 text-left">
-                <div className="flex items-center justify-between px-0.5">
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                            Kelas Terdaftar
-                        </h2>
-                        {classes.length > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3083FF]/10 text-[#3083FF]">
-                                {classes.length}
+            {/* ── 1. Compact & Clean Header Bar ── */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <div>
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
+                            Kelas Saya
+                        </h1>
+                        {counts.total > 0 && (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#3083FF]/10 text-[#3083FF] dark:bg-[#3083FF]/20">
+                                {counts.total} Kelas
                             </span>
                         )}
                     </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                        Daftar kelas utama dan bimbingan tambahan yang Anda ikuti
+                    </p>
                 </div>
 
-                {isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                        <Loader2 size={24} className="animate-spin text-[#3083FF]" />
-                        <p className="text-slate-400 font-semibold text-xs tracking-wide uppercase">Memuat kelas Anda...</p>
-                    </div>
-                ) : classes.length === 0 ? (
-                    /* ── Empty State ── */
-                    <div className="py-16 px-6 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs max-w-md mx-auto w-full flex flex-col items-center">
-                        <div className="w-12 h-12 bg-blue-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3.5 text-[#3083FF]">
-                            <GraduationCap size={24} />
-                        </div>
-                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">
-                            Belum Terdaftar di Kelas
-                        </h3>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs font-normal max-w-xs leading-relaxed">
-                            Anda belum terdaftar di kelas manapun. Masukkan kode akses kelas tambahan yang diberikan guru atau hubungi proktor Anda.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                        {classes.map((cls, index) => {
-                            const isReguler = cls.type === 'reguler';
+                {/* Quick Action Button: Gabung Kelas */}
+                <button
+                    type="button"
+                    onClick={() => setIsJoinModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#3083FF] hover:bg-[#2563EB] text-white text-xs font-semibold shadow-xs shadow-[#3083FF]/20 active:scale-95 transition-all self-stretch sm:self-auto shrink-0"
+                >
+                    <Plus size={15} />
+                    <span>Gabung Kelas</span>
+                </button>
+            </div>
 
-                            return (
-                                <motion.div
-                                    key={cls.id || index}
-                                    layout
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.2, delay: index * 0.03 }}
-                                    className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-[#3083FF]/40 dark:hover:border-[#3083FF]/50 rounded-2xl p-5 hover:shadow-md transition-all duration-200 relative overflow-hidden flex flex-col justify-between"
-                                >
-                                    {/* Subtle Top Accent */}
-                                    <div
-                                        className={`absolute top-0 left-0 right-0 h-1 ${
-                                            isReguler ? 'bg-[#3083FF]' : 'bg-indigo-500'
-                                        }`}
-                                    />
+            {/* ── 2. Filter Pills (Horizontal Tabs) ── */}
+            {classes.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-xs font-semibold">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedTab('all')}
+                        className={`px-3.5 py-1.5 rounded-full transition-all shrink-0 ${
+                            selectedTab === 'all'
+                                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        Semua ({counts.total})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedTab('reguler')}
+                        className={`px-3.5 py-1.5 rounded-full transition-all shrink-0 ${
+                            selectedTab === 'reguler'
+                                ? 'bg-[#3083FF] text-white shadow-xs'
+                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        Kelas Utama ({counts.reguler})
+                    </button>
+                    {counts.tambahan > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTab('tambahan')}
+                            className={`px-3.5 py-1.5 rounded-full transition-all shrink-0 ${
+                                selectedTab === 'tambahan'
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                        >
+                            Tambahan ({counts.tambahan})
+                        </button>
+                    )}
+                </div>
+            )}
 
-                                    <div>
-                                        {/* Meta Header */}
-                                        <div className="flex justify-between items-center mb-3 pt-0.5">
+            {/* ── 3. Daftar Kartu Kelas ── */}
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                    <Loader2 size={24} className="animate-spin text-[#3083FF]" />
+                    <p className="text-slate-400 font-semibold text-xs tracking-wide uppercase">Memuat kelas Anda...</p>
+                </div>
+            ) : filteredClasses.length === 0 ? (
+                /* ── Empty State ── */
+                <div className="py-16 px-6 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs max-w-md mx-auto w-full flex flex-col items-center">
+                    <div className="w-12 h-12 bg-blue-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3.5 text-[#3083FF]">
+                        <GraduationCap size={24} />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">
+                        {classes.length === 0 ? 'Belum Terdaftar di Kelas' : 'Tidak Ada Kelas di Kategori Ini'}
+                    </h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-normal max-w-xs leading-relaxed mb-4">
+                        {classes.length === 0
+                            ? 'Anda belum terdaftar di kelas manapun. Masukkan kode akses kelas tambahan yang diberikan guru atau hubungi proktor Anda.'
+                            : 'Coba pilih tab filter lainnya untuk melihat daftar kelas Anda.'}
+                    </p>
+                    {classes.length === 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setIsJoinModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3083FF] hover:bg-[#2563EB] text-white text-xs font-semibold shadow-xs transition-all active:scale-95"
+                        >
+                            <KeyRound size={14} />
+                            <span>Masukkan Kode Kelas</span>
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+                    {filteredClasses.map((cls, index) => {
+                        const isReguler = cls.type === 'reguler';
+
+                        return (
+                            <motion.div
+                                key={cls.id || index}
+                                layout
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.18, delay: index * 0.02 }}
+                                className="group bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-[#3083FF]/40 dark:hover:border-[#3083FF]/50 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition-all duration-200 relative overflow-hidden flex flex-col justify-between"
+                            >
+                                {/* Top Line Accent */}
+                                <div
+                                    className={`absolute top-0 left-0 right-0 h-1 ${
+                                        isReguler ? 'bg-[#3083FF]' : 'bg-indigo-500'
+                                    }`}
+                                />
+
+                                <div className="space-y-2">
+                                    {/* ── Metadata Row ── */}
+                                    <div className="flex justify-between items-center pt-0.5">
+                                        <div className="flex items-center gap-1.5">
                                             <span
-                                                className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border tracking-wide uppercase ${
+                                                className={`text-[10px] font-bold tracking-wider uppercase ${
                                                     isReguler
-                                                        ? 'bg-blue-50 text-[#3083FF] border-blue-200/60 dark:bg-[#3083FF]/10 dark:text-[#3083FF] dark:border-[#3083FF]/20'
-                                                        : 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/40'
+                                                        ? 'text-[#3083FF] dark:text-blue-400'
+                                                        : 'text-indigo-600 dark:text-indigo-400'
                                                 }`}
                                             >
-                                                {isReguler ? `Kelas Utama • ${cls.program || 'REGULER'}` : 'Kelas Tambahan'}
+                                                {isReguler ? 'Utama' : 'Tambahan'}
                                             </span>
-
-                                            <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-[#3083FF] transition-colors">
-                                                <School size={15} />
-                                            </div>
+                                            {cls.program && (
+                                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                                                    • {cls.program}
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {/* Class Name */}
-                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#3083FF] dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug">
-                                            {cls.name}
-                                        </h3>
-                                    </div>
-
-                                    {/* Action Footer for Non-Reguler */}
-                                    {!isReguler && (
-                                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                        {/* Action Icon: Tombol Keluar untuk Kelas Tambahan, Icon Gedung untuk Reguler */}
+                                        {!isReguler ? (
                                             <button
                                                 type="button"
                                                 onClick={() => setClassToLeave({ id: cls.id, name: cls.name })}
-                                                className="w-full py-1.5 px-3 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-98"
+                                                title="Keluar dari kelas ini"
+                                                className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition-colors active:scale-90"
                                             >
-                                                <LogOut size={12} />
-                                                <span>Keluar Kelas</span>
+                                                <LogOut size={13} />
                                             </button>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            );
-                        })}
+                                        ) : (
+                                            <div className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-[#3083FF] transition-colors">
+                                                <School size={14} />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* ── Nama Kelas (Fokus Utama, Tanpa Wali Kelas) ── */}
+                                    <div className="pt-0.5">
+                                        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-[#3083FF] dark:group-hover:text-blue-400 transition-colors leading-snug line-clamp-2">
+                                            {cls.name}
+                                        </h2>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                                            {isReguler ? 'Program Reguler Akademik' : 'Bimbingan & Pengayaan Tambahan'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* ── Footer Status & Navigasi ── */}
+                                <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                    <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                                        Tersedia di Jadwal Ujian
+                                    </span>
+                                    <Link
+                                        href="/dashboard/siswa/schedule"
+                                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#3083FF] hover:text-[#2563EB] group-hover:translate-x-0.5 transition-transform"
+                                    >
+                                        <span>Jadwal</span>
+                                        <ChevronRight size={14} />
+                                    </Link>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── 4. Modal Gabung Kelas (Clean & Focused) ── */}
+            <AnimatePresence>
+                {isJoinModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-xs">
+                        <motion.div
+                            initial={{ opacity: 0, y: 40 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 40 }}
+                            transition={{ duration: 0.2 }}
+                            className="bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-left"
+                        >
+                            {/* Mobile Drag Indicator */}
+                            <div className="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto sm:hidden" />
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center shrink-0 border border-blue-100/60 dark:border-[#3083FF]/20">
+                                        <KeyRound size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                            Gabung Kelas Tambahan
+                                        </h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Masukkan kode akses dari Guru
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsJoinModalOpen(false);
+                                        setJoinCode('');
+                                    }}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleJoinClass} className="space-y-3.5 pt-1">
+                                <input
+                                    required
+                                    autoFocus
+                                    type="text"
+                                    placeholder="CONTOH: X9A"
+                                    value={joinCode}
+                                    onChange={e => setJoinCode(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 rounded-xl py-2.5 px-3.5 focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono tracking-wider uppercase transition-all text-xs"
+                                />
+
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsJoinModalOpen(false);
+                                            setJoinCode('');
+                                        }}
+                                        className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting || !joinCode.trim()}
+                                        className="flex-1 bg-[#3083FF] hover:bg-[#2563EB] text-white font-semibold py-2 px-4 rounded-xl shadow-xs shadow-[#3083FF]/20 transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 text-xs"
+                                    >
+                                        {isSubmitting ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <Check size={14} />
+                                        )}
+                                        <span>Bergabung</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
                     </div>
                 )}
-            </div>
+            </AnimatePresence>
 
-            {/* ── Modal Konfirmasi Keluar Kelas (Elegan & Tanpa Alert Bawaan) ── */}
+            {/* ── 5. Modal Konfirmasi Keluar Kelas ── */}
             <AnimatePresence>
                 {classToLeave && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-xs">

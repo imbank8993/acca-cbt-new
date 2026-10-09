@@ -497,14 +497,14 @@ const ExamsPage = () => {
                         <div 
                             key={type.id} 
                             onClick={() => setTypeFilter(type.id)}
-                            className={`bg-white rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 ${
+                            className={`bg-white rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center min-h-[84px] sm:min-h-[100px] text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 ${
                                 isSelected 
                                 ? 'border-2 border-[#3083FF] shadow-md ring-4 ring-[#3083FF]/10' 
                                 : 'border border-[#3083FF]/20 shadow-sm hover:shadow-md'
                             }`}
                         >
                             <h3 className={`font-bold text-[10px] xl:text-[11px] uppercase tracking-wider mb-1 ${isSelected ? 'text-[#3083FF]' : 'text-slate-500'}`}>{type.label}</h3>
-                            <span className="text-3xl font-black text-[#3083FF] leading-none mb-2.5">{total}</span>
+                            <span className="text-2xl sm:text-3xl font-black text-[#3083FF] leading-none mb-1.5 sm:mb-2.5">{total}</span>
                             
                         </div>
                     );

@@ -155,13 +155,13 @@ function MonitoringContent() {
                         <ArrowLeft size={18} className="text-slate-600 dark:text-slate-300" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                             <span>Monitoring Pengawasan Ujian</span>
                             <span className="text-xs bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5">
                                 <Radio size={12} className="animate-pulse" /> Live
                             </span>
                         </h1>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
                             Pantau kehadiran, progres pengerjaan, dan insiden kecurangan peserta
                         </p>
                     </div>
@@ -259,7 +259,7 @@ function MonitoringContent() {
                 {/* Kolom Tabel (2 Kolom di Desktop) */}
                 <div className="lg:col-span-2 space-y-4">
                     {/* Search & Filter Bar */}
-                    <div className="flex flex-col sm:flex-row gap-3 bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 bg-white dark:bg-slate-900/50 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
                         <div className="relative flex-1">
                             <Search size={16} className="absolute left-3 top-3 text-slate-400 pointer-events-none" />
                             <input
@@ -267,7 +267,7 @@ function MonitoringContent() {
                                 placeholder="Cari nama siswa..."
                                 value={searchName}
                                 onChange={(e) => setSearchName(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900 dark:text-white"
+                                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900 dark:text-white"
                             />
                             {searchName && (
                                 <button
@@ -300,15 +300,15 @@ function MonitoringContent() {
                     {/* Tabel Peserta */}
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                                <thead>
+                            <table className="w-full table-fixed text-left text-xs sm:table-auto">
+                                <thead className="hidden sm:table-header-group">
                                     <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                                        <th className="py-3 px-4">Nama Siswa</th>
-                                        <th className="py-3 px-3">Kelas</th>
+                                        <th className="py-3 px-3 sm:px-4">Nama Siswa</th>
+                                        <th className="hidden py-3 px-3 sm:table-cell">Kelas</th>
                                         <th className="py-3 px-3">Status</th>
-                                        <th className="py-3 px-3">Waktu Mulai</th>
-                                        <th className="py-3 px-3">Pelanggaran</th>
-                                        <th className="py-3 px-4 text-right">Aksi</th>
+                                        <th className="hidden py-3 px-3 sm:table-cell">Waktu Mulai</th>
+                                        <th className="hidden py-3 px-3 sm:table-cell">Pelanggaran</th>
+                                        <th className="py-3 px-2 text-right sm:px-4">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -335,13 +335,16 @@ function MonitoringContent() {
                                                     key={attempt.id}
                                                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                                                 >
-                                                    <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white">
-                                                        {formatStudentName(attempt.profiles?.full_name, 'Peserta')}
+                                                    <td className="py-3 px-3 text-xs font-medium text-slate-900 dark:text-white sm:px-4">
+                                                        <div className="truncate">{formatStudentName(attempt.profiles?.full_name, 'Peserta')}</div>
+                                                        <div className="mt-1 truncate text-[10px] font-normal text-slate-500 sm:hidden">
+                                                            {[attempt.kelas_name, formatTime(attempt.started_at ?? null)].filter(Boolean).join(' · ') || 'Belum mulai'}
+                                                        </div>
                                                     </td>
-                                                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300 font-medium">
+                                                    <td className="hidden py-3 px-3 text-slate-600 dark:text-slate-300 font-medium sm:table-cell">
                                                         {attempt.kelas_name || '-'}
                                                     </td>
-                                                    <td className="py-3 px-3">
+                                                    <td className="py-3 px-2 sm:px-3">
                                                         {isStarted && (
                                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${attempt.connection_status === 'offline' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
                                                                 <span className={`w-1.5 h-1.5 rounded-full ${attempt.connection_status === 'offline' ? 'bg-amber-500' : 'bg-blue-500 animate-pulse'}`} />
@@ -360,10 +363,10 @@ function MonitoringContent() {
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
+                                                    <td className="hidden py-3 px-3 text-slate-500 dark:text-slate-400 sm:table-cell">
                                                         {formatTime(attempt.started_at ?? null)}
                                                     </td>
-                                                    <td className="py-3 px-3">
+                                                    <td className="hidden py-3 px-3 sm:table-cell">
                                                         {warningCount > 0 || tabCount > 0 ? (
                                                             <span
                                                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black ${
@@ -379,21 +382,22 @@ function MonitoringContent() {
                                                             <span className="text-slate-300 dark:text-slate-600">-</span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3 px-4 text-right">
+                                                    <td className="py-3 px-2 text-right sm:px-4">
                                                         {isFinished && !attempt.id.startsWith('unstarted-') && (
                                                             <button
                                                                 onClick={() =>
                                                                     handleReset(attempt)
                                                                 }
                                                                 disabled={isResetting}
-                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all disabled:opacity-50"
+                                                                className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all disabled:opacity-50 sm:px-2.5 sm:py-1 sm:text-[11px]"
                                                                 title="Buka kembali pengerjaan siswa yang sudah submit"
                                                             >
                                                                 <RotateCcw
                                                                     size={12}
                                                                     className={isResetting ? 'animate-spin' : ''}
                                                                 />
-                                                                <span>Susulan / Pulihkan</span>
+                                                                <span className="sm:hidden">Pulihkan</span>
+                                                                <span className="hidden sm:inline">Susulan / Pulihkan</span>
                                                             </button>
                                                         )}
                                                     </td>

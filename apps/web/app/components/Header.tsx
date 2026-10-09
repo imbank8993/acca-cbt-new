@@ -242,7 +242,21 @@ export default function Header({
                             <div className="user-menu-dropdown">
                                 <div className="user-menu-info">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                                        <div className="user-avatar-small" style={{ width: '40px', height: '40px', minWidth: '40px', flexShrink: 0 }}>
+                                        <div
+                                            className="user-menu-profile-avatar shrink-0"
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                minWidth: 40,
+                                                minHeight: 40,
+                                                maxWidth: 40,
+                                                maxHeight: 40,
+                                                borderRadius: '50%',
+                                                overflow: 'hidden',
+                                                aspectRatio: '1 / 1',
+                                                flex: '0 0 40px'
+                                            }}
+                                        >
                                             {avatarImg ? (
                                                 <Image
                                                     src={avatarImg}
@@ -250,6 +264,14 @@ export default function Header({
                                                     width={40}
                                                     height={40}
                                                     unoptimized
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '100%',
+                                                        objectFit: 'cover',
+                                                        borderRadius: '50%',
+                                                        aspectRatio: '1 / 1',
+                                                        display: 'block'
+                                                    }}
                                                     onError={(e) => {
                                                         e.currentTarget.style.display = 'none';
                                                         const parent = e.currentTarget.parentElement;

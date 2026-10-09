@@ -410,7 +410,7 @@ export function ExamViewer({
                 </aside>
 
                 {/* MAIN */}
-                <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#020718] px-4 md:px-6 py-6 flex flex-col gap-8">
+                <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#020718] px-3 py-4 md:px-6 md:py-6 flex flex-col gap-5 md:gap-8">
                     <ExamQuestionCard
                         key={currentQ.id}
                         question={currentQ}
@@ -654,45 +654,49 @@ export function ExamViewer({
                     </div>
                 </div>
 
-                {/* Mobile Header - Compact */}
-                <div className="md:hidden px-3 py-2 flex items-center justify-between gap-3">
-                    {/* Left: Close Button & Profile */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {mode === 'preview' && (
-                            <button onClick={onPreviewClose} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all">
-                                <X size={14} className="text-slate-400" />
-                            </button>
-                        )}
-                        <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                <User size={14} className="text-primary" />
-                            </div>
-                            <div className="min-w-0 flex flex-col leading-tight">
-                                <span className="text-xs font-medium text-slate-700 truncate">{formatStudentName(studentName, 'Peserta Ujian')}</span>
-                                {studentNisn && (
-                                    <span className="text-[10px] text-slate-400 truncate">NISN {studentNisn}</span>
-                                )}
+                {/* Mobile Header */}
+                <div className="md:hidden px-3 py-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                            {mode === 'preview' && (
+                                <button onClick={onPreviewClose} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all">
+                                    <X size={14} className="text-slate-400" />
+                                </button>
+                            )}
+                            <div className="min-w-0">
+                                <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ujian</p>
+                                <p className="truncate text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">{examTitle || 'Ujian'}</p>
                             </div>
                         </div>
+                        {mode === 'exam' && (
+                            <div className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-sm font-bold ${
+                                timeLeft < 300
+                                    ? 'border-red-200 bg-red-50 text-red-600'
+                                    : timeLeft < 600
+                                    ? 'border-amber-200 bg-amber-50 text-amber-600'
+                                    : 'border-slate-200 bg-slate-50 text-slate-700'
+                            }`}>
+                                <Clock size={14} />
+                                <span>{formatTime(timeLeft)}</span>
+                            </div>
+                        )}
                     </div>
-
-                    {/* Right: Type & Flag — mobile SELALU 1 kolom (soal lalu
-                        opsi bersusun ke bawah); toggle 1/2 kolom hanya untuk
-                        desktop di header md:. */}
-                    <div className="flex items-center gap-2 shrink-0">
-                        <span className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg uppercase">
-                            {currentQ?.type === 'mcq' ? 'PG' : currentQ?.type === 'mcq_complex' ? 'PGK' : currentQ?.type === 'true_false' ? 'BS' : currentQ?.type === 'matching' ? 'MJ' : currentQ?.type === 'categorization' ? 'CAT' : currentQ?.type === 'short_answer' ? 'ISIAN' : currentQ?.type === 'essay' ? 'ESAI' : currentQ?.type?.replace('_', ' ')}
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">
+                                {currentQ?.type === 'mcq' ? 'PG' : currentQ?.type === 'mcq_complex' ? 'PGK' : currentQ?.type === 'true_false' ? 'BS' : currentQ?.type === 'matching' ? 'MJ' : currentQ?.type === 'categorization' ? 'CAT' : currentQ?.type === 'short_answer' ? 'ISIAN' : currentQ?.type === 'essay' ? 'ESAI' : currentQ?.type?.replace('_', ' ')}
+                            </span>
+                            <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                Soal {currentQIndex + 1} dari {questions.length} · {currentQ?.score_default || 1} poin
+                            </span>
+                        </div>
+                        <span className="shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            {answeredCount}/{questions.length} terjawab
                         </span>
-                        <button onClick={() => onToggleDoubtful(currentQ.id)}
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${doubtfulAnswers.has(currentQ.id) ? 'bg-yellow-400 text-slate-800' : 'bg-slate-100 text-slate-400'}`}>
-                            <Flag size={12} className={doubtfulAnswers.has(currentQ.id) ? "fill-slate-800" : ""} />
-                        </button>
                     </div>
-                </div>
-
-                {/* Mobile progress bar */}
-                <div className="md:hidden w-full h-1 bg-slate-100">
-                    <motion.div className="h-full bg-primary" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
+                    </div>
                 </div>
             </header>
 

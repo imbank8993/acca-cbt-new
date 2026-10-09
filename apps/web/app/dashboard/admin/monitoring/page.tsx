@@ -425,31 +425,33 @@ function MonitoringContent() {
             <div className="mb-5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                     {selectedExamId && (
-                        <div className="flex w-fit shrink-0 gap-1 rounded-lg border border-[#3083FF]/20 bg-slate-50 p-1">
-                            {[
+                        <div className="w-full min-w-0 overflow-x-auto lg:w-auto lg:shrink-0">
+                            <div className="flex w-max min-w-full gap-1 rounded-lg border border-[#3083FF]/20 bg-slate-50 p-1 lg:w-fit lg:min-w-0">
+                                {[
                                 { id: 'live', label: 'Peserta Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'answers', label: 'Sinkronisasi Jawaban', icon: ShieldAlert, badge: null as number | null },
                                 { id: 'results', label: 'Hasil Ujian', icon: Users, badge: null as number | null },
                                 { id: 'analysis', label: 'Analisis Soal', icon: TrendingUp, badge: null as number | null },
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                    className={`relative flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
-                                        activeTab === tab.id
-                                            ? 'bg-[#3083FF] text-white shadow-sm'
-                                            : 'text-slate-500 hover:bg-white hover:text-slate-800'
-                                    }`}
-                                >
-                                    <tab.icon size={14} />
-                                    {tab.label}
-                                    {tab.badge && (
-                                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                                            {tab.badge}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                                            activeTab === tab.id
+                                                ? 'bg-[#3083FF] text-white shadow-sm'
+                                                : 'text-slate-500 hover:bg-white hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <tab.icon size={14} />
+                                        {tab.label}
+                                        {tab.badge && (
+                                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                                                {tab.badge}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                     <div className="flex min-w-0 flex-1 gap-2">
@@ -688,7 +690,7 @@ function MonitoringContent() {
                                         <>
                                         {/* Mobile (<md): tetap kartu seperti sebelumnya */}
                                         <div className="md:hidden p-4">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                                                 {activeAttempts.map((att) => {
                                                     const liveAlert = liveAlerts.find(a => a.attemptId === att.id);
                                                     const isInProgress = att.status === 'in_progress';
@@ -715,17 +717,17 @@ function MonitoringContent() {
                                                     return (
                                                         <div
                                                             key={att.id}
-                                                            className={`relative rounded-lg border p-4 transition-all overflow-hidden ${
+                                                            className={`relative rounded-xl border p-4 shadow-sm transition-all overflow-hidden bg-white ${
                                                                 isTerminated
-                                                                    ? 'bg-pink-50/70 border-pink-300'
+                                                                    ? 'border-pink-200'
                                                                     : isInProgress
                                                                     ? hasViolations
-                                                                        ? 'bg-red-50/70 border-red-200'
-                                                                        : 'bg-[#3083FF]/5 border-[#3083FF]/20'
-                                                                    : 'bg-slate-50/70 border-slate-200'
+                                                                        ? 'border-red-200'
+                                                                        : 'border-slate-200'
+                                                                    : 'border-slate-200'
                                                             }`}
                                                         >
-                                                            <div className={`absolute top-0 left-0 right-0 h-1 ${
+                                                            <div className={`absolute top-0 left-0 right-0 h-0.5 ${
                                                                 isTerminated
                                                                     ? 'bg-pink-500'
                                                                     : isInProgress
@@ -734,7 +736,7 @@ function MonitoringContent() {
                                                             }`} />
 
                                                             <div className="flex items-start gap-3 mt-1">
-                                                                <div className={`w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0 ${
+                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
                                                                     isTerminated
                                                                         ? 'bg-pink-400'
                                                                         : isInProgress
@@ -744,9 +746,9 @@ function MonitoringContent() {
                                                                     {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="font-medium text-[#3083FF] text-xs truncate leading-tight">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</p>
+                                                                    <p className="font-semibold text-slate-800 text-sm truncate leading-tight">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</p>
                                                                     {att.kelas_name && att.kelas_name !== '-' && (
-                                                                        <p className="text-[9px] text-slate-400 truncate">{att.kelas_name}</p>
+                                                                        <p className="text-xs text-slate-500 truncate mt-0.5">{att.kelas_name}</p>
                                                                     )}
                                                                     <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5">
                                                                         <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
@@ -764,10 +766,10 @@ function MonitoringContent() {
                                                                 )}
                                                             </div>
 
-                                                            <div className="mt-3 space-y-2">
+                                                            <div className="mt-3 space-y-2.5">
                                                                 {(isInProgress || isTerminated) && (
                                                                     <div>
-                                                                        <div className="flex justify-between text-[9px] font-semibold uppercase tracking-wider mb-1.5">
+                                                                        <div className="flex justify-between text-[11px] font-semibold mb-1.5">
                                                                             <span className={hasViolations ? 'text-red-500' : 'text-slate-400'}>Pelanggaran</span>
                                                                             <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{violationLimit ?? '∞'}</span>
                                                                         </div>
@@ -783,7 +785,7 @@ function MonitoringContent() {
                                                                     </div>
                                                                 )}
 
-                                                                <div className="flex items-center justify-between gap-1 text-[9px] font-semibold">
+                                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-[11px] font-medium">
                                                                     <span className="text-slate-500">Pindah Tab <span className={bd.pindah_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.pindah_tab}x</span></span>
                                                                     <span className="text-slate-500">Close Tab <span className={bd.close_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.close_tab}x</span></span>
                                                                     <span className="text-slate-500">Lainnya <span className={bd.lainnya > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.lainnya}x</span></span>
@@ -806,7 +808,7 @@ function MonitoringContent() {
                                                             <div className="mt-3 flex gap-2">
                                                                 <button
                                                                     onClick={() => router.push(`/dashboard/admin/monitoring/${att.id}`)}
-                                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
+                                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#3083FF] hover:bg-[#2672e8] text-white rounded-lg text-xs font-semibold transition-all"
                                                                 >
                                                                     <Eye size={11} /> Detail
                                                                 </button>
@@ -814,7 +816,7 @@ function MonitoringContent() {
                                                                     <button
                                                                         onClick={() => handleResetAttempt(att)}
                                                                         disabled={resettingAttemptId === att.id}
-                                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
                                                                     >
                                                                         {resettingAttemptId === att.id ? (
                                                                             <Loader2 size={11} className="animate-spin" />

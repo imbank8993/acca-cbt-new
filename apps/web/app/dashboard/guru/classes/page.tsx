@@ -433,8 +433,8 @@ export default function GuruClassesPage() {
                                             transition={{ delay: i * 0.05 }}
                                             className="bg-white border border-[#3083FF]/30 rounded-lg p-4 hover:shadow-md transition-all"
                                         >
-                                            <div className="flex items-start justify-between mb-3">
-                                                <span className={`px-3 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider ${cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'}`}>
+                                            <div className="flex items-start justify-between mb-2">
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider ${cls.type === 'reguler' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#3083FF] dark:text-blue-400'}`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
                                                 </span>
                                                 <div className="flex items-center gap-1">
@@ -444,9 +444,9 @@ export default function GuruClassesPage() {
                                                 </div>
                                             </div>
                                             <div className="flex flex-col mb-2">
-                                                <h3 className="text-base font-semibold text-slate-900">{cls.name}</h3>
+                                                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">{cls.name}</h3>
                                                 {cls.type === 'reguler' && cls.program && (
-                                                    <span className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Program: {cls.program}</span>
+                                                    <span className="text-[10px] text-slate-500 uppercase font-medium tracking-wider mt-0.5">Program: {cls.program}</span>
                                                 )}
                                             </div>
                                             <div className="flex items-center justify-between">

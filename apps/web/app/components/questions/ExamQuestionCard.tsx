@@ -104,8 +104,8 @@ export function ExamQuestionCard({
           </div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-[#111728] rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-5">
+        <div className="bg-white dark:bg-[#111728] rounded-xl md:rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="p-4 md:p-5">
             <QuestionRenderer question={question} answer={answer} onAnswerChange={onAnswerChange}
               showQuestion={true}
               showOptions={true}
