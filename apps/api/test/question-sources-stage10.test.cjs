@@ -36,7 +36,7 @@ function tables() {
                 bank_question_options: [{ id: 'a1', option_text: 'A1', order: 0, is_correct: true }],
             },
         ],
-        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', user_id: user.id, status: 'in_progress', personal_end_time: '2026-09-20T01:00:00Z', metadata: {} }],
+        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', user_id: user.id, status: 'in_progress', device_fingerprint: 'test-device', personal_end_time: '2026-09-20T01:00:00Z', metadata: {} }],
         cbt_answers: [
             { id: 'answer-a', attempt_id: 'attempt', question_id: 'question-a', selected_option_id: 'a1', score: 1, is_correct: true },
             { id: 'answer-b', attempt_id: 'attempt', question_id: 'question-b', selected_option_id: 'b1', score: 1, is_correct: true },
@@ -58,7 +58,8 @@ test('BUG-12: legacy multi-bank questions rendered and graded as the same set', 
         };
     } };
 
-    const displayed = await new ExamAttemptsService(db, scoring, {}).getQuestions(user, 'exam');
+    const displayed = await new ExamAttemptsService(db, scoring, {}).getQuestions(user, 'exam', 'test-device');
+    db.tables.cbt_exam_attempts[0].status = 'submitted';
     const grading = new GradingService(db, {}, scoring);
     const result = await grading.gradeAttemptFromSavedAnswers('attempt');
 

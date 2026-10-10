@@ -20,6 +20,7 @@ export type ApiResult<T> = ({ success: true } & T) | ApiFailure;
 
 export interface ApiRequestOptions {
     timeoutMs?: number;
+    headers?: Record<string, string>;
 }
 
 /** Batas tunggu baca agar halaman tidak terjebak loading tanpa akhir. */
@@ -42,6 +43,7 @@ async function request<T>(
             ...init,
             signal: controller?.signal ?? init.signal,
             headers: {
+                ...options.headers,
                 ...(init.body ? { 'Content-Type': 'application/json' } : {}),
                 ...((init.headers as Record<string, string>) || {}),
             },
@@ -101,6 +103,7 @@ export function apiGet<T>(
     options: ApiRequestOptions = {},
 ): Promise<ApiResult<T>> {
     return request<T>(path, { method: 'GET' }, {
+        ...options,
         timeoutMs: options.timeoutMs ?? DEFAULT_GET_TIMEOUT_MS,
     });
 }

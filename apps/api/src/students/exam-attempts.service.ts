@@ -83,7 +83,8 @@ export class ExamAttemptsService {
      * sampai ke browser siswa, dan satu-satunya cara memastikannya adalah tidak
      * mengambilnya sama sekali dari basis data.
      */
-    async getQuestions(user: AuthUser, examId: string) {
+    async getQuestions(user: AuthUser, examId: string, deviceId?: string) {
+        const device = this.requireDeviceId(deviceId);
         const { data: exam } = await this.db
             .from('cbt_exams')
             .select(
@@ -99,11 +100,11 @@ export class ExamAttemptsService {
         }
 
         const { data: active, error: attemptError } = await this.db.from('cbt_exam_attempts')
-            .select('id, started_at, personal_end_time, metadata')
+            .select('id, started_at, personal_end_time, metadata, device_fingerprint')
             .eq('exam_id', examId).eq('user_id', user.id).eq('status', 'in_progress').maybeSingle();
         if (attemptError) throw new BadRequestException('Sesi pengerjaan belum dapat diperiksa.');
         const deadline = active ? examDeadline(active, exam) : new Date(NaN);
-        if (!active || active.metadata?.recovery_submit_only === true ||
+        if (!active || active.device_fingerprint !== device || active.metadata?.recovery_submit_only === true ||
             !Number.isFinite(deadline.getTime()) || await this.serverNow() >= deadline) {
             throw new ForbiddenException('Soal hanya tersedia selama sesi pengerjaan aktif.');
         }
@@ -151,8 +152,9 @@ export class ExamAttemptsService {
         user: AuthUser,
         examId: string,
         knownRevisions: Record<string, number> = {},
+        deviceId?: string,
     ) {
-        const full = await this.getQuestions(user, examId);
+        const full = await this.getQuestions(user, examId, deviceId);
         const updatedQuestions = full.questions.filter((q) => {
             const clientRev = knownRevisions[q.id] ?? 1;
             const currentRev = (q as any).revision ?? 1;
@@ -391,10 +393,12 @@ export class ExamAttemptsService {
             .eq('id', attempt.id)
             .eq('status', 'in_progress');
 
-        const { data: answers } = await this.db
+        const { data: answers, error: answersError } = await this.db
             .from('cbt_answers')
             .select('question_id, selected_option_id, essay_answer, is_doubtful, metadata')
             .eq('attempt_id', attempt.id);
+
+        if (answersError) throw new ServiceUnavailableException('Jawaban tersimpan belum dapat dimuat. Coba lagi; jawaban di server tetap dipertahankan.');
 
         return {
             started: true as const,
@@ -507,7 +511,7 @@ export class ExamAttemptsService {
             if (!current || current.status !== 'in_progress' || hasActiveSubmitIntent(current.metadata, now)) return false;
             const { data: updated, error } = await db
                 .from('cbt_exam_attempts')
-                .update({ status: 'auto_submitted', finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
+                .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
                 .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
             if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
             return Boolean(updated);
@@ -517,16 +521,6 @@ export class ExamAttemptsService {
         try {
             const graded = await this.grading.gradeAttemptFromSavedAnswers(attemptId);
             if (graded) {
-                await this.db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        total_score: graded.finalScore100,
-                        needs_manual_grading: graded.hasEssay,
-                    })
-                    .eq('id', attemptId)
-                    // Reset proktor dapat terjadi saat penilaian masih berjalan.
-                    // Hasil dari penutupan lama tidak boleh menimpa attempt aktif.
-                    .eq('status', 'auto_submitted');
                 await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
             }
         } catch (err) {
@@ -1112,15 +1106,23 @@ export class ExamAttemptsService {
                 await this.db.transaction(async db => {
                     await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
                     const { data: current, error } = await db.from('cbt_exam_attempts')
-                        .select('status, finished_at, metadata').eq('id', attempt.id).maybeSingle();
+                        .select('status, finished_at, metadata, total_score').eq('id', attempt.id).maybeSingle();
                     if (error) throw new BadRequestException('Hasil penilaian belum dapat disimpan.');
                     // A proctor reset must invalidate results from the old submission.
                     if (!current || current.status !== 'submitted' || current.finished_at !== committed.finishedAt) return;
+                    // A background retry may already have committed the grade (and a teacher
+                    // may subsequently have graded essays). Never overwrite that result.
+                    if (current.total_score != null) {
+                        committed.score = current.total_score;
+                        committed.gradingPending = false;
+                        return;
+                    }
                     await this.persistAnswers(attempt.id, graded.rows, db);
                     const { error: updateError } = await db.from('cbt_exam_attempts').update({
                         total_score: graded.scaledScore,
                         needs_manual_grading: graded.needsManualGrading || exam.exam_type === 'assignment',
-                        metadata: { ...(current.metadata || {}), dimension_scores: graded.dimensionScores, base_score: graded.scaledScore },
+                        metadata: { ...(current.metadata || {}), dimension_scores: graded.dimensionScores,
+                            base_score: graded.scaledScore, relative_scoring_pending: exam.exam_type === 'quiz' },
                     }).eq('id', attempt.id);
                     if (updateError) throw new BadRequestException('Hasil penilaian belum dapat disimpan.');
                     committed.score = graded.scaledScore;
@@ -1290,7 +1292,7 @@ export class ExamAttemptsService {
     }
 
     private requireDeviceId(deviceId?: string): string {
-        const device = (deviceId || '').trim();
+        const device = typeof deviceId === 'string' ? deviceId.trim() : '';
         if (device.length < 8 || device.length > 200) {
             throw new BadRequestException('Identitas perangkat tidak valid. Muat ulang halaman ujian.');
         }

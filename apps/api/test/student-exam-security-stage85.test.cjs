@@ -28,14 +28,14 @@ for (const state of ['missing', 'other-user', 'submitted', 'expired', 'recovery'
         if (state === 'expired') attempt.personal_end_time = '2026-09-20T00:30:00Z';
         if (state === 'invalid-time') attempt.personal_end_time = 'invalid';
         if (state === 'recovery') attempt.metadata.recovery_submit_only = true;
-        await assert.rejects(service.getQuestions(user, 'exam'), e => e.getStatus() === 403);
-        await assert.rejects(service.checkQuestionUpdates(user, 'exam', {}), e => e.getStatus() === 403);
+        await assert.rejects(service.getQuestions(user, 'exam', device), e => e.getStatus() === 403);
+        await assert.rejects(service.checkQuestionUpdates(user, 'exam', {}, device), e => e.getStatus() === 403);
         assert.equal(db.queries.some(q => q.table === 'cbt_exam_question_snapshots'), false);
     });
 }
 test('active session receives questions', async () => {
     const { service } = fixture();
-    assert.equal((await service.getQuestions(user, 'exam')).questions[0].id, 'q');
+    assert.equal((await service.getQuestions(user, 'exam', device)).questions[0].id, 'q');
 });
 for (const visible of [false, true]) {
     test(`fresh and repeated submissions respect show_results=${visible}`, async () => {

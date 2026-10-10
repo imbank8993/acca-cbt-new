@@ -4,7 +4,6 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
-import { updateExamQuestionSnapshots } from '../common/exam-question-snapshots';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -59,8 +58,7 @@ export class QuestionsService {
      * Simpan satu soal beserta opsinya.
      *
      * Mengembalikan `activeExams`: ujian yang SEDANG berjalan memakai bank ini.
-     * Layar penyusunan memakainya untuk memperingatkan bahwa perubahan menyentuh
-     * ujian yang sedang dikerjakan orang.
+     * Snapshot ujian yang sudah dibekukan tidak berubah ketika bank diedit.
      */
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
@@ -175,25 +173,11 @@ export class QuestionsService {
                 await this.replaceOptions(questionId, dto.options, db);
             }
             await this.touchBank(dto.bankId, db);
-            await updateExamQuestionSnapshots(db, questionId);
+            // Existing exam snapshots are immutable; bank edits affect future exams only.
             return { questionId, replayed: false };
         });
 
         const questionId = saved.questionId;
-
-        // Hanya untuk soal yang DIUBAH. Soal baru belum pernah dijawab siapa pun,
-        // jadi tidak ada yang perlu dinilai ulang.
-        if (dto.id) {
-            try {
-                await this.grading.regradeExamAttemptsByQuestion(questionId);
-            } catch (err) {
-                // Soalnya sudah tersimpan; kegagalan penilaian ulang tidak boleh
-                // membuat guru mengira suntingannya batal.
-                this.logger.error(
-                    `Penilaian ulang setelah menyimpan soal ${questionId} gagal: ${(err as Error).message}`,
-                );
-            }
-        }
 
         return { id: questionId, activeExams: await this.activeExamsUsing(dto.bankId) };
     }
@@ -394,6 +378,18 @@ export class QuestionsService {
         const created = rows.filter((row) => !row.id).map(({ id, ...rest }) => rest);
         const keepIds = existing.map((row) => row.id as string);
 
+        // Snapshots can reference options that no student has selected yet, so
+        // the answer FK alone cannot protect them. The question row is already
+        // locked by save(); snapshot creation holds a shared lock on the same row.
+        const { data: snapshots, error: snapshotError } = await db.from('cbt_exam_question_snapshots')
+            .select('question_snapshot').eq('question_id', questionId);
+        if (snapshotError) throw new BadRequestException('Pemakaian opsi ujian belum dapat diperiksa.');
+        const protectedIds = new Set<string>((snapshots || []).flatMap((row: any) =>
+            (row.question_snapshot?.bank_question_options || []).map((option: any) => option.id)));
+        if ([...protectedIds].some(id => !keepIds.includes(id))) {
+            throw new ConflictException('Opsi sudah dipakai dalam snapshot ujian dan tidak dapat dihapus. Salin soal ke bank baru untuk mengganti pilihan.');
+        }
+
         if (keepIds.length > 0) {
             const { error } = await db
                 .from('cbt_bank_question_options')
@@ -453,6 +449,11 @@ export class QuestionsService {
             .limit(1);
         if (answerError) throw new BadRequestException(answerError.message);
         if (((answers as any[]) || []).length > 0) return true;
+
+        const { data: frozen, error: frozenError } = await db.from('cbt_exam_question_snapshots')
+            .select('id').eq('question_id', questionId).limit(1);
+        if (frozenError) throw new BadRequestException('Snapshot soal belum dapat diperiksa.');
+        if ((frozen || []).length > 0) return true;
 
         // Data impor/versi lama mungkin memang memiliki snapshot ini.
         const { data: snapshots, error: snapshotError } = await db

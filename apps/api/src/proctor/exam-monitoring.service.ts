@@ -316,7 +316,7 @@ export class ExamMonitoringService {
                     const deadline = examDeadline(current, exam).getTime();
                     if (!Number.isFinite(deadline) || deadline + AUTO_FINISH_GRACE_MS > now.getTime()) return false;
                     const { data: updated, error } = await db.from('cbt_exam_attempts')
-                        .update({ status: 'auto_submitted', finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
+                        .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
                         .eq('id', attempt.id).eq('status', 'in_progress').select('id').maybeSingle();
                     if (error) throw new Error(error.message);
                     return Boolean(updated);
@@ -325,15 +325,6 @@ export class ExamMonitoringService {
 
                 const graded = await this.grading.gradeAttemptFromSavedAnswers(attempt.id);
                 if (graded) {
-                    await this.db
-                        .from('cbt_exam_attempts')
-                        .update({
-                            needs_manual_grading: graded.hasEssay,
-                            total_score: graded.finalScore100,
-                        })
-                        .eq('id', attempt.id)
-                        // Reset dapat terjadi ketika grading masih berjalan.
-                        .eq('status', 'auto_submitted');
                     await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
                 }
             } catch (err) {
@@ -837,7 +828,7 @@ export class ExamMonitoringService {
         }
         const { data } = await this.db
             .from('cbt_exam_attempts')
-            .select('exam_id, metadata, status')
+            .select('exam_id, metadata, status, started_at, finished_at')
             .eq('id', attemptId)
             .maybeSingle();
 
@@ -847,7 +838,10 @@ export class ExamMonitoringService {
             exam_id: string;
             metadata: Record<string, any> | null;
             status: string;
+            started_at?: string;
+            finished_at?: string;
         };
+        const generation = { status: attempt.status, started_at: attempt.started_at, finished_at: attempt.finished_at };
 
         // Otorisasi lewat ujian induknya: Guru hanya boleh menilai tugas dari
         // ujian buatannya sendiri.
@@ -865,24 +859,33 @@ export class ExamMonitoringService {
             throw new BadRequestException('Tugas belum dikumpulkan.');
         }
 
-        const { data: updated, error } = await this.db
-            .from('cbt_exam_attempts')
-            .update({
-                total_score: score,
-                needs_manual_grading: false,
-                metadata: {
-                    ...(attempt.metadata || {}),
-                    teacher_score: score,
-                    teacher_feedback: feedback,
-                    graded_at: new Date().toISOString(),
-                },
-            })
-            .eq('id', attemptId)
-            .in('status', ['submitted', 'auto_submitted'])
-            .select('id')
-            .maybeSingle();
+        await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                .select('status, started_at, finished_at, metadata').eq('id', attemptId).maybeSingle();
+            if (readError || !current || current.status !== generation.status ||
+                current.started_at !== generation.started_at || current.finished_at !== generation.finished_at) {
+                throw new BadRequestException('Pengumpulan tugas berubah. Muat ulang sebelum menilai.');
+            }
+            const { data: updated, error } = await db
+                .from('cbt_exam_attempts')
+                .update({
+                    total_score: score,
+                    needs_manual_grading: false,
+                    metadata: {
+                        ...(current.metadata || {}),
+                        teacher_score: score,
+                        teacher_feedback: feedback,
+                        graded_at: new Date().toISOString(),
+                    },
+                })
+                .eq('id', attemptId)
+                .in('status', ['submitted', 'auto_submitted'])
+                .select('id')
+                .maybeSingle();
 
-        if (error || !updated) throw new BadRequestException('Nilai tugas gagal disimpan. Coba lagi.');
+            if (error || !updated) throw new BadRequestException('Nilai tugas gagal disimpan. Coba lagi.');
+        });
 
         return { attemptId, score };
     }

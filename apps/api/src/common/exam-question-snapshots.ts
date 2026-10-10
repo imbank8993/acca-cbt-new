@@ -59,12 +59,21 @@ export async function ensureExamQuestionSnapshotsInTransaction(
   const existing = await readSnapshots(db, examId);
   if (existing.length > 0) return existing.map(row => row.question_snapshot);
 
-  const questions = await loadExamQuestions(
+  const candidates = await loadExamQuestions(
     db,
     examId,
     EXAM_QUESTION_SNAPSHOT_SELECT,
     knownDirectBankId,
   );
+  if (candidates.length === 0) return [];
+  // Serialize against bank edits before freezing option IDs. Re-read after
+  // acquiring the locks so a just-committed edit cannot leave dangling options.
+  const lockedIds = new Set(candidates.map(question => question.id));
+  for (const id of [...lockedIds].sort()) {
+    await db.raw('SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid FOR SHARE', id);
+  }
+  const questions = (await loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT, knownDirectBankId))
+    .filter(question => lockedIds.has(question.id));
   if (questions.length === 0) return [];
 
   // Salinan JSON memutus referensi objek adapter/fixture dan sekaligus menjamin
@@ -116,30 +125,4 @@ export async function loadFrozenExamQuestions(
   return db.transaction(transaction =>
     ensureExamQuestionSnapshotsInTransaction(transaction, examId, knownDirectBankId),
   );
-}
-
-/** Perbarui snapshot ujian aktif bila sebuah butir soal diperbaiki di bank soal. */
-export async function updateExamQuestionSnapshots(
-  db: DbSession,
-  questionId: string,
-): Promise<number> {
-  const { data: updatedQuestion, error: qErr } = await db
-    .from('cbt_bank_questions')
-    .select(EXAM_QUESTION_SNAPSHOT_SELECT)
-    .eq('id', questionId)
-    .maybeSingle();
-
-  if (qErr || !updatedQuestion) return 0;
-
-  const snapshot = JSON.parse(JSON.stringify(updatedQuestion)) as FrozenExamQuestion;
-  const { data: updatedRows, error: upErr } = await db
-    .from('cbt_exam_question_snapshots')
-    .update({ question_snapshot: snapshot })
-    .eq('question_id', questionId)
-    .select('id');
-
-  if (upErr) {
-    throw new BadRequestException(`Gagal menyinkronkan snapshot soal ujian: ${upErr.message}`);
-  }
-  return ((updatedRows as any[]) || []).length;
 }

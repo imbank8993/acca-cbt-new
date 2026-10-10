@@ -8,7 +8,7 @@ const { GradingService } = require('../src/grading/grading.service.ts');
 function fixture(manualScore = 8, manualCorrect = true) {
     const db = fixtureDb({
         cbt_exams: [{ id: 'exam', question_bank_id: 'bank' }],
-        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', metadata: { retained: true } }],
+        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', status: 'submitted', metadata: { retained: true } }],
         cbt_bank_questions: [{ id: 'essay', bank_id: 'bank', type: 'essay', score_default: 10 },
             { id: 'mcq', bank_id: 'bank', type: 'mcq', score_default: 10 }],
         cbt_exam_question_snapshots: [

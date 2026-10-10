@@ -222,6 +222,7 @@ export async function getExamForAttempt(examId: string) {
 export async function getExamQuestionsAction(examId: string) {
     const res = await apiGet<{ questions: StudentExamQuestion[] }>(
         `/api/students/exams/${encodeURIComponent(examId)}/questions`,
+        { headers: { 'x-exam-device': getDeviceId() } },
     );
     return res.success
         ? { success: true as const, questions: res.questions }

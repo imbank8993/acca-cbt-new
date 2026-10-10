@@ -345,6 +345,7 @@ export class ProctoringService {
                 finished_at: null,
                 total_score: null,
                 score_irt: null,
+                detailed_scores: null,
                 irt_theta: null,
                 needs_manual_grading: false,
                 warning_count: 0,
@@ -355,6 +356,11 @@ export class ProctoringService {
                 now.getTime() + durationMinutes * 60 * 1000,
             ).toISOString();
             const metadataWithoutOldScore = { ...previousMetadata };
+            delete metadataWithoutOldScore.teacher_score;
+            delete metadataWithoutOldScore.teacher_feedback;
+            delete metadataWithoutOldScore.graded_at;
+            delete metadataWithoutOldScore.grading_retry_next_at;
+            delete metadataWithoutOldScore.relative_scoring_pending;
             delete metadataWithoutOldScore.base_score;
             delete metadataWithoutOldScore.dimension_scores;
             delete metadataWithoutOldScore.sync_health;
@@ -485,6 +491,11 @@ export class ProctoringService {
             const previousStatus = row.status;
             const previousDeadline = row.personal_end_time;
             const previousMetadata = { ...(row.metadata || {}) };
+            delete previousMetadata.grading_retry_next_at;
+            delete previousMetadata.teacher_score;
+            delete previousMetadata.teacher_feedback;
+            delete previousMetadata.graded_at;
+            delete previousMetadata.relative_scoring_pending;
             delete previousMetadata.base_score;
             delete previousMetadata.dimension_scores;
             delete previousMetadata.grading_retry_count;
@@ -522,6 +533,7 @@ export class ProctoringService {
                     personal_end_time: recoveryUntil,
                     total_score: null,
                     score_irt: null,
+                    detailed_scores: null,
                     irt_theta: null,
                     needs_manual_grading: false,
                     warning_count: 0,
@@ -606,7 +618,7 @@ export class ProctoringService {
             );
             const { data: updated, error } = await db
                 .from('cbt_exam_attempts')
-                .update({ status: 'auto_submitted', finished_at: now.toISOString() })
+                .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString() })
                 .eq('id', attemptId)
                 .eq('status', 'in_progress')
                 .select('id')
@@ -630,15 +642,6 @@ export class ProctoringService {
         try {
             const graded = await this.grading.gradeAttemptFromSavedAnswers(attemptId);
             if (graded) {
-                await this.db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        total_score: graded.finalScore100,
-                        needs_manual_grading: graded.hasEssay,
-                    })
-                    .eq('id', attemptId)
-                    // Jangan tulis hasil lama jika proktor sudah mereset attempt.
-                    .eq('status', 'auto_submitted');
                 await this.grading.applyRelativeQuizScoringIfQuiz(graded.examId);
             }
         } catch (error) {

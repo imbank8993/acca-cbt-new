@@ -12,6 +12,7 @@ import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { GradingService } from '../grading/grading.service';
 
 /** Tipe soal yang dinilai manual oleh guru. */
 const ESSAY_TYPES = ['essay', 'esay', 'uraian'];
@@ -34,6 +35,7 @@ export class TeachersService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
         private readonly authUsers: AuthUsersRepository,
+        private readonly grading: GradingService,
     ) {}
 
     /** Kelas tambahan yang dibuat pemanggil sendiri. */
@@ -230,27 +232,17 @@ export class TeachersService {
         // `metadata` dan opsi ikut diseleksi karena halaman pemanggilnya membaca
         // `qInfo.metadata?.is_multi_topic` dan `qInfo.options`; keduanya juga
         // tidak pernah ada di select lama.
-        const { data: answers, error: answersError } = await this.db
-            .from('cbt_answers')
-            .select(
-                `id, essay_answer, score,
-                 bank_questions:cbt_bank_questions(
-                     id, question_text, type, score_default, metadata,
-                     options:cbt_bank_question_options(id, option_text)
-                 )`,
-            )
-            .eq('attempt_id', attemptId)
-            .in('bank_questions.type', ESSAY_TYPES);
-
-        if (answersError) {
-            this.logger.error(`Gagal membaca jawaban esai: ${answersError.message}`);
-            throw new InternalServerErrorException('Gagal membaca jawaban.');
-        }
-
-        return {
-            attempt,
-            essayAnswers: ((answers as any[]) || []).filter((a) => a.bank_questions !== null),
-        };
+        const [questions, { data: answers, error: answersError }] = await Promise.all([
+            loadFrozenExamQuestions(this.db, attempt.exam_id),
+            this.db.from('cbt_answers').select('id, question_id, essay_answer, score, is_correct')
+                .eq('attempt_id', attemptId),
+        ]);
+        if (answersError) throw new InternalServerErrorException('Gagal membaca jawaban.');
+        const byId = new Map(questions.filter(q => ESSAY_TYPES.includes(q.type)).map(q => [q.id, q]));
+        return { attempt, essayAnswers: (answers || []).filter((a: any) => byId.has(a.question_id)).map((a: any) => {
+            const q = byId.get(a.question_id)!;
+            return { ...a, bank_questions: { ...q, options: q.bank_question_options || [] } };
+        }) };
     }
 
     /** Simpan nilai esai lalu hitung ulang total skor attempt. */
@@ -261,12 +253,13 @@ export class TeachersService {
     ) {
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('exam_id, organization_id, status')
+            .select('exam_id, organization_id, status, started_at, finished_at')
             .eq('id', attemptId)
             .maybeSingle();
 
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
         const examId = (attempt as { exam_id: string }).exam_id;
+        const generation = { status: attempt.status, startedAt: attempt.started_at, finishedAt: attempt.finished_at };
 
         // Proktor/Admin bebas; Guru hanya boleh menilai esai dari ujian
         // buatannya sendiri.
@@ -310,6 +303,16 @@ export class TeachersService {
                 'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
                 attemptId,
             );
+            const { data: current, error: currentError } = await db.from('cbt_exam_attempts')
+                .select('status, started_at, finished_at, metadata, total_score').eq('id', attemptId).maybeSingle();
+            if (currentError || !current) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
+            if (current.status !== generation.status || current.started_at !== generation.startedAt ||
+                current.finished_at !== generation.finishedAt) {
+                throw new BadRequestException('Sesi pengerjaan sudah berubah. Muat ulang halaman penilaian.');
+            }
+            if (current.total_score === null) {
+                throw new BadRequestException('Penilaian otomatis masih tertunda. Coba lagi setelah penilaian selesai.');
+            }
             for (const [answerId, score] of Object.entries(grades)) {
                 const { data: updated, error } = await db
                     .from('cbt_answers')
@@ -339,13 +342,22 @@ export class TeachersService {
             const score = maxScore > 0 ? (total / maxScore) * 100 : 0;
             const { error: totalError } = await db
                 .from('cbt_exam_attempts')
-                .update({ total_score: score, needs_manual_grading: pending })
+                .update({ total_score: score, needs_manual_grading: pending,
+                    metadata: { ...(current.metadata || {}), base_score: score, relative_scoring_pending: true } })
                 .eq('id', attemptId);
             if (totalError) throw new BadRequestException(totalError.message);
             return score;
         });
 
-        return { totalScore: finalScore };
+        // The base score remains durable if the scoring service is temporarily unavailable.
+        let totalScore = finalScore;
+        try {
+            const scores = await this.grading.applyRelativeQuizScoringIfQuiz(examId);
+            totalScore = scores[attemptId] ?? totalScore;
+        } catch (error) {
+            this.logger.error(`Nilai esai tersimpan; nilai relatif tertunda: ${(error as Error).message}`);
+        }
+        return { totalScore };
     }
 
     /**

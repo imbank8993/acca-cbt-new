@@ -84,7 +84,7 @@ test('QA-02 / BUG-11: start, render, autosave, submit, review, and historical de
     assert.equal(started.started, true);
     const attemptId = started.attempt.id;
 
-    const rendered = await attempts.getQuestions(student, 'exam');
+    const rendered = await attempts.getQuestions(student, 'exam', deviceId);
     assert.deepEqual(rendered.questions.map(question => question.id), ['question']);
     assert.equal('is_correct' in rendered.questions[0].bank_question_options[1], false);
 

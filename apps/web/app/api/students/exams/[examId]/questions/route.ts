@@ -1,4 +1,4 @@
-import { proxyGet } from '@/lib/nest-proxy';
+import { proxy } from '@/lib/nest-proxy';
 import { NextRequest } from 'next/server';
 
 export async function GET(
@@ -6,5 +6,7 @@ export async function GET(
     context: { params: Promise<{ examId: string }> },
 ) {
     const { examId } = await context.params;
-    return proxyGet(request, `/students/exams/${encodeURIComponent(examId)}/questions`);
+    return proxy(request, `/students/exams/${encodeURIComponent(examId)}/questions`, {
+        method: 'GET', headers: { 'x-exam-device': request.headers.get('x-exam-device') || '' },
+    });
 }

@@ -58,7 +58,10 @@ test('pending auto-submit is recovered and becomes part of relative quiz scoring
         }],
     });
     const service = new GradingService(db, {}, {});
-    service.gradeAttemptFromSavedAnswers = async () => ({ finalScore100: 75, hasEssay: false, examId: 'quiz' });
+    service.gradeAttemptFromSavedAnswers = async () => {
+        Object.assign(db.tables.cbt_exam_attempts[0], { total_score: 75, metadata: { retained: true, base_score: 75 } });
+        return { finalScore100: 75, hasEssay: false, examId: 'quiz' };
+    };
     let relativeExam = null;
     service.applyRelativeQuizScoringIfQuiz = async examId => { relativeExam = examId; return {}; };
 

@@ -3,6 +3,7 @@ import {
     Controller,
     Delete,
     Get,
+    Headers,
     HttpCode,
     HttpStatus,
     Param,
@@ -108,8 +109,9 @@ export class StudentsController {
         summary: 'Soal dan opsi untuk dikerjakan',
         description: 'Tanpa kunci jawaban: kolom is_correct tidak ikut diambil.',
     })
-    getQuestions(@CurrentUser() user: AuthUser, @Param('examId', ParseUUIDPipe) examId: string) {
-        return this.attempts.getQuestions(user, examId);
+    getQuestions(@CurrentUser() user: AuthUser, @Param('examId', ParseUUIDPipe) examId: string,
+        @Headers('x-exam-device') deviceId?: string) {
+        return this.attempts.getQuestions(user, examId, deviceId);
     }
 
     @Post('exams/:examId/questions/check-updates')
@@ -118,9 +120,9 @@ export class StudentsController {
     checkQuestionUpdates(
         @CurrentUser() user: AuthUser,
         @Param('examId', ParseUUIDPipe) examId: string,
-        @Body() body: { revisions?: Record<string, number> },
+        @Body() body: { revisions?: Record<string, number>; deviceId?: string },
     ) {
-        return this.attempts.checkQuestionUpdates(user, examId, body?.revisions || {});
+        return this.attempts.checkQuestionUpdates(user, examId, body?.revisions || {}, body?.deviceId);
     }
 
     @Post('exams/:examId/attempts')

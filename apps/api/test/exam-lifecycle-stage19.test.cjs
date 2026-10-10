@@ -114,6 +114,8 @@ test('LIF-02: monitoring menutup status sebelum menunggu layanan penilaian', asy
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
 
+    // The grading service now commits detail and total together before returning.
+    Object.assign(db.tables.cbt_exam_attempts[0], { total_score: 73, needs_manual_grading: true });
     gate.resolve({ finalScore100: 73, hasEssay: true });
     await finalizing;
     assert.equal(db.tables.cbt_exam_attempts[0].total_score, 73);

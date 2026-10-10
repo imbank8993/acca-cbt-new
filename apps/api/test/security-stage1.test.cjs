@@ -18,7 +18,7 @@ function database(extra = {}, errors = []) {
     const tables = {
         cbt_organization_members: [{ user_id: user.id, organization_id: 'school', is_active: true }],
         cbt_class_members: [], cbt_additional_class_members: [], cbt_exam_participants: [],
-        cbt_exam_targets: [], cbt_exams: [exam], cbt_bank_questions: [], cbt_exam_attempts: [{ id: "active", user_id: user.id, exam_id: exam.id, status: "in_progress", personal_end_time: "2026-09-19T01:00:00Z" }],
+        cbt_exam_targets: [], cbt_exams: [exam], cbt_bank_questions: [], cbt_exam_attempts: [{ id: "active", user_id: user.id, exam_id: exam.id, status: "in_progress", device_fingerprint: "test-device", personal_end_time: "2026-09-19T01:00:00Z" }],
         cbt_profiles: [], ...extra,
     };
     const queries = [];
@@ -66,7 +66,7 @@ for (const [name, fixtures] of [
     const db = database(fixtures);
     assert.equal(canAccessExam(exam, await loadExamAudience(db, user)), true);
     assert.equal((await new StudentsService(db).getExamForAttempt(user, exam.id)).exam.id, exam.id);
-    assert.deepEqual((await attempts(db).getQuestions(user, exam.id)).questions, []);
+    assert.deepEqual((await attempts(db).getQuestions(user, exam.id, 'test-device')).questions, []);
 });
 
 for (const [name, fixtureExam, members] of [
@@ -77,7 +77,7 @@ for (const [name, fixtureExam, members] of [
 ]) test(`SEC-01: denies ${name} at detail/questions/start`, async () => {
     const db = database({ cbt_exams: [fixtureExam], ...(members ? { cbt_organization_members: members } : {}) });
     await assert.rejects(new StudentsService(db).getExamForAttempt(user, exam.id), forbidden);
-    await assert.rejects(attempts(db).getQuestions(user, exam.id), forbidden);
+    await assert.rejects(attempts(db).getQuestions(user, exam.id, 'test-device'), forbidden);
     await assert.rejects(attempts(db).start(user, exam.id), forbidden);
     assert.equal(db.queries.some(q => q.table === 'cbt_bank_questions'), false);
 });
@@ -99,7 +99,7 @@ test('BUG-13: public school exam appears without assignments; foreign/private/dr
 
 test('SEC-01: questions remain unavailable before start time', async () => {
     const db = database({ cbt_exams: [{ ...exam, start_time: '2099-01-01T00:00:00Z', metadata: { is_public: true } }] });
-    await assert.rejects(attempts(db).getQuestions(user, exam.id), forbidden);
+    await assert.rejects(attempts(db).getQuestions(user, exam.id, 'test-device'), forbidden);
     assert.equal(db.queries.some(q => q.table === 'cbt_bank_questions'), false);
 });
 
@@ -152,7 +152,7 @@ test('SEC-02: ordering presentation is stable and independent of stored correct 
 test('SEC-02: actual questions endpoint uses sanitized DTO', async () => {
     const db = database({ cbt_exams: [{ ...exam, metadata: { is_public: true } }],
         cbt_bank_questions: [{ ...question, bank_id: 'bank' }] });
-    const result = await attempts(db).getQuestions(user, exam.id);
+    const result = await attempts(db).getQuestions(user, exam.id, 'test-device');
     assert.equal(result.questions.length, 1);
     assert.equal(JSON.stringify(result).includes('SECRET'), false);
 });

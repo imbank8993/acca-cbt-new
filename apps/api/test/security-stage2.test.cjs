@@ -102,8 +102,8 @@ function gradingFixture(options = {}) {
             { id: 'foreign', question_id: 'essay-1', attempt_id: 'other', score: 0, is_correct: null },
         ],
     }, [], options);
-    const service = Object.create(TeachersService.prototype);
-    Object.assign(service, { db, authz: { assertExamStaff: async () => {} } });
+    const service = new TeachersService(db, { assertExamStaff: async () => {} }, {},
+        { applyRelativeQuizScoringIfQuiz: async () => ({}) });
     return { db, service };
 }
 for (const [name, grades] of [['foreign answer', { a1: 5, foreign: 5 }], ['objective answer', { a3: 5 }],

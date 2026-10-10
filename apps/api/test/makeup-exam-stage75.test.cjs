@@ -27,6 +27,7 @@ function makeService() {
             personal_end_time: '2026-09-29T02:00:00.000Z',
             total_score: 78,
             score_irt: 64,
+            detailed_scores: { irt: 64 },
             irt_theta: 0.4,
             needs_manual_grading: false,
             warning_count: 2,
@@ -34,6 +35,7 @@ function makeService() {
             device_fingerprint: 'old-device',
             metadata: {
                 base_score: 78,
+                teacher_score: 90, teacher_feedback: "old feedback", graded_at: fixedNow,
                 dimension_scores: { literasi: 80 },
                 stable_marker: 'tetap',
             },
@@ -77,6 +79,8 @@ test('SUSULAN-75: susulan penuh menghapus jawaban lama dan memulai waktu khusus 
     assert.equal(attempt.personal_end_time, '2026-09-30T03:30:00.000Z');
     assert.equal(attempt.total_score, null);
     assert.equal(attempt.score_irt, null);
+    assert.equal(attempt.detailed_scores, null);
+    for (const key of ["teacher_score", "teacher_feedback", "graded_at"]) assert.equal(attempt.metadata[key], undefined);
     assert.equal(attempt.irt_theta, null);
     assert.equal(attempt.warning_count, 0);
     assert.equal(attempt.tab_switch_count, 0);
@@ -122,6 +126,8 @@ test('SUSULAN-75: pemulihan biasa mempertahankan jawaban lama', async () => {
 
     assert.equal(db.tables.cbt_answers.length, 2);
     assert.equal(result.serverAnswerCount, 2);
+    assert.equal(db.tables.cbt_exam_attempts[0].detailed_scores, null);
+    for (const key of ["teacher_score", "teacher_feedback", "graded_at"]) assert.equal(db.tables.cbt_exam_attempts[0].metadata[key], undefined);
     assert.equal(result.recoveryUntil, '2026-09-30T02:30:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
     assert.equal(db.tables.cbt_exam_attempts[0].personal_end_time, '2026-09-30T02:30:00.000Z');

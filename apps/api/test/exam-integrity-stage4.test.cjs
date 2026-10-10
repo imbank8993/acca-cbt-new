@@ -127,8 +127,10 @@ test('SEC-10: automatic expiry is compare-and-set and grades only once', async (
     const attempts = service(db, { grading: {
         gradeAttemptFromSavedAnswers: async () => {
             graded += 1;
+            Object.assign(db.tables.cbt_exam_attempts[0], { total_score: 75, needs_manual_grading: false });
             return { finalScore100: 75, hasEssay: false };
         },
+        applyRelativeQuizScoringIfQuiz: async () => ({}),
     } });
 
     await attempts.autoFinish('attempt', new Date('2026-09-20T00:00:00Z'));

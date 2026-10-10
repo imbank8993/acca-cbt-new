@@ -200,7 +200,7 @@ export default function ExamPage() {
                     questions: StudentExamQuestion[];
                 }>(
                     `/api/students/exams/${encodeURIComponent(examId)}/questions/check-updates`,
-                    { revisions: currentRevs },
+                    { revisions: currentRevs, deviceId: getDeviceId() },
                     'POST',
                 );
 

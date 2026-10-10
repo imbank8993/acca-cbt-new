@@ -11,6 +11,8 @@ import {
     hasExamQuestionSnapshots,
     loadFrozenExamQuestions,
 } from '../common/exam-question-snapshots';
+import { advisoryTransactionLock } from '../common/transaction-lock';
+import { isEssayType } from '../common/answer-storage';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
 
@@ -37,13 +39,6 @@ function manualGradeSummary(questions: Array<{ id: string; type: string }>, answ
         else pending = true;
     }
     return { score, pending };
-}
-
-interface AttemptTimingRow {
-    id: string;
-    metadata: { base_score?: number } | null;
-    started_at: string | null;
-    finished_at: string | null;
 }
 
 /** Balasan `/grading/attempt` dari FastAPI. */
@@ -100,158 +95,90 @@ export class GradingService {
      */
     async gradeAttemptFromSavedAnswers(
         attemptId: string,
+        pendingOnly = true,
     ): Promise<{ finalScore100: number; hasEssay: boolean; examId: string; dimensionScores?: Record<string, number> } | null> {
-        const { data: attempt } = await this.db
-            .from('cbt_exam_attempts')
-            .select('id, exam_id, status, finished_at, started_at')
-            .eq('id', attemptId)
-            .maybeSingle();
-        if (!attempt) return null;
-
-        const examId = (attempt as { exam_id: string }).exam_id;
-
-        const [questions, { data: saved, error: savedError }] = await Promise.all([
+        const { data: loaded, error: attemptError } = await this.db.from('cbt_exam_attempts')
+            .select('id, exam_id, status, finished_at, started_at, total_score').eq('id', attemptId).maybeSingle();
+        if (attemptError) throw new InternalServerErrorException('Sesi penilaian belum dapat dibaca.');
+        if (!loaded || !FINISHED_STATUSES.includes(loaded.status) || (pendingOnly && loaded.total_score != null)) return null;
+        // Copy the generation before waiting for an external service.
+        const attempt = { ...loaded };
+        const examId = attempt.exam_id;
+        const [questions, savedResult, examResult] = await Promise.all([
             loadFrozenExamQuestions(this.db, examId),
-            this.db
-                .from('cbt_answers')
-                .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
-                .eq('attempt_id', attemptId),
+            this.db.from('cbt_answers').select('id, question_id, selected_option_id, essay_answer, score, is_correct, metadata').eq('attempt_id', attemptId),
+            this.db.from('cbt_exams').select('exam_type').eq('id', examId).maybeSingle(),
         ]);
-        if (savedError) throw new InternalServerErrorException('Jawaban belum dapat dibaca untuk penilaian.');
-
-        const answers = new Map<string, AnswerRow>(
-            ((saved as any[]) || []).map((a) => [a.question_id, a]),
-        );
-
-        // Konvensi penyimpanan: jawaban tipe kompleks ada di `essay_answer`,
-        // pilihan ganda tunggal di `selected_option_id`.
-        const items = ((questions as any[]) || []).map((question) => {
-            const row = answers.get(question.id);
-            return {
-                question,
-                answer_id: question.id,
-                raw_answer: row?.essay_answer ?? row?.selected_option_id ?? null,
-            };
-        });
-
-        const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', { items });
-        const manual = manualGradeSummary(questions || [], answers);
-
-        // Discard results if a reset changed the attempt while scoring was running.
-        const applied = await this.db.transaction(async db => {
+        if (savedResult.error || examResult.error || !examResult.data) {
+            throw new InternalServerErrorException('Jawaban atau ujian belum dapat dibaca untuk penilaian.');
+        }
+        if (!questions.length) throw new BadRequestException('Soal ujian tidak tersedia untuk penilaian.');
+        const answers = new Map<string, AnswerRow>((savedResult.data || []).map((a: AnswerRow) => [a.question_id, { ...a }]));
+        const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', {
+            items: questions.map(question => ({ question, answer_id: question.id,
+                raw_answer: answers.get(question.id)?.essay_answer ?? answers.get(question.id)?.selected_option_id ?? null })),
+        }, { timeoutMs: 15_000 });
+        return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: current, error } = await db.from('cbt_exam_attempts')
-                .select('status, finished_at, started_at').eq('id', attemptId).maybeSingle();
+                .select('status, finished_at, started_at, total_score, metadata').eq('id', attemptId).maybeSingle();
             if (error) throw new InternalServerErrorException('Status penilaian belum dapat dibaca.');
-            if (!current || current.status !== attempt.status || current.finished_at !== attempt.finished_at ||
-                current.started_at !== attempt.started_at) return false;
+            if (!current || current.status !== attempt.status || current.started_at !== attempt.started_at ||
+                current.finished_at !== attempt.finished_at || (pendingOnly && current.total_score != null)) return null;
+            const { data: latestRows, error: readError } = await db.from('cbt_answers')
+                .select('id, question_id, selected_option_id, essay_answer, score, is_correct, metadata').eq('attempt_id', attemptId);
+            if (readError) throw new InternalServerErrorException('Jawaban belum dapat diverifikasi.');
+            const latest = new Map<string, any>((latestRows || []).map((a: any) => [a.question_id, a]));
+            // No stale answer payload may be applied, even if a writer forgot to change the generation.
+            if (questions.some(q => (latest.get(q.id)?.essay_answer ?? latest.get(q.id)?.selected_option_id ?? null) !==
+                (answers.get(q.id)?.essay_answer ?? answers.get(q.id)?.selected_option_id ?? null))) return null;
+            for (const question of questions.filter(q => isEssayType(q.type))) {
+                if (latest.has(question.id)) continue;
+                const { data: created, error: createError } = await db.from('cbt_answers').insert({
+                    attempt_id: attemptId, question_id: question.id, selected_option_id: null,
+                    essay_answer: null, score: 0, is_correct: null,
+                }).select('id, question_id, score, is_correct').single();
+                if (createError || !created) throw new InternalServerErrorException('Jawaban esai kosong belum dapat disimpan.');
+                latest.set(question.id, created);
+            }
             for (const item of result.items) {
-                if (!item.answer_id || !answers.has(item.answer_id)) continue;
-                const { error: writeError } = await db.from('cbt_answers')
-                    .update({ score: item.score, is_correct: item.is_correct })
-                    .eq('attempt_id', attemptId).eq('question_id', item.answer_id);
+                const question = questions.find(q => q.id === item.answer_id);
+                if (!question || isEssayType(question.type) || !latest.has(question.id)) continue;
+                const row = latest.get(question.id);
+                const { error: writeError } = await db.from('cbt_answers').update({
+                    score: item.score, is_correct: item.is_correct,
+                    metadata: { ...(row.metadata || {}), dimension_scores: item.dimension_scores || {} },
+                }).eq('attempt_id', attemptId).eq('question_id', question.id);
                 if (writeError) throw new InternalServerErrorException('Nilai jawaban belum tersimpan.');
             }
-            return true;
+            // A teacher may have graded essays while the scoring request was running.
+            const manual = manualGradeSummary(questions, latest);
+            const finalScore100 = result.max_possible_score > 0
+                ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0;
+            const hasEssay = manual.pending || examResult.data.exam_type === 'assignment';
+            const { error: totalError } = await db.from('cbt_exam_attempts').update({
+                total_score: finalScore100, needs_manual_grading: hasEssay,
+                metadata: { ...(current.metadata || {}), base_score: finalScore100,
+                    dimension_scores: result.dimension_scores || {}, relative_scoring_pending: examResult.data.exam_type === 'quiz', grading_retry_error: null,
+                    grading_retry_next_at: null, grading_recovered_at: new Date().toISOString() },
+            }).eq('id', attemptId);
+            if (totalError) throw new InternalServerErrorException('Total nilai belum tersimpan.');
+            return { finalScore100, hasEssay, examId,
+                ...(result.dimension_scores && Object.keys(result.dimension_scores).length
+                    ? { dimensionScores: result.dimension_scores } : {}) };
         });
-        if (!applied) return null;
-        const { data: exam } = await this.db.from('cbt_exams').select('exam_type').eq('id', examId).maybeSingle();
-
-        return {
-            finalScore100: result.max_possible_score > 0
-                ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0,
-            hasEssay: manual.pending || exam?.exam_type === 'assignment',
-            ...(result.dimension_scores && Object.keys(result.dimension_scores).length > 0
-                ? { dimensionScores: result.dimension_scores }
-                : {}),
-            examId,
-        };
     }
 
-    /**
-     * Hitung ulang satu attempt terhadap keadaan bank soal SAAT INI.
-     *
-     * Dipanggil setelah kunci jawaban diubah. Berbeda dari
-     * `gradeAttemptFromSavedAnswers`, di sini skor dimensi ikut disimpan —
-     * per jawaban di `cbt_answers.metadata` dan totalnya di metadata attempt.
-     *
-     * Untuk kuis, penalti kecepatan TIDAK diterapkan di sini. Yang disimpan
-     * hanyalah `base_score`; penaltinya dihitung sekali untuk seluruh peserta
-     * lewat `applyRelativeQuizScoring`, supaya jalur submit dan jalur regrade
-     * memakai model penilaian yang sama persis.
-     */
+    /** Regrade only finished attempts against their immutable exam snapshot. */
     async regradeAttempt(attemptId: string): Promise<void> {
-        const { data: attempt } = await this.db
-            .from('cbt_exam_attempts')
-            .select('id, exam_id, metadata')
-            .eq('id', attemptId)
-            .maybeSingle();
-        if (!attempt) return;
-
-        const row = attempt as { exam_id: string; metadata: Record<string, unknown> | null };
-        if (!await hasExamQuestionSnapshots(this.db, row.exam_id)) {
-            throw new BadRequestException(
-                'Ujian lama ini tidak memiliki snapshot kunci. Nilai historis tidak diubah.',
-            );
+        const { data: attempt, error } = await this.db.from('cbt_exam_attempts')
+            .select('exam_id, status').eq('id', attemptId).maybeSingle();
+        if (error) throw new InternalServerErrorException('Sesi penilaian belum dapat dibaca.');
+        if (!attempt || !FINISHED_STATUSES.includes(attempt.status)) return;
+        if (!await hasExamQuestionSnapshots(this.db, attempt.exam_id)) {
+            throw new BadRequestException('Ujian lama ini tidak memiliki snapshot kunci. Nilai historis tidak diubah.');
         }
-
-        const [questions, { data: saved }] = await Promise.all([
-            loadFrozenExamQuestions(this.db, row.exam_id),
-            this.db
-                .from('cbt_answers')
-                .select('id, question_id, selected_option_id, essay_answer, score, is_correct')
-                .eq('attempt_id', attemptId),
-        ]);
-        if (questions.length === 0) return;
-
-        const answers = new Map<string, AnswerRow>(
-            ((saved as AnswerRow[]) || []).map((a) => [a.question_id, a]),
-        );
-
-        // `answer_id` diisi id baris `cbt_answers` supaya hasilnya bisa ditulis
-        // balik per baris; soal yang belum dijawab tetap dikirim agar ikut
-        // menambah skor maksimum, tetapi tidak menghasilkan baris baru.
-        const items = ((questions as any[]) || []).map((question) => {
-            const answer = answers.get(question.id);
-            return {
-                question,
-                answer_id: answer?.id ?? null,
-                raw_answer: answer?.essay_answer ?? answer?.selected_option_id ?? null,
-            };
-        });
-
-        const result = await this.scoring.post<GradeBatchResponse>('/grading/attempt', { items });
-
-        const manual = manualGradeSummary(questions || [], answers);
-        const finalScore = result.max_possible_score > 0
-            ? ((result.total_score + manual.score) / result.max_possible_score) * 100 : 0;
-
-        for (const item of result.items) {
-            if (!item.answer_id) continue;
-
-            const payload: Record<string, unknown> = {
-                score: item.score,
-                is_correct: item.is_correct,
-            };
-            if (item.dimension_scores && Object.keys(item.dimension_scores).length > 0) {
-                payload.metadata = { dimension_scores: item.dimension_scores };
-            }
-
-            await this.db.from('cbt_answers').update(payload).eq('id', item.answer_id);
-        }
-
-        await this.db
-            .from('cbt_exam_attempts')
-            .update({
-                total_score: finalScore,
-                needs_manual_grading: manual.pending,
-                metadata: {
-                    ...(row.metadata || {}),
-                    dimension_scores: result.dimension_scores ?? {},
-                    base_score: finalScore,
-                },
-            })
-            .eq('id', attemptId);
+        await this.gradeAttemptFromSavedAnswers(attemptId, false);
     }
 
     /**
@@ -330,53 +257,46 @@ export class GradingService {
      * membaca durasi dan menulis hasilnya.
      */
     async applyRelativeQuizScoring(examId: string): Promise<Record<string, number>> {
-        const { data } = await this.db
-            .from('cbt_exam_attempts')
+        const { data, error } = await this.db.from('cbt_exam_attempts')
             .select('id, metadata, total_score, started_at, finished_at, status')
-            .eq('exam_id', examId)
-            .in('status', FINISHED_STATUSES);
-
-        // Null means durable submission awaiting grading, never a score of zero.
-        const rows = ((data || []) as (AttemptTimingRow & { total_score?: number | null; status: string })[])
-            .filter(row => row.total_score != null);
-        if (rows.length === 0) return {};
-
-        const attempts = rows.map((a: AttemptTimingRow & { total_score?: number | null }) => {
-            const start = a.started_at ? new Date(a.started_at).getTime() : 0;
-            const finish = a.finished_at ? new Date(a.finished_at).getTime() : start;
-            return {
-                attempt_id: a.id,
-                base_score: Number(a.metadata?.base_score ?? a.total_score ?? 0),
-                duration_seconds: Math.max(0, Math.floor((finish - start) / 1000)),
-            };
-        });
-
-        const { scores } = await this.scoring.post<{ scores: Record<string, number> }>(
-            '/grading/relative',
-            { attempts },
-        );
-
-        await this.db.transaction(async db => {
-            for (const [attemptId, score] of Object.entries(scores)) {
-                const row = rows.find((attempt) => attempt.id === attemptId) as
-                    (AttemptTimingRow & { total_score?: number | null; status: string }) | undefined;
-                if (!row) continue;
-                const baseScore = Number(row?.metadata?.base_score ?? row?.total_score ?? 0);
-                const { error } = await db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        total_score: score,
-                        metadata: { ...(row?.metadata || {}), base_score: baseScore },
-                    })
-                    .eq('id', attemptId)
-                    .eq('status', row.status)
-                    .eq('finished_at', row.finished_at)
-                    .eq('total_score', row.total_score);
-                if (error) throw new InternalServerErrorException('Nilai relatif gagal disimpan.');
+            .eq('exam_id', examId).in('status', FINISHED_STATUSES);
+        if (error) throw new InternalServerErrorException('Nilai kuis belum dapat dibaca.');
+        const rows = (data || []).filter((row: any) => row.total_score != null)
+            .map((row: any) => ({ ...row, metadata: { ...(row.metadata || {}) } }));
+        if (!rows.length) return {};
+        const { scores } = await this.scoring.post<{ scores: Record<string, number> }>('/grading/relative', {
+            attempts: rows.map((row: any) => ({ attempt_id: row.id,
+                base_score: Number(row.metadata.base_score ?? row.total_score),
+                duration_seconds: Math.max(0, Math.floor((Date.parse(row.finished_at) - Date.parse(row.started_at)) / 1000)) || 0,
+            })),
+        }, { timeoutMs: 15_000 });
+        return this.db.transaction(async db => {
+            await advisoryTransactionLock(db, `relative-grading:${examId}`);
+            // Lock consistently, then validate the entire cohort before writing any score.
+            for (const id of rows.map((r: any) => r.id).sort()) {
+                await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', id);
             }
+            const { data: latest, error: readError } = await db.from('cbt_exam_attempts')
+                .select('id, metadata, total_score, started_at, finished_at, status')
+                .eq('exam_id', examId).in('status', FINISHED_STATUSES);
+            if (readError) throw new InternalServerErrorException('Nilai kuis belum dapat diverifikasi.');
+            const current = new Map<string, any>((latest || []).filter((r: any) => r.total_score != null).map((r: any) => [r.id, r]));
+            if (current.size !== rows.length || rows.some((row: any) => {
+                const now = current.get(row.id);
+                return !now || now.status !== row.status || now.started_at !== row.started_at || now.finished_at !== row.finished_at ||
+                    now.total_score !== row.total_score || Number(now.metadata?.base_score ?? now.total_score) !== Number(row.metadata.base_score ?? row.total_score);
+            })) return {};
+            for (const row of rows) {
+                const score = scores[row.id];
+                if (!Number.isFinite(score)) throw new InternalServerErrorException('Hasil nilai relatif tidak lengkap.');
+                const now = current.get(row.id);
+                const { error: writeError } = await db.from('cbt_exam_attempts').update({ total_score: score,
+                    metadata: { ...(now.metadata || {}), base_score: Number(row.metadata.base_score ?? row.total_score), relative_scoring_pending: false },
+                }).eq('id', row.id);
+                if (writeError) throw new InternalServerErrorException('Nilai relatif gagal disimpan.');
+            }
+            return scores;
         });
-
-        return scores;
     }
 
     /** Terapkan skor relatif hanya bila ujian memang bertipe kuis. */
@@ -398,71 +318,55 @@ export class GradingService {
      * kali; penilaian jawaban serta update attempt bersifat idempoten.
      */
     async retryPendingAutoSubmissions(
-        examId: string,
+        examId?: string,
         limit = 25,
     ): Promise<{ recovered: number; failed: number }> {
-        const { data, error } = await this.db
-            .from('cbt_exam_attempts')
-            .select('id, metadata, status, finished_at')
-            .eq('exam_id', examId)
-            .in('status', ['submitted', 'auto_submitted'])
-            .is('total_score', null)
-            .order('finished_at', { ascending: true })
-            .limit(limit);
+        const { data, error } = examId ? await this.db.from('cbt_exam_attempts')
+            .select('id, metadata, status, started_at, finished_at, exam_id').eq('exam_id', examId)
+            .in('status', FINISHED_STATUSES).is('total_score', null)
+            .order('finished_at', { ascending: true }).limit(limit)
+            : { data: await this.db.raw<any[]>(`
+                SELECT id, metadata, status, started_at, finished_at, exam_id
+                FROM public.cbt_exam_attempts
+                WHERE status IN ('submitted', 'auto_submitted') AND total_score IS NULL
+                  AND COALESCE(metadata->>'grading_retry_next_at', '') <= $1
+                ORDER BY finished_at, id LIMIT $2`, new Date().toISOString(), limit), error: null };
         if (error) throw new InternalServerErrorException('Antrean penilaian belum dapat dibaca.');
-
+        const exams = new Set<string>();
         let recovered = 0;
         let failed = 0;
-        for (const row of (data as Array<{ id: string; metadata: Record<string, unknown> | null; status: string; finished_at: string | null }>) || []) {
+        for (const loaded of data || []) {
+            const row = { ...loaded, started_at: loaded.started_at instanceof Date ? loaded.started_at.toISOString() : loaded.started_at,
+                finished_at: loaded.finished_at instanceof Date ? loaded.finished_at.toISOString() : loaded.finished_at };
             try {
-                const graded = await this.gradeAttemptFromSavedAnswers(row.id);
-                if (!graded) continue;
-                const metadata = {
-                    ...(row.metadata || {}),
-                    base_score: graded.finalScore100,
-                    dimension_scores: graded.dimensionScores || {},
-                    grading_retry_error: null,
-                    grading_recovered_at: new Date().toISOString(),
-                };
-                const { data: updated, error: updateError } = await this.db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        total_score: graded.finalScore100,
-                        needs_manual_grading: graded.hasEssay,
-                        metadata,
-                    })
-                    .eq('id', row.id)
-                    .eq('status', row.status)
-                    .eq('finished_at', row.finished_at)
-                    .is('total_score', null)
-                    .select('id')
-                    .maybeSingle();
-                if (updateError) throw new Error(updateError.message);
-                if (updated) recovered += 1;
+                const nextAt = Date.parse(String(row.metadata?.grading_retry_next_at || ''));
+                if (Number.isFinite(nextAt) && nextAt > Date.now()) continue;
+                const graded = await this.gradeAttemptFromSavedAnswers(row.id, true);
+                if (graded) { recovered += 1; exams.add(graded.examId); }
             } catch (retryError) {
                 failed += 1;
-                const retryCount = Number(row.metadata?.grading_retry_count || 0) + 1;
-                await this.db
-                    .from('cbt_exam_attempts')
-                    .update({
-                        metadata: {
-                            ...(row.metadata || {}),
-                            grading_retry_count: retryCount,
-                            grading_retry_at: new Date().toISOString(),
-                            grading_retry_error: (retryError as Error).message.slice(0, 200),
-                        },
-                    })
-                    .eq('id', row.id)
-                    .eq('status', row.status)
-                    .eq('finished_at', row.finished_at)
-                    .is('total_score', null);
+                await this.db.transaction(async db => {
+                    await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', row.id);
+                    const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                        .select('status, started_at, finished_at, total_score, metadata').eq('id', row.id).maybeSingle();
+                    if (readError) throw new InternalServerErrorException('Status antrean belum dapat dibaca.');
+                    if (!current || current.status !== row.status || current.started_at !== row.started_at ||
+                        String(current.finished_at) !== String(row.finished_at) || current.total_score != null) return;
+                    const retryCount = Number(current.metadata?.grading_retry_count || 0) + 1;
+                    const { error: writeError } = await db.from('cbt_exam_attempts').update({ metadata: {
+                        ...(current.metadata || {}), grading_retry_count: retryCount, grading_retry_at: new Date().toISOString(),
+                        grading_retry_next_at: new Date(Date.now() + Math.min(300_000, 15_000 * 2 ** Math.min(retryCount, 5))).toISOString(),
+                        grading_retry_error: (retryError as Error).message.slice(0, 200),
+                    } }).eq('id', row.id);
+                    if (writeError) throw new InternalServerErrorException('Status retry belum tersimpan.');
+                });
                 this.logger.error(
                     `Retry penilaian auto-submit ${row.id} gagal: ${(retryError as Error).message}`,
                 );
             }
         }
 
-        if (recovered > 0) await this.applyRelativeQuizScoringIfQuiz(examId);
+        for (const id of exams) await this.applyRelativeQuizScoringIfQuiz(id);
         return { recovered, failed };
     }
 
@@ -492,7 +396,7 @@ export class GradingService {
             this.db
                 .from('cbt_exam_attempts')
                 .select(
-                    `id, user_id, needs_manual_grading,
+                    `id, user_id, status, started_at, finished_at, needs_manual_grading,
                      answers:cbt_answers(
                          question_id, is_correct, score, essay_answer, selected_option_id
                      )`,
@@ -507,7 +411,7 @@ export class GradingService {
             throw new InternalServerErrorException('Gagal membaca data pengerjaan.');
         }
 
-        const rows = (attempts as any[]) || [];
+        const rows = structuredClone((attempts as any[]) || []);
         if (rows.length === 0) {
             throw new BadRequestException('Belum ada peserta yang menyelesaikan ujian.');
         }
@@ -550,17 +454,40 @@ export class GradingService {
             attempts: normalizedRows,
         });
 
-        // Penulisan dilakukan per attempt karena nilainya berbeda-beda; jumlah
-        // peserta per ujian masih dalam ratusan.
-        for (const attempt of result.attempts) {
-            await this.db
+        const fingerprint = (values: any[]) => JSON.stringify(values.map(row => ({
+            id: row.id, status: row.status, started_at: row.started_at, finished_at: row.finished_at,
+            needs_manual_grading: row.needs_manual_grading,
+            answers: (row.answers || []).map((a: any) => ({ question_id: a.question_id,
+                is_correct: a.is_correct, score: a.score, essay_answer: a.essay_answer,
+                selected_option_id: a.selected_option_id })).sort((a: any, b: any) => a.question_id.localeCompare(b.question_id)),
+        })).sort((a, b) => a.id.localeCompare(b.id)));
+        if (result.attempts.length !== rows.length || new Set(result.attempts.map(a => a.id)).size !== rows.length ||
+            result.attempts.some(a => !rows.some(row => row.id === a.id))) {
+            throw new InternalServerErrorException('Hasil IRT tidak lengkap.');
+        }
+        await this.db.transaction(async db => {
+            for (const id of rows.map(row => row.id).sort()) {
+                await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', id);
+            }
+            const current = await db.from('cbt_exam_attempts').select(
+                `id, user_id, status, started_at, finished_at, needs_manual_grading,
+                 answers:cbt_answers(question_id, is_correct, score, essay_answer, selected_option_id)`,
+            ).eq('exam_id', examId).in('status', FINISHED_STATUSES);
+            if (current.error) throw new InternalServerErrorException('Gagal memeriksa ulang pengerjaan.');
+            if (fingerprint(current.data || []) !== fingerprint(rows)) {
+                throw new BadRequestException('Pengerjaan berubah selama perhitungan IRT. Hitung ulang.');
+            }
+            for (const attempt of result.attempts) {
+                const { data: saved, error: saveError } = await db
                 .from('cbt_exam_attempts')
                 .update({
                     detailed_scores: attempt.detailed_scores,
                     score_irt: attempt.score_irt,
                 })
-                .eq('id', attempt.id);
-        }
+                .eq('id', attempt.id).select('id').maybeSingle();
+                if (saveError || !saved) throw new InternalServerErrorException('Nilai IRT gagal disimpan.');
+            }
+        });
 
         return { count: result.count, items: result.items, warnings: result.warnings || [] };
     }
