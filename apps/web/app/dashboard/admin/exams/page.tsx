@@ -7,6 +7,8 @@ import { Spinner } from '@/app/components/ui/Spinner';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { Button } from '@/app/components/ui/button';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam,purgeTrialExam,setExamArchived } from '@/lib/api/exams';
 import type { ExamConfig,ExamConfigBank,PASPeriod } from '@/app/types/pas';
@@ -473,44 +475,6 @@ const ExamsPage = () => {
         <div className="max-w-7xl mx-auto pb-24">
             {timeZoneError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
-            {/* ── Hero Header — Navy Gradient ── */}
-            {/* ── Stats Grid ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
-                {[
-                    { id: 'all', label: 'Semua' },
-                    { id: 'daily', label: 'Ulangan Harian' },
-                    { id: 'asas_asat', label: 'ASAS/ASAT' },
-                    { id: 'tryout', label: 'Try Out' },
-                    { id: 'assignment', label: 'Tugas' },
-                    { id: 'lainnya', label: 'Lainnya' }
-                ].map(type => {
-                    const nonPasExams = exams.filter(exam => !isPasGeneratedExam(exam));
-                    const total = type.id === 'asas_asat'
-                        ? pasPeriods.length
-                        : (type.id === 'all'
-                            ? nonPasExams.length + pasPeriods.length
-                            : nonPasExams.filter(exam => matchesExamType(exam.exam_type, type.id)).length);
-                    
-                    const isSelected = typeFilter === type.id;
-                    
-                    return (
-                        <div 
-                            key={type.id} 
-                            onClick={() => setTypeFilter(type.id)}
-                            className={`bg-white rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center min-h-[84px] sm:min-h-[100px] text-center cursor-pointer transition-all duration-200 hover:-translate-y-1 ${
-                                isSelected 
-                                ? 'border-2 border-[#3083FF] shadow-md ring-4 ring-[#3083FF]/10' 
-                                : 'border border-[#3083FF]/20 shadow-sm hover:shadow-md'
-                            }`}
-                        >
-                            <h3 className={`font-bold text-[10px] xl:text-[11px] uppercase tracking-wider mb-1 ${isSelected ? 'text-[#3083FF]' : 'text-slate-500'}`}>{type.label}</h3>
-                            <span className="text-2xl sm:text-3xl font-black text-[#3083FF] leading-none mb-1.5 sm:mb-2.5">{total}</span>
-                            
-                        </div>
-                    );
-                })}
-            </div>
-
             {/* Tab Navigation */}
             <div className="grid grid-cols-2 lg:flex lg:flex-row gap-2 mb-6">
                 {tabs.map(tab => {
@@ -539,7 +503,9 @@ const ExamsPage = () => {
                             <span className={`ml-auto lg:ml-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                                 isActive
                                     ? 'bg-white/20 text-white'
-                                    : 'bg-[#3083FF]/10 text-[#3083FF]'
+                                    : tab.id === 'draft'
+                                        ? 'bg-red-50 text-red-600 border border-red-200'
+                                        : 'bg-[#3083FF]/10 text-[#3083FF]'
                             }`}>
                                 {count}
                             </span>
@@ -550,50 +516,51 @@ const ExamsPage = () => {
 
             {/* Search + Filters + Sort */}
             {typeFilter !== 'asas_asat' && (
-                <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Cari ujian..."
+                <div className="mb-6">
+                    <FilterToolbar actionsInline>
+                        <FilterSearch
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-white border border-[#3083FF]/30 rounded-lg py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-[#3083FF]/20 focus:border-[#3083FF] outline-none"
+                            onChange={setSearchQuery}
+                            placeholder="Cari ujian..."
+                            label="Cari Ujian"
+                            grow={1}
                         />
-                    </div>
-                    <InlineSelect
-                        value={typeFilter}
-                        onChange={val => setTypeFilter(val)}
-                        height="44px"
-                        minWidth="160px"
-                        className="w-full sm:w-auto"
-                        options={[
-                            { value: 'all', label: 'Semua Jenis Ujian' },
-                            { value: 'daily', label: 'Ulangan Harian' },
-                            { value: 'asas_asat', label: 'ASAS/ASAT' },
-                            { value: 'tryout', label: 'Try Out' },
-                            { value: 'assignment', label: 'Tugas' },
-                            { value: 'lainnya', label: 'Lainnya' },
-                        ]}
-                    />
-                    <InlineSelect
-                        value={sortBy}
-                        onChange={val => setSortBy(val as SortBy)}
-                        height="44px"
-                        minWidth="120px"
-                        className="w-full sm:w-auto"
-                        options={[
-                            { value: 'newest', label: 'Terbaru' },
-                            { value: 'oldest', label: 'Terlama' },
-                            { value: 'name', label: 'Nama' },
-                        ]}
-                    />
-                    <button
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="px-5 py-3 text-sm bg-[#3083FF] text-white rounded-lg hover:bg-[#2563EB] flex items-center justify-center gap-2 font-semibold shadow-lg shadow-[#3083FF]/20 whitespace-nowrap cursor-pointer"
-                    >
-                        <Plus size={16} /> Buat Ujian Baru
-                    </button>
+
+                        <FilterSelect
+                            label="Jenis Ujian"
+                            value={typeFilter}
+                            onChange={val => setTypeFilter(val as string)}
+                            options={[
+                                { value: 'all', label: 'Semua Jenis Ujian' },
+                                { value: 'daily', label: 'Ulangan Harian' },
+                                { value: 'asas_asat', label: 'ASAS/ASAT' },
+                                { value: 'tryout', label: 'Try Out' },
+                                { value: 'assignment', label: 'Tugas' },
+                                { value: 'lainnya', label: 'Lainnya' },
+                            ]}
+                        />
+
+                        <FilterSelect
+                            label="Urutkan"
+                            value={sortBy}
+                            onChange={val => setSortBy(val as SortBy)}
+                            options={[
+                                { value: 'newest', label: 'Terbaru' },
+                                { value: 'oldest', label: 'Terlama' },
+                                { value: 'name', label: 'Nama' },
+                            ]}
+                        />
+
+                        <FilterActions>
+                            <Button
+                                variant="primary"
+                                icon="add"
+                                onClick={() => setIsAddModalOpen(true)}
+                            >
+                                Buat Ujian Baru
+                            </Button>
+                        </FilterActions>
+                    </FilterToolbar>
                 </div>
             )}
 
@@ -893,22 +860,46 @@ const ExamsPage = () => {
                         const bankCount = period._count?.pas_subjects || 0;
                         const scheduleCount = period._count?.pas_class_schedules || 0;
                         const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+                        const now = new Date();
+                        const start = new Date(period.start_date ?? 0);
+                        const end = new Date(period.end_date ?? 0);
+                        end.setHours(23, 59, 59, 999);
+                        const isActive = start <= now && end >= now && !period.is_locked;
+                        const isFinished = end < now;
+                        const isDraft = !isActive && !isFinished;
                         return (
                             <div
                                 key={`pas-folder-${period.id}`}
                                 onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
-                                className="bg-white border border-blue-200 hover:border-blue-400 rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer"
+                                className={`bg-white rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer border ${
+                                    isDraft
+                                        ? 'border-red-200 hover:border-red-300'
+                                        : 'border-blue-200 hover:border-blue-400'
+                                }`}
                             >
                                 <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-[#1E40AF] border border-blue-200 flex items-center justify-center shrink-0">
-                                            <FolderOpen size={20} />
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 border ${
+                                            isDraft
+                                                ? 'bg-red-50 text-red-600 border border-red-200'
+                                                : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
+                                        }`}>
+                                            <FolderOpen size={20} className={isDraft ? 'text-red-600' : 'text-[#1E40AF]'} />
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#1E40AF] border border-blue-200">
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                                                    isDraft
+                                                        ? 'bg-red-50 text-red-600 border border-red-200'
+                                                        : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
+                                                }`}>
                                                     FOLDER UJIAN {period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>
+                                                {isDraft && (
+                                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
+                                                        Draft
+                                                    </span>
+                                                )}
                                                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                                                     {period.school_year}
                                                 </span>
@@ -920,8 +911,12 @@ const ExamsPage = () => {
                                             </div>
                                             <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{period.name}</h3>
                                             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-600">
-                                                <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 font-semibold flex items-center gap-1.5">
-                                                    <BookOpen size={12} /> {bankCount} Bank Soal • {scheduleCount} Jadwal Kelas
+                                                <span className={`px-2.5 py-1 rounded-lg border font-semibold flex items-center gap-1.5 ${
+                                                    isDraft
+                                                        ? 'bg-red-50 text-red-700 border-red-100'
+                                                        : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                                }`}>
+                                                    <BookOpen size={12} className={isDraft ? 'text-red-600' : 'text-blue-600'} /> {bankCount} Bank Soal • {scheduleCount} Jadwal Kelas
                                                 </span>
                                                 <span className="flex items-center gap-1.5 text-slate-500">
                                                     <Calendar size={12} className="text-slate-400" />
@@ -949,11 +944,15 @@ const ExamsPage = () => {
                         const isAssigned = assignment.classCount > 0 || assignment.studentCount > 0;
                         const isPublic = exam.metadata?.is_public === true;
                         const canPublish = isAssigned || isPublic;
+                        const isArchived = exam.status === 'archived';
+                        const isDraft = !exam.is_published && !isArchived;
                         return (
                             <div key={exam.id} className={`bg-white border rounded-xl overflow-hidden transition-all hover:shadow-lg ${
                                 exam.is_published
                                     ? 'border-[#3083FF]/30 hover:border-[#3083FF]'
-                                    : 'border-red-200 hover:border-red-300'
+                                    : isArchived
+                                        ? 'border-slate-200 hover:border-slate-300'
+                                        : 'border-red-200 hover:border-red-300'
                             }`}>
                                 {/* Card Header */}
                                 <div className="p-4 sm:p-5">
@@ -961,19 +960,27 @@ const ExamsPage = () => {
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 border ${
                                             exam.is_published
                                                 ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/40'
-                                                : 'bg-red-50 text-red-600 border border-red-200'
+                                                : isArchived
+                                                    ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                    : 'bg-red-50 text-red-600 border border-red-200'
                                         }`}>
-                                            {exam.is_published ? <Globe size={18} /> : <GlobeLock size={18} />}
+                                            {exam.is_published ? (
+                                                <Globe size={18} className="text-[#3083FF]" />
+                                            ) : isArchived ? (
+                                                <Archive size={18} className="text-slate-500" />
+                                            ) : (
+                                                <GlobeLock size={18} className="text-red-600" />
+                                            )}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            {(!exam.is_published || exam.status === 'archived') && (
+                                            {(!exam.is_published || isArchived) && (
                                                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                                                     <span className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-semibold ${
-                                                        exam.status === 'archived'
+                                                        isArchived
                                                             ? 'bg-slate-100 text-slate-600 border border-slate-200'
                                                             : 'bg-red-50 text-red-600 border border-red-200'
                                                     }`}>
-                                                        {exam.status === 'archived' ? 'Diarsipkan' : 'Draft'}
+                                                        {isArchived ? 'Diarsipkan' : 'Draft'}
                                                     </span>
                                                 </div>
                                             )}
@@ -985,9 +992,15 @@ const ExamsPage = () => {
                                     </div>
 
                                     {/* Bank info badge */}
-                                    <div className="mt-3 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20">
-                                        <p className="text-xs text-[#3083FF] font-medium truncate">
-                                            <BookOpen size={11} className="inline mr-1.5" />
+                                    <div className={`mt-3 px-3 py-2 rounded-lg border ${
+                                        isDraft
+                                            ? 'bg-red-50/60 border-red-200/60 text-red-600'
+                                            : 'bg-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
+                                    }`}>
+                                        <p className={`text-xs font-medium truncate ${
+                                            isDraft ? 'text-red-600' : 'text-[#3083FF]'
+                                        }`}>
+                                            <BookOpen size={11} className={`inline mr-1.5 ${isDraft ? 'text-red-600' : 'text-[#3083FF]'}`} />
                                             {bank?.title || 'Bank soal dihapus'}
                                         </p>
                                     </div>
@@ -997,14 +1010,14 @@ const ExamsPage = () => {
                                         <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
                                             <Globe size={12} className="text-[#3083FF] shrink-0" />
                                             <p className="text-xs text-[#3083FF] font-medium">
-                                                <strong>Ujian Umum (Publik)</strong> • Tersedia untuk siswa anggota aktif sekolah ini
+                                                <strong>Umum</strong> • Semua siswa
                                             </p>
                                         </div>
                                     ) : isAssigned ? (
                                         <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
                                             <CheckCircle2 size={12} className="text-[#3083FF] shrink-0" />
                                             <p className="text-xs text-[#3083FF] font-medium">
-                                                Ditugaskan ke <strong>{assignment.classCount} kelas</strong> • <strong>{assignment.studentCount} siswa</strong>
+                                                <strong>{assignment.classCount > 0 ? `${assignment.classCount} kelas` : `${assignment.studentCount} siswa`}</strong>
                                             </p>
                                         </div>
                                     ) : (

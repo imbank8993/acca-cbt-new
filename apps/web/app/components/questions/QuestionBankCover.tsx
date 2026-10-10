@@ -12,6 +12,8 @@ interface QuestionBankCoverProps {
     height: number;
     className?: string;
     iconSize?: number;
+    iconClassName?: string;
+    isPublished?: boolean;
 }
 
 export function QuestionBankCover({
@@ -21,12 +23,18 @@ export function QuestionBankCover({
     height,
     className = 'w-full h-full object-cover',
     iconSize = 20,
+    iconClassName,
+    isPublished,
 }: QuestionBankCoverProps) {
     const src = resolveStorageUrl(imageUrl || '');
     const [failedSrc, setFailedSrc] = useState('');
 
     if (!src || failedSrc === src) {
-        return <BookOpen size={iconSize} className="text-[#3083FF]" aria-label={`Cover ${title} tidak tersedia`} />;
+        const computedIconClass = iconClassName || (isPublished !== undefined
+            ? (isPublished ? 'text-[#3083FF]' : 'text-red-600')
+            : 'text-[#3083FF]');
+
+        return <BookOpen size={iconSize} className={computedIconClass} aria-label={`Cover ${title} tidak tersedia`} />;
     }
 
     return (

@@ -509,7 +509,9 @@ const ExamsPage = () => {
                             <span className={`ml-auto lg:ml-0 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                                 isActive
                                     ? 'bg-white/20 text-white'
-                                    : 'bg-[#3083FF]/10 text-[#3083FF]'
+                                    : tab.id === 'draft'
+                                        ? 'bg-red-50 text-red-600 border border-red-200'
+                                        : 'bg-[#3083FF]/10 text-[#3083FF]'
                             }`}>
                                 {count}
                             </span>
@@ -858,11 +860,15 @@ const ExamsPage = () => {
                         const isAssigned = assignment.classCount > 0 || assignment.studentCount > 0;
                         const isPublic = exam.metadata?.is_public === true;
                         const canPublish = isAssigned || isPublic;
+                        const isArchived = exam.status === 'archived';
+                        const isDraft = !exam.is_published && !isArchived;
                         return (
                             <div key={exam.id} className={`bg-white border rounded-xl overflow-hidden transition-all hover:shadow-lg ${
                                 exam.is_published
                                     ? 'border-[#3083FF]/30 hover:border-[#3083FF]'
-                                    : 'border-red-200 hover:border-red-300'
+                                    : isArchived
+                                        ? 'border-slate-200 hover:border-slate-300'
+                                        : 'border-red-200 hover:border-red-300'
                             }`}>
                                 {/* Card Header */}
                                 <div className="p-4 sm:p-5">
@@ -870,19 +876,27 @@ const ExamsPage = () => {
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0 border ${
                                             exam.is_published
                                                 ? 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/40'
-                                                : 'bg-red-50 text-red-600 border border-red-200'
+                                                : isArchived
+                                                    ? 'bg-slate-100 text-slate-600 border border-slate-200'
+                                                    : 'bg-red-50 text-red-600 border border-red-200'
                                         }`}>
-                                            {exam.is_published ? <Globe size={18} /> : <GlobeLock size={18} />}
+                                            {exam.is_published ? (
+                                                <Globe size={18} className="text-[#3083FF]" />
+                                            ) : isArchived ? (
+                                                <Archive size={18} className="text-slate-500" />
+                                            ) : (
+                                                <GlobeLock size={18} className="text-red-600" />
+                                            )}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            {(!exam.is_published || exam.status === 'archived') && (
+                                            {(!exam.is_published || isArchived) && (
                                                 <div className="flex flex-wrap items-center gap-2 mb-1.5">
                                                     <span className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-xs font-semibold ${
-                                                        exam.status === 'archived'
+                                                        isArchived
                                                             ? 'bg-slate-100 text-slate-600 border border-slate-200'
                                                             : 'bg-red-50 text-red-600 border border-red-200'
                                                     }`}>
-                                                        {exam.status === 'archived' ? 'Diarsipkan' : 'Draft'}
+                                                        {isArchived ? 'Diarsipkan' : 'Draft'}
                                                     </span>
                                                 </div>
                                             )}
@@ -891,9 +905,15 @@ const ExamsPage = () => {
                                     </div>
 
                                     {/* Bank info badge */}
-                                    <div className="mt-3 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20">
-                                        <p className="text-xs text-[#3083FF] font-medium truncate">
-                                            <BookOpen size={11} className="inline mr-1.5" />
+                                    <div className={`mt-3 px-3 py-2 rounded-lg border ${
+                                        isDraft
+                                            ? 'bg-red-50/60 border-red-200/60 text-red-600'
+                                            : 'bg-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
+                                    }`}>
+                                        <p className={`text-xs font-medium truncate ${
+                                            isDraft ? 'text-red-600' : 'text-[#3083FF]'
+                                        }`}>
+                                            <BookOpen size={11} className={`inline mr-1.5 ${isDraft ? 'text-red-600' : 'text-[#3083FF]'}`} />
                                             {bank?.title || 'Bank soal dihapus'}
                                         </p>
                                     </div>
@@ -903,14 +923,14 @@ const ExamsPage = () => {
                                         <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
                                             <Globe size={12} className="text-[#3083FF] shrink-0" />
                                             <p className="text-xs text-[#3083FF] font-medium">
-                                                <strong>Ujian Umum (Publik)</strong> • Tersedia untuk siswa anggota aktif sekolah ini
+                                                <strong>Umum</strong> • Semua siswa
                                             </p>
                                         </div>
                                     ) : isAssigned ? (
                                         <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
                                             <CheckCircle2 size={12} className="text-[#3083FF] shrink-0" />
                                             <p className="text-xs text-[#3083FF] font-medium">
-                                                Ditugaskan ke <strong>{assignment.classCount} kelas</strong> • <strong>{assignment.studentCount} siswa</strong>
+                                                <strong>{assignment.classCount > 0 ? `${assignment.classCount} kelas` : `${assignment.studentCount} siswa`}</strong>
                                             </p>
                                         </div>
                                     ) : (

@@ -21,6 +21,7 @@ import { getSessionUser } from '@/lib/session';
 import { getSchoolTimeZoneLabel, schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { Button } from '@/app/components/ui/button';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
@@ -34,6 +35,7 @@ Loader2,
 Lock,
 Monitor,
 Plus,
+Search,
 Settings,
 Table,
 Trash2,
@@ -42,7 +44,7 @@ Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams,useRouter } from 'next/navigation';
-import React,{ useCallback,useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
 type TabId = 'schedules' | 'live_today' | 'detail';
@@ -66,6 +68,9 @@ export default function ProctorPASDetailPage() {
     const [isRoomManagementOpen, setIsRoomManagementOpen] = useState(false);
     const [selectedScheduleIds, setSelectedScheduleIds] = useMemoryState<string[]>('proktor_exams_pas__id__selectedScheduleIds', []);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [classFilter, setClassFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
 
     const [scheduleForm, setScheduleForm] = useState({
         bank_id: '',
@@ -218,44 +223,61 @@ export default function ProctorPASDetailPage() {
         return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
+    const formatDateWithDay = (dateStr: string | null | undefined) => {
+        if (!dateStr) return 'Tanpa Tanggal';
+        const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        const d = new Date(`${cleanDate}T12:00:00`);
+        if (isNaN(d.getTime())) {
+            const fallback = new Date(dateStr);
+            if (!isNaN(fallback.getTime())) {
+                return fallback.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+            }
+            return dateStr;
+        }
+        return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
     const getBankTitle = (bankId: string | null, sc?: PASClassSchedule) => {
         if (sc?.question_banks?.title) return sc.question_banks.title;
         return qBanks.find((bank) => bank.id === bankId)?.title || 'Bank soal dihapus';
     };
 
-    const getSchedulesByDateAndTime = (filteredSchedules: PASClassSchedule[]) => {
+    const getGroupedSchedules = (scheduleList: PASClassSchedule[]) => {
         const grouped: Record<string, Record<string, PASClassSchedule[]>> = {};
-        for (const sc of filteredSchedules) {
+        for (const sc of scheduleList) {
             const dateStr = sc.scheduled_date || 'Tanpa Tanggal';
             const timeStr = sc.scheduled_time || 'Tanpa Waktu';
-            
+
             if (!grouped[dateStr]) grouped[dateStr] = {};
             if (!grouped[dateStr][timeStr]) grouped[dateStr][timeStr] = [];
-            
+
             grouped[dateStr][timeStr].push(sc);
         }
-        
-        // Sort dates
+
         const sortedDates = Object.keys(grouped).sort();
         const result: Array<{ date: string; sessions: Array<{ time: string; schedules: PASClassSchedule[] }> }> = [];
-        
+
         for (const date of sortedDates) {
             const sortedTimes = Object.keys(grouped[date]).sort();
             result.push({
                 date,
-                sessions: sortedTimes.map(t => ({
+                sessions: sortedTimes.map((t) => ({
                     time: t,
-                    schedules: grouped[date][t]
-                }))
+                    schedules: grouped[date][t].sort((a, b) =>
+                        (a.classes?.name || '').localeCompare(b.classes?.name || '', undefined, { numeric: true })
+                    ),
+                })),
             });
         }
         return result;
     };
 
+    const tzLabel = getSchoolTimeZoneLabel(timeZone);
+
     if (isLoading) {
         return (
             <div className="flex justify-center py-20">
-                <Loader2 size={36} className="text-primary animate-spin" />
+                <Loader2 size={36} className="text-[#3083FF] animate-spin" />
             </div>
         );
     }
@@ -265,85 +287,157 @@ export default function ProctorPASDetailPage() {
             <div className="max-w-2xl mx-auto py-20 text-center">
                 <AlertTriangle size={48} className="text-amber-400 mx-auto mb-4" />
                 <h2 className="text-xl font-bold text-slate-700 mb-2">Periode Tidak Ditemukan</h2>
-                <button onClick={() => router.push('/dashboard/proktor/exams')} className="px-6 py-2 bg-primary text-white rounded-xl mt-4">Kembali ke Pengaturan</button>
+                <button onClick={() => router.push('/dashboard/proktor/exams')} className="px-6 py-2 bg-[#3083FF] text-white rounded-xl mt-4">
+                    Kembali ke Pengaturan
+                </button>
             </div>
         );
     }
 
     const schedules = period.pas_class_schedules || [];
-    const uniqueBankCount = new Set(schedules.map(sc => sc.bank_id).filter(Boolean)).size;
-    const readySchedulesCount = schedules.filter(sc => Boolean(sc.exam_id)).length;
-    const ungeneratedIds = schedules.filter(sc => !sc.exam_id).map(sc => sc.id);
-    
+    const uniqueBankCount = new Set(schedules.map((sc) => sc.bank_id).filter(Boolean)).size;
+    const readySchedulesCount = schedules.filter((sc) => Boolean(sc.exam_id)).length;
+    const ungeneratedIds = schedules.filter((sc) => !sc.exam_id).map((sc) => sc.id);
+
     // Live Today filter
     const todayStr = schoolTodayDate(timeZone);
     const liveSchedules = schedules.filter((schedule) => schedule.scheduled_date === todayStr);
 
-    const groupedSchedules = getSchedulesByDateAndTime(activeTab === 'live_today' ? liveSchedules : schedules);
+    const filteredSchedules = schedules.filter((sc) => {
+        if (activeTab === 'live_today' && sc.scheduled_date !== todayStr) return false;
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            const bankTitle = getBankTitle(sc.bank_id, sc).toLowerCase();
+            const subjectName = (sc.subjects?.name || '').toLowerCase();
+            const className = (sc.classes?.name || '').toLowerCase();
+            const roomName = (sc.room || '').toLowerCase();
+            if (!bankTitle.includes(q) && !subjectName.includes(q) && !className.includes(q) && !roomName.includes(q)) {
+                return false;
+            }
+        }
+
+        if (classFilter !== 'all' && sc.class_id !== classFilter) return false;
+
+        if (statusFilter === 'ready' && !sc.exam_id) return false;
+        if (statusFilter === 'pending' && sc.exam_id) return false;
+        if (statusFilter === 'active' && sc.status !== 'active') return false;
+        if (statusFilter === 'finished' && sc.status !== 'finished') return false;
+
+        return true;
+    });
+
+    const groupedSchedules = getGroupedSchedules(filteredSchedules);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-5 pb-20">
-            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            
-            {/* Period Details Header Card */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5 min-w-0">
-                    <Link
-                        href="/dashboard/proktor/exams"
-                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 shrink-0"
-                        title="Kembali ke Daftar Ujian"
-                    >
-                        <ArrowLeft size={16} />
-                    </Link>
-                    <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#1E40AF] shrink-0">
-                        <FolderOpen size={20} />
-                    </div>
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#1E40AF] border border-blue-200 uppercase">
-                                {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === "ganjil" ? "Ganjil" : "Genap"}
-                            </span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md border border-slate-200">{period.school_year}</span>
-                            {period.is_locked && <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded-md flex items-center gap-1"><Lock size={10} /> Terkunci</span>}
-                        </div>
-                        <h1 className="text-lg font-bold text-slate-800 truncate">{period.name}</h1>
-                        <p className="text-slate-400 text-xs font-medium flex items-center gap-1.5 mt-0.5">
-                            <Calendar size={12} className="text-slate-400" />
-                            <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
-                        </p>
-                    </div>
+        <div className="max-w-7xl mx-auto space-y-5 pb-24">
+            {timeZoneError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {timeZoneError}
                 </div>
+            )}
 
-                <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0">
-                    <span className="px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold flex items-center gap-1.5">
-                        <BookOpen size={13} /> {uniqueBankCount} Bank Soal
-                    </span>
-                    <span className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5">
-                        <Calendar size={13} /> {schedules.length} Jadwal Kelas
-                    </span>
-                    <span className="px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1.5">
-                        <Check size={13} /> {readySchedulesCount}/{schedules.length} Siap
-                    </span>
+            {/* ── Period Details Header Card ── */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                        <Link
+                            href="/dashboard/proktor/exams"
+                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 shrink-0"
+                            title="Kembali ke Daftar Ujian"
+                        >
+                            <ArrowLeft size={16} />
+                        </Link>
+                        <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3083FF] shrink-0">
+                            <FolderOpen size={20} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/20 uppercase">
+                                    {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'Ganjil' : 'Genap'}
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md border border-slate-200">
+                                    {period.school_year}
+                                </span>
+                                {period.is_locked && (
+                                    <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded-md flex items-center gap-1">
+                                        <Lock size={10} /> Terkunci
+                                    </span>
+                                )}
+                            </div>
+                            <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{period.name}</h1>
+                            <p className="text-slate-500 text-xs font-medium flex items-center gap-1.5 mt-0.5">
+                                <Calendar size={12} className="text-slate-400" />
+                                <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Clean Metrics Summary */}
+                    <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap md:justify-end shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center">
+                                <BookOpen size={14} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Bank Soal</p>
+                                <p className="text-sm font-bold text-slate-800">{uniqueBankCount}</p>
+                            </div>
+                        </div>
+
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                <Calendar size={14} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Jadwal Kelas</p>
+                                <p className="text-sm font-bold text-slate-800">{schedules.length}</p>
+                            </div>
+                        </div>
+
+                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                readySchedulesCount === schedules.length && schedules.length > 0
+                                    ? 'bg-emerald-50 text-emerald-600'
+                                    : 'bg-amber-50 text-amber-600'
+                            }`}>
+                                <Check size={14} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Kesiapan</p>
+                                <p className="text-sm font-bold text-slate-800">{readySchedulesCount}/{schedules.length} Siap</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Tabs & Toolbar Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
-                <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl">
-                    <button onClick={() => setActiveTab('schedules')}
+            {/* ── Tabs & Actions Toolbar ── */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+                    <button
+                        onClick={() => setActiveTab('schedules')}
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            activeTab === 'schedules' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                            activeTab === 'schedules' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Calendar size={13} />
+                        Semua Jadwal
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            activeTab === 'schedules' ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-slate-200 text-slate-500'
                         }`}>
-                        <Calendar size={14} /> Daftar Bank Soal
-                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${activeTab === 'schedules' ? 'bg-primary/10 text-primary' : 'bg-slate-200 text-slate-500'}`}>
                             {schedules.length}
                         </span>
                     </button>
-                    <button onClick={() => setActiveTab('live_today')}
+
+                    <button
+                        onClick={() => setActiveTab('live_today')}
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            activeTab === 'live_today' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                        }`}>
-                        <Zap size={14} className={activeTab === 'live_today' ? 'text-amber-500' : ''} /> Live Hari Ini
+                            activeTab === 'live_today' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Zap size={13} className={activeTab === 'live_today' ? 'text-amber-500' : ''} />
+                        Live Hari Ini
                         {liveSchedules.length > 0 && (
                             <span className="flex h-2 w-2 relative ml-0.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -351,50 +445,67 @@ export default function ProctorPASDetailPage() {
                             </span>
                         )}
                     </button>
-                    <button onClick={() => setActiveTab('detail')}
+
+                    <button
+                        onClick={() => setActiveTab('detail')}
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            activeTab === 'detail' ? 'bg-white text-primary shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                        }`}>
-                        <Settings size={14} /> Detail Folder
+                            activeTab === 'detail' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <Settings size={13} />
+                        Detail Folder
                     </button>
                 </div>
 
                 {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
                     <div className="flex items-center gap-2 flex-wrap">
                         {ungeneratedIds.length > 0 && (
-                            <button
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => void handleGenerateExams(ungeneratedIds)}
                                 disabled={isGenerating}
-                                className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+                                leftIcon={isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} className="text-amber-500" />}
                             >
-                                {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
                                 Aktifkan Semua ({ungeneratedIds.length})
-                            </button>
+                            </Button>
                         )}
-                        <button onClick={() => setIsRoomManagementOpen(true)}
-                            className="px-3 py-1.5 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-medium transition-all shadow-2xs">
-                            <Settings size={14} /> Sesi & Ruang
-                        </button>
-                        <button onClick={() => setIsBulkInputOpen(true)}
-                            className="px-3 py-1.5 text-xs bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 flex items-center gap-1.5 font-medium transition-all shadow-2xs">
-                            <Table size={14} /> Jadwal Massal
-                        </button>
-                        <button onClick={() => {
-                            setScheduleForm(prev => ({
-                                ...prev,
-                                scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
-                                session_id: prev.session_id || sessions[0]?.id || '',
-                            }));
-                            setIsAddScheduleOpen(true);
-                        }}
-                            className="px-3.5 py-1.5 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center gap-1.5 shadow-xs font-semibold transition-all">
-                            <Plus size={15} /> Jadwalkan Bank Soal
-                        </button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsRoomManagementOpen(true)}
+                            leftIcon={<Settings size={13} />}
+                        >
+                            Sesi & Ruang
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsBulkInputOpen(true)}
+                            leftIcon={<Table size={13} />}
+                        >
+                            Jadwal Massal
+                        </Button>
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            icon="add"
+                            onClick={() => {
+                                setScheduleForm((prev) => ({
+                                    ...prev,
+                                    scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
+                                    session_id: prev.session_id || sessions[0]?.id || '',
+                                }));
+                                setIsAddScheduleOpen(true);
+                            }}
+                        >
+                            Jadwalkan Bank Soal
+                        </Button>
                     </div>
                 )}
             </div>
 
-            {/* ─── SCHEDULES & LIVE TAB ─── */}
+            {/* ── SCHEDULES & LIVE TAB ── */}
             {(activeTab === 'schedules' || activeTab === 'live_today') && (
                 <div className="space-y-4">
                     {isBulkInputOpen && (
@@ -405,22 +516,89 @@ export default function ProctorPASDetailPage() {
                             subjects={subjects}
                             qBanks={qBanks}
                             sessions={sessions}
-                            onComplete={() => { setIsBulkInputOpen(false); void loadData(); }}
+                            onComplete={() => {
+                                setIsBulkInputOpen(false);
+                                void loadData();
+                            }}
                             onCancel={() => setIsBulkInputOpen(false)}
                         />
                     )}
 
-                    {(!isBulkInputOpen && activeTab === 'live_today' && liveSchedules.length === 0) && (
-                        <div className="py-14 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl bg-white">
-                            <Calendar size={36} className="mx-auto mb-2.5 opacity-40 text-slate-400" />
-                            <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal ujian hari ini</p>
-                            <p className="text-xs text-slate-400 mt-0.5">Belum ada bank soal di folder ini yang dijadwalkan untuk hari ini.</p>
+                    {/* Filter Bar */}
+                    {schedules.length > 0 && !isBulkInputOpen && (
+                        <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-2xs flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Cari bank soal, mapel, kelas, atau ruang..."
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-9 pr-8 text-xs focus:ring-1 focus:ring-[#3083FF] focus:border-[#3083FF] outline-none text-slate-700"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X size={13} />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={classFilter}
+                                    onChange={(e) => setClassFilter(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-[#3083FF] cursor-pointer"
+                                >
+                                    <option value="all">Semua Kelas</option>
+                                    {classes.map((c) => (
+                                        <option key={c.id} value={c.id}>Kelas {c.name}</option>
+                                    ))}
+                                </select>
+
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-[#3083FF] cursor-pointer"
+                                >
+                                    <option value="all">Semua Status</option>
+                                    <option value="ready">Siap Ujian</option>
+                                    <option value="pending">Belum Aktif</option>
+                                    <option value="active">Sedang Ujian</option>
+                                    <option value="finished">Selesai</option>
+                                </select>
+
+                                {(searchQuery || classFilter !== 'all' || statusFilter !== 'all') && (
+                                    <button
+                                        onClick={() => {
+                                            setSearchQuery('');
+                                            setClassFilter('all');
+                                            setStatusFilter('all');
+                                        }}
+                                        className="px-2.5 py-2 text-xs text-[#3083FF] hover:underline transition-colors whitespace-nowrap font-medium"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {(!isBulkInputOpen && activeTab === 'schedules' && schedules.length === 0) && (
+                    {/* Empty State: Live Today Empty */}
+                    {!isBulkInputOpen && activeTab === 'live_today' && liveSchedules.length === 0 && (
+                        <div className="py-14 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl bg-white">
+                            <Calendar size={36} className="mx-auto mb-2.5 opacity-40 text-slate-400" />
+                            <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal ujian hari ini</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Belum ada bank soal di folder ini yang dijadwalkan untuk hari ini ({formatDate(todayStr)}).</p>
+                        </div>
+                    )}
+
+                    {/* Empty State: Folder Empty */}
+                    {!isBulkInputOpen && activeTab === 'schedules' && schedules.length === 0 && (
                         <div className="py-14 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl bg-white p-6">
-                            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#1E40AF] mx-auto mb-3">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3083FF] mx-auto mb-3">
                                 <FolderOpen size={24} />
                             </div>
                             <p className="font-bold text-slate-800 text-sm">Folder Ujian Masih Kosong</p>
@@ -429,148 +607,268 @@ export default function ProctorPASDetailPage() {
                             </p>
                             {!period.is_locked && (
                                 <div className="mt-4 flex items-center justify-center gap-2.5">
-                                    <button
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        icon="add"
                                         onClick={() => {
-                                             setScheduleForm(prev => ({
+                                            setScheduleForm((prev) => ({
                                                 ...prev,
                                                 scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
                                                 session_id: prev.session_id || sessions[0]?.id || '',
                                             }));
                                             setIsAddScheduleOpen(true);
                                         }}
-                                        className="px-3.5 py-2 text-xs bg-primary text-white rounded-xl hover:bg-primary/90 inline-flex items-center gap-1.5 font-semibold shadow-xs transition-all"
                                     >
-                                        <Plus size={15} /> Jadwalkan Bank Soal
-                                    </button>
-                                    <button
+                                        Jadwalkan Bank Soal
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        leftIcon={<Table size={13} />}
                                         onClick={() => setIsBulkInputOpen(true)}
-                                        className="px-3.5 py-2 text-xs bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 inline-flex items-center gap-1.5 font-medium transition-all"
                                     >
-                                        <Table size={14} /> Jadwal Massal
-                                    </button>
+                                        Jadwal Massal
+                                    </Button>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {!isBulkInputOpen && groupedSchedules.map((dayGroup) => (
-                        <div key={dayGroup.date} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
-                            {/* Header Tanggal */}
-                            <div className="bg-slate-50 border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
-                                <div className="flex items-center gap-2.5 font-semibold text-slate-800 text-sm">
-                                    <Calendar size={15} className="text-[#3083FF]" />
-                                    <span>{formatDate(dayGroup.date)}</span>
-                                </div>
-                                <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs">
-                                    {dayGroup.sessions.length} Sesi Ujian
-                                </span>
-                            </div>
+                    {/* Empty State: Filter Result Empty */}
+                    {!isBulkInputOpen && schedules.length > 0 && filteredSchedules.length === 0 && (
+                        <div className="py-12 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl bg-white p-6">
+                            <Search size={32} className="mx-auto mb-2 text-slate-300" />
+                            <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal yang cocok</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Coba ubah kata kunci pencarian atau reset filter kelas dan status.</p>
+                            <button
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setClassFilter('all');
+                                    setStatusFilter('all');
+                                }}
+                                className="mt-3 px-3.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+                            >
+                                Reset Filter
+                            </button>
+                        </div>
+                    )}
 
-                            {/* Daftar Sesi dalam Tanggal tersebut */}
-                            <div className="p-4 sm:p-6 space-y-6">
-                                {dayGroup.sessions.map((session, sIdx) => (
-                                    <div key={session.time} className="relative">
-                                        {/* Connector line between sessions if not last */}
-                                        {sIdx !== dayGroup.sessions.length - 1 && (
-                                            <div className="absolute left-[5.5rem] top-10 bottom-[-1.5rem] w-px bg-slate-200 hidden sm:block" />
-                                        )}
-                                        
-                                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                                            {/* Jam Sesi */}
-                                            <div className="sm:w-20 shrink-0 flex items-start sm:justify-end mt-1">
-                                                <div className="flex items-center gap-2 text-slate-700 font-bold bg-slate-100 px-3 py-1.5 rounded-lg">
-                                                    <Clock size={14} className="text-primary" />
-                                                    {session.time} {getSchoolTimeZoneLabel(timeZone)}
-                                                </div>
-                                            </div>
+                    {/* ── Grouped Schedules Table per Date ── */}
+                    {!isBulkInputOpen && groupedSchedules.map((dayGroup) => {
+                        const daySchedules = dayGroup.sessions.flatMap((s) => s.schedules);
+                        const dayScheduleIds = daySchedules.map((sc) => sc.id);
+                        const isAllDaySelected = dayScheduleIds.length > 0 && dayScheduleIds.every((id) => selectedScheduleIds.includes(id));
+                        const isSomeDaySelected = dayScheduleIds.some((id) => selectedScheduleIds.includes(id)) && !isAllDaySelected;
 
-                                            {/* Daftar Ujian di Sesi tersebut */}
-                                            <div className="flex-1 space-y-3">
-                                                {session.schedules.map((sc) => (
-                                                    <div key={sc.id} className={`flex flex-col sm:flex-row gap-3 p-4 rounded-xl border transition-all ${
-                                                        sc.status === 'active' ? 'bg-green-50 border-green-200 shadow-sm' : 
-                                                        sc.status === 'finished' ? 'bg-slate-50 border-slate-100 opacity-70' : 
-                                                        'bg-white border-slate-200 hover:border-primary/30 hover:shadow-md'
-                                                    }`}>
-                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                            <div className="pt-1">
-                                                                <input type="checkbox" checked={selectedScheduleIds.includes(sc.id)} onChange={() => toggleScheduleSelect(sc.id)} className="w-4 h-4 rounded text-primary" />
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                                    <span className="font-bold text-slate-800 text-base">{getBankTitle(sc.bank_id, sc)}</span>
-                                                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold rounded-md">
-                                                                        Kelas {sc.classes?.name || 'Semua Kelas'}
-                                                                    </span>
-                                                                    {sc.room && <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-md">R. {sc.room}</span>}
-                                                                </div>
-                                                                
-                                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                                                                    <span className="text-slate-600 font-medium">Ujian: <strong>{period.name}</strong></span>
-                                                                    <span className="flex items-center gap-1.5"><Clock size={12}/> {sc.duration_minutes} mnt</span>
-                                                                    <span className="flex items-center gap-1.5"><AlertTriangle size={12}/> Tutup {sc.window_end_time} {getSchoolTimeZoneLabel(timeZone)}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                        const toggleSelectAllDay = () => {
+                            if (isAllDaySelected) {
+                                setSelectedScheduleIds((prev) => prev.filter((id) => !dayScheduleIds.includes(id)));
+                            } else {
+                                setSelectedScheduleIds((prev) => Array.from(new Set([...prev, ...dayScheduleIds])));
+                            }
+                        };
 
-                                                        {/* Status & Actions */}
-                                                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4">
-                                                            <div className="flex flex-col items-start sm:items-end gap-1">
-                                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                                                                    sc.status === 'active' ? 'bg-green-100 text-green-700' : 
-                                                                    sc.status === 'finished' ? 'bg-slate-200 text-slate-500' : 
-                                                                    'bg-slate-100 text-slate-600'
-                                                                }`}>
-                                                                    {sc.status === 'scheduled' ? 'TERJADWAL' : sc.status === 'active' ? 'SEDANG UJIAN' : 'SELESAI'}
-                                                                </span>
-                                                                <div className="flex items-center gap-1 mt-0.5">
-                                                                    {sc.exam_id ? (
-                                                                        <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold"><Check size={10}/> Siap Ujian</span>
-                                                                    ) : (
-                                                                        <span className="text-[10px] text-amber-600 font-semibold italic">Belum diaktifkan</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                        const isToday = dayGroup.date === todayStr;
 
-                                                            <div className="flex items-center gap-1.5">
-                                                                {sc.exam_id && (
-                                                                    <Link
-                                                                        href={`/dashboard/proktor/monitoring?exam=${sc.exam_id}`}
-                                                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-primary/10 text-slate-700 hover:text-primary text-[11px] font-bold flex items-center gap-1 transition-all"
-                                                                        title="Monitor ujian kelas ini"
-                                                                    >
-                                                                        <Monitor size={12} /> Monitor
-                                                                    </Link>
-                                                                )}
-                                                                {!period.is_locked && (
-                                                                    <button onClick={() => handleRemoveSchedule(sc.id)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all" title="Hapus jadwal">
-                                                                        <Trash2 size={14} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                        return (
+                            <div key={dayGroup.date} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs">
+                                {/* Header Tanggal */}
+                                <div className="bg-slate-50/80 border-b border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            checked={isAllDaySelected}
+                                            ref={(el) => {
+                                                if (el) el.indeterminate = isSomeDaySelected;
+                                            }}
+                                            onChange={toggleSelectAllDay}
+                                            className="w-4 h-4 rounded text-[#3083FF] focus:ring-[#3083FF]/20 cursor-pointer"
+                                            title="Pilih semua jadwal di tanggal ini"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={14} className="text-[#3083FF]" />
+                                            <span className="font-bold text-slate-800 text-sm">
+                                                {formatDateWithDay(dayGroup.date)}
+                                            </span>
+                                            {isToday && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Hari Ini
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
 
-                    {/* Bar Aksi Generate Ujian untuk jadwal yang di-check */}
-                    {selectedScheduleIds.length > 0 && (
-                        <div className="sticky bottom-4 flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 shadow-xl rounded-xl mt-6 z-10">
-                            <Zap size={20} className="text-[#1E40AF] shrink-0" />
-                            <div className="flex-1">
-                                <p className="text-sm font-semibold text-[#1E40AF]">{selectedScheduleIds.length} jadwal dipilih</p>
-                                <p className="text-xs text-blue-700">Akan dibuat/diperbarui ujian dengan nama &ldquo;{period.name}&rdquo; untuk dikerjakan siswa</p>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                        <span>{dayGroup.sessions.length} Sesi</span>
+                                        <span>•</span>
+                                        <span className="font-medium text-slate-700">{daySchedules.length} Jadwal Kelas</span>
+                                    </div>
+                                </div>
+
+                                {/* Tabel Jadwal */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse min-w-[700px]">
+                                        <thead>
+                                            <tr className="bg-white border-b border-slate-200/80 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                                <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                                <th className="py-2.5 px-3 w-40">Sesi & Waktu</th>
+                                                <th className="py-2.5 px-3">Bank Soal / Mapel</th>
+                                                <th className="py-2.5 px-3 w-28">Kelas</th>
+                                                <th className="py-2.5 px-3 w-24">Ruang</th>
+                                                <th className="py-2.5 px-3 w-24">Durasi</th>
+                                                <th className="py-2.5 px-3 w-32">Status</th>
+                                                <th className="py-2.5 px-3 w-24 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                            {dayGroup.sessions.map((session) => {
+                                                const sessionObj = sessions.find((s) => s.id === session.schedules[0]?.session_id);
+                                                const sessionName = sessionObj?.name || 'Sesi';
+                                                const timeLabel = sessionObj
+                                                    ? `${sessionObj.start_time.substring(0, 5)} - ${sessionObj.end_time.substring(0, 5)}`
+                                                    : session.time;
+
+                                                return session.schedules.map((sc) => {
+                                                    const isSelected = selectedScheduleIds.includes(sc.id);
+                                                    const isReady = Boolean(sc.exam_id);
+                                                    const bankTitle = getBankTitle(sc.bank_id, sc);
+                                                    const subjectName = sc.subjects?.name;
+
+                                                    return (
+                                                        <tr
+                                                            key={sc.id}
+                                                            className={`transition-colors hover:bg-slate-50/70 ${
+                                                                isSelected ? 'bg-blue-50/40' : ''
+                                                            }`}
+                                                        >
+                                                            <td className="py-3 px-3 text-center">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={() => toggleScheduleSelect(sc.id)}
+                                                                    className="w-4 h-4 rounded text-[#3083FF] focus:ring-[#3083FF]/20 cursor-pointer"
+                                                                />
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                <div className="font-semibold text-slate-800">{sessionName}</div>
+                                                                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                                                                    <Clock size={11} />
+                                                                    <span>{timeLabel} {tzLabel}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                                                                    {bankTitle}
+                                                                </div>
+                                                                {subjectName && (
+                                                                    <div className="text-[11px] text-slate-500 mt-0.5">
+                                                                        {subjectName}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200/80">
+                                                                    Kelas {sc.classes?.name || 'Semua Kelas'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                {sc.room ? (
+                                                                    <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#3083FF] font-medium text-[11px] border border-blue-200/60">
+                                                                        R. {sc.room}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-slate-400">-</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-3 font-medium text-slate-600">
+                                                                {sc.duration_minutes || 90} mnt
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                {sc.status === 'active' ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                                        SEDANG UJIAN
+                                                                    </span>
+                                                                ) : sc.status === 'finished' ? (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                                                        SELESAI
+                                                                    </span>
+                                                                ) : isReady ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                        <Check size={10} /> Siap
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                        Belum Aktif
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-3 text-right">
+                                                                <div className="flex items-center justify-end gap-1">
+                                                                    {sc.exam_id && (
+                                                                        <Link
+                                                                            href={`/dashboard/proktor/monitoring?exam=${sc.exam_id}`}
+                                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-[#3083FF] hover:bg-[#3083FF]/10 transition-colors"
+                                                                            title="Buka Pemantauan"
+                                                                        >
+                                                                            <Monitor size={14} />
+                                                                        </Link>
+                                                                    )}
+                                                                    {!period.is_locked && (
+                                                                        <button
+                                                                            onClick={() => handleRemoveSchedule(sc.id)}
+                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                                            title="Hapus Jadwal"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <button onClick={() => void handleGenerateExams()} disabled={isGenerating} className="px-5 py-2.5 bg-[#3083FF] hover:bg-[#2563EB] text-white text-xs font-bold rounded-lg disabled:opacity-50 flex items-center gap-1.5 shadow-md">
-                                {isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
-                                {isGenerating ? 'Memproses...' : 'Generate Ujian'}
-                            </button>
+                        );
+                    })}
+
+                    {/* ── Floating Action Bar for Selected Schedules ── */}
+                    {selectedScheduleIds.length > 0 && (
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex items-center gap-4 max-w-xl w-[92%] sm:w-auto">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
+                                <Zap size={16} />
+                            </div>
+                            <div className="min-w-0 pr-2">
+                                <p className="text-xs font-bold text-slate-800">
+                                    {selectedScheduleIds.length} Jadwal Dipilih
+                                </p>
+                                <p className="text-[11px] text-slate-500 truncate hidden sm:block">
+                                    Generate & aktifkan ujian &ldquo;{period.name}&rdquo; untuk kelas terpilih
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedScheduleIds([])}
+                                    className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+                                >
+                                    Batal
+                                </button>
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => void handleGenerateExams()}
+                                    disabled={isGenerating}
+                                    leftIcon={isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                                >
+                                    {isGenerating ? 'Memproses...' : 'Generate Ujian'}
+                                </Button>
+                            </div>
                         </div>
                     )}
                 </div>

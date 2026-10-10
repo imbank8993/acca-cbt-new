@@ -26,6 +26,7 @@ import Link from 'next/link';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { CreateBankModal } from '@/components/questions/CreateBankModal';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
+import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 
 
 export default function ProktorQuestionBankPage() {
@@ -36,9 +37,26 @@ export default function ProktorQuestionBankPage() {
     const [bankToDelete, setBankToDelete] = useState<QuestionBank | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
-    const [isProctor, setIsProctor] = useState(false);
+    const [isProctor, setIsProctor] = useState(true);
     const [isDualRole, setIsDualRole] = useState(false);
     const [, setCurrentUserId] = useState<string | null>(null);
+
+    // Register Mobile Center FAB on BottomNav
+    useEffect(() => {
+        const token = {};
+        registerPageFab(token, {
+            label: 'Buat Bank Soal',
+            icon: 'plus',
+            run: () => {
+                setEditingBank(null);
+                setTargetFolderId(undefined);
+                setIsAddModalOpen(true);
+            },
+        });
+        return () => {
+            unregisterPageFab(token);
+        };
+    }, []);
 
     const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
     const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
@@ -397,8 +415,12 @@ export default function ProktorQuestionBankPage() {
                     onChange={() => toggleSelectBank(bank.id)}
                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
-                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
-                    <QuestionBankCover imageUrl={bank.image_url} title={bank.title} width={48} height={48} />
+                <div className={`w-12 h-12 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
+                    bank.is_published
+                        ? 'border-[#3083FF]/40 bg-[#3083FF]/10 text-[#3083FF]'
+                        : 'border-red-200 bg-red-50 text-red-600'
+                }`}>
+                    <QuestionBankCover imageUrl={bank.image_url} title={bank.title} width={48} height={48} isPublished={bank.is_published} />
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -464,13 +486,13 @@ export default function ProktorQuestionBankPage() {
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-3 gap-x-2 mb-6">
-                <div className="bg-white rounded-lg border border-slate-200 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-slate-700">{allCount}</p>
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-[#3083FF]">{allCount}</p>
                     <p className="text-xs text-slate-500">Total</p>
                 </div>
-                <div className="bg-white rounded-lg border border-red-200 text-center px-4 py-3">
-                    <p className="text-2xl font-bold text-red-600">{draftCount}</p>
-                    <p className="text-xs text-slate-500">Draft</p>
+                <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
+                    <p className="text-2xl font-bold text-[#3083FF]">{draftCount}</p>
+                    <p className="text-xs text-red-400 font-medium">Draft</p>
                 </div>
                 <div className="bg-white rounded-lg border border-[#3083FF]/30 text-center px-4 py-3">
                     <p className="text-2xl font-bold text-[#3083FF]">{publishedCount}</p>
@@ -480,7 +502,7 @@ export default function ProktorQuestionBankPage() {
 
             {/* Search, Filters, and Actions Toolbar */}
             <div className="mb-6">
-                <FilterToolbar>
+                <FilterToolbar actionsInline>
                     <FilterSearch
                         value={searchQuery}
                         onChange={setSearchQuery}
@@ -528,18 +550,20 @@ export default function ProktorQuestionBankPage() {
                     />
 
                     <FilterActions>
-                        {isProctor && (
-                            <Button
-                                variant="outline"
-                                icon="folder"
-                                onClick={handleOpenCreateFolder}
-                            >
-                                Folder
-                            </Button>
-                        )}
+                        <Button
+                            variant="outline"
+                            className="ftb-btn-icon-mobile rounded-full"
+                            leftIcon={<Folder size={18} className="text-[#3083FF] dark:text-[#60a5fa]" />}
+                            onClick={handleOpenCreateFolder}
+                            title="Folder"
+                            aria-label="Folder"
+                        >
+                            Folder
+                        </Button>
                         <Button
                             variant="primary"
                             icon="add"
+                            className="hidden sm:inline-flex"
                             onClick={() => {
                                 setEditingBank(null);
                                 setTargetFolderId(undefined);
@@ -587,16 +611,13 @@ export default function ProktorQuestionBankPage() {
                 ) : (
                     paginatedBanks.map((bank) => (
                         <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
-                            <div className="flex items-center gap-3 mb-3">
+                            <div className="flex items-start gap-3 mb-3">
                                 <input
                                     type="checkbox"
                                     checked={selectedBankIds.has(bank.id)}
                                     onChange={() => toggleSelectBank(bank.id)}
-                                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
+                                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
                                 />
-                                <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-[#3083FF]/40 bg-[#3083FF]/10 flex items-center justify-center">
-                                    <QuestionBankCover imageUrl={bank.image_url} title={bank.title} width={48} height={48} />
-                                </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
                                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
@@ -605,7 +626,7 @@ export default function ProktorQuestionBankPage() {
                                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
                                         {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
                                     </div>
-                                    <h3 className="font-semibold text-slate-800 truncate text-sm">{bank.title}</h3>
+                                    <h3 className="font-semibold text-slate-800 text-sm leading-snug break-words">{bank.title}</h3>
                                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                                         <span>{bank.question_count || 0} soal</span>
                                         {bank.created_at && <><span>•</span><span>{formatDate(bank.created_at)}</span></>}
