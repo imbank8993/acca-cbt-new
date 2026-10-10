@@ -166,7 +166,13 @@ for (const status of ['in_progress', 'submitted', 'auto_submitted']) {
 }
 test('SEC-04: matching completed submission stays idempotent', async () => {
     const db = database({ cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, exam_id: 'exam', status: 'submitted', total_score: 80 }] });
-    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), { score: null, alreadySubmitted: true, savedAnswersOnly: false });
+    assert.deepEqual(await attempts(db).submit(user, 'exam', {}, undefined, 'attempt', 'device-123'), {
+        score: null,
+        alreadySubmitted: true,
+        savedAnswersOnly: false,
+        submissionVerified: true,
+        verifiedAttemptId: 'attempt',
+    });
 });
 
 test('SEC-14 / UX-04: results exclude active attempts and redact unreleased scores', async () => {
