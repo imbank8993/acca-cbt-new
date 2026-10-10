@@ -1,7 +1,8 @@
 /** Share in-flight deliveries in this tab and serialize them across tabs where supported. */
 const deliveries = new Map<string, Promise<unknown>>();
-export function withExamSubmissionLock<T>(key: string, send: () => Promise<T>): Promise<T> {
-    const pending = deliveries.get(key);
+export function withExamSubmissionLock<T>(key: string, send: () => Promise<T>, payloadIdentity = ''): Promise<T> {
+    const deliveryKey = JSON.stringify([key, payloadIdentity]);
+    const pending = deliveries.get(deliveryKey);
     if (pending) return pending as Promise<T>;
     const request = Promise.resolve().then(async (): Promise<T> => {
         if (typeof navigator !== 'undefined' && navigator.locks?.request) {
@@ -9,8 +10,8 @@ export function withExamSubmissionLock<T>(key: string, send: () => Promise<T>): 
         }
         return send();
     }).finally(() => {
-        if (deliveries.get(key) === request) deliveries.delete(key);
+        if (deliveries.get(deliveryKey) === request) deliveries.delete(deliveryKey);
     });
-    deliveries.set(key, request);
+    deliveries.set(deliveryKey, request);
     return request;
 }

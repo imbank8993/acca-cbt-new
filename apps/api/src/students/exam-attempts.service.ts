@@ -5,6 +5,7 @@ import {
     Injectable,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
@@ -850,7 +851,10 @@ export class ExamAttemptsService {
         if (error || !exam) throw new BadRequestException('Ujian belum dapat diverifikasi.');
         if (exam.start_time && now < new Date(exam.start_time)) throw new ForbiddenException('Ujian belum dimulai.');
         const deadline = examDeadline(attempt, exam);
-        if (!Number.isFinite(deadline.getTime()) || now >= deadline) {
+        const timelyIntent = !recovery && attempt.status === 'in_progress' &&
+            hasActiveSubmitIntent(attempt.metadata, now) &&
+            Date.parse(attempt.metadata?.submit_intent_at) < deadline.getTime();
+        if (!Number.isFinite(deadline.getTime()) || (now >= deadline && !timelyIntent)) {
             throw new ForbiddenException({ code: 'RECOVERY_REQUIRED',
                 message: 'Waktu ujian telah berakhir. Jawaban lokal tetap disimpan; hubungi proktor untuk membuka pemulihan.' });
         }
@@ -875,9 +879,53 @@ export class ExamAttemptsService {
     ) {
         const result = await this.submitInternal(user, examId, studentAnswers, assignmentData,
             clientAttemptId, deviceId, answerRevisions, frozenSubmission);
+        // A closed attempt alone is not an acknowledgement of this request's
+        // contents. Verify persisted data even on the idempotent/retry branches.
+        const submissionVerified = !result.savedAnswersOnly && Boolean(clientAttemptId) &&
+            await this.verifyStoredSubmission(user, examId, clientAttemptId!, deviceId!, studentAnswers,
+                answerRevisions, assignmentData, frozenSubmission);
         const { data: visibility, error } = await this.db.from('cbt_exams')
             .select('show_results').eq('id', examId).maybeSingle();
-        return { ...result, score: !error && visibility?.show_results === true ? result.score : null };
+        return { ...result, submissionVerified, verifiedAttemptId: submissionVerified ? clientAttemptId : undefined,
+            score: !error && visibility?.show_results === true ? result.score : null };
+    }
+
+    private async verifyStoredSubmission(
+        user: AuthUser, examId: string, attemptId: string, deviceId: string,
+        answers: Record<string, string>, revisions?: Record<string, number>,
+        assignment?: Record<string, unknown>, frozen?: { startedAt: string; personalEndTime: string },
+    ): Promise<boolean> {
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: attempt, error } = await db.from('cbt_exam_attempts')
+                .select('user_id, exam_id, status, device_fingerprint, started_at, personal_end_time, metadata')
+                .eq('id', attemptId).maybeSingle();
+            if (error) throw new ServiceUnavailableException('Pengumpulan belum dapat diverifikasi. Silakan coba lagi.');
+            if (!attempt || attempt.status !== 'submitted' || attempt.user_id !== user.id ||
+                attempt.exam_id !== examId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId.trim())) return false;
+            if (frozen && (Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt) ||
+                ![attempt.personal_end_time, attempt.metadata?.recovery_source_deadline].some(deadline =>
+                    Date.parse(deadline || '') === Date.parse(frozen.personalEndTime)))) return false;
+            const { data: saved, error: readError } = await db.from('cbt_answers')
+                .select('question_id, selected_option_id, essay_answer, metadata').eq('attempt_id', attemptId);
+            if (readError) throw new ServiceUnavailableException('Jawaban tersimpan belum dapat diverifikasi. Silakan coba lagi.');
+            type StoredAnswer = { question_id: string; essay_answer: string | null; selected_option_id: string | null;
+                metadata?: { answer_revision?: number } | null };
+            const byId = new Map<string, StoredAnswer>(((saved || []) as StoredAnswer[]).map(row => [row.question_id, row]));
+            for (const [id, value] of Object.entries(answers)) {
+                const row = byId.get(id);
+                if (!row || (row.essay_answer ?? row.selected_option_id ?? '') !== value ||
+                    (revisions?.[id] !== undefined && Number(row.metadata?.answer_revision ?? 0) !== revisions[id])) return false;
+            }
+            const canonical = (value: unknown): string => {
+                if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+                if (value && typeof value === 'object') return '{' + Object.entries(value)
+                    .filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b))
+                    .map(([key, item]) => JSON.stringify(key) + ':' + canonical(item)).join(',') + '}';
+                return JSON.stringify(value) ?? 'null';
+            };
+            return assignment === undefined || canonical(assignment) === canonical(attempt.metadata?.assignment_submission);
+        });
     }
 
     private async submitInternal(

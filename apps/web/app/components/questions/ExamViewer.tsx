@@ -129,6 +129,9 @@ export interface ExamViewerProps {
     /** File tugas yang sudah terunggah — dipulihkan setelah reload. */
     assignmentFileUrls?: string[];
     onAssignmentTextChange?: (text: string) => void;
+    assignmentTextNote?: string;
+    assignmentDocumentUrl?: string;
+    onAssignmentDocumentChange?: (url: string) => void;
 
     // Realtime Updates
     updatedQuestionIds?: Set<string>;
@@ -168,6 +171,9 @@ export function ExamViewer({
     onAssignmentFilesChange,
     assignmentFileUrls = [],
     onAssignmentTextChange,
+    assignmentTextNote,
+    assignmentDocumentUrl,
+    onAssignmentDocumentChange,
     updatedQuestionIds = new Set(),
     onClearUpdated,
 }: ExamViewerProps) {
@@ -190,8 +196,10 @@ export function ExamViewer({
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [showNavModal, setShowNavModal] = useState(false);
-    const [studentDocUrl, setStudentDocUrl] = useState('');
-    const [studentVidUrl, setStudentVidUrl] = useState('');
+    const [localDocUrl, setStudentDocUrl] = useState('');
+    const [localTextNote, setStudentVidUrl] = useState('');
+    const studentDocUrl = assignmentDocumentUrl ?? localDocUrl;
+    const studentVidUrl = assignmentTextNote ?? localTextNote;
 
     const navigateTo = useCallback((index: number) => {
         if (index < 0 || index >= questions.length) return;
@@ -337,7 +345,7 @@ export function ExamViewer({
                                 <input
                                     type="url"
                                     value={studentDocUrl}
-                                    onChange={(e) => setStudentDocUrl(e.target.value)}
+                                    onChange={(e) => { setStudentDocUrl(e.target.value); onAssignmentDocumentChange?.(e.target.value); }}
                                     placeholder="https://..."
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium text-slate-800 shadow-inner"
                                 />
@@ -487,7 +495,7 @@ export function ExamViewer({
                                     <input
                                         type="url"
                                         value={studentDocUrl}
-                                        onChange={(e) => setStudentDocUrl(e.target.value)}
+                                        onChange={(e) => { setStudentDocUrl(e.target.value); onAssignmentDocumentChange?.(e.target.value); }}
                                         placeholder="https://..."
                                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3.5 focus:ring-2 focus:ring-primary/20 outline-none font-medium text-slate-800 shadow-inner"
                                     />

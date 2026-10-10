@@ -117,6 +117,9 @@ export default function ExamPage() {
     const [attempt, setAttempt] = useState<StudentExamAttempt | null>(null);
     const [assignmentFileUrls, setAssignmentFileUrls] = useState<string[]>([]);
     const [assignmentTextNote, setAssignmentTextNote] = useState('');
+    const [assignmentDocumentUrl, setAssignmentDocumentUrl] = useState('');
+    const assignmentRef = useRef<NonNullable<ExamAnswerSnapshot['assignmentData']>>({});
+    const assignmentRevisionRef = useRef(0);
 
     // UI State
     const [accessDenied, setAccessDenied] = useState(false);
@@ -185,7 +188,7 @@ export default function ExamPage() {
             try {
                 const currentRevs: Record<string, number> = {};
                 questionsRef.current.forEach(q => {
-                    currentRevs[q.id] = (q as any).revision || 1;
+                    currentRevs[q.id] = (q as { revision?: number }).revision || 1;
                 });
 
                 const res = await apiSend<{
@@ -242,6 +245,45 @@ export default function ExamPage() {
         const set = failedSyncRef.current;
         if (failed) set.add(questionId); else set.delete(questionId);
         setFailedSyncCount(set.size);
+    }, []);
+
+    const restoreAssignment = useCallback((attemptId: string, snapshot: ExamAnswerSnapshot | null) => {
+        let data = snapshot?.assignmentData;
+        if (!data) {
+            try {
+                const legacy = JSON.parse(localStorage.getItem(`exam_assignment_${attemptId}`) || '{}');
+                data = { fileUrls: Array.isArray(legacy.fileUrls) ? legacy.fileUrls : [],
+                    textSubmission: typeof legacy.textNote === 'string' ? legacy.textNote : '',
+                    documentUrl: typeof legacy.documentUrl === 'string' ? legacy.documentUrl : undefined };
+            } catch { data = {}; }
+        }
+        assignmentRef.current = data;
+        assignmentRevisionRef.current = snapshot?.assignmentRevision ?? 0;
+        setAssignmentFileUrls(data.fileUrls || []);
+        setAssignmentTextNote(data.textSubmission || '');
+        setAssignmentDocumentUrl(data.documentUrl || '');
+        pendingAssignmentRef.current = { documentUrl: data.documentUrl, videoUrl: data.videoUrl };
+    }, []);
+
+    const updateAssignment = useCallback((patch: Partial<NonNullable<ExamAnswerSnapshot['assignmentData']>>) => {
+        const att = attemptRef.current;
+        if (!att || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
+        const data = { ...assignmentRef.current, ...patch };
+        assignmentRef.current = data;
+        assignmentRevisionRef.current += 1;
+        setAssignmentFileUrls(data.fileUrls || []);
+        setAssignmentTextNote(data.textSubmission || '');
+        setAssignmentDocumentUrl(data.documentUrl || '');
+        pendingAssignmentRef.current = { documentUrl: data.documentUrl, videoUrl: data.videoUrl };
+        void writeExamSnapshot(att.id, {
+            answers: { ...answersRef.current }, revisions: { ...revisionsRef.current },
+            doubtfulAnswers: Array.from(doubtfulRef.current), assignmentData: data,
+            assignmentRevision: assignmentRevisionRef.current,
+        }).then(result => {
+            storageStateRef.current = !result.saved ? 'unavailable' : result.mode === 'localstorage' ? 'fallback' : 'healthy';
+            if (!result.saved) setStorageWarning('Lampiran atau catatan tugas belum tersimpan di perangkat. Jangan tutup halaman; hubungi proktor.');
+            else if (result.mode === 'localstorage') setStorageWarning('Cadangan tugas tersimpan di browser. Jangan hapus data browser sebelum pengumpulan dikonfirmasi.');
+        }).catch(() => setStorageWarning('Cadangan tugas gagal disimpan. Jangan tutup halaman; hubungi proktor.'));
     }, []);
 
     /** Soal yang jawabannya belum pasti sampai di server (gagal atau masih terbang). */
@@ -369,12 +411,7 @@ export default function ExamPage() {
                     if (locked) setWaitingForSyncAndSubmit(true);
                     answersRef.current = restoredAnswers;
                     revisionsRef.current = { ...(local?.revisions || {}) };
-                    try {
-                        const assignment = local?.assignmentData || JSON.parse(localStorage.getItem(`exam_assignment_${session.attemptId}`) || '{}');
-                        if (Array.isArray(assignment.fileUrls)) setAssignmentFileUrls(assignment.fileUrls);
-                        setAssignmentTextNote(assignment.textSubmission || assignment.textNote || '');
-                        pendingAssignmentRef.current = { documentUrl: assignment.documentUrl, videoUrl: assignment.videoUrl };
-                    } catch { /* The frozen answer snapshot remains usable without optional attachments. */ }
+                    restoreAssignment(session.attemptId, local);
                     const restoredDoubtful = new Set(local?.doubtfulAnswers || []);
                     const restoredQuestions = session.questions;
                     const remaining = Math.max(0, Math.floor((session.deadlineAt - Date.now()) / 1000));
@@ -586,8 +623,10 @@ export default function ExamPage() {
                     if (ans.is_doubtful) savedD.add(ans.question_id);
                 });
 
+                let localSnapshot: ExamAnswerSnapshot | null = null;
                 try {
                     const parsed = await readExamSnapshot(result.attempt.id);
+                    localSnapshot = parsed;
                     if (parsed) {
                         if (parsed.frozenSubmission) { frozenSnapshotRef.current = parsed; setSubmissionOnly(true); setWaitingForSyncAndSubmit(true); }
                         if (parsed.answers) {
@@ -612,17 +651,7 @@ export default function ExamPage() {
                     console.error('Failed to read local answers', e);
                 }
 
-                // Lampiran tugas hanya hidup di state React sampai submit —
-                // reload di tengah pengerjaan membuat file yang sudah terunggah
-                // tidak ikut terkirim. Pulihkan dari localStorage.
-                try {
-                    const assignmentLocal = localStorage.getItem(`exam_assignment_${result.attempt.id}`);
-                    if (assignmentLocal) {
-                        const parsed = JSON.parse(assignmentLocal);
-                        if (Array.isArray(parsed.fileUrls)) setAssignmentFileUrls(parsed.fileUrls);
-                        if (typeof parsed.textNote === 'string') setAssignmentTextNote(parsed.textNote);
-                    }
-                } catch (e) { console.error('Failed to parse local assignment data', e); }
+                restoreAssignment(result.attempt.id, localSnapshot);
 
                 answersRef.current = savedA;
                 doubtfulRef.current = savedD;
@@ -630,6 +659,7 @@ export default function ExamPage() {
                 setDoubtfulAnswers(savedD);
                 await writeExamSnapshot(result.attempt.id, {
                     answers: savedA, doubtfulAnswers: Array.from(savedD), revisions: { ...revisionsRef.current },
+                    assignmentData: assignmentRef.current, assignmentRevision: assignmentRevisionRef.current,
                 });
 
                 const recoveryUntil = result.attempt.metadata?.proctor_recovery_until;
@@ -717,18 +747,7 @@ export default function ExamPage() {
             setLoading(false);
         }
         fetchExamData();
-    }, [examId]);
-
-    // Simpan lampiran/catatan tugas per attempt agar tahan reload.
-    useEffect(() => {
-        if (!attempt?.id) return;
-        try {
-            localStorage.setItem(
-                `exam_assignment_${attempt.id}`,
-                JSON.stringify({ fileUrls: assignmentFileUrls, textNote: assignmentTextNote })
-            );
-        } catch { /* storage penuh / mode privat — abaikan */ }
-    }, [attempt?.id, assignmentFileUrls, assignmentTextNote]);
+    }, [examId, restoreAssignment]);
 
     // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
     // Sedikit debounce menghindari penulisan beruntun saat siswa menekan tombol
@@ -772,8 +791,9 @@ export default function ExamPage() {
                     frozenSubmission: { startedAt: activeAttempt.started_at, personalEndTime: activeAttempt.personal_end_time },
                 } : {}),
                 assignmentData: isAssignment ? {
-                    ...pendingAssignmentRef.current, fileUrls: [...assignmentFileUrls], textSubmission: assignmentTextNote,
+                    ...assignmentRef.current, ...pendingAssignmentRef.current,
                 } : undefined,
+                assignmentRevision: assignmentRevisionRef.current,
             };
         }
         setSubmissionOnly(true);
@@ -781,6 +801,7 @@ export default function ExamPage() {
         try {
             frozenSnapshotRef.current = await freezeExamSnapshot(activeAttempt.id, frozenSnapshotRef.current);
         } catch (error) {
+            storageStateRef.current = 'unavailable';
             setStorageWarning(getErrorMessage(error));
         }
         const snapshot = frozenSnapshotRef.current;
@@ -834,7 +855,9 @@ export default function ExamPage() {
                     submitInFlightRef.current = false;
                     setWaitingForSyncAndSubmit(false);
                     setAccessDenied(true);
-                    setAccessError((result.error || 'Pengumpulan ditolak.') + ' Salinan jawaban tetap tersimpan di perangkat ini.');
+                    setAccessError((result.error || 'Pengumpulan ditolak.') + (storageStateRef.current === 'unavailable'
+                        ? ' Cadangan lokal belum berhasil disimpan. Jangan tutup halaman; hubungi proktor.'
+                        : ' Salinan jawaban tetap tersimpan di perangkat ini.'));
                     return;
                 }
                 if (!opts?.isAuto || autoRetryCountRef.current === 0) {
@@ -854,7 +877,7 @@ export default function ExamPage() {
             submitInFlightRef.current = false;
             scheduleAutoRetry();
         }
-    }, [user, examId, exam, assignmentFileUrls, assignmentTextNote, router, toast, attempt, scheduleAutoRetry]);
+    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry]);
 
     // Simpan referensi terbaru agar retry terjadwal selalu memanggil versi
     // dengan closure `answers` termutakhir (bukan snapshot saat gagal).
@@ -1380,6 +1403,7 @@ export default function ExamPage() {
         markFailed(questionId, true);
         const localWrite = await writeExamSnapshot(att.id, {
             answers: updatedAnswers,
+            assignmentData: assignmentRef.current, assignmentRevision: assignmentRevisionRef.current,
             revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(doubtfulRef.current),
         });
@@ -1436,6 +1460,7 @@ export default function ExamPage() {
         markFailed(questionId, true);
         const localWrite = await writeExamSnapshot(att.id, {
             answers: { ...answersRef.current },
+            assignmentData: assignmentRef.current, assignmentRevision: assignmentRevisionRef.current,
             revisions: { ...revisionsRef.current },
             doubtfulAnswers: Array.from(newDoubtful),
         });
@@ -1596,7 +1621,7 @@ export default function ExamPage() {
                         {timeLeft <= 0 ? 'Waktu Habis' : 'Menunggu Koneksi'}
                     </h1>
                     <p className="text-slate-300 mb-6 text-base leading-relaxed">
-                        Jawaban telah dikunci dan akan dikirim otomatis saat koneksi tersedia. Anda tidak perlu meminta pemulihan proktor. <br/><strong>Tetap buka halaman ini sampai pengiriman selesai.</strong>
+                        Jawaban telah dikunci dan pengiriman akan dicoba saat koneksi tersedia. Jika batas waktu sudah lewat dan server belum menerima pengumpulan, hubungi proktor untuk membuka pemulihan. <br/><strong>Tetap buka halaman ini sampai pengiriman selesai.</strong>
                     </p>
                     <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
                         <RefreshCw size={16} className="animate-spin" />
@@ -1670,8 +1695,11 @@ export default function ExamPage() {
             examId={examId}
             userId={user?.id}
             assignmentFileUrls={assignmentFileUrls}
-            onAssignmentFilesChange={setAssignmentFileUrls}
-            onAssignmentTextChange={setAssignmentTextNote}
+            assignmentTextNote={assignmentTextNote}
+            assignmentDocumentUrl={assignmentDocumentUrl}
+            onAssignmentFilesChange={fileUrls => updateAssignment({ fileUrls })}
+            onAssignmentTextChange={textSubmission => updateAssignment({ textSubmission })}
+            onAssignmentDocumentChange={documentUrl => updateAssignment({ documentUrl })}
             updatedQuestionIds={updatedQuestionIds}
             onClearUpdated={(qId) => {
                 setUpdatedQuestionIds(prev => {

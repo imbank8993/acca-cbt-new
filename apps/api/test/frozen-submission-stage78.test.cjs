@@ -146,3 +146,125 @@ test('invalid frozen answers roll back without closing or partially writing the 
     assert.equal(db.tables.cbt_answers.length, 0);
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
 });
+
+
+test('frozen browser submission can finish after deadline when its server intent was timely', async () => {
+    const { db, service } = fixture();
+    let now = '2026-09-20T00:59:59Z';
+    db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date(now) }] : [];
+    await service.beginSubmit(user, 'attempt', device);
+    now = '2026-09-20T01:00:01Z';
+    const result = await submit(service);
+    assert.equal(result.savedAnswersOnly, false);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+});
+
+test('frozen upload grace rejects expired, late and future intent timestamps', async () => {
+    for (const intent of ['2026-09-20T00:58:01Z', '2026-09-20T01:00:00Z', '2026-09-20T01:00:02Z']) {
+        const { db, service } = fixture();
+        db.tables.cbt_exam_attempts[0].metadata.submit_intent_at = intent;
+        db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T01:00:01Z') }] : [];
+        await assert.rejects(submit(service), error => error.getResponse().code === 'RECOVERY_REQUIRED');
+        assert.equal(db.tables.cbt_answers.length, 0);
+    }
+});
+
+test('timely intent does not extend a proctor recovery window or reopen a closed attempt', async () => {
+    for (const recovery of [false, true]) {
+        const { db, service } = fixture(recovery ? 'in_progress' : 'auto_submitted');
+        Object.assign(db.tables.cbt_exam_attempts[0].metadata, {
+            submit_intent_at: '2026-09-20T00:59:59Z', recovery_submit_only: recovery,
+            ...(recovery ? { recovery_source_deadline: context.personalEndTime } : {}),
+        });
+        db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T01:00:01Z') }] : [];
+        await assert.rejects(submit(service), error => error.getStatus() === 403);
+        assert.equal(db.tables.cbt_answers.length, 0);
+    }
+});
+
+
+function submittedFixture() {
+    const result = fixture('submitted');
+    result.db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'stored',
+        selected_option_id: null, metadata: { answer_revision: 2 } });
+    result.db.tables.cbt_exam_attempts[0].metadata.assignment_submission = {
+        fileUrls: ['/stored.pdf'], textSubmission: 'note', documentUrl: 'https://example.com/doc',
+    };
+    return result;
+}
+
+test('submitted status never verifies missing answers, different contents or different revisions', async () => {
+    for (const [answers, revisions] of [
+        [{ q: 'stored', extra: 'missing' }, { q: 2, extra: 1 }],
+        [{ q: 'changed' }, { q: 2 }],
+        [{ q: 'stored' }, { q: 3 }],
+        [{ q: '' }, { q: 2 }],
+    ]) {
+        const { db, service } = submittedFixture();
+        const result = await service.submit(user, 'exam', answers, undefined, 'attempt', device, revisions, context);
+        assert.equal(result.alreadySubmitted, true);
+        assert.equal(result.submissionVerified, false);
+        assert.equal(result.verifiedAttemptId, undefined);
+        assert.equal(db.tables.cbt_answers.length, 1);
+        assert.equal(db.tables.cbt_answers[0].essay_answer, 'stored');
+    }
+});
+
+test('verification compares attachment URLs and notes, not just their counts', async () => {
+    for (const patch of [{ fileUrls: ['/different.pdf'] }, { textSubmission: 'different' }, { documentUrl: '' }]) {
+        const { db, service } = submittedFixture();
+        const assignment = { ...db.tables.cbt_exam_attempts[0].metadata.assignment_submission, ...patch };
+        const result = await service.submit(user, 'exam', { q: 'stored' }, assignment, 'attempt', device, { q: 2 }, context);
+        assert.equal(result.submissionVerified, false);
+    }
+});
+
+test('identical retries verify persisted contents even when assignment property order differs', async () => {
+    const { service } = submittedFixture();
+    const assignment = { documentUrl: 'https://example.com/doc', textSubmission: 'note', fileUrls: ['/stored.pdf'] };
+    const result = await service.submit(user, 'exam', { q: 'stored' }, assignment, 'attempt', device, { q: 2 }, context);
+    assert.equal(result.submissionVerified, true);
+    assert.equal(result.verifiedAttemptId, 'attempt');
+});
+
+test('verification read failure cannot acknowledge a submitted attempt', async () => {
+    const { db, service } = submittedFixture();
+    const original = db.from;
+    db.from = table => table === 'cbt_answers' ? {
+        select() { return this; }, eq() { return Promise.resolve({ data: null, error: { message: 'unavailable' } }); },
+    } : original(table);
+    await assert.rejects(service.submit(user, 'exam', { q: 'stored' }, undefined, 'attempt', device, { q: 2 }, context),
+        error => error.getStatus() === 503);
+});
+
+test('browser rejects the reproduced false success and accepts only an exact verified retry', async () => {
+    const { submitExamAction } = require('../../web/lib/api/students.ts');
+    const { service } = submittedFixture();
+    const original = { fetch: global.fetch, window: global.window, localStorage: global.localStorage };
+    global.window = {};
+    global.localStorage = { getItem: () => device, setItem: () => {} };
+    global.fetch = async (url, init) => {
+        const b = JSON.parse(init.body);
+        const result = url.endsWith('/submit-intent') ? await service.beginSubmit(user, 'attempt', b.deviceId)
+            : await service.submit(user, 'exam', b.answers, b.assignmentData, b.attemptId, b.deviceId, b.answerRevisions, b.frozenSubmission);
+        return new Response(JSON.stringify({ success: true, ...result }));
+    };
+    try {
+        const rejected = await submitExamAction('exam', { q: 'new', extra: 'missing' }, { fileUrls: ['/new.pdf'] }, 'attempt', { q: 3, extra: 1 }, context);
+        assert.equal(rejected.success, false);
+        assert.equal(rejected.retryable, false);
+        assert.match(rejected.error, /belum terverifikasi lengkap/);
+        const accepted = await submitExamAction('exam', { q: 'stored' }, undefined, 'attempt', { q: 2 }, context);
+        assert.equal(accepted.success, true);
+        assert.equal(accepted.submissionVerified, true);
+        for (const receipt of [{}, { submissionVerified: true, verifiedAttemptId: 'other' }]) {
+            global.fetch = async () => new Response(JSON.stringify({ success: true, ...receipt }));
+            assert.equal((await submitExamAction('exam', { q: 'stored' }, undefined, 'attempt', { q: 2 }, context)).success, false);
+        }
+    } finally {
+        global.fetch = original.fetch;
+        if (original.window === undefined) delete global.window; else global.window = original.window;
+        if (original.localStorage === undefined) delete global.localStorage; else global.localStorage = original.localStorage;
+    }
+});

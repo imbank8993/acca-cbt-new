@@ -104,8 +104,178 @@ test('ANS-06: halaman ujian memakai preflight, restore, write, dan cleanup durab
     assert.match(source, /writeExamSnapshot\(att\.id/);
     assert.match(source, /removeExamSnapshot\(attempt\.id\)/);
     assert.ok(source.indexOf('resolveDurableDeviceId(getDeviceId())') < source.indexOf('startExamAttemptAction('));
-    assert.match(storage, /await idbPut\(attemptId, legacy\)/);
+    assert.match(storage, /mergeExamSnapshots\(durable, legacy\)/);
     assert.match(storage, /navigator\.storage\.persist/);
     assert.match(storage, /MIN_FREE_BYTES/);
     assert.match(storage, /db\.transaction\(SETTINGS_STORE, 'readwrite'\)/);
+});
+
+// Run the real storage module in an isolated browser-like context. The fake IDB
+// models committed rows separately from transactions that fail or are delayed.
+function storageFixture() {
+    const vm = require('node:vm');
+    const ts = require('typescript');
+    const rows = new Map(), local = new Map();
+    const faults = { idb: false, local: false, hold: false };
+    const releases = [];
+    const db = { transaction() {
+        const tx = { objectStore() { return {
+            get(key) { const req = {}; queueMicrotask(() => { req.result = rows.get(key); req.onsuccess?.(); }); return req; },
+            put(value) {
+                const req = {};
+                const finish = () => {
+                    if (faults.idb) { req.error = new Error('QuotaExceededError'); req.onerror?.(); }
+                    else { rows.set(value.attemptId, structuredClone(value)); tx.oncomplete?.(); }
+                };
+                queueMicrotask(() => { if (faults.hold) releases.push(finish); else finish(); });
+                return req;
+            },
+            delete(key) { const req = {}; queueMicrotask(() => { rows.delete(key); tx.oncomplete?.(); }); return req; },
+        }; } };
+        return tx;
+    } };
+    const sandbox = { exports: {}, indexedDB: { open() {
+        const req = {}; queueMicrotask(() => { req.result = db; req.onsuccess(); }); return req;
+    } }, localStorage: {
+        getItem: key => local.get(key) ?? null,
+        setItem: (key, value) => { if (faults.local) throw new Error('Storage denied'); local.set(key, value); },
+        removeItem: key => local.delete(key),
+    } };
+    const code = ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../../web/lib/exam-durable-storage.ts'), 'utf8'), {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    }).outputText;
+    vm.runInNewContext(code, sandbox);
+    return { api: sandbox.exports, rows, local, faults, releases };
+}
+const draft = (revision, answer = 'answer-' + revision) => ({ answers: { q: answer }, revisions: { q: revision }, doubtfulAnswers: [] });
+
+test('reload chooses newer fallback over readable but stale IndexedDB, including cleared answers', async () => {
+    const { api, rows, faults } = storageFixture();
+    await api.writeExamSnapshot('a', draft(1));
+    faults.idb = true;
+    const result = await api.writeExamSnapshot('a', draft(2, ''));
+    assert.equal(result.mode, 'localstorage');
+    assert.equal(rows.get('a').answers.q, 'answer-1');
+    const restored = await api.readExamSnapshot('a');
+    assert.equal(restored.answers.q, '');
+    assert.equal(restored.revisions.q, 2);
+});
+
+test('last edit is mirrored synchronously and an older pending transaction cannot replace it', async () => {
+    const { api, local, faults, releases } = storageFixture();
+    faults.hold = true;
+    const first = api.writeExamSnapshot('a', draft(1));
+    assert.equal(JSON.parse(local.get('exam_answers_a')).answers.q, 'answer-1');
+    await new Promise(resolve => setImmediate(resolve));
+    const second = api.writeExamSnapshot('a', draft(2));
+    assert.equal(JSON.parse(local.get('exam_answers_a')).answers.q, 'answer-2');
+    let readFinished = false;
+    const reading = api.readExamSnapshot('a').then(snapshot => { readFinished = true; return snapshot; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(readFinished, false);
+    faults.hold = false;
+    releases.shift()();
+    await Promise.all([first, second]);
+    assert.equal(JSON.parse(local.get('exam_answers_a')).answers.q, 'answer-2');
+    assert.equal((await reading).answers.q, 'answer-2');
+});
+
+test('reconciliation keeps independent newer answers and doubtful revisions from both copies', async () => {
+    const { api, rows, local } = storageFixture();
+    rows.set('a', { answers: { q: 'new', r: 'old' }, revisions: { q: 5, r: 1 }, doubtfulAnswers: ['q'] });
+    local.set('exam_answers_a', JSON.stringify({ answers: { q: 'old', r: 'new' }, revisions: { q: 1, r: 4 }, doubtfulAnswers: [] }));
+    const restored = await api.readExamSnapshot('a');
+    assert.equal(restored.answers.q, 'new');
+    assert.equal(restored.answers.r, 'new');
+    assert.equal(restored.doubtfulAnswers.includes('q'), true);
+});
+
+test('frozen fallback survives a failed IDB write and cannot be changed by later edits', async () => {
+    const { api, faults, local } = storageFixture();
+    await api.writeExamSnapshot('a', draft(1));
+    faults.idb = true;
+    const frozenSubmission = { startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z' };
+    const frozen = api.freezeExamSnapshot('a', { ...draft(2), frozenSubmission });
+    assert.ok(JSON.parse(local.get('exam_answers_a')).frozenSubmission);
+    await frozen;
+    await api.writeExamSnapshot('a', draft(3));
+    const restored = await api.readExamSnapshot('a');
+    assert.equal(restored.answers.q, 'answer-2');
+    assert.ok(restored.frozenSubmission);
+});
+
+test('assignment attachments, URL and notes survive localStorage failure and unrelated answer writes', async () => {
+    const { api, faults } = storageFixture();
+    faults.local = true;
+    const assignmentData = { fileUrls: ['/uploaded.pdf'], documentUrl: 'https://example.com/task', textSubmission: 'latest note' };
+    assert.equal((await api.writeExamSnapshot('a', { ...draft(1), assignmentData, assignmentRevision: 2 })).mode, 'indexeddb');
+    await api.writeExamSnapshot('a', { ...draft(2), assignmentData: { textSubmission: 'stale' }, assignmentRevision: 1 });
+    let restored = await api.readExamSnapshot('a');
+    assert.equal(restored.assignmentData.documentUrl, assignmentData.documentUrl);
+    assert.equal(restored.assignmentData.fileUrls[0], '/uploaded.pdf');
+    assert.equal(restored.assignmentData.textSubmission, 'latest note');
+    await api.writeExamSnapshot('a', { ...draft(2), assignmentData: { fileUrls: [], textSubmission: '', documentUrl: '' }, assignmentRevision: 3 });
+    restored = await api.readExamSnapshot('a');
+    assert.equal(restored.assignmentData.fileUrls.length, 0);
+    assert.equal(restored.assignmentData.textSubmission, '');
+});
+
+test('failure of both stores is reported and freezing never claims durable success', async () => {
+    const { api, faults } = storageFixture();
+    faults.local = faults.idb = true;
+    assert.equal((await api.writeExamSnapshot('a', draft(1))).saved, false);
+    await assert.rejects(api.freezeExamSnapshot('a', draft(1)), /belum tersimpan/);
+});
+
+
+function assignmentHandlers(api) {
+    const vm = require('node:vm');
+    const ts = require('typescript');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    const start = source.indexOf('    const restoreAssignment =');
+    const end = source.indexOf('    const collectPendingRows =', start);
+    const state = {};
+    const sandbox = {
+        useCallback: fn => fn,
+        assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
+        pendingAssignmentRef: { current: undefined }, attemptRef: { current: { id: 'a' } },
+        frozenSnapshotRef: { current: null }, submitInFlightRef: { current: false },
+        clockRef: { current: { remainingSeconds: () => 60 } },
+        answersRef: { current: { q: 'answer' } }, revisionsRef: { current: { q: 1 } },
+        doubtfulRef: { current: new Set() }, storageStateRef: { current: 'unknown' },
+        setAssignmentFileUrls: value => { state.files = value; },
+        setAssignmentTextNote: value => { state.note = value; },
+        setAssignmentDocumentUrl: value => { state.url = value; },
+        setStorageWarning: value => { state.warning = value; },
+        writeExamSnapshot: api.writeExamSnapshot,
+        localStorage: { getItem: () => { throw new Error('localStorage denied'); } },
+    };
+    vm.runInNewContext(ts.transpileModule(source.slice(start, end) + '; globalThis.handlers = {restoreAssignment, updateAssignment};', {
+        compilerOptions: { target: ts.ScriptTarget.ES2020 },
+    }).outputText, sandbox);
+    return { ...sandbox.handlers, state, sandbox };
+}
+
+test('task form restores from IndexedDB, preserves rapid changes, and displays storage failures', async () => {
+    const { api, faults } = storageFixture();
+    faults.local = true;
+    const first = assignmentHandlers(api);
+    first.updateAssignment({ documentUrl: 'https://example.com/doc' });
+    first.updateAssignment({ textSubmission: 'note' });
+    first.updateAssignment({ fileUrls: ['/file.pdf'] });
+    const saved = await api.readExamSnapshot('a');
+    const reopened = assignmentHandlers(api);
+    reopened.restoreAssignment('a', saved);
+    assert.equal(reopened.state.url, 'https://example.com/doc');
+    assert.equal(reopened.state.note, 'note');
+    assert.equal(reopened.state.files[0], '/file.pdf');
+    assert.equal(reopened.sandbox.assignmentRef.current.textSubmission, 'note');
+    faults.idb = true;
+    reopened.updateAssignment({ textSubmission: 'unsaved note' });
+    await api.readExamSnapshot('a');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(reopened.state.warning, /belum tersimpan/);
+    reopened.sandbox.frozenSnapshotRef.current = saved;
+    reopened.updateAssignment({ textSubmission: 'edit after freeze' });
+    assert.equal(reopened.sandbox.assignmentRef.current.textSubmission, 'unsaved note');
 });

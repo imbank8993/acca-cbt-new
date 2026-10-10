@@ -38,7 +38,7 @@ test('OFFLINE-03: sinkronisasi membaca snapshot setelah antrean tulis selesai', 
     );
     assert.match(reader, /snapshotTails\.get\(attemptId\)/);
     assert.match(reader, /if \(pendingWrite\) await pendingWrite/);
-    assert.ok(reader.indexOf('await pendingWrite') < reader.indexOf('idbGet(attemptId)'));
+    assert.ok(reader.indexOf('await pendingWrite') < reader.indexOf('readCurrentSnapshot(attemptId)'));
 });
 
 test('OFFLINE-04: auto-submit menunggu konfirmasi sinkronisasi jawaban', () => {

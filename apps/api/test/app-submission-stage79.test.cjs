@@ -13,7 +13,7 @@ function harness(overrides = {}) {
     const state = { online: true, now: 2000, active: null, user: { id: 'student' }, device: 'device-id', entries: [entry],
         snapshot: { answers: { q: 'last offline answer' }, revisions: { q: 3 }, doubtfulAnswers: [] },
         status: { success: true, examId: 'exam', status: 'in_progress', remainingSeconds: 0, canRecover: true, ...context },
-        result: { success: true, savedAnswersOnly: false }, calls: [], notifications: [] };
+        result: { success: true, savedAnswersOnly: false, submissionVerified: true }, calls: [], notifications: [] };
     const worker = createExamSubmissionWorker({
         online: () => state.online, now: () => state.now, activeExamId: () => state.active,
         list: async () => state.entries, currentUser: async () => state.user, currentDevice: async () => state.device,
@@ -98,7 +98,7 @@ test('lost responses retain a frozen payload and retry it with backoff until con
     await worker.run();
     assert.equal(sends(state).length, 1);
     state.now += 15000;
-    state.result = { success: true };
+    state.result = { success: true, submissionVerified: true };
     await worker.run();
     assert.deepEqual(sends(state)[1].send, first);
     assert.equal(state.entries.length, 0);
@@ -208,4 +208,28 @@ test('a previously submitted session with an unfrozen draft is retained for revi
     assert.equal(sends(state).length, 0);
     assert.equal(state.entries.length, 1);
     assert.equal(state.notifications.length, 1);
+});
+
+
+test('unverified success cannot remove the background queue or emit a success notification', async () => {
+    for (const submissionVerified of [undefined, false]) {
+        const { worker, state } = harness();
+        state.result = { success: true, submissionVerified };
+        await worker.run();
+        assert.equal(state.entries.length, 1);
+        assert.equal(state.calls.includes('confirm'), false);
+        assert.equal(state.notifications[0].success, false);
+        assert.match(state.notifications[0].error, /belum terverifikasi lengkap/);
+    }
+});
+
+test('different payloads for the same attempt cannot borrow one successful response', async () => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const first = withExamSubmissionLock('payload-test', async () => { await gate; return 'first verified'; }, 'first-payload');
+    const second = withExamSubmissionLock('payload-test', async () => 'second rejected', 'second-payload');
+    assert.notEqual(first, second);
+    release();
+    assert.equal(await first, 'first verified');
+    assert.equal(await second, 'second rejected');
 });

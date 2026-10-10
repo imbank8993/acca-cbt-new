@@ -4,9 +4,9 @@ import type { StudentExam,StudentExamAttempt,StudentExamQuestion } from './api/s
 /**
  * Penyimpanan snapshot jawaban ujian.
  *
- * IndexedDB menjadi sumber utama karena tidak dibatasi sekecil localStorage dan
- * transaksi penulisannya tahan reload/crash. Salinan localStorage tetap ditulis
- * sebagai fallback serta untuk kompatibilitas cache dari versi lama.
+ * IndexedDB menyediakan kapasitas utama. localStorage ditulis langsung sebelum
+ * operasi async agar input terakhir punya cadangan saat reload. Pemulihan
+ * membandingkan revisi kedua salinan, termasuk setelah salah satunya gagal ditulis.
  */
 
 const DATABASE_NAME = 'acca-cbt-exam';
@@ -18,6 +18,7 @@ const RECOVERY_SESSION_STORE = 'recovery-sessions';
 const MIN_FREE_BYTES = 5 * 1024 * 1024;
 
 export interface ExamAnswerSnapshot {
+    assignmentRevision?: number;
     frozenSubmission?: { startedAt: string; personalEndTime: string };
     assignmentData?: { documentUrl?: string; videoUrl?: string; fileUrls?: string[]; textSubmission?: string };
 
@@ -105,6 +106,7 @@ function normalizeSnapshot(value: unknown): ExamAnswerSnapshot | null {
     const frozenSubmission = frozen && typeof frozen.startedAt === 'string' && typeof frozen.personalEndTime === 'string' &&
         Number.isFinite(Date.parse(frozen.startedAt)) && Number.isFinite(Date.parse(frozen.personalEndTime)) ? frozen : undefined;
     return { answers, doubtfulAnswers, ...(revisions ? { revisions } : {}),
+        ...(Number.isSafeInteger(row.assignmentRevision) && row.assignmentRevision! >= 0 ? { assignmentRevision: row.assignmentRevision } : {}),
         ...(frozenSubmission ? { frozenSubmission } : {}),
         ...(row.assignmentData && typeof row.assignmentData === 'object' ? { assignmentData: row.assignmentData } : {}),
     };
@@ -410,6 +412,7 @@ async function idbPut(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<
             revisions: snapshot.revisions,
             frozenSubmission: snapshot.frozenSubmission,
             assignmentData: snapshot.assignmentData,
+            assignmentRevision: snapshot.assignmentRevision,
             updatedAt: new Date().toISOString(),
         } satisfies StoredSnapshot);
         request.onerror = () => reject(request.error);
@@ -449,6 +452,34 @@ function writeLegacy(attemptId: string, snapshot: ExamAnswerSnapshot): boolean {
     }
 }
 
+/** Reconcile each answer independently; an empty answer is also a versioned edit. */
+export function mergeExamSnapshots(current: ExamAnswerSnapshot | null, incoming: ExamAnswerSnapshot): ExamAnswerSnapshot {
+    // Once frozen, neither later edits nor stale retries may change the payload.
+    if (current?.frozenSubmission) return current;
+    if (!current || incoming.frozenSubmission) return incoming;
+    const answers = { ...current.answers };
+    const revisions = { ...current.revisions };
+    const doubtful = new Set(current.doubtfulAnswers);
+    const ids = new Set([...Object.keys(incoming.answers), ...Object.keys(incoming.revisions || {}), ...incoming.doubtfulAnswers]);
+    for (const id of ids) {
+        if ((incoming.revisions?.[id] ?? 0) < (current.revisions?.[id] ?? 0)) continue;
+        if (Object.prototype.hasOwnProperty.call(incoming.answers, id)) answers[id] = incoming.answers[id];
+        revisions[id] = incoming.revisions?.[id] ?? 0;
+        if (incoming.doubtfulAnswers.includes(id)) doubtful.add(id); else doubtful.delete(id);
+    }
+    const assignment = incoming.assignmentData && (incoming.assignmentRevision ?? 0) >= (current.assignmentRevision ?? 0)
+        ? incoming : current;
+    return { answers, revisions, doubtfulAnswers: [...doubtful],
+        ...(assignment.assignmentData ? { assignmentData: assignment.assignmentData, assignmentRevision: assignment.assignmentRevision } : {}),
+    };
+}
+
+async function readCurrentSnapshot(attemptId: string): Promise<ExamAnswerSnapshot | null> {
+    const durable = await idbGet(attemptId).catch(() => null);
+    const legacy = readLegacy(attemptId);
+    return legacy ? mergeExamSnapshots(durable, legacy) : durable;
+}
+
 /** Serialisasi penulisan mencegah write lambat menimpa snapshot yang lebih baru. */
 export function createSerializedWriter<T, R>(
     write: (value: T) => Promise<R>,
@@ -476,14 +507,14 @@ async function writeSnapshotNow(
     attemptId: string,
     snapshot: ExamAnswerSnapshot,
 ): Promise<ExamStorageWriteResult> {
+    // Never mirror after awaiting IndexedDB: a newer synchronous edit may already
+    // be in localStorage by then.
+    const mirrored = writeLegacy(attemptId, snapshot);
     try {
         await idbPut(attemptId, snapshot);
-        // Mirror kecil ini menjaga fallback tetap mutakhir jika IndexedDB
-        // mendadak tidak dapat dibuka pada sesi berikutnya.
-        writeLegacy(attemptId, snapshot);
         return { saved: true, mode: 'indexeddb' };
     } catch {
-        return writeLegacy(attemptId, snapshot)
+        return mirrored
             ? { saved: true, mode: 'localstorage' }
             : { saved: false, mode: 'unavailable' };
     }
@@ -493,11 +524,12 @@ export async function writeExamSnapshot(
     attemptId: string,
     snapshot: ExamAnswerSnapshot,
 ): Promise<ExamStorageWriteResult> {
+    // This runs before the first await, closing the reload gap while IDB is busy.
+    const immediate = mergeExamSnapshots(readLegacy(attemptId), snapshot);
+    writeLegacy(attemptId, immediate);
     return enqueueSnapshotOperation(attemptId, async () => {
-        const durable = await idbGet(attemptId).catch(() => null);
-        const current = durable || readLegacy(attemptId);
-        if (current?.frozenSubmission) return { saved: true, mode: durable ? 'indexeddb' as const : 'localstorage' as const };
-        return writeSnapshotNow(attemptId, snapshot);
+        const current = await readCurrentSnapshot(attemptId);
+        return writeSnapshotNow(attemptId, mergeExamSnapshots(current, immediate));
     });
 }
 
@@ -507,19 +539,7 @@ export async function readExamSnapshot(attemptId: string): Promise<ExamAnswerSna
     const pendingWrite = snapshotTails.get(attemptId);
     if (pendingWrite) await pendingWrite;
 
-    try {
-        const durable = await idbGet(attemptId);
-        if (durable) return durable;
-    } catch {
-        // Coba cache kompatibilitas di bawah.
-    }
-
-    const legacy = readLegacy(attemptId);
-    if (legacy) {
-        // Migrasi best-effort; hasil baca tidak bergantung pada keberhasilannya.
-        try { await idbPut(attemptId, legacy); } catch { /* fallback tetap tersedia */ }
-    }
-    return legacy;
+    return readCurrentSnapshot(attemptId);
 }
 
 export async function removeExamSnapshot(attemptId: string): Promise<void> {
@@ -613,9 +633,11 @@ export async function inspectExamStorage(): Promise<ExamStorageHealth> {
 
 /** Freeze after queued edits have settled. Repeated attempts reuse the identical payload. */
 export async function freezeExamSnapshot(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<ExamAnswerSnapshot> {
+    const immediate = mergeExamSnapshots(readLegacy(attemptId), snapshot);
+    writeLegacy(attemptId, immediate);
     return enqueueSnapshotOperation(attemptId, async () => {
-        const current = await idbGet(attemptId).catch(() => null) || readLegacy(attemptId);
-        const frozen = current?.frozenSubmission ? current : snapshot;
+        const current = await readCurrentSnapshot(attemptId);
+        const frozen = current?.frozenSubmission ? current : immediate;
         const result = await writeSnapshotNow(attemptId, frozen);
         if (!result.saved) throw new Error('Salinan jawaban terkunci belum tersimpan di perangkat. Jangan tutup halaman.');
         return frozen;
@@ -736,7 +758,7 @@ export async function removeExamSubmissionRegistration(attemptId: string, starte
 }
 export async function removeConfirmedExamSnapshot(attemptId: string, context: NonNullable<ExamAnswerSnapshot['frozenSubmission']>): Promise<void> {
     await enqueueSnapshotOperation(attemptId, async () => {
-        const current = await idbGet(attemptId).catch(() => null) || readLegacy(attemptId);
+        const current = await readCurrentSnapshot(attemptId);
         if (!current?.frozenSubmission || current.frozenSubmission.startedAt !== context.startedAt ||
             current.frozenSubmission.personalEndTime !== context.personalEndTime) return;
         try { await idbDelete(attemptId); } catch { /* Clean fallback independently. */ }

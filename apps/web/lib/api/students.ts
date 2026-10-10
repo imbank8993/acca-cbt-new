@@ -347,27 +347,36 @@ export async function submitExamAction(
 ) {
     const finalAnswers = { ...studentAnswers };
     const finalRevisions = answerRevisions ? { ...answerRevisions } : undefined;
+    // Capture the exact request before waiting for another delivery's lock.
+    const payload = JSON.parse(JSON.stringify({ answers: finalAnswers, answerRevisions: finalRevisions,
+        assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission }));
     return withExamSubmissionLock(attemptId || examId, async () => {
         if (attemptId) {
             const intent = await beginSubmitAction(attemptId);
             if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
         }
 
-        const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean }>(
+        const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean;
+            submissionVerified?: boolean; verifiedAttemptId?: string }>(
             `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-            { answers: finalAnswers, answerRevisions: finalRevisions, assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission },
+            payload,
             'POST',
             { timeoutMs: 30_000 },
         );
 
+        if (res.success && (res.savedAnswersOnly || res.submissionVerified !== true || !attemptId || res.verifiedAttemptId !== attemptId)) {
+            return { success: false as const, retryable: false,
+                error: 'Pengumpulan belum terverifikasi lengkap. Jawaban atau lampiran di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
+        }
         return res.success
             ? {
                   success: true as const,
+                  submissionVerified: true as const,
                   score: res.score,
                   alreadySubmitted: res.alreadySubmitted ?? false,
                   savedAnswersOnly: res.savedAnswersOnly ?? false,
                   gradingPending: res.gradingPending ?? false,
               }
             : { success: false as const, error: res.error, retryable: res.retryable };
-    });
+    }, JSON.stringify(payload));
 }

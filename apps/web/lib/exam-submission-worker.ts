@@ -5,7 +5,7 @@ export interface SubmissionStatus {
     examId?: string; status?: string; startedAt?: string; personalEndTime?: string;
     remainingSeconds?: number; submissionOnly?: boolean; canRecover?: boolean;
 }
-export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; savedAnswersOnly?: boolean }
+export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; savedAnswersOnly?: boolean; submissionVerified?: boolean }
 export interface SubmissionWorkerDependencies {
     online(): boolean;
     now(): number;
@@ -72,9 +72,9 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 const stillUser = await deps.currentUser();
                 if (stopped || stillUser?.id !== entry.userId || !deps.online() || entry.examId === deps.activeExamId()) continue;
                 const result = await deps.send(entry, snapshot);
-                if (!result.success || result.savedAnswersOnly) {
-                    defer(entry, result.savedAnswersOnly ? { success: false, retryable: false,
-                        error: 'Server hanya menerima jawaban sebelumnya. Salinan lokal tetap disimpan untuk pemeriksaan.' } : result);
+                if (!result.success || result.savedAnswersOnly || result.submissionVerified !== true) {
+                    defer(entry, result.success ? { success: false, retryable: false,
+                        error: 'Pengumpulan belum terverifikasi lengkap. Salinan lokal tetap disimpan untuk pemeriksaan proktor.' } : result);
                     continue;
                 }
                 await deps.confirm(entry, snapshot);
