@@ -16,7 +16,7 @@ export function MaterialPreview({ material, fullPage = false, bridge, onActivity
     return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}`}>
         {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
         {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} />
-            : document ? <iframe ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} referrerPolicy="no-referrer" srcDoc={document} />
+            : document ? <iframe ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox' : ''} referrerPolicy="no-referrer" srcDoc={document} />
             : material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)
                 ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} />
                 : <div className="learn-media"><div><FileDown size={40} style={{ margin: '0 auto 14px' }} /><p>{material.hasFile ? 'Berkas ini dapat dibaca melalui unduhan.' : 'Unggah dokumen untuk melihat hasil konversi di sini.'}</p></div></div>}

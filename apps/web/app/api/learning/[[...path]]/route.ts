@@ -12,7 +12,7 @@ async function handle(request: NextRequest, context: Context) {
     if (!['file', 'pdf'].includes(path[1])) {
         return request.method === 'GET'
             ? proxyGet(request, target + (request.nextUrl.searchParams.get('manage') === '1' ? '?manage=1' : ''))
-            : proxyJson(request, target, request.method as 'POST' | 'PUT');
+            : proxyJson(request, target, request.method as 'POST' | 'PUT' | 'DELETE');
     }
     const token = extractRequestToken(request);
     if (!token) return NextResponse.json({ success: false, error: 'Silakan login kembali.' }, { status: 401 });
@@ -35,3 +35,4 @@ async function handle(request: NextRequest, context: Context) {
 export const GET = handle;
 export const POST = handle;
 export const PUT = handle;
+export const DELETE = handle;

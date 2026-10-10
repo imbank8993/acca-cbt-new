@@ -2,11 +2,12 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Download, Info, PanelLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, ExternalLink, Info, PanelLeft, Pencil } from 'lucide-react';
 import { MaterialPreview } from '@/app/components/learning/MaterialPreview';
 import { LearningNavigation } from '@/app/components/learning/LearningNavigation';
 import { ActivityPlayer } from '@/app/components/learning/ActivityPlayer';
 import { learningRequest, type LearningMaterial } from '@/lib/learning-api';
+import { learningPreviewDocument } from '@/lib/learning-preview';
 import '@/app/components/learning/learning.css';
 
 export default function LearningReader() {
@@ -48,6 +49,13 @@ function LearningReaderContent({ id }: { id: string }) {
         catch (err) { setError((err as Error).message); }
         finally { setBusy(false); }
     };
+    const openDirectly = () => {
+        if (!material?.content_html) return;
+        const doc = learningPreviewDocument(material.content_html, true);
+        const blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+    };
     return <main className="learning learn-fullpage">
         <header className="learn-reader-toolbar">
             <Link className="learn-button" href="/dashboard/learning" aria-label="Kembali ke semua bahan ajar" title="Kembali ke semua bahan ajar"><ArrowLeft size={18} /></Link>
@@ -55,6 +63,11 @@ function LearningReaderContent({ id }: { id: string }) {
             <div className="learn-reader-title"><h1>{material?.title || 'Bahan ajar'}</h1>{material?.status === 'draft' && <span className="learn-status">Draf · hanya pengelola</span>}</div>
             {material && <div className="learn-reader-actions">
                 <button aria-label="Informasi bahan ajar" title="Informasi bahan ajar" aria-expanded={showInfo} aria-controls="learning-reader-info" onClick={() => setShowInfo(value => !value)}><Info size={18} /></button>
+                {material.format === 'html' && material.content_html && (
+                    <button className="learn-button" aria-label="Buka langsung di tab baru" title="Buka langsung di tab baru" onClick={openDirectly}>
+                        <ExternalLink size={18} />
+                    </button>
+                )}
                 {material.hasFile && <a className="learn-button" href={`/api/learning/${id}/file`} download aria-label="Unduh berkas asli" title="Unduh berkas asli"><Download size={18} /></a>}
                 {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download aria-label="Unduh PDF hasil LaTeX" title="Unduh PDF hasil LaTeX">PDF</a>}
                 {canEdit && <Link className="learn-button" href={`/dashboard/learning/${id}/edit`} aria-label="Edit materi" title="Edit materi"><Pencil size={18} /></Link>}

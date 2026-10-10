@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, Plus, RotateCcw, Search } from 'lucide-react';
-import { learningRequest, type LearningMaterial } from '@/lib/learning-api';
+import { ArrowRight, BookOpen, CheckCircle2, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { deleteMaterial, learningRequest, type LearningMaterial } from '@/lib/learning-api';
+import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import '@/app/components/learning/learning.css';
 
@@ -26,7 +27,22 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [creating, setCreating] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const createId = useRef('');
+
+    const handleDelete = async (item: LearningMaterial) => {
+        if (!await deleteConfirmDialog('Hapus Bahan Ajar?', `Apakah Anda yakin ingin menghapus bahan ajar "${item.title}"? Seluruh berkas dan data terkait akan dihapus secara permanen.`)) return;
+        setDeletingId(item.id);
+        setError('');
+        try {
+            await deleteMaterial(item.id);
+            setMaterials(prev => prev.filter(m => m.id !== item.id));
+        } catch (err) {
+            setError((err as Error).message);
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     const load = useCallback(async () => {
         request.current?.abort();
@@ -276,10 +292,24 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                                         year: 'numeric'
                                     })}
                                 </span>
-                                <Link href={`/dashboard/learning/${item.id}${manage ? '/edit' : ''}`}>
-                                    {manage ? 'Kelola' : 'Mulai belajar'}
-                                    <ArrowRight size={15} />
-                                </Link>
+                                <div className="learn-card-footer-right">
+                                    {manage && (
+                                        <button
+                                            type="button"
+                                            className="learn-btn-icon-danger"
+                                            title="Hapus bahan ajar"
+                                            aria-label={`Hapus bahan ajar: ${item.title}`}
+                                            disabled={deletingId === item.id}
+                                            onClick={() => void handleDelete(item)}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+                                    <Link href={`/dashboard/learning/${item.id}${manage ? '/edit' : ''}`}>
+                                        {manage ? 'Kelola' : 'Mulai belajar'}
+                                        <ArrowRight size={15} />
+                                    </Link>
+                                </div>
                             </footer>
                         </article>
                     ))}

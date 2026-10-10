@@ -107,9 +107,8 @@ export class LearningService {
         const row = await this.row(org, id);
         await this.editable(user, row);
         if (!file || !file.size || file.size > MAX_UPLOAD_BYTES) throw new BadRequestException('Pilih berkas berukuran 1 byte hingga 25 MB.');
-        if (row.status !== 'draft') throw new BadRequestException('Simpan sebagai draf sebelum mengganti berkas.');
         if (row.revision !== revision) throw new ConflictException('Materi telah berubah. Muat ulang sebelum mengunggah.');
-        if (!dto || !dto.title.trim() || dto.status !== 'draft') throw new BadRequestException('Isi hasil konversi dan informasi draf wajib dikirim bersama berkas.');
+        if (!dto || !dto.title.trim()) throw new BadRequestException('Isi hasil konversi dan informasi draf wajib dikirim bersama berkas.');
         const isTex = /\.(tex|latex|zip)$/i.test(file.originalname);
         // Compile first. A compiler failure must never replace the existing source or preview.
         const pdf = isTex ? await this.latex.compile(file.buffer, /\.zip$/i.test(file.originalname)) : null;
@@ -130,9 +129,10 @@ export class LearningService {
             file_size: file.size, rendered_pdf_key: pdfKey, content_html: content.contentHtml, conversion_notes: content.conversionNotes, format: content.format,
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(),
+            status: dto.status || row.status,
             content_version: (row.content_version || 1) + 1,
             revision: revision + 1, updated_at: new Date().toISOString(),
-        }).eq('id', id).eq('revision', revision).eq('status', 'draft').select('*').maybeSingle();
+        }).eq('id', id).eq('revision', revision).select('*').maybeSingle();
         if (error || !data) {
             await this.storage.deleteObject(key);
             if (pdfKey) await this.storage.deleteObject(pdfKey);
@@ -142,6 +142,15 @@ export class LearningService {
         if (previousKey) await this.storage.deleteObject(previousKey);
         if (previousPdfKey) await this.storage.deleteObject(previousPdfKey);
         return { material: this.publicRow(data) };
+    }
+    async delete(user: AuthUser, org: string, id: string) {
+        const row = await this.row(org, id);
+        await this.editable(user, row);
+        if (row.file_key) await this.storage.deleteObject(row.file_key);
+        if (row.rendered_pdf_key) await this.storage.deleteObject(row.rendered_pdf_key);
+        const { error } = await this.db.from('cbt_learning_materials').delete().eq('id', id).eq('organization_id', org);
+        if (error) throw new InternalServerErrorException('Gagal menghapus bahan ajar.');
+        return { success: true };
     }
     async file(user: AuthUser, org: string, id: string, rendered = false) {
         await this.reader(user, org);

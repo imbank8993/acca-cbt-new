@@ -22,3 +22,7 @@ export async function saveMaterial(material: LearningMaterial, status = material
         status, format: material.format, contentHtml: material.content_html, conversionNotes: material.conversion_notes,
     }) });
 }
+
+export async function deleteMaterial(id: string) {
+    return learningRequest<{ success: boolean }>(`/${id}`, { method: 'DELETE' });
+}

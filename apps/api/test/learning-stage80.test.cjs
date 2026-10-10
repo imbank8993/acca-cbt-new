@@ -76,10 +76,22 @@ test('LMS: kegagalan unggah mempertahankan sumber lama', async () => {
     await assert.rejects(service.upload(teacher, 'school', 'material', { originalname: 'a.exe', size: 1, buffer: Buffer.from('x') }, 1, update({ status: 'draft' })), /mengunggah/);
     assert.equal(storage.removed.length, 0); assert.equal(db.tables.cbt_learning_materials[0].file_name, 'materi.docx');
 });
-test('LMS: berkas terbit tidak bisa diganti sebelum dijadikan draf', async () => {
-    const { service, storage } = setup([material({ status: 'published' })]);
-    await assert.rejects(service.upload(teacher, 'school', 'material', { originalname: 'a.txt', size: 1, buffer: Buffer.from('x') }, 1), /draf/);
-    assert.equal(storage.put.length, 0);
+test('LMS: berkas terbit dapat diperbarui dengan mengunggah berkas baru', async () => {
+    const { service, storage, db } = setup([material({ status: 'published' })]);
+    const res = await service.upload(teacher, 'school', 'material', { originalname: 'baru.txt', size: 10, buffer: Buffer.from('konten baru') }, 1, update({ status: 'published' }));
+    assert.equal(res.material.status, 'published');
+    assert.equal(res.material.file_name, 'baru.txt');
+    assert.equal(db.tables.cbt_learning_materials[0].content_version, 2);
+});
+test('LMS: pemilik atau admin dapat menghapus bahan ajar dan membersihkan penyimpanan', async () => {
+    const { service, storage, db } = setup([material()]);
+    await assert.rejects(service.delete(student, 'school', 'material'), ForbiddenException);
+    const otherTeacher = { id: 'other-teacher', roles: ['Guru'] };
+    await assert.rejects(service.delete(otherTeacher, 'school', 'material'), ForbiddenException);
+    const result = await service.delete(teacher, 'school', 'material');
+    assert.equal(result.success, true);
+    assert.equal(db.tables.cbt_learning_materials.length, 0);
+    assert.deepEqual(storage.removed, ['lms-private/school/material/source.bin']);
 });
 test('LMS: galat baca database tidak disalahartikan sebagai izin', async () => {
     const { service } = setup([material()], ['cbt_learning_materials']);

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthUser } from '@acca-cbt/shared';
 import type { Response } from 'express';
@@ -21,6 +21,8 @@ export class LearningController {
     detail(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string) { return this.learning.detail(user, org, id); }
     @Put(':id')
     update(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMaterialDto) { return this.learning.update(user, org, id, dto); }
+    @Delete(':id')
+    delete(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string) { return this.learning.delete(user, org, id); }
     @Post(':id/file')
     @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, fieldSize: 8 * 1024 * 1024, files: 1, fields: 12 } }))
     upload(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string,
