@@ -177,13 +177,16 @@ function MonitoringContent() {
         return () => clearInterval(interval);
     }, [loadExamData, selectedExamId]);
 
+    const canManage = exams.find(exam => exam.id === selectedExamId)?.canManage === true;
+
     const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
     const handleResetAttempt = (attempt: ExamAttemptRecord) => {
+        if (!canManage || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
     };
     const handleCalculateIRT = async () => {
-        if (!selectedExamId) return;
+        if (!selectedExamId || !canManage) return;
         const orgId = exams.find(e => e.id === selectedExamId)?.organization_id;
         if (!orgId) return;
 
@@ -349,7 +352,9 @@ function MonitoringContent() {
                 </div>
             )}
 
-            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
+            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canManage ? handleResetAttempt : undefined} />
+
+            {selectedExamId && !canManage && <p className="mb-4 text-sm text-slate-600">Mode lihat saja. Anda dapat memantau dan mengekspor hasil ujian ini.</p>}
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
@@ -431,7 +436,7 @@ function MonitoringContent() {
                     </button>
                     {selectedExamId && activeTab === 'results' && (
                         <>
-                            {hasIRTScoring && (
+                            {canManage && hasIRTScoring && (
                                 <Button
                                     variant="outline"
                                     onClick={handleCalculateIRT}
@@ -641,7 +646,7 @@ function MonitoringContent() {
                                                                 >
                                                                     <Eye size={11} /> Detail
                                                                 </button>
-                                                                {canReset && (
+                                                                {canManage && canReset && (
                                                                     <button
                                                                         onClick={() => handleResetAttempt(att)}
                                                                         disabled={resettingAttemptId === att.id}
@@ -758,7 +763,7 @@ function MonitoringContent() {
                                                                         >
                                                                             <Eye size={11} /> Detail
                                                                         </button>
-                                                                        {canReset && (
+                                                                        {canManage && canReset && (
                                                                             <button
                                                                                 onClick={() => handleResetAttempt(att)}
                                                                                 disabled={resettingAttemptId === att.id}
@@ -1110,7 +1115,7 @@ function MonitoringContent() {
             </AnimatePresence>
 
             <ResetExamModal
-                open={!!selectedResetAttempt}
+                open={canManage && selectedResetAttempt?.exam_id === selectedExamId}
                 attempt={selectedResetAttempt}
                 examDuration={
                     exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??

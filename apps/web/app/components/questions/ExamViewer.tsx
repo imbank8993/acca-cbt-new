@@ -925,7 +925,7 @@ export function ExamViewer({
                                 />
                                 <button
                                     onClick={() => {
-                                        if (onSubmitExam) onSubmitExam({ documentUrl: studentDocUrl, videoUrl: studentVidUrl });
+                                        if (onSubmitExam) onSubmitExam();
                                     }}
                                     disabled={confirmText !== 'SELESAI' || submitting}
                                     className="w-full py-4 bg-emerald-500 text-white rounded-lg font-bold text-base hover:bg-emerald-600 disabled:opacity-40 flex items-center justify-center gap-3 touch-manipulation transition-all"

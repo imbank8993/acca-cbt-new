@@ -46,7 +46,7 @@ test('ANS-01: endpoint jawaban memasang timeout autosave dan bulk sync', () => {
     assert.match(source, /syncAnswersBulkAction[\s\S]*timeoutMs: 30_000/);
     assert.match(source, /submitExamAction[\s\S]*timeoutMs: 30_000/);
     assert.match(source, /beginSubmitAction[\s\S]*submit-intent/);
-    assert.match(source, /const intent = await beginSubmitAction\(attemptId\)[\s\S]*if \(!intent\.success\)/);
+    assert.match(source, /const intent = await beginSubmitAction\(attemptId, payload\)[\s\S]*if \(!intent\.success\)/);
 });
 
 test('ANS-01: Next.js forwards submit intent to the API', () => {

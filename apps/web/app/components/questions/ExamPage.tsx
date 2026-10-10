@@ -10,6 +10,7 @@ import { getDeviceId,setDeviceId } from '@/lib/device-id';
 import {
 createSecurityEventId,
 freezeExamSnapshot,
+ExamSnapshotConflictError,
 type ExamAnswerSnapshot,
 enqueueSecurityEvent,
 inspectExamStorage,
@@ -29,6 +30,7 @@ writeExamSnapshot,
 import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { ExamClock } from '@/lib/exam-clock';
+import { acquireExamEditorLock } from '@/lib/exam-editor-lock';
 import { PerKeyQueue } from '@/lib/per-key-queue';
 import { getSessionUser } from '@/lib/session';
 import { clearCbtSession } from '@/lib/session-reset';
@@ -103,6 +105,7 @@ export default function ExamPage() {
     const doubtfulRef = useRef<Set<string>>(new Set());
     const questionsRef = useRef<StudentExamQuestion[]>([]);
     const attemptRef = useRef<StudentExamAttempt | null>(null);
+    const ownsEditorLockRef = useRef(false);
     // Soal yang autosave-nya GAGAL terkirim, dan yang requestnya masih terbang.
     // Dulu kegagalan ditelan diam-diam (`.catch(() => {})`): centang terakhir
     // pada PGK bisa tidak pernah sampai ke server, dan jalur penutupan yang
@@ -266,6 +269,7 @@ export default function ExamPage() {
     }, []);
 
     const updateAssignment = useCallback((patch: Partial<NonNullable<ExamAnswerSnapshot['assignmentData']>>) => {
+        if (!ownsEditorLockRef.current) return;
         const att = attemptRef.current;
         if (!att || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const data = { ...assignmentRef.current, ...patch };
@@ -355,6 +359,8 @@ export default function ExamPage() {
     // ── Fetch exam data ───────────────────────────────────────
     useEffect(() => {
         if (!examId) return;
+        let cancelled = false;
+        let releaseEditor: (() => void) | null = null;
         async function fetchExamData() {
             setLoading(true);
             setAccessDenied(false);
@@ -746,7 +752,24 @@ export default function ExamPage() {
             }
             setLoading(false);
         }
-        fetchExamData();
+        void acquireExamEditorLock(examId).then(release => {
+            if (cancelled) { release?.(); return; }
+            if (!release) {
+                setAccessDenied(true);
+                setAccessError('Ujian ini sedang dibuka di tab lain. Tutup tab tersebut, lalu muat ulang halaman ini.');
+                setLoading(false);
+                return;
+            }
+            releaseEditor = release;
+            ownsEditorLockRef.current = true;
+            void fetchExamData();
+        }).catch(error => {
+            if (cancelled) return;
+            setAccessDenied(true);
+            setAccessError(getErrorMessage(error));
+            setLoading(false);
+        });
+        return () => { cancelled = true; ownsEditorLockRef.current = false; releaseEditor?.(); };
     }, [examId, restoreAssignment]);
 
     // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
@@ -776,7 +799,7 @@ export default function ExamPage() {
     const handleSubmitExam = useCallback(async (assignmentSubmission?: { documentUrl?: string, videoUrl?: string }, opts?: { isAuto?: boolean }) => {
         // Ref-based guard (not the async `submitting` state) so a second call in the same
         // tick — or an auto-submit retry after a failure — can't slip through.
-        if (!user || submitInFlightRef.current || terminationReasonRef.current) return;
+        if (!ownsEditorLockRef.current || !user || submitInFlightRef.current || terminationReasonRef.current) return;
 
         const isAssignment = exam?.exam_type === 'assignment';
         if (assignmentSubmission) pendingAssignmentRef.current = assignmentSubmission;
@@ -801,6 +824,13 @@ export default function ExamPage() {
         try {
             frozenSnapshotRef.current = await freezeExamSnapshot(activeAttempt.id, frozenSnapshotRef.current);
         } catch (error) {
+            if (error instanceof ExamSnapshotConflictError) {
+                submitInFlightRef.current = false;
+                setWaitingForSyncAndSubmit(false);
+                setAccessDenied(true);
+                setAccessError(error.message);
+                return;
+            }
             storageStateRef.current = 'unavailable';
             setStorageWarning(getErrorMessage(error));
         }
@@ -1385,6 +1415,7 @@ export default function ExamPage() {
 
 
     const handleAnswerSelect = useCallback(async (questionId: string, answer: string | string[]) => {
+        if (!ownsEditorLockRef.current) return;
         if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;
@@ -1438,6 +1469,7 @@ export default function ExamPage() {
     }, [markFailed, submissionOnly]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
+        if (!ownsEditorLockRef.current) return;
         if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;

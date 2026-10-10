@@ -59,7 +59,7 @@ def normalize_short_answer(value: str | None) -> str:
     diubah — "x+y" dan "x + y" tetap berbeda. Pembuat soal yang mendaftarkan
     sendiri setiap variasi jawaban yang diterima.
     """
-    return (value or "").strip().lower()
+    return value.strip().lower() if isinstance(value, str) else ""
 
 
 def coerce_bool(value: Any) -> bool | None:

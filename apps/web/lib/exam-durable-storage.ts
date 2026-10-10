@@ -494,7 +494,12 @@ export function createSerializedWriter<T, R>(
 
 function enqueueSnapshotOperation<T>(attemptId: string, operation: () => Promise<T>): Promise<T> {
     const previous = snapshotTails.get(attemptId) || Promise.resolve();
-    const current = previous.catch(() => undefined).then(operation);
+    const current = previous.catch(() => undefined).then(async (): Promise<T> => {
+        if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+            return await navigator.locks.request(`exam-snapshot:${attemptId}`, operation);
+        }
+        return operation();
+    });
     const settled = current.then(() => undefined, () => undefined);
     snapshotTails.set(attemptId, settled);
     void settled.finally(() => {
@@ -631,13 +636,60 @@ export async function inspectExamStorage(): Promise<ExamStorageHealth> {
     }
 }
 
-/** Freeze after queued edits have settled. Repeated attempts reuse the identical payload. */
+export class ExamSnapshotConflictError extends Error {
+    readonly code = 'EXAM_SNAPSHOT_CONFLICT';
+    constructor() {
+        super('Salinan jawaban berbeda dari kiriman di tab lain. Pengiriman dihentikan. Jangan tutup halaman; hubungi proktor.');
+        this.name = 'ExamSnapshotConflictError';
+    }
+}
+
+function sameSnapshotContents(left: ExamAnswerSnapshot, right: ExamAnswerSnapshot): boolean {
+    const canonical = (value: unknown): string => {
+        if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+        if (value && typeof value === 'object') return '{' + Object.entries(value)
+            .filter(([, item]) => item !== undefined).sort(([a], [b]) => a.localeCompare(b))
+            .map(([key, item]) => JSON.stringify(key) + ':' + canonical(item)).join(',') + '}';
+        return JSON.stringify(value) ?? 'null';
+    };
+    const contents = (snapshot: ExamAnswerSnapshot) => ({ answers: snapshot.answers, revisions: snapshot.revisions || {},
+        doubtfulAnswers: [...snapshot.doubtfulAnswers].sort(), assignmentData: snapshot.assignmentData || {} });
+    return canonical(contents(left)) === canonical(contents(right)) && (!left.frozenSubmission ||
+        canonical(left.frozenSubmission) === canonical(right.frozenSubmission));
+}
+
+async function rejectSnapshotConflict(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<never> {
+    // Keep the conflicting draft separately; it must never become an automatic delivery.
+    const suffix = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    await writeSnapshotNow(`${attemptId}:conflict:${suffix}`, snapshot);
+    throw new ExamSnapshotConflictError();
+}
+
+function canFreezeSnapshot(current: ExamAnswerSnapshot, requested: ExamAnswerSnapshot): boolean {
+    if (sameSnapshotContents(current, requested)) return true;
+    if (current.frozenSubmission) return false;
+    for (const id of new Set([...Object.keys(current.answers), ...Object.keys(current.revisions || {})])) {
+        const before = current.revisions?.[id] ?? 0;
+        const after = requested.revisions?.[id] ?? 0;
+        if (after < before || (after === before && (current.answers[id] !== requested.answers[id] ||
+            current.doubtfulAnswers.includes(id) !== requested.doubtfulAnswers.includes(id)))) return false;
+    }
+    if (!current.assignmentData || !Object.keys(current.assignmentData).length ||
+        (requested.assignmentRevision ?? 0) > (current.assignmentRevision ?? 0)) return true;
+    return sameSnapshotContents({ answers: {}, doubtfulAnswers: [], assignmentData: current.assignmentData },
+        { answers: {}, doubtfulAnswers: [], assignmentData: requested.assignmentData });
+}
+
+/** Freeze only the requested payload. A different draft must never borrow an older delivery. */
 export async function freezeExamSnapshot(attemptId: string, snapshot: ExamAnswerSnapshot): Promise<ExamAnswerSnapshot> {
-    const immediate = mergeExamSnapshots(readLegacy(attemptId), snapshot);
-    writeLegacy(attemptId, immediate);
+    const legacy = readLegacy(attemptId);
+    if (legacy && !canFreezeSnapshot(legacy, snapshot)) return rejectSnapshotConflict(attemptId, snapshot);
+    // Journal the draft immediately, but publish the frozen flag only under the cross-tab lock.
+    if (!legacy?.frozenSubmission) writeLegacy(attemptId, { ...snapshot, frozenSubmission: undefined });
     return enqueueSnapshotOperation(attemptId, async () => {
         const current = await readCurrentSnapshot(attemptId);
-        const frozen = current?.frozenSubmission ? current : immediate;
+        if (current && !canFreezeSnapshot(current, snapshot)) return rejectSnapshotConflict(attemptId, snapshot);
+        const frozen = current?.frozenSubmission ? current : snapshot;
         const result = await writeSnapshotNow(attemptId, frozen);
         if (!result.saved) throw new Error('Salinan jawaban terkunci belum tersimpan di perangkat. Jangan tutup halaman.');
         return frozen;

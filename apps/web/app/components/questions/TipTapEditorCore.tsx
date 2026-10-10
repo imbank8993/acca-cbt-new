@@ -823,7 +823,7 @@ export default function TipTapEditorCore({
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs" ref={editorWrapRef}>
       {/* Sleek Pure-Icon Unified Segmented Toolbar */}
       {editable && (
-        <div className="editor-toolbar flex w-full flex-wrap items-center gap-2 px-3 py-2 bg-slate-50/80 border-b border-slate-200/80 select-none">
+        <div className="editor-toolbar flex w-full items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-slate-50/80 border-b border-slate-200/80 select-none overflow-x-auto sm:flex-wrap scrollbar-hide">
           {/* Cluster 1: History (Undo / Redo) */}
           <div className="toolbar-group">
             <button

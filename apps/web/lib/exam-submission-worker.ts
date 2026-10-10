@@ -1,4 +1,5 @@
 import type { ExamAnswerSnapshot, ExamSubmissionRegistration } from './exam-durable-storage';
+import { ExamSnapshotConflictError } from './exam-durable-storage';
 
 export interface SubmissionStatus {
     success: boolean; error?: string; retryable?: boolean;
@@ -80,9 +81,10 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 await deps.confirm(entry, snapshot);
                 failures.delete(entry.attemptId);
                 deps.notify?.(entry, result);
-            } catch {
+            } catch (error) {
                 // A storage/network fault on one attempt must not prevent delivery of the next.
-                defer(entry, { success: false, retryable: true });
+                defer(entry, { success: false, retryable: !(error instanceof ExamSnapshotConflictError),
+                    ...(error instanceof ExamSnapshotConflictError ? { error: error.message } : {}) });
             }
         }
     };

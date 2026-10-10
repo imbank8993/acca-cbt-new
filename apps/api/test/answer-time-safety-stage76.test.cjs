@@ -90,14 +90,15 @@ test('submit intent recorded before deadline keeps the full snapshot receivable 
     const db = fixture();
     db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date('2026-09-20T00:59:30Z') }] : [{ id: 'locked' }];
     const attempts = service(db);
-    const intent = await attempts.beginSubmit(user, 'attempt', device);
+    const committedPayload = { answers: { q: 'final answer' }, answerRevisions: { q: 1 } };
+    const intent = await attempts.beginSubmit(user, 'attempt', device, committedPayload);
     assert.equal(intent.startedAt, '2026-09-20T00:59:30.000Z');
 
     db.raw = async sql => /clock_timestamp/.test(sql)
         ? [{ now: new Date('2026-09-20T01:01:00Z') }]
         : [{ id: 'locked' }];
     assert.deepEqual(
-        await attempts.beginSubmit(user, 'attempt', device),
+        await attempts.beginSubmit(user, 'attempt', device, committedPayload),
         { attemptId: 'attempt', startedAt: '2026-09-20T00:59:30.000Z' },
     );
     await attempts.autoFinish('attempt', new Date('2026-09-20T01:01:00Z'));
@@ -275,7 +276,7 @@ test('browser submit wrapper reaches finalization at zero and recovers a lost re
                 const body = JSON.parse(init.body);
                 const intent = url.endsWith('/submit-intent');
                 const result = intent
-                    ? await attempts.beginSubmit(user, 'attempt', body.deviceId)
+                    ? await attempts.beginSubmit(user, 'attempt', body.deviceId, body.submission)
                     : await attempts.submit(user, 'exam', body.answers, body.assignmentData, body.attemptId, body.deviceId, body.answerRevisions);
                 if (!intent && loseResponse) { loseResponse = false; throw new Error('response lost'); }
                 return new Response(JSON.stringify({ success: true, ...result }), { status: 200 });

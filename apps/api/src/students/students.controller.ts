@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
     JoinClassDto,
+    BeginSubmitDto,
     SaveAnswerDto,
     StartAttemptDto,
     SubmitExamDto,
@@ -171,9 +172,9 @@ export class StudentsController {
     beginSubmit(
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
-        @Body() dto: StartAttemptDto,
+        @Body() dto: BeginSubmitDto,
     ) {
-        return this.attempts.beginSubmit(user, attemptId, dto.deviceId);
+        return this.attempts.beginSubmit(user, attemptId, dto.deviceId, dto.submission);
     }
 
     @Post('attempts/:attemptId/late-answers')

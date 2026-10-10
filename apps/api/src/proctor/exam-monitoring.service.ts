@@ -1,6 +1,6 @@
 import { attemptHealth } from '../common/attempt-health';
 import { MONITORING_EVENTS } from '../common/exam-monitoring';
-import { readExamQuestionVersion, hasExamQuestionSnapshots } from '../common/exam-question-snapshots';
+import { readExamQuestionVersion, hasExamQuestionSnapshots, loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
@@ -682,6 +682,7 @@ export class ExamMonitoringService {
         const account = await this.authUsers.findById(attempt.user_id);
 
         return {
+            canManage: await this.authz.canManageExam(user, attempt.exams),
             attempt: { ...attempt, email: account?.email || '-' },
             answers: answers.sort(
                 (a, b) =>
@@ -694,54 +695,32 @@ export class ExamMonitoringService {
 
     /** Nilai sementara untuk pengerjaan yang masih berlangsung. */
     private async applyLiveScores(attempt: any, answers: any[]): Promise<void> {
-        const items = answers
-            .filter((answer) => answer.bank_questions && answer.is_correct === null)
-            .map((answer) => ({
-                question: answer.bank_questions,
-                answer_id: answer.id,
-                raw_answer: answer.essay_answer ?? answer.selected_option_id,
-            }))
-            .filter((item) => item.raw_answer);
-
-        let maxPossible = 0;
-        let total = 0;
-
-        for (const answer of answers) {
-            if (!answer.bank_questions) continue;
-            maxPossible += answer.bank_questions.score_default || 1;
-            if (answer.is_correct !== null) total += answer.score || 0;
-        }
-
-        if (items.length > 0) {
-            try {
-                const result = await this.scoring.post<{
-                    items: Array<{
-                        answer_id: string | null;
-                        score: number;
-                        is_correct: boolean | null;
-                    }>;
-                }>('/grading/attempt', { items });
-
-                const byId = new Map(result.items.map((item) => [item.answer_id, item]));
-
-                for (const answer of answers) {
-                    const scored = byId.get(answer.id);
-                    if (!scored) continue;
-
-                    // Hanya disalin ke objek yang dikirim ke layar; `cbt_answers`
-                    // tidak ditulis — penilaian permanen tetap terjadi saat submit.
-                    answer.score = scored.score;
-                    answer.is_correct = scored.is_correct;
-                    total += scored.score;
-                }
-            } catch (err) {
-                this.logger.error(
-                    `Nilai sementara gagal dihitung untuk pengerjaan ${attempt.id}: ${(err as Error).message}`,
-                );
+        try {
+            const questions = await loadFrozenExamQuestions(this.db, attempt.exam_id);
+            const saved = new Map(answers.map(answer => [answer.question_id, answer]));
+            const items = questions.map(question => {
+                const answer = saved.get(question.id);
+                return {
+                    question,
+                    answer_id: answer?.id ?? null,
+                    raw_answer: answer?.essay_answer ?? answer?.selected_option_id ?? null,
+                };
+            });
+            const result = await this.scoring.post<{
+                items: Array<{ answer_id: string | null; score: number; is_correct: boolean | null }>;
+                scaled_score: number;
+            }>('/grading/attempt', { items });
+            const byId = new Map(result.items.map(item => [item.answer_id, item]));
+            for (const answer of answers) {
+                const scored = byId.get(answer.id);
+                if (!scored) continue;
+                answer.score = scored.score;
+                answer.is_correct = scored.is_correct;
             }
+            attempt.total_score = result.scaled_score;
+        } catch (err) {
+            this.logger.error(`Nilai sementara gagal dihitung untuk pengerjaan ${attempt.id}: ${(err as Error).message}`);
         }
-
-        attempt.total_score = maxPossible > 0 ? (total / maxPossible) * 100 : 0;
     }
 
     // ── Tugas (assignment) ───────────────────────────────────────────────────

@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..schemas.irt import AttemptScore, IrtAttempt, IrtRequest, IrtResponse, ItemParameter
+from .answer_parser import coerce_bool
+from .grading import _unique_strings, _dedupe_options
 
 # Skala UTBK.
 SCALE_MEAN = 50.0
@@ -80,7 +82,7 @@ def _loads(raw: str | None) -> dict:
 
 def _is_sub_item_correct(qtype: str, option, parsed: dict) -> bool:
     if qtype == "true_false":
-        return parsed.get(option.id) == option.is_correct
+        return option.is_correct is not None and coerce_bool(parsed.get(option.id)) == option.is_correct
 
     metadata = option.metadata or {}
     if qtype == "matching":
@@ -98,7 +100,7 @@ def _is_sub_item_correct(qtype: str, option, parsed: dict) -> bool:
     else:
         return False
 
-    return len(student) == len(correct) and all(s in correct for s in student)
+    return bool(correct) and _unique_strings(student) and set(student) == set(correct)
 
 
 def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str, StudentData]]:
@@ -114,9 +116,9 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
                 continue
 
             qtype = (question.type or "mcq").lower()
-            weight = max(float(question.score_default or 1), 0.0)
+            weight = max(float(question.score_default), 0.0)
 
-            if qtype in PERSONALITY_TYPES:
+            if qtype in PERSONALITY_TYPES or weight == 0:
                 # Diabaikan sepenuhnya: tipe psikometri tidak mengukur kemampuan.
                 continue
 
@@ -138,7 +140,7 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
                 # raw_answer di cbt_answers.
                 parsed = _loads(answer.essay_answer)
 
-                for option in question.bank_question_options:
+                for option in _dedupe_options(question.bank_question_options):
                     item_id = f"{answer.question_id}_{option.id}"
                     student.total_answered += 1
 

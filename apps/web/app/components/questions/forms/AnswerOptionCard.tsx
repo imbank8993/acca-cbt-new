@@ -460,10 +460,96 @@ export const AnswerOptionCard = React.memo(({
 
     return (
         <div className={`group relative ${className}`} suppressHydrationWarning>
+            {/* Mobile Header Bar (sm:hidden): Badge, Kunci Jawaban Toggle, Tools, Delete */}
+            <div className="flex sm:hidden items-center justify-between pb-1.5 px-0.5">
+                <div className="flex items-center gap-2">
+                    {/* Badge */}
+                    <div className={`
+                        w-7 h-7 rounded-lg flex items-center justify-center
+                        text-xs font-black select-none transition-all
+                        ${isCorrect
+                            ? 'bg-emerald-500 text-white shadow-sm'
+                            : isFocused
+                                ? 'bg-slate-800 text-white'
+                                : 'bg-slate-100 text-slate-600'
+                        }
+                    `}>
+                        {label}
+                    </div>
+
+                    {/* Mobile Correct Toggle Chip */}
+                    {!hideCorrectToggle && (
+                        <button
+                            type="button"
+                            onClick={onCorrectToggle}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                                isCorrect
+                                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                        >
+                            <Check size={12} strokeWidth={isCorrect ? 3 : 2} />
+                            <span>{isCorrect ? 'Kunci Benar' : 'Jadikan Kunci'}</span>
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                    {/* Mobile Insert Tools (+ menu) */}
+                    {!hideRichTools && (
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setShowToolsMenu(!showToolsMenu); }}
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs transition-all ${
+                                    showToolsMenu ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                                title="Sisipkan media / rumus"
+                            >
+                                <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
+                            </button>
+
+                            {/* Dropdown Menu on Mobile */}
+                            {showToolsMenu && (
+                                <div 
+                                    className="absolute right-0 top-full mt-1.5 p-1 bg-white border border-slate-200 shadow-xl rounded-lg flex items-center gap-1 z-50 animate-in fade-in"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <label className={`w-8 h-8 flex items-center justify-center rounded-md cursor-pointer transition-all ${imageUploading ? 'opacity-50 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`} title="Unggah Gambar">
+                                        {imageUploading ? <span className="animate-spin text-sm">⟳</span> : <ImageIcon size={14} />}
+                                        <input type="file" accept="image/*" className="hidden" disabled={imageUploading}
+                                            onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleImageUpload(f); setShowToolsMenu(false); } e.target.value = ''; }} />
+                                    </label>
+                                    <button type="button" onClick={() => { setShowEquation(true); setShowToolsMenu(false); }} className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50" title="Sisipkan Rumus">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/></svg>
+                                    </button>
+                                    <button type="button" onClick={() => { setShowTable(true); setShowToolsMenu(false); }} className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-emerald-600 hover:bg-emerald-50" title="Sisipkan Tabel">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Mobile Delete Button */}
+                    {canDelete && onDelete && (
+                        <button
+                            type="button"
+                            onClick={onDelete}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all"
+                            title="Hapus Opsi"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Main Row / Card (Desktop & Mobile input) */}
             <div className={`flex items-start sm:items-center gap-1.5 sm:gap-2`}>
-                {/* Letter Badge */}
+                {/* Desktop Letter Badge */}
                 <div className={`
-                    mt-1 sm:mt-0 shrink-0 flex items-center justify-center
+                    hidden sm:flex mt-1 sm:mt-0 shrink-0 items-center justify-center
                     w-8 h-8 rounded-lg
                     text-sm font-black select-none
                     transition-all duration-200
@@ -477,10 +563,10 @@ export const AnswerOptionCard = React.memo(({
                     {label}
                 </div>
 
-                {/* Input Card */}
+                {/* Input Card (Takes 100% width on mobile) */}
                 <div className={`
                     flex-1 flex flex-col sm:flex-row items-stretch sm:items-center
-                    rounded-lg border-2 transition-all duration-200
+                    rounded-lg border-2 transition-all duration-200 w-full min-w-0
                     ${isFocused
                         ? 'border-slate-800 bg-white shadow-sm'
                         : isCorrect
@@ -490,7 +576,6 @@ export const AnswerOptionCard = React.memo(({
                 `}>
                     {/* Text Input Wrapper */}
                     <div className="flex flex-1 min-w-0">
-                        {/* Text Input */}
                         <div className="flex-1 min-w-0">
                             <RichInput
                             inputRef={inputRef}
@@ -504,9 +589,9 @@ export const AnswerOptionCard = React.memo(({
                         </div>
                     </div>
 
-                    {/* Toolbar - Inside card */}
+                    {/* Desktop Toolbar - Inside card */}
                     {!hideRichTools && (
-                    <div className="relative shrink-0 px-2 py-1.5 sm:py-2 flex items-center justify-end sm:justify-start">
+                    <div className="hidden sm:flex relative shrink-0 px-2 py-1.5 sm:py-2 items-center justify-end sm:justify-start">
                         {/* Toggle Button */}
                         <button
                             type="button"
@@ -517,7 +602,7 @@ export const AnswerOptionCard = React.memo(({
                             <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                         </button>
 
-                        {/* Dropdown Menu */}
+                        {/* Dropdown Menu on Desktop */}
                         {showToolsMenu && (
                             <div 
                                 className="absolute right-2 sm:right-auto sm:left-2 top-full mt-1 p-1 bg-white border border-slate-200 shadow-xl rounded-lg flex items-center gap-1 z-50 animate-in fade-in slide-in-from-top-2"
@@ -564,14 +649,14 @@ export const AnswerOptionCard = React.memo(({
                     )}
                 </div>
 
-                {/* Correct toggle */}
+                {/* Desktop Correct toggle */}
                 {!hideCorrectToggle && (
                     <button
                         type="button"
                         onClick={onCorrectToggle}
                         title={isMultiSelect ? 'Pilih sebagai jawaban benar' : 'Tetapkan sebagai jawaban benar'}
                         className={`
-                            mt-1 sm:mt-0 shrink-0 flex items-center justify-center
+                            hidden sm:flex mt-1 sm:mt-0 shrink-0 items-center justify-center
                             w-8 h-8 rounded-lg border-2
                             transition-all duration-200
                             ${isCorrect
@@ -584,17 +669,17 @@ export const AnswerOptionCard = React.memo(({
                     </button>
                 )}
 
-                {/* Delete */}
+                {/* Desktop Delete button */}
                 {canDelete && onDelete && (
                     <button
                         type="button"
                         onClick={onDelete}
                         className={`
-                            mt-1 sm:mt-0 shrink-0 flex items-center justify-center
+                            hidden sm:flex mt-1 sm:mt-0 shrink-0 items-center justify-center
                             w-8 h-8 rounded-lg
                             transition-all duration-200
-                            text-slate-300 hover:text-rose-500 hover:bg-rose-50
-                            ${isFocused || isCorrect ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                            text-slate-400 hover:text-rose-500 hover:bg-rose-50
+                            ${isFocused || isCorrect ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}
                         `}
                         title="Hapus Opsi"
                     >

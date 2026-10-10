@@ -192,6 +192,7 @@ export default function QuestionEditorModal({
     );
 
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
 
     const [latexEditorOpen, setLatexEditorOpen] = useState(false);
     const [latexEditorOptIdx, setLatexEditorOptIdx] = useState<number | null>(null);
@@ -427,58 +428,62 @@ export default function QuestionEditorModal({
 
             {/* ── Header ── */}
             <header className="shrink-0 z-20 bg-white border-b border-slate-100">
-                <div className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        {/* Left */}
-                        <div className="flex items-center gap-4">
+                <div className="px-3 sm:px-6 py-2.5 sm:py-4">
+                    <div className="flex items-center justify-between gap-2">
+                        {/* Left Group */}
+                        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                            {/* Close Button */}
                             <button
                                 onClick={onClose}
                                 className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all shrink-0"
+                                title="Tutup / Batal"
                             >
                                 <X size={17} className="text-slate-500" />
                             </button>
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center">
-                                    <Edit3 size={15} className="text-white" />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-bold text-slate-800 leading-tight">
-                                        {editingQuestion ? 'Edit Soal' : 'Soal Baru'}
-                                    </h2>
-                                    <p className="text-[11px] text-slate-400 leading-tight">Bank Soal CBT</p>
-                                </div>
+
+                            {/* Desktop Pen Icon */}
+                            <div className="hidden sm:flex w-9 h-9 rounded-lg bg-slate-800 items-center justify-center shrink-0">
+                                <Edit3 size={15} className="text-white" />
                             </div>
 
-                            {/* Prev / Next question navigation (saves current, then moves) */}
+                            {/* Title (Prevents multi-word wrap) */}
+                            <div className="min-w-0">
+                                <h2 className="text-xs sm:text-sm font-bold text-slate-800 leading-tight whitespace-nowrap truncate">
+                                    {editingQuestion ? 'Edit Soal' : 'Soal Baru'}
+                                </h2>
+                                <p className="hidden sm:block text-[11px] text-slate-400 leading-tight whitespace-nowrap">Bank Soal CBT</p>
+                            </div>
+
+                            {/* Prev / Next question navigation */}
                             {onNavigate && editingQuestion && typeof editorIndex === 'number' && editorIndex >= 0 && (editorTotal ?? 0) > 1 && (
-                                <div className="flex items-center gap-1 pl-2 sm:pl-3 sm:ml-1 border-l border-slate-200">
+                                <div className="flex items-center gap-0.5 sm:gap-1 pl-1.5 sm:pl-3 sm:ml-1 border-l border-slate-200 shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => doSave('prev')}
                                         disabled={isSubmitting || editorIndex <= 0}
                                         title="Simpan & soal sebelumnya"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                     >
-                                        <ChevronLeft size={16} />
+                                        <ChevronLeft size={14} className="sm:w-4 sm:h-4" />
                                     </button>
-                                    <span className="text-[11px] font-semibold text-slate-500 tabular-nums px-1.5 whitespace-nowrap select-none">
-                                        Soal {editorIndex + 1} / {editorTotal}
+                                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-600 tabular-nums px-1 whitespace-nowrap select-none">
+                                        <span className="hidden sm:inline">Soal </span>{editorIndex + 1}/{editorTotal}
                                     </span>
                                     <button
                                         type="button"
                                         onClick={() => doSave('next')}
                                         disabled={isSubmitting || editorIndex >= (editorTotal ?? 0) - 1}
                                         title="Simpan & soal berikutnya"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                     >
-                                        <ChevronRight size={16} />
+                                        <ChevronRight size={14} className="sm:w-4 sm:h-4" />
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Right */}
-                        <div className="flex items-center gap-3">
+                        {/* Right Group */}
+                        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                             <button
                                 onClick={() => {
                                     const tempQ = {
@@ -505,25 +510,27 @@ export default function QuestionEditorModal({
                                     };
                                     handleOpenPreview(tempQ);
                                 }}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-all"
+                                title="Pratinjau Soal"
+                                className="w-8 h-8 sm:w-auto flex items-center justify-center gap-1.5 sm:gap-2 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium border border-slate-200 rounded-lg bg-white text-slate-600 hover:bg-slate-50 transition-all shrink-0"
                             >
-                                <Eye size={14} className="sm:w-[15px] sm:h-[15px]" />
+                                <Eye size={15} />
                                 <span className="hidden sm:inline">Pratinjau</span>
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={isSubmitting}
-                                className="flex items-center justify-center gap-1.5 sm:gap-2 px-4 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                className="flex items-center justify-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-50 shrink-0"
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 size={15} className="animate-spin" />
-                                        Menyimpan...
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span className="hidden sm:inline">Menyimpan...</span>
+                                        <span className="sm:hidden">...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Save size={15} />
-                                        Simpan
+                                        <Save size={14} />
+                                        <span>Simpan</span>
                                     </>
                                 )}
                             </button>
@@ -557,11 +564,36 @@ export default function QuestionEditorModal({
             <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                 {/* Sidebar */}
                 <aside className="w-full md:w-64 shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-100 flex flex-col md:overflow-hidden">
-                    <div className="px-5 pt-4 md:pt-5 pb-3 md:pb-4 border-b border-slate-50 flex justify-between items-center cursor-pointer md:cursor-default" onClick={() => document.getElementById('mobile-sidebar-content')?.classList.toggle('hidden')}>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pengaturan Soal</p>
-                        <ChevronDown size={14} className="text-slate-400 md:hidden" />
+                    {/* Mobile Settings Header & Quick Summary Pill */}
+                    <div
+                        className="px-4 py-3 md:px-5 md:pt-5 md:pb-4 border-b border-slate-100 flex items-center justify-between cursor-pointer md:cursor-default bg-slate-50/60 md:bg-white select-none transition-colors"
+                        onClick={() => setIsMobileSettingsOpen(!isMobileSettingsOpen)}
+                    >
+                        <div className="flex items-center gap-2 min-w-0">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Pengaturan Soal</p>
+                            {/* Summary Pills on Mobile when collapsed */}
+                            <div className="flex md:hidden items-center gap-1.5 overflow-hidden text-ellipsis">
+                                <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full shrink-0">
+                                    {selectedTypeInfo.label}
+                                </span>
+                                {typeTab === 'knowledge' && (
+                                    <span className="text-[10px] font-medium bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-full shrink-0">
+                                        {scoreDefault} pts
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[11px] font-semibold text-primary md:hidden">
+                                {isMobileSettingsOpen ? 'Tutup' : 'Ubah'}
+                            </span>
+                            <ChevronDown
+                                size={14}
+                                className={`text-slate-400 md:hidden transition-transform duration-200 ${isMobileSettingsOpen ? 'rotate-180 text-primary' : ''}`}
+                            />
+                        </div>
                     </div>
-                    <div id="mobile-sidebar-content" className="hidden md:flex md:flex-1 flex-col overflow-y-visible md:overflow-y-auto">
+                    <div id="mobile-sidebar-content" className={`${isMobileSettingsOpen ? 'flex' : 'hidden'} md:flex md:flex-1 flex-col overflow-y-visible md:overflow-y-auto bg-white p-4 md:p-0 border-b md:border-b-0 border-slate-200 transition-all`}>
 
                         {/* ── Tab Switcher: Pengetahuan / Kepribadian ── */}
                         <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
@@ -766,6 +798,16 @@ export default function QuestionEditorModal({
                         )}
 
 
+                        {/* Mobile Done / Close Settings Button */}
+                            <div className="md:hidden pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsMobileSettingsOpen(false)}
+                                    className="w-full py-2.5 bg-slate-800 text-white font-semibold text-xs rounded-lg hover:bg-slate-700 transition-colors shadow-sm"
+                                >
+                                    Selesai Mengatur
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </aside>

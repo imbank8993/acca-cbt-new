@@ -233,3 +233,13 @@ test('different payloads for the same attempt cannot borrow one successful respo
     assert.equal(await first, 'first verified');
     assert.equal(await second, 'second rejected');
 });
+
+
+test('background snapshot conflict preserves the queue and never sends or confirms', async () => {
+    const { worker, state } = harness({ freeze: async () => { throw new storage.ExamSnapshotConflictError(); } });
+    await worker.run();
+    assert.equal(state.entries.length, 1);
+    assert.equal(sends(state).length, 0);
+    assert.equal(state.calls.includes('confirm'), false);
+    assert.equal(state.notifications[0].retryable, false);
+});

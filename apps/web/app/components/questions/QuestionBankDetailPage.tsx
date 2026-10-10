@@ -587,10 +587,10 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 ) : (
                     <>
                         {/* Stats */}
-                        <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 sm:gap-3 w-full pb-2">
+                        <div className="flex overflow-x-auto sm:flex-wrap gap-2 sm:gap-3 w-full pb-2 pt-1 scrollbar-hide">
                             <div 
                                 onClick={() => setFilterType('all')}
-                                className={`rounded-lg px-1 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center w-full sm:w-[140px] shrink-0 cursor-pointer transition-all ${filterType === 'all' ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
+                                className={`rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center shrink-0 min-w-[105px] sm:w-[140px] cursor-pointer transition-all ${filterType === 'all' ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
                             >
                                 <p className="text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis">Jumlah Soal</p>
                                 <p className="text-base sm:text-lg font-bold text-primary stat-count">{totalQuestions}</p>
@@ -614,7 +614,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         <div 
                                             key={type} 
                                             onClick={() => setFilterType(type)}
-                                            className={`rounded-lg px-1 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center w-full sm:w-[140px] shrink-0 cursor-pointer transition-all ${filterType === type ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
+                                            className={`rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center shrink-0 min-w-[110px] sm:w-[140px] cursor-pointer transition-all ${filterType === type ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
                                         >
                                             <p className={`text-[9px] sm:text-[10px] font-semibold text-slate-500 uppercase tracking-wider ${type === 'paired_comparison' ? 'whitespace-normal leading-tight' : 'whitespace-nowrap overflow-hidden text-ellipsis'}`}>
                                                 {type === 'paired_comparison' ? <>Perbandingan<br />Berpasangan</> : getQuestionTypeLabel(type)}
@@ -710,10 +710,25 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                     )}
                                                 </button>
                                                 <div className="min-w-0">
-                                                    <div className="flex flex-wrap items-center gap-2">
+                                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                         <span className="text-xs font-medium text-slate-500">{getQuestionTypeLabel(q.type)}</span>
                                                         {q.score_default > 1 && (
                                                             <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full whitespace-nowrap">{q.score_default} poin</span>
+                                                        )}
+                                                        {hasStimulus && (
+                                                            <button type="button" onClick={() => handleOpenView(q)} className="text-[10px] bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors">
+                                                                <FileText size={11} /> Stimulus
+                                                            </button>
+                                                        )}
+                                                        {hasInstruction && (
+                                                            <button type="button" onClick={() => handleOpenView(q)} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors">
+                                                                <BookOpen size={11} /> Petunjuk
+                                                            </button>
+                                                        )}
+                                                        {hasKisi && (
+                                                            <button type="button" onClick={() => handleOpenView(q)} className="text-[10px] bg-purple-50 hover:bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors">
+                                                                <FileSearch size={11} /> Kisi-kisi
+                                                            </button>
                                                         )}
                                                         {q.type === 'sjt' && q.question_dimensions && (
                                                             <span className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
@@ -737,7 +752,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         </div>
 
                                         {/* Kanan (Desktop) / Baris Bawah (Mobile) */}
-                                        <div className="flex items-center justify-center gap-1 sm:gap-1 mt-3 sm:mt-0 w-full sm:w-auto shrink-0">
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-1 mt-2.5 sm:mt-0 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-slate-100">
                                             {/* Panah Naik Turun (Khusus Desktop) */}
                                             <div className="hidden sm:flex items-center justify-center gap-1 sm:w-[60px] shrink-0">
                                                 {filteredQuestions.length > 1 && (
@@ -748,20 +763,43 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                 )}
                                             </div>
 
-                                            {/* Tombol Aksi (Tampil Lebar di Mobile) */}
-                                            <div className={`flex items-center sm:flex-none gap-2 sm:gap-1 w-full sm:w-[200px] shrink-0 ${actionCount >= 5 ? 'justify-between sm:justify-end' : 'justify-end'}`}>
+                                            {/* Desktop Buttons */}
+                                            <div className="hidden sm:flex items-center gap-1 shrink-0">
                                                 {hasInstruction && (
-                                                    <button title="Petunjuk" onClick={() => handleOpenView(q)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><BookOpen size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
+                                                    <button title="Petunjuk" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"><BookOpen size={14} /></button>
                                                 )}
                                                 {hasStimulus && (
-                                                    <button title="Stimulus" onClick={() => handleOpenView(q)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><FileText size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
+                                                    <button title="Stimulus" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><FileText size={14} /></button>
                                                 )}
                                                 {hasKisi && (
-                                                    <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><FileSearch size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
+                                                    <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><FileSearch size={14} /></button>
                                                 )}
-                                                <button title="Lihat" onClick={() => handleOpenView(q)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><Eye size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
-                                                <button title="Edit" onClick={() => handleOpenEditor(q)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><Edit3 size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
-                                                <button title="Hapus" onClick={() => requestDelete(q.id)} className={`sm:flex-none flex justify-center py-2 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ${actionCount >= 5 ? 'flex-1 sm:flex-none' : 'w-11 sm:w-auto sm:px-2'}`}><Trash2 size={16} className="sm:w-[14px] sm:h-[14px]" /></button>
+                                                <button title="Lihat" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Eye size={14} /></button>
+                                                <button title="Edit" onClick={() => handleOpenEditor(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Edit3 size={14} /></button>
+                                                <button title="Hapus" onClick={() => requestDelete(q.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                                            </div>
+
+                                            {/* Mobile Buttons (Touch-friendly Lihat, Edit, Hapus) */}
+                                            <div className="flex sm:hidden items-center gap-2 w-full justify-end">
+                                                <button
+                                                    onClick={() => handleOpenView(q)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+                                                >
+                                                    <Eye size={14} /> Lihat
+                                                </button>
+                                                <button
+                                                    onClick={() => handleOpenEditor(q)}
+                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg border border-primary/20 transition-colors"
+                                                >
+                                                    <Edit3 size={14} /> Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => requestDelete(q.id)}
+                                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 transition-colors"
+                                                    title="Hapus Soal"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -1114,6 +1152,19 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Mobile Floating Action Button (FAB) for Tambah Soal */}
+            {activeTab === 'questions' && (
+                <button
+                    type="button"
+                    onClick={() => handleOpenEditor()}
+                    className="sm:hidden fixed right-4 bottom-6 z-40 bg-primary hover:bg-primary/95 text-white shadow-xl shadow-primary/30 rounded-full h-12 px-4 flex items-center gap-2 font-semibold text-xs transition-transform active:scale-95"
+                    aria-label="Tambah Soal"
+                >
+                    <Plus size={18} strokeWidth={2.5} />
+                    <span>Tambah Soal</span>
+                </button>
+            )}
         </div>
     );
 }

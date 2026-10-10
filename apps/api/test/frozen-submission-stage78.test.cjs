@@ -91,8 +91,7 @@ test('frozen snapshot survives reload and refuses later local edits or changed r
         assert.equal(restored.answers.q, 'last keystroke');
         assert.deepEqual(restored.frozenSubmission, context);
         assert.equal(restored.assignmentData.textSubmission, 'note');
-        const retry = await freezeExamSnapshot('frozen-test', { ...draft, answers: { q: 'different retry' }, frozenSubmission: context });
-        assert.equal(retry.answers.q, 'last keystroke');
+        await assert.rejects(freezeExamSnapshot('frozen-test', { ...draft, answers: { q: 'different retry' }, frozenSubmission: context }), /Salinan jawaban berbeda/);
         await removeExamSnapshot('frozen-test');
         assert.equal(await readExamSnapshot('frozen-test'), null);
     } finally { if (previous === undefined) delete global.localStorage; else global.localStorage = previous; }
@@ -119,7 +118,7 @@ test('browser sends the frozen context and retries after a lost response after p
     global.fetch = async (url, init) => {
         const body = JSON.parse(init.body);
         const isIntent = url.endsWith('/submit-intent');
-        const result = isIntent ? await service.beginSubmit(user, 'attempt', body.deviceId)
+        const result = isIntent ? await service.beginSubmit(user, 'attempt', body.deviceId, body.submission)
             : await service.submit(user, 'exam', body.answers, body.assignmentData, body.attemptId, body.deviceId, body.answerRevisions, body.frozenSubmission);
         if (!isIntent && loseResponse) { loseResponse = false; throw new Error('response lost'); }
         return new Response(JSON.stringify({ success: true, ...result }));
@@ -152,7 +151,8 @@ test('frozen browser submission can finish after deadline when its server intent
     const { db, service } = fixture();
     let now = '2026-09-20T00:59:59Z';
     db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date(now) }] : [];
-    await service.beginSubmit(user, 'attempt', device);
+    await service.beginSubmit(user, 'attempt', device, { answers: { q: 'written offline' },
+        answerRevisions: { q: 1 }, frozenSubmission: context });
     now = '2026-09-20T01:00:01Z';
     const result = await submit(service);
     assert.equal(result.savedAnswersOnly, false);
@@ -246,7 +246,7 @@ test('browser rejects the reproduced false success and accepts only an exact ver
     global.localStorage = { getItem: () => device, setItem: () => {} };
     global.fetch = async (url, init) => {
         const b = JSON.parse(init.body);
-        const result = url.endsWith('/submit-intent') ? await service.beginSubmit(user, 'attempt', b.deviceId)
+        const result = url.endsWith('/submit-intent') ? await service.beginSubmit(user, 'attempt', b.deviceId, b.submission)
             : await service.submit(user, 'exam', b.answers, b.assignmentData, b.attemptId, b.deviceId, b.answerRevisions, b.frozenSubmission);
         return new Response(JSON.stringify({ success: true, ...result }));
     };
@@ -267,4 +267,66 @@ test('browser rejects the reproduced false success and accepts only an exact ver
         if (original.window === undefined) delete global.window; else global.window = original.window;
         if (original.localStorage === undefined) delete global.localStorage; else global.localStorage = original.localStorage;
     }
+});
+
+
+test('grace accepts only precommitted answers, revisions, attachments and context', async () => {
+    for (const mutation of ['answer', 'revision', 'attachment', 'context', 'drop-context']) {
+        const { db, service } = fixture();
+        let now = '2026-09-20T00:59:59Z';
+        db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date(now) }] : [];
+        const payload = { answers: { q: 'before deadline' }, answerRevisions: { q: 1 },
+            assignmentData: { fileUrls: ['/before.pdf'], textSubmission: 'before' }, frozenSubmission: context };
+        await service.beginSubmit(user, 'attempt', device, payload);
+        const storedDigest = db.tables.cbt_exam_attempts[0].metadata.submit_intent_digest;
+        now = '2026-09-20T01:00:30Z';
+        const altered = structuredClone(payload);
+        if (mutation === 'answer') altered.answers.q = 'changed AFTER deadline';
+        if (mutation === 'revision') altered.answerRevisions.q = 2;
+        if (mutation === 'attachment') altered.assignmentData.fileUrls = ['/after.pdf'];
+        if (mutation === 'context') altered.frozenSubmission.personalEndTime = '2026-09-20T01:05:00Z';
+        if (mutation === 'drop-context') delete altered.frozenSubmission;
+        await assert.rejects(service.beginSubmit(user, 'attempt', device, altered), e => e.getStatus() === 409);
+        assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_digest, storedDigest);
+        if (mutation === 'drop-context') {
+            const result = await service.submit(user, 'exam', altered.answers, altered.assignmentData, 'attempt', device, altered.answerRevisions);
+            assert.equal(result.submissionVerified, false);
+        } else {
+            await assert.rejects(service.submit(user, 'exam', altered.answers, altered.assignmentData, 'attempt', device,
+                altered.answerRevisions, altered.frozenSubmission), e => e.getStatus() === 403);
+            const retry = await service.submit(user, 'exam', payload.answers, payload.assignmentData, 'attempt', device,
+                payload.answerRevisions, payload.frozenSubmission);
+            assert.equal(retry.submissionVerified, true);
+            assert.equal(db.tables.cbt_answers[0].essay_answer, 'before deadline');
+        }
+    }
+});
+
+test('a legacy unbound intent cannot authorize post-deadline changes or acquire a late commitment', async () => {
+    for (const frozen of [undefined, context]) {
+        const { db, service } = fixture();
+        let now = '2026-09-20T00:59:59Z';
+        db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date(now) }] : [];
+        await service.beginSubmit(user, 'attempt', device);
+        now = '2026-09-20T01:00:30Z';
+        const payload = { answers: { q: 'late' }, answerRevisions: { q: 1 }, frozenSubmission: frozen };
+        const intent = await service.beginSubmit(user, 'attempt', device, payload);
+        assert.equal(intent.savedAnswersOnly, true);
+        assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_digest, null);
+        if (frozen) await assert.rejects(submit(service), e => e.getStatus() === 403);
+        else assert.equal((await service.submit(user, 'exam', payload.answers, undefined, 'attempt', device, payload.answerRevisions)).submissionVerified, false);
+        assert.equal(db.tables.cbt_answers.length, 0);
+    }
+});
+
+test('equivalent reordered payload retries retain the original commitment time', async () => {
+    const { db, service } = fixture();
+    let now = '2026-09-20T00:59:59Z';
+    db.raw = async sql => /clock_timestamp/.test(sql) ? [{ now: new Date(now) }] : [];
+    const initial = await service.beginSubmit(user, 'attempt', device, { answers: { q: 'same' },
+        assignmentData: { fileUrls: ['/a.pdf'], textSubmission: 'same' }, answerRevisions: { q: 1 }, frozenSubmission: context });
+    now = '2026-09-20T01:00:30Z';
+    const retry = await service.beginSubmit(user, 'attempt', device, { frozenSubmission: { personalEndTime: context.personalEndTime, startedAt: context.startedAt },
+        answerRevisions: { q: 1 }, assignmentData: { textSubmission: 'same', fileUrls: ['/a.pdf'] }, answers: { q: 'same' } });
+    assert.equal(retry.startedAt, initial.startedAt);
 });

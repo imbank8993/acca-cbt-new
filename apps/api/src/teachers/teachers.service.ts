@@ -10,7 +10,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { insertIdempotently } from '../common/idempotent-create';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
-import { loadExamQuestions } from '../common/exam-question-sources';
+import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { DbService } from '../prisma/prisma-db-adapter';
 
 /** Tipe soal yang dinilai manual oleh guru. */
@@ -279,7 +279,7 @@ export class TeachersService {
             throw new BadRequestException('Pilih setidaknya satu jawaban untuk dinilai.');
         }
 
-        const questions = await loadExamQuestions(this.db, examId, 'id, type, score_default, created_at');
+        const questions = await loadFrozenExamQuestions(this.db, examId);
         if (questions.length === 0) throw new BadRequestException('Bank soal ujian tidak ditemukan.');
         const questionMap = new Map<string, any>(questions.map(q => [q.id, q]));
         const { data: ownedAnswers, error: answersError } = await this.db.from('cbt_answers')
@@ -292,13 +292,13 @@ export class TeachersService {
             if (!question || !ESSAY_TYPES.includes(question.type)) {
                 throw new ForbiddenException('Jawaban esai tidak ditemukan pada pengerjaan ini.');
             }
-            if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > (question.score_default || 1)) {
+            if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > (question.score_default ?? 1)) {
                 throw new BadRequestException('Nilai harus berada antara nol dan skor maksimum soal.');
             }
         }
         const academicQuestions = ((questions as any[]) || []).filter(q => !PERSONALITY_TYPES.includes(q.type));
         const maxScore = academicQuestions.reduce(
-            (sum, q) => sum + (q.score_default || 1),
+            (sum, q) => sum + (q.score_default ?? 1),
             0,
         );
 

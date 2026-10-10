@@ -233,24 +233,23 @@ export class AuthorizationService {
             organization_id: string | null;
         };
 
-        if (record.exam_type === 'pas' || record.exam_type === 'pat') {
-            await this.assertOrgRole(
-                user, record.organization_id, ['Proktor', 'Admin'], 'Proktor/Admin',
-            );
-            return;
+        if (!await this.canManageExam(user, record)) {
+            throw new ForbiddenException('Anda hanya dapat mengelola ujian yang Anda buat sendiri. PAS/PAT hanya dapat dikelola Proktor/Admin.');
         }
+    }
 
-        await this.assertOrgStaff(user, record.organization_id);
-
-        const elevated =
-            this.isElevatedGlobally(user) ||
-            (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor', 'Admin']));
-
-        if (!elevated && record.created_by !== user.id) {
-            throw new ForbiddenException(
-                'Anda hanya dapat mengelola ujian yang Anda buat sendiri.',
-            );
-        }
+    /** Same policy for write authorization and read-only monitoring controls. */
+    async canManageExam(user: AuthUser, record: {
+        organization_id: string | null;
+        created_by: string | null;
+        exam_type: string | null;
+    }): Promise<boolean> {
+        await this.schoolScope.assertSchoolId(record.organization_id);
+        if (this.isElevatedGlobally(user)) return true;
+        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor', 'Admin'])) return true;
+        if (record.exam_type === 'pas' || record.exam_type === 'pat') return false;
+        return record.created_by === user.id &&
+            await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
     }
 
     /**

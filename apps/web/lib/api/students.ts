@@ -306,10 +306,13 @@ export function getExamSubmissionStatus(attemptId: string) {
     );
 }
 
-export async function beginSubmitAction(attemptId: string) {
+export async function beginSubmitAction(attemptId: string, submission?: {
+    answers: Record<string, string>; answerRevisions?: Record<string, number>;
+    assignmentData?: Record<string, unknown>; frozenSubmission?: { startedAt: string; personalEndTime: string };
+}) {
     return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
-        { deviceId: getDeviceId() },
+        { deviceId: getDeviceId(), submission },
         'POST',
         { timeoutMs: 15_000 },
     );
@@ -352,7 +355,7 @@ export async function submitExamAction(
         assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission }));
     return withExamSubmissionLock(attemptId || examId, async () => {
         if (attemptId) {
-            const intent = await beginSubmitAction(attemptId);
+            const intent = await beginSubmitAction(attemptId, payload);
             if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
         }
 

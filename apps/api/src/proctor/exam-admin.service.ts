@@ -98,10 +98,11 @@ export class ExamAdminService {
             }
         }
 
-        return exams.map((exam) => ({
+        return Promise.all(exams.map(async (exam) => ({
             ...exam,
             creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
-        }));
+            canManage: await this.authz.canManageExam(user, exam),
+        })));
     }
 
     async create(user: AuthUser, sessionOrganizationId: string, dto: CreateExamDto) {

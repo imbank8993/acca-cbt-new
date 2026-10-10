@@ -158,3 +158,10 @@ export class SubmitExamDto {
     @IsUUID('4', { message: 'attemptId tidak valid' })
     attemptId?: string;
 }
+
+export class BeginSubmitDto extends StartAttemptDto {
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => SubmitExamDto)
+    submission?: SubmitExamDto;
+}

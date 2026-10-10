@@ -196,7 +196,7 @@ test('frozen fallback survives a failed IDB write and cannot be changed by later
     faults.idb = true;
     const frozenSubmission = { startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z' };
     const frozen = api.freezeExamSnapshot('a', { ...draft(2), frozenSubmission });
-    assert.ok(JSON.parse(local.get('exam_answers_a')).frozenSubmission);
+    assert.equal(JSON.parse(local.get('exam_answers_a')).answers.q, 'answer-2');
     await frozen;
     await api.writeExamSnapshot('a', draft(3));
     const restored = await api.readExamSnapshot('a');
@@ -236,7 +236,7 @@ function assignmentHandlers(api) {
     const end = source.indexOf('    const collectPendingRows =', start);
     const state = {};
     const sandbox = {
-        useCallback: fn => fn,
+        useCallback: fn => fn, ownsEditorLockRef: { current: true },
         assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
         pendingAssignmentRef: { current: undefined }, attemptRef: { current: { id: 'a' } },
         frozenSnapshotRef: { current: null }, submitInFlightRef: { current: false },
@@ -278,4 +278,87 @@ test('task form restores from IndexedDB, preserves rapid changes, and displays s
     reopened.sandbox.frozenSnapshotRef.current = saved;
     reopened.updateAssignment({ textSubmission: 'edit after freeze' });
     assert.equal(reopened.sandbox.assignmentRef.current.textSubmission, 'unsaved note');
+});
+
+
+test('a second tab cannot silently replace its newer answer with an older frozen payload', async () => {
+    const { api, local } = storageFixture();
+    const frozenSubmission = { startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z' };
+    const first = { ...draft(1), frozenSubmission };
+    await api.freezeExamSnapshot('a', first);
+    await assert.rejects(api.freezeExamSnapshot('a', { ...draft(2), frozenSubmission }), e => e.code === 'EXAM_SNAPSHOT_CONFLICT');
+    assert.equal((await api.readExamSnapshot('a')).answers.q, 'answer-1');
+    const backup = [...local.entries()].find(([key]) => key.startsWith('exam_answers_a:conflict:'));
+    assert.equal(JSON.parse(backup[1]).answers.q, 'answer-2');
+    assert.equal((await api.freezeExamSnapshot('a', first)).answers.q, 'answer-1');
+});
+
+test('a stale background freeze cannot discard a newer draft revision', async () => {
+    const { api } = storageFixture();
+    await api.writeExamSnapshot('a', draft(3));
+    await assert.rejects(api.freezeExamSnapshot('a', { ...draft(2), frozenSubmission: {
+        startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z',
+    } }), e => e.code === 'EXAM_SNAPSHOT_CONFLICT');
+    assert.equal((await api.readExamSnapshot('a')).answers.q, 'answer-3');
+});
+
+test('editor ownership excludes a second tab and becomes available after release', async () => {
+    const { acquireExamEditorLock } = require('../../web/lib/exam-editor-lock.ts');
+    const held = new Set();
+    const restore = replaceGlobal('navigator', { locks: { async request(key, options, run) {
+        assert.equal(options.ifAvailable, true);
+        if (held.has(key)) return run(null);
+        held.add(key);
+        try { return await run({ name: key }); } finally { held.delete(key); }
+    } } });
+    try {
+        const release = await acquireExamEditorLock('exam');
+        assert.equal(typeof release, 'function');
+        assert.equal(await acquireExamEditorLock('exam'), null);
+        release();
+        await new Promise(resolve => setImmediate(resolve));
+        const next = await acquireExamEditorLock('exam');
+        assert.equal(typeof next, 'function');
+        next();
+    } finally { restore(); }
+});
+
+test('unsupported tab locking fails closed instead of allowing competing editors', async () => {
+    const { acquireExamEditorLock } = require('../../web/lib/exam-editor-lock.ts');
+    const restore = replaceGlobal('navigator', {});
+    try { await assert.rejects(acquireExamEditorLock('exam'), /pengamanan satu tab/); } finally { restore(); }
+});
+
+
+test('the exam page stops before sending or deleting data when freezing detects a conflict', async () => {
+    const vm = require('node:vm');
+    const ts = require('typescript');
+    const { ExamSnapshotConflictError } = require('../../web/lib/exam-durable-storage.ts');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    const start = source.indexOf('    const handleSubmitExam = useCallback(');
+    const end = source.indexOf('    // Simpan referensi terbaru', start);
+    const state = { sent: 0, removed: 0, completed: false };
+    const snapshot = { answers: { q: 'newer' }, revisions: { q: 2 }, doubtfulAnswers: [] };
+    const context = {
+        useCallback: fn => fn, user: { id: 'student' }, examId: 'exam', exam: {}, attempt: { id: 'a' },
+        ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
+        frozenSnapshotRef: { current: snapshot }, attemptRef: { current: { id: 'a' } },
+        pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
+        freezeExamSnapshot: async () => { throw new ExamSnapshotConflictError(); }, ExamSnapshotConflictError,
+        setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: () => {}, setAccessDenied: value => { state.denied = value; },
+        setAccessError: value => { state.message = value; }, setStorageWarning: () => {},
+        navigator: { onLine: true }, submitExamAction: async () => { state.sent++; return { success: true }; },
+        removeExamSnapshot: async () => { state.removed++; }, setIsCompleted: value => { state.completed = value; },
+        router: {}, toast: {}, scheduleAutoRetry: () => {},
+    };
+    vm.runInNewContext(ts.transpileModule(source.slice(start, end) + '; globalThis.submit = handleSubmitExam;', {
+        compilerOptions: { target: ts.ScriptTarget.ES2020 },
+    }).outputText, context);
+    await context.submit();
+    assert.equal(state.sent, 0);
+    assert.equal(state.removed, 0);
+    assert.equal(state.completed, false);
+    assert.equal(state.denied, true);
+    assert.match(state.message, /Salinan jawaban berbeda/);
+    assert.equal(context.frozenSnapshotRef.current.answers.q, 'newer');
 });

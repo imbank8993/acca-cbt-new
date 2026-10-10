@@ -112,6 +112,7 @@ export interface ClassStudent {
 }
 
 export interface OrganizationExam {
+    canManage?: boolean;
     id: string;
     organization_id?: string;
     title: string;
@@ -263,6 +264,7 @@ export interface AttemptSecurityLog {
 }
 
 export interface AttemptFullDetails {
+    canManage?: boolean;
     attempt: ExamAttemptRecord;
     answers: AttemptDetailAnswer[];
     securityLogs: AttemptSecurityLog[];

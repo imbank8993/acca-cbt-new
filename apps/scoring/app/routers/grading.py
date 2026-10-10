@@ -43,7 +43,7 @@ def grade_attempt(request: GradeBatchRequest) -> GradeBatchResponse:
     for entry in request.items:
         question = entry.question
         qtype = (question.type or "").lower()
-        default_score = question.score_default or 1
+        default_score = max(question.score_default, 0)
 
         # Tipe psikometri dikecualikan dari nilai akademik, sehingga ujian
         # campuran tidak pernah melewati 100.

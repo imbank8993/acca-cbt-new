@@ -10,6 +10,7 @@ import {
 import type { AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
+import { hasBoundSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
 import {
     ensureExamQuestionSnapshotsInTransaction,
     loadFrozenExamQuestions,
@@ -591,8 +592,9 @@ export class ExamAttemptsService {
         };
     }
 
-    async beginSubmit(user: AuthUser, attemptId: string, deviceId?: string) {
+    async beginSubmit(user: AuthUser, attemptId: string, deviceId?: string, submission?: SubmissionPayload) {
         const device = this.requireDeviceId(deviceId);
+        const digest = submission ? submissionDigest(submission) : undefined;
         return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt, error } = await db.from('cbt_exam_attempts')
@@ -614,7 +616,13 @@ export class ExamAttemptsService {
             if (examError || !exam) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
             const deadline = this.resolvePersonalEnd(attempt, exam, now);
             if (hasActiveSubmitIntent(attempt.metadata, now)) {
-                return { attemptId, startedAt: attempt.metadata.submit_intent_at };
+                if (attempt.metadata?.submit_intent_digest === digest) {
+                    return { attemptId, startedAt: attempt.metadata.submit_intent_at };
+                }
+                if (attempt.metadata?.submit_intent_digest) {
+                    throw new ConflictException('Isi pengumpulan berbeda dari kiriman yang sudah dikunci. Hubungi proktor.');
+                }
+                // A legacy timestamp may be upgraded only while the exam is still open.
             }
             if (!Number.isFinite(deadline.getTime())) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
             // Let submit finalize saved answers, without granting permission for late edits.
@@ -622,7 +630,7 @@ export class ExamAttemptsService {
             await this.assertOwnedAndRunning(user, attemptId, db, device, true);
             const startedAt = now.toISOString();
             const { error: updateError } = await db.from('cbt_exam_attempts')
-                .update({ metadata: { ...(attempt.metadata || {}), submit_intent_at: startedAt } })
+                .update({ metadata: { ...(attempt.metadata || {}), submit_intent_at: startedAt, submit_intent_digest: digest ?? null } })
                 .eq('id', attemptId).eq('status', 'in_progress');
             if (updateError) throw new BadRequestException('Waktu mulai submit belum dapat dicatat.');
             return { attemptId, startedAt };
@@ -736,6 +744,7 @@ export class ExamAttemptsService {
         db: DbSession = this.db,
         deviceId?: string,
         allowRecordedSubmitIntent = false,
+        digest?: string,
     ): Promise<{ examId: string }> {
         const { data, error } = await db
             .from('cbt_exam_attempts')
@@ -768,7 +777,7 @@ export class ExamAttemptsService {
         const now = new Date(clock.now);
         const deadline = this.resolvePersonalEnd(attempt, exam, now);
         if (!Number.isFinite(deadline.getTime()) ||
-            (now >= deadline && !(allowRecordedSubmitIntent && hasActiveSubmitIntent(attempt.metadata, now)))) {
+            (now >= deadline && !(allowRecordedSubmitIntent && hasBoundSubmitIntent(attempt.metadata, now, deadline, digest)))) {
             throw new ForbiddenException({ code: 'EXAM_TIME_EXPIRED', message: 'Waktu ujian telah berakhir. Jawaban baru tidak dapat diterima.' });
         }
         if (exam.start_time && now < new Date(exam.start_time)) {
@@ -826,7 +835,7 @@ export class ExamAttemptsService {
     /** Client freezing is not proof of when answers were written. Late uploads require staff recovery. */
     private async assertFrozenSubmission(
         user: AuthUser, attempt: any,
-        snapshot: { startedAt: string; personalEndTime: string }, device: string, db: DbSession,
+        snapshot: { startedAt: string; personalEndTime: string }, device: string, db: DbSession, digest: string,
     ): Promise<void> {
         if (attempt.user_id !== user.id || attempt.device_fingerprint !== device ||
             Date.parse(attempt.started_at || '') !== Date.parse(snapshot.startedAt)) {
@@ -852,8 +861,7 @@ export class ExamAttemptsService {
         if (exam.start_time && now < new Date(exam.start_time)) throw new ForbiddenException('Ujian belum dimulai.');
         const deadline = examDeadline(attempt, exam);
         const timelyIntent = !recovery && attempt.status === 'in_progress' &&
-            hasActiveSubmitIntent(attempt.metadata, now) &&
-            Date.parse(attempt.metadata?.submit_intent_at) < deadline.getTime();
+            hasBoundSubmitIntent(attempt.metadata, now, deadline, digest);
         if (!Number.isFinite(deadline.getTime()) || (now >= deadline && !timelyIntent)) {
             throw new ForbiddenException({ code: 'RECOVERY_REQUIRED',
                 message: 'Waktu ujian telah berakhir. Jawaban lokal tetap disimpan; hubungi proktor untuk membuka pemulihan.' });
@@ -939,6 +947,7 @@ export class ExamAttemptsService {
         frozenSubmission?: { startedAt: string; personalEndTime: string },
     ) {
         const device = this.requireDeviceId(deviceId);
+        const digest = submissionDigest({ answers: studentAnswers, answerRevisions, assignmentData, frozenSubmission });
         if (frozenSubmission && !clientAttemptId) throw new BadRequestException('Sesi salinan jawaban wajib diisi.');
         // Pengerjaan milik orang lain di perangkat ini: pencarian berdasarkan
         // pengguna di bawah akan berakhir "tidak ada sesi aktif", yang membingungkan.
@@ -1044,10 +1053,10 @@ export class ExamAttemptsService {
                     };
                 }
                 if (frozenSubmission) {
-                    await this.assertFrozenSubmission(user, current, frozenSubmission, device, db);
+                    await this.assertFrozenSubmission(user, current, frozenSubmission, device, db, digest);
                 } else {
                     if (current.metadata?.recovery_submit_only === true) throw new BadRequestException('Pemulihan memerlukan salinan jawaban terkunci.');
-                    await this.assertOwnedAndRunning(user, attempt.id, db, device, true);
+                    await this.assertOwnedAndRunning(user, attempt.id, db, device, true, digest);
                 }
                 const questions = await readExamQuestionVersion(db, examId);
                 const byId = new Map(questions.map(question => [question.id, question]));

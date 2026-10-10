@@ -375,7 +375,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 student_nis=p_nis,
                 score=float(ans.score or 0.0)
                 if ans.score is not None
-                else (float(q.score_default or 1.0) if ans.is_correct else 0.0),
+                else (float(q.score_default if q.score_default is not None else 1.0) if ans.is_correct else 0.0),
                 display_answer=disp_ans,
                 is_correct=ans.is_correct,
             )
@@ -452,7 +452,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 number=q.number or 0,
                 question_text=q.question_text or "",
                 type=q.type or "mcq",
-                score_default=float(q.score_default or 1.0),
+                score_default=float(q.score_default if q.score_default is not None else 1.0),
                 key_display=key_display,
                 options=q_options,
                 total_participants=len(request.participants),
@@ -515,7 +515,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 p_row_items[q.id] = StudentItemCell(
                     score=float(ans.score or 0.0)
                     if ans.score is not None
-                    else (float(q.score_default or 1.0) if ans.is_correct else 0.0),
+                    else (float(q.score_default if q.score_default is not None else 1.0) if ans.is_correct else 0.0),
                     is_correct=ans.is_correct,
                     display_answer=disp_ans,
                     status=status,

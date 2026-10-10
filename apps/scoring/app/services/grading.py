@@ -64,7 +64,7 @@ def _unique_strings(values: Any) -> bool:
 
 
 def calculate_single_answer_score(question: Question, raw_answer: str | None) -> GradingResult:
-    default_score = question.score_default or 1
+    default_score = max(question.score_default, 0)
     options = _dedupe_options(question.bank_question_options or [])
 
     score_earned: float = 0
@@ -120,7 +120,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
         if not isinstance(answers, dict):
             answers = {}
         correct_count = sum(
-            1 for o in options if coerce_bool(answers.get(o.id)) == o.is_correct
+            1 for o in options if o.is_correct is not None and coerce_bool(answers.get(o.id)) == o.is_correct
         )
         ratio = correct_count / len(options) if options else 0
         score_earned = ratio * default_score
@@ -138,7 +138,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             if not correct_cats:
                 single = metadata.get("category_name")
                 correct_cats = [single] if single else []
-            if _unique_strings(selected) and set(selected) == set(correct_cats):
+            if correct_cats and _unique_strings(selected) and set(selected) == set(correct_cats):
                 correct_count += 1
         ratio = correct_count / len(options) if options else 0
         score_earned = ratio * default_score
@@ -156,7 +156,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             if not correct_matches:
                 single = metadata.get("match_text")
                 correct_matches = [single] if single else []
-            if _unique_strings(matches) and set(matches) == set(correct_matches):
+            if correct_matches and _unique_strings(matches) and set(matches) == set(correct_matches):
                 correct_count += 1
         ratio = correct_count / len(options) if options else 0
         score_earned = ratio * default_score
@@ -181,7 +181,7 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
             variations = [normalize_short_answer(v) for v in (blank.get("variations") or [])]
             answer = normalize_short_answer(blank.get("answer"))
 
-            if student_input == answer or student_input in variations:
+            if student_input and (student_input == answer or student_input in variations):
                 correct_blanks += 1
             # Kredit parsial berbasis substring sengaja tidak diberikan. Aturan
             # lama membuat satu huruf seperti "a" mendapat setengah poin untuk

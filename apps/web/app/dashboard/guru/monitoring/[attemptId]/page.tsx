@@ -62,7 +62,10 @@ export default function AttemptAnalyticsPage() {
         load();
     }, [attemptId, setData, setLoading]);
 
+    const canManage = data?.attempt.id === attemptId && data?.canManage === true;
+
     const handleGradeChange = (answerId: string, val: string) => {
+        if (!canManage) return;
         setGrades(prev => ({
             ...prev,
             [answerId]: parseFloat(val) || 0
@@ -70,6 +73,7 @@ export default function AttemptAnalyticsPage() {
     };
 
     const handleResetAttempt = async () => {
+        if (!canManage) return;
         const reason = promptRecoveryReason(studentName);
         if (!reason) return;
         const durationMinutes = promptRecoveryDuration(studentName, 'pemulihan');
@@ -96,6 +100,7 @@ export default function AttemptAnalyticsPage() {
         setResetting(false);
     };
     const handleSave = async () => {
+        if (!canManage) return;
         if (!await confirmDialog({
             title: 'Simpan Perubahan Nilai?',
             text: 'Simpan perubahan nilai? Total nilai akhir akan dihitung kembali.',
@@ -168,7 +173,7 @@ export default function AttemptAnalyticsPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2.5">
-                    {['auto_submitted', 'submitted'].includes(attempt.status) && (
+                    {canManage && ['auto_submitted', 'submitted'].includes(attempt.status) && (
                         <button
                             onClick={handleResetAttempt}
                             disabled={resetting}
@@ -183,7 +188,7 @@ export default function AttemptAnalyticsPage() {
                             <AlertTriangle size={14} /> Menunggu Penilaian Uraian
                         </div>
                     )}
-                    {Object.keys(grades).length > 0 && (
+                    {canManage && Object.keys(grades).length > 0 && (
                         <button
                             onClick={handleSave}
                             disabled={submitting}
@@ -400,6 +405,7 @@ export default function AttemptAnalyticsPage() {
                                                         </div>
                                                         <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
                                                             <input
+                                                                disabled={!canManage}
                                                                 type="number"
                                                                 min="0"
                                                                 max={q.score_default || 1}
@@ -485,7 +491,7 @@ export default function AttemptAnalyticsPage() {
                     >
                         Kembali
                     </button>
-                    {Object.keys(grades).length > 0 && (
+                    {canManage && Object.keys(grades).length > 0 && (
                         <button
                             onClick={handleSave}
                             disabled={submitting}

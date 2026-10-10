@@ -158,73 +158,26 @@ export class ExamReviewService {
                 )?.option_text;
             }
 
-            if (question.type === 'mcq' || question.type === 'true_false') {
-                if (answer?.is_correct === true) {
+            const qtype = String(question.type).toLowerCase();
+            const academic = !['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(qtype);
+            const maximum = Math.max(Number(question.score_default ?? 1), 0);
+            if (academic) {
+                scoreObtained = awarded ?? (answer?.is_correct === true ? maximum : 0);
+                if (answer?.is_correct === true && scoreObtained >= maximum) {
                     status = 'correct';
-                    // Cadangannya `score_default` hanya untuk jawaban lama yang
-                    // belum sempat menyimpan skor per butir.
-                    scoreObtained = awarded ?? (question.score_default || 1);
                     totalCorrect++;
+                } else if (scoreObtained > 0) {
+                    status = 'partial';
+                    totalPartial++;
                 } else if (answer?.is_correct === false) {
                     status = 'incorrect';
-                    scoreObtained = awarded ?? 0;
                     totalIncorrect++;
                 } else {
                     totalUnanswered++;
                 }
-            } else if (question.type === 'mcq_complex') {
-                if (answer?.score !== undefined) {
-                    const score = Number(answer.score) || 0;
-                    const maxPossible = correctOptions.reduce(
-                        (sum: number, o: any) => sum + (o.weight || 1),
-                        0,
-                    );
-                    scoreObtained = score;
-                    if (score >= maxPossible) {
-                        status = 'correct';
-                        totalCorrect++;
-                    } else if (score > 0) {
-                        status = 'partial';
-                        totalPartial++;
-                    } else {
-                        status = 'incorrect';
-                        totalIncorrect++;
-                    }
-                } else {
-                    totalUnanswered++;
-                }
-            } else if (
-                question.type === 'essay' ||
-                question.type === 'short_answer' ||
-                question.type === 'matching' ||
-                question.type === 'categorization'
-            ) {
-                // Butuh koreksi manual: ambang 70% dari skor maksimum soal.
-                if (answer?.score !== undefined && answer.score !== null) {
-                    const score = Number(answer.score) || 0;
-                    const maxPossible = question.score_default || 1;
-                    scoreObtained = score;
-                    if (score >= maxPossible * 0.7) {
-                        status = 'correct';
-                        totalCorrect++;
-                    } else if (score > 0) {
-                        status = 'partial';
-                        totalPartial++;
-                    } else {
-                        status = 'incorrect';
-                        totalIncorrect++;
-                    }
-                } else {
-                    status = 'unanswered';
-                    totalUnanswered++;
-                }
+                totalScore += scoreObtained;
+                maxScore += maximum;
             }
-            // Tipe lain (sjt, ordering, likert, …) sengaja tidak ikut pencacahan
-            // mana pun, persis seperti versi asalnya: statusnya 'unanswered'
-            // tetapi totalUnanswered TIDAK bertambah.
-
-            totalScore += scoreObtained;
-            maxScore += question.score_default || 1;
 
             const formattedOptions = options.map((o: any) => ({
                 id: o.id,
@@ -256,7 +209,7 @@ export class ExamReviewService {
                 questionNumber: index + 1,
                 questionText: question.question_text,
                 questionType: qType,
-                scoreDefault: question.score_default || 1,
+                scoreDefault: question.score_default ?? 1,
                 scoreObtained,
                 status,
                 selectedOptionId: answer?.selected_option_id,
