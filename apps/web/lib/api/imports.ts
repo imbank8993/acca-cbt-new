@@ -34,10 +34,11 @@ export interface BulkImportResult {
 export async function bulkImportQuestions(
     bankId: string,
     questions: BulkQuestionData[],
+    clientRequestId?: string,
 ): Promise<BulkImportResult> {
     const res = await apiSend<BulkImportResult>(
         `/api/question-banks/${encodeURIComponent(bankId)}/bulk-import`,
-        { questions },
+        { questions, clientRequestId },
     );
 
     // Kegagalan di tingkat permintaan (401, 403, jaringan putus) tidak punya

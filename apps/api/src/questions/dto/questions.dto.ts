@@ -141,6 +141,12 @@ export class UpdateQuestionMetadataDto {
     @ApiProperty({ description: 'Hanya kunci yang disebut yang ditimpa.' })
     @IsObject({ message: 'metadata harus berupa objek' })
     metadata!: Record<string, any>;
+
+    @ApiPropertyOptional({ description: 'Revisi yang diharapkan untuk mencegah race condition/penimpaan antar tab.' })
+    @IsOptional()
+    @IsInt({ message: 'expectedRevision tidak valid' })
+    @Min(1, { message: 'expectedRevision tidak valid' })
+    expectedRevision?: number;
 }
 
 export class ReorderQuestionsDto {

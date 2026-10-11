@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { randomUUID } from 'node:crypto';
+import { deriveRequestUuid, payloadHash } from '../common/idempotent-create';
+import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { BulkQuestionDto } from './dto/bulk-import.dto';
 
@@ -66,6 +68,7 @@ export class ImportsService {
         user: AuthUser,
         bankId: string,
         questions: BulkQuestionDto[],
+        clientRequestId?: string,
     ): Promise<BulkImportResult> {
         await this.assertCanImport(user, bankId);
 
@@ -81,6 +84,53 @@ export class ImportsService {
         // One transaction includes companion records, questions and every option.
         // No partial success: a failed row rolls back the entire selected import.
         return this.db.transaction(async db => {
+            const hash = clientRequestId ? payloadHash(questions) : null;
+
+            if (clientRequestId) {
+                await advisoryTransactionLock(db, `bulk-import:${bankId}:${clientRequestId}`);
+
+                const firstDerivedId = deriveRequestUuid(clientRequestId, 0);
+                const { data: existingFirst, error: checkError } = await db
+                    .from('cbt_bank_questions')
+                    .select('id, client_request_id, client_request_hash')
+                    .eq('bank_id', bankId)
+                    .eq('client_request_id', firstDerivedId)
+                    .maybeSingle();
+
+                if (checkError) throw new BadRequestException(checkError.message);
+
+                if (existingFirst) {
+                    const row = existingFirst as { id: string; client_request_hash?: string | null };
+                    if (row.client_request_hash && row.client_request_hash !== hash) {
+                        throw new ConflictException(
+                            'Permintaan impor yang sama digunakan untuk data yang berbeda. Muat ulang halaman lalu coba lagi.',
+                        );
+                    }
+
+                    const derivedIds = questions.map((_, i) => deriveRequestUuid(clientRequestId, i));
+                    const { data: existingRows, error: rowsError } = await db
+                        .from('cbt_bank_questions')
+                        .select('id, client_request_id')
+                        .eq('bank_id', bankId)
+                        .in('client_request_id', derivedIds);
+
+                    if (rowsError) throw new BadRequestException(rowsError.message);
+
+                    const rowsMap = new Map(((existingRows as any[]) || []).map(r => [r.client_request_id, r.id]));
+                    const replayedQuestionIds = derivedIds
+                        .map(reqId => rowsMap.get(reqId))
+                        .filter(Boolean) as string[];
+
+                    return {
+                        success: true,
+                        imported: replayedQuestionIds.length,
+                        failed: 0,
+                        errors: [],
+                        questionIds: replayedQuestionIds,
+                    };
+                }
+            }
+
             const context: ImportContext = {
                 db, bankId, organizationId,
                 stimuli: new Map(), instructions: new Map(), kisiKisi: new Map(), dimensions: new Map(),
@@ -125,7 +175,8 @@ export class ImportsService {
                     (type === 'categorization' && suppliedOptions.some(o => !Array.isArray(o.metadata?.category_names))) ||
                     (type === 'short_answer' && !question.metadata?.blanks?.length);
                 if (invalidOptions) throw new BadRequestException(`Baris ${index + 1}: opsi atau kunci jawaban belum lengkap.`);
-                const questionId = randomUUID();
+                const questionClientRequestId = clientRequestId ? deriveRequestUuid(clientRequestId, index) : null;
+                const questionId = questionClientRequestId || randomUUID();
                 const optionRows: Array<{ id: string; question_id: string; option_text: string;
                     is_correct: boolean; order: number; weight: number; metadata: Record<string, any> }> = [];
                 for (const [order, option] of (question.options || []).entries()) {
@@ -135,8 +186,9 @@ export class ImportsService {
                     if (metadata.dimension) {
                         metadata.dimension_id = await this.resolveDimension(context, String(metadata.dimension));
                     }
+                    const optionId = clientRequestId ? deriveRequestUuid(questionId, order) : randomUUID();
                     optionRows.push({
-                        id: randomUUID(), question_id: questionId, option_text: option.option_text,
+                        id: optionId, question_id: questionId, option_text: option.option_text,
                         is_correct: option.is_correct ?? false, order,
                         weight: option.weight ?? (option.is_correct ? 1 : 0), metadata,
                     });
@@ -158,7 +210,7 @@ export class ImportsService {
                     }
                     metadata.correct_order = indexes.map((i: number) => optionRows[i].id);
                 }
-                const { error } = await db.from('cbt_bank_questions').insert({
+                const insertPayload: Record<string, any> = {
                     id: questionId, bank_id: bankId, organization_id: organizationId,
                     type: question.type || 'mcq', question_text: question.question_text.trim(),
                     difficulty: question.difficulty || 'medium', score_default: question.score_default ?? 1,
@@ -167,7 +219,12 @@ export class ImportsService {
                     instruction_id: await this.resolveInstruction(context, question),
                     kisi_kisi_id: await this.resolveKisiKisi(context, question),
                     dimension_id: metadata.dimension ? await this.resolveDimension(context, metadata.dimension) : null,
-                });
+                };
+                if (questionClientRequestId) {
+                    insertPayload.client_request_id = questionClientRequestId;
+                    insertPayload.client_request_hash = hash;
+                }
+                const { error } = await db.from('cbt_bank_questions').insert(insertPayload);
                 if (error) throw new BadRequestException(`Baris ${index + 1}: ${error.message}`);
                 if (optionRows.length) {
                     const { error } = await db.from('cbt_bank_question_options').insert(optionRows);

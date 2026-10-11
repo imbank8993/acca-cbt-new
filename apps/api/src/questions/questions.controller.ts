@@ -224,7 +224,7 @@ export class QuestionsController {
         @Param('questionId', ParseUUIDPipe) questionId: string,
         @Body() dto: UpdateQuestionMetadataDto,
     ) {
-        return this.questions.updateMetadata(user, questionId, dto.metadata);
+        return this.questions.updateMetadata(user, questionId, dto.metadata, dto.expectedRevision);
     }
 
     @Delete(':bankId/questions/:questionId')

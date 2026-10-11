@@ -57,6 +57,6 @@ export class ImportsController {
         @Param('bankId', ParseUUIDPipe) bankId: string,
         @Body() dto: BulkImportDto,
     ) {
-        return this.imports.bulkImport(user, bankId, dto.questions);
+        return this.imports.bulkImport(user, bankId, dto.questions, dto.clientRequestId);
     }
 }

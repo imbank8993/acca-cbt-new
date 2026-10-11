@@ -188,7 +188,8 @@ export default function BulkImportModal({
                     };
                 });
 
-            const result = await bulkImportQuestions(bankId, questionsToImport);
+            const clientRequestId = crypto.randomUUID();
+            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
 
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 setImportProgress(100);
@@ -316,7 +317,8 @@ export default function BulkImportModal({
             }));
 
         try {
-            const result = await bulkImportQuestions(bankId, questionsToImport);
+            const clientRequestId = crypto.randomUUID();
+            const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
                 setImportProgress(100);
                 setTimeout(async () => {

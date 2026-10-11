@@ -10,6 +10,7 @@ import {
     IsObject,
     IsOptional,
     IsString,
+    IsUUID,
     ValidateNested,
 } from 'class-validator';
 
@@ -75,6 +76,11 @@ export class BulkQuestionDto {
 }
 
 export class BulkImportDto {
+    @ApiPropertyOptional({ description: 'UUID stabil untuk mencegah duplikasi soal saat permintaan diulang.' })
+    @IsOptional()
+    @IsUUID('4', { message: 'clientRequestId tidak valid' })
+    clientRequestId?: string;
+
     @ApiProperty({ type: [BulkQuestionDto] })
     @IsArray()
     @ArrayNotEmpty({ message: 'Tidak ada soal untuk diimpor.' })

@@ -183,35 +183,63 @@ export class QuestionsService {
     }
 
     /** Tambal satu kunci di `metadata` tanpa menyentuh kunci lainnya. */
-    async updateMetadata(user: AuthUser, questionId: string, updates: Record<string, unknown>) {
+    async updateMetadata(
+        user: AuthUser,
+        questionId: string,
+        updates: Record<string, unknown>,
+        expectedRevision?: number,
+    ) {
         await this.authz.assertBankAccessByChild(user, 'cbt_bank_questions', questionId);
 
-        const { data } = await this.db
-            .from('cbt_bank_questions')
-            .select('metadata, bank_id')
-            .eq('id', questionId)
-            .maybeSingle();
-
-        if (!data) throw new NotFoundException('Soal tidak ditemukan.');
-
-        const row = data as { metadata: Record<string, unknown> | null; bank_id: string };
-
-        if (await this.questionHasHistoricalUse(questionId, row.bank_id)) {
-            throw new ConflictException(
-                'Metadata soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah.',
+        return this.db.transaction(async db => {
+            await db.raw(
+                'SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid FOR UPDATE',
+                questionId,
             );
-        }
 
-        const { error } = await this.db
-            .from('cbt_bank_questions')
-            .update({ metadata: { ...(row.metadata || {}), ...updates } })
-            .eq('id', questionId);
+            const { data, error: readError } = await db
+                .from('cbt_bank_questions')
+                .select('metadata, bank_id, revision')
+                .eq('id', questionId)
+                .maybeSingle();
 
-        if (error) throw new BadRequestException(error.message);
+            if (readError) throw new BadRequestException(readError.message);
+            if (!data) throw new NotFoundException('Soal tidak ditemukan.');
 
-        await this.touchBank(row.bank_id);
+            const row = data as {
+                metadata: Record<string, unknown> | null;
+                bank_id: string;
+                revision?: number;
+            };
 
-        return { id: questionId };
+            const currentRevision = Number(row.revision) || 1;
+            if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
+                throw new ConflictException(
+                    'Soal telah diubah dari halaman atau tab lain. Muat ulang sebelum menyimpan lagi.',
+                );
+            }
+
+            if (await this.questionHasHistoricalUse(questionId, row.bank_id, db)) {
+                throw new ConflictException(
+                    'Metadata soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah.',
+                );
+            }
+
+            const nextRevision = currentRevision + 1;
+            const { error } = await db
+                .from('cbt_bank_questions')
+                .update({
+                    metadata: { ...(row.metadata || {}), ...updates },
+                    revision: nextRevision,
+                })
+                .eq('id', questionId);
+
+            if (error) throw new BadRequestException(error.message);
+
+            await this.touchBank(row.bank_id, db);
+
+            return { id: questionId, revision: nextRevision };
+        });
     }
 
     /**
@@ -317,34 +345,50 @@ export class QuestionsService {
             );
         }
 
-        const { data } = await this.db
-            .from('cbt_bank_questions')
-            .select('id, metadata')
-            .eq('bank_id', bankId)
-            .in('id', orderedIds);
-
-        const owned = new Map<string, Record<string, unknown> | null>(
-            ((data as Array<{ id: string; metadata: Record<string, unknown> | null }>) || []).map(
-                (q) => [q.id, q.metadata],
-            ),
-        );
-
-        let updated = 0;
-        for (let index = 0; index < orderedIds.length; index++) {
-            const id = orderedIds[index];
-            if (!owned.has(id)) continue;
-
-            await this.db
+        return this.db.transaction(async db => {
+            const { data, error: readError } = await db
                 .from('cbt_bank_questions')
-                .update({ metadata: { ...(owned.get(id) || {}), order_index: index } })
-                .eq('id', id);
+                .select('id, metadata, revision')
+                .eq('bank_id', bankId)
+                .in('id', orderedIds);
 
-            updated++;
-        }
+            if (readError) {
+                throw new BadRequestException(`Gagal membaca soal: ${readError.message}`);
+            }
 
-        await this.touchBank(bankId);
+            const owned = new Map<string, { metadata: Record<string, unknown> | null; revision: number }>(
+                ((data as Array<{ id: string; metadata: Record<string, unknown> | null; revision?: number }>) || []).map(
+                    (q) => [q.id, { metadata: q.metadata, revision: Number(q.revision) || 1 }],
+                ),
+            );
 
-        return { bankId, updated };
+            let updated = 0;
+            for (let index = 0; index < orderedIds.length; index++) {
+                const id = orderedIds[index];
+                const current = owned.get(id);
+                if (!current) continue;
+
+                const nextRevision = current.revision + 1;
+                const { error: updateError } = await db
+                    .from('cbt_bank_questions')
+                    .update({
+                        metadata: { ...(current.metadata || {}), order_index: index },
+                        revision: nextRevision,
+                    })
+                    .eq('id', id)
+                    .eq('bank_id', bankId);
+
+                if (updateError) {
+                    throw new BadRequestException(`Gagal memperbarui urutan soal ${id}: ${updateError.message}`);
+                }
+
+                updated++;
+            }
+
+            await this.touchBank(bankId, db);
+
+            return { bankId, updated };
+        });
     }
 
     // ── Pembantu ─────────────────────────────────────────────────────────────

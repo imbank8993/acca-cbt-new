@@ -180,5 +180,47 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
             ['existing-a','existing-b'],
         );
     });
+    await test('updateMetadata increments revision, rejects stale expectedRevision, and protects against tab overwrite',async()=>{
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});
+        db.state.cbt_bank_questions=[{id:'question',bank_id:'bank',question_text:'Original',revision:1,metadata:{field:'initial'}}];
+        await assert.rejects(()=>svc.updateMetadata(user,'question',{field:'new'},2),/halaman atau tab lain/);
+        const updated=await svc.updateMetadata(user,'question',{field:'updated'});
+        assert.equal(updated.revision,2);
+        assert.equal(db.state.cbt_bank_questions[0].revision,2);
+        assert.equal(db.state.cbt_bank_questions[0].metadata.field,'updated');
+        await assert.rejects(()=>svc.save(user,{id:'question',bankId:'bank',questionText:'Tab 1 Save',expectedRevision:1}),/halaman atau tab lain/);
+    });
+    await test('Bulk import with clientRequestId replays safely without duplicates and rejects modified payloads',async()=>{
+        const db=base(),svc=new ImportsService(db,new AuthorizationService(db,roles,schoolScope));
+        const first=await svc.bulkImport(user,'bank',[question],'00000000-0000-4000-8000-000000000001');
+        assert.equal(first.imported,1);
+        assert.equal(db.state.cbt_bank_questions.length,1);
+        const second=await svc.bulkImport(user,'bank',[question],'00000000-0000-4000-8000-000000000001');
+        assert.equal(second.imported,1);
+        assert.deepEqual(second.questionIds,first.questionIds);
+        assert.equal(db.state.cbt_bank_questions.length,1);
+        const altered=[{...question,question_text:'Changed text'}];
+        await assert.rejects(()=>svc.bulkImport(user,'bank',altered,'00000000-0000-4000-8000-000000000001'),/Permintaan impor yang sama digunakan untuk data yang berbeda/);
+    });
+    await test('Reorder operates atomically in transaction, increments revisions, and rejects on database failure',async()=>{
+        const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});
+        db.state.cbt_bank_questions=[
+            {id:'q1',bank_id:'bank',revision:1,metadata:{order_index:0}},
+            {id:'q2',bank_id:'bank',revision:1,metadata:{order_index:1}},
+        ];
+        const snapshot=structuredClone(db.state);
+        db.fail=(t,a)=>t==='cbt_bank_questions'&&a==='update';
+        await assert.rejects(()=>svc.reorder(user,'bank',['q2','q1']),/Gagal memperbarui urutan/);
+        assert.deepEqual(db.state,snapshot);
+        db.fail=null;
+        const result=await svc.reorder(user,'bank',['q2','q1']);
+        assert.equal(result.updated,2);
+        const q1=db.state.cbt_bank_questions.find(q=>q.id==='q1');
+        const q2=db.state.cbt_bank_questions.find(q=>q.id==='q2');
+        assert.equal(q2.metadata.order_index,0);
+        assert.equal(q1.metadata.order_index,1);
+        assert.equal(q1.revision,2);
+        assert.equal(q2.revision,2);
+    });
     console.log(`Completed ${count} service regression checks.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -23,9 +23,9 @@ export async function POST(
 ) {
     const { bankId } = await context.params;
 
-    let payload: { questions?: BulkImportQuestion[] };
+    let payload: { questions?: BulkImportQuestion[]; clientRequestId?: string };
     try {
-        payload = await request.json() as { questions?: BulkImportQuestion[] };
+        payload = (await request.json()) as { questions?: BulkImportQuestion[]; clientRequestId?: string };
     } catch {
         return NextResponse.json(
             { success: false, error: 'Muatan permintaan bukan JSON yang sah.' },
@@ -78,6 +78,9 @@ export async function POST(
 
     return proxy(request, `/question-banks/${encodeURIComponent(bankId)}/bulk-import`, {
         method: 'POST',
-        body: JSON.stringify({ questions }),
+        body: JSON.stringify({
+            questions,
+            ...(payload.clientRequestId ? { clientRequestId: payload.clientRequestId } : {}),
+        }),
     });
 }
