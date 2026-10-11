@@ -2,12 +2,14 @@ import DOMPurify from 'dompurify';
 
 /** Opaque-origin iframe + restrictive CSP: uploaded scripts never receive the app origin. */
 export function learningPreviewDocument(html: string, interactive = false, bridge?: string): string {
-    const source = interactive ? html : DOMPurify.sanitize(html, { USE_PROFILES: { html: true, mathMl: true, svg: true } });
+    const source = DOMPurify.sanitize(html, { USE_PROFILES: { html: true, mathMl: true, svg: true } });
+    const nonce = crypto.randomUUID().replace(/-/g, '');
     const document = new DOMParser().parseFromString(source, 'text/html');
     document.querySelectorAll('base, meta[http-equiv]').forEach(node => node.remove());
     // Safe external links open in a new tab; hash links remain within the document
     document.querySelectorAll('a').forEach(node => {
         const href = node.getAttribute('href');
+        if (interactive && href && !href.startsWith('#')) { node.removeAttribute('href'); return; }
         if (href && !href.startsWith('#')) {
             node.setAttribute('target', '_blank');
             node.setAttribute('rel', 'noopener noreferrer');
@@ -23,7 +25,7 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     }
     const csp = document.createElement('meta'); csp.httpEquiv = 'Content-Security-Policy';
     csp.content = interactive
-        ? "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https: http:; font-src data: https: http:; img-src data: blob: https: http:; media-src data: blob: https: http:; connect-src https: data:; frame-src https: data: blob:; object-src 'none'; base-uri 'none'; form-action 'self' https:;"
+        ? `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
         : "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' https:; font-src data: https:; img-src data: blob: https: http:; media-src data: blob: https: http:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';";
     document.head.prepend(csp);
 
@@ -47,7 +49,7 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
         csp.after(style);
     } else document.head.append(style);
     if (interactive && bridge) {
-        const script = document.createElement('script'); script.textContent = bridge;
+        const script = document.createElement('script'); script.setAttribute('nonce', nonce); script.textContent = bridge;
         csp.after(script);
     }
     return '<!doctype html>' + document.documentElement.outerHTML;

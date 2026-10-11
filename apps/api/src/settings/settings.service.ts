@@ -113,23 +113,17 @@ export class SettingsService {
     }
 
     async getSchoolTimeZoneInfo(): Promise<{ timeZone: string; source: 'site_settings' | 'app_config' | 'default' }> {
-        // Prioritas 1: Baca zona waktu terpusat dari site_settings milik acca-new (Single Source of Truth)
-        try {
-            const { data, error } = await this.db
-                .from('site_settings')
-                .select('value')
-                .eq('key', 'timezone')
-                .maybeSingle();
-
-            if (!error && data?.value && typeof data.value === 'string' && data.value.trim() !== '') {
+        // A read failure is not an absent setting: never reinterpret schedules silently.
+        const { data, error } = await this.db.from('site_settings')
+            .select('value').eq('key', 'timezone').maybeSingle();
+        if (error) throw new InternalServerErrorException('Zona waktu acca-new belum dapat dibaca. Coba lagi.');
+        if (data?.value != null && data.value !== '') {
+            try {
+                if (typeof data.value !== 'string') throw new Error('Invalid time zone');
                 return { timeZone: assertValidTimeZone(data.value.trim()), source: 'site_settings' };
+            } catch {
+                throw new InternalServerErrorException('Zona waktu acca-new tidak valid. Periksa pengaturan pusat.');
             }
-        } catch (siteError) {
-            this.logger.warn(
-                `Gagal membaca zona waktu dari site_settings: ${
-                    siteError instanceof Error ? siteError.message : String(siteError)
-                }`,
-            );
         }
 
         // Prioritas 2 (Fallback): Baca dari acca_settings app_config
@@ -143,7 +137,7 @@ export class SettingsService {
             try {
                 return { timeZone: assertValidTimeZone(timeZone.trim()), source: 'app_config' };
             } catch (error) {
-                this.logger.error('Zona waktu pada app_config bukan identifier IANA yang valid.', error);
+                throw new InternalServerErrorException('Zona waktu CBT tidak valid. Periksa pengaturan.');
             }
         }
 

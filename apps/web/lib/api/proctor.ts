@@ -499,6 +499,7 @@ export interface ExamInput {
     description?: string;
     duration: number;
     examType?: 'daily' | 'pas' | 'pat' | 'tryout' | 'lainnya' | 'assignment';
+    timeZone?: string;
     startTime?: string;
     endTime?: string;
     randomizeQuestions?: boolean;

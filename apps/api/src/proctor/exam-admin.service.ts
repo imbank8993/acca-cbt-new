@@ -117,6 +117,9 @@ export class ExamAdminService {
 
         this.assertValidDuration(examType, dto.duration);
         const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
+        if (dto.timeZone && dto.timeZone !== timeZone) {
+            throw new BadRequestException('Zona waktu sekolah berubah. Buka ulang formulir sebelum menyimpan jadwal.');
+        }
         const startTime = localDateTimeToUtc(dto.startTime, timeZone);
         const endTime = localDateTimeToUtc(dto.endTime, timeZone);
         if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
@@ -201,6 +204,9 @@ export class ExamAdminService {
 
         this.assertValidDuration(examType, dto.duration);
         const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
+        if (dto.timeZone && dto.timeZone !== timeZone) {
+            throw new BadRequestException('Zona waktu sekolah berubah. Buka ulang formulir sebelum menyimpan jadwal.');
+        }
         const startTime = localDateTimeToUtc(dto.startTime, timeZone);
         const endTime = localDateTimeToUtc(dto.endTime, timeZone);
         if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {

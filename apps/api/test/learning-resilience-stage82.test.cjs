@@ -79,3 +79,56 @@ test('LMS classification: metadata survives upload and does not invalidate compl
     const uploaded = await service.upload(teacher, 'school', 'material', { originalname: 'a.html', size: 1, buffer: Buffer.from('a') }, 2, { ...dto, revision: 2, status: 'draft' });
     assert.equal(uploaded.material.grade_level, '10'); assert.equal(uploaded.material.subtopic, 'Akar');
 });
+
+
+test('LMS deletion failure preserves the source and PDF', async () => {
+    const { service, storage, db } = fixture({ cbt_learning_materials: [{ ...row, rendered_pdf_key: 'old-pdf' }] }, { failMutation: { table: 'cbt_learning_materials', mutation: 'delete' } });
+    await assert.rejects(service.delete(teacher, 'school', 'material'), /menghapus/);
+    assert.equal(db.tables.cbt_learning_materials.length, 1);
+    assert.deepEqual(storage.removed, []);
+});
+
+for (const operation of ['activity', 'progress']) test(`LMS ${operation} rechecks material after waiting for the lock`, async () => {
+    const { service, db } = fixture();
+    db.raw = async sql => {
+        assert.match(sql, /FOR UPDATE/);
+        db.tables.cbt_learning_materials[0].content_version = 2;
+        return [{ id: 'material' }];
+    };
+    await assert.rejects(operation === 'activity'
+        ? service.saveActivity(student, 'school', 'material', { contentVersion: 1, revision: 0, state: { answer: 'old' } })
+        : service.progress(student, 'school', 'material', true, 1), /diperbarui/);
+    assert.equal(db.writes.length, 0);
+});
+
+
+test('LMS interactive preview strips uploaded code and only authorizes the internal bridge', () => {
+    const fs = require('node:fs');
+    const vm = require('node:vm');
+    const ts = require('typescript');
+    const jsdom = require('jsdom');
+    const window = jsdom.JSDOM ? new jsdom.JSDOM('').window : jsdom.jsdom('').defaultView;
+    // Compatibility for the repository's older jsdom; browsers provide these DOM methods.
+    window.Element.prototype.prepend ||= function(node) { this.insertBefore(node, this.firstChild); };
+    window.Element.prototype.after ||= function(node) { this.parentNode.insertBefore(node, this.nextSibling); };
+    window.Element.prototype.append ||= function(node) { this.appendChild(node); };
+    const purify = require('dompurify')(window);
+    const exports = {};
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/lib/learning-preview.ts'), 'utf8');
+    vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2022 } }).outputText, {
+        exports, require: () => purify, DOMParser: window.DOMParser, crypto: require('node:crypto').webcrypto,
+    });
+    const html = exports.learningPreviewDocument('<script>location="https://example.invalid"</script><script src="https://example.invalid/a.js"></script><input name="answer" oninput="fetch(value)"><a href="https://example.invalid">Link</a><iframe src="https://example.invalid"></iframe>', true, '/* trusted bridge */');
+    const doc = new window.DOMParser().parseFromString(html, 'text/html');
+    assert.equal(doc.querySelectorAll('script').length, 1);
+    assert.equal(doc.querySelector('script').textContent, '/* trusted bridge */');
+    assert.equal(doc.querySelector('input').hasAttribute('oninput'), false);
+    assert.equal(doc.querySelector('a').hasAttribute('href'), false);
+    assert.equal(doc.querySelector('iframe'), null);
+    const policy = doc.querySelector('meta[http-equiv]').content;
+    assert.match(policy, /connect-src 'none'/);
+    assert.match(policy, /form-action 'none'/);
+    assert.ok(policy.includes(`script-src 'nonce-${doc.querySelector('script').getAttribute('nonce')}'`));
+    assert.ok(!policy.includes('https:'));
+    window.close();
+});

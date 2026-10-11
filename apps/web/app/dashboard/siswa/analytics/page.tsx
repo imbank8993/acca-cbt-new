@@ -1,4 +1,6 @@
 "use client";
+import { useSchoolTimeZone } from "@/lib/useSchoolTimeZone";
+import { formatSchoolDate } from "@/lib/school-time";
 import type {
 StudentAnalyticsData,
 StudentComparison,
@@ -66,6 +68,7 @@ ChartJS.register(
 );
 
 export default function StudentAnalyticsPage() {
+    const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [loading, setLoading] = useMemoryState('siswa_analytics_loading', true);
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
     const [examHistory, setExamHistory] = useMemoryState<StudentExamHistoryItem[]>('siswa_analytics_examHistory', []);
@@ -108,16 +111,7 @@ export default function StudentAnalyticsPage() {
         return `${mins}m ${secs}dtk`;
     };
 
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return 'TBA';
-        const date = new Date(dateStr.match(/(Z|[+-]\d{2}:\d{2})$/) ? dateStr : dateStr + 'Z');
-        if (isNaN(date.getTime())) return 'TBA';
-        const day = date.getUTCDate();
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-        const month = months[date.getUTCMonth()];
-        const year = date.getUTCFullYear();
-        return `${day} ${month} ${year}`;
-    };
+    const formatDate = (dateStr: string) => timeZoneError ? 'Zona waktu belum tersedia' : formatSchoolDate(dateStr, timeZone);
 
     const getGradeInfo = (percentage: number) => {
         if (percentage >= 90) return { grade: 'A', label: 'Sangat Baik', bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-500' };

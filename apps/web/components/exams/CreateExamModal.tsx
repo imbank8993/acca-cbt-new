@@ -505,6 +505,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 description: formData.description.trim() || undefined,
                 duration: finalDuration,
                 examType: storedExamType,
+                timeZone,
                 startTime: formData.isForever ? undefined : (formData.startTime || undefined),
                 endTime: formData.isForever ? undefined : (formData.endTime || undefined),
                 randomizeQuestions: formData.randomizeQuestions,

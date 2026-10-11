@@ -32,7 +32,9 @@ export function getSchoolTimeZone(): Promise<string> {
                 return assertValidSchoolTimeZone(result.timeZone);
             });
         cachedSchoolTimeZone = request;
-        void request.catch(() => {
+        void request.then(() => {
+            if (cachedSchoolTimeZone === request) cachedSchoolTimeZone = null;
+        }, () => {
             if (cachedSchoolTimeZone === request) cachedSchoolTimeZone = null;
         });
     }

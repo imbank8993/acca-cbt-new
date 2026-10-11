@@ -9,16 +9,19 @@ export function useSchoolTimeZone() {
 
     useEffect(() => {
         let active = true;
-        void getSchoolTimeZone()
+        const refresh = () => { void getSchoolTimeZone()
             .then((zone) => {
-                if (active) setTimeZone(zone);
+                if (active) { setTimeZone(zone); setError(''); }
             })
             .catch((loadError: unknown) => {
                 if (active) {
                     setError(loadError instanceof Error ? loadError.message : 'Zona waktu sekolah gagal dimuat.');
                 }
-            });
-        return () => { active = false; };
+            }); };
+        refresh();
+        const interval = window.setInterval(refresh, 60000);
+        window.addEventListener('focus', refresh);
+        return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', refresh); };
     }, []);
 
     return { timeZone, error };

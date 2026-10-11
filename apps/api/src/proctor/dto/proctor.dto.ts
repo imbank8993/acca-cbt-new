@@ -22,6 +22,10 @@ export const CLASS_TYPES = ['reguler', 'tambahan'] as const;
 
 /** Bidang ujian yang dipakai baik saat membuat maupun mengubah. */
 class ExamFieldsDto {
+    @IsOptional()
+    @IsString()
+    timeZone?: string;
+
     @ApiProperty()
     @IsString()
     @IsNotEmpty({ message: 'Judul ujian wajib diisi.' })

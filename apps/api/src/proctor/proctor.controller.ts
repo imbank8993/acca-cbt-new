@@ -123,7 +123,7 @@ export class ProctorController {
     ) {
         // Memuat IP & perangkat seluruh anggota — jangan buka untuk Guru/Pengawas.
         await this.authz.assertProktor(user, organizationId);
-        const timeZone = (await this.settings.getSchoolTimeZone().catch(() => null)) || 'Asia/Jakarta';
+        const timeZone = await this.settings.getSchoolTimeZone();
         const [history, stats] = await Promise.all([
             this.loginHistory.getRecent(organizationId, query.limit ?? 20),
             this.loginHistory.getStats(organizationId, timeZone),

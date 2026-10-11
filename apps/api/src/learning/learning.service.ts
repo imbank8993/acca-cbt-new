@@ -33,8 +33,8 @@ export class LearningService {
         await this.manager(user, row.organization_id);
         if (row.created_by !== user.id) await this.authz.assertOrgRole(user, row.organization_id, ['Admin'], 'pemilik materi/Admin');
     }
-    private async row(org: string, id: string): Promise<MaterialRow> {
-        const { data, error } = await this.db.from('cbt_learning_materials').select('*').eq('organization_id', org).eq('id', id).maybeSingle();
+    private async row(org: string, id: string, db: Pick<DbService, 'from'> = this.db): Promise<MaterialRow> {
+        const { data, error } = await db.from('cbt_learning_materials').select('*').eq('organization_id', org).eq('id', id).maybeSingle();
         if (error) throw new InternalServerErrorException('Gagal membaca materi. Pastikan migrasi LMS sudah diterapkan.');
         if (!data) throw new NotFoundException('Bahan ajar tidak ditemukan.');
         return data as MaterialRow;
@@ -144,12 +144,17 @@ export class LearningService {
         return { material: this.publicRow(data) };
     }
     async delete(user: AuthUser, org: string, id: string) {
-        const row = await this.row(org, id);
-        await this.editable(user, row);
+        const row = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_learning_materials WHERE id = $1::uuid FOR UPDATE', id);
+            const current = await this.row(org, id, db);
+            await this.editable(user, current);
+            const { error } = await db.from('cbt_learning_materials').delete().eq('id', id).eq('organization_id', org);
+            if (error) throw new InternalServerErrorException('Gagal menghapus bahan ajar.');
+            return current;
+        });
+        // Never destroy a live attachment before the database commit succeeds.
         if (row.file_key) await this.storage.deleteObject(row.file_key);
         if (row.rendered_pdf_key) await this.storage.deleteObject(row.rendered_pdf_key);
-        const { error } = await this.db.from('cbt_learning_materials').delete().eq('id', id).eq('organization_id', org);
-        if (error) throw new InternalServerErrorException('Gagal menghapus bahan ajar.');
         return { success: true };
     }
     async file(user: AuthUser, org: string, id: string, rendered = false) {
@@ -164,14 +169,16 @@ export class LearningService {
     }
     async progress(user: AuthUser, org: string, id: string, completed: boolean, contentVersion?: number) {
         await this.reader(user, org);
-        const row = await this.row(org, id);
-        if (row.status !== 'published') throw new BadRequestException('Materi belum diterbitkan.');
-        if (contentVersion !== undefined && contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi telah diperbarui. Muat ulang sebelum menandai selesai.');
-        const { error } = await this.db.from('cbt_learning_progress').upsert({ material_id: id, user_id: user.id, completed, completed_version: row.content_version || 1, updated_at: new Date().toISOString() }, { onConflict: 'material_id,user_id' });
-        if (error) throw new InternalServerErrorException('Gagal menyimpan progres belajar.');
-        return { completed };
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_learning_materials WHERE id = $1::uuid FOR UPDATE', id);
+            const row = await this.row(org, id, db);
+            if (row.status !== 'published') throw new BadRequestException('Materi belum diterbitkan.');
+            if (contentVersion !== undefined && contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi telah diperbarui. Muat ulang sebelum menandai selesai.');
+            const { error } = await db.from('cbt_learning_progress').upsert({ material_id: id, user_id: user.id, completed, completed_version: row.content_version || 1, updated_at: new Date().toISOString() }, { onConflict: 'material_id,user_id' });
+            if (error) throw new InternalServerErrorException('Gagal menyimpan progres belajar.');
+            return { completed };
+        });
     }
-
     async activity(user: AuthUser, org: string, id: string) {
         await this.reader(user, org);
         const row = await this.row(org, id);
@@ -182,17 +189,20 @@ export class LearningService {
     }
     async saveActivity(user: AuthUser, org: string, id: string, dto: ActivityDto) {
         await this.reader(user, org);
-        const row = await this.row(org, id);
-        if (row.status !== 'published' || row.format !== 'html') throw new ForbiddenException('Aktivitas HTML belum tersedia.');
-        if (dto.contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi diperbarui. Jawaban lama tidak ditimpa; muat ulang materi.');
-        if (Buffer.byteLength(JSON.stringify(dto.state), 'utf8') > 128 * 1024) throw new BadRequestException('Data aktivitas terlalu besar (maksimum 128 KB).');
-        const payload = { state: dto.state, revision: dto.revision + 1, updated_at: new Date().toISOString() };
-        const result = dto.revision === 0
-            ? await this.db.from('cbt_learning_activity').insert({ material_id: id, user_id: user.id, content_version: dto.contentVersion, ...payload }).select('revision').single()
-            : await this.db.from('cbt_learning_activity').update(payload).eq('material_id', id).eq('user_id', user.id).eq('content_version', dto.contentVersion).eq('revision', dto.revision).select('revision').maybeSingle();
-        if (result.error?.code === '23505' || (!result.error && !result.data)) throw new ConflictException('Aktivitas berubah di tab lain. Jawaban lokal tetap disimpan; muat ulang untuk memeriksa.');
-        if (result.error) throw new InternalServerErrorException('Gagal menyimpan jawaban aktivitas.');
-        return { revision: dto.revision + 1 };
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_learning_materials WHERE id = $1::uuid FOR UPDATE', id);
+            const row = await this.row(org, id, db);
+            if (row.status !== 'published' || row.format !== 'html') throw new ForbiddenException('Aktivitas HTML belum tersedia.');
+            if (dto.contentVersion !== (row.content_version || 1)) throw new ConflictException('Materi diperbarui. Jawaban lama tidak ditimpa; muat ulang materi.');
+            if (Buffer.byteLength(JSON.stringify(dto.state), 'utf8') > 128 * 1024) throw new BadRequestException('Data aktivitas terlalu besar (maksimum 128 KB).');
+            const payload = { state: dto.state, revision: dto.revision + 1, updated_at: new Date().toISOString() };
+            const result = dto.revision === 0
+                ? await db.from('cbt_learning_activity').insert({ material_id: id, user_id: user.id, content_version: dto.contentVersion, ...payload }).select('revision').single()
+                : await db.from('cbt_learning_activity').update(payload).eq('material_id', id).eq('user_id', user.id).eq('content_version', dto.contentVersion).eq('revision', dto.revision).select('revision').maybeSingle();
+            if (result.error?.code === '23505' || (!result.error && !result.data)) throw new ConflictException('Aktivitas berubah di tab lain. Jawaban lokal tetap disimpan; muat ulang untuk memeriksa.');
+            if (result.error) throw new InternalServerErrorException('Gagal menyimpan jawaban aktivitas.');
+            return { revision: dto.revision + 1 };
+        });
     }
     async activityResults(user: AuthUser, org: string, id: string) {
         const row = await this.row(org, id); await this.editable(user, row);
