@@ -74,7 +74,7 @@ export default function AssignmentReviewPage() {
             return;
         }
         setSavingAttemptId(submission.attemptId);
-        const result = await gradeAssignmentAction(submission.attemptId, score, data.feedback);
+        const result = await gradeAssignmentAction(submission.attemptId, score, data.feedback, submission.submittedAt || '');
         if (result.success) {
             setSavedAttemptIds(prev => new Set(prev).add(submission.attemptId!));
             // Update local state

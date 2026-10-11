@@ -253,3 +253,14 @@ test('retry keeps backoff metadata and does not score again before it is due', a
     await grading.retryPendingAutoSubmissions('exam');
     assert.equal(requests, 1);
 });
+
+
+test('relative scoring excludes recovery upload delay from duration', async () => {
+    const db = fixture();
+    db.tables.cbt_exam_attempts[0].finished_at = '2026-09-20T03:00:00Z';
+    db.tables.cbt_exam_attempts[0].metadata.scoring_finished_at = '2026-09-20T00:20:00Z';
+    await new GradingService(db, {}, { post: async (_path, payload) => {
+        assert.equal(payload.attempts[0].duration_seconds, 1200);
+        return { scores: { a: 100 } };
+    } }).applyRelativeQuizScoring('exam');
+});

@@ -267,7 +267,7 @@ export class GradingService {
         const { scores } = await this.scoring.post<{ scores: Record<string, number> }>('/grading/relative', {
             attempts: rows.map((row: any) => ({ attempt_id: row.id,
                 base_score: Number(row.metadata.base_score ?? row.total_score),
-                duration_seconds: Math.max(0, Math.floor((Date.parse(row.finished_at) - Date.parse(row.started_at)) / 1000)) || 0,
+                duration_seconds: Math.max(0, Math.floor((Date.parse(row.metadata?.scoring_finished_at || row.finished_at) - Date.parse(row.started_at)) / 1000)) || 0,
             })),
         }, { timeoutMs: 15_000 });
         return this.db.transaction(async db => {

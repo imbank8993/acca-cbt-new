@@ -203,6 +203,10 @@ export class ClassIdsDto {
 }
 
 export class GradeAssignmentDto {
+    @IsString()
+    @IsNotEmpty()
+    submittedAt!: string;
+
     @ApiProperty({ minimum: 0, maximum: 100 })
     @IsNumber()
     @Min(0, { message: 'Nilai minimal 0' })

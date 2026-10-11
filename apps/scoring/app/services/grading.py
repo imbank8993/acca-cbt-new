@@ -315,7 +315,11 @@ def apply_relative_scoring(attempts: list[RelativeAttempt]) -> dict[str, float]:
     for attempt in attempts:
         groups.setdefault(attempt.base_score, []).append(attempt)
 
-    for group in groups.values():
+    ordered_scores = sorted(groups)
+    for base_score, group in groups.items():
+        lower_scores = [score for score in ordered_scores if score < base_score]
+        gap = base_score - lower_scores[-1] if lower_scores else 1.0
+        max_penalty = max(0.0, min(0.99, gap - 0.01))
         group.sort(key=lambda a: (a.duration_seconds, a.attempt_id))
         distinct_rank = -1
         previous_duration: int | None = None
@@ -326,7 +330,7 @@ def apply_relative_scoring(attempts: list[RelativeAttempt]) -> dict[str, float]:
             if previous_duration is None or attempt.duration_seconds != previous_duration:
                 distinct_rank += 1
                 previous_duration = attempt.duration_seconds
-            penalty = distinct_rank * 0.01
+            penalty = min(distinct_rank * 0.01, max_penalty)
             result[attempt.attempt_id] = max(0.0, round(attempt.base_score - penalty, 2))
 
     return result

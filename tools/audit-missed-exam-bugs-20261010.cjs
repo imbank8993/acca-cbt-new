@@ -9,7 +9,7 @@ const staff = { assertExamStaff: async () => {} };
 function fixture(options = {}) {
   return fixtureDb({
     cbt_exams: [{ id: 'exam', exam_type: 'assignment', scoring_type: 'irt' }],
-    cbt_exam_attempts: [{ id: 'a', exam_id: 'exam', user_id: 's', status: 'submitted', metadata: {}, score_irt: null, answers: [] }],
+    cbt_exam_attempts: [{ id: 'a', exam_id: 'exam', user_id: 's', status: 'submitted', metadata: {}, finished_at: '2026-10-10T01:00:00Z', score_irt: null, answers: [] }],
     cbt_exam_question_snapshots: [{ id: 'snap', exam_id: 'exam', question_id: 'q', order_number: 1,
       question_snapshot: { id: 'q', type: 'mcq', score_default: 1, bank_question_options: [] } }],
   }, [], options);
@@ -37,7 +37,7 @@ const result = { count: 1, attempts: [{ id: 'a', score_irt: 750, detailed_scores
     assignment.tables.cbt_exam_attempts[0] = { ...assignment.tables.cbt_exam_attempts[0],
       finished_at: '2026-10-10T02:00:00Z', metadata: { new_submission: true }, total_score: null };
   } };
-  await assert.rejects(service.gradeAssignment({ id: 'teacher' }, 'a', 90, 'old submission feedback'), /berubah/);
+  await assert.rejects(service.gradeAssignment({ id: 'teacher' }, 'a', 90, 'old submission feedback', '2026-10-10T01:00:00Z'), /berubah/);
   assert.equal(assignment.tables.cbt_exam_attempts[0].total_score, null);
   assert.equal(assignment.tables.cbt_exam_attempts[0].metadata.new_submission, true);
   console.log('PASS: old assignment grading rejected without losing new metadata');

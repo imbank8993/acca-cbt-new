@@ -67,6 +67,7 @@ test('proctor recovery permits only a frozen submission and keeps the original d
     await service.beginSubmit(user, 'attempt', device);
     assert.equal((await submit(service)).savedAnswersOnly, false);
     assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
+    assert.equal(Date.parse(db.tables.cbt_exam_attempts[0].metadata.scoring_finished_at), Date.parse(db.tables.cbt_exam_attempts[0].metadata.recovery_source_deadline));
 });
 
 test('monitoring expiry requires staff approval for offline submission', async () => {
@@ -157,6 +158,7 @@ test('frozen browser submission can finish after deadline when its server intent
     const result = await submit(service);
     assert.equal(result.savedAnswersOnly, false);
     assert.equal(db.tables.cbt_answers[0].essay_answer, 'written offline');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.scoring_finished_at, db.tables.cbt_exam_attempts[0].metadata.submit_intent_at);
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
 });
 

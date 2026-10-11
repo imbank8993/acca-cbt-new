@@ -78,3 +78,11 @@ def test_short_answer_substring_does_not_receive_unintended_partial_credit():
     assert calculate_single_answer_score(q, '["a"]').score == 0
     assert calculate_single_answer_score(q, '["Jak"]').score == 0
     assert calculate_single_answer_score(q, '["DKI Jakarta"]').score == 10
+
+
+def test_relative_penalty_never_crosses_correctness_groups():
+    for lower in [98, 99.5, 99.99]:
+        attempts = [RelativeAttempt(attempt_id=f"h{i}", base_score=100, duration_seconds=i + 1) for i in range(250)]
+        attempts.append(RelativeAttempt(attempt_id="lower", base_score=lower, duration_seconds=1))
+        scores = apply_relative_scoring(attempts)
+        assert min(scores[f"h{i}"] for i in range(250)) > scores["lower"]

@@ -401,6 +401,6 @@ export class ProctorController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: GradeAssignmentDto,
     ) {
-        return this.monitoring.gradeAssignment(user, attemptId, dto.score, dto.feedback || '');
+        return this.monitoring.gradeAssignment(user, attemptId, dto.score, dto.feedback || '', dto.submittedAt);
     }
 }

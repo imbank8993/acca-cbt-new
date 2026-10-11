@@ -491,6 +491,7 @@ export class ProctoringService {
             const previousStatus = row.status;
             const previousDeadline = row.personal_end_time;
             const previousMetadata = { ...(row.metadata || {}) };
+            delete previousMetadata.scoring_finished_at;
             delete previousMetadata.grading_retry_next_at;
             delete previousMetadata.teacher_score;
             delete previousMetadata.teacher_feedback;

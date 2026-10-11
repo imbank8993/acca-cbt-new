@@ -767,9 +767,9 @@ export async function getAssignmentSubmissionsAction(examId: string) {
           };
 }
 
-export function gradeAssignmentAction(attemptId: string, score: number, feedback: string) {
+export function gradeAssignmentAction(attemptId: string, score: number, feedback: string, submittedAt: string) {
     return apiSend<{ attemptId: string }>(
         `/api/proctor/attempts/${encodeURIComponent(attemptId)}/grade`,
-        { score, feedback },
+        { score, feedback, submittedAt },
     );
 }

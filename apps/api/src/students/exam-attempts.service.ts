@@ -1072,6 +1072,13 @@ export class ExamAttemptsService {
                 const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
                 const finishedAt = new Date(clock.now).toISOString();
                 const metadata: Record<string, unknown> = { ...(current.metadata || {}) };
+                // Recovery transports frozen answers, not additional working time.
+                const scoringEnd = current.metadata?.recovery_submit_only === true
+                    ? current.metadata.scoring_finished_at || current.metadata.recovery_source_deadline
+                    : current.metadata?.submit_intent_at || finishedAt;
+                const scoringEndMs = Date.parse(scoringEnd || finishedAt);
+                metadata.scoring_finished_at = new Date(Math.min(Date.parse(finishedAt),
+                    Number.isFinite(scoringEndMs) ? scoringEndMs : Date.parse(finishedAt))).toISOString();
                 if (assignmentData) metadata.assignment_submission = assignmentData;
                 if (frozenSubmission) {
                     metadata.frozen_submission_received_at = finishedAt;

@@ -822,6 +822,7 @@ export class ExamMonitoringService {
         attemptId: string,
         score: number,
         feedback: string,
+        submittedAt?: string,
     ) {
         if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 100) {
             throw new BadRequestException('Nilai tugas harus berada antara 0 dan 100.');
@@ -857,6 +858,10 @@ export class ExamMonitoringService {
         }
         if (!['submitted', 'auto_submitted'].includes(attempt.status)) {
             throw new BadRequestException('Tugas belum dikumpulkan.');
+        }
+
+        if (!submittedAt || submittedAt !== attempt.finished_at) {
+            throw new BadRequestException('Pengumpulan tugas berubah. Muat ulang sebelum menilai.');
         }
 
         await this.db.transaction(async db => {

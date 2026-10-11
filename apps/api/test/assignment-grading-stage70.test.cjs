@@ -10,7 +10,7 @@ const user = { id: 'staff', role: 'Admin' };
 function service({ examType = 'assignment', status = 'submitted' } = {}) {
     const db = fixtureDb({
         cbt_exams: [{ id: 'exam', exam_type: examType }],
-        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', status, metadata: { retained: true } }],
+        cbt_exam_attempts: [{ id: 'attempt', exam_id: 'exam', status, finished_at: '2026-10-11T01:00:00.000Z', metadata: { retained: true } }],
     });
     const result = Object.create(ExamMonitoringService.prototype);
     Object.assign(result, { db, authz: { assertExamStaff: async () => {} } });
@@ -32,9 +32,17 @@ test('assignment grading rejects ordinary exam and unfinished attempt', async ()
 
 test('assignment grading stores a valid score and preserves metadata', async () => {
     const { db, result } = service();
-    assert.deepEqual(await result.gradeAssignment(user, 'attempt', 80, 'Baik'), { attemptId: 'attempt', score: 80 });
+    assert.deepEqual(await result.gradeAssignment(user, 'attempt', 80, 'Baik', '2026-10-11T01:00:00.000Z'), { attemptId: 'attempt', score: 80 });
     const attempt = db.tables.cbt_exam_attempts[0];
     assert.equal(attempt.total_score, 80);
     assert.equal(attempt.metadata.retained, true);
     assert.equal(attempt.metadata.teacher_feedback, 'Baik');
 });
+
+for (const version of [undefined, '2026-10-10T01:00:00.000Z']) {
+    test(`assignment rejects stale or missing form version ${version}`, async () => {
+        const { db, result } = service();
+        await assert.rejects(result.gradeAssignment(user, 'attempt', 80, 'Old', version), /berubah/);
+        assert.equal(db.writes.length, 0);
+    });
+}
