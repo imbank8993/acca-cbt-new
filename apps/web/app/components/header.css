@@ -855,14 +855,14 @@ html.dark .user_menu_nip {
   .dark .header.collapsed,
   html.dark .header,
   html.dark .header.collapsed {
-    background: #0d1221 !important;
+    background: #0b1329 !important;
     border-bottom: 1.5px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3) !important;
   }
 
   .sidebar-mobile-open .header,
   .sidebar-mobile-open .header.collapsed {
-    border-top-left-radius: 28px !important;
+    border-top-left-radius: 0 !important;
     border-top-right-radius: 0 !important;
     border-bottom-left-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
@@ -872,7 +872,7 @@ html.dark .user_menu_nip {
 
   .dark .sidebar-mobile-open .header,
   .dark .sidebar-mobile-open .header.collapsed {
-    border-top-left-radius: 28px !important;
+    border-top-left-radius: 0 !important;
     border-top-right-radius: 0 !important;
     border-bottom-left-radius: 0 !important;
     border-bottom-right-radius: 0 !important;

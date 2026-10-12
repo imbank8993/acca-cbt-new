@@ -24,7 +24,7 @@
 
 .dark {
   /* Google One AI Dark Mode Palette */
-  --sidebar-bg: #0d1221;
+  --sidebar-bg: #0b1329;
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
@@ -95,7 +95,7 @@
 }
 
 .dark .sidebar {
-  background: #0d1221;
+  background: #0b1329;
   border: none !important;
   border-right: 1px solid var(--sidebar-border) !important;
   box-shadow: none !important;
@@ -329,15 +329,18 @@
     border: none !important;
     border-right: none !important;
     outline: none !important;
-    transform: translateX(-20%);
-    opacity: 0;
+    transform: translateX(-100%);
+    opacity: 1;
+    visibility: hidden;
     pointer-events: none;
-    transition: transform .35s cubic-bezier(0.32, 0.72, 0, 1), opacity .25s ease !important;
+    transition: transform .22s ease-out, visibility 0s .22s !important;
   }
 
   .sidebar.open {
     transform: translateX(0) !important;
     opacity: 1 !important;
+    visibility: visible !important;
+    transition-delay: 0s !important;
     pointer-events: auto !important;
   }
 
@@ -357,6 +360,8 @@
 
   .sidebar-nav {
     padding: 12px 12px calc(20px + env(safe-area-inset-bottom)) !important;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
   }
 
   .sidebar:not(.collapsed) .sidebar-nav-fixed + .sidebar-nav {
@@ -828,7 +833,7 @@
 .dark .sso-cbt-btn {
   border-color: #3b82f6;
   color: #60a5fa;
-  background: #0d1221;
+  background: #0b1329;
 }
 
 .dark .sso-cbt-btn .btn-icon {
@@ -963,7 +968,7 @@
 }
 
 .dark .sidebar-search-box {
-  background: var(--sidebar-bg, #0d1221) !important;
+  background: var(--sidebar-bg, #0b1329) !important;
   border: 1px solid rgba(59, 130, 246, 0.45) !important;
   box-shadow: none !important;
 }
@@ -1003,7 +1008,7 @@
 }
 
 .dark .search-kbd {
-  background: #0d1221 !important;
+  background: #0b1329 !important;
   color: #94a3b8 !important;
   border-color: rgba(37, 99, 235, 0.3) !important;
 }
@@ -1106,4 +1111,12 @@
 
 @media (max-width: 1023.98px) {
   .menu-skeleton-row { height: 36px; }
+}
+
+@media (max-width: 1023.98px) {
+  .sidebar .menu-btn.active { box-shadow: none; }
+  .sidebar, .dark .sidebar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (max-width: 1023.98px) and (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none !important; }
 }

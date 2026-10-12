@@ -346,6 +346,10 @@ export class QuestionsService {
         }
 
         return this.db.transaction(async db => {
+            // Match the editor lock order, then read metadata after concurrent edits finish.
+            for (const id of [...new Set(orderedIds)].sort()) {
+                await db.raw('SELECT id FROM public.cbt_bank_questions WHERE id = $1::uuid AND bank_id = $2::uuid FOR UPDATE', id, bankId);
+            }
             const { data, error: readError } = await db
                 .from('cbt_bank_questions')
                 .select('id, metadata, revision')

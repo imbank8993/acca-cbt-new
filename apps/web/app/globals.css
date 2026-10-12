@@ -196,7 +196,7 @@ body {
   html,
   body {
     min-height: 100% !important;
-    min-height: 100dvh !important;
+    min-height: 100svh !important;
     overflow-x: clip !important;
     -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
@@ -2782,3 +2782,22 @@ span[style*="white-space: pre"] {
   color: #cbd5e1 !important;
 }
 
+
+@media (max-width: 1023.98px) {
+  html.app-sidebar-open, html.app-sidebar-open body { overflow: hidden !important; }
+  html.app-sidebar-open body {
+    position: fixed;
+    top: calc(-1 * var(--sidebar-scroll-y, 0px));
+    width: 100%;
+  }
+  html, body {
+    background-color: var(--app-browser-bg, #ffffff) !important;
+    background-image: none !important;
+  }
+  html.dark, html.dark body { background-color: var(--app-browser-bg, #0b1329) !important; }
+}
+
+@media (max-width: 1023.98px) {
+  html.dark { --sidebar-bg: #0b1329; --header-bg: #0b1329; }
+}
+@media (max-width: 1023.98px) { html.dark .sidebar, html.dark .header { background-color: #0b1329 !important; } }

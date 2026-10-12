@@ -87,34 +87,10 @@
            `--bnav-line` di atas. */
         --bnav-line-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='70' viewBox='0 0 160 70'%3E%3Cg fill='none' stroke='%23E1E2E9' stroke-width='1'%3E%3Ccircle cx='80' cy='32' r='27'/%3E%3Cpath d='M0 20.5 L26.09 20.5 A30 30 0 0 1 54.47 40.76 A27 27 0 0 0 105.53 40.76 A30 30 0 0 1 133.91 20.5 L160 20.5'/%3E%3C/g%3E%3C/svg%3E");
 
-        /* `sticky`, BUKAN `fixed`.
-           Di Safari iOS `position: fixed` menempel ke LAYOUT viewport, yang
-           tingginya dihitung seolah bilah alamat selalu menyusut. Begitu bilah
-           alamat mengembang — persis yang terjadi saat menggulir — dasar layout
-           viewport jatuh di bawah area terlihat dan bilah nav terpotong.
-           Sebelumnya itu ditambal dengan mengangkat `bottom` sebesar selisih
-           yang dibaca dari window.visualViewport, tapi event-nya menyusul di
-           iOS sehingga koreksinya baru datang SETELAH gulirannya berhenti.
-
-           Sticky diposisikan terhadap scrollport, bukan layout viewport, jadi
-           browser sendiri yang menjaganya — tanpa JS, tanpa jeda.
-
-           Syaratnya ada tiga, dan ketiganya gampang dilanggar tanpa sadar:
-
-           1. `overflow-x` html/body harus `clip`, bukan `hidden` (lihat
-              catatan di app/globals.css).
-           2. Bilah ini harus jadi elemen ALIRAN terakhir di dalam
-              .dashboard-content-wrapper, supaya slot alirnya jatuh di ujung
-              dokumen. Di app/(dashboard)/layout.tsx ada
-              .sidebar-mobile-backdrop yang dirender setelahnya — itu aman
-              HANYA karena ia `position: fixed` sehingga tidak ikut aliran.
-              Menaruh elemen beraliran normal di bawah bilah ini akan
-              memendekkan jangkauan lengketnya.
-           3. Tinggi dokumen harus ikut berubah saat bilah alamat iOS
-              beranimasi. Karena itu html/body memakai `100dvh` dan BUKAN
-              `-webkit-fill-available`, yang membeku pada tinggi viewport saat
-              bilah alamat terkembang. */
-        position: sticky;
+        /* Keep navigation anchored independently of document scrolling. */
+        position: fixed;
+        left: 0;
+        right: 0;
         bottom: 0;
         z-index: 400;
         -webkit-backface-visibility: hidden;

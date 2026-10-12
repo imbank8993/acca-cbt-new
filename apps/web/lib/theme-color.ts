@@ -61,7 +61,8 @@ function baseColor(): Rgba {
 
     // SIDEBAR MOBILE TERBUKA menang atas segalanya. Saat terbuka, panel itulah
     // yang memenuhi layar dari atas sampai bawah.
-    const sidebarTerbuka = document.querySelector('.dashboard-layout.sidebar-mobile-open')
+    const sidebarTerbuka = window.matchMedia('(max-width: 1023.98px)').matches
+        ? document.querySelector('.dashboard-layout.sidebar-mobile-open') : null
     const sidebar = sidebarTerbuka ? document.querySelector('.sidebar') : null
     const sidebarBg = sidebar ? getComputedStyle(sidebar).backgroundColor : ''
 
@@ -69,7 +70,7 @@ function baseColor(): Rgba {
     const navFace = nav ? getComputedStyle(nav).getPropertyValue('--bnav-face') : ''
 
     const ambient = document.querySelector('.acca-ambient-bg')
-    const navDefault = dark ? '#000000' : '#ffffff'
+    const navDefault = dark ? '#0b1329' : '#ffffff'
     const candidates = [
         sidebarBg,
         navFace,
@@ -81,7 +82,7 @@ function baseColor(): Rgba {
         const parsed = parseColor(c)
         if (parsed && parsed.a > 0.95) return parsed
     }
-    return dark ? { r: 0, g: 0, b: 0, a: 1 } : { r: 255, g: 255, b: 255, a: 1 }
+    return dark ? { r: 11, g: 19, b: 41, a: 1 } : { r: 255, g: 255, b: 255, a: 1 }
 }
 
 /**
@@ -162,6 +163,7 @@ export function applyThemeColor(): void {
     const base = baseColor()
     const overlay = topOverlayColor()
     const next = toHex(overlay ? blend(overlay, base) : base)
+    document.documentElement.style.setProperty('--app-browser-bg', next)
 
     const metas = getThemeColorMetas()
     metas.forEach(meta => {

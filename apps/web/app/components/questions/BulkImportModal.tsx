@@ -66,6 +66,13 @@ export default function BulkImportModal({
     bankId,
     onImportComplete
 }: BulkImportModalProps) {
+    const importRequests = useRef(new Map<string, string>());
+    const requestIdFor = useCallback((questions: unknown) => {
+        const key = JSON.stringify([bankId, questions]);
+        let id = importRequests.current.get(key);
+        if (!id) { id = crypto.randomUUID(); importRequests.current.set(key, id); }
+        return id;
+    }, [bankId]);
     const [step, setStep] = useState<ImportStep>('upload');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [fileType, setFileType] = useState<FileType>('docx');
@@ -188,10 +195,11 @@ export default function BulkImportModal({
                     };
                 });
 
-            const clientRequestId = crypto.randomUUID();
+            const clientRequestId = requestIdFor(questionsToImport);
             const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
 
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
+                importRequests.current.delete(JSON.stringify([bankId, questionsToImport]));
                 setImportProgress(100);
                 setTimeout(async () => {
                     await onImportComplete();
@@ -206,7 +214,7 @@ export default function BulkImportModal({
             console.error('Cross-import error:', error);
             setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose]);
+    }, [selectedCrossQuestions, sourceBankQuestions, bankId, onImportComplete, handleClose, requestIdFor]);
 
     // ── File import handlers ───────────────────────────────────────────────────
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -317,9 +325,10 @@ export default function BulkImportModal({
             }));
 
         try {
-            const clientRequestId = crypto.randomUUID();
+            const clientRequestId = requestIdFor(questionsToImport);
             const result = await bulkImportQuestions(bankId, questionsToImport, clientRequestId);
             if (result.success && result.failed === 0 && result.errors.length === 0 && result.imported === questionsToImport.length) {
+                importRequests.current.delete(JSON.stringify([bankId, questionsToImport]));
                 setImportProgress(100);
                 setTimeout(async () => {
                     await onImportComplete();
@@ -334,7 +343,7 @@ export default function BulkImportModal({
             console.error('Import error:', error);
             setImportError(getErrorMessage(error) || 'Terjadi kesalahan saat mengimpor.');
         }
-    }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose]);
+    }, [editableQuestions, selectedQuestions, parseResult, bankId, onImportComplete, handleClose, requestIdFor]);
 
     const toggleQuestionSelection = useCallback((index: number) => {
         setSelectedQuestions(prev => {

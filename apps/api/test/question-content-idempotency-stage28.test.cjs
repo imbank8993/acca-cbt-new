@@ -122,3 +122,20 @@ test('QID-07: revisi lama dari tab kedua tidak menimpa edit terbaru', async () =
     );
     assert.equal(db.tables.cbt_bank_questions[0].question_text, 'Versi tab pertama');
 });
+
+
+test('reorder rereads concurrent edits after acquiring row locks', async () => {
+    const db = fixtureDb({ cbt_bank_questions: [{ id: 'q', bank_id: 'b', revision: 1, metadata: { explanation: 'old' } }], cbt_question_banks: [{ id: 'b' }] });
+    let locked = false;
+    db.raw = async sql => {
+        assert.match(sql, /FOR UPDATE/);
+        locked = true;
+        db.tables.cbt_bank_questions[0] = { id: 'q', bank_id: 'b', revision: 2, metadata: { explanation: 'concurrent edit' } };
+        return [{ id: 'q' }];
+    };
+    await new QuestionsService(db, { assertBankAccess: async () => 'school' }, {}).reorder({ id: 'teacher' }, 'b', ['q']);
+    assert.equal(locked, true);
+    assert.equal(db.tables.cbt_bank_questions[0].metadata.explanation, 'concurrent edit');
+    assert.equal(db.tables.cbt_bank_questions[0].revision, 3);
+    assert.equal(db.tables.cbt_bank_questions[0].metadata.order_index, 0);
+});

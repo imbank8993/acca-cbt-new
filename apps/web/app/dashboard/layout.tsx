@@ -23,7 +23,7 @@ import { getSessionUser } from '@/lib/session';
 import { applyThemeColor } from '@/lib/theme-color';
 import { clearMemoryCacheByPrefix } from '@/lib/useMemoryState';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 interface ExtendedUser {
     nama?: string;
@@ -48,14 +48,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const pathRoleRef = useRef<DashboardRole | null>(null);
     const scrollPosRef = useRef(0);
 
-    // Warna chrome browser & simpan/kembalikan posisi scroll saat sidebar mobile buka/tutup
+    const changeMobileOpen = (open: boolean) => {
+        if (open && !mobileOpen) scrollPosRef.current = window.scrollY;
+        setMobileOpen(open);
+    };
     useEffect(() => {
+        const mobile = window.matchMedia('(max-width: 1023.98px)');
+        const closeOnDesktop = () => { if (!mobile.matches) setMobileOpen(false); };
+        mobile.addEventListener('change', closeOnDesktop);
+        return () => mobile.removeEventListener('change', closeOnDesktop);
+    }, []);
+    useLayoutEffect(() => {
         applyThemeColor();
-        if (mobileOpen) {
-            scrollPosRef.current = window.scrollY || window.pageYOffset || 0;
-        } else if (scrollPosRef.current > 0) {
+        if (!mobileOpen || !window.matchMedia('(max-width: 1023.98px)').matches) return;
+        const root = document.documentElement;
+        root.style.setProperty('--sidebar-scroll-y', `${scrollPosRef.current}px`);
+        root.classList.add('app-sidebar-open');
+        return () => {
+            root.classList.remove('app-sidebar-open');
+            root.style.removeProperty('--sidebar-scroll-y');
+            const behavior = root.style.scrollBehavior;
+            root.style.scrollBehavior = 'auto';
             window.scrollTo(0, scrollPosRef.current);
-        }
+            root.style.scrollBehavior = behavior;
+        };
     }, [mobileOpen]);
 
     const pageTitle = useMemo(() => {
@@ -291,11 +307,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return (
         <div className={`dashboard-layout min-h-screen bg-[#EBECF1] dark:bg-[#020718] text-slate-900 dark:text-slate-100 transition-colors duration-200 ${mobileOpen ? 'sidebar-mobile-open' : ''}`}>
+            <div className="mobile-browser-edge" aria-hidden="true" />
             <Sidebar
                 isCollapsed={isCollapsed}
                 setIsCollapsed={setIsCollapsed}
                 isOpen={mobileOpen}
-                setIsOpen={setMobileOpen}
+                setIsOpen={changeMobileOpen}
                 activeRole={activeRoleCtx}
             />
             <div className="dashboard-content-wrapper">
@@ -308,7 +325,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         roles: activeRoleCtx?.role ? [activeRoleCtx.role] : (currentUser?.roles || ['User']),
                         photoUrl: currentUser?.photoUrl,
                     }}
-                    onMenuToggle={() => setMobileOpen(!mobileOpen)}
+                    onMenuToggle={() => changeMobileOpen(!mobileOpen)}
                     isCollapsed={isCollapsed}
                     onCollapse={() => setIsCollapsed(!isCollapsed)}
                     pageTitle={pageTitle}
@@ -327,7 +344,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     user={currentUser}
                     activeRole={activeRoleCtx?.role}
                     onNavigate={(p) => router.push(p)}
-                    onOpenMenu={() => setMobileOpen(true)}
+                    onOpenMenu={() => changeMobileOpen(true)}
                 />
                 {mobileOpen && (
                     <div
@@ -354,7 +371,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         inset: auto !important;
                         width: 100% !important;
                         min-height: 100vh !important;
-                        min-height: 100dvh !important;
+                        min-height: 100svh !important;
                         height: auto !important;
                         overflow: visible !important;
                         overflow-x: clip !important;
@@ -366,15 +383,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         position: relative;
                         width: 100%;
                         min-height: 100vh;
-                        min-height: 100dvh;
+                        min-height: 100svh;
                         background: #EBECF1;
                         transform: none !important;
                         border-radius: 0;
                         overflow: visible;
                         z-index: 100;
-                        transition: transform .35s cubic-bezier(0.32, 0.72, 0, 1),
-                                    border-radius .35s cubic-bezier(0.32, 0.72, 0, 1),
-                                    box-shadow .35s cubic-bezier(0.32, 0.72, 0, 1);
+
                     }
 
                     :global(.dark) .dashboard-content-wrapper {
@@ -394,12 +409,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         height: 100dvh !important;
                         overflow: hidden !important;
                         background: #ffffff !important;
-                        touch-action: none;
+                        touch-action: pan-y;
                         z-index: 1000 !important;
                     }
 
                     :global(.dark) .dashboard-layout.sidebar-mobile-open {
-                        background: #000000 !important;
+                        background: #0b1329 !important;
                     }
 
                     .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
@@ -413,33 +428,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         height: 100% !important;
                         height: 100dvh !important;
                         transform: translate3d(var(--app-sidebar-mobile-w, min(calc(100vw - 64px), 320px)), 0, 0) !important;
-                        border-top-left-radius: 28px !important;
-                        border-bottom-left-radius: 28px !important;
-                        border: 1px solid rgba(0, 0, 0, 0.08) !important;
-                        border-right: none !important;
-                        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.16), -1px 0 0 rgba(0, 0, 0, 0.06) !important;
+                        border-radius: 24px 0 0 24px !important;
+                        clip-path: inset(0 round 24px 0 0 24px);
+                        -webkit-clip-path: inset(0 round 24px 0 0 24px);
+                        border: none !important;
+                        box-shadow: none !important;
                         overflow: hidden !important;
                         pointer-events: none;
-                        -webkit-mask-image: -webkit-radial-gradient(white, black) !important;
-                        mask-image: radial-gradient(white, black) !important;
-                    }
-
-                    :global(.dark) .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
-                        background: #000000 !important;
-                        border: 1px solid rgba(255, 255, 255, 0.16) !important;
-                        border-right: none !important;
-                        box-shadow: -12px 0 32px rgba(0, 0, 0, 0.8), -1px 0 0 rgba(255, 255, 255, 0.12) !important;
+                        isolation: isolate;
                     }
 
                     .sidebar-mobile-backdrop {
                         position: fixed;
                         inset: 0;
-                        background: rgba(15, 23, 42, 0.18);
+                        background: rgba(15, 23, 42, 0.24);
                         z-index: 1200;
                         cursor: pointer;
                         pointer-events: auto !important;
-                        border-top-left-radius: 28px;
-                        border-bottom-left-radius: 28px;
+                        border-radius: inherit;
                         opacity: 0;
                         animation: fadeInBackdrop 0.25s forwards;
                         -webkit-tap-highlight-color: transparent;
@@ -456,11 +462,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         }
                     }
 
+                    .dashboard-layout.sidebar-mobile-open .dashboard-main {
+                        transform: translateY(calc(-1 * var(--sidebar-scroll-y, 0px))) !important;
+                        transition: none !important;
+                    }
+                    .mobile-browser-edge {
+                        position: fixed;
+                        bottom: 0;
+                        left: 0;
+                        right: 0;
+                        height: max(1px, env(safe-area-inset-bottom));
+                        background: var(--app-browser-bg, #ffffff);
+                        pointer-events: none;
+                        z-index: 399;
+                    }
                     .dashboard-main {
                         padding-top: calc(var(--app-header-h, 56px) + env(safe-area-inset-top) + 4px) !important;
-                        padding-bottom: 12px !important;
-                        min-height: calc(100vh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;
-                        min-height: calc(100dvh - var(--app-bottomnav-h, 62px) - env(safe-area-inset-bottom)) !important;
+                        padding-bottom: calc(var(--app-bottomnav-h, 62px) + env(safe-area-inset-bottom) + 12px) !important;
+                        min-height: 100vh !important;
+                        min-height: 100svh !important;
                         box-sizing: border-box !important;
                     }
                 }
