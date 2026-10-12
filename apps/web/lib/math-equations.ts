@@ -34,7 +34,7 @@ function renderer() {
         RegisterHTMLHandler(adaptor);
         document = mathjax.document('', {
             InputJax: new MathML(),
-            OutputJax: new SVG({ fontCache: 'local' }),
+            OutputJax: new SVG({ fontCache: 'none' }),
         });
     }
     return { document: document!, adaptor: adaptor! };
@@ -105,17 +105,17 @@ export async function renderEquationsToImages(html: string, bankId: string): Pro
     for (const mml of equations) {
         try {
             const { svg, style } = mmlToSvg(mml);
-            if (!svg) continue;
+            if (!svg) throw new Error('Rumus tidak dapat dirender.');
 
             const url = await uploadSvgViaNest(svg, bankId);
-            if (!url) continue;
+            if (!url) throw new Error('Gagal menyimpan gambar rumus. Coba impor kembali.');
 
             output = output.replace(
                 mml,
                 `<img src="${url}" class="math-equation-img" style="${style} display: inline-block; max-width: 100%;" alt="equation" />`,
             );
         } catch (error) {
-            console.error('[math-equations] Gagal merender persamaan:', error);
+            throw error;
         }
     }
 

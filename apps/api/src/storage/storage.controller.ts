@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   Controller,
@@ -166,7 +167,9 @@ export class StorageController {
     // Untuk upload user biasa, folder `assignments/` dikunci ke userId.
     const callerId = user?.id ?? 'internal';
     const folder = sanitizeFolder(rawFolder || 'misc', callerId);
-    const fileName = this.storage.generateFileName(file.originalname);
+    const fileName = !user && /^banks\/[0-9a-f-]+\/equations$/i.test(folder) && contentType === 'image/svg+xml'
+      ? `eq_${createHash('sha256').update(file.buffer).digest('hex')}.svg`
+      : this.storage.generateFileName(file.originalname);
     const ownedFolder = user && !folder.startsWith('assignments/')
       ? `users/${user.id}/${folder}` : folder;
     const key = `${ownedFolder}/${fileName}`;
