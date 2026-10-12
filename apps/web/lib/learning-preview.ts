@@ -1,11 +1,26 @@
 import DOMPurify from 'dompurify';
 
-/** Opaque-origin iframe + restrictive CSP: uploaded scripts never receive the app origin. */
+// Exact URLs only: never allow an entire CDN origin for executable content.
+const TAILWIND = 'https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js';
+const ICON_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+const ICON_FONTS = ['fa-solid-900.woff2', 'fa-regular-400.woff2', 'fa-brands-400.woff2']
+    .map(name => `https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/${name}`).join(' ');
+
+/** Author scripts execute only in an opaque-origin sandbox, never in the app. */
 export function learningPreviewDocument(html: string, interactive = false, bridge?: string): string {
-    const source = DOMPurify.sanitize(html, { USE_PROFILES: { html: true, mathMl: true, svg: true } });
-    const nonce = crypto.randomUUID().replace(/-/g, '');
+    const source = interactive ? html : DOMPurify.sanitize(html, { WHOLE_DOCUMENT: true, USE_PROFILES: { html: true, mathMl: true, svg: true } });
     const document = new DOMParser().parseFromString(source, 'text/html');
-    document.querySelectorAll('base, meta[http-equiv]').forEach(node => node.remove());
+    document.querySelectorAll('base, meta[http-equiv], iframe, frame, frameset, object, embed').forEach(node => node.remove());
+    if (interactive) {
+        document.querySelectorAll('script').forEach(node => {
+            const src = node.getAttribute('src');
+            if (src && src !== TAILWIND) { node.remove(); return; }
+            node.removeAttribute('nonce');
+        });
+        document.querySelectorAll('link').forEach(node => {
+            if (node.getAttribute('rel') !== 'stylesheet' || node.getAttribute('href') !== ICON_CSS) node.remove();
+        });
+    }
     // Safe external links open in a new tab; hash links remain within the document
     document.querySelectorAll('a').forEach(node => {
         const href = node.getAttribute('href');
@@ -25,7 +40,7 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     }
     const csp = document.createElement('meta'); csp.httpEquiv = 'Content-Security-Policy';
     csp.content = interactive
-        ? `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
+        ? `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND}; style-src 'unsafe-inline' ${ICON_CSS}; font-src data: ${ICON_FONTS}; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
         : "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' https:; font-src data: https:; img-src data: blob: https: http:; media-src data: blob: https: http:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';";
     document.head.prepend(csp);
 
@@ -49,7 +64,7 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
         csp.after(style);
     } else document.head.append(style);
     if (interactive && bridge) {
-        const script = document.createElement('script'); script.setAttribute('nonce', nonce); script.textContent = bridge;
+        const script = document.createElement('script'); script.textContent = bridge;
         csp.after(script);
     }
     return '<!doctype html>' + document.documentElement.outerHTML;

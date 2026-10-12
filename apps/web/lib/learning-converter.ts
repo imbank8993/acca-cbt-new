@@ -8,7 +8,7 @@ export async function convertLearningFile(file: File): Promise<ConvertedMaterial
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     let result: ConvertedMaterial;
     if (['html', 'htm'].includes(ext)) {
-        result = { format: 'html', html: await file.text(), notes: ['HTML mendukung skrip dan gaya yang tertanam di dalam berkas. Sumber eksternal, akses akun, serta penyimpanan browser dibatasi.'] };
+        result = { format: 'html', html: await file.text(), notes: ['HTML interaktif berjalan terisolasi. Skrip lokal didukung; sumber luar dibatasi pada pustaka tampilan yang diizinkan. Akses akun, formulir keluar, popup, dan penyimpanan aplikasi diblokir.'] };
     } else if (['docx', 'dotx'].includes(ext)) {
         const mammoth = await import('mammoth');
         const converted = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() }, { externalFileAccess: false,

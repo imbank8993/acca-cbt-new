@@ -102,7 +102,7 @@ for (const operation of ['activity', 'progress']) test(`LMS ${operation} recheck
 });
 
 
-test('LMS interactive preview strips uploaded code and only authorizes the internal bridge', () => {
+test('LMS interactive preview preserves local behavior but blocks arbitrary external code and embeds', () => {
     const fs = require('node:fs');
     const vm = require('node:vm');
     const ts = require('typescript');
@@ -120,15 +120,21 @@ test('LMS interactive preview strips uploaded code and only authorizes the inter
     });
     const html = exports.learningPreviewDocument('<script>location="https://example.invalid"</script><script src="https://example.invalid/a.js"></script><input name="answer" oninput="fetch(value)"><a href="https://example.invalid">Link</a><iframe src="https://example.invalid"></iframe>', true, '/* trusted bridge */');
     const doc = new window.DOMParser().parseFromString(html, 'text/html');
-    assert.equal(doc.querySelectorAll('script').length, 1);
+    assert.equal(doc.querySelectorAll('script').length, 2);
+    assert.equal(doc.querySelector('script[src]'), null);
     assert.equal(doc.querySelector('script').textContent, '/* trusted bridge */');
-    assert.equal(doc.querySelector('input').hasAttribute('oninput'), false);
+    assert.equal(doc.querySelector('input').hasAttribute('oninput'), true);
     assert.equal(doc.querySelector('a').hasAttribute('href'), false);
     assert.equal(doc.querySelector('iframe'), null);
     const policy = doc.querySelector('meta[http-equiv]').content;
     assert.match(policy, /connect-src 'none'/);
     assert.match(policy, /form-action 'none'/);
-    assert.ok(policy.includes(`script-src 'nonce-${doc.querySelector('script').getAttribute('nonce')}'`));
-    assert.ok(!policy.includes('https:'));
+    assert.ok(policy.includes("script-src 'unsafe-inline' https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js;"));
+    assert.ok(!policy.includes("'unsafe-eval'"));
+    assert.ok(!policy.includes('https:;'));
+    const preview = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/learning/MaterialPreview.tsx'), 'utf8');
+    assert.ok(!preview.includes('allow-same-origin'));
+    assert.ok(!preview.includes('allow-popups'));
+    assert.ok(!preview.includes('allow-top-navigation'));
     window.close();
 });
