@@ -215,6 +215,13 @@ const ExamsPage = () => {
             openAssign(exam);
             return;
         }
+        if (!await confirmDialog({
+            title: exam.is_published ? 'Unpublish Ujian?' : 'Publish Ujian?',
+            text: exam.is_published
+                ? `Unpublish ujian "${exam.title}" dan kembalikan statusnya menjadi draf?`
+                : `Publish ujian "${exam.title}" agar tersedia bagi peserta sesuai jadwal dan penugasan?`,
+            confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+        })) return;
         setIsSubmitting(true);
         setPublishingId(exam.id);
         try {

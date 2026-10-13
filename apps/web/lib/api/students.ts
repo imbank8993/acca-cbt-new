@@ -211,11 +211,11 @@ export interface StudentSavedAnswer {
  * NestJS.
  */
 export async function getExamForAttempt(examId: string) {
-    const res = await apiGet<{ exam: StudentExam; profile: StudentProfile | null }>(
+    const res = await apiGet<{ exam: StudentExam; profile: StudentProfile | null; hasStartedAttempt: boolean }>(
         `/api/students/exams/${encodeURIComponent(examId)}`,
     );
     return res.success
-        ? { success: true as const, exam: res.exam, profile: res.profile }
+        ? { success: true as const, exam: res.exam, profile: res.profile, hasStartedAttempt: res.hasStartedAttempt }
         : { success: false as const, error: res.error, retryable: res.retryable === true };
 }
 

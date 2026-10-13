@@ -24,7 +24,7 @@ export class LearningController {
     @Delete(':id')
     delete(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string) { return this.learning.delete(user, org, id); }
     @Post(':id/file')
-    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, fieldSize: 8 * 1024 * 1024, files: 1, fields: 12 } }))
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, fieldSize: 8 * 1024 * 1024, files: 1, fields: 13 } }))
     upload(@CurrentUser() user: AuthUser, @CurrentSchoolId() org: string, @Param('id', ParseUUIDPipe) id: string,
         @UploadedFile() file: Express.Multer.File | undefined, @Body() dto: UpdateMaterialDto) { return this.learning.upload(user, org, id, file, dto.revision, dto); }
     @Get(':id/file')

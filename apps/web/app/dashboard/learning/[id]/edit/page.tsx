@@ -8,7 +8,7 @@ import { deleteMaterial, learningRequest, saveMaterial, type LearningMaterial } 
 import { convertLearningFile } from '@/lib/learning-converter';
 import { downloadLearningTemplate } from '@/lib/learning-templates';
 import { learningPreviewDocument } from '@/lib/learning-preview';
-import { deleteConfirmDialog } from '@/lib/confirm-dialog';
+import { confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { fetchSessionUser } from '@/lib/session';
 import { ActivityResults } from '@/app/components/learning/ActivityResults';
 import '@/app/components/learning/learning.css';
@@ -67,6 +67,11 @@ export default function MaterialEditor() {
     };
     const save = useCallback(async (status: 'draft' | 'published') => {
         if (!material || busy) return;
+        if (status !== material.status && !await confirmDialog({
+            title: status === 'published' ? 'Terbitkan Bahan Ajar?' : 'Kembalikan ke Draf?',
+            text: status === 'published' ? `Terbitkan "${material.title}" agar dapat dibaca siswa?` : `Bahan ajar "${material.title}" tidak lagi tersedia bagi siswa setelah menjadi draf.`,
+            confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+        })) return;
         setBusy('Menyimpan…'); setError(''); setNotice('');
         try {
             if ((await fetchSessionUser())?.id !== owner.current) throw new Error('Akun berubah. Masuk dengan akun semula untuk menyimpan draf.');
@@ -76,8 +81,34 @@ export default function MaterialEditor() {
         catch (err) { setError((err as Error).message); }
         finally { setBusy(''); }
     }, [material, busy]);
+    const uploadCover = async (file?: File) => {
+        if (!file || !material || busy) return;
+        setBusy('Menyiapkan cover…'); setError('');
+        try {
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error('Pilih gambar JPG, PNG, atau WebP maksimal 5 MB.');
+            const bitmap = await createImageBitmap(file);
+            try {
+                const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+                const context = canvas.getContext('2d');
+                if (!context) throw new Error('Gambar tidak dapat diproses.');
+                context.fillStyle = '#ffffff'; context.fillRect(0, 0, 640, 360);
+                const ratio = Math.min(640 / bitmap.width, 360 / bitmap.height);
+                const width = bitmap.width * ratio, height = bitmap.height * ratio;
+                context.drawImage(bitmap, (640 - width) / 2, (360 - height) / 2, width, height);
+                const cover = canvas.toDataURL('image/jpeg', 0.75);
+                if (cover.length > 160000) throw new Error('Gambar terlalu kompleks. Pilih gambar cover yang lebih sederhana.');
+                edit({ cover_data: cover });
+            } finally { bitmap.close(); }
+        } catch (err) { setError((err as Error).message); }
+        finally { setBusy(''); }
+    };
     const upload = async (file?: File) => {
         if (!file || !material || busy) return;
+        if ((material.hasFile || material.content_html) && !await confirmDialog({
+            title: 'Ganti Dokumen Bahan Ajar?',
+            text: `Berkas "${file.name}" akan menggantikan isi bahan ajar "${material.title}". Jika sudah terbit, perubahan langsung tersedia bagi siswa.`,
+            confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+        })) return;
         setBusy('Mengonversi dokumen…'); setError(''); setNotice('');
         try {
             const converted = await convertLearningFile(file);
@@ -85,7 +116,7 @@ export default function MaterialEditor() {
             setBusy('Mengunggah berkas asli…');
             const data = new FormData(); data.append('file', file);
             for (const [key, value] of Object.entries({ revision: material.revision, title: material.title, description: material.description,
-                subject: material.subject, gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '', status: material.status, format: converted.format, contentHtml: converted.html, conversionNotes: converted.notes.join('\n') })) data.append(key, String(value));
+                coverData: material.cover_data || '', subject: material.subject, gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '', status: material.status, format: converted.format, contentHtml: converted.html, conversionNotes: converted.notes.join('\n') })) data.append(key, String(value));
             const uploaded = await learningRequest<{ material: LearningMaterial }>(`/${id}/file`, { method: 'POST', body: data });
             setMaterial(uploaded.material); setPreview(uploaded.material); setDirty(false); clearDraft();
             setNotice(uploaded.material.status === 'published' ? 'Berkas baru berhasil diunggah dan materi diperbarui.' : 'Dokumen dan hasil konversi tersimpan bersama sebagai draf.');
@@ -130,7 +161,7 @@ export default function MaterialEditor() {
         </div>
         {error && <div className="learn-error" role="alert">{error}{!material && <button onClick={() => void load()}>Coba lagi</button>}</div>}
         {recovery && material && <div className="learn-notes">Versi server telah berubah. Pemulihan mengganti isi editor dengan salinan lokal, lalu perlu disimpan.
-            <button disabled={!!busy} onClick={() => { const next = { ...material, title: recovery.title, description: recovery.description, subject: recovery.subject, grade_level: recovery.grade_level || '', topic: recovery.topic || '', subtopic: recovery.subtopic || '', content_html: recovery.content_html, format: recovery.format, conversion_notes: recovery.conversion_notes }; keepDraft(next); setMaterial(next); setPreview(next); setDirty(true); setRecovery(null); }}>Pulihkan isi lokal</button>
+            <button disabled={!!busy} onClick={() => { const next = { ...material, cover_data: recovery.cover_data || '', title: recovery.title, description: recovery.description, subject: recovery.subject, grade_level: recovery.grade_level || '', topic: recovery.topic || '', subtopic: recovery.subtopic || '', content_html: recovery.content_html, format: recovery.format, conversion_notes: recovery.conversion_notes }; keepDraft(next); setMaterial(next); setPreview(next); setDirty(true); setRecovery(null); }}>Pulihkan isi lokal</button>
             <button disabled={!!busy} onClick={() => { clearDraft(); setRecovery(null); }}>Gunakan versi server</button>
         </div>}
         {denied ? <div className="learn-empty"><h2>Akses pengelolaan tidak tersedia</h2><p>Materi ini hanya dapat diubah oleh pembuatnya atau admin.</p></div> : !material ? !error && <div className="learn-loading">Memuat draf…</div> : <div className="learn-editor">
@@ -141,6 +172,14 @@ export default function MaterialEditor() {
                 <div className="learn-field"><label htmlFor="material-subtopic">Submateri</label><input id="material-subtopic" placeholder="Contoh: Menentukan akar persamaan" maxLength={200} value={material.subtopic || ''} onChange={event => edit({ subtopic: event.target.value })} /></div>
                 <div className="learn-field"><label htmlFor="material-description">Deskripsi singkat</label><textarea id="material-description" placeholder="Apa yang akan dipelajari siswa?" maxLength={4000} value={material.description} onChange={event => edit({ description: event.target.value })} /></div>
                 <span className={`learn-status ${material.status}`}>{material.status === 'published' ? 'Terbit · semua siswa' : 'Draf · belum dibagikan'}</span>{dirty && <small style={{ marginLeft: 8 }}>Belum disimpan</small>}
+            </section><section className="learn-panel"><h2>Cover bahan ajar</h2>
+                {material.cover_data && <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="learn-cover learn-cover-editor" src={material.cover_data} alt="Pratinjau cover" />
+                    <button disabled={!!busy} onClick={() => edit({ cover_data: '' })}>Hapus cover</button>
+                </>}
+                <div className="learn-field"><label htmlFor="material-cover">Unggah cover</label><input id="material-cover" type="file" accept="image/jpeg,image/png,image/webp" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void uploadCover(file); }} /></div>
+                <p>JPG, PNG, atau WebP, maksimal 5 MB. Cover ditampilkan dengan rasio 16:9. Simpan draf atau terbitkan untuk menyimpan perubahan.</p>
             </section><section className="learn-panel"><h2>Dokumen sumber</h2><label className="learn-upload"><FileUp size={28} /><span>Pilih berkas bahan ajar</span><input aria-label="Unggah bahan ajar" type="file" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} /></label>
                 <p style={{ fontSize: 12, marginTop: 12 }}>Word (.docx/.dotx), LaTeX (.tex atau .zip dengan main.tex), HTML, PDF, gambar, media, atau lampiran lain. Maksimum 25 MB (TeX: 500 KB).</p><p style={{ fontSize: 12 }}>Untuk proyek bergambar, unggah ZIP berisi main.tex di folder teratas. Sertakan folder gambar sesuai lokasi yang dirujuk dalam TeX.</p>
                 {material.status === 'published' && <p style={{ fontSize: 12, marginTop: 10, color: '#2563EB', fontWeight: 500 }}>Unggah berkas baru untuk langsung memperbarui materi ini.</p>}

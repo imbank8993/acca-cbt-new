@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 import { ActionButton } from '@/app/components/ui/actionbutton';
 import { Button } from '@/app/components/ui/button';
@@ -208,6 +209,13 @@ export default function ProktorQuestionBankPage() {
     const handleTogglePublish = async (bank: QuestionBank) => {
         if (!org) return;
         const newStatus = !bank.is_published;
+        if (!await confirmDialog({
+            title: newStatus ? 'Publish Bank Soal?' : 'Unpublish Bank Soal?',
+            text: newStatus
+                ? `Publish bank soal "${bank.title}" agar dapat digunakan untuk menyusun ujian?`
+                : `Unpublish bank soal "${bank.title}" dan kembalikan statusnya menjadi draf?`,
+            confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+        })) return;
         const result = await toggleQuestionBankPublishAction(bank.id, newStatus);
         if (result.success) await loadData();
         else alert('Gagal: ' + result.error);

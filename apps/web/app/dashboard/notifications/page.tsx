@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 import type { Notification,NotificationType } from '@/app/types/notification';
 import {
 NOTIFICATION_TYPE_COLORS,
@@ -136,12 +137,14 @@ export default function NotificationsPage() {
 
     // Handle delete
     const handleDelete = async (id: string) => {
+        if (!await confirmDialog({ title: 'Hapus Notifikasi?', text: 'Notifikasi ini akan dihapus dari daftar Anda.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
         await deleteNotification(id);
         loadNotifications();
     };
 
     // Handle delete all read
     const handleDeleteAllRead = async () => {
+        if (!await confirmDialog({ title: 'Hapus Semua Notifikasi Terbaca?', text: 'Seluruh notifikasi yang sudah dibaca akan dihapus.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
         setIsProcessing(true);
         await deleteAllReadNotifications();
         loadNotifications();
@@ -172,6 +175,8 @@ export default function NotificationsPage() {
 
     // Handle bulk delete
     const handleBulkDelete = async () => {
+        if (!selectedNotifications.size || isProcessing) return;
+        if (!await confirmDialog({ title: 'Hapus Notifikasi Terpilih?', text: `Hapus ${selectedNotifications.size} notifikasi yang dipilih?`, confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
         setIsProcessing(true);
         for (const id of selectedNotifications) {
             await deleteNotification(id);

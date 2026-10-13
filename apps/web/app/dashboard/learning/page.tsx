@@ -262,6 +262,10 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                 <div className="learn-grid">
                     {visible.map(item => (
                         <article className="learn-card" key={item.id}>
+                            {item.cover_data?.startsWith('data:image/jpeg;base64,') && <Link href={`/dashboard/learning/${item.id}`} aria-label={`Buka ${item.title}`}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img className="learn-cover" src={item.cover_data} alt={`Cover ${item.title}`} loading="lazy" />
+                            </Link>}
                             {(manage || item.completed) && (
                                 <div className="learn-card-top">
                                     {manage ? (

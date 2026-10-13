@@ -1,6 +1,7 @@
 import { assertLearningContentSize } from './learning-content-limit';
 export type MaterialFormat = 'html' | 'word' | 'latex' | 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'attachment';
 export interface LearningMaterial {
+    cover_data?: string;
     grade_level: string; topic: string; subtopic: string;
     id: string; title: string; description: string; subject: string; status: 'draft' | 'published';
     format: MaterialFormat; content_html: string; conversion_notes: string; hasFile: boolean; hasRenderedPdf?: boolean;
@@ -17,7 +18,7 @@ export async function learningRequest<T>(path = '', init: RequestInit = {}): Pro
 export async function saveMaterial(material: LearningMaterial, status = material.status) {
     assertLearningContentSize(material.content_html);
     return learningRequest<{ material: LearningMaterial }>(`/${material.id}`, { method: 'PUT', body: JSON.stringify({
-        gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '',
+        coverData: material.cover_data || '', gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '',
         revision: material.revision, title: material.title, description: material.description, subject: material.subject,
         status, format: material.format, contentHtml: material.content_html, conversionNotes: material.conversion_notes,
     }) });

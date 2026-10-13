@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -166,6 +167,7 @@ export default function ValidatorReviewPage() {
     };
 
     const handleDeleteNote = async (noteId: string) => {
+        if (!await confirmDialog({ title: 'Hapus Catatan Validasi?', text: 'Catatan ini akan dihapus dari hasil pemeriksaan soal.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
         try {
             const res = await deleteValidationNote(validationId, noteId);
             if (res.success) {

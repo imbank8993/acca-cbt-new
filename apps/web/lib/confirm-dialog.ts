@@ -1,4 +1,5 @@
 import Swal, { SweetAlertIcon } from 'sweetalert2';
+import './confirm-dialog.css';
 
 export interface ConfirmOptions {
   title: string;
@@ -55,19 +56,25 @@ export async function confirmDialog({
     text,
     icon: icon || style.icon,
     showCancelButton: true,
-    confirmButtonColor: style.confirmBtn,
-    cancelButtonColor: '#64748b',
+    confirmButtonColor: '#3083FF',
+    cancelButtonColor: '#ffffff',
     confirmButtonText: confirmText,
     cancelButtonText: cancelText,
     reverseButtons: true,
     focusCancel: variant === 'danger',
+    width: 440,
+    padding: 0,
+    buttonsStyling: false,
+    iconColor: '#3083FF',
     customClass: {
-      popup: 'rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 dark:bg-slate-900 p-6',
-      title: 'text-lg font-bold text-slate-900 dark:text-white',
-      htmlContainer: 'text-sm text-slate-600 dark:text-slate-300 my-2',
-      confirmButton: 'px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md focus:outline-none transition-all',
-      cancelButton: 'px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm focus:outline-none transition-all',
-      actions: 'gap-3 mt-4',
+      container: 'acca-confirm-overlay',
+      popup: 'acca-confirm',
+      icon: 'acca-confirm-icon',
+      title: 'acca-confirm-title',
+      htmlContainer: 'acca-confirm-body',
+      confirmButton: 'acca-confirm-yes',
+      cancelButton: 'acca-confirm-no',
+      actions: 'acca-confirm-actions',
     },
   });
 

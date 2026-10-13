@@ -210,6 +210,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     const handleRemoveStudent = async (userId: string) => {
         if (!selectedRoom) return;
+        if (!await deleteConfirmDialog({ title: 'Keluarkan Siswa dari Ruang?', text: 'Penempatan siswa di ruang ujian ini akan dihapus. Akun siswa tetap tersedia.', confirmText: 'Ya', cancelText: 'Tidak' })) return;
         setIsSaving(true);
         const result = await removeStudentFromRoomAction(period.id, userId);
         if (result.success) {

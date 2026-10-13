@@ -9,11 +9,11 @@ import { ActivityDto, CreateMaterialDto, UpdateMaterialDto } from './learning.dt
 
 export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
-    subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
+    cover_data?: string; subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
     rendered_pdf_key: string | null; conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
     revision: number; content_version: number; created_at: string; updated_at: string; published_at: string | null;
 }
-const LIST_COLUMNS = 'id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
+const LIST_COLUMNS = 'cover_data, id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
 
 @Injectable()
 export class LearningService {
@@ -92,6 +92,7 @@ export class LearningService {
         if (row.rendered_pdf_key && (dto.format !== 'latex' || dto.contentHtml !== row.content_html)) throw new BadRequestException('Unggah ulang file TeX untuk mengubah isi dokumen PDF.');
         if (dto.status === 'published' && !dto.contentHtml.trim() && !row.file_key) throw new BadRequestException('Unggah berkas atau isi materi sebelum menerbitkan.');
         const { data, error } = await this.db.from('cbt_learning_materials').update({
+            cover_data: dto.coverData ?? row.cover_data ?? '',
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(), status: dto.status,
             format: dto.format, content_html: dto.contentHtml, conversion_notes: dto.conversionNotes,
@@ -127,6 +128,7 @@ export class LearningService {
         const name = file.originalname.replace(/[\\/\x00-\x1f\x7f]/g, '_').slice(0, 240);
         const { data, error } = await this.db.from('cbt_learning_materials').update({ file_key: key, file_name: name,
             file_size: file.size, rendered_pdf_key: pdfKey, content_html: content.contentHtml, conversion_notes: content.conversionNotes, format: content.format,
+            cover_data: dto.coverData ?? row.cover_data ?? '',
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(),
             status: dto.status || row.status,

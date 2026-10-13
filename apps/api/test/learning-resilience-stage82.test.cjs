@@ -138,3 +138,28 @@ test('LMS interactive preview preserves local behavior but blocks arbitrary exte
     assert.ok(!preview.includes('allow-top-navigation'));
     window.close();
 });
+
+test('LMS cover: preserves completion, survives omitted metadata and supports removal', async () => {
+    const { service } = fixture();
+    await service.progress(student, 'school', 'material', true, 1);
+    const cover = 'data:image/jpeg;base64,/9j/2Q==';
+    await service.update(teacher, 'school', 'material', { ...dto, coverData: cover });
+    assert.equal((await service.detail(student, 'school', 'material')).completed, true);
+    assert.equal((await service.list(student, 'school')).materials[0].cover_data, cover);
+    await service.update(teacher, 'school', 'material', { ...dto, revision: 2 });
+    assert.equal((await service.detail(student, 'school', 'material')).material.cover_data, cover);
+    await assert.rejects(service.update(student, 'school', 'material', { ...dto, revision: 3, coverData: '' }));
+    await service.update(teacher, 'school', 'material', { ...dto, revision: 3, coverData: '' });
+    assert.equal((await service.detail(student, 'school', 'material')).material.cover_data, '');
+});
+test('LMS cover validation rejects executable data, external URLs and oversized payloads', async () => {
+    const { validate } = require('class-validator');
+    const { UpdateMaterialDto } = require('../src/learning/learning.dto.ts');
+    for (const coverData of ['data:image/svg+xml;base64,PHN2Zz4=', 'https://example.com/image.jpg', 'data:text/html;base64,PHNjcmlwdD4=', 'data:image/jpeg;base64,/9j/' + 'A'.repeat(160000)]) {
+        const errors = await validate(Object.assign(new UpdateMaterialDto(), dto, { coverData }));
+        assert.ok(errors.some(error => error.property === 'coverData'));
+    }
+    for (const coverData of ['', 'data:image/jpeg;base64,/9j/2Q==']) {
+        assert.equal((await validate(Object.assign(new UpdateMaterialDto(), dto, { coverData }))).length, 0);
+    }
+});

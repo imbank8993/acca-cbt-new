@@ -1,0 +1,19 @@
+/* Scoped to confirmation dialogs; match the shared modal shell. */
+.swal2-container.acca-confirm-overlay{z-index:10050;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);padding:16px}
+.swal2-popup.acca-confirm{grid-template-columns:56px minmax(0,1fr);width:440px;max-width:100%;padding:0!important;border:1px solid #3083ff;border-radius:16px;background:#fff;box-shadow:0 28px 80px rgba(2,6,23,.35);font-family:inherit;overflow:hidden}
+.acca-confirm .swal2-icon.acca-confirm-icon{grid-column:1;grid-row:1;align-self:center;width:28px;height:28px;margin:20px 0 20px 20px;border-width:2px;border-color:#3083ff;color:#3083ff;font-size:8px}
+.acca-confirm .swal2-icon .swal2-icon-content{font-size:22px;line-height:28px}
+.acca-confirm .swal2-title.acca-confirm-title{grid-column:2;grid-row:1;align-self:center;padding:20px 20px 20px 8px;margin:0;text-align:left;font-size:16px;line-height:24px;font-weight:700;color:#0f172a;overflow-wrap:anywhere}
+.acca-confirm .swal2-html-container.acca-confirm-body{grid-column:1/-1;grid-row:2;margin:0;padding:18px 20px;text-align:left;border-top:1px solid #dbeafe;font-size:14px;line-height:22px;color:#475569;overflow-wrap:anywhere}
+.acca-confirm .swal2-actions.acca-confirm-actions{grid-column:1/-1;grid-row:3;justify-content:flex-end;gap:8px;width:100%;margin:0;padding:14px 20px;background:#f8fafc;border-top:1px solid #e2e8f0}
+.acca-confirm-actions button{margin:0;min-width:72px;min-height:38px;padding:8px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;line-height:20px;cursor:pointer;transition:background .15s}
+.acca-confirm-actions .acca-confirm-yes{border:1px solid #3083ff;background:#3083ff;color:white}
+.acca-confirm-actions .acca-confirm-yes:hover{background:#2563eb}
+.acca-confirm-actions .acca-confirm-no{border:1px solid #cbd5e1;background:white;color:#475569}
+.acca-confirm-actions .acca-confirm-no:hover{background:#eff6ff}
+.acca-confirm-actions button:focus-visible{outline:2px solid #3083ff;outline-offset:3px}
+.dark .swal2-popup.acca-confirm{background:#0f172a}
+.dark .acca-confirm .acca-confirm-title{color:#f8fafc}
+.dark .acca-confirm .acca-confirm-body{color:#cbd5e1;border-color:#334155}
+.dark .acca-confirm .acca-confirm-actions{background:#1e293b;border-color:#334155}
+.dark .acca-confirm-actions .acca-confirm-no{background:#0f172a;color:#e2e8f0;border-color:#475569}

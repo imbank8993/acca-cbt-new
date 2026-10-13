@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 import { getProctorOrganization,type ProctorOrganization } from '@/lib/api/proctor';
 import {
@@ -517,6 +518,13 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             <button
                                 onClick={async () => {
                                     if (!org) return;
+                                    if (!await confirmDialog({
+                                        title: bankInfo?.is_published ? 'Unpublish Bank Soal?' : 'Publish Bank Soal?',
+                                        text: bankInfo?.is_published
+                                            ? `Unpublish bank soal "${bankInfo.title}" dan kembalikan statusnya menjadi draf?`
+                                            : `Publish bank soal "${bankInfo?.title || 'Bank Soal'}" agar dapat digunakan untuk menyusun ujian?`,
+                                        confirmText: 'Ya', cancelText: 'Tidak', variant: 'warning',
+                                    })) return;
                                     const result = await toggleQuestionBankPublishAction(bankId, !bankInfo?.is_published);
                                     if (result.success) await loadData();
                                 }}

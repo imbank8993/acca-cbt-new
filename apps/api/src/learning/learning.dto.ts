@@ -1,4 +1,4 @@
-import { IsBoolean, IsByteLength, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsByteLength, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateMaterialDto {
@@ -6,6 +6,8 @@ export class CreateMaterialDto {
     @IsString() @MinLength(1) @MaxLength(200) title!: string;
 }
 export class UpdateMaterialDto {
+    @IsOptional() @IsString() @MaxLength(160000) @Matches(/^(?:|data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2})$/)
+    coverData?: string;
     @IsOptional() @IsIn(['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']) gradeLevel?: string;
     @IsOptional() @IsString() @MaxLength(200) topic?: string;
     @IsOptional() @IsString() @MaxLength(200) subtopic?: string;

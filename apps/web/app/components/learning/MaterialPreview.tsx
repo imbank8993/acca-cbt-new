@@ -3,20 +3,36 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileDown, Loader2 } from 'lucide-react';
 import type { LearningMaterial } from '@/lib/learning-api';
 import { learningPreviewDocument } from '@/lib/learning-preview';
+import { learningNavigationBridge, readHtmlMenu, type HtmlNavigationProps } from '@/lib/learning-navigation-bridge';
 import { PdfPreview } from './PdfPreview';
 
-export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage }: { material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void }) {
+export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage, onMenuChange, navigationRequest }: HtmlNavigationProps & { material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void }) {
     const frame = useRef<HTMLIFrameElement>(null);
+    const [menuChannel] = useState(() => crypto.randomUUID());
+    const combinedBridge = useMemo(() => `${learningNavigationBridge(menuChannel)};${bridge || ''}`, [menuChannel, bridge]);
     useEffect(() => {
-        const receive = (event: MessageEvent) => { if (event.source === frame.current?.contentWindow) onActivityMessage?.(event); };
+        if (navigationRequest) frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-select', id: navigationRequest.id }, '*');
+    }, [navigationRequest, menuChannel]);
+    useEffect(() => {
+        const receive = (event: MessageEvent) => {
+            if (event.source !== frame.current?.contentWindow) return;
+            if (event.data?.channel === menuChannel && event.data.type === 'html-menu') {
+                const items = readHtmlMenu(event.data.items);
+                if (items && onMenuChange) {
+                    onMenuChange(items);
+                    frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-connected', snapshot: JSON.stringify(event.data.items) }, '*');
+                }
+            }
+            onActivityMessage?.(event);
+        };
         window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
-    }, [onActivityMessage]);
+    }, [onActivityMessage, onMenuChange, menuChannel]);
     const document = useMemo(() => typeof window !== 'undefined' && material.content_html
-        ? learningPreviewDocument(material.content_html, material.format === 'html', bridge) : '', [material.content_html, material.format, bridge]);
+        ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge) : '', [material.content_html, material.format, combinedBridge]);
     return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}`}>
         {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
         {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} />
-            : document ? <iframe ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" srcDoc={document} />
+            : document ? <iframe onLoad={() => frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-request' }, '*')} ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" srcDoc={document} />
             : material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)
                 ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} />
                 : <div className="learn-media"><div><FileDown size={40} style={{ margin: '0 auto 14px' }} /><p>{material.hasFile ? 'Berkas ini dapat dibaca melalui unduhan.' : 'Unggah dokumen untuk melihat hasil konversi di sini.'}</p></div></div>}

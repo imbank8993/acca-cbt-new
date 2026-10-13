@@ -8,6 +8,7 @@ import { LearningNavigation } from '@/app/components/learning/LearningNavigation
 import { ActivityPlayer } from '@/app/components/learning/ActivityPlayer';
 import { learningRequest, type LearningMaterial } from '@/lib/learning-api';
 import { learningPreviewDocument } from '@/lib/learning-preview';
+import type { HtmlMenuItem } from '@/lib/learning-navigation-bridge';
 import '@/app/components/learning/learning.css';
 
 export default function LearningReader() {
@@ -18,6 +19,8 @@ export default function LearningReader() {
 function LearningReaderContent({ id }: { id: string }) {
     const request = useRef<AbortController | null>(null);
     const [material, setMaterial] = useState<LearningMaterial | null>(null);
+    const [htmlMenu, setHtmlMenu] = useState<HtmlMenuItem[]>([]);
+    const [navigationRequest, setNavigationRequest] = useState<{ id: string; sequence: number }>();
     const [navigationOpen, setNavigationOpen] = useState(false);
     const navigationToggle = useRef<HTMLButtonElement>(null);
     const closeNavigation = useCallback(() => { setNavigationOpen(false); navigationToggle.current?.focus(); }, []);
@@ -78,10 +81,10 @@ function LearningReaderContent({ id }: { id: string }) {
         {materialUpdated && <div className="learn-activity-status">Materi diperbarui sejak terakhir kamu selesaikan. Pelajari versi terbaru sebelum menandai selesai.</div>}
         {showInfo && material && <section id="learning-reader-info" className="learn-reader-info"><strong>{material.subject || 'Bahan ajar'} · {material.format.toUpperCase()}</strong><p>{[material.grade_level ? `Kelas ${material.grade_level}` : 'Lintas kelas', material.topic, material.subtopic].filter(Boolean).join(' / ')}</p><p>{material.description}</p><p>{completed ? 'Materi sudah kamu pelajari. ' : ''}Progres tersimpan di akunmu.</p></section>}
         <div className="learn-reader-layout">
-        <LearningNavigation current={material} open={navigationOpen} close={closeNavigation} navigate={() => { if (window.matchMedia('(max-width: 760px)').matches) closeNavigation(); }} />
+        <LearningNavigation htmlMenu={htmlMenu} selectMenu={menuId => setNavigationRequest(previous => ({ id: menuId, sequence: (previous?.sequence || 0) + 1 }))} current={material} open={navigationOpen} close={closeNavigation} navigate={() => { if (window.matchMedia('(max-width: 760px)').matches) closeNavigation(); }} />
         <div className="learn-reader-content">
         {!material ? !error && <div className="learn-loading">Memuat bahan ajar…</div> : <>
-            {material.format === 'html' && material.status === 'published' ? <ActivityPlayer key={`${id}:${material.content_version}`} material={material} /> : <MaterialPreview material={material} fullPage />}
+            {material.format === 'html' && material.status === 'published' ? <ActivityPlayer onMenuChange={setHtmlMenu} navigationRequest={navigationRequest} key={`${id}:${material.content_version}`} material={material} /> : <MaterialPreview onMenuChange={setHtmlMenu} navigationRequest={navigationRequest} material={material} fullPage />}
         </>}
         </div></div>
     </main>;

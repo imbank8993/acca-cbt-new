@@ -30,6 +30,7 @@ writeExamSnapshot,
 import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { ExamClock } from '@/lib/exam-clock';
+import { hasExamFullscreen, supportsExamFullscreen, subscribeExamFullscreen, type FullscreenElement } from '@/lib/exam-fullscreen';
 import { acquireExamEditorLock } from '@/lib/exam-editor-lock';
 import { PerKeyQueue } from '@/lib/per-key-queue';
 import { getSessionUser } from '@/lib/session';
@@ -39,6 +40,7 @@ import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
+import { ExamStartPreparation } from './ExamStartPreparation';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
     if (exam?.metadata?.is_safe_mode === false) return null;
@@ -95,6 +97,9 @@ export default function ExamPage() {
     const [doubtfulAnswers, setDoubtfulAnswers] = useState<Set<string>>(new Set());
     const [updatedQuestionIds, setUpdatedQuestionIds] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
+    const confirmedStartExamIdRef = useRef<string | null>(null);
+    const fetchExamDataRef = useRef<(() => Promise<void>) | null>(null);
+    const [awaitingStart, setAwaitingStart] = useState(false);
 
     // Cermin ref dari state jawaban. Interval retry, handler `pagehide`, dan
     // flush sebelum force-logout berjalan di luar siklus render, jadi mereka
@@ -144,6 +149,11 @@ export default function ExamPage() {
 
     // Security
     const [isFullScreen, setIsFullScreen] = useState(false);
+    useEffect(() => {
+        const syncFullscreen = () => setIsFullScreen(hasExamFullscreen() || !supportsExamFullscreen());
+        syncFullscreen();
+        return subscribeExamFullscreen(syncFullscreen);
+    }, [examId]);
     const [violationCount, setViolationCount] = useState(0);
     const [showViolationModal, setShowViolationModal] = useState(false);
     const [violationType, setViolationType] = useState('');
@@ -362,6 +372,7 @@ export default function ExamPage() {
         let cancelled = false;
         let releaseEditor: (() => void) | null = null;
         async function fetchExamData() {
+            if (cancelled) return;
             setLoading(true);
             setAccessDenied(false);
             setRecoverySummary(null);
@@ -371,6 +382,7 @@ export default function ExamPage() {
                 // diperiksa, karena keduanya juga menjadi pagar pemulihan
                 // ketika seluruh endpoint sedang tidak dapat dijangkau.
                 const storageHealth = await inspectExamStorage();
+                if (cancelled) return;
                 storageStateRef.current = !storageHealth.available ? 'unavailable' : storageHealth.mode === 'localstorage' ? 'fallback' : 'healthy';
                 if (!storageHealth.available) {
                     setAccessDenied(true);
@@ -380,12 +392,14 @@ export default function ExamPage() {
                 }
                 setStorageWarning(storageHealth.warning || null);
                 const durableDeviceId = await resolveDurableDeviceId(getDeviceId());
+                if (cancelled) return;
                 setDeviceId(durableDeviceId);
 
                 const restoreOfflineSession = async (knownUserId?: string | null): Promise<boolean> => {
                     let cached;
                     try {
                         cached = await readExamRecoverySession(examId);
+                        if (cancelled) return false;
                     } catch {
                         return false;
                     }
@@ -410,6 +424,7 @@ export default function ExamPage() {
 
                     const session = checked.session;
                     const local = await readExamSnapshot(session.attemptId).catch(() => null);
+                    if (cancelled) return false;
                     const restoredAnswers = local?.answers || {};
                     const locked = session.deadlineAt <= Date.now() || Boolean(local?.frozenSubmission) || session.attempt.metadata?.recovery_submit_only === true;
                     if (local?.frozenSubmission) frozenSnapshotRef.current = local;
@@ -451,6 +466,7 @@ export default function ExamPage() {
                 };
 
                 const authUser = await getSessionUser();
+                if (cancelled) return;
                 if (authUser) setUser(authUser);
                 if (!authUser && !navigator.onLine && await restoreOfflineSession(null)) return;
 
@@ -459,6 +475,7 @@ export default function ExamPage() {
                 // profilnya memang dibutuhkan di sini — dan mengambil keduanya
                 // sekaligus menghemat satu putaran jaringan di awal ujian.
                 const detail = await getExamForAttempt(examId);
+                if (cancelled) return;
 
                 if (!detail.success) {
                     if (detail.retryable && await restoreOfflineSession(authUser?.id)) return;
@@ -484,9 +501,26 @@ export default function ExamPage() {
                 const examData = detail.exam;
                 setExam(examData);
 
+                if (!detail.hasStartedAttempt && confirmedStartExamIdRef.current !== examId) {
+                    setAwaitingStart(true);
+                    setLoading(false);
+                    return;
+                }
+                setAwaitingStart(false);
+
+                // Fullscreen may have ended while identity/details were loading.
+                // A fresh attempt still needs fullscreen and a new confirmation.
+                if (!detail.hasStartedAttempt && supportsExamFullscreen() && !hasExamFullscreen()) {
+                    confirmedStartExamIdRef.current = null;
+                    setAwaitingStart(true);
+                    setLoading(false);
+                    return;
+                }
+
                 // Start or resume attempt (bound to this device — see device lock)
                 const startRequestedAt = performance.now();
                 const result = await startExamAttemptAction(examId, durableDeviceId);
+                if (cancelled) return;
                 clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
                 if (!result.success) {
                     if (result.retryable && await restoreOfflineSession(authUser.id)) return;
@@ -526,6 +560,7 @@ export default function ExamPage() {
                 const qRes = result.attempt.metadata?.recovery_submit_only === true
                     ? { success: true as const, questions: [] as StudentExamQuestion[] }
                     : await getExamQuestionsAction(examId);
+                if (cancelled) return;
                 if (!qRes.success) {
                     if (qRes.retryable && await restoreOfflineSession(authUser.id)) return;
                     console.error('[ExamPage] Failed to load questions:', qRes.error);
@@ -577,6 +612,7 @@ export default function ExamPage() {
                         } catch { /* Penyimpanan browser dapat dinonaktifkan. */ }
                     }
                 }
+                if (cancelled) return;
                 setAttempt(result.attempt);
                 attemptRef.current = result.attempt;
                 const recoverySubmitOnly = result.attempt.metadata?.recovery_submit_only === true;
@@ -746,12 +782,14 @@ export default function ExamPage() {
                     );
                 }
             } catch (err) {
+                if (cancelled) return;
                 console.error("[ExamPage] Error fetching exam:", err);
                 setAccessDenied(true);
                 setAccessError(getErrorMessage(err) || 'Terjadi kesalahan saat memuat ujian.');
             }
-            setLoading(false);
+            if (!cancelled) setLoading(false);
         }
+        fetchExamDataRef.current = fetchExamData;
         void acquireExamEditorLock(examId).then(release => {
             if (cancelled) { release?.(); return; }
             if (!release) {
@@ -769,7 +807,7 @@ export default function ExamPage() {
             setAccessError(getErrorMessage(error));
             setLoading(false);
         });
-        return () => { cancelled = true; ownsEditorLockRef.current = false; releaseEditor?.(); };
+        return () => { cancelled = true; fetchExamDataRef.current = null; ownsEditorLockRef.current = false; releaseEditor?.(); };
     }, [examId, restoreAssignment]);
 
     // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
@@ -1258,8 +1296,7 @@ export default function ExamPage() {
         };
 
         const onFullscreenChange = () => {
-            if (!document.fullscreenElement) {
-                setIsFullScreen(false);
+            if (!hasExamFullscreen()) {
                 handleSecurityViolation('exit_fullscreen');
             }
         };
@@ -1278,7 +1315,7 @@ export default function ExamPage() {
         document.addEventListener('visibilitychange', onVisibilityChange);
         window.addEventListener('blur', onBlur);
         window.addEventListener('focus', onFocus);
-        document.addEventListener('fullscreenchange', onFullscreenChange);
+        const unsubscribeFullscreen = subscribeExamFullscreen(onFullscreenChange);
         document.addEventListener('contextmenu', onContextMenu);
         window.addEventListener('keydown', onKeyDown);
 
@@ -1287,7 +1324,7 @@ export default function ExamPage() {
             window.removeEventListener('blur', onBlur);
             window.removeEventListener('focus', onFocus);
             if (blurTimeout) clearTimeout(blurTimeout);
-            document.removeEventListener('fullscreenchange', onFullscreenChange);
+            unsubscribeFullscreen();
             document.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('keydown', onKeyDown);
         };
@@ -1521,26 +1558,19 @@ export default function ExamPage() {
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
     }, [toast, markFailed, submissionOnly]);
 
-    const handleRequestFullscreen = useCallback(() => {
-        // Sebagian perangkat (iPhone/iPad Safari, sebagian WebView Android)
-        // TIDAK punya requestFullscreen — memanggilnya melempar error sinkron
-        // sehingga setIsFullScreen(true) di bawah tidak pernah jalan dan siswa
-        // terjebak di layar "Aktifkan Layar Penuh". Fullscreen bersifat
-        // best-effort; gerbang harus selalu terbuka setelah tombol ditekan.
+    const handleRequestFullscreen = useCallback(async () => {
+        // API yang tidak tersedia tetap memiliki jalur kompatibilitas; jika
+        // tersedia, status layar penuh harus sesuai keadaan browser sebenarnya.
         try {
-            const el = document.documentElement as HTMLElement & {
-                webkitRequestFullscreen?: () => Promise<void> | void;
-                msRequestFullscreen?: () => Promise<void> | void;
-            };
+            const el = document.documentElement as FullscreenElement;
             const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
             if (request) {
-                const p = request.call(el);
-                if (p && typeof p.catch === 'function') p.catch(() => {});
+                await request.call(el);
             }
         } catch {
-            // Perangkat tidak mendukung fullscreen — lanjutkan tanpa fullscreen.
+            // Keep the overlay visible when a supported fullscreen request fails.
         }
-        setIsFullScreen(true);
+        setIsFullScreen(hasExamFullscreen() || !supportsExamFullscreen());
     }, []);
 
     const safeMode = exam?.metadata?.is_safe_mode !== false;
@@ -1548,6 +1578,21 @@ export default function ExamPage() {
     // ── Main Exam UI ───────────────────────────────────────────
     if (loading) {
         return <ExamPageSkeleton />;
+    }
+
+    if (awaitingStart && !accessDenied && exam) {
+        return <ExamStartPreparation
+            key={examId}
+            exam={exam}
+            onBack={() => router.push('/dashboard/siswa/schedule')}
+            onConfirm={(fullscreenReady) => {
+                setIsFullScreen(fullscreenReady);
+                setLoading(true);
+                setAwaitingStart(false);
+                confirmedStartExamIdRef.current = examId;
+                void fetchExamDataRef.current?.();
+            }}
+        />;
     }
 
     if (accessDenied) {

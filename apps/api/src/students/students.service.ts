@@ -298,7 +298,19 @@ export class StudentsService {
             .eq('id', user.id)
             .maybeSingle();
 
-        return { exam: data, profile: profile ?? null };
+        // Pemeriksaan ini hanya membaca status; membuka layar persiapan tidak
+        // boleh membuat attempt atau mengubah batas waktu siswa.
+        const { data: startedAttempt, error: attemptError } = await this.db
+            .from('cbt_exam_attempts')
+            .select('id')
+            .eq('exam_id', examId)
+            .eq('user_id', user.id)
+            .in('status', ['in_progress', 'submitted', 'auto_submitted'])
+            .limit(1)
+            .maybeSingle();
+        if (attemptError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
+
+        return { exam: data, profile: profile ?? null, hasStartedAttempt: Boolean(startedAttempt) };
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────

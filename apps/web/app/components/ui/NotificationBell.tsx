@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from '@/lib/confirm-dialog';
 
 import type { Notification } from '@/app/types/notification';
 import { getNotificationTimeAgo } from '@/app/types/notification';
@@ -93,6 +94,7 @@ export function NotificationBell({ }: NotificationBellProps = {}) {
 
     // Handle delete
     const handleDelete = async (notificationId: string) => {
+        if (!await confirmDialog({ title: 'Hapus Notifikasi?', text: 'Notifikasi ini akan dihapus dari daftar Anda.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
         await deleteNotification(notificationId);
         fetchNotifications();
     };
