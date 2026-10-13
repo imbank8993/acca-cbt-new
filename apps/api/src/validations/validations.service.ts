@@ -24,6 +24,21 @@ export class ValidationsService {
         private readonly authz: AuthorizationService,
     ) {}
 
+    private async notifyOwner(tx: Pick<DbService, 'from'>, validationId: string, organizationId: string, bankId: string) {
+        const { data: bank, error } = await tx.from('cbt_question_banks').select('created_by, title').eq('id', bankId).eq('organization_id', organizationId).single();
+        if (error || !bank) throw new BadRequestException('Pemilik bank soal tidak dapat dibaca.');
+        if (!bank.created_by) return;
+        const { error: notificationError } = await tx.from('cbt_notifications').insert({
+            user_id: bank.created_by, organization_id: organizationId, type: 'system',
+            title: 'Hasil validasi soal diperbarui',
+            message: `Hasil validasi untuk bank soal "${bank.title || 'Bank Soal'}" tersedia. Buka Catatan Validasi untuk melihat koreksi.`,
+            priority: 'normal', is_read: false,
+            data: { validationId, bankId },
+            action_url: `/dashboard/guru/questions/${bankId}?tab=validations&validation=${validationId}`,
+        });
+        if (notificationError) throw new BadRequestException('Pemberitahuan hasil validasi gagal disimpan. Silakan coba lagi.');
+    }
+
     /**
      * Buat sesi penugasan validasi baru untuk bank soal.
      * Hanya dapat dilakukan oleh Admin atau Proktor.
@@ -355,10 +370,13 @@ export class ValidationsService {
         await this.db.transaction(async (tx) => {
             await advisoryTransactionLock(tx, `validation:${validationId}`);
             const { data: session, error: sessionError } = await tx
-                .from('cbt_question_bank_validations').select('approval_rule, organization_id, status')
+                .from('cbt_question_bank_validations').select('approval_rule, organization_id, status, bank_id')
                 .eq('id', validationId).single();
             if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
             await this.authz.assertOrgStaff(user, session.organization_id);
+            const { data: previous, error: previousError } = await tx.from('cbt_question_bank_validators').select('status, general_recommendation, general_comment').eq('id', (vAssignment as any).id).single();
+            if (previousError || !previous) throw new BadRequestException('Rekomendasi sebelumnya tidak dapat dibaca.');
+            const changed = previous.status !== 'submitted' || previous.general_recommendation !== dto.generalRecommendation || (previous.general_comment || '') !== (dto.generalComment?.trim() || '');
             const now = new Date().toISOString();
             const { error: submitError } = await tx
                 .from('cbt_question_bank_validators')
@@ -389,6 +407,7 @@ export class ValidationsService {
             const { error: statusError } = await tx.from('cbt_question_bank_validations')
                 .update({ status, updated_at: now }).eq('id', validationId);
             if (statusError) throw new BadRequestException('Gagal memperbarui status validasi.');
+            if (changed) await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id);
         });
         return { success: true };
     }
@@ -397,7 +416,7 @@ export class ValidationsService {
         await this.db.transaction(async (tx) => {
             await advisoryTransactionLock(tx, `validation:${validationId}`);
             const { data: session, error } = await tx.from('cbt_question_bank_validations')
-                .select('organization_id, approval_rule').eq('id', validationId).single();
+                .select('organization_id, approval_rule, status, bank_id').eq('id', validationId).single();
             if (error || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
             await this.authz.assertProktor(user, session.organization_id);
             if (session.approval_rule !== 'admin_decides') {
@@ -408,9 +427,11 @@ export class ValidationsService {
             if (validatorsError || !validators?.length || validators.some((v: any) => v.status !== 'submitted')) {
                 throw new BadRequestException('Tunggu seluruh validator menyelesaikan rekomendasinya.');
             }
+            const decisionChanged = session.status !== status;
             const { error: updateError } = await tx.from('cbt_question_bank_validations')
                 .update({ status, updated_at: new Date().toISOString() }).eq('id', validationId);
             if (updateError) throw new BadRequestException('Gagal menyimpan keputusan validasi.');
+            if (decisionChanged) await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id);
         });
         return { success: true };
     }
@@ -468,11 +489,11 @@ export class ValidationsService {
             .select(
                 `id, title, status, deadline, created_at,
                  validators:cbt_question_bank_validators(
-                    validator_id, status, general_recommendation, general_comment, submitted_at,
+                    id, validator_id, status, general_recommendation, general_comment, submitted_at,
                     profile:cbt_profiles(full_name)
                  ),
                  notes:cbt_question_validation_notes(
-                    id, question_id, target_scope, target_option_id, selected_text, comment, category, status_item, is_resolved, resolved_at,
+                    id, validation_id, validator_id, created_at, question_id, target_scope, target_option_id, selected_text, comment, category, status_item, is_resolved, resolved_at,
                     validator:cbt_profiles!cbt_question_validation_notes_validator_id_fkey(full_name)
                  )`
             )
@@ -481,7 +502,7 @@ export class ValidationsService {
 
         if (valErr) {
             this.logger.error(`Gagal membaca umpan balik validasi bank ${bankId}: ${valErr.message}`);
-            return [];
+            throw new BadRequestException('Catatan validasi belum dapat dimuat. Silakan coba lagi.');
         }
 
         return (validations as any[]) || [];

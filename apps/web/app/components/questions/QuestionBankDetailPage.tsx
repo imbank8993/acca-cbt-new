@@ -76,7 +76,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [filterType, setFilterType] = useState<string>('all');
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi' | 'validations'>('questions');
+    const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi' | 'validations'>(searchParams.get('tab') === 'validations' ? 'validations' : 'questions');
+    useEffect(() => { if (searchParams.get('tab') === 'validations') setActiveTab('validations'); }, [searchParams]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
     const [selectedType, setSelectedType] = useState<QuestionType>('mcq');

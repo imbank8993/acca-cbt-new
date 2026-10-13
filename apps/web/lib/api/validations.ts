@@ -183,7 +183,7 @@ export async function getBankValidationFeedback(bankId: string): Promise<Validat
     const res = await apiGet<{ data?: ValidationSession[] } | ValidationSession[]>(
         `/api/validations/bank/${encodeURIComponent(bankId)}/feedback`,
     );
-    if (!res.success) return [];
+    if (!res.success) throw new Error(res.error || 'Catatan validasi gagal dimuat.');
     if (Array.isArray(res)) return res;
     return (res as any).data || [];
 }

@@ -32,6 +32,7 @@ ToggleLeft,
 X
 } from 'lucide-react';
 import React,{ Dispatch,SetStateAction,useEffect,useState } from 'react';
+import { ValidationNotesPanel } from './ValidationNotesPanel';
 import { LatexRenderer } from './LatexRenderer';
 import { MathToolbar } from './MathToolbar';
 import { TipTapEditor } from './TipTapEditor';
@@ -561,9 +562,9 @@ export default function QuestionEditorModal({
             </AnimatePresence>
 
             {/* ── Body ── */}
-            <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+            <div className="flex-1 flex flex-col xl:flex-row overflow-y-auto xl:overflow-hidden">
                 {/* Sidebar */}
-                <aside className="w-full md:w-64 shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-100 flex flex-col md:overflow-hidden">
+                <aside className="w-full xl:w-64 shrink-0 bg-white border-b xl:border-b-0 xl:border-r border-slate-100 flex flex-col xl:overflow-hidden">
                     {/* Mobile Settings Header & Quick Summary Pill */}
                     <div
                         className="px-4 py-3 md:px-5 md:pt-5 md:pb-4 border-b border-slate-100 flex items-center justify-between cursor-pointer md:cursor-default bg-slate-50/60 md:bg-white select-none transition-colors"
@@ -813,7 +814,7 @@ export default function QuestionEditorModal({
                 </aside>
 
                 {/* Editor */}
-                <main className="flex-1 overflow-y-visible md:overflow-y-auto bg-slate-50/50">
+                <main className="flex-1 min-w-0 overflow-y-visible xl:overflow-y-auto bg-slate-50/50">
                     <div className="max-w-[210mm] mx-auto w-full px-3 sm:px-4 md:px-5 py-6 space-y-5">
                         {/* Card: Pertanyaan */}
                         <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
@@ -1089,6 +1090,7 @@ export default function QuestionEditorModal({
                         </div>
                     </div>
                 </main>
+                {editingQuestion?.id && <ValidationNotesPanel key={editingQuestion.id} bankId={bankId} questionId={editingQuestion.id} />}
             </div>
 
             {/* ── LaTeX Editor Modal (Elegan) ── */}

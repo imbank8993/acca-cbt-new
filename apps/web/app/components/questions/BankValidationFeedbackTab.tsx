@@ -39,24 +39,29 @@ export default function BankValidationFeedbackTab({
     onEditQuestion,
 }: BankValidationFeedbackTabProps) {
     const [validations, setValidations] = useState<ValidationSession[]>([]);
+    const [selectedSession, setSelectedSession] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('validation') || '' : '');
+    const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [resolvingId, setResolvingId] = useState<string | null>(null);
     const [isReportOpen, setIsReportOpen] = useState(false);
 
     const loadData = useCallback(async () => {
-        setLoading(true);
+        setLoading(true); setError('');
         try {
             const res = await getBankValidationFeedback(bankId);
             setValidations(res);
         } catch (e) {
-            console.error('Failed to load validation feedback', e);
+            setError(e instanceof Error ? e.message : 'Catatan validasi gagal dimuat.');
         } finally {
             setLoading(false);
         }
     }, [bankId]);
 
     useEffect(() => {
-        loadData();
+        void loadData();
+        const refresh = () => { void loadData(); };
+        window.addEventListener('validation-feedback-updated', refresh);
+        return () => window.removeEventListener('validation-feedback-updated', refresh);
     }, [loadData]);
 
     const handleToggleResolve = async (note: ValidationNote) => {
@@ -64,6 +69,7 @@ export default function BankValidationFeedbackTab({
         try {
             const nextState = !note.is_resolved;
             const res = await resolveValidationNote(note.id, nextState);
+            if (!res.success) throw new Error(res.error || 'Status perbaikan gagal disimpan.');
             if (res.success) {
                 // Update local state
                 setValidations(prev =>
@@ -76,7 +82,7 @@ export default function BankValidationFeedbackTab({
                 );
             }
         } catch (e) {
-            console.error('Failed to toggle resolve note', e);
+            setError(e instanceof Error ? e.message : 'Status perbaikan gagal disimpan.');
         } finally {
             setResolvingId(null);
         }
@@ -90,6 +96,8 @@ export default function BankValidationFeedbackTab({
             </div>
         );
     }
+
+    if (error) return <div role="alert" className="p-5 rounded-xl border border-red-200 bg-red-50 text-sm">{error}<Button onClick={() => void loadData()}>Coba lagi</Button></div>;
 
     if (validations.length === 0) {
         return (
@@ -107,7 +115,7 @@ export default function BankValidationFeedbackTab({
         );
     }
 
-    const latestValidation = validations[0];
+    const latestValidation = validations.find(session => session.id === selectedSession) || validations[0];
     const notes = latestValidation?.notes || [];
     const validators = latestValidation?.validators || [];
 
@@ -116,6 +124,11 @@ export default function BankValidationFeedbackTab({
 
     return (
         <div className="space-y-6">
+            <label className="block text-sm font-semibold">Riwayat sesi validasi
+                <select className="block mt-2 w-full rounded-lg border p-2 bg-white text-slate-800" value={latestValidation.id} onChange={event => { setSelectedSession(event.target.value); const url = new URL(window.location.href); url.searchParams.set('validation', event.target.value); url.searchParams.set('tab', 'validations'); window.history.replaceState({}, '', url); }}>
+                    {validations.map(session => <option key={session.id} value={session.id}>{session.title} — {new Date(session.created_at).toLocaleDateString('id-ID')}</option>)}
+                </select>
+            </label>
             {/* Header Status Validasi */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

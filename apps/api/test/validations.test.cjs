@@ -106,3 +106,35 @@ test('Teacher can still publish own bank for every validation status', async () 
         assert.equal((await service.setPublished(user('owner'), 'bank', true)).is_published, true);
     }
 });
+
+test('Review notifications target owner, link to feedback and skip identical retries', async () => {
+    const { service, db } = setup();
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    const notifications = db.tables.cbt_notifications;
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].user_id, 'owner');
+    assert.match(notifications[0].action_url, /tab=validations&validation=session/);
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    assert.equal(db.tables.cbt_notifications.length, 1);
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    assert.equal(db.tables.cbt_notifications.length, 2);
+});
+test('Notification failure rolls back review; owner receives decision once', async () => {
+    const broken = setup('any', { failMutation: { table: 'cbt_notifications', mutation: 'insert' } });
+    await assert.rejects(broken.service.submitReview(user('a'), 'session', recommendation('approved')));
+    assert.equal(broken.db.tables.cbt_question_bank_validators[0].status, 'assigned');
+    const { service, db } = setup('admin_decides');
+    for (const id of ['a','b']) await service.submitReview(user(id), 'session', recommendation('approved'));
+    await service.decide(user('admin'), 'session', 'approved');
+    assert.equal(db.tables.cbt_notifications.length, 3);
+    await service.decide(user('admin'), 'session', 'approved');
+    assert.equal(db.tables.cbt_notifications.length, 3);
+});
+test('Feedback read failure is not reported as empty history', async () => {
+    const { service } = setup('any', { failRead: ['cbt_question_bank_validations'] });
+    // Other access controls remain exercised by the existing authorization suite.
+    const original = service.db;
+    service.db = { from: () => ({ select() { return this; }, eq() { return this; }, order: async () => ({ error: { message: 'unavailable' }, data: null }) }) };
+    await assert.rejects(service.getBankFeedback(user('owner'), 'bank'), /belum dapat dimuat/);
+    service.db = original;
+});

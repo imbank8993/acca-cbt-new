@@ -60,3 +60,35 @@ test('Question navigation isolates and restores drafts and option targets', asyn
     assert.equal(saved[1].targetOptionId, 'o1');
     assert.equal(saved[1].targetScope, 'option');
 });
+
+test('Author editor panel selects history, scopes notes and exposes resolve failures', async () => {
+    const state = []; let cursor = 0; let initial = true; const effects = []; let fail = false;
+    const React = {
+        createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+        useState(value) { const i = cursor++; if (!(i in state)) state[i] = typeof value === 'function' ? value() : value; return [state[i], value => { state[i] = typeof value === 'function' ? value(state[i]) : value; }]; },
+        useEffect(fn) { if (initial) effects.push(fn); }, useCallback: fn => fn,
+    };
+    const calls = [];
+    const api = {
+        getBankValidationFeedback: async () => ['new', 'old'].map(id => ({ id, title: id, created_at: '2026-10-13', notes: [
+            { id: id + '-note', question_id: 'q1', comment: id + ' correction', is_resolved: false },
+            { id: 'foreign', question_id: 'q2', comment: 'other question' },
+        ] })),
+        resolveValidationNote: async (id, resolved) => { calls.push([id, resolved]); return fail ? { success: false, error: 'Save failed' } : { success: true }; },
+    };
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ValidationNotesPanel.tsx'), 'utf8');
+    const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const module = { exports: {} };
+    new Function('require','module','exports','window',code)(name => name === 'react' ? React : api, module, module.exports, { location: { search: '' }, dispatchEvent() {} });
+    const render = () => { cursor = 0; const tree = module.exports.ValidationNotesPanel({ bankId: 'bank', questionId: 'q1' }); initial = false; return tree; };
+    const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
+    const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
+    render(); effects.forEach(fn => fn()); await new Promise(resolve => setImmediate(resolve));
+    let tree = render(); assert.match(text(tree), /new correction/); assert.doesNotMatch(text(tree), /other question/);
+    nodes(tree).find(n => n.type === 'select').props.onChange({ target: { value: 'old' } });
+    tree = render(); assert.match(text(tree), /old correction/);
+    fail = true; await nodes(tree).find(n => n.type === 'button' && text(n).includes('Tandai')).props.onClick();
+    tree = render(); assert.match(text(tree), /Save failed/); assert.match(text(tree), /Tandai sudah/);
+    fail = false; await nodes(tree).find(n => n.type === 'button' && text(n).includes('Tandai')).props.onClick();
+    tree = render(); assert.match(text(tree), /Batalkan tanda/); assert.deepEqual(calls[1], ['old-note', true]);
+});
