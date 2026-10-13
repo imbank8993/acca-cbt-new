@@ -48,6 +48,7 @@ import {
     UserPlus,
     Info,
     AlertTriangle,
+    Lock,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -942,15 +943,21 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                         Atur slot waktu pelaksanaan ujian dalam folder ini.
                                     </p>
                                 </div>
-                                {!period.is_locked && (
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        icon="add"
-                                        onClick={() => setIsCreatingSession(!isCreatingSession)}
-                                    >
-                                        Tambah Sesi Baru
-                                    </Button>
+                                {period.is_locked ? (
+                                    <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                                        <Lock size={13} /> Periode terkunci
+                                    </span>
+                                ) : (
+                                    !period.is_locked && (
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            icon="add"
+                                            onClick={() => setIsCreatingSession(!isCreatingSession)}
+                                        >
+                                            Tambah Sesi Baru
+                                        </Button>
+                                    )
                                 )}
                             </div>
 
