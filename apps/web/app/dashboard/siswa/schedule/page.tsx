@@ -6,7 +6,7 @@ import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { examTypeLabel } from '@/lib/exam-types';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
-import { useMemoryState } from '@/lib/useMemoryState';
+import { scheduleState, scheduleCountdown } from '@/lib/student-schedule';
 import { motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -18,44 +18,57 @@ Ghost,
 Lock,RefreshCw
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 const SchedulePage = () => {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
-    const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_schedule_exams', []);
-    const [loading, setLoading] = useMemoryState('siswa_schedule_loading', true);
+    const [exams, setExams] = useState<StudentScheduledExam[]>([]);
+    const [loading, setLoading] = useState(true);
     const [now, setNow] = useState(new Date());
     const [loadError, setLoadError] = useState('');
     const router = useRouter();
+    const generation = useRef(0);
+    const inFlight = useRef(false);
+    const clock = useRef<{ time: number; tick: number } | null>(null);
+    const [historyLimit, setHistoryLimit] = useState(10);
 
     const loadData = useCallback(async () => {
-        setLoading(true);
-        setLoadError('');
-        const user = await getSessionUser();
-        if (user) {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        const request = ++generation.current;
+        setLoading(true); setLoadError('');
+        try {
+            const user = await getSessionUser({ refresh: true });
+            if (!user) throw new Error('Sesi berakhir. Silakan login kembali.');
             const response = await getStudentExamsResult();
-            if (response.success) setExams(response.exams);
-            else setLoadError(response.error || 'Jadwal ujian tidak dapat dimuat.');
-        } else {
-            setLoadError('Sesi berakhir. Silakan login kembali.');
+            if (request !== generation.current) return;
+            if (!response.success) throw new Error(response.error || 'Jadwal ujian tidak dapat dimuat.');
+            if (response.userId !== user.id) throw new Error('Sesi akun berubah. Muat ulang halaman.');
+            const time = Date.parse(response.serverTime);
+            if (!Number.isFinite(time)) throw new Error('Waktu server belum dapat diverifikasi. Coba lagi.');
+            clock.current = { time, tick: performance.now() };
+            setNow(new Date(time)); setExams(response.exams);
+        } catch (err) {
+            if (request === generation.current) { setExams([]); clock.current = null; setLoadError(err instanceof Error ? err.message : 'Jadwal ujian gagal dimuat.'); }
+        } finally {
+            if (request === generation.current) { inFlight.current = false; setLoading(false); }
         }
-        setLoading(false);
-    }, [setExams, setLoading]);
+    }, []);
 
     useEffect(() => {
         const initialLoad = window.setTimeout(() => void loadData(), 0);
-        // Jam dinding diperbarui tiap menit supaya hitung mundur tetap akurat.
-        const interval = setInterval(() => setNow(new Date()), 60000);
-        return () => {
-            window.clearTimeout(initialLoad);
-            clearInterval(interval);
-        };
+        const interval = setInterval(() => {
+            if (clock.current) setNow(new Date(clock.current.time + performance.now() - clock.current.tick));
+        }, 1000);
+        return () => { window.clearTimeout(initialLoad); clearInterval(interval); generation.current++; inFlight.current = false; };
     }, [loadData]);
 
     // Jadwal ujian disegarkan berkala; langganan realtime Supabase sudah tidak ada.
     useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
     const getStatus = (exam: StudentScheduledExam) => {
+        if (scheduleState(exam, now.getTime()) === 'invalid') return { label: 'Jadwal tidak valid', color: 'text-red-500', bg: 'bg-red-50 border-red-100', icon: AlertCircle, enabled: false };
+        if (exam.status === 'archived') return { label: 'Diarsipkan', color: 'text-slate-500', bg: 'bg-slate-50 border-slate-200', icon: Lock, enabled: false };
         // Must be published
         if (!exam.is_published) {
             return { label: 'Belum Publikasi', color: 'text-slate-400', bg: 'bg-slate-50 border-slate-200', icon: Lock, enabled: false };
@@ -89,24 +102,11 @@ const SchedulePage = () => {
     const formatTimeRange = (start: string | null | undefined, end: string | null | undefined) =>
         formatSchoolTimeRange(start, end, timeZone);
 
-    const formatTimeUntil = (dateStr: string) => {
-        if (!dateStr) return '';
-        const diff = new Date(dateStr).getTime() - now.getTime();
-        if (diff <= 0) return '';
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        if (days > 0) return `${days}h ${hours}m lagi`;
-        if (hours > 0) return `${hours}j ${minutes}m lagi`;
-        return `${minutes}m lagi`;
-    };
-
-    const isOpenNow = (exam: StudentScheduledExam) => exam.is_published && !exam.isCompleted &&
-        (!exam.start_time || now >= new Date(exam.start_time)) &&
-        (!exam.end_time || now <= new Date(exam.end_time));
+    const formatTimeUntil = (date: string) => scheduleCountdown(date, now.getTime());
+    const isOpenNow = (exam: StudentScheduledExam) => scheduleState(exam, now.getTime()) === 'open';
 
     // Sort exams: yang benar-benar sedang terbuka lebih dulu, lalu waktu mulai.
-    const sortedExams = [...exams].sort((a, b) => {
+    const sortedExams = [...(loading || loadError ? [] : exams)].sort((a, b) => {
         const aOpen = isOpenNow(a);
         const bOpen = isOpenNow(b);
         if (aOpen && !bOpen) return -1;
@@ -117,8 +117,8 @@ const SchedulePage = () => {
     });
 
     const openExams = sortedExams.filter(isOpenNow);
-    const upcomingExams = sortedExams.filter(e => e.is_published && !e.isCompleted && e.start_time && now < new Date(e.start_time));
-    const closedExams = sortedExams.filter(e => e.isCompleted || (e.is_published && e.end_time && now > new Date(e.end_time)));
+    const upcomingExams = sortedExams.filter(e => scheduleState(e, now.getTime()) === 'upcoming');
+    const closedExams = sortedExams.filter(e => ['closed', 'invalid'].includes(scheduleState(e, now.getTime())));
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
@@ -157,7 +157,9 @@ const SchedulePage = () => {
                                     key={exam.id}
                                     whileHover={{ x: 4, y: -2 }}
                                     className="p-5 bg-white border border-slate-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 group cursor-pointer transition-all shadow-sm hover:shadow-lg relative overflow-hidden"
-                                    onClick={() => router.push(`/dashboard/siswa/exam/${exam.id}`)}
+                                    role="link" tabIndex={0}
+                                    onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.click(); }}
+                                    onClick={() => { const time = clock.current ? clock.current.time + performance.now() - clock.current.tick : NaN; if (scheduleState(exam, time) === 'open' && !inFlight.current) router.push(`/dashboard/siswa/exam/${exam.id}`); else void loadData(); }}
                                 >
                                     <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
                                     
@@ -184,7 +186,7 @@ const SchedulePage = () => {
                                     </div>
                                     <div className="w-full md:w-auto">
                                         <div className="bg-[#3083FF] text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-[#3083FF]/10 group-hover:bg-[#2563EB] group-hover:shadow-lg group-hover:shadow-[#3083FF]/20 transition-all active:scale-95">
-                                            Kerjakan <ArrowRight size={14} />
+                                            {exam.isInProgress ? 'Lanjutkan Ujian' : 'Kerjakan'} <ArrowRight size={14} />
                                         </div>
                                     </div>
                                 </motion.div>
@@ -251,7 +253,7 @@ const SchedulePage = () => {
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Selesai / Waktu Habis</h3>
                     </div>
                     <div className="space-y-3">
-                        {closedExams.slice(0, 10).map((exam) => {
+                        {closedExams.slice(0, historyLimit).map((exam) => {
                             const status = getStatus(exam);
                             const Icon = status.icon || CheckCircle2;
                             return (
@@ -286,6 +288,7 @@ const SchedulePage = () => {
                 </section>
             )}
 
+            {closedExams.length > historyLimit && <button onClick={() => setHistoryLimit(value => value + 10)} className="rounded-lg border px-4 py-2 text-sm">Tampilkan riwayat lainnya</button>}
             {/* Empty state */}
             {loading ? (
                 <div className="p-16 bg-white border border-slate-100 rounded-2xl shadow-sm flex flex-col items-center justify-center space-y-3">

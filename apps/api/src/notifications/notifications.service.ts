@@ -48,7 +48,7 @@ export class NotificationsService {
             .from('cbt_notifications')
             .select('*')
             .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false }).order('id', { ascending: false });
 
         if (unreadOnly) query = query.eq('is_read', false);
         if (type) query = query.eq('type', type);
@@ -74,7 +74,7 @@ export class NotificationsService {
 
         if (error) {
             this.logger.error(`Gagal menghitung notifikasi: ${error.message}`);
-            return 0;
+            throw new InternalServerErrorException('Jumlah notifikasi belum dapat dimuat.');
         }
         return count || 0;
     }

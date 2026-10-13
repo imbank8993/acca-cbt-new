@@ -6,10 +6,12 @@ import { getNotificationTimeAgo } from '@/app/types/notification';
 import {
 deleteNotification,
 getUnreadNotificationCount,
-getUserNotifications,
+getUserNotificationsResult,
 markAllNotificationsRead,
 markNotificationRead
 } from '@/lib/api/notifications';
+import { safeNotificationUrl } from '@/lib/notification-safety';
+import { getSessionUser } from '@/lib/session';
 import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -28,36 +30,57 @@ interface NotificationBellProps {
     userId?: string;
 }
 
-export function NotificationBell({ }: NotificationBellProps = {}) {
+export function NotificationBell({ userId }: NotificationBellProps = {}) {
+    return <NotificationBellContent key={userId || 'session'} />;
+}
+function NotificationBellContent() {
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+    const [error, setError] = useState('');
+    const generation = useRef(0);
+    const busy = useRef(false);
+    const owner = useRef<string | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Fetch notifications
     const fetchNotifications = useCallback(async () => {
+        const request = ++generation.current;
         try {
-            const [notifs, count] = await Promise.all([
-                getUserNotifications({ limit: 10 }),
+            const session = await getSessionUser({ refresh: true });
+            if (request !== generation.current) return;
+            if (owner.current !== session?.id) { setNotifications([]); setUnreadCount(0); owner.current = session?.id || null; }
+            if (!session) throw new Error('Silakan login kembali.');
+            const [result, count] = await Promise.all([
+                getUserNotificationsResult({ limit: 10 }),
                 getUnreadNotificationCount()
             ]);
-            setNotifications(notifs);
+            if (request !== generation.current) return;
+            if (!result.success) throw new Error(result.error);
+            if (result.notifications.some(item => item.user_id !== session.id)) { setNotifications([]); setUnreadCount(0); throw new Error('Sesi akun berubah. Muat ulang halaman.'); }
+            setError('');
+            setNotifications(result.notifications);
             setUnreadCount(count);
         } catch (error) {
-            console.error('[NotificationBell] Fetch error:', error);
+            if (request === generation.current) setError(error instanceof Error ? error.message : 'Notifikasi gagal dimuat.');
         }
-        setIsLoading(false);
+        if (request === generation.current) setIsLoading(false);
     }, []);
 
     // Initial fetch + interval refresh
     useEffect(() => {
         const initialFetch = window.setTimeout(() => void fetchNotifications(), 0);
-        const interval = setInterval(fetchNotifications, REFRESH_INTERVAL.notifications);
+        const refresh = () => { if (!document.hidden && !busy.current) void fetchNotifications(); };
+        const interval = setInterval(refresh, REFRESH_INTERVAL.notifications);
+        window.addEventListener('notifications-changed', refresh);
+        window.addEventListener('focus', refresh);
         return () => {
             window.clearTimeout(initialFetch);
-            clearInterval(interval);
+            clearInterval(interval); generation.current++;
+            window.removeEventListener('notifications-changed', refresh);
+            window.removeEventListener('focus', refresh);
         };
     }, [fetchNotifications]);
 
@@ -78,26 +101,23 @@ export function NotificationBell({ }: NotificationBellProps = {}) {
         };
     }, [isOpen]);
 
-    // Handle mark as read
-    const handleMarkAsRead = async (notificationId: string) => {
-        await markNotificationRead(notificationId);
-        fetchNotifications();
+    const act = async (action: () => Promise<{ success: boolean; error?: string }>, remove = false) => {
+        if (busy.current) return;
+        busy.current = true; setIsMarkingAllRead(true); setError('');
+        try {
+            if (remove && !await confirmDialog({ title: 'Hapus Notifikasi?', text: 'Notifikasi ini akan dihapus dari daftar Anda.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
+            const session = await getSessionUser({ refresh: true });
+            if (!session || session.id !== owner.current) { setNotifications([]); setUnreadCount(0); throw new Error('Sesi akun berubah. Muat ulang halaman.'); }
+            const result = await action();
+            if (!result.success) throw new Error(result.error || 'Tindakan gagal. Coba lagi.');
+            await fetchNotifications();
+            window.dispatchEvent(new Event('notifications-changed'));
+        } catch (err) { setError(err instanceof Error ? err.message : 'Tindakan gagal. Coba lagi.'); }
+        finally { busy.current = false; setIsMarkingAllRead(false); }
     };
-
-    // Handle mark all as read
-    const handleMarkAllAsRead = async () => {
-        setIsMarkingAllRead(true);
-        await markAllNotificationsRead();
-        fetchNotifications();
-        setIsMarkingAllRead(false);
-    };
-
-    // Handle delete
-    const handleDelete = async (notificationId: string) => {
-        if (!await confirmDialog({ title: 'Hapus Notifikasi?', text: 'Notifikasi ini akan dihapus dari daftar Anda.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
-        await deleteNotification(notificationId);
-        fetchNotifications();
-    };
+    const handleMarkAsRead = (id: string) => act(() => markNotificationRead(id));
+    const handleMarkAllAsRead = () => act(markAllNotificationsRead);
+    const handleDelete = (id: string) => act(() => deleteNotification(id), true);
 
     // Get notification icon based on type
     const getNotificationIcon = (type: string) => {
@@ -157,6 +177,7 @@ export function NotificationBell({ }: NotificationBellProps = {}) {
                             transition={{ duration: 0.15 }}
                             className="absolute right-0 top-full mt-2 w-80 md:w-96 bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden"
                         >
+                            {error && <div role="alert" className="p-3 text-sm text-red-700 bg-red-50">{error}<button type="button" className="ml-2 underline" onClick={() => void fetchNotifications()}>Coba lagi</button></div>}
                             {/* Header */}
                             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
                                 <div>
@@ -268,11 +289,11 @@ export function NotificationBell({ }: NotificationBellProps = {}) {
                                             </div>
 
                                             {/* Action Link */}
-                                            {notif.action_url && (
+                                            {safeNotificationUrl(notif.action_url) && (
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        window.location.href = notif.action_url!;
+                                                        window.location.href = safeNotificationUrl(notif.action_url)!;
                                                         setIsOpen(false);
                                                     }}
                                                     className="mt-2 w-full flex items-center justify-center gap-1 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors"

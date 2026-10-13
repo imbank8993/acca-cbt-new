@@ -73,7 +73,8 @@ export class StudentsController {
     @Get('exams')
     @ApiOperation({ summary: 'Ujian yang ditugaskan kepada siswa ini' })
     async listExams(@CurrentUser() user: AuthUser) {
-        return { exams: await this.students.listExams(user) };
+        const exams = await this.students.listExams(user);
+        return { exams, serverTime: new Date().toISOString(), userId: user.id };
     }
 
     @Get('results')

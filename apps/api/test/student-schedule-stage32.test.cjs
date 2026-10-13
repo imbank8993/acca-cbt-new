@@ -57,7 +57,39 @@ test('SCHEDULE-03: status tersedia mensyaratkan waktu mulai sudah tiba', () => {
         path.resolve(__dirname, '../../web/app/dashboard/siswa/schedule/page.tsx'),
         'utf8',
     );
-    assert.match(page, /now >= new Date\(exam\.start_time\)/);
+    const { scheduleState } = require('../../web/lib/student-schedule.ts');
+    const exam = { is_published: true, isCompleted: false, start_time: '2026-10-13T01:00:00Z', end_time: '2026-10-13T02:00:00Z' };
+    assert.equal(scheduleState(exam, Date.parse('2026-10-13T00:59:59Z')), 'upcoming');
+    assert.equal(scheduleState(exam, Date.parse(exam.start_time)), 'open');
+    assert.equal(scheduleState(exam, Date.parse(exam.end_time) + 1), 'closed');
     assert.match(page, /Total Jadwal/);
     assert.match(page, /loadError \? '—'/);
+});
+
+test('Schedule countdown uses unambiguous day/hour units and rejects invalid dates', () => {
+    const { scheduleCountdown, scheduleState } = require('../../web/lib/student-schedule.ts');
+    const now = Date.parse('2026-10-13T00:00:00Z');
+    assert.equal(scheduleCountdown('2026-10-14T03:00:00Z', now), '1 hari 3 jam lagi');
+    assert.equal(scheduleCountdown('2026-10-13T00:00:30Z', now), 'Kurang dari 1 menit lagi');
+    assert.equal(scheduleCountdown('bad', now), '');
+    assert.equal(scheduleState({ is_published: true, start_time: 'bad' }, now), 'invalid');
+    assert.equal(scheduleState({ is_published: true, isCompleted: true }, now), 'closed');
+    assert.equal(scheduleState({ is_published: true, status: 'archived' }, now), 'closed');
+});
+
+test('Schedule retains expired exams and fails explicitly for unavailable data', async () => {
+    const { StudentsService } = require('../src/students/students.service.ts');
+    const { fixtureDb } = require('./fixture-db.cjs');
+    const data = {
+        cbt_organization_members: [{ user_id: 'student', organization_id: 'school', is_active: true }],
+        cbt_exams: [{ id: 'old', organization_id: 'school', is_published: true, end_time: '2020-01-01T00:00:00Z', metadata: { is_public: true } }],
+        cbt_exam_attempts: [{ exam_id: 'old', user_id: 'student', status: 'submitted' }],
+    };
+    const user = { id: 'student' };
+    const db = fixtureDb(data);
+    const result = await new StudentsService(db).listExams(user);
+    assert.equal(result[0].id, 'old'); assert.equal(result[0].isCompleted, true);
+    assert.ok(!db.queries.find(q => q.table === 'cbt_exams').calls.some(call => call[0] === 'or'));
+    await assert.rejects(new StudentsService(fixtureDb(data, ['cbt_exams'])).listExams(user), /belum dapat dimuat/);
+    await assert.rejects(new StudentsService(fixtureDb(data, ['cbt_exam_attempts'])).listExams(user), /belum dapat dimuat/);
 });

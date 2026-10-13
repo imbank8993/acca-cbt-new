@@ -15,7 +15,8 @@ markAllNotificationsRead,
 markNotificationRead
 } from '@/lib/api/notifications';
 import { getSessionUser } from '@/lib/session';
-import { useMemoryState } from '@/lib/useMemoryState';
+import { safeNotificationUrl, mergeNotifications } from '@/lib/notification-safety';
+import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -35,9 +36,9 @@ const PAGE_SIZE = 50;
 
 export default function NotificationsPage() {
     const [user, setUser] = useState<Awaited<ReturnType<typeof getSessionUser>>>(null);
-    const [notifications, setNotifications] = useMemoryState<Notification[]>('notifications_notifications', []);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
-    const [isLoading, setIsLoading] = useMemoryState('notifications_isLoading', true);
+    const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
     const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set());
     const [isProcessing, setIsProcessing] = useState(false);
@@ -45,6 +46,10 @@ export default function NotificationsPage() {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [loadError, setLoadError] = useState('');
     const requestGeneration = useRef(0);
+    const mutationBusy = useRef(false);
+    const paging = useRef(false);
+    const nextOffset = useRef(0);
+    const [actionError, setActionError] = useState('');
 
     // Fetch user
     useEffect(() => {
@@ -57,12 +62,16 @@ export default function NotificationsPage() {
 
     // Fetch notifications
     const loadNotifications = useCallback(async (offset = 0, append = false) => {
-        if (!user) return;
+        if (!user || (append && paging.current)) return;
+        if (append) paging.current = true;
         const generation = append ? requestGeneration.current : ++requestGeneration.current;
         if (append) setIsLoadingMore(true);
-        else setIsLoading(true);
+        else { setIsLoading(true); setIsLoadingMore(false); }
         setLoadError('');
         try {
+            const session = await getSessionUser({ refresh: true });
+            if (generation !== requestGeneration.current) return;
+            if (!session || session.id !== user.id) { setNotifications([]); setUnreadCount(0); throw new Error('Sesi akun berubah. Muat ulang halaman.'); }
             const [result, count] = await Promise.all([
                 getUserNotificationsResult({
                     limit: PAGE_SIZE,
@@ -77,7 +86,10 @@ export default function NotificationsPage() {
                 setLoadError(result.error);
                 return;
             }
-            setNotifications(current => append ? [...current, ...result.notifications] : result.notifications);
+            if (result.notifications.some(item => item.user_id !== user.id)) { setNotifications([]); setUnreadCount(0); setLoadError('Sesi akun berubah. Muat ulang halaman.'); return; }
+            setNotifications(current => append ? mergeNotifications(current, result.notifications) : result.notifications);
+            if (!append) setSelectedNotifications(previous => new Set([...previous].filter(id => result.notifications.some(item => item.id === id))));
+            nextOffset.current = offset + result.notifications.length;
             setHasMore(result.notifications.length === PAGE_SIZE);
             setUnreadCount(count);
         } catch (error) {
@@ -85,6 +97,7 @@ export default function NotificationsPage() {
             console.error('[Notifications] Fetch error:', error);
             setLoadError('Notifikasi tidak dapat dimuat. Periksa koneksi lalu coba lagi.');
         } finally {
+            if (append) paging.current = false;
             if (generation === requestGeneration.current) {
                 setIsLoading(false);
                 setIsLoadingMore(false);
@@ -94,7 +107,13 @@ export default function NotificationsPage() {
 
     useEffect(() => {
         const initialLoad = window.setTimeout(() => void loadNotifications(), 0);
-        return () => window.clearTimeout(initialLoad);
+        const refresh = () => { if (!document.hidden && !mutationBusy.current && !paging.current) void loadNotifications(); };
+        const interval = window.setInterval(refresh, REFRESH_INTERVAL.notifications);
+        window.addEventListener('notifications-changed', refresh);
+        window.addEventListener('focus', refresh);
+        setSelectedNotifications(new Set());
+        return () => { window.clearTimeout(initialLoad); window.clearInterval(interval); window.removeEventListener('notifications-changed', refresh); window.removeEventListener('focus', refresh); requestGeneration.current++; };
+
     }, [loadNotifications]);
 
     // Filter notifications
@@ -121,35 +140,23 @@ export default function NotificationsPage() {
         }
     };
 
-    // Handle mark as read
-    const handleMarkAsRead = async (id: string) => {
-        await markNotificationRead(id);
-        loadNotifications();
+    const runAction = async (actions: (() => Promise<{ success: boolean; error?: string }>)[], confirmation?: string) => {
+        if (mutationBusy.current) return;
+        mutationBusy.current = true; setIsProcessing(true); setActionError('');
+        try {
+            if (confirmation && !await confirmDialog({ title: 'Hapus Notifikasi?', text: confirmation, confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
+            const current = await getSessionUser({ refresh: true });
+            if (!current || current.id !== user?.id) { setNotifications([]); setUnreadCount(0); throw new Error('Sesi akun berubah. Muat ulang halaman.'); }
+            for (const action of actions) { const result = await action(); if (!result.success) throw new Error(result.error || 'Tindakan gagal. Silakan coba lagi.'); }
+            setSelectedNotifications(new Set());
+            window.dispatchEvent(new Event('notifications-changed'));
+        } catch (err) { setActionError(err instanceof Error ? err.message : 'Tindakan gagal. Silakan coba lagi.'); }
+        finally { mutationBusy.current = false; setIsProcessing(false); void loadNotifications(); }
     };
-
-    // Handle mark all as read
-    const handleMarkAllAsRead = async () => {
-        setIsProcessing(true);
-        await markAllNotificationsRead();
-        loadNotifications();
-        setIsProcessing(false);
-    };
-
-    // Handle delete
-    const handleDelete = async (id: string) => {
-        if (!await confirmDialog({ title: 'Hapus Notifikasi?', text: 'Notifikasi ini akan dihapus dari daftar Anda.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
-        await deleteNotification(id);
-        loadNotifications();
-    };
-
-    // Handle delete all read
-    const handleDeleteAllRead = async () => {
-        if (!await confirmDialog({ title: 'Hapus Semua Notifikasi Terbaca?', text: 'Seluruh notifikasi yang sudah dibaca akan dihapus.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
-        setIsProcessing(true);
-        await deleteAllReadNotifications();
-        loadNotifications();
-        setIsProcessing(false);
-    };
+    const handleMarkAsRead = (id: string) => runAction([() => markNotificationRead(id)]);
+    const handleMarkAllAsRead = () => runAction([markAllNotificationsRead]);
+    const handleDelete = (id: string) => runAction([() => deleteNotification(id)], 'Notifikasi ini akan dihapus dari daftar Anda.');
+    const handleDeleteAllRead = () => runAction([deleteAllReadNotifications], 'Seluruh notifikasi yang sudah dibaca akan dihapus.');
 
     // Handle bulk selection
     const toggleSelect = (id: string) => {
@@ -162,29 +169,8 @@ export default function NotificationsPage() {
         setSelectedNotifications(newSelected);
     };
 
-    // Handle bulk mark as read
-    const handleBulkMarkAsRead = async () => {
-        setIsProcessing(true);
-        for (const id of selectedNotifications) {
-            await markNotificationRead(id);
-        }
-        setSelectedNotifications(new Set());
-        loadNotifications();
-        setIsProcessing(false);
-    };
-
-    // Handle bulk delete
-    const handleBulkDelete = async () => {
-        if (!selectedNotifications.size || isProcessing) return;
-        if (!await confirmDialog({ title: 'Hapus Notifikasi Terpilih?', text: `Hapus ${selectedNotifications.size} notifikasi yang dipilih?`, confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
-        setIsProcessing(true);
-        for (const id of selectedNotifications) {
-            await deleteNotification(id);
-        }
-        setSelectedNotifications(new Set());
-        loadNotifications();
-        setIsProcessing(false);
-    };
+    const handleBulkMarkAsRead = () => runAction(Array.from(selectedNotifications, id => () => markNotificationRead(id)));
+    const handleBulkDelete = () => selectedNotifications.size ? runAction(Array.from(selectedNotifications, id => () => deleteNotification(id)), `Hapus ${selectedNotifications.size} notifikasi yang dipilih?`) : Promise.resolve();
 
     // Filter options
     const filterOptions: { value: FilterType; label: string; count?: number }[] = [
@@ -194,6 +180,8 @@ export default function NotificationsPage() {
         { value: 'exam_result', label: 'Hasil Ujian' },
         { value: 'class_invite', label: 'Undangan Kelas' },
         { value: 'achievement', label: 'Pencapaian' },
+        { value: 'system', label: 'Sistem / Validasi Soal' },
+        { value: 'announcement', label: 'Pengumuman' },
     ];
 
     return (
@@ -247,6 +235,7 @@ export default function NotificationsPage() {
                 )}
             </div>
 
+            {actionError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div>}
             {/* Content */}
             <div className="space-y-4">
                 {isLoading ? (
@@ -320,7 +309,8 @@ export default function NotificationsPage() {
                                             {getNotificationIcon(notif.type)}
                                         </div>
 
-                                        {/* Content */}
+                                        {actionError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{actionError}</div>}
+            {/* Content */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                                                 <div className="space-y-1">
@@ -366,12 +356,12 @@ export default function NotificationsPage() {
                                             </div>
 
                                             {/* Action Button */}
-                                            {notif.action_url && (
+                                            {safeNotificationUrl(notif.action_url) && (
                                                 <div className="mt-3.5 flex">
                                                     <button
                                                         onClick={() => {
                                                             if (notif.action_url) {
-                                                                window.location.href = notif.action_url;
+                                                                window.location.href = safeNotificationUrl(notif.action_url)!;
                                                             }
                                                         }}
                                                         className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#3083FF] rounded-xl text-xs font-bold transition-colors"
@@ -388,7 +378,7 @@ export default function NotificationsPage() {
                         })}
                         {hasMore && (
                             <div className="flex justify-center pt-3">
-                                <button type="button" onClick={() => loadNotifications(notifications.length, true)} disabled={isLoadingMore}
+                                <button type="button" onClick={() => loadNotifications(nextOffset.current, true)} disabled={isLoadingMore}
                                     className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 disabled:opacity-60 flex items-center gap-2">
                                     {isLoadingMore && <Loader2 size={14} className="animate-spin" />}
                                     Muat Lebih Banyak

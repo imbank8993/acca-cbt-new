@@ -1184,7 +1184,13 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                             let checkClass = '';
 
                             if (showFeedback) {
-                                if (isHighest) {
+                                if (isSelected && isHighest) {
+                                    borderClass = 'border-[#3083FF] dark:border-primary';
+                                    bgClass = 'bg-blue-50/70 dark:bg-blue-950/40';
+                                    labelClass = 'bg-[#3083FF] text-white border-[#3083FF] dark:bg-primary dark:border-primary';
+                                    textClass = 'text-slate-900 dark:text-white font-medium';
+                                    checkClass = 'bg-[#3083FF] text-white';
+                                } else if (isHighest) {
                                     borderClass = 'border-emerald-400 dark:border-emerald-600';
                                     bgClass = 'bg-emerald-50 dark:bg-emerald-950/40';
                                     labelClass = 'bg-emerald-500 text-white border-emerald-500 dark:bg-emerald-600 dark:border-emerald-500';
@@ -1226,7 +1232,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                         <QuestionContent content={(opt.option_text || opt.text || '')} />
                                     </div>
                                     {/* Weight indicator */}
-                                    {showFeedback && (
+                                    {showFeedback && showFeedbackLabels && (
                                         <div className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold border ${isHighest ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
                                             {optWeight} pt
                                         </div>
@@ -1812,8 +1818,8 @@ const OrderingRenderer = React.memo(({
 
               if (showFeedback) {
                 const isCorrect = String(currentVal) === String(correctIdx + 1);
-                bgClass = isCorrect ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-rose-50 dark:bg-rose-950/40';
-                inputBorder = isCorrect ? 'border-emerald-500 text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/50' : 'border-rose-500 text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
+                bgClass = isCorrect ? 'bg-blue-50/70 dark:bg-blue-950/40' : 'bg-rose-50 dark:bg-rose-950/40';
+                inputBorder = isCorrect ? 'border-[#3083FF] text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50' : 'border-rose-500 text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
               } else if (isDuplicate) {
                 bgClass = 'bg-amber-50/60 dark:bg-amber-950/30';
                 inputBorder = 'border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/50 ring-2 ring-amber-200 dark:ring-amber-800';

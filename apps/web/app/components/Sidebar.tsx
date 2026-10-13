@@ -126,7 +126,6 @@ export default function Sidebar({
         'Siswa': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/siswa' },
             { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
-            { icon: 'fa-bell', label: 'Notifikasi', href: '/dashboard/notifications' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/siswa/classes' },
             { icon: 'fa-calendar', label: 'Jadwal', href: '/dashboard/siswa/schedule' },
             { icon: 'fa-chart-column', label: 'Hasil', href: '/dashboard/siswa/results' },

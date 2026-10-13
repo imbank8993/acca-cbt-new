@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { examDeadline } from './exam-deadline';
 
@@ -15,7 +15,8 @@ export async function assertAnswerKeysReleased(db: DbService, exam: any): Promis
     }
     const { data: attempts, error } = await db.from('cbt_exam_attempts')
         .select('started_at, personal_end_time, metadata').eq('exam_id', exam.id).eq('status', 'in_progress');
-    if (error || (attempts || []).some((attempt: any) => {
+    if (error) throw new InternalServerErrorException('Status pembahasan belum dapat diperiksa.');
+    if ((attempts || []).some((attempt: any) => {
         const deadline = examDeadline(attempt, exam).getTime();
         return !Number.isFinite(deadline) || deadline > now.getTime();
     })) throw new ForbiddenException('Pembahasan belum tersedia selama masih ada sesi pengerjaan aktif.');

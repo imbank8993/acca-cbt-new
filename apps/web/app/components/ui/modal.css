@@ -91,6 +91,7 @@
 .mdl-panel--md { width: min(520px, 100%); }
 .mdl-panel--lg { width: min(720px, 100%); }
 .mdl-panel--xl { width: min(960px, 100%); }
+.mdl-panel--2xl { width: min(1140px, 100%); }
 
 .mdl-panel.create-exam-modal {
   width: min(880px, 100%);

@@ -32,13 +32,13 @@ export class StudentAnalyticsController {
         return {
             history: await this.analytics.history(
                 user,
-                Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 100) : 20,
+                Number.isFinite(parsed) && parsed >= 1 ? Math.min(Math.floor(parsed), 100) : 20,
             ),
         };
     }
 
     @Get('comparison')
-    @ApiOperation({ summary: 'Perbandingan rata-rata pemanggil dengan rata-rata sekolahnya' })
+    @ApiOperation({ summary: 'Perbandingan dengan peserta sekolah pada kumpulan ujian yang sama' })
     async comparison(@CurrentUser() user: AuthUser) {
         return { comparison: await this.analytics.comparison(user) };
     }

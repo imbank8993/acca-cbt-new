@@ -7,12 +7,9 @@ StudentComparison,
 StudentExamHistoryItem,
 } from '@/lib/api/student-analytics';
 import {
-getStudentAnalytics,
-getStudentComparison,
-getStudentExamHistory
+getStudentAnalytics
 } from '@/lib/api/student-analytics';
 import { getSessionUser } from '@/lib/session';
-import { useMemoryState } from '@/lib/useMemoryState';
 import {
 ArcElement,
 BarElement,
@@ -50,7 +47,7 @@ TrendingUp,
 Trophy,
 Zap
 } from 'lucide-react';
-import { useCallback,useEffect,useState } from 'react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { Bar,Line } from 'react-chartjs-2';
 
 // Register ChartJS
@@ -69,38 +66,49 @@ ChartJS.register(
 
 export default function StudentAnalyticsPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
-    const [loading, setLoading] = useMemoryState('siswa_analytics_loading', true);
+    const [loading, setLoading] = useState(true);
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
-    const [examHistory, setExamHistory] = useMemoryState<StudentExamHistoryItem[]>('siswa_analytics_examHistory', []);
+    const [examHistory, setExamHistory] = useState<StudentExamHistoryItem[]>([]);
     const [comparison, setComparison] = useState<StudentComparison | null>(null);
+    const [loadError, setLoadError] = useState('');
+    const requestVersion = useRef(0);
 
     const loadData = useCallback(async () => {
+            const version = ++requestVersion.current;
             setLoading(true);
-            const user = await getSessionUser();
-            if (user) {
-                const [analyticsData, historyData, comparisonData] = await Promise.all([
-                    getStudentAnalytics(),
-                    getStudentExamHistory(20),
-                    getStudentComparison(),
-                ]);
+            setLoadError('');
+            setAnalytics(null);
+            setExamHistory([]);
+            setComparison(null);
+            try {
+                const user = await getSessionUser();
+                if (!user) throw new Error('Sesi berakhir. Silakan login kembali.');
+                const analyticsData = await getStudentAnalytics();
+                if (version !== requestVersion.current) return;
                 setAnalytics(analyticsData);
-                setExamHistory(historyData);
-                setComparison(comparisonData);
+                setExamHistory(analyticsData?.examHistory || []);
+                setComparison(analyticsData?.comparison || null);
+            } catch (error) {
+                if (version === requestVersion.current) setLoadError(error instanceof Error ? error.message : 'Analisis belum dapat dimuat.');
+            } finally {
+                if (version === requestVersion.current) setLoading(false);
             }
-            setLoading(false);
-    }, [setExamHistory, setLoading]);
+    }, []);
 
     useEffect(() => {
+        const pendingRequests = requestVersion;
         const initialLoad = window.setTimeout(() => void loadData(), 0);
         const handleFocus = () => void loadData();
         window.addEventListener('focus', handleFocus);
         return () => {
+            pendingRequests.current++;
             window.clearTimeout(initialLoad);
             window.removeEventListener('focus', handleFocus);
         };
     }, [loadData]);
 
-    const formatDuration = (seconds: number) => {
+    const formatDuration = (seconds: number | null) => {
+        if (seconds === null || !Number.isFinite(seconds)) return '—';
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         if (mins >= 60) {
@@ -112,14 +120,7 @@ export default function StudentAnalyticsPage() {
     };
 
     const formatDate = (dateStr: string) => timeZoneError ? 'Zona waktu belum tersedia' : formatSchoolDate(dateStr, timeZone);
-
-    const getGradeInfo = (percentage: number) => {
-        if (percentage >= 90) return { grade: 'A', label: 'Sangat Baik', bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-500' };
-        if (percentage >= 80) return { grade: 'B', label: 'Baik', bg: 'bg-blue-100', text: 'text-blue-700', ring: 'ring-blue-500' };
-        if (percentage >= 70) return { grade: 'C', label: 'Cukup', bg: 'bg-amber-100', text: 'text-amber-700', ring: 'ring-amber-500' };
-        if (percentage >= 60) return { grade: 'D', label: 'Kurang', bg: 'bg-pink-100', text: 'text-pink-700', ring: 'ring-pink-500' };
-        return { grade: 'E', label: 'Sangat Kurang', bg: 'bg-red-100', text: 'text-red-700', ring: 'ring-red-500' };
-    };
+    const formatScore = (score: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(score);
 
     const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
         if (trend === 'up') return <TrendingUp className="w-4 h-4 text-emerald-500" />;
@@ -142,6 +143,14 @@ export default function StudentAnalyticsPage() {
         );
     }
 
+    if (loadError) return (
+        <div role="alert" className="max-w-xl mx-auto mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
+            <p className="font-semibold text-red-700">Analisis gagal dimuat</p>
+            <p className="mt-2 text-sm text-red-600">{loadError}</p>
+            <button type="button" onClick={() => void loadData()} className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white">Coba lagi</button>
+        </div>
+    );
+
     if (!analytics) {
         return (
             <div className="py-20 px-6 text-center bg-white border border-dashed border-slate-200 rounded-2xl max-w-xl mx-auto w-full flex flex-col items-center mt-6">
@@ -149,7 +158,7 @@ export default function StudentAnalyticsPage() {
                     <BarChart3 size={28} className="text-slate-300" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-700 mb-1">Belum Ada Data Analisis</h3>
-                <p className="text-slate-500 text-sm max-w-sm mb-0">Selesaikan ujian terlebih dahulu untuk melihat analisis performa belajar Anda secara detail.</p>
+                <p className="text-slate-500 text-sm max-w-sm mb-0">Analisis tersedia setelah nilai akhir ujian dibuka oleh guru.</p>
             </div>
         );
     }
@@ -165,7 +174,7 @@ export default function StudentAnalyticsPage() {
             borderColor: '#3083FF',
             backgroundColor: 'rgba(0, 56, 168, 0.06)',
             fill: true,
-            tension: 0.4,
+            tension: 0,
             pointRadius: 5,
             pointHoverRadius: 7,
             pointBackgroundColor: '#3083FF',
@@ -239,6 +248,7 @@ export default function StudentAnalyticsPage() {
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
+            {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{timeZoneError}</div>}
 
             <div className="space-y-6">
                 {/* Overview Cards */}
@@ -276,7 +286,7 @@ export default function StudentAnalyticsPage() {
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Peringkat</span>
                         </div>
                         <p className="text-2xl font-black text-slate-800 leading-none font-mono">#{overview.rank || '-'}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">dari {overview.totalStudents} siswa</p>
+                        <p className="text-xs text-slate-400 font-medium mt-2">{overview.rank == null ? 'Peserta pembanding belum cukup' : `dari ${overview.totalStudents} peserta ujian yang sama`}</p>
                     </motion.div>
 
                     {/* Percentile */}
@@ -291,10 +301,10 @@ export default function StudentAnalyticsPage() {
                             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100/50">
                                 <Flame size={16} />
                             </div>
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Percentile</span>
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Persentil</span>
                         </div>
-                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">{overview.percentile}%</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">lebih baik dari siswa lain</p>
+                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">{overview.percentile == null ? '—' : `${overview.percentile}%`}</p>
+                        <p className="text-xs text-slate-400 font-medium mt-2">peserta pembanding dengan rata-rata lebih rendah</p>
                     </motion.div>
 
                     {/* Total Waktu */}
@@ -312,7 +322,7 @@ export default function StudentAnalyticsPage() {
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Total Waktu</span>
                         </div>
                         <p className="text-2xl font-black text-slate-800 leading-none font-mono">{formatDuration(overview.totalStudyTime)}</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">waktu belajar</p>
+                        <p className="text-xs text-slate-400 font-medium mt-2">waktu pengerjaan ujian</p>
                     </motion.div>
                 </div>
 
@@ -327,7 +337,7 @@ export default function StudentAnalyticsPage() {
                         <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                         <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
                             <Zap size={16} className="text-[#3083FF]" />
-                            Perbandingan dengan Rata-rata Kelas
+                            Perbandingan Peserta Ujian yang Sama
                         </h3>
                         <div className="grid grid-cols-3 gap-6">
                             <div className="text-center">
@@ -341,15 +351,15 @@ export default function StudentAnalyticsPage() {
                                     ) : (
                                         <ArrowDownRight size={14} />
                                     )}
-                                    <span>{Math.abs(comparison.difference)}%</span>
+                                    <span>{Math.abs(comparison.difference)} poin</span>
                                 </div>
                                 <p className="text-xs text-slate-500 font-medium mt-2">
-                                    {comparison.difference >= 0 ? 'di atas' : 'di bawah'} rata-rata
+                                    {comparison.difference === 0 ? 'sama dengan' : comparison.difference > 0 ? 'di atas' : 'di bawah'} rata-rata
                                 </p>
                             </div>
                             <div className="text-center">
                                 <p className="text-4xl font-black text-slate-300 font-mono">{comparison.classAverage}%</p>
-                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Rata-rata Kelas</p>
+                                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">{comparison.totalPeers} peserta pembanding</p>
                             </div>
                         </div>
                     </motion.div>
@@ -417,7 +427,6 @@ export default function StudentAnalyticsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {subjectPerformance.map((subject) => {
-                                    const grade = getGradeInfo(subject.averageScore);
                                     return (
                                         <tr key={subject.subjectId} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
@@ -425,17 +434,19 @@ export default function StudentAnalyticsPage() {
                                             </td>
                                             <td className="px-6 py-4 text-center text-slate-600 font-mono font-medium text-sm">{subject.totalExams}</td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${grade.bg} ${grade.text}`}>
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
                                                     {subject.averageScore}%
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold font-mono text-sm">{subject.highestScore}%</td>
-                                            <td className="px-6 py-4 text-center text-rose-500 font-bold font-mono text-sm">{subject.lowestScore}%</td>
+                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold font-mono text-sm">{formatScore(subject.highestScore)}%</td>
+                                            <td className="px-6 py-4 text-center text-rose-500 font-bold font-mono text-sm">{formatScore(subject.lowestScore)}%</td>
                                             <td className="px-6 py-4 text-center">
+                                                {subject.totalExams < 2 ? <span className="text-xs text-slate-400">Belum cukup data</span> : (
                                                 <div className={`flex items-center justify-center gap-1.5 ${getTrendColor(subject.trend)}`}>
                                                     {getTrendIcon(subject.trend)}
-                                                    <span className="text-xs font-bold uppercase tracking-wider">{subject.trend}</span>
+                                                    <span className="text-xs font-bold uppercase tracking-wider">{subject.trend === 'up' ? 'Naik' : subject.trend === 'down' ? 'Turun' : 'Stabil'}</span>
                                                 </div>
+                                                )}
                                             </td>
                                         </tr>
                                     );
@@ -471,12 +482,12 @@ export default function StudentAnalyticsPage() {
                                     <div key={diff.difficulty} className="space-y-1">
                                         <div className="flex items-center justify-between">
                                             <span className={`font-bold text-xs uppercase tracking-wide ${colors.text}`}>{colors.label}</span>
-                                            <span className="text-xs font-semibold text-slate-500 font-mono">{diff.percentage}% ({diff.correctAnswers}/{diff.totalQuestions})</span>
+                                            <span className="text-xs font-semibold text-slate-500 font-mono">{diff.percentage == null ? 'Belum ada data' : `${diff.percentage}% (${diff.correctAnswers}/${diff.totalQuestions})`}</span>
                                         </div>
                                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full ${colors.bar} rounded-full transition-all duration-500`}
-                                                style={{ width: `${diff.percentage}%` }}
+                                                style={{ width: `${diff.percentage ?? 0}%` }}
                                             />
                                         </div>
                                     </div>
@@ -553,8 +564,8 @@ export default function StudentAnalyticsPage() {
                         ) : (
                             <div className="text-center py-10">
                                 <CheckCircle2 className="w-10 h-10 text-amber-300 mx-auto mb-3" />
-                                <p className="text-amber-800 font-bold text-xs uppercase tracking-wide">Luar Biasa!</p>
-                                <p className="text-xs text-amber-600/95 mt-1 max-w-xs mx-auto">Hebat, tidak ada kelemahan kritis yang terdeteksi pada performa belajar Anda saat ini.</p>
+                                <p className="text-amber-800 font-bold text-xs uppercase tracking-wide">Belum ada temuan</p>
+                                <p className="text-xs text-amber-600/95 mt-1 max-w-xs mx-auto">Temuan membutuhkan sedikitnya 5 soal dengan penilaian yang pasti per tipe.</p>
                             </div>
                         )}
                     </motion.div>
@@ -570,7 +581,7 @@ export default function StudentAnalyticsPage() {
                     <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                     <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
                         <Clock size={16} className="text-[#3083FF]" />
-                        Kebiasaan Belajar
+                        Waktu Pengerjaan Ujian
                     </h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
@@ -586,7 +597,7 @@ export default function StudentAnalyticsPage() {
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Terlama</p>
                         </div>
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-indigo-600 font-mono leading-none">{studyHabits.averageQuestionsPerMinute}</p>
+                            <p className="text-xl font-bold text-indigo-600 font-mono leading-none">{studyHabits.averageQuestionsPerMinute ?? '—'}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Soal / Menit</p>
                         </div>
                     </div>
@@ -612,12 +623,11 @@ export default function StudentAnalyticsPage() {
                                 return <div className="px-6 py-8 text-center text-slate-400 font-medium text-xs">Belum ada riwayat ujian</div>;
                             }
                             return displayExams.map((exam) => {
-                                const grade = getGradeInfo(exam.score);
                                 return (
                                     <div key={exam.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                                         <div className="flex items-center gap-3.5 min-w-0">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${grade.bg} ${grade.text} border border-white`}>
-                                                {grade.grade}
+                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-[#3083FF] border border-blue-100">
+                                                <BookOpen size={18} />
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-800 text-sm truncate leading-snug">{exam.examTitle}</p>
@@ -625,7 +635,7 @@ export default function StudentAnalyticsPage() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0 ml-4">
-                                            <p className="text-base font-black text-slate-800 font-mono leading-none">{exam.score}%</p>
+                                            <p className="text-base font-black text-slate-800 font-mono leading-none">{formatScore(exam.score)}%</p>
                                             <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-wide leading-none">{formatDuration(exam.timeSpentSeconds)}</p>
                                         </div>
                                     </div>

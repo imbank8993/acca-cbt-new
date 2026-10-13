@@ -69,7 +69,7 @@ export default function StudentResultsPage() {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {results.map((attempt) => {
-                        const canViewDetails = attempt.exams?.show_results && !attempt.needs_manual_grading;
+                        const canViewDetails = attempt.exams?.show_results === true;
 
                         return (
                             <motion.button
@@ -101,6 +101,11 @@ export default function StudentResultsPage() {
                                                     MENUNGGU PENILAIAN
                                                 </span>
                                             )}
+                                            {!canViewDetails && (
+                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-none">
+                                                    NILAI BELUM DIBUKA GURU
+                                                </span>
+                                            )}
                                         </div>
                                         <h3 className="font-bold text-slate-800 text-sm group-hover:text-[#3083FF] transition-colors line-clamp-2 leading-snug">
                                             {attempt.exams?.title || 'Ujian Tidak Diketahui'}
@@ -113,7 +118,7 @@ export default function StudentResultsPage() {
                                 </div>
 
                                 <div className="shrink-0 flex items-center justify-between sm:justify-start gap-4 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3.5 sm:pt-0 sm:pl-4 mt-2 sm:mt-0">
-                                    {attempt.exams?.show_results !== false && (
+                                    {attempt.exams?.show_results === true && (
                                         <div className="flex items-center gap-4">
                                             <div className="text-center min-w-[70px]">
                                                 <p className={`text-[8px] font-extrabold uppercase tracking-widest mb-0.5 ${attempt.needs_manual_grading ? 'text-amber-600' : 'text-slate-400'}`}>

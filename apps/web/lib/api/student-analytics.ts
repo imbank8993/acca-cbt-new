@@ -21,10 +21,10 @@ export interface StudentAnalyticsOverview {
     highestScore: number;
     lowestScore: number;
     /** Dalam detik. */
-    totalStudyTime: number;
+    totalStudyTime: number | null;
     rank: number | null;
     totalStudents: number;
-    percentile: number;
+    percentile: number | null;
 }
 
 export interface ExamAttemptSummary {
@@ -37,10 +37,8 @@ export interface ExamAttemptSummary {
     percentage: number;
     startedAt: string;
     finishedAt: string;
-    timeSpentSeconds: number;
+    timeSpentSeconds: number | null;
     status: 'submitted' | 'in_progress' | 'auto_submitted';
-    rank: number;
-    classAverage: number;
 }
 
 export interface PerformanceTrend {
@@ -69,7 +67,7 @@ export interface DifficultyPerformance {
     difficulty: 'easy' | 'medium' | 'hard';
     totalQuestions: number;
     correctAnswers: number;
-    percentage: number;
+    percentage: number | null;
 }
 
 export interface StrengthWeakness {
@@ -81,12 +79,10 @@ export interface StrengthWeakness {
 }
 
 export interface StudyHabitStats {
-    averageTimePerExam: number;
-    fastestCompletion: number;
-    slowestCompletion: number;
-    consistentDaysPerWeek: number;
-    mostActiveTime: string;
-    averageQuestionsPerMinute: number;
+    averageTimePerExam: number | null;
+    fastestCompletion: number | null;
+    slowestCompletion: number | null;
+    averageQuestionsPerMinute: number | null;
 }
 
 export interface StudentAnalyticsData {
@@ -97,13 +93,18 @@ export interface StudentAnalyticsData {
     difficultyPerformance: DifficultyPerformance[];
     strengthsWeaknesses: StrengthWeakness[];
     studyHabits: StudyHabitStats;
+    dataQuality: { excludedAttempts: number; analyzedExams: number; totalExams: number; unknownGrades: number; timedExams: number; comparisonScope: string };
+    examHistory: StudentExamHistoryItem[];
+    comparison: StudentComparison | null;
 }
 
 export interface StudentComparison {
     studentAverage: number;
     classAverage: number;
     difference: number;
-    betterThanClass: number;
+    betterThanClass: number | null;
+    totalPeers: number;
+    scope: 'same-exams';
 }
 
 export interface StudentExamHistoryItem {
@@ -116,7 +117,7 @@ export interface StudentExamHistoryItem {
     startedAt: string;
     finishedAt: string | null;
     durationMinutes: number;
-    timeSpentSeconds: number;
+    timeSpentSeconds: number | null;
     status: string;
 }
 
@@ -124,19 +125,22 @@ export interface StudentExamHistoryItem {
 
 export async function getStudentAnalytics(): Promise<StudentAnalyticsData | null> {
     const res = await apiGet<{ analytics: StudentAnalyticsData | null }>('/api/student-analytics');
-    return res.success ? res.analytics : null;
+    if (!res.success) throw new Error(res.error || 'Analisis belum dapat dimuat.');
+    return res.analytics;
 }
 
 export async function getStudentExamHistory(limit = 20): Promise<StudentExamHistoryItem[]> {
     const res = await apiGet<{ history: StudentExamHistoryItem[] }>(
         `/api/student-analytics/history?limit=${limit}`,
     );
-    return res.success ? res.history : [];
+    if (!res.success) throw new Error(res.error || 'Riwayat belum dapat dimuat.');
+    return res.history;
 }
 
 export async function getStudentComparison(): Promise<StudentComparison | null> {
-    const res = await apiGet<{ comparison: StudentComparison }>(
+    const res = await apiGet<{ comparison: StudentComparison | null }>(
         '/api/student-analytics/comparison',
     );
-    return res.success ? res.comparison : null;
+    if (!res.success) throw new Error(res.error || 'Perbandingan belum dapat dimuat.');
+    return res.comparison;
 }

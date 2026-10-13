@@ -34,6 +34,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
             boxSizing: 'border-box',
         }}>
             <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
                 .eqc-page-spacer { height: 0; }
                 @media print {
                     /* margin 0 => browser tidak mencetak header/footer (tanggal, judul, URL) */
@@ -78,18 +79,17 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
 
             {/* ── Header (Kop Surat) ── */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '2px solid #3083FF', paddingBottom: '12px', marginBottom: '16px' }}>
-                <Image src="/logo-icon.png" alt="ACCA Logo" width={45} height={45} style={{ height: '45px', width: 'auto', objectFit: 'contain', marginRight: '16px' }} />
-                <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', fontSize: '16px', fontWeight: 800, color: '#3083FF' }}>ACCA</div>
+                <Image src="/logo-sidebar.png" alt="ACCA Logo" width={180} height={48} style={{ height: '40px', width: 'auto', objectFit: 'contain' }} priority />
             </div>
 
             {/* ── Judul Ujian (Di Bawah Garis) ── */}
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>LEMBAR SOAL UJIAN</div>
-                <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: '14px', color: '#3083FF', marginTop: '4px', fontWeight: 600 }}>{bankInfo?.title || bankInfo?.name || 'Bank Soal'}</div>
+                <div style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif", fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>LEMBAR SOAL UJIAN</div>
+                <div style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif", fontSize: '14px', color: '#3083FF', marginTop: '4px', fontWeight: 600 }}>{bankInfo?.title || bankInfo?.name || 'Bank Soal'}</div>
             </div>
 
             {/* ── Info Siswa (Proporsional & Seimbang) ── */}
-            <table style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', width: '100%', borderCollapse: 'collapse', marginBottom: '16px', fontSize: '12px', tableLayout: 'fixed' }}>
+            <table style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif", width: '100%', borderCollapse: 'collapse', marginBottom: '16px', fontSize: '12px', tableLayout: 'fixed' }}>
                 <tbody>
                     <tr>
                         <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', width: '70%' }}>
@@ -127,7 +127,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
             </table>
 
             {/* ── Petunjuk Umum ── */}
-            <div style={{ fontFamily: '"Plus Jakarta Sans", sans-serif', background: '#f1f5f9', borderLeft: '4px solid #3083FF', padding: '8px 12px', fontSize: '12px', color: '#475569', marginBottom: '20px' }}>
+            <div style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif", background: '#f1f5f9', borderLeft: '4px solid #3083FF', padding: '8px 12px', fontSize: '12px', color: '#475569', marginBottom: '20px' }}>
                 <strong style={{ color: '#3083FF' }}>Petunjuk Umum:</strong><br/>
                 1. Berdoalah sebelum mengerjakan soal.<br/>
                 2. Bacalah setiap soal dengan seksama.<br/>
@@ -217,7 +217,7 @@ export function ExamPrintView({ bankInfo, questions }: ExamPrintViewProps) {
                                             color: '#3083FF',
                                             fontSize: '12px',
                                             fontWeight: 700,
-                                            fontFamily: '"Plus Jakarta Sans", sans-serif',
+                                            fontFamily: "var(--font-poppins), 'Poppins', sans-serif",
                                             boxSizing: 'border-box'
                                         }}>
                                             {idx + 1}

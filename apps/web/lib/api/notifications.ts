@@ -37,7 +37,8 @@ export async function getUserNotificationsResult(
 
 export async function getUnreadNotificationCount(): Promise<number> {
     const res = await apiGet<{ count: number }>('/api/notifications/unread-count');
-    return res.success ? res.count : 0;
+    if (!res.success) throw new Error(res.error || 'Jumlah notifikasi gagal dimuat.');
+    return res.count;
 }
 
 export function markNotificationRead(notificationId: string) {

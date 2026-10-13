@@ -218,7 +218,7 @@ export const InteractiveMatching = ({
                             ? (() => {
                                 const correctMatchTexts = opt?.metadata?.match_texts || (opt?.metadata?.match_text ? [opt.metadata.match_text] : []);
                                 const allCorrect = answers[opt.id].every((ans: string) => correctMatchTexts.includes(ans));
-                                return allCorrect ? "border-emerald-400 bg-emerald-50 text-emerald-800" : "border-rose-400 bg-rose-50 text-rose-800";
+                                return allCorrect ? "border-[#3083FF] bg-blue-50/70 text-blue-800" : "border-rose-400 bg-rose-50 text-rose-800";
                               })()
                             : isConnected
                               ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200"

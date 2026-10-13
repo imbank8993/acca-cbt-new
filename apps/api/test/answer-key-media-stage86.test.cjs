@@ -43,12 +43,16 @@ for (const scenario of ['not-enabled', 'future-end', 'no-end', 'active-recovery'
         await assert.rejects(assertAnswerKeysReleased(db, exam), denied);
     });
 }
-test('scores stay available while both detailed key endpoints are blocked', async () => {
+test('score summary stays available while detailed keys are blocked', async () => {
     const { db } = fixture();
     db.tables.cbt_exam_attempts[0].status = 'submitted';
     db.tables.cbt_exam_attempts[0].total_score = 80;
     assert.equal((await new StudentsService(db).listResults(user))[0].total_score, 80);
-    await assert.rejects(new StudentsService(db).getAttemptDetails(user, 'attempt'), denied);
+    const summary = await new StudentsService(db).getAttemptDetails(user, 'attempt');
+    assert.equal(summary.attempt.total_score, 80);
+    assert.equal(summary.answerKeysReleased, false);
+    assert.deepEqual(summary.answers, []);
+    assert.equal(summary.attempt.exams.metadata, undefined);
     await assert.rejects(new ExamReviewService(db, {}).getReview(user, 'attempt'), denied);
 });
 test('released details still read latest bank keys as required', async () => {

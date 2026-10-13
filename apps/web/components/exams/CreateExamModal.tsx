@@ -1149,8 +1149,10 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     </div>
 
                     {/* Opsi Pengaturan Tambahan */}
-                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2.5 select-none">
-                        <div className="flex flex-wrap gap-x-5 gap-y-2.5 items-center">
+                    <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                            <fieldset className="space-y-2.5">
+                                <legend className="mb-2 text-xs font-semibold text-slate-500">Pengacakan</legend>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -1167,17 +1169,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     onChange={(e) => setFormData((prev) => ({ ...prev, randomizeOptions: e.target.checked }))}
                                     className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
                                 />
-                                <span className="text-xs font-medium text-slate-700">Acak Opsi</span>
+                                <span className="text-xs font-medium text-slate-700">Acak opsi jawaban</span>
                             </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.isSafeMode}
-                                    onChange={(e) => setFormData((prev) => ({ ...prev, isSafeMode: e.target.checked }))}
-                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20"
-                                />
-                                <span className="text-xs font-medium text-slate-700">Mode Aman</span>
-                            </label>
+                            </fieldset>
+                            <fieldset className="space-y-2.5">
+                                <legend className="mb-2 text-xs font-semibold text-slate-500">Hasil siswa</legend>
                             <label
                                 className={`flex items-center gap-2 ${
                                     formData.scoringTypes.some((t) => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
@@ -1191,24 +1187,36 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200"
                                 />
                                 <span className="text-xs font-medium text-slate-700">
-                                    Tampilkan Nilai
-                                    {formData.scoringTypes.some((t) => t.startsWith('irt_')) && ' (Nonaktif untuk IRT)'}
+                                    Tampilkan nilai
                                 </span>
                             </label>
-                        </div>
-
-                        <label className="flex items-start gap-2 text-xs text-slate-700">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
                             <input type="checkbox" checked={formData.showAnswerKeys}
-                                onChange={(e) => setFormData(prev => ({ ...prev, showAnswerKeys: e.target.checked }))} />
-                            <span>Buka kunci jawaban dan pembahasan setelah jadwal ujian berakhir.
-                                Memerlukan Tampilkan Nilai aktif dan seluruh sesi pengerjaan berakhir.</span>
+                                aria-describedby="exam-answer-keys-hint"
+                                onChange={(e) => setFormData(prev => ({ ...prev, showAnswerKeys: e.target.checked }))}
+                                className="w-4 h-4 shrink-0 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
+                            <span>Buka pembahasan</span>
                         </label>
-
+                        <p id="exam-answer-keys-hint" className="pl-6 text-[11px] leading-relaxed text-slate-500">
+                            Setelah semua sesi selesai dan nilai dibuka.
+                        </p>
+                        {formData.scoringTypes.some((t) => t.startsWith('irt_')) && (
+                            <p className="pl-6 text-[11px] text-slate-500">Nilai tidak ditampilkan untuk IRT.</p>
+                        )}
+                            </fieldset>
+                        </div>
+                        <div className="border-t border-slate-100 pt-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={formData.isSafeMode}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, isSafeMode: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20" />
+                                <span className="text-xs font-medium text-slate-700">Mode aman</span>
+                            </label>
                         {formData.isSafeMode && (
-                            <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-3">
-                                <p className="text-xs font-semibold text-slate-700 mb-2">Tindakan setelah pelanggaran</p>
-                                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                                    <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                            <fieldset className="mt-3 ml-6 space-y-2.5">
+                                <legend className="mb-2 text-[11px] text-slate-500">Saat terjadi pelanggaran</legend>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                                    <label className="flex items-center gap-2 cursor-pointer">
                                         <input
                                             type="radio"
                                             name="violation-limit-mode"
@@ -1219,7 +1227,8 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                             }))}
                                             className="text-[#3083FF] focus:ring-[#3083FF]/20"
                                         />
-                                        Selesaikan ujian otomatis setelah
+                                        Akhiri ujian setelah
+                                    </label>
                                         <input
                                             type="number"
                                             min={1}
@@ -1232,10 +1241,10 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                                 ...prev,
                                                 maxViolations: Math.max(1, Math.min(100, Number(e.target.value) || 1)),
                                             }))}
-                                            className="w-16 rounded-md border border-slate-300 bg-white px-2 py-1 text-center disabled:opacity-50"
+                                            className="w-14 rounded-md border border-slate-200 bg-white px-2 py-1 text-center disabled:opacity-50"
                                         />
-                                        pelanggaran
-                                    </label>
+                                        <span>pelanggaran</span>
+                                </div>
                                     <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                                         <input
                                             type="radio"
@@ -1244,11 +1253,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                             onChange={() => setFormData((prev) => ({ ...prev, maxViolations: null }))}
                                             className="text-[#3083FF] focus:ring-[#3083FF]/20"
                                         />
-                                        Tanpa batas — catat semua, jangan selesaikan otomatis
+                                        Catat saja, tanpa mengakhiri ujian
                                     </label>
-                                </div>
-                            </div>
+                            </fieldset>
                         )}
+                        </div>
                     </div>
                         </>
                     )}

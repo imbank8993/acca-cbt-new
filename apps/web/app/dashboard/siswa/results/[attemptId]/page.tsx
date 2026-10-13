@@ -1,14 +1,11 @@
 "use client";
-import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { formatAnswerKey,formatStudentAnswer } from '@/lib/answer-display';
-import { getAttemptDetailsAction,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
+import { getAttemptDetailsResult,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
-import { useMemoryState } from '@/lib/useMemoryState';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
-import { ArrowLeft,BarChart3,BookOpen,Brain,CheckCircle2,Clock,Info,Loader2,XCircle } from 'lucide-react';
+import { ArrowLeft,BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -20,22 +17,30 @@ function hasResultQuestion(
     return answer.question !== null;
 }
 
-function summarizeEssayAnswer(value: StudentAttemptAnswer['essayAnswer']) {
-    let text = typeof value === 'string' ? value : '';
-    let fileCount = 0;
-    let hasVideo = false;
-    let parsed: unknown = value;
-
-    if (typeof value === 'string') {
-        try { parsed = JSON.parse(value); } catch { parsed = null; }
-    }
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const payload = parsed as Record<string, unknown>;
-        text = typeof payload.text === 'string' ? payload.text : '';
-        fileCount = Array.isArray(payload.fileUrls) ? payload.fileUrls.length : 0;
-        hasVideo = typeof payload.videoUrl === 'string' && payload.videoUrl.trim().length > 0;
-    }
-    return { text, fileCount, hasVideo };
+function StudentAnswerAnalysis({ answer, index }: {
+    answer: StudentAttemptAnswer & { question: StudentResultQuestion };
+    index: number;
+}) {
+    const question = answer.question;
+    const isEssay = ['essay', 'esay', 'uraian'].includes(question.type.toLowerCase());
+    const manualPending = isEssay && answer.isCorrect == null;
+    return (
+        <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-200 text-xs text-slate-500">
+                <span className="font-semibold">Soal {index + 1} · Bobot {question.score_default ?? 1} poin</span>
+                <span>Nilai: <span className="font-bold text-slate-700">{manualPending ? 'Menunggu koreksi' : answer.score ?? '—'}</span></span>
+            </div>
+            <div className="bg-white p-3 sm:p-3.5 rounded-lg border border-slate-200 shadow-sm text-sm">
+                <QuestionRenderer
+                    question={{ ...question, bank_question_options: question.options }}
+                    answer={answer.essayAnswer ?? answer.selectedOptionId}
+                    onAnswerChange={() => {}}
+                    showFeedback={true}
+                    showFeedbackLabels={false}
+                />
+            </div>
+        </div>
+    );
 }
 
 export default function StudentResultDetailsPage() {
@@ -44,15 +49,24 @@ export default function StudentResultDetailsPage() {
     const router = useRouter();
     const attemptId = params.attemptId as string;
 
-    const [loading, setLoading] = useMemoryState('siswa_results__attemptId__loading', true);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [details, setDetails] = useState<StudentAttemptDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'pengetahuan' | 'kepribadian'>('pengetahuan');
 
     const load = useCallback(async () => {
         setLoading(true);
+        setLoadError('');
+        setDetails(null);
         const user = await getSessionUser();
         if (user) {
-            const data = await getAttemptDetailsAction(attemptId);
+            const response = await getAttemptDetailsResult(attemptId);
+            if (!response.success) {
+                setLoadError(response.error);
+                setLoading(false);
+                return;
+            }
+            const data = response.details;
             setDetails(data);
             // Auto-switch to kepribadian if no academic answers
             if (data) {
@@ -63,6 +77,8 @@ export default function StudentResultDetailsPage() {
                     setActiveTab('kepribadian');
                 }
             }
+        } else {
+            setLoadError('Sesi berakhir. Silakan login kembali.');
         }
         setLoading(false);
     }, [attemptId, setLoading]);
@@ -83,10 +99,18 @@ export default function StudentResultDetailsPage() {
     );
 
     if (!details) return (
-        <div className="max-w-2xl mx-auto py-20 text-center bg-white border border-slate-100 rounded-[2rem] p-10">
+        <div role="alert" className="max-w-2xl mx-auto py-20 text-center bg-white border border-slate-100 rounded-[2rem] p-10">
             <p className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-4">
-                Data tidak ditemukan atau hasil ujian belum tersedia untuk dilihat.
+                Detail hasil ujian belum dapat ditampilkan.
             </p>
+            <p className="text-sm text-slate-600 mb-4">{loadError || 'Data hasil ujian tidak ditemukan.'}</p>
+            <button
+                type="button"
+                onClick={() => void load()}
+                className="mr-2 mt-2 px-6 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium text-sm hover:bg-slate-200"
+            >
+                Coba Lagi
+            </button>
             <button
                 onClick={() => router.push('/dashboard/siswa/results')}
                 className="mt-2 px-6 py-2.5 bg-primary text-white rounded-xl font-medium text-sm hover:opacity-90"
@@ -146,10 +170,10 @@ export default function StudentResultDetailsPage() {
 
                     {/* Score cards */}
                     <div className="flex flex-wrap gap-3 self-start xl:self-center shrink-0">
-                        {hasPengetahuan && (
+                        {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && (
                             <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
                                 <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{gradingPending ? 'Menunggu Penilaian' : 'Nilai Klasik'}</p>
+                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{gradingPending ? 'Menunggu Penilaian' : attempt.needs_manual_grading ? 'Nilai Sementara' : 'Nilai Klasik'}</p>
                                     <p className="text-3xl font-black tracking-tighter text-[#3083FF] leading-none font-mono">
                                         {gradingPending ? '—' : totalScore.toFixed(0)}
                                     </p>
@@ -167,12 +191,14 @@ export default function StudentResultDetailsPage() {
                                         </div>
                                     </>
                                 )}
+                                {hasPengetahuan && <>
                                 <div className="w-px h-10 bg-slate-200" />
                                 <div className="text-center min-w-[60px]">
                                     <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Benar</p>
                                     <p className="text-2xl font-black text-emerald-600 leading-none font-mono mt-0.5">{gradingPending ? '—' : correctCount}</p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
                                 </div>
+                                </>}
                             </div>
                         )}
                     </div>
@@ -225,7 +251,22 @@ export default function StudentResultDetailsPage() {
                 )}
             </div>
 
+            {gradingPending && (
+                <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Jawaban sudah dikumpulkan. Nilai masih diproses.
+                    <button type="button" onClick={() => void load()} className="ml-2 font-bold underline">Muat ulang nilai</button>
+                </div>
+            )}
+            {details.answerKeysReleased === false && (
+                <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                    <p className="font-semibold">Ringkasan hasil ujian tersedia</p>
+                    <p className="mt-1">{details.answerKeysMessage || 'Kunci jawaban dan pembahasan belum dibuka oleh guru.'}</p>
+                    <button type="button" onClick={() => void load()} className="mt-2 font-bold underline">Periksa kembali pembahasan</button>
+                </div>
+            )}
+
             {/* Tab Content */}
+            {details.answerKeysReleased !== false && (
             <AnimatePresence mode="wait">
                 {/* ── PENGETAHUAN TAB ── */}
                 {resolvedTab === 'pengetahuan' && (
@@ -243,147 +284,9 @@ export default function StudentResultDetailsPage() {
                                 <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Tidak ada soal pengetahuan</p>
                             </div>
                         ) : (
-                            pengetahuanAnswers.map((ans, idx) => {
-                                const q = ans.question;
-                                const isEssay = ['essay', 'esay', 'uraian'].includes(q.type.toLowerCase());
-
-                                return (
-                                    <motion.div
-                                        key={ans.id}
-                                        initial={{ opacity: 0, y: 12 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.04 }}
-                                        className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${
-                                            ans.isCorrect ? 'border-emerald-100' : isEssay ? 'border-slate-100' : 'border-rose-100'
-                                        }`}
-                                    >
-                                        {/* Header */}
-                                        <div className={`px-5 py-4 flex justify-between items-center border-b ${
-                                            ans.isCorrect ? 'bg-emerald-50/50 border-emerald-50' :
-                                            isEssay ? 'bg-slate-50/50 border-slate-100' : 'bg-rose-50/50 border-rose-50'
-                                        }`}>
-                                            <div className="flex items-center gap-3">
-                                                <span className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-xs font-black text-slate-500 shadow-sm">
-                                                    {idx + 1}
-                                                </span>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Bobot: {q?.score_default || 1} poin
-                                                </span>
-                                            </div>
-                                            {isEssay ? (
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <div className="text-primary font-bold text-[10px] uppercase tracking-widest bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/10">
-                                                        {Number(ans.score ?? 0) > 0 ? `Nilai: ${ans.score}` : 'Menunggu Koreksi'}
-                                                    </div>
-                                                    {Number(ans.score ?? 0) <= 0 && (
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase">Skor akan tampil setelah dinilai guru</span>
-                                                    )}
-                                                </div>
-                                            ) : ans.isCorrect ? (
-                                                <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest bg-emerald-100 px-3 py-1.5 rounded-lg">
-                                                    <CheckCircle2 size={14} /> Benar
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-rose-500 font-bold text-xs uppercase tracking-widest bg-rose-100 px-3 py-1.5 rounded-lg">
-                                                    <XCircle size={14} /> Salah
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Question */}
-                                        <div className="p-6">
-                                            <div className="mb-8">
-                                                <QuestionRenderer
-                                                    question={{
-                                                        ...q,
-                                                        question_text: q.question_text,
-                                                        type: q.type,
-                                                        score_default: q.score_default,
-                                                        metadata: q.metadata,
-                                                        bank_question_options: q.options
-                                                    }}
-                                                    answer={ans.selectedOptionId || ans.essayAnswer}
-                                                    onAnswerChange={() => {}}
-                                                    isPreview={false}
-                                                    showFeedback={true}
-                                                />
-                                            </div>
-
-                                            {/* Answer comparison */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-slate-50 pt-6">
-                                                {/* Student's answer */}
-                                                <div className={`p-5 rounded-xl border-2 ${
-                                                    isEssay ? 'bg-slate-50 border-slate-100' :
-                                                    ans.isCorrect ? 'bg-emerald-50/50 border-emerald-100/50' : 'bg-rose-50/50 border-rose-100/50'
-                                                }`}>
-                                                    <div className="flex items-center gap-2 mb-3">
-                                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-black ${
-                                                            ans.isCorrect ? 'bg-emerald-500' : 'bg-slate-300'
-                                                        }`}>S</div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                            Respons Anda
-                                                        </span>
-                                                    </div>
-                                                    <div className="font-medium text-slate-700 leading-relaxed">
-                                                        {isEssay
-                                                            ? (ans.essayAnswer ? (
-                                                                (() => {
-                                                                    const { text, fileCount, hasVideo } = summarizeEssayAnswer(ans.essayAnswer);
-                                                                    return (
-                                                                        <div className="space-y-2">
-                                                                            <LatexRenderer text={text || ''} />
-                                                                            {(fileCount > 0 || hasVideo) && (
-                                                                                <div className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-2 rounded-lg inline-flex items-center gap-2">
-                                                                                    {fileCount > 0 && <span>📎 {fileCount} Lampiran</span>}
-                                                                                    {hasVideo && <span>🎥 Link Video</span>}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })()
-                                                            ) : <span className="italic opacity-40">Tidak dijawab</span>)
-                                                            : (() => {
-                                                                // Tipe kompleks (PGK, benar/salah, menjodohkan, kategorisasi,
-                                                                // isian) menyimpan jawabannya di essayAnswer (JSON) — dulu
-                                                                // hanya selectedOptionId yang dicek sehingga tampil
-                                                                // "Tidak dijawab" padahal siswa menjawab.
-                                                                const lines = formatStudentAnswer({ ...q, options: q.options }, ans.selectedOptionId, ans.essayAnswer);
-                                                                return lines.length > 0
-                                                                    ? (
-                                                                        <div className="space-y-1">
-                                                                            {lines.map((line: string, li: number) => <div key={li}><LatexRenderer text={line} /></div>)}
-                                                                        </div>
-                                                                    )
-                                                                    : <span className="italic opacity-40">Tidak dijawab</span>;
-                                                            })()
-                                                        }
-                                                    </div>
-                                                </div>
-
-                                                {/* Correct answer (only for wrong non-essay) — kunci lengkap
-                                                    per tipe soal (bukan hanya satu opsi is_correct pertama) */}
-                                                {!isEssay && ans.isCorrect !== true && (() => {
-                                                    const keyLines = formatAnswerKey({ ...q, options: q.options });
-                                                    if (keyLines.length === 0) return null;
-                                                    return (
-                                                        <div className="p-5 rounded-xl border-2 border-emerald-100/50 bg-emerald-50/30">
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-xs font-black shadow-sm">K</div>
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                                                                    Kunci Jawaban
-                                                                </span>
-                                                            </div>
-                                                            <div className="font-medium text-emerald-800 leading-relaxed space-y-1">
-                                                                {keyLines.map((line: string, li: number) => <div key={li}><LatexRenderer text={line} /></div>)}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                );
-                            })
+                            pengetahuanAnswers.map((answer, index) => (
+                                <StudentAnswerAnalysis key={answer.id} answer={answer} index={index} />
+                            ))
                         )}
                     </motion.div>
                 )}
@@ -492,58 +395,9 @@ export default function StudentResultDetailsPage() {
                         {kepribadianAnswers.length > 0 && (
                             <div className="space-y-5">
                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">Detail Jawaban Kepribadian</p>
-                                {kepribadianAnswers.map((ans, idx) => {
-                                    const q = ans.question;
-                                    const dimScores = ans.metadata?.dimension_scores || {};
-                                    const topDimEntry = Object.entries(dimScores as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
-                                    const topDimName = topDimEntry
-                                        ? details.dimensions.find((dimension) => dimension.id === topDimEntry[0])?.name
-                                        : null;
-
-                                    return (
-                                        <motion.div
-                                            key={ans.id}
-                                            initial={{ opacity: 0, y: 12 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: idx * 0.04 }}
-                                            className="bg-white rounded-2xl border border-indigo-100 overflow-hidden shadow-sm"
-                                        >
-                                            {/* Header */}
-                                            <div className="px-5 py-4 flex justify-between items-center border-b bg-indigo-50/40 border-indigo-50">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="w-8 h-8 rounded-lg bg-white border border-indigo-100 flex items-center justify-center text-xs font-black text-indigo-400 shadow-sm">
-                                                        {idx + 1}
-                                                    </span>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                        {q?.type?.toUpperCase?.() || 'Kepribadian'}
-                                                    </span>
-                                                </div>
-                                                {topDimName && (
-                                                    <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg">
-                                                        {topDimName}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div className="p-6">
-                                                <QuestionRenderer
-                                                    question={{
-                                                        ...q,
-                                                        question_text: q.question_text,
-                                                        type: q.type,
-                                                        score_default: q.score_default,
-                                                        metadata: q.metadata,
-                                                        bank_question_options: q.options
-                                                    }}
-                                                    answer={ans.selectedOptionId || ans.essayAnswer}
-                                                    onAnswerChange={() => {}}
-                                                    isPreview={false}
-                                                    showFeedback={false}
-                                                />
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })}
+                                {kepribadianAnswers.map((answer, index) => (
+                                    <StudentAnswerAnalysis key={answer.id} answer={answer} index={index} />
+                                ))}
                             </div>
                         )}
 
@@ -556,6 +410,7 @@ export default function StudentResultDetailsPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+            )}
         </div>
     );
 }

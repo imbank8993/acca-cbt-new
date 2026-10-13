@@ -201,14 +201,14 @@ test('SEC-14: hidden results excluded from history, overview and comparison', as
     const service = new StudentAnalyticsService(db);
     assert.deepEqual(await service.history(user), []);
     assert.equal(await service.overview(user), null);
-    assert.deepEqual(await service.comparison(user), { studentAverage: 0, classAverage: 0, difference: 0, betterThanClass: 0 });
+    assert.equal(await service.comparison(user), null);
 });
 
 test('SEC-14: history applies limit after release filtering', async () => {
     const db = database({ cbt_exam_attempts: [
         { user_id: user.id, status: 'submitted', exams: { show_results: false } },
-        { id: 'visible', user_id: user.id, status: 'submitted', total_score: 80, exams: { show_results: true } },
-    ] });
+        { id: 'visible', user_id: user.id, status: 'submitted', total_score: 80, exams: { id: 'exam', organization_id: 'school', show_results: true } },
+    ], cbt_organization_members: [{ user_id: user.id, organization_id: 'school', is_active: true }] });
     const rows = await new StudentAnalyticsService(db).history(user, 1);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].id, 'visible');

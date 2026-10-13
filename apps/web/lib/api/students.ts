@@ -74,9 +74,9 @@ export async function getStudentExams(): Promise<StudentScheduledExam[]> {
 }
 
 export async function getStudentExamsResult() {
-    const res = await apiGet<{ exams: StudentScheduledExam[] }>('/api/students/exams');
+    const res = await apiGet<{ exams: StudentScheduledExam[]; serverTime: string; userId: string }>('/api/students/exams');
     return res.success
-        ? { success: true as const, exams: res.exams }
+        ? { success: true as const, exams: res.exams, serverTime: res.serverTime, userId: res.userId }
         : { success: false as const, error: res.error, retryable: res.retryable };
 }
 
@@ -114,6 +114,8 @@ export interface StudentAttemptAnswer {
 }
 
 export interface StudentAttemptDetails {
+    answerKeysReleased: boolean;
+    answerKeysMessage?: string | null;
     attempt: {
         id: string;
         total_score?: number | null;
@@ -143,21 +145,28 @@ export async function getStudentResultsResult() {
         : { success: false as const, error: res.error };
 }
 
-/**
- * Mengembalikan `null` saat gagal, sama seperti versi lama — layar hasil
- * memakai itu untuk menampilkan "hasil belum dibuka" tanpa membedakan sebabnya.
- */
-export async function getAttemptDetailsAction(attemptId: string) {
+/** Mempertahankan alasan kegagalan agar halaman bisa menjelaskan izin pembahasan. */
+export async function getAttemptDetailsResult(attemptId: string) {
     const res = await apiGet<StudentAttemptDetails>(`/api/students/attempts/${encodeURIComponent(attemptId)}`);
 
-    if (!res.success) return null;
+    if (!res.success) return res;
 
     return {
-        attempt: res.attempt,
-        dimensions: res.dimensions,
-        interpretations: res.interpretations,
-        answers: res.answers,
+        success: true as const,
+        details: {
+            answerKeysReleased: res.answerKeysReleased,
+            answerKeysMessage: res.answerKeysMessage,
+            attempt: res.attempt,
+            dimensions: res.dimensions,
+            interpretations: res.interpretations,
+            answers: res.answers,
+        },
     };
+}
+
+export async function getAttemptDetailsAction(attemptId: string) {
+    const res = await getAttemptDetailsResult(attemptId);
+    return res.success ? res.details : null;
 }
 
 // ── Mengerjakan ──────────────────────────────────────────────────────────────

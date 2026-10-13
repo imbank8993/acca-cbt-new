@@ -2,7 +2,8 @@
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import RoomManagementModal from '@/app/dashboard/admin/pas/RoomManagementModal';
-import { InlineSelect } from '@/components/ui/InlineSelect';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { Modal, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
 import {
@@ -11,8 +12,10 @@ generateExamsFromSchedulesAction,
 getPASPeriod,
 listOrganizationClasses,
 listPASSessions,
+listPASRooms,
 listSubjects,
 removePASScheduleAction,
+type PASRoom,
 type PASSubjectSummary,
 } from '@/lib/api/pas';
 import type { OrganizationClass } from '@/lib/api/proctor';
@@ -22,7 +25,6 @@ import { getSchoolTimeZoneLabel, schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { Button } from '@/app/components/ui/button';
-import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
 ArrowLeft,
@@ -37,6 +39,7 @@ Monitor,
 Plus,
 Search,
 Settings,
+ShieldCheck,
 Table,
 Trash2,
 X,
@@ -60,6 +63,7 @@ export default function AdminPASDetailPage() {
     const [subjects, setSubjects] = useMemoryState<PASSubjectSummary[]>('admin_exams_pas__id__subjects', []);
     const [qBanks, setQBanks] = useMemoryState<QuestionBank[]>('admin_exams_pas__id__qBanks', []);
     const [sessions, setSessions] = useMemoryState<PASSession[]>('admin_exams_pas__id__sessions', []);
+    const [rooms, setRooms] = useMemoryState<PASRoom[]>('admin_exams_pas__id__rooms', []);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,21 +89,23 @@ export default function AdminPASDetailPage() {
     const loadData = useCallback(async () => {
         const authUser = await getSessionUser();
         if (authUser) {
-            const [periodData, bankList, classList, subjectList, sessionList] = await Promise.all([
+            const [periodData, bankList, classList, subjectList, sessionList, roomList] = await Promise.all([
                     getPASPeriod(periodId),
                     listQuestionBanks(true),
                     listOrganizationClasses({ activeYearOnly: true }),
                     listSubjects(),
                     listPASSessions(periodId),
+                    listPASRooms(periodId),
                 ]);
                 setPeriod(periodData);
                 setQBanks(bankList || []);
                 setClasses(classList || []);
                 setSubjects(subjectList || []);
                 setSessions(sessionList || []);
+                setRooms(roomList || []);
         }
         setIsLoading(false);
-    }, [periodId, setClasses, setQBanks, setSessions, setSubjects]);
+    }, [periodId, setClasses, setQBanks, setRooms, setSessions, setSubjects]);
 
     useEffect(() => {
         const initialLoad = window.setTimeout(() => void loadData(), 0);
@@ -476,7 +482,7 @@ export default function AdminPASDetailPage() {
                             onClick={() => setIsRoomManagementOpen(true)}
                             leftIcon={<Settings size={13} />}
                         >
-                            Sesi & Ruang
+                            Sesi & Ruang {rooms.length > 0 ? `(${rooms.length})` : ''}
                         </Button>
                         <Button
                             variant="outline"
@@ -546,29 +552,33 @@ export default function AdminPASDetailPage() {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <select
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <InlineSelect
                                     value={classFilter}
-                                    onChange={(e) => setClassFilter(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-[#3083FF] cursor-pointer"
-                                >
-                                    <option value="all">Semua Kelas</option>
-                                    {classes.map((c) => (
-                                        <option key={c.id} value={c.id}>Kelas {c.name}</option>
-                                    ))}
-                                </select>
+                                    onChange={(val) => setClassFilter(val)}
+                                    options={[
+                                        { value: 'all', label: 'Semua Kelas' },
+                                        ...classes.map((c) => ({ value: c.id, label: `Kelas ${c.name}` })),
+                                    ]}
+                                    minWidth="140px"
+                                    height="34px"
+                                    title="Filter Kelas"
+                                />
 
-                                <select
+                                <InlineSelect
                                     value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-[#3083FF] cursor-pointer"
-                                >
-                                    <option value="all">Semua Status</option>
-                                    <option value="ready">Siap Ujian</option>
-                                    <option value="pending">Belum Aktif</option>
-                                    <option value="active">Sedang Ujian</option>
-                                    <option value="finished">Selesai</option>
-                                </select>
+                                    onChange={(val) => setStatusFilter(val)}
+                                    options={[
+                                        { value: 'all', label: 'Semua Status' },
+                                        { value: 'ready', label: 'Siap Ujian' },
+                                        { value: 'pending', label: 'Belum Aktif' },
+                                        { value: 'active', label: 'Sedang Ujian' },
+                                        { value: 'finished', label: 'Selesai' },
+                                    ]}
+                                    minWidth="130px"
+                                    height="34px"
+                                    title="Filter Status"
+                                />
 
                                 {(searchQuery || classFilter !== 'all' || statusFilter !== 'all') && (
                                     <button
@@ -715,7 +725,7 @@ export default function AdminPASDetailPage() {
                                                 <th className="py-2.5 px-3 w-40">Sesi & Waktu</th>
                                                 <th className="py-2.5 px-3">Bank Soal / Mapel</th>
                                                 <th className="py-2.5 px-3 w-28">Kelas</th>
-                                                <th className="py-2.5 px-3 w-24">Ruang</th>
+                                                <th className="py-2.5 px-3 w-36">Ruang & Pengawas</th>
                                                 <th className="py-2.5 px-3 w-24">Durasi</th>
                                                 <th className="py-2.5 px-3 w-32">Status</th>
                                                 <th className="py-2.5 px-3 w-24 text-right">Aksi</th>
@@ -773,11 +783,39 @@ export default function AdminPASDetailPage() {
                                                                 </span>
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                {sc.room ? (
-                                                                    <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#3083FF] font-medium text-[11px] border border-blue-200/60">
-                                                                        R. {sc.room}
-                                                                    </span>
-                                                                ) : (
+                                                                {sc.room ? (() => {
+                                                                    const matchedRoom = rooms.find(
+                                                                        (r) => (r.name || '').trim().toLowerCase() === sc.room?.trim().toLowerCase(),
+                                                                    );
+                                                                    const invigilatorNames = matchedRoom?.pas_room_invigilators?.map((i) => i.profiles?.full_name).filter(Boolean) || [];
+
+                                                                    return (
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#3083FF] font-semibold text-[11px] border border-blue-200/60 w-fit">
+                                                                                R. {sc.room}
+                                                                            </span>
+                                                                            {invigilatorNames.length > 0 ? (
+                                                                                <div
+                                                                                    className="flex items-center gap-1 text-[11px] text-slate-700 font-medium"
+                                                                                    title={`Pengawas: ${invigilatorNames.join(', ')}`}
+                                                                                >
+                                                                                    <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
+                                                                                    <span className="truncate max-w-[130px]">{invigilatorNames.join(', ')}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setIsRoomManagementOpen(true)}
+                                                                                    className="flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-800 transition-colors w-fit font-medium"
+                                                                                    title="Klik untuk mengatur pengawas di ruangan ini"
+                                                                                >
+                                                                                    <AlertTriangle size={10} className="shrink-0" />
+                                                                                    <span>Atur pengawas</span>
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })() : (
                                                                     <span className="text-slate-400">-</span>
                                                                 )}
                                                             </td>
@@ -913,156 +951,154 @@ export default function AdminPASDetailPage() {
             )}
 
             {/* ─── ADD SCHEDULE MODAL ─── */}
-            <AnimatePresence>
-                {isAddScheduleOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsAddScheduleOpen(false)} />
-                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative z-10 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
-                            <button onClick={() => setIsAddScheduleOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
-                                <X size={20} />
-                            </button>
-                            <div className="flex items-center gap-3 mb-1">
-                                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#1E40AF] shrink-0">
-                                    <FolderOpen size={20} />
-                                </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-slate-800">Jadwalkan Bank Soal ke Folder</h3>
-                                    <p className="text-xs text-slate-400">
-                                        Folder: <span className="font-semibold text-slate-600">{period.name}</span>
-                                    </p>
-                                </div>
-                            </div>
+            <Modal
+                open={isAddScheduleOpen}
+                onClose={() => setIsAddScheduleOpen(false)}
+                size="xl"
+                variant="add"
+                icon="calendar-plus"
+                title="Jadwalkan Bank Soal ke Folder"
+                subtitle={<span>Folder: <strong className="text-slate-800 font-semibold">{period.name}</strong></span>}
+            >
+                <form onSubmit={handleAddSchedule} className="flex flex-col flex-1 min-h-0">
+                    <ModalBody className="p-6 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <ModalField label="Bank Soal" required hint="Pilih bank soal yang akan diujikan">
+                                <InlineSelect
+                                    value={scheduleForm.bank_id}
+                                    onChange={(val) => handleBankChange(val)}
+                                    minWidth="100%"
+                                    height="40px"
+                                    title="Pilih Bank Soal"
+                                    options={[
+                                        { value: '', label: '— Pilih Bank Soal —' },
+                                        ...qBanks.map((b) => ({
+                                            value: b.id,
+                                            label: `${b.title} — ${b.subject || 'Umum'} (${b.question_count ?? b.total_questions ?? 0} soal)`,
+                                        })),
+                                    ]}
+                                />
+                            </ModalField>
 
-                            <form onSubmit={handleAddSchedule} className="mt-5 space-y-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Bank Soal *</label>
-                                    <InlineSelect
-                                        value={scheduleForm.bank_id}
-                                        onChange={(val) => handleBankChange(val)}
-                                        minWidth="100%"
-                                        height="40px"
-                                        title="Pilih Bank Soal"
-                                        options={[
-                                            { value: '', label: '— Pilih Bank Soal —' },
-                                            ...qBanks.map((b) => ({
-                                                value: b.id,
-                                                label: `${b.title} — ${b.subject || 'Umum'} (${b.question_count ?? b.total_questions ?? 0} soal)`,
-                                            })),
-                                        ]}
-                                    />
-                                </div>
+                            <ModalField label="Mata Pelajaran (Opsional)" hint="Secara default terisi otomatis dari bank soal">
+                                <InlineSelect
+                                    value={scheduleForm.subject_id}
+                                    onChange={(val) => setScheduleForm(p => ({ ...p, subject_id: val }))}
+                                    minWidth="100%"
+                                    height="40px"
+                                    title="Pilih Mata Pelajaran"
+                                    options={[
+                                        { value: '', label: 'Otomatis dari Bank Soal' },
+                                        ...subjects.map((s) => ({
+                                            value: s.id,
+                                            label: s.name,
+                                        })),
+                                    ]}
+                                />
+                            </ModalField>
+                        </div>
 
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Mata Pelajaran (Opsional)</label>
-                                    <InlineSelect
-                                        value={scheduleForm.subject_id}
-                                        onChange={(val) => setScheduleForm(p => ({ ...p, subject_id: val }))}
-                                        minWidth="100%"
-                                        height="40px"
-                                        title="Pilih Mata Pelajaran"
-                                        options={[
-                                            { value: '', label: 'Otomatis dari Bank Soal' },
-                                            ...subjects.map((s) => ({
-                                                value: s.id,
-                                                label: s.name,
-                                            })),
-                                        ]}
-                                    />
-                                </div>
+                        <ModalField
+                            label="Kelas Tujuan"
+                            required
+                            hint={scheduleForm.class_ids.length > 0 ? `${scheduleForm.class_ids.length} kelas dipilih untuk jadwal ini` : 'Pilih satu atau lebih kelas'}
+                        >
+                            <MultiSelect
+                                options={classes.map((c) => ({ value: c.id, label: `Kelas ${c.name}` }))}
+                                value={scheduleForm.class_ids}
+                                onChange={(vals) => setScheduleForm(p => ({ ...p, class_ids: vals }))}
+                                placeholder="— Pilih Kelas Tujuan —"
+                                allSelectedText="Semua Kelas Terpilih"
+                                minWidth="100%"
+                                height="40px"
+                                showQuickActions={true}
+                            />
+                        </ModalField>
 
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
-                                        Kelas Tujuan * {scheduleForm.class_ids.length > 0 && <span className="text-primary font-normal">({scheduleForm.class_ids.length} kelas dipilih)</span>}
-                                    </label>
-                                    <MultiSelect
-                                        options={classes.map((c) => ({ value: c.id, label: c.name }))}
-                                        value={scheduleForm.class_ids}
-                                        onChange={(vals) => setScheduleForm(p => ({ ...p, class_ids: vals }))}
-                                        placeholder="— Pilih Kelas Tujuan —"
-                                        allSelectedText="Semua Kelas Terpilih"
-                                        minWidth="100%"
-                                        height="40px"
-                                        showQuickActions={true}
-                                    />
-                                </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <ModalField label={`Tanggal (${getSchoolTimeZoneLabel(timeZone)})`} required>
+                                <input
+                                    type="date"
+                                    required
+                                    min={period.start_date?.split('T')[0]}
+                                    max={period.end_date?.split('T')[0]}
+                                    value={scheduleForm.scheduled_date}
+                                    onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))}
+                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20 transition-all"
+                                />
+                            </ModalField>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Tanggal ({getSchoolTimeZoneLabel(timeZone)}) *</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            min={period.start_date?.split('T')[0]}
-                                            max={period.end_date?.split('T')[0]}
-                                            value={scheduleForm.scheduled_date}
-                                            onChange={e => setScheduleForm(p => ({ ...p, scheduled_date: e.target.value }))}
-                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Sesi Ujian *</label>
-                                        <InlineSelect
-                                            value={scheduleForm.session_id}
-                                            onChange={(val) => setScheduleForm(p => ({ ...p, session_id: val }))}
-                                            minWidth="100%"
-                                            height="40px"
-                                            title="Pilih Sesi Ujian"
-                                            options={[
-                                                { value: '', label: '— Pilih Sesi —' },
-                                                ...sessions.map((s) => ({
-                                                    value: s.id,
-                                                    label: `${s.name} (${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)})`,
-                                                })),
-                                            ]}
-                                        />
-                                    </div>
-                                </div>
+                            <ModalField label="Sesi Ujian" required hint="Waktu mulai dan berakhirnya sesi">
+                                <InlineSelect
+                                    value={scheduleForm.session_id}
+                                    onChange={(val) => setScheduleForm(p => ({ ...p, session_id: val }))}
+                                    minWidth="100%"
+                                    height="40px"
+                                    title="Pilih Sesi Ujian"
+                                    options={[
+                                        { value: '', label: '— Pilih Sesi —' },
+                                        ...sessions.map((s) => ({
+                                            value: s.id,
+                                            label: `${s.name} (${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)})`,
+                                        })),
+                                    ]}
+                                />
+                            </ModalField>
+                        </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Durasi (menit)</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={scheduleForm.duration_minutes}
-                                            onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
-                                            className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Ruang (opsional)</label>
-                                        <PASRoomInput value={scheduleForm.room} onChange={room => setScheduleForm(p => ({ ...p, room }))} />
-                                    </div>
-                                </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <ModalField label="Durasi Pengerjaan (menit)" required>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={scheduleForm.duration_minutes}
+                                    onChange={e => setScheduleForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 0 }))}
+                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20 transition-all"
+                                />
+                            </ModalField>
 
-                                <div className="pt-2">
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting || !scheduleForm.bank_id || scheduleForm.class_ids.length === 0 || !scheduleForm.scheduled_date || !scheduleForm.session_id}
-                                        className="w-full h-[42px] bg-primary text-white rounded-xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm hover:bg-primary/90 transition-all cursor-pointer"
-                                    >
-                                        {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                        {isSubmitting ? 'Menjadwalkan...' : (scheduleForm.class_ids.length > 0 ? `Jadwalkan ke ${scheduleForm.class_ids.length} Kelas` : 'Pilih Kelas Terlebih Dahulu')}
-                                    </button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                            <ModalField label="Ruang Ujian (Opsional)" hint="Dapat dipilih dari ruang periode atau diketik manual">
+                                <PASRoomInput
+                                    value={scheduleForm.room}
+                                    onChange={room => setScheduleForm(p => ({ ...p, room }))}
+                                    existingRooms={rooms}
+                                />
+                            </ModalField>
+                        </div>
+                    </ModalBody>
+
+                    <ModalFooter align="between" className="px-6 py-3.5 bg-slate-50/80 border-t border-slate-200">
+                        <Button
+                            type="button"
+                            variant="cancel"
+                            onClick={() => setIsAddScheduleOpen(false)}
+                            disabled={isSubmitting}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            disabled={isSubmitting || !scheduleForm.bank_id || scheduleForm.class_ids.length === 0 || !scheduleForm.scheduled_date || !scheduleForm.session_id}
+                            isLoading={isSubmitting}
+                            leftIcon={<Check size={15} />}
+                        >
+                            {scheduleForm.class_ids.length > 0 ? `Jadwalkan ke ${scheduleForm.class_ids.length} Kelas` : 'Jadwalkan Bank Soal'}
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             {/* ─── ROOM & SESSION MANAGEMENT MODAL ─── */}
-            <AnimatePresence>
-                {isRoomManagementOpen && (
-                    <RoomManagementModal
-                        period={period}
-                        onClose={() => {
-                            setIsRoomManagementOpen(false);
-                            void loadData(); // Reload sessions in case they changed
-                        }}
-                    />
-                )}
-            </AnimatePresence>
+            {isRoomManagementOpen && (
+                <RoomManagementModal
+                    period={period}
+                    onClose={() => {
+                        setIsRoomManagementOpen(false);
+                        void loadData(); // Reload sessions and rooms in case they changed
+                    }}
+                />
+            )}
         </div>
     );
 }

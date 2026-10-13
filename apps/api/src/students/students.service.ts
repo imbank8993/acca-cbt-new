@@ -6,6 +6,7 @@ import {
     HttpException,
     HttpStatus,
     Injectable,
+    InternalServerErrorException,
     Logger,
     NotFoundException,
 } from '@nestjs/common';
@@ -223,7 +224,7 @@ export class StudentsService {
         if (!audience.organizationId) return [];
 
         // Ujian yang jendelanya belum dibuka tetap ditampilkan (siswa perlu tahu
-        // jadwalnya); yang jendelanya sudah tertutup disaring.
+        // jadwalnya); riwayat yang sudah ditutup juga tetap ditampilkan.
         const { data: exams, error } = await this.db
             .from('cbt_exams')
             .select(
@@ -232,24 +233,24 @@ export class StudentsService {
             )
             .eq('organization_id', audience.organizationId)
             .eq('is_published', true)
-            .or('end_time.is.null,end_time.gte.now()')
             .order('start_time', { ascending: true });
 
         if (error) {
             this.logger.error(`Gagal membaca jadwal ujian siswa: ${error.message}`);
-            return [];
+            throw new InternalServerErrorException('Jadwal ujian belum dapat dimuat.');
         }
 
         const visibleExams = ((exams as any[]) || []).filter(exam => canAccessExam(exam, audience));
         const ids = visibleExams.map(exam => exam.id);
         if (!ids.length) return [];
 
-        const { data: attempts } = await this.db
+        const { data: attempts, error: attemptsError } = await this.db
             .from('cbt_exam_attempts')
             .select('exam_id, status')
             .eq('user_id', user.id)
             .in('exam_id', ids);
 
+        if (attemptsError) throw new InternalServerErrorException('Status pengerjaan ujian belum dapat dimuat.');
         const rows = (attempts as Array<{ exam_id: string; status: string }>) || [];
         const completed = new Set(
             rows.filter((a) => FINISHED_STATUSES.includes(a.status)).map((a) => a.exam_id),
@@ -328,7 +329,7 @@ export class StudentsService {
 
         if (error) {
             this.logger.error(`Gagal membaca riwayat nilai: ${error.message}`);
-            return [];
+            throw new InternalServerErrorException('Hasil ujian belum dapat dimuat. Silakan coba lagi.');
         }
         return ((data as any[]) || []).map(row => row.exams?.show_results === true ? row : {
             ...row, total_score: null, score_irt: null,
@@ -338,12 +339,11 @@ export class StudentsService {
     /**
      * Rincian hasil satu pengerjaan, termasuk kunci jawaban.
      *
-     * Hanya dibuka bila guru menyalakan `show_results` pada ujiannya — jawaban
-     * benar ikut dikirim di sini, jadi membukanya lebih awal berarti membocorkan
-     * kunci kepada peserta yang belum mengerjakan.
+     * Nilai mengikuti show_results; rincian jawaban mengikuti izin pembahasan
+     * yang terpisah. Pembahasan tertutup tidak boleh menghalangi ringkasan nilai.
      */
     async getAttemptDetails(user: AuthUser, attemptId: string) {
-        const { data: attempt } = await this.db
+        const { data: attempt, error: attemptError } = await this.db
             .from('cbt_exam_attempts')
             .select(
                 `id, total_score, status, needs_manual_grading, user_id, started_at, finished_at,
@@ -353,6 +353,7 @@ export class StudentsService {
             .eq('id', attemptId)
             .maybeSingle();
 
+        if (attemptError) throw new InternalServerErrorException('Hasil ujian belum dapat dimuat. Silakan coba lagi.');
         if (!attempt) throw new NotFoundException('Hasil ujian tidak ditemukan.');
 
         const row = attempt as any;
@@ -366,7 +367,26 @@ export class StudentsService {
             throw new ForbiddenException('Hasil ujian ini belum dibuka oleh guru.');
         }
 
-        await assertAnswerKeysReleased(this.db, row.exams);
+        // Never return exam configuration or submission metadata in a score summary.
+        const publicAttempt = {
+            id: row.id, total_score: row.total_score, score_irt: row.score_irt,
+            status: row.status, needs_manual_grading: row.needs_manual_grading,
+            started_at: row.started_at, finished_at: row.finished_at,
+            personal_end_time: row.personal_end_time,
+            metadata: { dimension_scores: row.metadata?.dimension_scores || {} },
+            exams: { id: row.exams.id, title: row.exams.title, show_results: true,
+                question_bank_id: row.exams.question_bank_id, scoring_type: row.exams.scoring_type },
+        };
+        try {
+            await assertAnswerKeysReleased(this.db, row.exams);
+        } catch (error) {
+            if (!(error instanceof ForbiddenException)) throw error;
+            return {
+                attempt: publicAttempt, answerKeysReleased: false,
+                answerKeysMessage: error.message,
+                dimensions: [], interpretations: [], answers: [],
+            };
+        }
 
         const { data: answers, error } = await this.db
             .from('cbt_answers')
@@ -404,7 +424,9 @@ export class StudentsService {
         ]);
 
         return {
-            attempt: row,
+            attempt: publicAttempt,
+            answerKeysReleased: true,
+            answerKeysMessage: null,
             dimensions: (dimensions as any[]) || [],
             interpretations: (interpretations as any[]) || [],
             answers: ((answers as any[]) || []).map((answer) => ({

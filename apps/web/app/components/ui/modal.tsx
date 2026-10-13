@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom';
 import { Button } from './button';
 import './modal.css';
 
-export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 export type ModalVariant = 'default' | 'add' | 'edit' | 'delete';
 
 /* ---------------------------------- Shell ---------------------------------- */
