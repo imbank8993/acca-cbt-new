@@ -84,19 +84,19 @@ export default function StudentResultsPage() {
                                 onClick={() => canViewDetails ? router.push(`/dashboard/siswa/results/${attempt.id}`) : null}
                                 className={`w-full text-left bg-white border border-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row gap-4 transition-all duration-300 group relative overflow-hidden shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3083FF] focus-visible:ring-offset-2 ${
                                     canViewDetails 
-                                        ? 'cursor-pointer hover:border-indigo-100 hover:shadow-xl hover:shadow-[#3083FF]/5' 
+                                        ? 'cursor-pointer hover:border-blue-100 hover:shadow-xl hover:shadow-[#3083FF]/5'
                                         : 'opacity-90'
                                 }`}
                             >
-                                <div className={`absolute top-0 left-0 w-1 h-full bg-slate-200 transition-colors ${canViewDetails ? 'group-hover:bg-[#3083FF]' : ''}`}></div>
+                                <div className="absolute top-0 left-0 w-1 h-full bg-[#3083FF]"></div>
 
                                 <div className="flex items-start gap-4 flex-1 pl-1 min-w-0">
-                                    <div className="w-10 h-10 bg-indigo-50 border border-indigo-100/50 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-colors text-indigo-600 group-hover:text-white">
+                                    <div className="w-10 h-10 bg-blue-50 border border-blue-100/50 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-colors text-[#3083FF] group-hover:text-white">
                                         <BookOpen size={18} />
                                     </div>
                                     <div className="space-y-1 min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1 leading-none">
+                                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100 flex items-center gap-1 leading-none">
                                                 SELESAI
                                             </span>
                                             {attempt.needs_manual_grading && (

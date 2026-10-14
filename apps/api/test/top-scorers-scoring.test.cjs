@@ -23,3 +23,10 @@ test('top score query is never executed when organizational monitoring is denied
  await assert.rejects(service.getTopScorers({id:'student'},'school',{examLimit:12,perExam:3}),/Denied/);
  assert.equal(queried,false);
 });
+test('equal scores prioritize elapsed working time before submission time, with invalid durations last',async()=>{
+ let query;
+ const service=new ProctorService({}, {assertOrgMonitoring:async()=>{}}, {},{$queryRawUnsafe:async(sql)=>{query=sql;return[]}});
+ await service.getTopScorers({id:'staff'},'school',{examLimit:12,perExam:3});
+ assert.match(query,/CASE WHEN a\.started_at IS NOT NULL AND a\.finished_at >= a\.started_at\s+THEN a\.finished_at - a\.started_at END AS working_duration/);
+ assert.match(query,/ORDER BY c\.ranking_score DESC, c\.working_duration ASC NULLS LAST,\s+c\.finished_at ASC NULLS LAST, c\.user_id/);
+});

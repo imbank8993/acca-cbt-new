@@ -199,15 +199,6 @@ body {
     min-height: 100svh !important;
     overflow-x: clip !important;
     -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    -ms-overflow-style: none !important;
-  }
-
-  html::-webkit-scrollbar,
-  body::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
   }
 }
 
@@ -372,9 +363,6 @@ body.scroll-locked {
   -ms-overflow-style: none !important;
 }
 /* Hide webkit scrollbar on body when locked */
-body::-webkit-scrollbar {
-  display: none !important;
-}
 body.scroll-locked::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
@@ -388,9 +376,6 @@ html.scroll-locked {
   height: 100vh !important;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
-}
-html::-webkit-scrollbar {
-  display: none !important;
 }
 html.scroll-locked::-webkit-scrollbar {
   display: none !important;
@@ -792,6 +777,21 @@ body.cbt-editor-open .sidebar-tooltip {
 }
 
 /* Custom Scrollbar */
+html {
+  --scrollbar-thumb: #94a3b8;
+  --scrollbar-thumb-hover: #64748b;
+  scrollbar-gutter: stable;
+}
+
+html.dark {
+  --scrollbar-thumb: #64748b;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
 
 /* Hide scrollbar utility */
 .scrollbar-hide {
@@ -811,12 +811,53 @@ body.cbt-editor-open .sidebar-tooltip {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  background-clip: padding-box;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Mouse users need a visible handle even in compact horizontal lists. */
+@media (min-width: 1024px) and (any-hover: hover) and (any-pointer: fine) {
+  .scrollbar-hide,
+  .no-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+    -ms-overflow-style: auto;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* Mobile keeps touch scrolling without visible scrollbar handles or gutters. */
+@media (max-width: 1023.98px) {
+  html {
+    scrollbar-gutter: auto;
+  }
+
+  html,
+  body,
+  body * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  body *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
 }
 
 /* Rich Content Styles (Modern Document Layout) */

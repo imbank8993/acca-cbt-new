@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Clock } from 'lucide-react';
-import { parseTypedTime } from '@/lib/time-input';
+import { formatTypedTimeDraft, parseTypedTime } from '@/lib/time-input';
 
 export function TimeTextField({ value, onChange, label, disabled, required }: {
     value: string;
@@ -60,7 +60,14 @@ export function TimeTextField({ value, onChange, label, disabled, required }: {
                 onFocus={event => { event.currentTarget.select(); validate(event.currentTarget); }}
                 onChange={event => {
                     const input = event.currentTarget;
-                    setDraft(input.value);
+                    const formatted = formatTypedTimeDraft(input.value);
+                    if (formatted === null) {
+                        input.value = draft;
+                        validate(input);
+                        return;
+                    }
+                    input.value = formatted;
+                    setDraft(formatted);
                     setInvalid(false);
                     const parsed = validate(input);
                     // Wait for a complete minute before publishing to avoid jumping the caret.

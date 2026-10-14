@@ -107,7 +107,7 @@ export default function SiswaDashboard() {
                 key={exam.id || i}
                 className="p-4 bg-white border border-slate-100 hover:border-indigo-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 relative overflow-hidden group shadow-sm hover:shadow-md"
             >
-                <div className={`absolute left-0 top-0 h-full w-1 ${isCompleted ? 'bg-slate-300' : isReady ? 'bg-emerald-500' : 'bg-blue-400'}`} />
+                <div className={`absolute left-0 top-0 h-full w-1 ${isCompleted ? 'bg-slate-300' : isReady ? 'bg-[#3083FF]' : 'bg-blue-400'}`} />
                 
                 <div className="flex items-center gap-3.5 flex-1 pl-1 min-w-0 text-left">
                     {/* Date Badge */}
@@ -129,8 +129,8 @@ export default function SiswaDashboard() {
                                     Selesai
                                 </span>
                             ) : isReady ? (
-                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1 leading-none">
-                                    <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100 flex items-center gap-1 leading-none">
+                                    <span className="w-1 h-1 rounded-full bg-[#3083FF] animate-pulse"></span>
                                     Aktif
                                 </span>
                             ) : (
@@ -157,9 +157,9 @@ export default function SiswaDashboard() {
                     {isCompleted ? (
                         <button
                             onClick={() => router.push('/dashboard/siswa/results')}
-                            className="w-full sm:w-auto bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 text-[10px] font-bold px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                            className="w-full sm:w-auto bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 text-[10px] font-bold px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95"
                         >
-                            Hasil <CheckCircle2 size={12} className="text-emerald-500" />
+                            Hasil <CheckCircle2 size={12} className="text-[#3083FF]" />
                         </button>
                     ) : isReady ? (
                         <button
@@ -217,9 +217,9 @@ export default function SiswaDashboard() {
 
                 {/* Ujian Selesai */}
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xl hover:shadow-[#3083FF]/5 transition-all duration-300 relative overflow-hidden flex items-center justify-between gap-4">
-                    <div className="absolute left-0 top-0 h-full w-1.5 bg-emerald-500" />
+                    <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                     <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100/50">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#3083FF] border border-blue-100/50">
                             <CheckCircle2 size={18} />
                         </div>
                         <div className="text-left">
@@ -291,8 +291,8 @@ export default function SiswaDashboard() {
                                 results.slice(0, 4).map((res, i) => {
                                     const gradingPending = res.total_score == null;
                                     const score = Number(res.total_score) || 0;
-                                    const barColorClass = score >= 80 ? 'bg-emerald-500' : score >= 65 ? 'bg-[#3083FF]' : 'bg-rose-500';
-                                    const textColorClass = score >= 80 ? 'text-emerald-600' : score >= 65 ? 'text-[#3083FF]' : 'text-rose-600';
+                                    const barColorClass = 'bg-[#3083FF]';
+                                    const textColorClass = gradingPending ? 'text-slate-400' : 'text-[#3083FF]';
 
                                     return (
                                         <div key={res.id || i} className="space-y-1.5 text-left">

@@ -66,8 +66,9 @@ export class ProctorService {
      * memori. Hanya pengerjaan yang SUDAH dikumpulkan dan SUDAH bernilai yang
      * dihitung. Ujian IRT memakai score_irt tanpa fallback ke total_score;
      * hasil yang belum tersedia tetap ditampilkan sebagai menunggu penilaian.
-     * Esai yang menunggu koreksi tidak diperingkat. Nilai sama diurutkan menurut siapa yang
-     * lebih dulu mengumpulkan. Ujian yang diarsipkan tidak ditampilkan.
+     * Esai yang menunggu koreksi tidak diperingkat. Nilai sama diurutkan menurut durasi
+     * pengerjaan tersingkat, lalu waktu pengumpulan paling awal. Durasi tidak valid
+     * ditempatkan terakhir. Ujian yang diarsipkan tidak ditampilkan.
      */
     async getTopScorers(
         user: AuthUser,
@@ -95,6 +96,8 @@ export class ProctorService {
         >(
             `WITH candidates AS (
                 SELECT a.exam_id, a.user_id, a.finished_at,
+                       CASE WHEN a.started_at IS NOT NULL AND a.finished_at >= a.started_at
+                            THEN a.finished_at - a.started_at END AS working_duration,
                        CASE WHEN a.needs_manual_grading IS TRUE THEN NULL
                             WHEN chosen.score_type = 'classical' THEN a.total_score
                             ELSE COALESCE((a.detailed_scores->>chosen.score_type)::numeric,
@@ -126,7 +129,8 @@ export class ProctorService {
                  ORDER BY MAX(finished_at) DESC NULLS LAST, exam_id LIMIT $2
              ), ranked AS (
                 SELECT c.*, ROW_NUMBER() OVER (PARTITION BY c.exam_id
-                    ORDER BY c.ranking_score DESC, c.finished_at ASC NULLS LAST, c.user_id) AS rank
+                    ORDER BY c.ranking_score DESC, c.working_duration ASC NULLS LAST,
+                             c.finished_at ASC NULLS LAST, c.user_id) AS rank
                   FROM candidates c JOIN recent_exams e ON e.exam_id = c.exam_id
                  WHERE c.ranking_score IS NOT NULL
              )
