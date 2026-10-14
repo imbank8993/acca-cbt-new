@@ -297,9 +297,9 @@ export class ProctoringService {
 
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
 
-        // Proktor/Admin bebas; Guru hanya ujian non-PAS/PAT buatannya sendiri.
+        // Proktor dan Guru hanya mereset ujian buatannya sendiri; Admin tetap penuh.
         // Tanpa ini siswa bisa membatalkan terminasi attempt-nya sendiri.
-        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id);
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset');
 
         return this.db.transaction(async db => {
             await db.raw(
@@ -440,7 +440,7 @@ export class ProctoringService {
             .eq('id', attemptId)
             .maybeSingle();
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id);
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset');
 
         return this.db.transaction(async db => {
             await db.raw(

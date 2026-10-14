@@ -9,7 +9,7 @@ test('IRT scores retain their label; a pending IRT exam has no classical fallbac
   {exam_id:'pending',exam_title:'IRT pending',exam_type:'daily',score_label:'IRT 1PL',scored_count:0,participant_count:40,
    rank:null,user_id:null,full_name:null,total_score:null,last_finished_at:null,finished_at:null}];
  let authorized=false;
- const service=new ProctorService({}, {assertOrgMonitoring:async()=>{authorized=true}}, {},{$queryRawUnsafe:async(_sql,org,limit,perExam)=>{
+ const service=new ProctorService({}, {isRestrictedProctor:async()=>false,assertOrgMonitoring:async()=>{authorized=true}}, {},{$queryRawUnsafe:async(_sql,org,limit,perExam)=>{
   assert.equal(authorized,true);assert.deepEqual([org,limit,perExam],['school',12,3]);return rows;
  }});
  const result=await service.getTopScorers({id:'staff'},'school',{examLimit:12,perExam:3});
@@ -25,7 +25,7 @@ test('top score query is never executed when organizational monitoring is denied
 });
 test('equal scores prioritize elapsed working time before submission time, with invalid durations last',async()=>{
  let query;
- const service=new ProctorService({}, {assertOrgMonitoring:async()=>{}}, {},{$queryRawUnsafe:async(sql)=>{query=sql;return[]}});
+ const service=new ProctorService({}, {isRestrictedProctor:async()=>false,assertOrgMonitoring:async()=>{}}, {},{$queryRawUnsafe:async(sql)=>{query=sql;return[]}});
  await service.getTopScorers({id:'staff'},'school',{examLimit:12,perExam:3});
  assert.match(query,/CASE WHEN a\.started_at IS NOT NULL AND a\.finished_at >= a\.started_at\s+THEN a\.finished_at - a\.started_at END AS working_duration/);
  assert.match(query,/ORDER BY c\.ranking_score DESC, c\.working_duration ASC NULLS LAST,\s+c\.finished_at ASC NULLS LAST, c\.user_id/);

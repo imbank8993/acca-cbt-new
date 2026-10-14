@@ -1,9 +1,12 @@
 "use client";
+import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
+import { matchesQuestionSearch } from '@/lib/question-search';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
+import { AttemptAnalyticsHeader } from '@/app/components/AttemptAnalyticsHeader';
+import { AttemptScoreCard } from '@/app/components/AttemptScoreCard';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
-import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt } from '@/lib/api/proctoring';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { formatStudentName } from '@/lib/monitoring-health';
@@ -12,7 +15,6 @@ import { AnimatePresence,motion } from 'framer-motion';
 import {
 Activity,
 AlertTriangle,
-ArrowLeft,
 BarChart3,
 CheckCircle,
 CheckCircle2,
@@ -20,10 +22,8 @@ Clock,
 HelpCircle,
 Loader2,
 MousePointerClick,
-RotateCcw,
 Save,
 Shield,
-User,
 XCircle
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
@@ -57,9 +57,9 @@ export default function AttemptAnalyticsPage() {
     // Prefix admin_ agar tidak berbagi cache dengan halaman proktor.
     const [loading, setLoading] = useMemoryState(`admin_monitoring_${attemptId}_loading`, true);
     const [submitting, setSubmitting] = useState(false);
-    const [resetting, setResetting] = useState(false);
     const [data, setData] = useMemoryState<AttemptFullDetails | null>(`admin_monitoring_${attemptId}_data`, null);
     const [grades, setGrades] = useState<Record<string, number>>({});
+    const [questionSearch, setQuestionSearch] = useState('');
     const [activeTab, setActiveTab] = useState<'questions' | 'security'>('questions');
 
     useEffect(() => {
@@ -88,32 +88,6 @@ export default function AttemptAnalyticsPage() {
         }));
     };
 
-    const handleResetAttempt = async () => {
-        const reason = promptRecoveryReason(studentName);
-        if (!reason) return;
-        const durationMinutes = promptRecoveryDuration(studentName, 'pemulihan');
-        if (!durationMinutes) return;
-        if (!await confirmDialog({
-            title: 'Pulihkan Ujian Siswa?',
-            text: `Pulihkan ujian siswa "${studentName}" selama ${durationMinutes} menit dengan jawaban server tetap tersimpan?\n\nAlasan: ${reason}`,
-            variant: 'warning',
-            confirmText: 'Ya, Pulihkan Ujian',
-        })) return;
-
-        setResetting(true);
-        const res = await resetExamAttempt(attemptId, reason, durationMinutes);
-        if (res.success) {
-            await alertDialog({
-                title: 'Berhasil Dipulihkan',
-                text: `Ujian "${studentName}" berhasil dipulihkan. ${res.serverAnswerCount} jawaban lama dipertahankan. Tenggat: ${new Date(res.recoveryUntil).toLocaleString('id-ID')}.`,
-                variant: 'success',
-            });
-            router.push('/dashboard/admin/monitoring');
-        } else {
-            await alertDialog({ title: 'Gagal Memulihkan', text: res.error, variant: 'danger' });
-        }
-        setResetting(false);
-    };
     const handleSave = async () => {
         if (!await confirmDialog({
             title: 'Simpan Perubahan Nilai?',
@@ -163,86 +137,43 @@ export default function AttemptAnalyticsPage() {
     }
 
     const { attempt, answers, securityLogs } = data;
+    const visibleAnswers = answers.map((answer, index) => ({ answer, index })).filter(({ answer, index }) =>
+        answer.bank_questions && matchesQuestionSearch(answer.bank_questions.question_text, index + 1, questionSearch));
     const studentName = formatStudentName(attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = attempt.exams?.title || 'Ujian';
 
     return (
         <div className="max-w-7xl mx-auto pb-24">
-            {/* Header Area */}
-                        {/* Header Area */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-xs mb-6 px-6 py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <button
-                        onClick={() => router.back()}
-                        className="group flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-all text-xs font-semibold mb-2"
-                    >
-                        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" /> Kembali ke Monitor
-                    </button>
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-800 flex flex-wrap items-center gap-2">
-                        Detail Analitik <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded text-xs font-mono">ID: {attempt.id.split('-')[0]}</span>
-                    </h1>
-                    <p className="text-slate-500 text-sm flex flex-wrap items-center gap-2 mt-1">
-                        <User size={14} /> {studentName} <span className="mx-1">•</span> <Activity size={14} /> {examTitle}
-                    </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2.5">
-                    {['auto_submitted', 'submitted'].includes(attempt.status) && (
-                        <button
-                            onClick={handleResetAttempt}
-                            disabled={resetting}
-                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold flex items-center gap-2 transition-all shadow-xs"
-                        >
-                            {resetting ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-                            Reset Ujian
-                        </button>
-                    )}
-                    {attempt.needs_manual_grading && (
-                        <div className="px-3.5 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                            <AlertTriangle size={14} /> Menunggu Penilaian Uraian
-                        </div>
-                    )}
-                    {Object.keys(grades).length > 0 && (
-                        <button
-                            onClick={handleSave}
-                            disabled={submitting}
-                            className="bg-[#3083FF] hover:bg-[#002d86] text-white font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 text-sm"
-                        >
-                            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                            Simpan Perubahan
-                        </button>
-                    )}
-                </div>
-            </div>
+            <AttemptAnalyticsHeader
+                examTitle={examTitle}
+                attemptId={attempt.id}
+                studentName={studentName}
+                avatarUrl={attempt.profiles?.avatar_url}
+            >
+                {(attempt.needs_manual_grading || (Object.keys(grades).length > 0)) && (
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5">
+                        {attempt.needs_manual_grading && (
+                            <div className="px-3.5 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                                <AlertTriangle size={14} /> Menunggu Penilaian Uraian
+                            </div>
+                        )}
+                        {Object.keys(grades).length > 0 && (
+                            <button
+                                onClick={handleSave}
+                                disabled={submitting}
+                                className="bg-[#3083FF] hover:bg-[#002d86] text-white font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 text-sm"
+                            >
+                                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                Simpan Perubahan
+                            </button>
+                        )}
+                    </div>
+                )}
+            </AttemptAnalyticsHeader>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {/* Score Card */}
-                <div className="bg-white p-5 rounded-lg border border-[#3083FF]/20 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-sm font-bold text-slate-500">Nilai Akhir</span>
-                        <div className="w-8 h-8 bg-[#3083FF]/10 rounded-lg flex items-center justify-center text-[#3083FF]">
-                            <BarChart3 size={16} />
-                        </div>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-bold text-[#3083FF]">
-                            {Number(attempt.total_score || 0).toFixed(0)}
-                        </span>
-                        <span className="text-sm font-semibold text-slate-400">/100</span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Number(attempt.total_score || 0)}%` }}
-                                transition={{ duration: 1.5, ease: "easeOut" }}
-                                className="h-full bg-[#3083FF]"
-                            />
-                        </div>
-                        <span className="text-xs font-bold text-[#3083FF]">{Number(attempt.total_score || 0).toFixed(1)}%</span>
-                    </div>
-                </div>
+                <AttemptScoreCard attempt={attempt} />
 
                 {/* Timing Info */}
                 <div className="bg-white p-5 rounded-lg border border-[#3083FF]/20 shadow-sm relative overflow-hidden">
@@ -349,14 +280,16 @@ export default function AttemptAnalyticsPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === 'questions' && (
                             <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5 sm:space-y-6">
-                                {answers.map((answer, index) => {
+                                <QuestionSearchBar value={questionSearch} onChange={setQuestionSearch} matched={visibleAnswers.length} total={answers.length} />
+                                {visibleAnswers.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Tidak ada soal yang cocok dengan pencarian.</p>}
+                                {visibleAnswers.map(({ answer, index }, position) => {
                                     const q = answer.bank_questions;
                                     if (!q) return null;
                                     const isEssay = ['essay', 'esay', 'uraian'].includes(q.type);
 
                                     return (
                                         <div key={answer.id} className="relative flex gap-4 md:gap-6">
-                                            {index < answers.length - 1 && (
+                                            {position < visibleAnswers.length - 1 && (
                                                 <div className="absolute top-10 bottom-0 left-[19px] w-0.5 bg-slate-100 z-0" />
                                             )}
 

@@ -26,6 +26,7 @@ export interface SearchableSelectProps {
   placement?: 'top' | 'bottom';
   itemLabel?: string;
   showQuickActions?: boolean;
+  keepHighlightedVisible?: boolean;
 }
 
 function DropDownIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
@@ -143,6 +144,7 @@ export function SearchableSelect({
   disabled = false,
   multiple = false,
   placement = 'bottom',
+  keepHighlightedVisible = false,
   itemLabel = 'item',
   showQuickActions = true,
 }: SearchableSelectProps) {
@@ -151,6 +153,7 @@ export function SearchableSelect({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -191,6 +194,17 @@ export function SearchableSelect({
         opt.label.toLowerCase().includes(q) || (opt.subLabel && opt.subLabel.toLowerCase().includes(q))
     );
   }, [options, search]);
+
+  useEffect(() => {
+    if (!keepHighlightedVisible || !isOpen || !filteredOptions.length) return;
+    const list = listRef.current;
+    const item = list?.children.item(highlightedIndex);
+    if (!list || !item) return;
+    const bounds = list.getBoundingClientRect();
+    const itemBounds = item.getBoundingClientRect();
+    if (itemBounds.top < bounds.top) list.scrollTop -= bounds.top - itemBounds.top;
+    else if (itemBounds.bottom > bounds.bottom) list.scrollTop += itemBounds.bottom - bounds.bottom;
+  }, [keepHighlightedVisible, isOpen, highlightedIndex, filteredOptions]);
 
   const openDropdown = () => {
     const index = filteredOptions.findIndex(option => option.value === value);
@@ -363,7 +377,7 @@ export function SearchableSelect({
             </div>
           )}
 
-          <div className="ss__list">
+          <div className="ss__list" ref={listRef}>
             {filteredOptions.length === 0 ? (
               <div className="ss__empty">
                 <InboxIcon size={24} />

@@ -11,7 +11,7 @@ export interface AccessibleExam {
     id: string;
     organization_id: string | null;
     is_published: boolean;
-    metadata?: { is_public?: boolean } | null;
+    metadata?: { is_public?: boolean; key_correction?: { state?: string } } | null;
 }
 
 /** Shared policy for discovery, detail, question delivery and starting an exam. */
@@ -62,5 +62,8 @@ export function canAccessExam(exam: AccessibleExam, audience: ExamAudience): boo
 export async function assertExamAccess(db: DbService, user: AuthUser, exam: AccessibleExam) {
     if (!canAccessExam(exam, await loadExamAudience(db, user))) {
         throw new ForbiddenException('Ujian ini tidak tersedia untuk Anda.');
+    }
+    if (exam.metadata?.key_correction && exam.metadata.key_correction.state !== 'ready') {
+        throw new ForbiddenException('Ujian sedang dalam proses koreksi kunci dan penilaian ulang.');
     }
 }

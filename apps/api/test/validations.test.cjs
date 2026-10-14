@@ -119,6 +119,28 @@ test('Review notifications target owner, link to feedback and skip identical ret
     await service.submitReview(user('a'), 'session', recommendation('approved'));
     assert.equal(db.tables.cbt_notifications.length, 2);
 });
+
+test('Identical resubmission recovers a legacy review with no owner notification once', async () => {
+    const { service, db } = setup();
+    Object.assign(db.tables.cbt_question_bank_validators[0], {
+        status: 'submitted', general_recommendation: 'revision_needed', general_comment: '',
+    });
+    db.tables.cbt_question_bank_validations[0].status = 'revision_needed';
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    assert.equal(db.tables.cbt_notifications.length, 1);
+    assert.equal(db.tables.cbt_notifications[0].user_id, 'owner');
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    assert.equal(db.tables.cbt_notifications.length, 1);
+});
+
+test('Identical manual decision recovers its missing notification once', async () => {
+    const { service, db } = setup('admin_decides');
+    db.tables.cbt_question_bank_validators.forEach(row => { row.status = 'submitted'; });
+    db.tables.cbt_question_bank_validations[0].status = 'revision_needed';
+    await service.decide(user('admin'), 'session', 'revision_needed');
+    await service.decide(user('admin'), 'session', 'revision_needed');
+    assert.equal(db.tables.cbt_notifications.length, 1);
+});
 test('Notification failure rolls back review; owner receives decision once', async () => {
     const broken = setup('any', { failMutation: { table: 'cbt_notifications', mutation: 'insert' } });
     await assert.rejects(broken.service.submitReview(user('a'), 'session', recommendation('approved')));

@@ -55,13 +55,16 @@ export class AnalyticsService {
             )
             .eq('organization_id', organizationId);
 
-        if (!(await this.isElevated(user, organizationId))) {
+        const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
+            await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        else if (!(await this.isElevated(user, organizationId))) {
             query = query.eq('created_by', user.id);
         }
 
         const { data } = await query.order('created_at', { ascending: false });
 
-        return ((data as any[]) || []).map((exam) => {
+        return ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true).map((exam) => {
             const attempts = exam.exam_attempts ?? [];
             const completed = attempts.filter((a: any) => FINISHED_STATUSES.includes(a.status));
             const scores = completed

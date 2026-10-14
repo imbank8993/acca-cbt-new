@@ -76,6 +76,7 @@ export class ProctorService {
         opts: { examLimit: number; perExam: number },
     ) {
         await this.authz.assertOrgMonitoring(user, organizationId);
+        const restrictedProctor = await this.authz.isRestrictedProctor(user, organizationId);
 
         const rows = await this.prisma.$queryRawUnsafe<
             Array<{
@@ -119,6 +120,7 @@ export class ProctorService {
                       AND e.scoring_type LIKE '%' || (e.metadata->>'student_score_type') || '%'
                     THEN e.metadata->>'student_score_type' ELSE defaults.score_type END AS score_type) chosen
                  WHERE e.organization_id = $1::uuid
+                   AND (NOT $4::boolean OR e.created_by = $5::uuid OR e.is_published IS TRUE)
                    AND COALESCE(e.metadata->>'archived_at', '') = ''
                    AND COALESCE(e.exam_type, '') <> 'assignment'
                    AND a.status IN ('submitted', 'auto_submitted')
@@ -145,6 +147,8 @@ export class ProctorService {
             organizationId,
             opts.examLimit,
             opts.perExam,
+            restrictedProctor,
+            user.id,
         );
 
         const iso = (d: Date | null) => (d instanceof Date ? d.toISOString() : d ? String(d) : null);
@@ -198,6 +202,13 @@ export class ProctorService {
     /** Angka ringkas untuk kartu dasbor. */
     async getStats(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgMonitoring(user, organizationId);
+        const restrictedProctor = await this.authz.isRestrictedProctor(user, organizationId);
+        let bankQuery = this.db.from('cbt_question_banks').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId);
+        let examQuery = this.db.from('cbt_exams').select('is_published, status, start_time, end_time').eq('organization_id', organizationId);
+        if (restrictedProctor) {
+            bankQuery = bankQuery.or(`created_by.eq.${user.id},is_published.eq.true`);
+            examQuery = examQuery.or(`created_by.eq.${user.id},is_published.eq.true`);
+        }
 
         const empty = {
             totalMembers: 0,
@@ -212,14 +223,8 @@ export class ProctorService {
                 .from('cbt_organization_members')
                 .select('id', { count: 'exact', head: true })
                 .eq('organization_id', organizationId),
-            this.db
-                .from('cbt_question_banks')
-                .select('id', { count: 'exact', head: true })
-                .eq('organization_id', organizationId),
-            this.db
-                .from('cbt_exams')
-                .select('is_published, status, start_time, end_time')
-                .eq('organization_id', organizationId),
+            bankQuery,
+            examQuery,
         ]);
 
         const rows =

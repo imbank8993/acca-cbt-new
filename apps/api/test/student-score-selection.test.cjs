@@ -7,8 +7,36 @@ const {StudentsService}=require('../src/students/students.service.ts');
 const {ExamAdminService}=require('../src/proctor/exam-admin.service.ts');
 const {fixtureDb}=require('./fixture-db.cjs');
 const {dashboardResultScore,dashboardAverageScore}=require('../../web/lib/student-dashboard-score.ts');
+const {monitoringScoreModels}=require('../../web/lib/monitoring-score-models.ts');
 const exam={id:'exam',show_results:true,scoring_type:'classical,irt_1pl',metadata:{student_score_type:'irt_1pl',show_answer_keys:false}};
 const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:81.33,needs_manual_grading:false,exams:exam};
+
+test('staff analytics shows all configured score models independently of publication and without cross-model fallback',()=>{
+ const staffAttempt={...attempt,exams:{...exam,show_results:false,scoring_type:'classical,irt_1pl,irt_2pl,irt_3pl'},
+  score_irt:88,detailed_scores:{irt_1pl:71.69,irt_2pl:0}};
+ assert.deepEqual(monitoringScoreModels(staffAttempt).map(row=>[row.label,row.score]),
+  [['Klasikal',90],['IRT 1PL',71.69],['IRT 2PL',0],['IRT 3PL',88]]);
+ assert.equal(monitoringScoreModels({...attempt,score_irt:null})[1].score,null);
+ assert.equal(monitoringScoreModels({...attempt,status:'in_progress'})[1].score,null);
+ assert.equal(monitoringScoreModels({...attempt,needs_manual_grading:true})[0].score,null);
+ assert.deepEqual(monitoringScoreModels({...attempt,exams:{scoring_type:'classical'}}).map(row=>row.label),['Klasikal']);
+});
+
+test('released review includes unanswered frozen questions and ignores answers outside the exam',async()=>{
+ const released={...exam,end_time:'2026-09-19T00:00:00Z',metadata:{show_answer_keys:true}};
+ const question=id=>({id,type:'mcq',question_text:id,score_default:1,bank_question_options:[{id:`${id}-key`,is_correct:true}]});
+ const db=fixtureDb({cbt_exam_attempts:[{...attempt,exams:released}],
+  cbt_exam_question_snapshots:['q1','q2','q3'].map(id=>({exam_id:'exam',question_snapshot:question(id)})),
+  cbt_answers:[{id:'saved',attempt_id:'a',question_id:'q1',selected_option_id:'q1-key',is_correct:true,score:1},
+   {id:'foreign',attempt_id:'a',question_id:'other',score:1}]});
+ const result=await new StudentsService(db).getAttemptDetails({id:'student'},'a');
+ assert.deepEqual(result.answers.map(a=>a.questionId),['q1','q2','q3']);
+ assert.equal(result.answers[0].selectedOptionId,'q1-key');
+ assert.equal(result.answers[1].selectedOptionId,null);
+ assert.equal(result.answers[1].score,0);
+ assert.equal(result.answers[1].question.options[0].id,'q2-key');
+ assert.equal(db.writes.length,0);
+});
 
 test('dashboard includes published IRT in history and averages while excluding hidden and pending scores',()=>{
  const irt={...attempt,...publicStudentScores(attempt,exam)};

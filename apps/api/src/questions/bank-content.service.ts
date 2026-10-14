@@ -31,7 +31,7 @@ export class BankContentService {
     // ── Kisi-kisi ────────────────────────────────────────────────────────────
 
     async listKisiKisi(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
         return this.listByBank('cbt_question_kisi_kisi', bankId);
     }
 
@@ -69,7 +69,7 @@ export class BankContentService {
     // ── Stimulus ─────────────────────────────────────────────────────────────
 
     async listStimuli(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
         return this.listByBank('cbt_question_stimuli', bankId);
     }
 
@@ -120,7 +120,7 @@ export class BankContentService {
     // ── Petunjuk ─────────────────────────────────────────────────────────────
 
     async listInstructions(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
         return this.listByBank('cbt_question_instructions', bankId);
     }
 
@@ -168,7 +168,7 @@ export class BankContentService {
     // ── Dimensi ──────────────────────────────────────────────────────────────
 
     async listDimensions(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
         return this.listByBank('cbt_question_dimensions', bankId);
     }
 
@@ -195,7 +195,7 @@ export class BankContentService {
     // ── Tafsiran dimensi ─────────────────────────────────────────────────────
 
     async listInterpretations(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
 
         const { data, error } = await this.db
             .from('cbt_dimension_interpretations')

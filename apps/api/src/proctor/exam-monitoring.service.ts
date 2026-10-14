@@ -656,7 +656,7 @@ export class ExamMonitoringService {
     async getAttemptDetails(user: AuthUser, attemptId: string) {
         const { data } = await this.db
             .from('cbt_exam_attempts')
-            .select('*, profiles:cbt_profiles(full_name), exams:cbt_exams(*)')
+            .select('*, profiles:cbt_profiles(full_name, avatar_url), exams:cbt_exams(*)')
             .eq('id', attemptId)
             .maybeSingle();
 
@@ -681,7 +681,13 @@ export class ExamMonitoringService {
                 .order('created_at', { ascending: true }),
         ]);
 
-        const answers = (answerRows as any[]) || [];
+        const questions = await readExamQuestionVersion(this.db, attempt.exam_id);
+        const savedAnswers = new Map(((answerRows as any[]) || []).map(answer => [answer.question_id, answer]));
+        const answers = questions.map(question => ({
+            id: `unanswered:${attemptId}:${question.id}`, attempt_id: attemptId, question_id: question.id,
+            selected_option_id: null, essay_answer: null, score: 0, is_correct: false,
+            ...(savedAnswers.get(question.id) || {}), bank_questions: question,
+        }));
 
         if (attempt.status === 'in_progress') {
             await this.applyLiveScores(attempt, answers);

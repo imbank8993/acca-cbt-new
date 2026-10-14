@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { applyExamQuestionKey, type KeyQuestion } from '@acca-cbt/shared';
 import type { DbService, DbSession } from '../prisma/prisma-db-adapter';
 import { loadExamQuestions } from './exam-question-sources';
 import { advisoryTransactionLock } from './transaction-lock';
@@ -30,8 +31,16 @@ interface SnapshotRow {
 /** Read the same question version inside an existing answer transaction. */
 export async function readExamQuestionVersion(db: DbSession, examId: string): Promise<FrozenExamQuestion[]> {
   const snapshots = await readSnapshots(db, examId);
-  if (snapshots.length) return snapshots.map(row => row.question_snapshot);
+  if (snapshots.length) return applyCorrections(db, examId, snapshots.map(row => row.question_snapshot));
   return loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT) as Promise<FrozenExamQuestion[]>;
+}
+
+async function applyCorrections(db: DbSession, examId: string, questions: FrozenExamQuestion[]): Promise<FrozenExamQuestion[]> {
+  const { data, error } = await db.from('cbt_exams').select('metadata').eq('id', examId).maybeSingle();
+  if (error) throw new BadRequestException('Revisi kunci ujian belum dapat dibaca.');
+  const keys = data?.metadata?.answer_key_overrides || {};
+  return questions.map(question => typeof keys[question.id] === 'string'
+    ? applyExamQuestionKey(question as KeyQuestion, keys[question.id]) as FrozenExamQuestion : question);
 }
 
 async function readSnapshots(db: DbSession, examId: string): Promise<SnapshotRow[]> {
@@ -57,7 +66,7 @@ export async function ensureExamQuestionSnapshotsInTransaction(
 ): Promise<FrozenExamQuestion[]> {
   await advisoryTransactionLock(db, `exam-question-snapshot:${examId}`);
   const existing = await readSnapshots(db, examId);
-  if (existing.length > 0) return existing.map(row => row.question_snapshot);
+  if (existing.length > 0) return applyCorrections(db, examId, existing.map(row => row.question_snapshot));
 
   const candidates = await loadExamQuestions(
     db,
@@ -100,7 +109,7 @@ export async function loadFrozenExamQuestions(
   knownDirectBankId?: string | null,
 ): Promise<FrozenExamQuestion[]> {
   const existing = await readSnapshots(db, examId);
-  if (existing.length > 0) return existing.map(row => row.question_snapshot);
+  if (existing.length > 0) return applyCorrections(db, examId, existing.map(row => row.question_snapshot));
 
   // Attempt yang sudah ada sebelum fitur snapshot tidak memiliki versi historis
   // yang dapat direkonstruksi dengan jujur. Tetap izinkan tampilan/penilaian

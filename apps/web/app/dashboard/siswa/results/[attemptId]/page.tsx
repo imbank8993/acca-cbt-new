@@ -1,12 +1,14 @@
 "use client";
 import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
+import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
+import { matchesQuestionSearch } from '@/lib/question-search';
 import { getAttemptDetailsResult,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
-import { ArrowLeft,BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
+import { BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -25,10 +27,13 @@ function StudentAnswerAnalysis({ answer, index }: {
     const question = answer.question;
     const isEssay = ['essay', 'esay', 'uraian'].includes(question.type.toLowerCase());
     const manualPending = isEssay && answer.isCorrect == null;
+    const unanswered = !answer.selectedOptionId &&
+        (answer.essayAnswer == null || (typeof answer.essayAnswer === 'string' && !answer.essayAnswer.trim()));
     return (
         <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-200 text-xs text-slate-500">
                 <span className="font-semibold">Soal {index + 1} · Bobot {question.score_default ?? 1} poin</span>
+                {unanswered && <span className="text-slate-500">Belum dijawab</span>}
                 <span>Nilai: <span className="font-bold text-slate-700">{manualPending ? 'Menunggu koreksi' : answer.score ?? '—'}</span></span>
             </div>
             <div className="bg-white p-3 sm:p-3.5 rounded-lg border border-slate-200 shadow-sm text-sm">
@@ -54,6 +59,7 @@ export default function StudentResultDetailsPage() {
     const [loadError, setLoadError] = useState('');
     const [details, setDetails] = useState<StudentAttemptDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'pengetahuan' | 'kepribadian'>('pengetahuan');
+    const [questionSearch, setQuestionSearch] = useState('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -127,6 +133,10 @@ export default function StudentResultDetailsPage() {
     const answersWithQuestions = answers.filter(hasResultQuestion);
     const pengetahuanAnswers = answersWithQuestions.filter((answer) => !PERSONALITY_TYPES.includes(answer.question.type));
     const kepribadianAnswers = answersWithQuestions.filter((answer) => PERSONALITY_TYPES.includes(answer.question.type));
+    const searchedAnswers = answersWithQuestions.map((answer, index) => ({ answer, index })).filter(({ answer, index }) =>
+        matchesQuestionSearch(answer.question.question_text, index + 1, questionSearch));
+    const visiblePengetahuan = searchedAnswers.filter(({ answer }) => !PERSONALITY_TYPES.includes(answer.question.type));
+    const visibleKepribadian = searchedAnswers.filter(({ answer }) => PERSONALITY_TYPES.includes(answer.question.type));
 
     const correctCount = pengetahuanAnswers.filter((answer) => answer.isCorrect).length;
     const totalPengetahuanCount = pengetahuanAnswers.length;
@@ -157,12 +167,6 @@ export default function StudentResultDetailsPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
                 <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
                     <div className="space-y-2 text-left">
-                        <button
-                            onClick={() => router.push('/dashboard/siswa/results')}
-                            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 transition-all font-bold uppercase tracking-wider text-[10px] bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 active:scale-95 mb-2"
-                        >
-                            <ArrowLeft size={12} /> Kembali
-                        </button>
                         <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight uppercase">
                             Detail Hasil Ujian
                         </h1>
@@ -177,7 +181,7 @@ export default function StudentResultDetailsPage() {
                             <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
                                 <div className="text-center min-w-[60px]">
                                     <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{scoreLabel}</p>
-                                    <p className="text-3xl font-black tracking-tighter text-[#3083FF] leading-none font-mono">
+                                    <p className="text-3xl font-semibold tracking-tight text-[#3083FF] leading-none font-poppins tabular-nums">
                                         {gradingPending ? '—' : totalScore.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
@@ -187,7 +191,7 @@ export default function StudentResultDetailsPage() {
                                 <div className="w-px h-10 bg-slate-200" />
                                 <div className="text-center min-w-[60px]">
                                     <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Benar</p>
-                                    <p className="text-2xl font-black text-emerald-600 leading-none font-mono mt-0.5">{gradingPending ? '—' : correctCount}</p>
+                                    <p className="text-2xl font-semibold tracking-tight text-emerald-600 leading-none font-poppins tabular-nums mt-0.5">{gradingPending ? '—' : correctCount}</p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
                                 </div>
                                 </>}
@@ -229,10 +233,17 @@ export default function StudentResultDetailsPage() {
             {/* Summary bar */}
             <div className="flex flex-wrap gap-3 text-sm">
                 <div className="flex items-center gap-2 text-slate-500 bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
-                    <Clock size={14} />
+                    <Clock size={14} className="shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-widest">Mulai:</span>
+                    <span className="font-medium">
+                        {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}
+                    </span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-500 bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
+                    <Clock size={14} className="shrink-0" />
                     <span className="text-xs font-bold uppercase tracking-widest">Selesai:</span>
                     <span className="font-medium">
-                        {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'N/A'}
+                        {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}
                     </span>
                 </div>
                 {attempt.needs_manual_grading && (
@@ -258,6 +269,11 @@ export default function StudentResultDetailsPage() {
             )}
 
             {/* Tab Content */}
+            {details.answerKeysReleased !== false && answersWithQuestions.length > 0 && (
+                <QuestionSearchBar value={questionSearch} onChange={setQuestionSearch}
+                    matched={resolvedTab === 'pengetahuan' ? visiblePengetahuan.length : visibleKepribadian.length}
+                    total={resolvedTab === 'pengetahuan' ? pengetahuanAnswers.length : kepribadianAnswers.length} />
+            )}
             {details.answerKeysReleased !== false && (
             <AnimatePresence mode="wait">
                 {/* ── PENGETAHUAN TAB ── */}
@@ -270,13 +286,13 @@ export default function StudentResultDetailsPage() {
                         transition={{ duration: 0.18 }}
                         className="space-y-5"
                     >
-                        {pengetahuanAnswers.length === 0 ? (
+                        {visiblePengetahuan.length === 0 ? (
                             <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center">
                                 <BookOpen className="mx-auto mb-3 text-slate-300" size={36} />
-                                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Tidak ada soal pengetahuan</p>
+                                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">{questionSearch.trim() ? 'Tidak ada soal yang cocok dengan pencarian' : 'Tidak ada soal pengetahuan'}</p>
                             </div>
                         ) : (
-                            pengetahuanAnswers.map((answer, index) => (
+                            visiblePengetahuan.map(({ answer, index }) => (
                                 <StudentAnswerAnalysis key={answer.id} answer={answer} index={index} />
                             ))
                         )}
@@ -387,7 +403,8 @@ export default function StudentResultDetailsPage() {
                         {kepribadianAnswers.length > 0 && (
                             <div className="space-y-5">
                                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">Detail Jawaban Kepribadian</p>
-                                {kepribadianAnswers.map((answer, index) => (
+                                {visibleKepribadian.length === 0 && <p className="py-6 text-center text-sm text-slate-500">Tidak ada soal yang cocok dengan pencarian.</p>}
+                                {visibleKepribadian.map(({ answer, index }) => (
                                     <StudentAnswerAnalysis key={answer.id} answer={answer} index={index} />
                                 ))}
                             </div>

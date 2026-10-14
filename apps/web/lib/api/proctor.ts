@@ -113,6 +113,8 @@ export interface ClassStudent {
 
 export interface OrganizationExam {
     canManage?: boolean;
+    canCorrectKeys?: boolean;
+    canResetParticipants?: boolean;
     id: string;
     organization_id?: string;
     title: string;
@@ -199,7 +201,7 @@ export interface ExamAttemptRecord {
     score_irt?: number | null;
     needs_manual_grading?: boolean;
     metadata?: Record<string, unknown> | null;
-    profiles?: { id?: string; full_name?: string | null; identity_number?: string | null; email?: string | null } | null;
+    profiles?: { id?: string; full_name?: string | null; avatar_url?: string | null; identity_number?: string | null; email?: string | null } | null;
     exams?: OrganizationExam | null;
 }
 

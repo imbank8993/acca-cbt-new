@@ -1,4 +1,5 @@
 "use client";
+import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
@@ -291,7 +292,10 @@ function MonitoringContent() {
 
     const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
+    const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
+
     const handleResetAttempt = (attempt: ExamAttemptRecord) => {
+        if (!canResetParticipants || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
     };
     const handleCalculateIRT = async () => {
@@ -527,6 +531,7 @@ function MonitoringContent() {
                         </div>
                         {activeTab === 'results' && (
                             <FilterActions>
+                                {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
                                 {hasIRTScoring && (
                                     <Button
                                         variant="outline"
@@ -578,7 +583,7 @@ function MonitoringContent() {
             {selectedExamId && activeTab === 'answers' && (
                 <MonitoringHealthPanel key={selectedExamId}
                     attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
-                    onRecover={handleResetAttempt}
+                    onRecover={canResetParticipants ? handleResetAttempt : undefined}
                     onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}
                     defaultExpanded
                 />
@@ -1288,7 +1293,7 @@ function MonitoringContent() {
             </AnimatePresence>
 
             <ResetExamModal
-                open={!!selectedResetAttempt}
+                open={canResetParticipants && selectedResetAttempt?.exam_id === selectedExamId}
                 attempt={selectedResetAttempt}
                 examDuration={
                     exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??

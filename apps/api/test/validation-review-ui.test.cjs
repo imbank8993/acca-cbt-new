@@ -5,6 +5,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
+test('Bank summary exposes existing corrections and opens the affected question and session', async () => {
+    const state = []; let cursor = 0; let initial = true; const effects = [];
+    const React = {
+        createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+        useState(value) { const i = cursor++; if (!(i in state)) state[i] = value; return [state[i], next => { state[i] = next; }]; },
+        useEffect(fn) { if (initial) effects.push(fn); }, useCallback: fn => fn,
+    };
+    const api = { getBankValidationFeedback: async () => [{ id: 'legacy-session', title: 'Validasi Matematika', notes: [
+        { id: 'note', question_id: 'q2', status_item: 'revision', target_scope: 'option', selected_text: 'Bagian salah', comment: 'Perbaiki pilihan', is_resolved: false },
+        { id: 'resolved', question_id: 'q1', status_item: 'revision', comment: 'Selesai', is_resolved: true },
+        { id: 'valid', question_id: 'q1', status_item: 'valid', comment: 'Sudah tepat', is_resolved: false },
+    ] }] };
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/BankValidationSummary.tsx'), 'utf8');
+    const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const module = { exports: {} };
+    new Function('require', 'module', 'exports', 'window', code)(name => name === 'react' ? React : api, module, module.exports, { addEventListener() {}, removeEventListener() {} });
+    const questions = [{ id: 'q1' }, { id: 'q2' }]; const opened = [];
+    const render = () => { cursor = 0; const tree = module.exports.default({ bankId: 'bank', questions, onEditQuestion: q => opened.push(q), onOpenFeedback: id => opened.push(id) }); initial = false; return tree; };
+    const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
+    const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
+    render(); effects.forEach(fn => fn()); await new Promise(resolve => setImmediate(resolve));
+    const tree = render();
+    assert.match(text(tree), /1 catatan perlu perbaikan pada 1 soal/);
+    assert.match(text(tree), /Soal 2 · Pilihan jawaban/);
+    assert.match(text(tree), /Bagian salah/);
+    assert.doesNotMatch(text(tree), /Selesai|Sudah tepat/);
+    nodes(tree).find(n => n.type === 'button' && text(n).includes('Buka soal')).props.onClick();
+    nodes(tree).find(n => n.type === 'button' && text(n).includes('Lihat catatan')).props.onClick();
+    assert.deepEqual(opened, [questions[1], 'legacy-session']);
+});
+
 test('Question navigation isolates and restores drafts and option targets', async () => {
     const state = []; let cursor = 0; let firstRender = true; const effects = []; const saved = [];
     const React = {

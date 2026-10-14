@@ -20,7 +20,6 @@ ChevronRight,
 Edit3,
 Folder,
 FolderOpen,
-FolderPlus,
 MoreHorizontal,
 Plus,
 Trash2
@@ -44,6 +43,9 @@ export default function ProktorQuestionBankPage() {
     const [isDualRole, setIsDualRole] = useState(false);
     const [, setCurrentUserId] = useState<string | null>(null);
 
+    const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
+    const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
+
     // Register Mobile Center FAB on BottomNav
     useEffect(() => {
         const token = {};
@@ -62,8 +64,6 @@ export default function ProktorQuestionBankPage() {
     }, []);
 
     const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
-    const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
-    const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
     const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(null);
@@ -96,7 +96,7 @@ export default function ProktorQuestionBankPage() {
     ];
 
     const handleSelectAll = () => {
-        const allFilteredIds = filteredBanks.map(b => b.id);
+        const allFilteredIds = filteredBanks.filter(bank => bank.canManage === true).map(b => b.id);
         setSelectedBankIds(new Set(allFilteredIds));
     };
 
@@ -319,6 +319,7 @@ export default function ProktorQuestionBankPage() {
     // Bulk selection functions
 
     const toggleSelectBank = (bankId: string) => {
+        if (!banks.some(bank => bank.id === bankId && bank.canManage === true)) return;
         setSelectedBankIds(prev => {
             const next = new Set(prev);
             if (next.has(bankId)) next.delete(bankId);
@@ -328,6 +329,7 @@ export default function ProktorQuestionBankPage() {
     };
 
     const toggleSelectAllInFolder = (folderBanks: QuestionBank[]) => {
+        folderBanks = folderBanks.filter(bank => bank.canManage === true);
         const allSelected = folderBanks.every(b => selectedBankIds.has(b.id));
         setSelectedBankIds(prev => {
             const next = new Set(prev);
@@ -421,6 +423,7 @@ export default function ProktorQuestionBankPage() {
             <div className="flex items-center gap-4 min-w-0">
                 <input
                     type="checkbox"
+                    disabled={bank.canManage !== true}
                     checked={selectedBankIds.has(bank.id)}
                     onChange={() => toggleSelectBank(bank.id)}
                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
@@ -456,36 +459,36 @@ export default function ProktorQuestionBankPage() {
                 </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-                <Button
+                {bank.canManage === true && (<Button
                     size="sm"
                     variant={bank.is_published ? "warning" : "primary"}
                     onClick={() => handleTogglePublish(bank)}
                 >
                     {bank.is_published ? 'Unpublish' : 'Publish'}
-                </Button>
+                </Button>)}
                 <Link href={`/dashboard/proktor/questions/${bank.id}`}>
                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />}>
                         Lihat
                     </Button>
                 </Link>
-                <ActionButton
+                {bank.canManage === true && (<ActionButton
                     action="move"
                     iconOnly
                     tooltip="Pindah ke folder"
                     onClick={() => handleOpenMoveBank(bank)}
-                />
-                <ActionButton
+                />)}
+                {bank.canManage === true && (<ActionButton
                     action="edit"
                     iconOnly
                     tooltip="Edit"
                     onClick={() => handleOpenEdit(bank)}
-                />
-                <ActionButton
+                />)}
+                {bank.canManage === true && (<ActionButton
                     action="delete"
                     iconOnly
                     tooltip="Hapus"
                     onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }}
-                />
+                />)}
             </div>
         </div>
     );
@@ -624,7 +627,8 @@ export default function ProktorQuestionBankPage() {
                             <div className="flex items-start gap-3 mb-3">
                                 <input
                                     type="checkbox"
-                                    checked={selectedBankIds.has(bank.id)}
+                                    disabled={bank.canManage !== true}
+                    checked={selectedBankIds.has(bank.id)}
                                     onChange={() => toggleSelectBank(bank.id)}
                                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
                                 />
@@ -652,21 +656,21 @@ export default function ProktorQuestionBankPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button
+                                {bank.canManage === true && (<Button
                                     size="sm"
                                     variant={bank.is_published ? "warning" : "primary"}
                                     onClick={() => handleTogglePublish(bank)}
                                     className="flex-1"
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
-                                </Button>
+                                </Button>)}
                                 <Link href={`/dashboard/proktor/questions/${bank.id}`} className="flex-1">
                                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
                                         Lihat
                                     </Button>
                                 </Link>
-                                <ActionButton action="edit" iconOnly tooltip="Edit" onClick={() => handleOpenEdit(bank)} />
-                                <ActionButton action="delete" iconOnly tooltip="Hapus" onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />
+                                {bank.canManage === true && (<ActionButton action="edit" iconOnly tooltip="Edit" onClick={() => handleOpenEdit(bank)} />)}
+                                {bank.canManage === true && (<ActionButton action="delete" iconOnly tooltip="Hapus" onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />)}
                             </div>
                         </div>
                     ))
@@ -956,7 +960,7 @@ export default function ProktorQuestionBankPage() {
                 icon="folder-plus"
             >
                 <ModalBody className="max-h-[60vh] overflow-y-auto space-y-2">
-                    {banks.filter(b => !b.folder_id || b.folder_id !== targetFolder?.id).length === 0 ? (
+                    {banks.filter(b => b.canManage === true && (!b.folder_id || b.folder_id !== targetFolder?.id)).length === 0 ? (
                         <div className="text-center text-slate-400 py-8">
                             <BookOpen size={24} className="mx-auto mb-2 opacity-50" />
                             <p className="text-sm">Semua bank soal sudah ada di folder ini</p>
@@ -964,7 +968,7 @@ export default function ProktorQuestionBankPage() {
                         </div>
                     ) : (
                         banks
-                            .filter(b => !b.folder_id || b.folder_id !== targetFolder?.id)
+                            .filter(b => b.canManage === true && (!b.folder_id || b.folder_id !== targetFolder?.id))
                             .map(bank => (
                                 <div
                                     key={bank.id}

@@ -1,4 +1,5 @@
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
+import { readExamQuestionVersion } from '../common/exam-question-snapshots';
 import {
     BadRequestException,
     ConflictException,
@@ -394,15 +395,15 @@ export class StudentsService {
         const { data: answers, error } = await this.db
             .from('cbt_answers')
             .select(
-                `id, selected_option_id, essay_answer, is_correct, score, question_id,
-                 bank_questions:cbt_bank_questions(
-                     id, question_text, type, score_default, metadata,
-                     bank_question_options:cbt_bank_question_options(id, option_text, is_correct, weight, metadata, order)
-                 )`,
+                'id, selected_option_id, essay_answer, is_correct, score, question_id',
             )
             .eq('attempt_id', attemptId);
 
         if (error) throw new BadRequestException(error.message);
+        // Review the full exam version, including questions with no saved answer.
+        // Bank edits must not change the keys shown for an existing exam snapshot.
+        const questions = await readExamQuestionVersion(this.db, row.exams.id);
+        const answersByQuestion = new Map(((answers as any[]) || []).map(answer => [answer.question_id, answer]));
 
         const bankId = row.exams?.question_bank_id;
 
@@ -432,24 +433,23 @@ export class StudentsService {
             answerKeysMessage: null,
             dimensions: (dimensions as any[]) || [],
             interpretations: (interpretations as any[]) || [],
-            answers: ((answers as any[]) || []).map((answer) => ({
-                id: answer.id,
-                questionId: answer.question_id,
-                selectedOptionId: answer.selected_option_id,
-                essayAnswer: answer.essay_answer,
-                isCorrect: answer.is_correct,
-                score: answer.score,
-                question: answer.bank_questions
-                    ? {
-                          id: answer.bank_questions.id,
-                          question_text: answer.bank_questions.question_text,
-                          type: answer.bank_questions.type,
-                          score_default: answer.bank_questions.score_default,
-                          metadata: answer.bank_questions.metadata,
-                          options: answer.bank_questions.bank_question_options || [],
-                      }
-                    : null,
-            })),
+            answers: questions.map(question => {
+                const answer = answersByQuestion.get(question.id);
+                return {
+                    id: answer?.id || `unanswered:${attemptId}:${question.id}`,
+                    questionId: question.id,
+                    selectedOptionId: answer?.selected_option_id ?? null,
+                    essayAnswer: answer?.essay_answer ?? null,
+                    isCorrect: answer ? answer.is_correct : false,
+                    score: answer?.score ?? 0,
+                    question: {
+                        id: question.id, question_text: question.question_text,
+                        type: question.type, score_default: question.score_default,
+                        metadata: question.metadata,
+                        options: question.bank_question_options || [],
+                    },
+                };
+            }),
         };
     }
 }

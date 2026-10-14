@@ -31,6 +31,11 @@ export class AuthorizationService {
         return user.isPlatformAdmin || user.resolved?.superadmin === true;
     }
 
+    async isRestrictedProctor(user: AuthUser, organizationId: string): Promise<boolean> {
+        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return false;
+        return this.roles.hasOrgRole(user.id, organizationId, ['Proktor']);
+    }
+
     async assertOrgRole(
         user: AuthUser,
         organizationId: string | null | undefined,
@@ -152,8 +157,8 @@ export class AuthorizationService {
      * Otorisasi akses ke sebuah bank soal beserta SELURUH isinya — soal, opsi,
      * stimulus, petunjuk, kisi-kisi, dimensi, dan tafsirannya.
      *
-     * Aturannya sama bentuknya dengan `assertExamStaff`: Proktor/Admin bebas di
-     * organisasinya, Guru hanya bank yang ia buat sendiri.
+     * Admin memiliki akses penuh dalam sekolahnya. Pemilik boleh mengelola bank;
+     * proktor hanya boleh membaca bank milik orang lain yang sudah dipublikasikan.
      *
      * Organisasinya diambil dari BARIS BANK-nya, bukan dari parameter pemanggil.
      * Itu yang mencegah id bank milik sekolah lain diselundupkan bersama
@@ -163,24 +168,27 @@ export class AuthorizationService {
      * pemanggil membutuhkannya untuk baris yang akan ia tulis — dan mengambilnya
      * dari sini berarti tidak ada jalur yang memakai organisasi kiriman klien.
      */
-    async assertBankAccess(user: AuthUser, bankId: string): Promise<string> {
+    async assertBankAccess(user: AuthUser, bankId: string, access: 'read' | 'write' = 'write'): Promise<string> {
         if (!bankId) throw new NotFoundException('Bank soal tidak ditemukan.');
 
         const { data } = await this.db
             .from('cbt_question_banks')
-            .select('organization_id, created_by')
+            .select('organization_id, created_by, is_published')
             .eq('id', bankId)
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Bank soal tidak ditemukan.');
 
-        const bank = data as { organization_id: string; created_by: string | null };
+        const bank = data as { organization_id: string; created_by: string | null; is_published?: boolean };
 
         await this.assertOrgStaff(user, bank.organization_id);
 
         const elevated =
             this.isElevatedGlobally(user) ||
-            (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor', 'Admin']));
+            (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']));
+
+        if (!elevated && bank.created_by !== user.id && access === 'read' && bank.is_published === true &&
+            await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor'])) return bank.organization_id;
 
         if (!elevated && bank.created_by !== user.id) {
             throw new ForbiddenException(
@@ -216,12 +224,12 @@ export class AuthorizationService {
      *  - Jenis lain: seluruh staf, TETAPI Guru hanya boleh mengelola ujian yang
      *    ia buat sendiri. Proktor/Admin bebas.
      */
-    async assertExamStaff(user: AuthUser, examId: string): Promise<void> {
+    async assertExamStaff(user: AuthUser, examId: string, operation: 'manage' | 'reset' = 'manage'): Promise<void> {
         if (!examId) throw new NotFoundException('Data tidak ditemukan.');
 
         const { data: exam } = await this.db
             .from('cbt_exams')
-            .select('exam_type, created_by, organization_id')
+            .select('exam_type, created_by, organization_id, is_published')
             .eq('id', examId)
             .maybeSingle();
 
@@ -231,9 +239,11 @@ export class AuthorizationService {
             exam_type: string | null;
             created_by: string | null;
             organization_id: string | null;
+            is_published?: boolean;
         };
 
-        if (!await this.canManageExam(user, record)) {
+        if (!await this.canManageExam(user, record, operation)) {
+            if (operation === 'reset') throw new ForbiddenException('Anda hanya dapat mereset peserta pada ujian yang Anda buat sendiri.');
             throw new ForbiddenException('Anda hanya dapat mengelola ujian yang Anda buat sendiri. PAS/PAT hanya dapat dikelola Proktor/Admin.');
         }
     }
@@ -243,10 +253,14 @@ export class AuthorizationService {
         organization_id: string | null;
         created_by: string | null;
         exam_type: string | null;
-    }): Promise<boolean> {
+        is_published?: boolean;
+    }, operation: 'manage' | 'reset' = 'manage'): Promise<boolean> {
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return true;
-        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor', 'Admin'])) return true;
+        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Admin'])) return true;
+        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
+            return record.created_by === user.id || (operation !== 'reset' && record.is_published === true);
+        }
         if (record.exam_type === 'pas' || record.exam_type === 'pat') return false;
         return record.created_by === user.id &&
             await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
@@ -262,7 +276,7 @@ export class AuthorizationService {
 
         const { data: exam } = await this.db
             .from('cbt_exams')
-            .select('exam_type, created_by, organization_id, question_bank_id')
+            .select('exam_type, created_by, organization_id, question_bank_id, is_published')
             .eq('id', examId)
             .maybeSingle();
 
@@ -273,10 +287,15 @@ export class AuthorizationService {
             created_by: string | null;
             organization_id: string | null;
             question_bank_id: string | null;
+            is_published?: boolean;
         };
 
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return;
+
+        if (await this.isRestrictedProctor(user, record.organization_id!) && record.created_by !== user.id && record.is_published !== true) {
+            throw new ForbiddenException('Ujian milik guru lain belum dipublikasikan.');
+        }
 
         // Proktor, Admin, dan Pengawas boleh memantau seluruh ujian di organisasinya
         const isMonitorStaff = await this.roles.hasOrgRole(

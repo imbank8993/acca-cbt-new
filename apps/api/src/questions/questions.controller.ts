@@ -49,8 +49,8 @@ import { QuestionsService } from './questions.service';
  * Bank soal beserta isinya.
  *
  * `@Roles` hanya saringan kasar "bukan siswa". Aturan sebenarnya ada di
- * `AuthorizationService.assertBankAccess`: Proktor/Admin bebas di organisasinya,
- * Guru hanya bank buatannya sendiri. Aturan itu bergantung pada kepemilikan
+ * `AuthorizationService.assertBankAccess`: Admin bebas, pemilik boleh mengedit,
+ * Proktor hanya membaca bank orang lain yang dipublikasikan. Aturan itu bergantung pada kepemilikan
  * baris, bukan pada nama peran, jadi ia tidak bisa ditegakkan lewat dekorator.
  */
 @ApiTags('question-banks')

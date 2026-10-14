@@ -43,9 +43,10 @@ export class StorageAccessService {
                 .select('id, metadata, image_url').eq('organization_id', audience.organizationId);
             if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
             for (const bank of banks || []) {
-                try { await this.authz.assertBankAccess(user, bank.id); }
+                try { await this.authz.assertBankAccess(user, bank.id, 'read'); }
                 catch (error) {
                     if (!(error instanceof ForbiddenException)) throw error;
+                    if ((user.roles || []).some(role => role.toUpperCase() === 'PROKTOR')) continue;
                     await this.authz.assertOrgStaff(user, audience.organizationId);
                     const { data: sessions, error: sessionError } = await this.db.from('cbt_question_bank_validations')
                         .select('id').eq('bank_id', bank.id).eq('organization_id', audience.organizationId);

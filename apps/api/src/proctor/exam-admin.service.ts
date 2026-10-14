@@ -55,7 +55,10 @@ export class ExamAdminService {
         const canSeeAll =
             (await this.isElevated(user, organizationId)) ||
             (await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']));
-        if (!canSeeAll) {
+        const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
+            await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        else if (!canSeeAll) {
             // Cari bank soal milik guru ini
             const { data: ownedBanks } = await this.db
                 .from('cbt_question_banks')
@@ -78,7 +81,18 @@ export class ExamAdminService {
             return [];
         }
 
-        const exams = (data as any[]) || [];
+        const exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true);
+        const ownedBankIds = new Set<string>();
+        let examSources: Array<{ exam_id: string; bank_id: string }> = [];
+        if (restrictedProctor) {
+            const [owned, sources] = await Promise.all([
+                this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id),
+                this.db.from('cbt_exam_question_sources').select('exam_id, bank_id').in('exam_id', exams.map(exam => exam.id)),
+            ]);
+            if (owned.error || sources.error) throw new BadRequestException('Izin koreksi kunci belum dapat diperiksa.');
+            for (const bank of owned.data || []) ownedBankIds.add(bank.id);
+            examSources = sources.data || [];
+        }
         const creatorIds = [
             ...new Set(exams.map((e) => e.created_by).filter(Boolean) as string[]),
         ];
@@ -102,6 +116,11 @@ export class ExamAdminService {
             ...exam,
             creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
             canManage: await this.authz.canManageExam(user, exam),
+            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset'),
+            canCorrectKeys: !restrictedProctor || (() => {
+                const ids = [...(exam.question_bank_id ? [exam.question_bank_id] : []), ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id)];
+                return ids.length > 0 && ids.every(id => ownedBankIds.has(id));
+            })(),
         })));
     }
 
@@ -173,69 +192,76 @@ export class ExamAdminService {
     async update(user: AuthUser, examId: string, dto: UpdateExamDto) {
         await this.authz.assertExamStaff(user, examId);
 
-        const { data } = await this.db
-            .from('cbt_exams')
-            .select('metadata, exam_type, organization_id, status')
-            .eq('id', examId)
-            .maybeSingle();
+        return this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE', examId);
+            const { data } = await db
+                .from('cbt_exams')
+                .select('metadata, exam_type, organization_id, status')
+                .eq('id', examId)
+                .maybeSingle();
 
-        if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
+            if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
 
-        const existing = data as {
-            metadata: Record<string, any> | null;
-            exam_type: string | null;
-            organization_id: string;
-            status: string;
-        };
-        if (existing.status === 'archived') {
-            throw new ConflictException('Pulihkan ujian dari arsip sebelum mengubahnya.');
-        }
+            const existing = data as {
+                metadata: Record<string, any> | null;
+                exam_type: string | null;
+                organization_id: string;
+                status: string;
+            };
+            if (existing.status === 'archived') {
+                throw new ConflictException('Pulihkan ujian dari arsip sebelum mengubahnya.');
+            }
 
-        // `examType` kosong berarti PERTAHANKAN tipe lama. Nilai bawaan 'pas'
-        // pernah membuat penyuntingan biasa diam-diam mengubah ujian menjadi PAS.
-        const examType = dto.examType || existing.exam_type || 'daily';
+            if (existing.metadata?.key_correction && existing.metadata.key_correction.state !== 'ready') {
+                throw new ConflictException('Selesaikan penilaian ulang koreksi kunci sebelum mengubah atau membuka nilai ujian.');
+            }
 
-        // `assertExamStaff` menutup penyuntingan ujian yang MEMANG PAS/PAT bagi
-        // Guru. Cabang ini menutup arah sebaliknya: menaikkan ujian biasa
-        // miliknya sendiri menjadi PAS/PAT.
-        if (examType !== existing.exam_type) {
-            await this.assertMayUseExamType(user, existing.organization_id, examType);
-        }
+            // `examType` kosong berarti PERTAHANKAN tipe lama. Nilai bawaan 'pas'
+            // pernah membuat penyuntingan biasa diam-diam mengubah ujian menjadi PAS.
+            const examType = dto.examType || existing.exam_type || 'daily';
 
-        this.assertValidDuration(examType, dto.duration);
-        const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
-        if (dto.timeZone && dto.timeZone !== timeZone) {
-            throw new BadRequestException('Zona waktu sekolah berubah. Buka ulang formulir sebelum menyimpan jadwal.');
-        }
-        const startTime = localDateTimeToUtc(dto.startTime, timeZone);
-        const endTime = localDateTimeToUtc(dto.endTime, timeZone);
-        if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
-            throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
-        }
+            // `assertExamStaff` menutup penyuntingan ujian yang MEMANG PAS/PAT bagi
+            // Guru. Cabang ini menutup arah sebaliknya: menaikkan ujian biasa
+            // miliknya sendiri menjadi PAS/PAT.
+            if (examType !== existing.exam_type) {
+                await this.assertMayUseExamType(user, existing.organization_id, examType);
+            }
 
-        const { error } = await this.db
-            .from('cbt_exams')
-            .update({
-                title: dto.title,
-                description: dto.description,
-                exam_type: examType,
-                duration_minutes: dto.duration,
-                randomize_questions: dto.randomizeQuestions ?? true,
-                randomize_options: dto.randomizeOptions ?? true,
-                show_results: dto.showResults ?? false,
-                scoring_type: dto.scoringType || 'classical',
-                // Selalu ditulis, termasuk saat kosong: mengosongkan jadwal
-                // adalah perubahan yang sah, dan melewatkannya membuat jadwal
-                // lama tertinggal.
-                start_time: startTime,
-                end_time: endTime,
-                metadata: this.buildMetadata(examType, dto, existing.metadata || {}),
-            })
-            .eq('id', examId);
+            this.assertValidDuration(examType, dto.duration);
+            const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
+            if (dto.timeZone && dto.timeZone !== timeZone) {
+                throw new BadRequestException('Zona waktu sekolah berubah. Buka ulang formulir sebelum menyimpan jadwal.');
+            }
+            const startTime = localDateTimeToUtc(dto.startTime, timeZone);
+            const endTime = localDateTimeToUtc(dto.endTime, timeZone);
+            if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
+                throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
+            }
 
-        if (error) throw new BadRequestException(error.message);
+            const { error } = await db
+                .from('cbt_exams')
+                .update({
+                    title: dto.title,
+                    description: dto.description,
+                    exam_type: examType,
+                    duration_minutes: dto.duration,
+                    randomize_questions: dto.randomizeQuestions ?? true,
+                    randomize_options: dto.randomizeOptions ?? true,
+                    show_results: dto.showResults ?? false,
+                    scoring_type: dto.scoringType || 'classical',
+                    // Selalu ditulis, termasuk saat kosong: mengosongkan jadwal
+                    // adalah perubahan yang sah, dan melewatkannya membuat jadwal
+                    // lama tertinggal.
+                    start_time: startTime,
+                    end_time: endTime,
+                    metadata: this.buildMetadata(examType, dto, existing.metadata || {}),
+                })
+                .eq('id', examId);
 
-        return { id: examId };
+            if (error) throw new BadRequestException(error.message);
+
+            return { id: examId };
+        });
     }
 
     /**

@@ -25,7 +25,7 @@ export class QuestionsService {
      * penyusunan.
      */
     async listByBank(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
 
         const { data, error } = await this.db
             .from('cbt_bank_questions')

@@ -67,6 +67,8 @@ export interface DimensionInterpretationItem {
 }
 
 export interface QuestionBank {
+    canManage?: boolean;
+    created_by?: string | null;
     id: string;
     title: string;
     name?: string;

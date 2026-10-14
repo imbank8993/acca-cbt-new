@@ -53,8 +53,8 @@ export class QuestionBanksService {
     /**
      * Daftar bank soal satu organisasi.
      *
-     * Guru hanya melihat bank buatannya sendiri; Proktor, Admin, dan admin
-     * platform melihat semuanya.
+     * Guru melihat bank buatannya sendiri. Proktor juga dapat membaca bank orang
+     * lain yang dipublikasikan; Admin dan admin platform melihat seluruh bank.
      */
     async list(user: AuthUser, organizationId: string, onlyPublished = false) {
         await this.authz.assertOrgStaff(user, organizationId);
@@ -69,7 +69,11 @@ export class QuestionBanksService {
             .eq('organization_id', organizationId);
         if (onlyPublished) query = query.eq('is_published', true);
 
-        if (!(await this.isElevated(user, organizationId))) {
+        const elevated = await this.isElevated(user, organizationId);
+        const restrictedProctor = await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) &&
+            !user.isPlatformAdmin && !user.resolved?.superadmin && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        else if (!elevated) {
             query = query.eq('created_by', user.id);
         }
 
@@ -80,7 +84,7 @@ export class QuestionBanksService {
             return [];
         }
 
-        const banks = (data as any[]) || [];
+        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true);
 
         // Nama pembuat ditampilkan pada kartu bank. Profil bisa belum terisi —
         // akun yang datang lewat SSO sering hanya punya email — jadi awalan
@@ -100,6 +104,7 @@ export class QuestionBanksService {
 
             return {
                 ...bank,
+                canManage: !restrictedProctor || bank.created_by === user.id,
                 question_count: questionCount,
                 total_questions: questionCount,
                 folder_id: bank.folder_id,
@@ -111,7 +116,7 @@ export class QuestionBanksService {
     }
 
     async get(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
 
         const { data } = await this.db
             .from('cbt_question_banks')
@@ -120,7 +125,9 @@ export class QuestionBanksService {
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Bank soal tidak ditemukan.');
-        return data;
+        const bank = data as any;
+        const admin = user.isPlatformAdmin || user.resolved?.superadmin || await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']);
+        return { ...bank, canManage: admin || bank.created_by === user.id };
     }
 
     async create(user: AuthUser, organizationId: string, input: BankInput) {

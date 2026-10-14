@@ -55,7 +55,7 @@ test('score summary stays available while detailed keys are blocked', async () =
     assert.equal(summary.attempt.exams.metadata, undefined);
     await assert.rejects(new ExamReviewService(db, {}).getReview(user, 'attempt'), denied);
 });
-test('released details still read latest bank keys as required', async () => {
+test('released details retain frozen exam keys after the bank key changes', async () => {
     const { db } = fixture();
     const attempt = db.tables.cbt_exam_attempts[0];
     attempt.status = 'submitted';
@@ -64,7 +64,8 @@ test('released details still read latest bank keys as required', async () => {
     db.tables.cbt_answers.push({ id: 'a', attempt_id: 'attempt', question_id: 'q',
         bank_questions: { id: 'q', metadata: { answer: 'LATEST' }, bank_question_options: [] } });
     const result = await new StudentsService(db).getAttemptDetails(user, 'attempt');
-    assert.equal(result.answers[0].question.metadata.answer, 'LATEST');
+    assert.equal(result.answers[0].question.metadata.answer, undefined);
+    assert.equal(result.answers[0].question.options[0].id, 'answer');
 });
 test('active participant may read displayed image but not key/explanation or foreign files', async () => {
     const { access } = fixture();

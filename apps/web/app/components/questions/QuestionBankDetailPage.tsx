@@ -53,6 +53,7 @@ const BulkImportModal = dynamic(() => import('@/app/components/questions/BulkImp
 const PreviewModal = dynamic(() => import('@/app/components/questions/PreviewModal'), { ssr: false });
 const ExamPrintView = dynamic(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
 const BankValidationFeedbackTab = dynamic(() => import('@/app/components/questions/BankValidationFeedbackTab'), { ssr: false });
+const BankValidationSummary = dynamic(() => import('@/app/components/questions/BankValidationSummary'), { ssr: false });
 
 type QuestionBankRole = 'admin' | 'guru' | 'proktor';
 
@@ -72,12 +73,18 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [isLoading, setIsLoading] = useMemoryState(`${cachePrefix}_isLoading`, true);
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
+    const canManage = bankInfo?.canManage === true;
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi' | 'validations'>(searchParams.get('tab') === 'validations' ? 'validations' : 'questions');
-    useEffect(() => { if (searchParams.get('tab') === 'validations') setActiveTab('validations'); }, [searchParams]);
+    const [requestedTab, setActiveTab] = useState<'questions' | 'stimuli' | 'instructions' | 'dimensions' | 'kisikisi' | 'validations'>(searchParams.get('tab') === 'validations' ? 'validations' : 'questions');
+    const activeTab = canManage ? requestedTab : 'questions';
+    useEffect(() => {
+        if (searchParams.get('tab') !== 'validations') return;
+        const timer = window.setTimeout(() => setActiveTab('validations'), 0);
+        return () => window.clearTimeout(timer);
+    }, [searchParams]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
     const [selectedType, setSelectedType] = useState<QuestionType>('mcq');
@@ -200,6 +207,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     }, [loadData]);
 
     const handleOpenEditor = useCallback((q: QuestionRecord | null = null) => {
+        if (!canManage) return;
         if (q && q.id) {
             // Deduplicate options before loading into editor
             const rawOptions = q.bank_question_options || q.options || [];
@@ -262,7 +270,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             window.history.replaceState({}, "", `${window.location.pathname}${p.toString() ? "?" + p.toString() : ""}`);
         }
         setIsEditorOpen(true);
-    }, [setCategories, setOptions]);
+    }, [canManage, setCategories, setOptions]);
 
     useEffect(() => {
         // Skip SSR/hydration: only run after component mounts (second render)
@@ -441,6 +449,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         if (target) handleOpenEditor(target);
     };
 
+    if (!bankInfo) return <div className="p-8 text-center text-sm text-slate-500">
+        {isLoading ? 'Memuat bank soal…' : 'Bank soal tidak tersedia atau belum dipublikasikan.'}
+        {!isLoading && <Link href={questionsBasePath} className="block mt-4 font-semibold text-primary">Kembali ke Bank Soal</Link>}
+    </div>;
+
     if (searchParams.get('print') === 'true') {
         if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500 font-medium animate-pulse">Menyiapkan dokumen cetak...</div></div>;
         return (
@@ -516,7 +529,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             <button onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-white bg-primary border border-primary hover:bg-primary/90 hover:border-primary/90 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">
                                 <Eye size={14} className="shrink-0 sm:w-[15px] sm:h-[15px]" /> <span className="truncate">Pratinjau</span>
                             </button>
-                            <button
+                            {canManage && (<button
                                 onClick={async () => {
                                     if (!org) return;
                                     if (!await confirmDialog({
@@ -532,7 +545,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500' : 'bg-primary text-white hover:bg-primary/90'}`}
                             >
                                 <span className="truncate">{bankInfo?.is_published ? 'Unpublish' : 'Publish'}</span>
-                            </button>
+                            </button>)}
                         </div>
                     </div>
                     {/* Tabs */}
@@ -543,42 +556,55 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         >
                             Daftar Soal
                         </button>
-                        <button
+                        {canManage && (<button
                             onClick={() => setActiveTab('stimuli')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'stimuli' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Daftar Stimulus
-                        </button>
-                        <button
+                        </button>)}
+                        {canManage && (<button
                             onClick={() => setActiveTab('instructions')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'instructions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Daftar Petunjuk
-                        </button>
-                        <button
+                        </button>)}
+                        {canManage && (<button
                             onClick={() => setActiveTab('dimensions')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'dimensions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Daftar Dimensi
-                        </button>
-                        <button
+                        </button>)}
+                        {canManage && (<button
                             onClick={() => setActiveTab('kisikisi')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'kisikisi' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Kisi-kisi Soal
-                        </button>
-                        <button
+                        </button>)}
+                        {canManage && (<button
                             onClick={() => setActiveTab('validations')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'validations' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
                             Catatan Validasi
-                        </button>
+                        </button>)}
                     </div>
                 </div>
             </div>
 
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-6 print:hidden">
+                {canManage && activeTab === 'questions' && <BankValidationSummary
+                    key={bankId}
+                    bankId={bankId}
+                    questions={questions}
+                    onEditQuestion={handleOpenEditor}
+                    onOpenFeedback={sessionId => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('tab', 'validations');
+                        url.searchParams.set('validation', sessionId);
+                        window.history.replaceState({}, '', url);
+                        setActiveTab('validations');
+                    }}
+                />}
                 {activeTab === 'stimuli' ? (
                     <StimulusManager bankId={bankId} />
                 ) : activeTab === 'instructions' ? (
@@ -648,25 +674,21 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                          />
                      </div>
                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-                         {filteredQuestions.length > 0 && (
-                             <button onClick={toggleSelectAll} className="flex-1 sm:flex-none justify-center px-2 sm:px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors">
+                         {canManage && (filteredQuestions.length > 0) && (<button onClick={toggleSelectAll} className="flex-1 sm:flex-none justify-center px-2 sm:px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors">
                                  {selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={15} className="text-blue-600" /> : <Square size={15} />}
                                  <span className="hidden sm:inline">Semua</span>
-                             </button>
-                         )}
-                         {selectedQuestions.size > 0 && (
-                             <button onClick={requestBulkDelete} disabled={isBulkDeleting} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors disabled:opacity-50">
+                             </button>)}
+                         {canManage && (selectedQuestions.size > 0) && (<button onClick={requestBulkDelete} disabled={isBulkDeleting} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors disabled:opacity-50">
                                  {isBulkDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} 
                                  <span className="hidden sm:inline">Hapus ({selectedQuestions.size})</span>
                                  <span className="sm:hidden">{selectedQuestions.size}</span>
-                             </button>
-                         )}
-                         <button onClick={() => setIsImportModalOpen(true)} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
+                             </button>)}
+                         {canManage && (<button onClick={() => setIsImportModalOpen(true)} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
                              <Upload size={15} /> Import
-                         </button>
-                         <button onClick={() => handleOpenEditor()} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-primary hover:bg-primary/95 text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
+                         </button>)}
+                         {canManage && (<button onClick={() => handleOpenEditor()} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-primary hover:bg-primary/95 text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
                              <Plus size={16} /> Tambah
-                         </button>
+                         </button>)}
                      </div>
                  </div>
 
@@ -694,7 +716,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             const hasKisi = !!(q.kisi_kisi_id || meta.kisi_kisi);
                             
                             // Hitung total icon aksi
-                        const actionCount = 3 + (hasStimulus ? 1 : 0) + (hasInstruction ? 1 : 0) + (hasKisi ? 1 : 0);
 
                             return (
                                 <div key={q.id} className="bg-white rounded-lg border border-slate-100 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all">
@@ -753,8 +774,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             <div className="flex sm:hidden items-center gap-1 shrink-0 ml-3">
                                                 {filteredQuestions.length > 1 && (
                                                     <>
-                                                        <button onClick={() => handleMoveQuestion(idx, 'up')} disabled={idx === 0} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronUp size={16} /></button>
-                                                        <button onClick={() => handleMoveQuestion(idx, 'down')} disabled={idx === filteredQuestions.length - 1} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronDown size={16} /></button>
+                                                        {canManage && (<button onClick={() => handleMoveQuestion(idx, 'up')} disabled={idx === 0} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronUp size={16} /></button>)}
+                                                        {canManage && (<button onClick={() => handleMoveQuestion(idx, 'down')} disabled={idx === filteredQuestions.length - 1} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronDown size={16} /></button>)}
                                                     </>
                                                 )}
                                             </div>
@@ -766,8 +787,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             <div className="hidden sm:flex items-center justify-center gap-1 sm:w-[60px] shrink-0">
                                                 {filteredQuestions.length > 1 && (
                                                     <>
-                                                        <button onClick={() => handleMoveQuestion(idx, 'up')} disabled={idx === 0} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronUp size={14} /></button>
-                                                        <button onClick={() => handleMoveQuestion(idx, 'down')} disabled={idx === filteredQuestions.length - 1} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronDown size={14} /></button>
+                                                        {canManage && (<button onClick={() => handleMoveQuestion(idx, 'up')} disabled={idx === 0} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronUp size={14} /></button>)}
+                                                        {canManage && (<button onClick={() => handleMoveQuestion(idx, 'down')} disabled={idx === filteredQuestions.length - 1} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronDown size={14} /></button>)}
                                                     </>
                                                 )}
                                             </div>
@@ -784,8 +805,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                     <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><FileSearch size={14} /></button>
                                                 )}
                                                 <button title="Lihat" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Eye size={14} /></button>
-                                                <button title="Edit" onClick={() => handleOpenEditor(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Edit3 size={14} /></button>
-                                                <button title="Hapus" onClick={() => requestDelete(q.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                                                {canManage && (<button title="Edit" onClick={() => handleOpenEditor(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Edit3 size={14} /></button>)}
+                                                {canManage && (<button title="Hapus" onClick={() => requestDelete(q.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>)}
                                             </div>
 
                                             {/* Mobile Buttons (Touch-friendly Lihat, Edit, Hapus) */}
@@ -796,19 +817,19 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                 >
                                                     <Eye size={14} /> Lihat
                                                 </button>
-                                                <button
+                                                {canManage && (<button
                                                     onClick={() => handleOpenEditor(q)}
                                                     className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg border border-primary/20 transition-colors"
                                                 >
                                                     <Edit3 size={14} /> Edit
-                                                </button>
-                                                <button
+                                                </button>)}
+                                                {canManage && (<button
                                                     onClick={() => requestDelete(q.id)}
                                                     className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200 transition-colors"
                                                     title="Hapus Soal"
                                                 >
                                                     <Trash2 size={14} />
-                                                </button>
+                                                </button>)}
                                             </div>
                                         </div>
                                     </div>
@@ -1003,9 +1024,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 <BookOpen size={32} className="mx-auto mb-3 text-slate-300" />
                                 <h3 className="text-lg font-semibold text-slate-800 mb-1">Belum Ada Soal</h3>
                                 <p className="text-sm text-slate-500 mb-6">Tambahkan soal pertama untuk mulai membangun bank soal.</p>
-                                <button onClick={() => handleOpenEditor()} className="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-primary/90">
+                                {canManage && (<button onClick={() => handleOpenEditor()} className="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-primary/90">
                                     <Plus size={18} /> Tambah Soal
-                                </button>
+                                </button>)}
                             </div>
                         )}
                     </div>
@@ -1015,7 +1036,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             </div>
 
             {/* Modals */}
-            {isEditorOpen && (
+            {canManage && isEditorOpen && (
                 <QuestionEditorModal
                     key={editingQuestion?.id ?? 'new-question'}
                     isOpen={isEditorOpen}
@@ -1110,7 +1131,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             />
 
             <BulkImportModal
-                isOpen={isImportModalOpen}
+                isOpen={canManage && isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 bankId={bankId}
                 onImportComplete={loadData}
@@ -1163,8 +1184,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
             </AnimatePresence>
 
             {/* Mobile Floating Action Button (FAB) for Tambah Soal */}
-            {activeTab === 'questions' && (
-                <button
+            {canManage && (activeTab === 'questions') && (<button
                     type="button"
                     onClick={() => handleOpenEditor()}
                     className="sm:hidden fixed right-4 bottom-6 z-40 bg-primary hover:bg-primary/95 text-white shadow-xl shadow-primary/30 rounded-full h-12 px-4 flex items-center gap-2 font-semibold text-xs transition-transform active:scale-95"
@@ -1172,8 +1192,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 >
                     <Plus size={18} strokeWidth={2.5} />
                     <span>Tambah Soal</span>
-                </button>
-            )}
+                </button>)}
         </div>
     );
 }

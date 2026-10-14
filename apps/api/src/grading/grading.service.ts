@@ -10,6 +10,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import {
     hasExamQuestionSnapshots,
     loadFrozenExamQuestions,
+    readExamQuestionVersion,
 } from '../common/exam-question-snapshots';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { isEssayType } from '../common/answer-storage';
@@ -119,6 +120,10 @@ export class GradingService {
                 raw_answer: answers.get(question.id)?.essay_answer ?? answers.get(question.id)?.selected_option_id ?? null })),
         }, { timeoutMs: 15_000 });
         return this.db.transaction(async db => {
+            await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
+            if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(questions)) {
+                throw new BadRequestException('Kunci ujian berubah selama penilaian. Hitung ulang.');
+            }
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: current, error } = await db.from('cbt_exam_attempts')
                 .select('status, finished_at, started_at, total_score, metadata').eq('id', attemptId).maybeSingle();
@@ -466,6 +471,10 @@ export class GradingService {
             throw new InternalServerErrorException('Hasil IRT tidak lengkap.');
         }
         await this.db.transaction(async db => {
+            await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
+            if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(questions)) {
+                throw new BadRequestException('Kunci ujian berubah selama perhitungan IRT. Hitung ulang.');
+            }
             for (const id of rows.map(row => row.id).sort()) {
                 await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', id);
             }

@@ -24,10 +24,17 @@ export class ValidationsService {
         private readonly authz: AuthorizationService,
     ) {}
 
-    private async notifyOwner(tx: Pick<DbService, 'from'>, validationId: string, organizationId: string, bankId: string) {
+    private async notifyOwner(tx: Pick<DbService, 'from'>, validationId: string, organizationId: string, bankId: string, onlyIfMissing = false) {
         const { data: bank, error } = await tx.from('cbt_question_banks').select('created_by, title').eq('id', bankId).eq('organization_id', organizationId).single();
         if (error || !bank) throw new BadRequestException('Pemilik bank soal tidak dapat dibaca.');
         if (!bank.created_by) return;
+        if (onlyIfMissing) {
+            const { data: existing, error: lookupError } = await tx.from('cbt_notifications')
+                .select('id').eq('user_id', bank.created_by).eq('organization_id', organizationId)
+                .contains('data', { validationId }).limit(1);
+            if (lookupError) throw new BadRequestException('Pemberitahuan sebelumnya tidak dapat diperiksa.');
+            if (existing?.length) return;
+        }
         const { error: notificationError } = await tx.from('cbt_notifications').insert({
             user_id: bank.created_by, organization_id: organizationId, type: 'system',
             title: 'Hasil validasi soal diperbarui',
@@ -56,6 +63,7 @@ export class ValidationsService {
 
         const organizationId = (bank as { organization_id: string }).organization_id;
         await this.authz.assertProktor(user, organizationId);
+        await this.authz.assertBankAccess(user, dto.bankId, 'read');
 
         if (!dto.validatorIds || dto.validatorIds.length === 0) {
             throw new BadRequestException('Pilih minimal 1 orang guru sebagai validator.');
@@ -135,7 +143,9 @@ export class ValidationsService {
             return [];
         }
 
-        return (data as any[]) || [];
+        const rows = (data as any[]) || [];
+        if (!await this.authz.isRestrictedProctor(user, user.organizationId!)) return rows;
+        return rows.filter(row => row.bank?.created_by === user.id || row.bank?.is_published === true);
     }
 
     /**
@@ -165,11 +175,14 @@ export class ValidationsService {
         }
 
         await this.authz.assertOrgStaff(user, (val as any).organization_id);
+        if (await this.authz.isRestrictedProctor(user, (val as any).organization_id)) {
+            await this.authz.assertBankAccess(user, (val as any).bank_id, 'read');
+        }
         const { data: assignment, error: assignmentError } = await this.db
             .from('cbt_question_bank_validators').select('id')
             .eq('validation_id', validationId).eq('validator_id', user.id).maybeSingle();
         if (assignmentError) throw new BadRequestException('Gagal memeriksa penugasan validator.');
-        if (!assignment) await this.authz.assertBankAccess(user, (val as any).bank_id);
+        if (!assignment) await this.authz.assertBankAccess(user, (val as any).bank_id, 'read');
 
         return val;
     }
@@ -184,7 +197,7 @@ export class ValidationsService {
                 `id, status, general_recommendation, general_comment, submitted_at, created_at,
                  validation:cbt_question_bank_validations(
                     id, title, instructions, deadline, approval_rule, status, created_at,
-                    bank:cbt_question_banks(id, title, subject, class_level, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name)),
+                    bank:cbt_question_banks(id, title, subject, class_level, created_by, is_published, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name)),
                     assigned_by:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name)
                  )`,
             )
@@ -196,7 +209,9 @@ export class ValidationsService {
             return [];
         }
 
-        return (data as any[]) || [];
+        const rows = (data as any[]) || [];
+        if (!await this.authz.isRestrictedProctor(user, user.organizationId!)) return rows;
+        return rows.filter(row => row.validation?.bank?.created_by === user.id || row.validation?.bank?.is_published === true);
     }
 
     /**
@@ -407,7 +422,9 @@ export class ValidationsService {
             const { error: statusError } = await tx.from('cbt_question_bank_validations')
                 .update({ status, updated_at: now }).eq('id', validationId);
             if (statusError) throw new BadRequestException('Gagal memperbarui status validasi.');
-            if (changed) await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id);
+            // Older reviews predate owner notifications. Identical resubmissions
+            // recover a missing notification while retaining retry deduplication.
+            await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id, !changed);
         });
         return { success: true };
     }
@@ -431,7 +448,7 @@ export class ValidationsService {
             const { error: updateError } = await tx.from('cbt_question_bank_validations')
                 .update({ status, updated_at: new Date().toISOString() }).eq('id', validationId);
             if (updateError) throw new BadRequestException('Gagal menyimpan keputusan validasi.');
-            if (decisionChanged) await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id);
+            await this.notifyOwner(tx, validationId, session.organization_id, session.bank_id, !decisionChanged);
         });
         return { success: true };
     }
@@ -482,7 +499,7 @@ export class ValidationsService {
      * Seluruh catatan perbaikan untuk satu bank soal (untuk ditampilkan di editor guru pembuat).
      */
     async getBankFeedback(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'read');
 
         const { data: validations, error: valErr } = await this.db
             .from('cbt_question_bank_validations')

@@ -4,7 +4,7 @@ import { getBankValidationFeedback, resolveValidationNote, type ValidationSessio
 
 export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; questionId: string }) {
     const [sessions, setSessions] = useState<ValidationSession[]>([]);
-    const [selected, setSelected] = useState(() => new URLSearchParams(window.location.search).get('validation') || '');
+    const [selected, setSelected] = useState(() => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('validation') || '' : '');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
@@ -14,7 +14,11 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
         catch (err) { setError(err instanceof Error ? err.message : 'Catatan gagal dimuat.'); }
         finally { setLoading(false); }
     }, [bankId]);
-    useEffect(() => { void load(); }, [load]);
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => { if (active) void load(); });
+        return () => { active = false; };
+    }, [load]);
     const session = sessions.find(item => item.id === selected) || sessions[0];
     const notes = (session?.notes || []).filter(note => note.question_id === questionId);
     return <aside aria-label="Catatan validasi soal" className="w-full xl:w-80 shrink-0 border-l border-blue-100 bg-blue-50/50 p-4 xl:overflow-y-auto text-sm space-y-3">
