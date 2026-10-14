@@ -836,6 +836,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     {formData.examType !== 'assignment' && (
                                         <ModalField label={`Waktu Mulai (${getSchoolTimeZoneLabel(timeZone)})`} required={!formData.isForever}>
                                             <DateTimePicker
+                                                timeInputMode="text"
                                                 value={formData.startTime}
                                                 onChange={handleStartTimeChange}
                                                 label="Waktu Mulai"
@@ -850,6 +851,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                         required={!formData.isForever}
                                     >
                                         <DateTimePicker
+                                            timeInputMode="text"
                                             value={formData.endTime}
                                             onChange={(val) => setFormData((prev) => ({ ...prev, endTime: val }))}
                                             label={formData.examType === 'assignment' ? 'Batas Waktu' : 'Waktu Selesai'}

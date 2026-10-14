@@ -7,6 +7,7 @@ export interface Option {
   value: string | number;
   label: string;
   subLabel?: string;
+  statusDot?: string;
 }
 
 export type SearchableSelectOption = Option;
@@ -16,6 +17,7 @@ export interface SearchableSelectProps {
   value: string | number | (string | number)[];
   onChange: (value: unknown) => void;
   placeholder?: string;
+  searchPlaceholder?: string;
   label?: string;
   className?: string;
   triggerClassName?: string;
@@ -134,6 +136,7 @@ export function SearchableSelect({
   value,
   onChange,
   placeholder = 'Pilih...',
+  searchPlaceholder,
   label,
   className = '',
   triggerClassName = '',
@@ -189,22 +192,17 @@ export function SearchableSelect({
     );
   }, [options, search]);
 
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, [search]);
-
-  useEffect(() => {
-    if (isOpen) {
-      const idx = filteredOptions.findIndex(o => o.value === value);
-      setHighlightedIndex(idx >= 0 ? idx : 0);
-    }
-  }, [isOpen]);
+  const openDropdown = () => {
+    const index = filteredOptions.findIndex(option => option.value === value);
+    setHighlightedIndex(index >= 0 ? index : 0);
+    setIsOpen(true);
+  };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
       if (e.key === 'ArrowDown' || e.key === 'Enter') {
         e.preventDefault();
-        setIsOpen(true);
+        openDropdown();
       }
       return;
     }
@@ -225,7 +223,7 @@ export function SearchableSelect({
   const toggle = (e: React.MouseEvent) => {
     if (disabled) return;
     if (!isOpen) {
-      setIsOpen(true);
+      openDropdown();
       setTimeout(() => inputRef.current?.focus(), 0);
     } else {
       if ((e.target as HTMLElement).tagName !== 'INPUT') {
@@ -294,21 +292,26 @@ export function SearchableSelect({
         {multiple && selectedOptions.length > 0 && !search && (
           <span className="ss__badge">{selectedOptions.length}</span>
         )}
+        {!multiple && !isOpen && !search && selectedOptions[0]?.statusDot && (
+          <span className="ss__statusDot" role="img" aria-label={selectedOptions[0].statusDot} title={selectedOptions[0].statusDot} />
+        )}
 
         <input
           ref={inputRef}
           type="text"
           className={`ss__mainInput ${selectedOptions.length > 0 && !search ? 'ss__mainInput--selected' : ''}`}
-          placeholder={dynamicPlaceholder}
+          placeholder={isOpen && searchPlaceholder ? searchPlaceholder : dynamicPlaceholder}
+          aria-label={label || searchPlaceholder || placeholder}
           value={search}
           disabled={disabled}
           onKeyDown={handleInputKeyDown}
           onChange={(e) => {
             setSearch(e.target.value);
+            setHighlightedIndex(0);
             if (!isOpen) setIsOpen(true);
           }}
           onFocus={() => {
-            if (!isOpen) setIsOpen(true);
+            if (!isOpen) openDropdown();
           }}
         />
 
@@ -321,6 +324,7 @@ export function SearchableSelect({
               onClick={(e) => {
                 e.stopPropagation();
                 setSearch('');
+                setHighlightedIndex(0);
                 inputRef.current?.focus();
               }}
             >
@@ -388,7 +392,10 @@ export function SearchableSelect({
                       </span>
                     )}
                     <div className="ss__itemContent">
-                      <span className="ss__itemMain">{opt.label}</span>
+                      <span className="ss__itemMain">
+                        {opt.statusDot && <span className="ss__statusDot" role="img" aria-label={opt.statusDot} title={opt.statusDot} />}
+                        {opt.label}
+                      </span>
                       {opt.subLabel && <span className="ss__itemSub">{opt.subLabel}</span>}
                     </div>
                   </button>

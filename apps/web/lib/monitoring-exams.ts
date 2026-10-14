@@ -14,6 +14,6 @@ export function sortMonitoringExams(exams: OrganizationExam[], now = Date.now())
         a.id.localeCompare(b.id));
 }
 
-export function monitoringExamLabel(exam: OrganizationExam, now = Date.now()): string {
-    return `${isMonitoringExamActive(exam, now) ? '● Aktif sekarang — ' : ''}${exam.title}`;
+export function monitoringExamLabel(exam: OrganizationExam): string {
+    return exam.title;
 }

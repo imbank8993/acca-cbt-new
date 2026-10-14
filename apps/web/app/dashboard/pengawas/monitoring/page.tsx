@@ -1,5 +1,5 @@
 "use client";
-import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
@@ -186,9 +186,11 @@ function MonitoringContent() {
                         <SearchableSelect
                             className="w-full"
                             placeholder="Cari atau pilih ujian..."
+                                searchPlaceholder="Ketik nama ujian..."
                             options={sortMonitoringExams(exams, monitoringNow).map((exam) => ({
                                 value: exam.id,
-                                label: `${monitoringExamLabel(exam, monitoringNow)} (${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})`,
+                                    statusDot: isMonitoringExamActive(exam, monitoringNow) ? 'Ujian aktif' : undefined,
+                                label: `${monitoringExamLabel(exam)} (${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})`,
                             }))}
                             value={selectedExamId}
                             onChange={(val) => handleExamChange(String(val || ''))}
@@ -206,7 +208,7 @@ function MonitoringContent() {
                 </div>
             </div>
 
-            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleReset} />
+            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleReset} />
 
             {/* Quick Stat Pill Tabs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

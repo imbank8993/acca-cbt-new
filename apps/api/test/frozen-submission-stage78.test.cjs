@@ -25,6 +25,40 @@ function fixture(status = 'in_progress') {
 const submit = (service, answers = { q: 'written offline' }, ctx = context, student = user, fromDevice = device) =>
     service.submit(student, 'exam', answers, undefined, 'attempt', fromDevice, { q: 1 }, ctx);
 
+test('expiry acknowledges an exact autosaved snapshot without accepting late edits', async () => {
+    for (const status of ['in_progress', 'auto_submitted']) {
+        const { db, service } = fixture(status);
+        db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'written offline',
+            selected_option_id: null, metadata: { answer_revision: 1 } });
+        const before = structuredClone(db.tables.cbt_answers);
+        const result = await submit(service);
+        assert.equal(result.submissionVerified, true);
+        assert.equal(result.savedAnswersOnly, false);
+        assert.equal(result.verifiedAttemptId, 'attempt');
+        assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
+        // Scoring can update marks, but the acknowledged text/revision is unchanged.
+        assert.equal(db.tables.cbt_answers[0].essay_answer, before[0].essay_answer);
+        assert.equal(db.tables.cbt_answers[0].metadata.answer_revision, 1);
+    }
+});
+
+test('expiry cannot acknowledge a missing answer, changed revision or attachment', async () => {
+    for (const patch of [
+        { answers: { q: 'changed' }, revisions: { q: 1 } },
+        { answers: { q: 'stored', extra: 'missing' }, revisions: { q: 1, extra: 1 } },
+        { answers: { q: 'stored' }, revisions: { q: 2 } },
+        { answers: { q: 'stored' }, revisions: { q: 1 }, assignment: { fileUrls: ['/unsaved.pdf'] } },
+    ]) {
+        const { db, service } = fixture('auto_submitted');
+        db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'stored',
+            selected_option_id: null, metadata: { answer_revision: 1 } });
+        await assert.rejects(service.submit(user, 'exam', patch.answers, patch.assignment,
+            'attempt', device, patch.revisions, context), error => error.getStatus() === 403);
+        assert.equal(db.tables.cbt_answers[0].essay_answer, 'stored');
+        assert.equal(db.tables.cbt_answers[0].metadata.answer_revision, 1);
+    }
+});
+
 test('expired frozen payloads require proctor recovery and cannot change saved answers', async () => {
     for (const status of ['in_progress', 'auto_submitted']) {
         const { db, service } = fixture(status);

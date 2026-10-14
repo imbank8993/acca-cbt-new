@@ -43,7 +43,7 @@ test('active schedules first then alphabetical with exclusive end boundary',()=>
  const rows=[{...active,id:'z',title:'Zoologi'},{...active,id:'b',title:'Biologi'}, {...active,id:'a',title:'Agama',status:'archived'}];
  assert.deepEqual(sortMonitoringExams(rows,now).map(e=>e.id),['b','z','a']);
  assert.deepEqual(rows.map(e=>e.id),['z','b','a']);
- assert.match(monitoringExamLabel(rows[0],now),/Aktif sekarang/);
+ assert.equal(monitoringExamLabel(rows[0]), 'Zoologi');
  assert.equal(isMonitoringExamActive({...active,end_time:'2026-10-08T00:00:00Z'},now),false);
  assert.equal(isMonitoringExamActive({...active,is_published:false},now),false);
  assert.equal(isMonitoringExamActive({...active,start_time:'invalid'},now),false);

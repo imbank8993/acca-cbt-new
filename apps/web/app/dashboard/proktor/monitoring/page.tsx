@@ -1,5 +1,5 @@
 "use client";
-import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
@@ -379,7 +379,7 @@ function MonitoringContent() {
                     <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
                 </div>
             )}
-            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
+            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
@@ -447,9 +447,11 @@ function MonitoringContent() {
                         <SearchableSelect
                             className="w-full"
                             placeholder="Cari atau pilih ujian..."
+                                searchPlaceholder="Ketik nama ujian..."
                             options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
                                 value: exam.id,
-                                label: monitoringExamLabel(exam, monitoringNow),
+                                    statusDot: isMonitoringExamActive(exam, monitoringNow) ? 'Ujian aktif' : undefined,
+                                label: monitoringExamLabel(exam),
                             }))}
                             value={selectedExamId}
                             onChange={(val) => setSelectedExamId(String(val || ''))}

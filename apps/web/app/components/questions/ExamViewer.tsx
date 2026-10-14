@@ -4,8 +4,10 @@ import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye
 import { useCallback,useEffect,useState } from 'react';
 import type { AnswerValue,Question } from '@/app/types';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { securityViolationLabel } from '@/lib/security-violations';
 import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
+import { ExamStatusNotice, type ExamNotice } from './ExamStatusNotice';
 
 const getAnswerStatus = (q: Question, ans: AnswerValue) => {
     if (!ans) return 'unanswered';
@@ -109,6 +111,7 @@ export interface ExamViewerProps {
     isFullScreen?: boolean;
     onSubmitExam?: (assignmentSubmission?: { documentUrl?: string, videoUrl?: string }) => Promise<void>;
     submitting?: boolean;
+    syncNotice?: ExamNotice | null;
     
     // Preview specific
     onPreviewClose?: () => void;
@@ -162,6 +165,7 @@ export function ExamViewer({
     isFullScreen = false,
     onSubmitExam,
     submitting = false,
+    syncNotice,
     onPreviewClose,
     onPreviewFinish,
     isAssignment = false,
@@ -546,51 +550,16 @@ export function ExamViewer({
                 )}
             </AnimatePresence>
 
-            {/* ── Violation warning modal ── */}
-            <AnimatePresence>
-                {mode === 'exam' && showViolationModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white dark:bg-[#0d1221] border border-slate-200 dark:border-slate-800 rounded-lg p-6 max-w-sm w-full text-center shadow-2xl"
-                        >
-                            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/40 rounded-lg flex items-center justify-center mx-auto mb-4">
-                                <ShieldAlert size={30} className="text-amber-600 dark:text-amber-400" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Peringatan Pelanggaran</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 capitalize mb-2">
-                                {violationType.replace(/_/g, ' ')}
-                            </p>
-                            <p className="text-xs text-slate-400 mb-5">
-                                {maxViolations === null
-                                    ? `${violationCount} pelanggaran tercatat · tanpa penyelesaian otomatis`
-                                    : `${violationCount} dari ${maxViolations} maksimum`}
-                            </p>
-                            {maxViolations !== null && (
-                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 mb-5 overflow-hidden">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${Math.min(100, (violationCount / maxViolations) * 100)}%` }}
-                                        className={`h-full ${violationCount >= maxViolations - 1 ? 'bg-red-500' : 'bg-amber-500'}`}
-                                    />
-                                </div>
-                            )}
-                            <button
-                                onClick={onCloseViolationModal}
-                                className="w-full py-3.5 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors"
-                            >
-                                Mengerti
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* HEADER */}
             <header className="shrink-0 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-white/10">
+                <ExamStatusNotice notice={syncNotice} />
+                {mode === 'exam' && showViolationModal && (
+                    <div role="status" className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                        <ShieldAlert size={16} className="shrink-0" />
+                        <span className="flex-1">{securityViolationLabel(violationType)} · {violationCount}{maxViolations === null ? ' catatan' : ' dari ' + maxViolations + ' peringatan'}. Jika dipicu perangkat, beri tahu proktor.</span>
+                        <button type="button" onClick={onCloseViolationModal} aria-label="Tutup peringatan" className="shrink-0 p-1"><X size={16} /></button>
+                    </div>
+                )}
                 {/* Desktop Header */}
                 <div className="hidden md:flex px-6 py-4 items-center justify-between gap-6">
                     {/* KIRI: Profil */}

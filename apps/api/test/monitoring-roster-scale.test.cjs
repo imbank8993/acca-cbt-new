@@ -30,6 +30,18 @@ test('large roster has no 100/216/300 row cap',async()=>{
     const {service}=fixture(620,604);
     assert.equal((await service.listAttempts({id:'staff'},'exam')).length,620);
 });
+
+test('monitoring keeps system focus interruptions in history without listing them as violations',async()=>{
+    const {db,service}=fixture(1,1);
+    db.tables.cbt_attempt_security_logs=[
+        {attempt_id:'a0',event_type:'focus_interruption',created_at:'2026-09-20T00:10:00Z',metadata:{}},
+        {attempt_id:'a0',event_type:'tab_switch',created_at:'2026-09-20T00:11:00Z',metadata:{}},
+    ];
+    const rows=await service.listAttempts({id:'staff'},'exam');
+    assert.equal(rows[0].violation_breakdown.lainnya,0);
+    assert.equal(rows[0].violation_breakdown.pindah_tab,1);
+    assert.ok(rows[0].monitoring_history.some(event=>event.type==='focus_interruption'));
+});
 test('only expired sessions are locked; grace, recovery and active submit intent remain respected',async()=>{
     const {db,service}=fixture(4,4);let transactions=0;
     db.tables.cbt_exam_attempts[0].personal_end_time='2026-09-20T00:00:00Z';

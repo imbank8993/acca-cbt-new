@@ -371,8 +371,10 @@ test('the exam page stops before sending or deleting data when freezing detects 
         ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
         frozenSnapshotRef: { current: snapshot }, attemptRef: { current: { id: 'a' } },
         pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
+        autoRetryCountRef: { current: 0 },
         freezeExamSnapshot: async () => { throw new ExamSnapshotConflictError(); }, ExamSnapshotConflictError,
         setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: () => {}, setAccessDenied: value => { state.denied = value; },
+        setSubmissionIssue: () => {},
         setAccessError: value => { state.message = value; }, setStorageWarning: () => {},
         navigator: { onLine: true }, submitExamAction: async () => { state.sent++; return { success: true }; },
         removeExamSnapshot: async () => { state.removed++; }, setIsCompleted: value => { state.completed = value; },
@@ -390,7 +392,35 @@ test('the exam page stops before sending or deleting data when freezing detects 
     assert.equal(context.frozenSnapshotRef.current.answers.q, 'newer');
 });
 
-for (const scenario of ['online', 'offline', 'lost-response']) {
+test('submit-only reload preserves the original local snapshot when question content is unavailable', async () => {
+    const vm = require('node:vm'), ts = require('typescript');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    const start = source.indexOf('                restoreAssignment(result.attempt.id, localSnapshot);');
+    const end = source.indexOf('                const recoveryUntil =', start);
+    assert.ok(start >= 0 && end > start);
+    for (const frozen of [false, true]) {
+        const local = { answers: { q: 'new local answer' }, revisions: { q: 4 }, doubtfulAnswers: ['q'],
+            ...(frozen ? { frozenSubmission: { startedAt: 'start', personalEndTime: 'end' } } : {}) };
+        const state = {};
+        const sandbox = {
+            result: { attempt: { id: 'attempt' } }, localSnapshot: local,
+            recoverySubmitOnly: !frozen, restoreAssignment: () => {},
+            savedA: { q: 'old server answer' }, savedD: new Set(), localAnswerIds: [],
+            revisionsRef: { current: { q: 1 } }, answersRef: { current: {} }, doubtfulRef: { current: new Set() },
+            assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
+            setAnswers: value => { state.answers = value; }, setDoubtfulAnswers: () => {},
+            writeExamSnapshot: async () => { state.writes = (state.writes || 0) + 1; },
+        };
+        const code = '(async () => {' + source.slice(start, end) + '})()';
+        await vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
+        assert.equal(state.answers.q, 'new local answer');
+        assert.equal(sandbox.revisionsRef.current.q, 4);
+        assert.equal(sandbox.savedD.has('q'), true);
+        assert.equal(state.writes || 0, 0);
+    }
+});
+
+for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required', 'cleanup-failed']) {
     test(`timer expiry freezes and submits ordinary exam without false conflict: ${scenario}`, async () => {
         const vm = require('node:vm'), ts = require('typescript');
         const { api, local } = storageFixture();
@@ -419,16 +449,22 @@ for (const scenario of ['online', 'offline', 'lost-response']) {
             autoSubmittedRef: { current: false }, autoRetryTimerRef: { current: null }, autoRetryCountRef: { current: 0 }, offlineRecoveryRef: { current: false },
             freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
             setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
+            setSubmissionIssue: value => { state.issue = value; },
             setAccessDenied: value => { state.denied = value; }, setAccessError: value => { state.error = value; },
             setStorageWarning: () => {}, setSubmitting: () => {}, getErrorMessage: error => error.message,
             navigator: { onLine: scenario !== 'offline' },
             submitExamAction: async (_examId, answers, assignmentData, _attemptId, revisions, frozenSubmission) => {
                 state.sent.push(JSON.parse(JSON.stringify({ answers, assignmentData, revisions, frozenSubmission })));
+                if (scenario === 'recovery-required') return { success: false, retryable: false, error: 'Pemulihan diperlukan' };
                 return scenario === 'lost-response' && state.sent.length === 1
                     ? { success: false, retryable: true, error: 'Response lost' }
                     : { success: true, submissionVerified: true };
             },
-            removeExamSnapshot: async id => { state.cleaned++; await api.removeExamSnapshot(id); },
+            removeExamSnapshot: async id => {
+                state.cleaned++;
+                if (scenario === 'cleanup-failed') throw new Error('Cache unavailable');
+                await api.removeExamSnapshot(id);
+            },
             removeExamSubmissionRegistration: async () => {}, removeExamRecoverySession: async () => {}, removeExamOfflineShell: async () => {},
             setIsCompleted: value => { state.completed = value; }, router: { push: () => {} },
             toast: { success: () => {}, error: () => {}, warning: () => {} }, scheduleAutoRetry: () => { state.retries++; },
@@ -437,7 +473,15 @@ for (const scenario of ['online', 'offline', 'lost-response']) {
         vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
         await sandbox.autoDelivery;
         assert.equal(state.denied, false);
-        if (scenario !== 'online') {
+        if (scenario === 'recovery-required') {
+            assert.equal(state.completed, false);
+            assert.equal(state.cleaned, 0);
+            assert.equal(state.retries, 0);
+            assert.match(state.issue, /Pemulihan diperlukan/);
+            assert.ok((await api.readExamSnapshot(attempt.id)).frozenSubmission);
+            return;
+        }
+        if (scenario === 'offline' || scenario === 'lost-response') {
             assert.equal(state.completed, false); assert.equal(state.cleaned, 0); assert.equal(state.waiting, true);
             const retained = await api.readExamSnapshot(attempt.id);
             assert.equal(retained.answers.q, answer.answers.q); assert.ok(retained.frozenSubmission);
@@ -449,6 +493,6 @@ for (const scenario of ['online', 'offline', 'lost-response']) {
         assert.equal(state.completed, true); assert.equal(state.cleaned, 1);
         assert.ok(state.sent.every(payload => payload.answers.q === answer.answers.q));
         assert.ok(state.sent.every(payload => payload.assignmentData === undefined));
-        assert.equal(local.has('exam_answers_' + attempt.id), false);
+        assert.equal(local.has('exam_answers_' + attempt.id), scenario === 'cleanup-failed');
     });
 }

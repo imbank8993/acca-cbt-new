@@ -3,6 +3,7 @@
 import React from 'react';
 import { DatePicker } from './DatePicker';
 import { TimeField } from './TimeField';
+import { TimeTextField } from './TimeTextField';
 import { DEFAULT_SCHOOL_TIME_ZONE, utcToSchoolLocalDateTime } from '@/lib/school-time';
 
 export interface DateTimePickerProps {
@@ -17,6 +18,7 @@ export interface DateTimePickerProps {
     defaultTime?: string;
     timeZone?: string;
     className?: string;
+    timeInputMode?: 'picker' | 'text';
 }
 
 export function DateTimePicker({
@@ -31,6 +33,7 @@ export function DateTimePicker({
     defaultTime = '08:00',
     timeZone = DEFAULT_SCHOOL_TIME_ZONE,
     className = '',
+    timeInputMode = 'picker',
 }: DateTimePickerProps) {
     let datePart = '';
     let timePart = '';
@@ -69,6 +72,7 @@ export function DateTimePicker({
 
     const handleTimeChange = (newTime: string) => {
         if (!newTime) {
+            if (timeInputMode === 'text') onChange(datePart || lastDatePartRef.current);
             return;
         }
         const effectiveDate = datePart || lastDatePartRef.current || utcToSchoolLocalDateTime(new Date().toISOString(), timeZone).slice(0, 10);
@@ -89,6 +93,9 @@ export function DateTimePicker({
                 />
             </div>
             <div className="w-[124px] sm:w-[130px] shrink-0">
+                {timeInputMode === 'text' ? (
+                    <TimeTextField value={timePart} onChange={handleTimeChange} label={label} disabled={disabled} required={required} />
+                ) : (
                 <TimeField
                     value={timePart}
                     onChange={handleTimeChange}
@@ -96,6 +103,7 @@ export function DateTimePicker({
                     disabled={disabled}
                     timeZone={timeZone}
                 />
+                )}
             </div>
         </div>
     );

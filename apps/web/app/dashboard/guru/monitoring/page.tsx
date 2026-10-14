@@ -1,5 +1,5 @@
 "use client";
-import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
@@ -381,7 +381,7 @@ function MonitoringContent() {
                     <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
                 </div>
             )}
-            <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canManage ? handleResetAttempt : undefined} />
+            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canManage ? handleResetAttempt : undefined} />
 
             {selectedExamId && !canManage && <p className="mb-4 text-sm text-slate-600">Mode lihat saja. Anda dapat memantau dan mengekspor hasil ujian ini.</p>}
 
@@ -451,9 +451,11 @@ function MonitoringContent() {
                         <SearchableSelect
                             className="w-full"
                             placeholder="Cari atau pilih ujian..."
+                                searchPlaceholder="Ketik nama ujian..."
                             options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
                                 value: exam.id,
-                                label: monitoringExamLabel(exam, monitoringNow),
+                                    statusDot: isMonitoringExamActive(exam, monitoringNow) ? 'Ujian aktif' : undefined,
+                                label: monitoringExamLabel(exam),
                             }))}
                             value={selectedExamId}
                             onChange={(val) => setSelectedExamId(String(val || ''))}

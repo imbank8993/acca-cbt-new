@@ -13,6 +13,7 @@ X
 } from 'lucide-react';
 import React,{ useState } from 'react';
 import type { Question } from '@/app/types';
+import { securityViolationLabel } from '@/lib/security-violations';
 
 interface MobileExamSummary { title: string; }
 
@@ -158,50 +159,13 @@ export default function MobileExamLayout({
             </AnimatePresence>
 
             {/* ── Violation warning modal ── */}
-            <AnimatePresence>
-                {showViolationModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="bg-white rounded-lg p-6 max-w-sm w-full text-center shadow-2xl"
-                        >
-                            <div className="w-16 h-16 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                                <ShieldAlert size={30} className="text-amber-600" />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">Peringatan Pelanggaran</h3>
-                            <p className="text-sm text-slate-500 capitalize mb-2">
-                                {violationType.replace(/_/g, ' ')}
-                            </p>
-                            <p className="text-xs text-slate-400 mb-5">
-                                {maxViolations === null
-                                    ? `${violationCount} pelanggaran tercatat · tanpa penyelesaian otomatis`
-                                    : `${violationCount} dari ${maxViolations} maksimum`}
-                            </p>
-                            {maxViolations !== null && (
-                                <div className="w-full bg-slate-100 rounded-full h-2 mb-5 overflow-hidden">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${Math.min(100, (violationCount / maxViolations) * 100)}%` }}
-                                        className={`h-full ${violationCount >= maxViolations - 1 ? 'bg-red-500' : 'bg-amber-500'}`}
-                                    />
-                                </div>
-                            )}
-                            <button
-                                onClick={() => onSetShowViolationModal(false)}
-                                className="w-full py-3.5 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-700 transition-colors"
-                            >
-                                Mengerti
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+<div aria-live="polite">
+                {showViolationModal && <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900">
+                    <ShieldAlert size={16} className="shrink-0" />
+                    <span className="flex-1">{securityViolationLabel(violationType)} · {violationCount}{maxViolations === null ? ' catatan' : ' dari ' + maxViolations + ' peringatan'}.</span>
+                    <button type="button" onClick={() => onSetShowViolationModal(false)} aria-label="Tutup peringatan" className="p-1"><X size={16} /></button>
+                </div>}
+            </div>
 
             {/* ── Header (Mobile Optimized) ── */}
             <header className="bg-white border-b border-slate-200 px-4 py-3 shrink-0 sticky top-0 z-40 safe-area-inset-top">

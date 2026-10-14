@@ -879,13 +879,30 @@ export class ExamAttemptsService {
         answerRevisions?: Record<string, number>,
         frozenSubmission?: { startedAt: string; personalEndTime: string },
     ) {
-        const result = await this.submitInternal(user, examId, studentAnswers, assignmentData,
-            clientAttemptId, deviceId, answerRevisions, frozenSubmission);
+        let result: Awaited<ReturnType<ExamAttemptsService['submitInternal']>>;
+        try {
+            result = await this.submitInternal(user, examId, studentAnswers, assignmentData,
+                clientAttemptId, deviceId, answerRevisions, frozenSubmission);
+        } catch (error) {
+            // Expiry may win the race with the final click. Acknowledge only
+            // answers already persisted exactly; never accept new late edits.
+            const expired = error instanceof ForbiddenException &&
+                (error.getResponse() as { code?: string }).code === 'RECOVERY_REQUIRED';
+            if (!expired || !clientAttemptId || !frozenSubmission ||
+                !await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
+                    answerRevisions, assignmentData, frozenSubmission, true)) throw error;
+            await this.autoFinish(clientAttemptId, await this.serverNow());
+            if (!await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
+                answerRevisions, assignmentData, frozenSubmission, true, true)) throw error;
+            const { data: final } = await this.db.from('cbt_exam_attempts').select('total_score').eq('id', clientAttemptId).maybeSingle();
+            result = { score: final?.total_score ?? null, alreadySubmitted: true, savedAnswersOnly: false,
+                ...(final?.total_score == null ? { gradingPending: true } : {}) };
+        }
         // A closed attempt alone is not an acknowledgement of this request's
         // contents. Verify persisted data even on the idempotent/retry branches.
         const submissionVerified = !result.savedAnswersOnly && Boolean(clientAttemptId) &&
             await this.verifyStoredSubmission(user, examId, clientAttemptId!, deviceId!, studentAnswers,
-                answerRevisions, assignmentData, frozenSubmission);
+                answerRevisions, assignmentData, frozenSubmission, true, true);
         const { data: visibility, error } = await this.db.from('cbt_exams')
             .select('show_results').eq('id', examId).maybeSingle();
         return { ...result, submissionVerified, verifiedAttemptId: submissionVerified ? clientAttemptId : undefined,
@@ -896,6 +913,7 @@ export class ExamAttemptsService {
         user: AuthUser, examId: string, attemptId: string, deviceId: string,
         answers: Record<string, string>, revisions?: Record<string, number>,
         assignment?: Record<string, unknown>, frozen?: { startedAt: string; personalEndTime: string },
+        allowExpiry = false, closedOnly = false,
     ): Promise<boolean> {
         return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
@@ -903,7 +921,10 @@ export class ExamAttemptsService {
                 .select('user_id, exam_id, status, device_fingerprint, started_at, personal_end_time, metadata')
                 .eq('id', attemptId).maybeSingle();
             if (error) throw new ServiceUnavailableException('Pengumpulan belum dapat diverifikasi. Silakan coba lagi.');
-            if (!attempt || attempt.status !== 'submitted' || attempt.user_id !== user.id ||
+            const acceptableStatus = attempt?.status === 'submitted' || (allowExpiry &&
+                ((attempt?.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true) ||
+                    (!closedOnly && attempt?.status === 'in_progress' && attempt.metadata?.recovery_submit_only !== true)));
+            if (!attempt || !acceptableStatus || attempt.user_id !== user.id ||
                 attempt.exam_id !== examId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId.trim())) return false;
             if (frozen && (Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt) ||
                 ![attempt.personal_end_time, attempt.metadata?.recovery_source_deadline].some(deadline =>

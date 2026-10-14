@@ -1,6 +1,7 @@
 const LABELS: Record<string, string> = {
-    tab_switch: 'Berpindah tab atau aplikasi',
+    tab_switch: 'Halaman ujian tersembunyi (layar terkunci atau berpindah aplikasi)',
     window_blur: 'Jendela ujian kehilangan fokus',
+    focus_interruption: 'Gangguan fokus perangkat (misalnya notifikasi sistem)',
     blur: 'Jendela ujian kehilangan fokus',
     exit_fullscreen: 'Keluar dari layar penuh',
     restricted_shortcut: 'Menekan pintasan keyboard terlarang',

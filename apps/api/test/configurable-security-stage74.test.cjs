@@ -92,6 +92,20 @@ test('SEC-74: mode aman nonaktif tidak menutup attempt dan ujian lama tetap berb
     assert.equal(legacyResult.maxViolations, 3);
 });
 
+test('system focus interruptions stay in the audit without warnings or termination', async () => {
+    const { db, service } = makeService({ is_safe_mode: true, max_violations: 1 });
+    for (let index = 0; index < 3; index++) {
+        const result = await service.logViolation(user, 'attempt-security', 'focus_interruption', {}, `focus-${index}`);
+        assert.equal(result.warningCount, 0);
+        assert.equal(result.terminated, false);
+    }
+    assert.equal(db.tables.cbt_attempt_security_logs.length, 3);
+    assert.equal(db.tables.cbt_exam_attempts[0].tab_switch_count, 0);
+    const hidden = await service.logViolation(user, 'attempt-security', 'tab_switch', {}, 'real-tab');
+    assert.equal(hidden.warningCount, 1);
+    assert.equal(hidden.terminated, true);
+});
+
 test('SEC-74: form menyediakan batas angka dan pilihan tanpa batas', () => {
     const form = fs.readFileSync(
         path.resolve(__dirname, '../../web/components/exams/CreateExamModal.tsx'),
@@ -102,7 +116,7 @@ test('SEC-74: form menyediakan batas angka dan pilihan tanpa batas', () => {
         'utf8',
     );
     assert.match(form, /maxViolations: number \| null/);
-    assert.match(form, /Tanpa batas/);
+    assert.match(form, /Catat saja, tanpa mengakhiri ujian/);
     assert.match(form, /Batas jumlah pelanggaran/);
     assert.doesNotMatch(page, /const MAX_VIOLATIONS = 3/);
     assert.match(page, /result\.terminated/);

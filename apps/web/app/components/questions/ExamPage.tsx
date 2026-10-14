@@ -5,7 +5,7 @@ import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
 import { apiSend } from '@/lib/api/client';
 import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
-import { getExamForAttempt,getExamQuestionsAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
+import { getExamForAttempt,getExamQuestionsAction,getExamSubmissionStatus,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
 import { getDeviceId,setDeviceId } from '@/lib/device-id';
 import {
 createSecurityEventId,
@@ -32,10 +32,11 @@ import { examAutoRetryDelay } from '@/lib/exam-retry';
 import { ExamClock } from '@/lib/exam-clock';
 import { hasExamFullscreen, supportsExamFullscreen, subscribeExamFullscreen, type FullscreenElement } from '@/lib/exam-fullscreen';
 import { acquireExamEditorLock } from '@/lib/exam-editor-lock';
+import { keepExamScreenAwake } from '@/lib/exam-wake-lock';
 import { PerKeyQueue } from '@/lib/per-key-queue';
 import { getSessionUser } from '@/lib/session';
 import { clearCbtSession } from '@/lib/session-reset';
-import { AlertTriangle,CheckCircle2,Loader2,RefreshCw,ShieldCheck } from 'lucide-react';
+import { AlertTriangle,CheckCircle2,Loader2,RefreshCw } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import type { AuthUser } from '@acca-cbt/shared';
@@ -157,6 +158,11 @@ export default function ExamPage() {
     const [violationCount, setViolationCount] = useState(0);
     const [showViolationModal, setShowViolationModal] = useState(false);
     const [violationType, setViolationType] = useState('');
+    useEffect(() => {
+        if (!showViolationModal) return;
+        const timer = setTimeout(() => setShowViolationModal(false), 8000);
+        return () => clearTimeout(timer);
+    }, [showViolationModal, violationCount, violationType]);
     const [terminationPending, setTerminationPending] = useState<string | null>(null);
     const savedViolationsRef = useRef<Set<string>>(new Set());
     const violationCountRef = useRef(0);
@@ -166,6 +172,7 @@ export default function ExamPage() {
     const submitInFlightRef = useRef(false);
     const frozenSnapshotRef = useRef<ExamAnswerSnapshot | null>(null);
     const [submissionOnly, setSubmissionOnly] = useState(false);
+    const [submissionIssue, setSubmissionIssue] = useState<string | null>(null);
     const pendingAssignmentRef = useRef<{ documentUrl?: string; videoUrl?: string } | undefined>(undefined);
     const autoRetryCountRef = useRef(0);
     const autoRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,10 +246,6 @@ export default function ExamPage() {
                         return next;
                     });
 
-                    toast.warning(
-                        'Pembaruan Soal Ujian',
-                        `Ada ${res.updatedQuestionIds.length} butir soal yang baru saja diperbarui oleh guru. Silakan baca ulang soal tersebut.`,
-                    );
                 }
             } catch {
                 // Ignore silent background update check errors
@@ -251,7 +254,7 @@ export default function ExamPage() {
 
         const timer = setInterval(checkUpdates, 15000);
         return () => clearInterval(timer);
-    }, [examId, isCompleted, accessDenied, loading, toast]);
+    }, [examId, isCompleted, accessDenied, loading]);
 
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */
     const markFailed = useCallback((questionId: string, failed: boolean) => {
@@ -527,8 +530,20 @@ export default function ExamPage() {
                 if (!result.success) {
                     if (result.retryable && await restoreOfflineSession(authUser.id)) return;
                     const pendingSession = await readExamRecoverySession(examId).catch(() => null);
-                    if (result.expiredAttemptId && pendingSession?.attemptId === result.expiredAttemptId &&
-                        pendingSession.deadlineAt <= Date.now() && await restoreOfflineSession(authUser.id)) return;
+                    if (cancelled) return;
+                    if (result.expiredAttemptId && pendingSession?.attemptId === result.expiredAttemptId) {
+                        const pendingSnapshot = await readExamSnapshot(result.expiredAttemptId).catch(() => null);
+                        if (cancelled) return;
+                        if ((pendingSession.deadlineAt <= Date.now() || pendingSnapshot?.frozenSubmission) &&
+                            await restoreOfflineSession(authUser.id)) return;
+                        const status = await getExamSubmissionStatus(result.expiredAttemptId);
+                        if (cancelled) return;
+                        if (status.success && status.examId === examId && status.status === 'submitted') {
+                            setIsCompleted(true);
+                            setLoading(false);
+                            return;
+                        }
+                    }
                     // Penolakan eksplisit server (selesai, kedaluwarsa, dicabut,
                     // atau perangkat berbeda) mengalahkan paket lama. Snapshot
                     // jawaban tetap dipertahankan untuk pemulihan proktor.
@@ -697,14 +712,28 @@ export default function ExamPage() {
 
                 restoreAssignment(result.attempt.id, localSnapshot);
 
+                // A submit-only session deliberately has no question content.
+                // Do not discard its local answers via the loadedQuestions filter,
+                // or replace an immutable submission with the server's older draft.
+                if (localSnapshot && (recoverySubmitOnly || localSnapshot.frozenSubmission)) {
+                    Object.keys(savedA).forEach(id => delete savedA[id]);
+                    Object.assign(savedA, localSnapshot.answers);
+                    revisionsRef.current = { ...localSnapshot.revisions };
+                    savedD.clear();
+                    localSnapshot.doubtfulAnswers.forEach(id => savedD.add(id));
+                    localAnswerIds = Object.keys(localSnapshot.answers);
+                }
+
                 answersRef.current = savedA;
                 doubtfulRef.current = savedD;
                 setAnswers(savedA);
                 setDoubtfulAnswers(savedD);
-                await writeExamSnapshot(result.attempt.id, {
-                    answers: savedA, doubtfulAnswers: Array.from(savedD), revisions: { ...revisionsRef.current },
-                    assignmentData: assignmentRef.current, assignmentRevision: assignmentRevisionRef.current,
-                });
+                if (!recoverySubmitOnly && !localSnapshot?.frozenSubmission) {
+                    await writeExamSnapshot(result.attempt.id, {
+                        answers: savedA, doubtfulAnswers: Array.from(savedD), revisions: { ...revisionsRef.current },
+                        assignmentData: assignmentRef.current, assignmentRevision: assignmentRevisionRef.current,
+                    });
+                }
 
                 const recoveryUntil = result.attempt.metadata?.proctor_recovery_until;
                 if (
@@ -846,6 +875,8 @@ export default function ExamPage() {
 
         const activeAttempt = attemptRef.current;
         if (!activeAttempt) return;
+        if (!opts?.isAuto) autoRetryCountRef.current = 0;
+        setSubmissionIssue(null);
         if (!frozenSnapshotRef.current) {
             frozenSnapshotRef.current = {
                 answers: { ...answersRef.current }, revisions: { ...revisionsRef.current },
@@ -909,8 +940,8 @@ export default function ExamPage() {
                     toast.success(isAssignment ? 'Tugas berhasil dikumpulkan!' : 'Ujian berhasil disubmit!');
                 }
                 if (attempt?.id && !result.savedAnswersOnly) {
-                    await removeExamSnapshot(attempt.id);
-                    await removeExamSubmissionRegistration(attempt.id, activeAttempt.started_at, activeAttempt.personal_end_time);
+                    await removeExamSnapshot(attempt.id).catch(() => undefined);
+                    await removeExamSubmissionRegistration(attempt.id, activeAttempt.started_at, activeAttempt.personal_end_time).catch(() => undefined);
                     try {
                         localStorage.removeItem(`exam_assignment_${attempt.id}`);
                     } catch { /* Server has confirmed the commit; cache cleanup must not change its outcome. */ }
@@ -924,24 +955,17 @@ export default function ExamPage() {
                     setSubmitting(false);
                     submitInFlightRef.current = false;
                     setWaitingForSyncAndSubmit(false);
-                    setAccessDenied(true);
-                    setAccessError((result.error || 'Pengumpulan ditolak.') + (storageStateRef.current === 'unavailable'
+                    setSubmissionIssue((result.error || 'Pengumpulan perlu diperiksa.') + (storageStateRef.current === 'unavailable'
                         ? ' Cadangan lokal belum berhasil disimpan. Jangan tutup halaman; hubungi proktor.'
                         : ' Salinan jawaban tetap tersimpan di perangkat ini.'));
                     return;
-                }
-                if (!opts?.isAuto || autoRetryCountRef.current === 0) {
-                    toast.error(isAssignment ? 'Gagal mengumpulkan tugas' : 'Gagal submit ujian', result.error || 'Terjadi kesalahan');
                 }
                 setSubmitting(false);
                 setWaitingForSyncAndSubmit(true);
                 submitInFlightRef.current = false;
                 scheduleAutoRetry();
             }
-        } catch (err) {
-            if (!opts?.isAuto || autoRetryCountRef.current === 0) {
-                toast.error('Gagal submit ujian', getErrorMessage(err) || 'Terjadi kesalahan');
-            }
+        } catch {
             setSubmitting(false);
             setWaitingForSyncAndSubmit(true);
             submitInFlightRef.current = false;
@@ -976,7 +1000,6 @@ export default function ExamPage() {
                     ));
 
                 if (answersArray.length > 0) {
-                    const hadPendingAnswers = failedSyncRef.current.size > 0;
                     const res = await syncAnswersBulkAction(att.id, answersArray);
                     if (res.success) {
                         // Seluruh snapshot durable baru saja dikirim ulang.
@@ -984,9 +1007,6 @@ export default function ExamPage() {
                             if ((revisionsRef.current[row.questionId] ?? 0) === row.revision) failedSyncRef.current.delete(row.questionId);
                         });
                         setFailedSyncCount(failedSyncRef.current.size);
-                        if (hadPendingAnswers) {
-                            toast.success('Tersinkronisasi', 'Jawaban offline telah dikirim.');
-                        }
                         return true;
                     }
                     answersArray.forEach(row => {
@@ -1001,7 +1021,7 @@ export default function ExamPage() {
             console.error('Failed to sync answers', e);
             return false;
         }
-    }, [toast]);
+    }, []);
 
     /**
      * Paket offline hanya memberi hak untuk tetap mengerjakan sampai deadline
@@ -1226,26 +1246,39 @@ export default function ExamPage() {
         };
     }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession]);
 
+    useEffect(() => {
+        if (!attempt?.id || isCompleted || loading || accessDenied || submissionOnly) return;
+        return keepExamScreenAwake();
+    }, [attempt?.id, isCompleted, loading, accessDenied, submissionOnly]);
+
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {
         if (!attempt || isCompleted || loading || accessDenied || submissionOnly) return;
         if (exam?.metadata?.is_safe_mode === false) return;
 
         const handleSecurityViolation = async (type: string) => {
+            if (submitInFlightRef.current || frozenSnapshotRef.current || terminationReasonRef.current) return;
+            const focusOnly = type === 'focus_interruption';
             // Cooldown GLOBAL lintas-jenis, bukan per-jenis: satu aksi pengguna
             // memicu beberapa event sekaligus (alt-tab = blur + visibilitychange,
             // pindah aplikasi bisa sekalian keluar fullscreen). Dedup per-jenis
             // membuat satu aksi terhitung 2-3 pelanggaran dan warning_count di
             // server melampaui batas maksimal.
-            if (savedViolationsRef.current.has('violation:cooldown')) return;
-            savedViolationsRef.current.add('violation:cooldown');
-            setTimeout(() => savedViolationsRef.current.delete('violation:cooldown'), 2000);
+            if (!focusOnly) {
+                if (savedViolationsRef.current.has('violation:cooldown')) return;
+                savedViolationsRef.current.add('violation:cooldown');
+                setTimeout(() => savedViolationsRef.current.delete('violation:cooldown'), 2000);
+            }
 
-            setViolationType(type);
-            setShowViolationModal(true);
-            const newCount = violationCountRef.current + 1;
-            violationCountRef.current = newCount;
-            setViolationCount(newCount);
+            if (!focusOnly) {
+                setViolationType(type);
+                setShowViolationModal(true);
+            }
+            const newCount = violationCountRef.current + (focusOnly ? 0 : 1);
+            if (!focusOnly) {
+                violationCountRef.current = newCount;
+                setViolationCount(newCount);
+            }
 
             try {
                 const createdAt = new Date().toISOString();
@@ -1262,7 +1295,7 @@ export default function ExamPage() {
 
                 // Dahulukan jawaban bila event lokal ini diperkirakan mencapai
                 // ambang. Server tetap menjadi penentu akhir.
-                if (maxViolations !== null && newCount >= maxViolations) {
+                if (!focusOnly && maxViolations !== null && newCount >= maxViolations) {
                     await retryFailedAnswers();
                     beaconPendingAnswers();
                 }
@@ -1270,26 +1303,33 @@ export default function ExamPage() {
                 if (securityResult?.terminated) return;
                 const effectiveLimit = securityResult?.maxViolations ?? maxViolations;
                 const effectiveCount = securityResult?.warningCount ?? newCount;
-                if (effectiveLimit !== null && effectiveCount >= effectiveLimit) {
+                if (!focusOnly && effectiveLimit !== null && effectiveCount >= effectiveLimit) {
                     requireTermination(`Batas ${effectiveLimit} pelanggaran tercapai: ${type}`);
                 }
             } catch (err) {
                 console.error('Security violation error:', err);
-                if (maxViolations !== null && newCount >= maxViolations) {
+                if (!focusOnly && maxViolations !== null && newCount >= maxViolations) {
                     requireTermination(`Batas ${maxViolations} pelanggaran tercapai: ${type}`);
                 }
             }
         };
 
         const onVisibilityChange = () => {
-            if (document.hidden) handleSecurityViolation('tab_switch');
+            if (document.hidden) {
+                if (blurTimeout) clearTimeout(blurTimeout);
+                handleSecurityViolation('tab_switch');
+            }
         };
         
         let blurTimeout: NodeJS.Timeout;
         const onBlur = () => {
             // Memberikan toleransi 5 detik untuk mengabaikan pop-up notifikasi OS singkat
+            if (blurTimeout) clearTimeout(blurTimeout);
             blurTimeout = setTimeout(() => {
-                handleSecurityViolation('window_blur');
+                // A hidden page already recorded visibilitychange. Screen lock
+                // can keep it hidden long after the global cooldown expires.
+                if (document.hidden) return;
+                handleSecurityViolation('focus_interruption');
             }, 5000);
         };
         const onFocus = () => {
@@ -1298,8 +1338,10 @@ export default function ExamPage() {
         };
 
         const onFullscreenChange = () => {
-            if (!hasExamFullscreen()) {
-                handleSecurityViolation('exit_fullscreen');
+            if (!document.hidden && !hasExamFullscreen()) {
+                // OS dialogs may remove fullscreen and focus together. Keep the
+                // fullscreen gate, but do not call that a student violation.
+                handleSecurityViolation(document.hasFocus() ? 'exit_fullscreen' : 'focus_interruption');
             }
         };
         const onContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -1515,10 +1557,8 @@ export default function ExamPage() {
         const newDoubtful = new Set(doubtfulRef.current);
         if (newDoubtful.has(questionId)) {
             newDoubtful.delete(questionId);
-            toast.info('Tanda ragu dihapus');
         } else {
             newDoubtful.add(questionId);
-            toast.warning('Ditandai ragu', 'Soal ini akan ditandai saat review');
         }
         doubtfulRef.current = newDoubtful;
         setDoubtfulAnswers(newDoubtful);
@@ -1558,7 +1598,7 @@ export default function ExamPage() {
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [toast, markFailed, submissionOnly]);
+    }, [markFailed, submissionOnly]);
 
     const handleRequestFullscreen = useCallback(async () => {
         // API yang tidak tersedia tetap memiliki jalur kompatibilitas; jika
@@ -1576,6 +1616,15 @@ export default function ExamPage() {
     }, []);
 
     const safeMode = exam?.metadata?.is_safe_mode !== false;
+    const syncNotice = isOffline || serverUnavailableAt
+        ? { tone: 'amber' as const, text: 'Koneksi terputus · jawaban menunggu sinkronisasi',
+            details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; pengiriman dicoba kembali saat koneksi pulih. ${storageWarning || ''}` }
+        : failedSyncCount > 0
+            ? { tone: 'amber' as const, text: `${failedSyncCount} jawaban menunggu sinkronisasi`, details: 'Pengiriman dicoba kembali otomatis. Jangan tutup halaman sampai jawaban tersimpan di server.' }
+            : recoverySummary
+                ? { tone: 'blue' as const, text: 'Pemulihan pengumpulan aktif', details: `Lokal: ${recoverySummary.localCount} jawaban · Server: ${recoverySummary.serverCount} jawaban. Batas pemulihan: ${new Date(recoverySummary.recoveryUntil).toLocaleString('id-ID')}.` }
+                : storageWarning ? { tone: 'amber' as const, text: 'Penyimpanan perangkat perlu diperiksa', details: storageWarning }
+                    : updatedQuestionIds.size > 0 ? { tone: 'blue' as const, text: `${updatedQuestionIds.size} soal diperbarui oleh guru`, details: 'Periksa kembali soal yang ditandai diperbarui sebelum mengumpulkan.' } : null;
 
     // ── Main Exam UI ───────────────────────────────────────────
     if (loading) {
@@ -1673,6 +1722,17 @@ export default function ExamPage() {
         );
     }
 
+    if (submissionIssue) {
+        return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="max-w-md w-full rounded-xl bg-white p-8 border border-amber-200">
+                <h1 className="text-xl font-bold mb-3">Pengumpulan Perlu Diperiksa</h1>
+                <p className="text-sm text-slate-600 mb-4">{submissionIssue}</p>
+                <p className="text-sm text-slate-600 mb-5">Mengirim ulang tidak membuka waktu pengerjaan. Jika ada jawaban lokal yang belum diterima setelah waktu habis, minta proktor membuka pemulihan pada perangkat ini.</p>
+                <button disabled={submitting} onClick={() => void handleSubmitExam()} className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Periksa dan Kirim Ulang</button>
+            </div>
+        </div>;
+    }
+
     if (submissionOnly && !waitingForSyncAndSubmit) {
         return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="max-w-md w-full rounded-xl bg-white p-8 text-center border border-slate-200">
@@ -1697,7 +1757,7 @@ export default function ExamPage() {
                         <AlertTriangle className="text-amber-500" size={32} />
                     </div>
                     <h1 className="text-2xl font-bold text-white mb-3">
-                        {timeLeft <= 0 ? 'Waktu Habis' : 'Menunggu Koneksi'}
+                        Menunggu Konfirmasi Pengumpulan
                     </h1>
                     <p className="text-slate-300 mb-6 text-base leading-relaxed">
                         Jawaban telah dikunci dan pengiriman akan dicoba saat koneksi tersedia. Jika batas waktu sudah lewat dan server belum menerima pengumpulan, hubungi proktor untuk membuka pemulihan. <br/><strong>Tetap buka halaman ini sampai pengiriman selesai.</strong>
@@ -1714,38 +1774,6 @@ export default function ExamPage() {
 
     return (
         <>
-            {(isOffline || serverUnavailableAt) && !waitingForSyncAndSubmit && (
-                <div role="alert" className="fixed top-0 left-0 right-0 z-[10005] bg-rose-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
-                    <AlertTriangle size={16} />
-                    <span>
-                        {usingOfflineRecovery ? 'Ujian dipulihkan setelah halaman dibuka ulang. ' : isOffline ? 'Jaringan perangkat terputus. ' : 'Koneksi ke server ujian belum berhasil. '}
-                        {serverUnavailableAt && `Terdeteksi ${new Date(serverUnavailableAt).toLocaleTimeString('id-ID')}. `}
-                        Waktu ujian tetap berjalan. Jangan tutup halaman.{' '}
-                        {storageWarning ? `${storageWarning} Hubungi pengawas bila perlu bantuan.` : `${Object.keys(answers).length} jawaban tersedia di perangkat; pengiriman dicoba kembali saat koneksi pulih.`}
-                    </span>
-                </div>
-            )}
-            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount > 0 && (
-                <div className="fixed top-0 left-0 right-0 z-[10005] bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
-                    <RefreshCw size={16} className="animate-spin" />
-                    <span>{failedSyncCount} jawaban belum tersimpan ke server. Mencoba mengirim ulang otomatis — jangan tutup halaman.</span>
-                </div>
-            )}
-            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount === 0 && recoverySummary && (
-                <div className="fixed top-0 left-0 right-0 z-[10005] bg-blue-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
-                    <ShieldCheck size={16} />
-                    <span>
-                        Pemulihan aktif sampai {new Date(recoverySummary.recoveryUntil).toLocaleString('id-ID')}.
-                        {' '}Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.
-                    </span>
-                </div>
-            )}
-            {!isOffline && !serverUnavailableAt && !waitingForSyncAndSubmit && failedSyncCount === 0 && !recoverySummary && storageWarning && (
-                <div className="fixed top-0 left-0 right-0 z-[10005] bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-md animate-in slide-in-from-top">
-                    <AlertTriangle size={16} />
-                    <span>{storageWarning}</span>
-                </div>
-            )}
             <ExamViewer
             mode="exam"
             questions={questions}
@@ -1769,6 +1797,7 @@ export default function ExamPage() {
             isFullScreen={isFullScreen}
             onSubmitExam={(assignmentSubmission?: { documentUrl?: string, videoUrl?: string }) => handleSubmitExam(assignmentSubmission)}
             submitting={submitting}
+            syncNotice={syncNotice}
             isAssignment={exam?.exam_type === 'assignment'}
             assignmentData={exam?.metadata}
             examId={examId}

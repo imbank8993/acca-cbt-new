@@ -30,13 +30,14 @@ const NON_WARNING_EVENTS = [
     'DEVICE_SWITCH_BLOCKED',
     'LATE_ANSWER_SYNC',
     'tab_close',
+    'focus_interruption',
 ];
 
 /** Klien mengirim 'tab_switch' dan 'window_blur'; 'blur' adalah nilai warisan. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
 export const STUDENT_SECURITY_EVENTS = [
     ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
-    'copy_paste_attempt', 'right_click_attempt', 'tab_close',
+    'copy_paste_attempt', 'right_click_attempt', 'tab_close', 'focus_interruption',
 ];
 
 /** Status attempt yang boleh di-reset proktor. */

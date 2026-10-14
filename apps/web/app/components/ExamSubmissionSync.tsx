@@ -66,8 +66,10 @@ export function ExamSubmissionSync() {
             notify: (_entry, result) => {
                 if (result.success) {
                     window.dispatchEvent(new Event('exam-submission-synced'));
+                    if (/^\/dashboard\/siswa\/exam\//.test(pathRef.current)) return;
                     toastRef.current.success('Jawaban berhasil dikirim', 'Pengiriman otomatis selesai.');
                 } else {
+                    if (/^\/dashboard\/siswa\/exam\//.test(pathRef.current)) return;
                     toastRef.current.warning('Jawaban belum terkirim', result.error);
                 }
             },

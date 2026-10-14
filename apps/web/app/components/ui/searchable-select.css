@@ -60,6 +60,20 @@
   flex-shrink: 0;
 }
 
+.ss__statusDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #3083ff;
+  vertical-align: middle;
+}
+
+.ss__itemMain .ss__statusDot {
+  margin-right: 8px;
+}
+
 .ss__mainInput {
   flex: 1;
   min-width: 0;

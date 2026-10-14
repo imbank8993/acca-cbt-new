@@ -1,5 +1,5 @@
 "use client";
-import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
@@ -496,9 +496,11 @@ function MonitoringContent() {
                             <SearchableSelect
                                 className="w-full"
                                 placeholder="Cari atau pilih ujian..."
+                                searchPlaceholder="Ketik nama ujian..."
                                 options={sortMonitoringExams(exams, monitoringNow).map(exam => ({
                                     value: exam.id,
-                                    label: monitoringExamLabel(exam, monitoringNow),
+                                    statusDot: isMonitoringExamActive(exam, monitoringNow) ? 'Ujian aktif' : undefined,
+                                    label: monitoringExamLabel(exam),
                                 }))}
                                 value={selectedExamId}
                                 onChange={(val) => setSelectedExamId(String(val || ''))}
@@ -607,7 +609,7 @@ function MonitoringContent() {
             )}
 
             {selectedExamId && activeTab === 'answers' && (
-                <MonitoringHealthPanel
+                <MonitoringHealthPanel key={selectedExamId}
                     attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     onRecover={handleResetAttempt}
                     onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}

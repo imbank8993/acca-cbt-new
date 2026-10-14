@@ -6,6 +6,8 @@ import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, gradingLabel, monitoringAttention, storageLabels } from '@/lib/monitoring-health';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { AttemptHistoryModal } from '@/app/components/monitoring';
+import { matchesAnswerCount, savedAnswerCount, sortByAnswerCount } from '@/lib/monitoring-answer-count';
+import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
@@ -19,13 +21,15 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<MonitoringStatusFilter>('all');
     const [classFilter, setClassFilter] = useState('');
-    const [elapsed, setElapsed] = useState(0);
+    const [answerCountFilter, setAnswerCountFilter] = useState('');
+    const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
     const [zone, setZone] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [expanded, setExpanded] = useState(defaultExpanded);
     const [selectedHistoryAttempt, setSelectedHistoryAttempt] = useState<ExamAttemptRecord | null>(null);
 
     const sampledAt = attempts[0]?.server_now;
+    const elapsed = clock.sample === sampledAt ? clock.elapsed : 0;
     useEffect(() => {
         let alive = true;
         void getSchoolTimeZone().then(value => { if (alive) setZone(value); }).catch(() => undefined);
@@ -33,7 +37,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     }, []);
     useEffect(() => {
         const started = performance.now();
-        const tick = () => setElapsed(Math.floor((performance.now() - started) / 1000));
+        const tick = () => setClock({ sample: sampledAt, elapsed: Math.floor((performance.now() - started) / 1000) });
         const timer = setInterval(tick, 1000);
         return () => clearInterval(timer);
     }, [sampledAt]);
@@ -45,7 +49,9 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
         .filter((name): name is string => Boolean(name)))]
         .sort((a, b) => a.localeCompare(b, 'id'));
     const normalizedSearch = searchQuery.trim().toLowerCase();
-    const rows = (onlyAttention ? needingAttention : attempts)
+    const answerCounts = [...new Set(attempts.map(savedAnswerCount).filter((count): count is number => count !== null))].sort((a, b) => a - b);
+    const rows = sortByAnswerCount((onlyAttention ? needingAttention : attempts)
+        .filter(attempt => matchesAnswerCount(attempt, answerCountFilter))
         .filter(attempt => !classFilter || attempt.kelas_name?.trim() === classFilter)
         .filter(attempt => {
             if (statusFilter === 'submitted') return attempt.status === 'submitted';
@@ -62,9 +68,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 attempt.kelas_name,
             ].some(value => String(value || '').toLowerCase().includes(normalizedSearch));
         })
-        .slice()
-        .sort((a, b) => monitoringAttention(b, elapsed).length - monitoringAttention(a, elapsed).length);
-    const hasActiveFilter = onlyAttention || statusFilter !== 'all' || Boolean(classFilter) || Boolean(normalizedSearch);
+        );
+    const hasActiveFilter = onlyAttention || statusFilter !== 'all' || Boolean(classFilter) || Boolean(normalizedSearch) || Boolean(answerCountFilter);
     const pageCount = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pageCount);
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
@@ -94,7 +99,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
         </button>
         {expanded && <div className="border-t border-slate-100 p-4">
         <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
                     <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -122,6 +127,23 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                             <X size={14} />
                         </button>
                     )}
+                </div>
+                <div className="w-full sm:w-[200px]">
+                    <InlineSelect
+                        value={answerCountFilter}
+                        onChange={val => { setAnswerCountFilter(val); setPage(1); }}
+                        title="Filter jumlah soal dijawab"
+                        minWidth="100%"
+                        height="38px"
+                        className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
+                        options={[
+                            { value: '', label: 'Semua jumlah soal' },
+                            { value: 'incomplete', label: 'Belum semua dijawab' },
+                            { value: 'complete', label: 'Semua soal dijawab' },
+                            ...answerCounts.map(count => ({ value: String(count), label: `${count} soal dijawab` })),
+                            ...(attempts.some(attempt => savedAnswerCount(attempt) === null) ? [{ value: 'unknown', label: 'Jumlah belum tersedia' }] : []),
+                        ]}
+                    />
                 </div>
                 <div className="w-full sm:w-[200px]">
                     <InlineSelect
@@ -164,11 +186,12 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} /><ShieldAlert size={16} className="text-amber-500" />Peringatan</label>
         </div>
         <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[980px] text-left text-xs">
-            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold">Jawaban</th><th className="p-3 font-semibold">Sinkronisasi</th><th className="p-3 font-semibold">Waktu / koneksi</th><th className="p-3 font-semibold">Penilaian / riwayat</th></tr></thead>
+            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort="ascending" title="Jumlah soal dijawab, dari paling sedikit">Jawaban ↑</th><th className="p-3 font-semibold">Sinkronisasi</th><th className="p-3 font-semibold">Waktu / koneksi</th><th className="p-3 font-semibold">Penilaian / riwayat</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
                 const reasons = monitoringAttention(attempt, elapsed);
-                const remaining = attempt.remaining_seconds == null ? null : Math.max(0, attempt.remaining_seconds - elapsed);
+                const timing = monitoringTime(attempt, elapsed);
+                const remaining = timing.remainingSeconds;
                 const reportAge = health && attempt.server_now ? (Date.parse(attempt.server_now) - Date.parse(health.receivedAt)) / 1000 + elapsed : Infinity;
                 const fresh = health?.fresh && reportAge <= 45;
                 const violationCount = attempt.warning_count ?? 0;
@@ -178,13 +201,6 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     : attempt.status === 'auto_submitted'
                         ? 'Ditutup otomatis'
                         : attempt.status === 'submitted' ? 'Selesai' : 'Belum mulai';
-                const durationEnd = attempt.finished_at
-                    ? Date.parse(attempt.finished_at)
-                    : attempt.server_now ? Date.parse(attempt.server_now) + elapsed * 1000 : NaN;
-                const durationMinutes = attempt.started_at
-                    && Number.isFinite(durationEnd)
-                    ? Math.max(0, Math.floor((durationEnd - Date.parse(attempt.started_at)) / 60_000))
-                    : null;
                 return <tr key={attempt.id} className={`border-b align-top last:border-b-0 ${reasons.length ? 'bg-amber-50/60' : 'odd:bg-white even:bg-slate-50/50'} hover:bg-blue-50/50`}>
                     <td className="p-3">
                         <span className="text-xs font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
@@ -205,12 +221,13 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} soal</strong><div className="mt-1">Belum dijawab: {attempt.unanswered_count ?? '—'}</div><div className="mt-1 text-slate-500">Simpan: {date(attempt.last_answer_saved_at)}</div></td>
                     <td className="p-3">{health ? <><div>Lokal: {health.localAnswerCount} · Antrean: {health.pendingAnswerCount}</div><div>Penyimpanan: {storageLabels[health.storageState]}</div><div className="mt-1 text-slate-500">{date(health.receivedAt)}{!fresh && ' · Laporan lama'}</div></> : <span className="text-slate-500">Belum ada laporan</span>}</td>
                     <td className="p-3">
-                        <strong>{attempt.status === 'in_progress' && remaining !== null ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong>
+                        <strong>{attempt.status === 'in_progress' && remaining !== null ? `Sisa ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong>
                         <div className="mt-1">Batas: {date(attempt.deadline_at)}</div>
                         <div>{attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'}</div>
                         <div className="text-slate-500">Kontak server terakhir: {date(attempt.last_seen_at)}</div>
                         <div className="mt-1 text-slate-500">Mulai: {date(attempt.started_at)}</div>
-                        <div className="mt-1 text-slate-500">Durasi: {durationMinutes === null ? '—' : `${Math.floor(durationMinutes / 60)}j ${durationMinutes % 60}m`}</div>
+                        <div className="mt-1 text-slate-500">Lama mengerjakan: {formatMonitoringDuration(timing.workedSeconds)}</div>
+                        {timing.availableSeconds !== null && <div className="mt-1 text-slate-500" title="Dihitung dari waktu mulai hingga batas sesi, termasuk batas akhir jadwal ujian.">Waktu sesi: {formatMonitoringDuration(timing.availableSeconds)}</div>}
                     </td>
                     <td className="p-3">
                         <span className={attempt.status === 'auto_submitted'
