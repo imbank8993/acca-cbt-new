@@ -1691,6 +1691,23 @@ html.dark .ftb-backBtn:hover {
 
 /* ===================== Mobile Filter Modal ===================== */
 
+@media (max-width: 639px) {
+    .monitoring-results-toolbar .ftb-mobile-actions .ftb-actions {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px !important;
+    }
+
+    .monitoring-results-toolbar .ftb-mobile-actions .ftb-actions > * {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 42px !important;
+        height: auto !important;
+        margin: 0 !important;
+        white-space: normal !important;
+    }
+}
+
 .ftb-modal-body {
     padding: 16px !important;
     max-height: 65vh;
@@ -1700,14 +1717,22 @@ html.dark .ftb-backBtn:hover {
 .ftb-modal-filter-list {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
     width: 100%;
+}
+
+/* Desktop field basis must not become a vertical height inside the filter sheet. */
+.ftb-modal-filter-list > * {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
 }
 
 .ftb-modal-filter-list .ftb-field {
     width: 100% !important;
     min-width: 100% !important;
-    flex: 1 1 100% !important;
+    flex: 0 0 auto !important;
     margin: 0 !important;
 }
 

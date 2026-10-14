@@ -62,11 +62,18 @@ const base=()=>new MemoryDb({
 let count=0;
 async function test(name,fn){await fn();console.log('PASS',name);count++;}
 (async()=>{
-    await test('Teacher cannot modify another teacher bank; staff limited to organization',async()=>{
+    await test('Only owner and admin edit banks; proctor reads foreign banks after publication',async()=>{
         const db=base(),auth=new AuthorizationService(db,roles,schoolScope);
         await assert.rejects(auth.assertBankAccess(user,'other'));
-        await auth.assertBankAccess({id:'proctor'},'other');
+        await assert.rejects(auth.assertBankAccess({id:'proctor'},'other'));
+        await assert.rejects(auth.assertBankAccess({id:'proctor'},'other','read'));
+        db.state.cbt_question_banks.find(bank=>bank.id==='other').is_published=true;
+        await auth.assertBankAccess({id:'proctor'},'other','read');
+        await assert.rejects(auth.assertBankAccess({id:'proctor'},'other'));
         await auth.assertBankAccess({id:'admin'},'other');
+        await auth.assertBankAccess({id:'admin'},'bank');
+        db.state.cbt_question_banks.push({id:'proctor-bank',organization_id:'org-1',created_by:'proctor',is_published:false});
+        await auth.assertBankAccess({id:'proctor'},'proctor-bank');
         db.state.cbt_question_banks.push({id:'foreign',organization_id:'org-2'});
         await assert.rejects(auth.assertBankAccess({id:'proctor'},'foreign'));
     });

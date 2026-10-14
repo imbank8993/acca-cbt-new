@@ -491,7 +491,7 @@ function MonitoringContent() {
                 </div>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
                     <div className="mt-3 border-t border-slate-100 pt-3">
-                    <FilterToolbar actionsInline>
+                    <FilterToolbar className="monitoring-results-toolbar">
                         <FilterSearch
                             value={searchName}
                             onChange={setSearchName}
