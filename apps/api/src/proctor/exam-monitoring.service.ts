@@ -205,10 +205,12 @@ export class ExamMonitoringService {
         const classByUser = new Map<string, string>();
         const profileByUser = new Map<string, any>();
 
-        const { data: targets } = await this.db
+        const { data: targets, error: targetError } = await this.db
             .from('cbt_exam_targets')
             .select('class_id, additional_class_id')
             .eq('exam_id', examId);
+
+        if (targetError) throw new BadRequestException('Daftar kelas peserta belum dapat dibaca.');
 
         const classIds = [
             ...new Set(
@@ -219,12 +221,14 @@ export class ExamMonitoringService {
         ];
 
         for (const ids of chunk(classIds, 100)) {
-            const { data } = await this.db
+            const { data, error: memberError } = await this.db
                 .from('cbt_class_members')
                 .select(
                     'user_id, class_id, profiles:cbt_profiles(full_name, identity_number), classes:cbt_classes(name)',
                 )
                 .in('class_id', ids);
+
+            if (memberError) throw new BadRequestException('Daftar siswa kelas belum dapat dibaca.');
 
             for (const row of (data as any[]) || []) {
                 appendClassName(classByUser, row);
@@ -238,17 +242,21 @@ export class ExamMonitoringService {
 
         const additionalIds = (targets || []).map((row: any) => row.additional_class_id).filter(Boolean);
         for (const ids of chunk(additionalIds, ID_BATCH)) {
-            const { data: members } = await this.db.from('cbt_additional_class_members')
+            const { data: members, error: memberError } = await this.db.from('cbt_additional_class_members')
                 .select('user_id, class_id, profiles:cbt_profiles(full_name, identity_number), classes:cbt_additional_classes(name)').in('class_id', ids);
+            if (memberError) throw new BadRequestException('Daftar siswa kelas tambahan belum dapat dibaca.');
             for (const row of members || []) {
                 appendClassName(classByUser, row);
                 if (!profileByUser.has(row.user_id)) profileByUser.set(row.user_id, Array.isArray(row.profiles) ? row.profiles[0] : row.profiles);
             }
         }
-        const { data: participants } = await this.db.from('cbt_exam_participants').select('user_id').eq('exam_id', examId);
-        const individualIds = (participants || []).map((row: any) => row.user_id).filter((id: string) => !profileByUser.has(id));
+        const { data: participants, error: participantError } = await this.db.from('cbt_exam_participants').select('user_id').eq('exam_id', examId);
+        if (participantError) throw new BadRequestException('Daftar peserta perorangan belum dapat dibaca.');
+        const individualIds: string[] = (participants || []).map((row: any) => row.user_id).filter((id: string) => Boolean(id) && !profileByUser.has(id));
         for (const ids of chunk(individualIds, ID_BATCH)) {
-            const { data: profiles } = await this.db.from('cbt_profiles').select('id, full_name, identity_number').in('id', ids);
+            const { data: profiles, error: profileError } = await this.db.from('cbt_profiles').select('id, full_name, identity_number').in('id', ids);
+            if (profileError) throw new BadRequestException('Profil peserta belum dapat dibaca.');
+            for (const id of ids) profileByUser.set(id, null);
             for (const profile of profiles || []) profileByUser.set(profile.id, profile);
         }
         return { classByUser, profileByUser };
@@ -285,22 +293,31 @@ export class ExamMonitoringService {
      * menjadi batas atasnya.
      */
     private async finalizeExpired(examId: string): Promise<void> {
-        const { data: examRow } = await this.db
+        const { data: examRow, error: examError } = await this.db
             .from('cbt_exams')
             .select('end_time, duration_minutes')
             .eq('id', examId)
             .maybeSingle();
 
-        const { data: openRows } = await this.db
+        const { data: openRows, error: openError } = await this.db
             .from('cbt_exam_attempts')
-            .select('id')
+            .select('id, started_at, personal_end_time, metadata')
             .eq('exam_id', examId)
             .eq('status', 'in_progress');
 
-        const open = (openRows as any[]) || [];
+        if (examError || openError) throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa.');
 
         const exam = examRow as { end_time: string | null; duration_minutes: number | null } | null;
         if (!exam) return;
+        // Read the clock once and avoid opening a transaction for every live
+        // student. The locked check below still protects concurrent resets.
+        const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const observedNow = new Date(clock.now);
+        const open = ((openRows as any[]) || []).filter(attempt => {
+            if (hasActiveSubmitIntent(attempt.metadata, observedNow)) return false;
+            const deadline = examDeadline(attempt, exam).getTime();
+            return Number.isFinite(deadline) && deadline + AUTO_FINISH_GRACE_MS <= observedNow.getTime();
+        });
         for (const attempt of open) {
             try {
                 const closed = await this.db.transaction(async db => {

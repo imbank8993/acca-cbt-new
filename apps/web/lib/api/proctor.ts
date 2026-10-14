@@ -571,7 +571,8 @@ export async function listExamAssignmentsAction(examIds: string[]): Promise<{
 
 export async function getExamAttemptsAction(examId: string): Promise<ExamAttemptRecord[]> {
     const res = await getExamAttemptsResult(examId);
-    return res.success ? res.attempts : [];
+    if (!res.success) throw new Error(res.error || 'Data peserta monitoring belum dapat dimuat.');
+    return res.attempts;
 }
 
 export async function getExamAttemptsResult(examId: string) {
@@ -729,6 +730,7 @@ export async function getExamAnswersForAnalysisAction(
         detailed?: DetailedItemAnalysisResponse | null;
     }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis`,
+        { timeoutMs: 60_000 },
     );
     return res.success
         ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null }

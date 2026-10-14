@@ -71,6 +71,7 @@ function MonitoringContent() {
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('proktor_monitoring_liveAlerts', []);
     const [resettingAttemptId, setResettingAttemptId] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
@@ -97,13 +98,27 @@ function MonitoringContent() {
         setIsLoading(false);
     }, [initialExamId, setExams, setIsLoading]);
 
+    const loadingExamIdsRef = useRef(new Map<string, number>());
+    const lastRequestedExamIdRef = useRef('');
     const loadExamData = useCallback(async (examId: string, silent = false) => {
+        if (silent && loadingExamIdsRef.current.has(examId)) return;
         const generation = ++examRequestGenerationRef.current;
+        loadingExamIdsRef.current.set(examId, generation);
+        if (lastRequestedExamIdRef.current !== examId) {
+            lastRequestedExamIdRef.current = examId;
+            setAttempts([]); setAnalysis([]); setLoadError(null);
+            setSearchName(''); setFilterKelas('');
+        }
         if (!silent) setIsRefreshing(true);
         try {
             const [attData, analysisData] = await Promise.all([
-                getExamAttemptsAction(examId),
-                getExamAnswersForAnalysisAction(examId)
+                getExamAttemptsAction(examId).then(rows => {
+                    if (generation !== examRequestGenerationRef.current) return rows;
+                    setAttempts(rows);
+                    setLoadError(null);
+                    return rows;
+                }),
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null })
             ]);
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
@@ -150,9 +165,12 @@ function MonitoringContent() {
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
+            if (generation === examRequestGenerationRef.current) setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
+        } finally {
+            if (loadingExamIdsRef.current.get(examId) === generation) loadingExamIdsRef.current.delete(examId);
+            if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
         }
-        if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
-    }, [setAnalysis, setAttempts, setDetailedAnalysis]);
+    }, [activeTab, setAnalysis, setAttempts, setDetailedAnalysis]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadInitialData(), 0);
@@ -354,6 +372,13 @@ function MonitoringContent() {
                 </div>
             )}
 
+            {selectedExamId && loadError && (
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    <p className="font-semibold">Peserta monitoring gagal dimuat</p>
+                    <p className="mt-1">{loadError}</p>
+                    <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
+                </div>
+            )}
             <MonitoringHealthPanel attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleResetAttempt} />
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}

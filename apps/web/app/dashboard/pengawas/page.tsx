@@ -33,6 +33,7 @@ export default function PengawasDashboard() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [organization, setOrganization] = useState<ProctorOrganization | null>(null);
     const [exams, setExams] = useState<OrganizationExam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>('');
@@ -42,6 +43,7 @@ export default function PengawasDashboard() {
 
     const loadData = useCallback(async (isSilent = false) => {
         if (!isSilent) setIsRefreshing(true);
+        setLoadError(null);
         try {
             const user = await getSessionUser();
             if (!user) return;
@@ -69,6 +71,7 @@ export default function PengawasDashboard() {
             setLastUpdated(new Date());
         } catch (error) {
             console.error('[PengawasDashboard] Gagal memuat data pemantauan:', error);
+            setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
@@ -85,6 +88,8 @@ export default function PengawasDashboard() {
 
     const handleSelectExam = async (examId: string) => {
         setSelectedExamId(examId);
+        setAttempts([]);
+        setLoadError(null);
         setIsRefreshing(true);
         try {
             const [attemptData, violationData] = await Promise.all([
@@ -94,6 +99,8 @@ export default function PengawasDashboard() {
             setAttempts(attemptData);
             setViolations(violationData);
             setLastUpdated(new Date());
+        } catch (error) {
+            setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             setIsRefreshing(false);
         }
@@ -137,6 +144,11 @@ export default function PengawasDashboard() {
 
     return (
         <div className="space-y-8">
+            {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <p className="font-semibold">Peserta monitoring gagal dimuat</p>
+                <p className="mt-1">{loadError}</p>
+                <button type="button" onClick={() => void loadData(false)} className="mt-2 font-semibold underline">Coba lagi</button>
+            </div>}
             {/* Header */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>

@@ -302,6 +302,33 @@ test('a stale background freeze cannot discard a newer draft revision', async ()
     assert.equal((await api.readExamSnapshot('a')).answers.q, 'answer-3');
 });
 
+test('single-tab ordinary exam can freeze after restoring empty assignment defaults', async () => {
+    const { api } = storageFixture();
+    const frozenSubmission = { startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z' };
+    const answer = draft(3);
+    // ExamPage.restoreAssignment used to add these fields to every ordinary exam.
+    await api.writeExamSnapshot('ordinary', { ...answer, assignmentData: { fileUrls: [], textSubmission: '', documentUrl: undefined } });
+    const frozen = await api.freezeExamSnapshot('ordinary', { ...answer, frozenSubmission });
+    assert.deepEqual(frozen.answers, answer.answers);
+    assert.deepEqual(frozen.frozenSubmission, frozenSubmission);
+});
+
+test('empty assignment fields are equivalent on retry but actual text and attachments cannot be discarded', async () => {
+    const { api } = storageFixture();
+    const frozenSubmission = { startedAt: '2026-10-10T00:00:00Z', personalEndTime: '2026-10-10T01:00:00Z' };
+    const answer = draft(3);
+    const first = { ...answer, frozenSubmission, assignmentData: { fileUrls: [], textSubmission: '' } };
+    await api.freezeExamSnapshot('empty-frozen', first);
+    const retry = await api.freezeExamSnapshot('empty-frozen', { ...answer, frozenSubmission });
+    assert.deepEqual(retry.assignmentData, first.assignmentData); // Reuse exact previously frozen delivery.
+    for (const assignmentData of [{ textSubmission: 'actual note' }, { fileUrls: ['/file.pdf'] }]) {
+        await api.writeExamSnapshot('real-assignment', { ...answer, assignmentData });
+        await assert.rejects(api.freezeExamSnapshot('real-assignment', { ...answer, frozenSubmission }), e => e.code === 'EXAM_SNAPSHOT_CONFLICT');
+        assert.deepEqual(JSON.parse(JSON.stringify((await api.readExamSnapshot('real-assignment')).assignmentData)), assignmentData);
+        await api.removeExamSnapshot('real-assignment');
+    }
+});
+
 test('editor ownership excludes a second tab and becomes available after release', async () => {
     const { acquireExamEditorLock } = require('../../web/lib/exam-editor-lock.ts');
     const held = new Set();
@@ -362,3 +389,66 @@ test('the exam page stops before sending or deleting data when freezing detects 
     assert.match(state.message, /Salinan jawaban berbeda/);
     assert.equal(context.frozenSnapshotRef.current.answers.q, 'newer');
 });
+
+for (const scenario of ['online', 'offline', 'lost-response']) {
+    test(`timer expiry freezes and submits ordinary exam without false conflict: ${scenario}`, async () => {
+        const vm = require('node:vm'), ts = require('typescript');
+        const { api, local } = storageFixture();
+        const answer = draft(3, 'last answer before expiry');
+        await api.writeExamSnapshot('expiry-attempt', { ...answer, assignmentData: { fileUrls: [], textSubmission: '' } });
+        const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+        const handlerStart = source.indexOf('    const handleSubmitExam = useCallback(');
+        const handlerEnd = source.indexOf('    // Simpan referensi terbaru', handlerStart);
+        const timerStart = source.indexOf('    // Auto-submit when timer hits 0.');
+        const timerEnd = source.indexOf('    const handleAnswerSelect', timerStart);
+        assert.ok(handlerStart >= 0 && handlerEnd > handlerStart && timerStart >= 0 && timerEnd > timerStart);
+        const deliveryCall = 'void handleSubmitExam(undefined, { isAuto: true });';
+        const timerCode = source.slice(timerStart, timerEnd);
+        assert.ok(timerCode.includes(deliveryCall));
+        const state = { sent: [], denied: false, completed: false, waiting: false, cleaned: 0, retries: 0 };
+        const attempt = { id: 'expiry-attempt', started_at: '2026-10-10T00:00:00Z', personal_end_time: '2026-10-10T01:00:00Z' };
+        const sandbox = {
+            useCallback: fn => fn, useEffect: fn => fn(),
+            user: { id: 'student' }, examId: 'exam', exam: { exam_type: 'daily' }, attempt,
+            loading: false, accessDenied: false, isCompleted: false, submitting: false, timeLeft: 0, isOffline: scenario === 'offline',
+            ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
+            frozenSnapshotRef: { current: null }, attemptRef: { current: attempt },
+            answersRef: { current: answer.answers }, revisionsRef: { current: answer.revisions }, doubtfulRef: { current: new Set() },
+            assignmentRef: { current: { fileUrls: [], textSubmission: '' } }, assignmentRevisionRef: { current: 0 },
+            pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
+            autoSubmittedRef: { current: false }, autoRetryTimerRef: { current: null }, autoRetryCountRef: { current: 0 }, offlineRecoveryRef: { current: false },
+            freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
+            setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
+            setAccessDenied: value => { state.denied = value; }, setAccessError: value => { state.error = value; },
+            setStorageWarning: () => {}, setSubmitting: () => {}, getErrorMessage: error => error.message,
+            navigator: { onLine: scenario !== 'offline' },
+            submitExamAction: async (_examId, answers, assignmentData, _attemptId, revisions, frozenSubmission) => {
+                state.sent.push(JSON.parse(JSON.stringify({ answers, assignmentData, revisions, frozenSubmission })));
+                return scenario === 'lost-response' && state.sent.length === 1
+                    ? { success: false, retryable: true, error: 'Response lost' }
+                    : { success: true, submissionVerified: true };
+            },
+            removeExamSnapshot: async id => { state.cleaned++; await api.removeExamSnapshot(id); },
+            removeExamSubmissionRegistration: async () => {}, removeExamRecoverySession: async () => {}, removeExamOfflineShell: async () => {},
+            setIsCompleted: value => { state.completed = value; }, router: { push: () => {} },
+            toast: { success: () => {}, error: () => {}, warning: () => {} }, scheduleAutoRetry: () => { state.retries++; },
+        };
+        const code = source.slice(handlerStart, handlerEnd) + '\n' + timerCode.replace(deliveryCall, 'globalThis.autoDelivery = handleSubmitExam(undefined, { isAuto: true });') + '\nglobalThis.retry = handleSubmitExam;';
+        vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
+        await sandbox.autoDelivery;
+        assert.equal(state.denied, false);
+        if (scenario !== 'online') {
+            assert.equal(state.completed, false); assert.equal(state.cleaned, 0); assert.equal(state.waiting, true);
+            const retained = await api.readExamSnapshot(attempt.id);
+            assert.equal(retained.answers.q, answer.answers.q); assert.ok(retained.frozenSubmission);
+            sandbox.navigator.onLine = true;
+            // A retry must reuse the frozen answer, even if a stale UI callback changed its draft.
+            sandbox.answersRef.current = { q: 'different after expiry' };
+            await sandbox.retry(undefined, { isAuto: true });
+        }
+        assert.equal(state.completed, true); assert.equal(state.cleaned, 1);
+        assert.ok(state.sent.every(payload => payload.answers.q === answer.answers.q));
+        assert.ok(state.sent.every(payload => payload.assignmentData === undefined));
+        assert.equal(local.has('exam_answers_' + attempt.id), false);
+    });
+}

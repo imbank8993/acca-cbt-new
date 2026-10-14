@@ -639,9 +639,15 @@ export async function inspectExamStorage(): Promise<ExamStorageHealth> {
 export class ExamSnapshotConflictError extends Error {
     readonly code = 'EXAM_SNAPSHOT_CONFLICT';
     constructor() {
-        super('Salinan jawaban berbeda dari kiriman di tab lain. Pengiriman dihentikan. Jangan tutup halaman; hubungi proktor.');
+        super('Salinan jawaban berbeda dengan cadangan yang terkunci. Pengumpulan perlu diperiksa. Jangan tutup halaman; hubungi proktor.');
         this.name = 'ExamSnapshotConflictError';
     }
+}
+
+/** Empty UI defaults are equivalent to no assignment; retain every actual attachment/text. */
+function assignmentContents(data: ExamAnswerSnapshot['assignmentData']) {
+    return Object.fromEntries(Object.entries(data || {}).filter(([, value]) =>
+        value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0)));
 }
 
 function sameSnapshotContents(left: ExamAnswerSnapshot, right: ExamAnswerSnapshot): boolean {
@@ -653,7 +659,7 @@ function sameSnapshotContents(left: ExamAnswerSnapshot, right: ExamAnswerSnapsho
         return JSON.stringify(value) ?? 'null';
     };
     const contents = (snapshot: ExamAnswerSnapshot) => ({ answers: snapshot.answers, revisions: snapshot.revisions || {},
-        doubtfulAnswers: [...snapshot.doubtfulAnswers].sort(), assignmentData: snapshot.assignmentData || {} });
+        doubtfulAnswers: [...snapshot.doubtfulAnswers].sort(), assignmentData: assignmentContents(snapshot.assignmentData) });
     return canonical(contents(left)) === canonical(contents(right)) && (!left.frozenSubmission ||
         canonical(left.frozenSubmission) === canonical(right.frozenSubmission));
 }
@@ -674,7 +680,7 @@ function canFreezeSnapshot(current: ExamAnswerSnapshot, requested: ExamAnswerSna
         if (after < before || (after === before && (current.answers[id] !== requested.answers[id] ||
             current.doubtfulAnswers.includes(id) !== requested.doubtfulAnswers.includes(id)))) return false;
     }
-    if (!current.assignmentData || !Object.keys(current.assignmentData).length ||
+    if (!Object.keys(assignmentContents(current.assignmentData)).length ||
         (requested.assignmentRevision ?? 0) > (current.assignmentRevision ?? 0)) return true;
     return sameSnapshotContents({ answers: {}, doubtfulAnswers: [], assignmentData: current.assignmentData },
         { answers: {}, doubtfulAnswers: [], assignmentData: requested.assignmentData });

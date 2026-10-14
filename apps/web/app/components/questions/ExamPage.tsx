@@ -270,6 +270,8 @@ export default function ExamPage() {
                     documentUrl: typeof legacy.documentUrl === 'string' ? legacy.documentUrl : undefined };
             } catch { data = {}; }
         }
+        // Ordinary exams must not acquire a phantom assignment from empty legacy defaults.
+        if (!data.documentUrl && !data.videoUrl && !data.fileUrls?.length && !data.textSubmission) data = {};
         assignmentRef.current = data;
         assignmentRevisionRef.current = snapshot?.assignmentRevision ?? 0;
         setAssignmentFileUrls(data.fileUrls || []);
@@ -1611,7 +1613,7 @@ export default function ExamPage() {
                         )}
                     </div>
                     <h1 className="text-xl font-bold text-slate-800 mb-2">
-                        {isAlreadyFinished ? 'Ujian Telah Selesai' : 'Ujian Belum Dapat Dibuka'}
+                        {isAlreadyFinished ? 'Ujian Telah Selesai' : accessError.includes('Salinan jawaban berbeda') ? 'Pengumpulan Perlu Diperiksa' : 'Ujian Belum Dapat Dibuka'}
                     </h1>
                     <p className="text-slate-500 mb-6 text-sm">
                         {isAlreadyFinished 

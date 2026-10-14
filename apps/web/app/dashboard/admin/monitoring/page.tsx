@@ -127,8 +127,11 @@ function MonitoringContent() {
         setIsLoading(false);
     }, [initialExamId, setExams, setIsLoading]);
 
+    const loadingExamIdsRef = useRef(new Map<string, number>());
     const loadExamData = useCallback(async (examId: string, silent = false) => {
+        if (silent && loadingExamIdsRef.current.has(examId)) return;
         const generation = ++examRequestGenerationRef.current;
+        loadingExamIdsRef.current.set(examId, generation);
         if (lastRequestedExamIdRef.current !== examId) {
             lastRequestedExamIdRef.current = examId;
             setAttempts([]);
@@ -139,8 +142,14 @@ function MonitoringContent() {
         if (!silent) setIsRefreshing(true);
         try {
             const [attemptsResult, analysisData] = await Promise.all([
-                getExamAttemptsResult(examId),
-                getExamAnswersForAnalysisAction(examId)
+                getExamAttemptsResult(examId).then(result => {
+                    if (generation === examRequestGenerationRef.current) {
+                        if (result.success) { setAttempts(result.attempts); setLoadError(null); }
+                        else setLoadError(result.error);
+                    }
+                    return result;
+                }),
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null })
             ]);
             if (generation !== examRequestGenerationRef.current) return;
             if (!attemptsResult.success) {
@@ -252,9 +261,10 @@ function MonitoringContent() {
                 setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
             }
         } finally {
-            if (!silent) setIsRefreshing(false);
+            if (loadingExamIdsRef.current.get(examId) === generation) loadingExamIdsRef.current.delete(examId);
+            if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
         }
-    }, [setAnalysis, setAttempts, setDetailedAnalysis]);
+    }, [activeTab, setAnalysis, setAttempts, setDetailedAnalysis]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadInitialData(), 0);

@@ -44,6 +44,7 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [exams, setExams] = useState<OrganizationExam[]>([]);
     const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
     const [attempts, setAttempts] = useState<ExamAttemptRecord[]>([]);
@@ -55,6 +56,7 @@ function MonitoringContent() {
 
     const loadData = useCallback(async (isSilent = false) => {
         if (!isSilent) setIsRefreshing(true);
+        setLoadError(null);
         try {
             const user = await getSessionUser();
             if (!user) return;
@@ -78,6 +80,7 @@ function MonitoringContent() {
             }
         } catch (error) {
             console.error('[PengawasMonitoring] Gagal memuat data:', error);
+            setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
@@ -94,6 +97,8 @@ function MonitoringContent() {
 
     const handleExamChange = async (examId: string) => {
         setSelectedExamId(examId);
+        setAttempts([]);
+        setLoadError(null);
         setIsRefreshing(true);
         try {
             const [attemptData, violationData] = await Promise.all([
@@ -102,6 +107,8 @@ function MonitoringContent() {
             ]);
             setAttempts(attemptData);
             setLiveAlerts(violationData);
+        } catch (error) {
+            setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             setIsRefreshing(false);
         }
@@ -145,6 +152,11 @@ function MonitoringContent() {
 
     return (
         <div className="space-y-6">
+            {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <p className="font-semibold">Peserta monitoring gagal dimuat</p>
+                <p className="mt-1">{loadError}</p>
+                <button type="button" onClick={() => void loadData(false)} className="mt-2 font-semibold underline">Coba lagi</button>
+            </div>}
             {/* Header navigasi */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-3">
