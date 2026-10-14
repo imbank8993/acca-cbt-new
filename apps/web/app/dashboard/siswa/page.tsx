@@ -1,5 +1,6 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
+import { dashboardAverageScore, dashboardResultScore } from '@/lib/student-dashboard-score';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import {
     getStudentExams,
@@ -91,10 +92,7 @@ export default function SiswaDashboard() {
         return formatSchoolTimeRange(startStr, endStr, timeZone);
     };
 
-    const gradedResults = results.filter(result => result.total_score != null);
-    const averageScore = gradedResults.length > 0
-        ? Math.round(gradedResults.reduce((acc, r) => acc + Number(r.total_score), 0) / gradedResults.length)
-        : 0;
+    const averageScore = dashboardAverageScore(results);
 
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
 
@@ -208,7 +206,7 @@ export default function SiswaDashboard() {
                         <div className="text-left">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Rata-Rata Nilai</p>
                             <p className="text-2xl font-black text-slate-800 leading-none font-mono">
-                                {averageScore}
+                                {averageScore ?? '—'}
                                 <span className="text-xs text-slate-400 font-normal ml-1">/100</span>
                             </p>
                         </div>
@@ -289,8 +287,12 @@ export default function SiswaDashboard() {
                                 </div>
                             ) : (
                                 results.slice(0, 4).map((res, i) => {
-                                    const gradingPending = res.total_score == null;
-                                    const score = Number(res.total_score) || 0;
+                                    const displayedScore = dashboardResultScore(res);
+                                    const gradingPending = displayedScore === null;
+                                    const score = displayedScore ?? 0;
+                                    const pendingLabel = !res.exams?.show_results ? 'Nilai belum dibuka'
+                                        : res.score_type?.startsWith('irt_') && !res.needs_manual_grading
+                                            ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian';
                                     const barColorClass = 'bg-[#3083FF]';
                                     const textColorClass = gradingPending ? 'text-slate-400' : 'text-[#3083FF]';
 
@@ -299,7 +301,7 @@ export default function SiswaDashboard() {
                                             <div className="flex justify-between items-start">
                                                 <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.title || 'Ujian'}</p>
                                                 <p className="text-[10px] text-slate-400 shrink-0 leading-none">
-                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? 'Menunggu penilaian' : score.toFixed(0)}</span>{!gradingPending && '/100'}
+                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && '/100'}
                                                 </p>
                                             </div>
                                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

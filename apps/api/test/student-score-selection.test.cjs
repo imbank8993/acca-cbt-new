@@ -6,8 +6,25 @@ const {studentScoreType,selectedStudentScore,publicStudentScores}=require('@acca
 const {StudentsService}=require('../src/students/students.service.ts');
 const {ExamAdminService}=require('../src/proctor/exam-admin.service.ts');
 const {fixtureDb}=require('./fixture-db.cjs');
+const {dashboardResultScore,dashboardAverageScore}=require('../../web/lib/student-dashboard-score.ts');
 const exam={id:'exam',show_results:true,scoring_type:'classical,irt_1pl',metadata:{student_score_type:'irt_1pl',show_answer_keys:false}};
 const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:81.33,needs_manual_grading:false,exams:exam};
+
+test('dashboard includes published IRT in history and averages while excluding hidden and pending scores',()=>{
+ const irt={...attempt,...publicStudentScores(attempt,exam)};
+ assert.equal(irt.total_score,null);
+ assert.equal(dashboardResultScore(irt),81.33);
+ const zero={...irt,display_score:0};
+ const hidden={...irt,exams:{...exam,show_results:false}};
+ const pending={...irt,display_score:null,total_score:90};
+ assert.equal(dashboardAverageScore([irt,zero,hidden,pending]),41);
+ assert.equal(dashboardResultScore(pending),null);
+ assert.equal(dashboardResultScore({...irt,needs_manual_grading:true}),null);
+ assert.equal(dashboardResultScore({...irt,status:'in_progress'}),null);
+ assert.equal(dashboardAverageScore([hidden,pending]),null);
+ assert.equal(dashboardResultScore({...attempt,total_score:null}),81.33);
+ assert.equal(dashboardResultScore({...irt,display_score:NaN}),null);
+});
 test('public results expose only the selected score and never substitute classical for pending IRT',()=>{
  assert.deepEqual(publicStudentScores(attempt,exam),{display_score:81.33,score_type:'irt_1pl',score_label:'IRT 1PL',total_score:null,score_irt:81.33});
  assert.equal(publicStudentScores({...attempt,score_irt:null},exam).display_score,null);
