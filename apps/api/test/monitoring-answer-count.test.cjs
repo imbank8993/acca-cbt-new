@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 require('ts-node').register({ project: path.resolve(__dirname, '../../web/tsconfig.json'), transpileOnly: true,
     compilerOptions: { module: 'CommonJS', moduleResolution: 'node' } });
-const { savedAnswerCount, matchesAnswerCount, sortByAnswerCount } = require('../../web/lib/monitoring-answer-count.ts');
+const { savedAnswerCount, matchesAnswerCount, sortByAnswerCount, unansweredQuestionCount, sortByUnansweredCount } = require('../../web/lib/monitoring-answer-count.ts');
 const row = (id, count, total=40) => ({ id, saved_answer_count: count, total_questions: total, profiles: { full_name: id } });
 
 test('answer count orders zero and partial responses first, missing data last, without mutating the roster', () => {
@@ -32,4 +32,19 @@ test('equal counts sort by name then id for stable pagination during refreshes',
     const b=row('b',3);b.profiles.full_name='Ahmad';
     const c=row('c',3);c.profiles.full_name='Ahmad';
     assert.deepEqual(sortByAnswerCount([a,c,b]).map(r=>r.id),['b','c','a']);
+});
+
+test('unanswered priority uses remaining questions rather than the number already saved', () => {
+    const rows = [row('short',0,10),row('long',20,100),row('complete',40),row('unknown',undefined)];
+    assert.deepEqual(sortByUnansweredCount(rows).map(r=>r.id),['long','short','complete','unknown']);
+    assert.equal(rows[0].id,'short');
+    assert.equal(unansweredQuestionCount(row('over',45,40)),0);
+    assert.equal(unansweredQuestionCount(row('empty',0,0)),null);
+    assert.equal(unansweredQuestionCount(row('unknown',undefined)),null);
+});
+
+test('incomplete toggle removes completed and unknown counts while retaining zero answers', () => {
+    const rows = [row('complete',40),row('zero',0),row('partial',10),row('unknown',undefined)];
+    const filtered = sortByUnansweredCount(rows.filter(r=>(unansweredQuestionCount(r) ?? 0)>0));
+    assert.deepEqual(filtered.map(r=>r.id),['zero','partial']);
 });

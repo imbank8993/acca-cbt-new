@@ -74,6 +74,10 @@ class ExamFieldsDto {
     showResults?: boolean;
 
     @IsOptional()
+    @IsIn(['classical', 'irt_1pl', 'irt_2pl', 'irt_3pl'])
+    studentScoreType?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
+
+    @IsOptional()
     @IsBoolean()
     showAnswerKeys?: boolean;
 

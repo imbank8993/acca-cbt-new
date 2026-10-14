@@ -1,6 +1,7 @@
 "use client";
 import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
+import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
@@ -8,15 +9,13 @@ import SearchableSelect from '@/components/ui/SearchableSelect';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
-import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,getRecentViolationsAction,listOrganizationExams } from '@/lib/api/proctor';
-import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam,ViolationEvent } from '@/lib/api/proctor';
+import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
+import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam } from '@/lib/api/proctor';
 import type { QuestionOptionRecord } from '@/lib/api/questions';
-import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
 import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
-import { REFRESH_INTERVAL } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
@@ -26,12 +25,10 @@ AlertTriangle,
 Calculator,
 CheckCircle2,
 ChevronDown,
-Clock,
 Eye,
-FileSpreadsheet,Loader2,
+Loader2,
 Radio,
 RefreshCw,
-RotateCcw,
 ShieldAlert,
 TrendingUp,
 Users,
@@ -72,8 +69,6 @@ function MonitoringContent() {
 
     const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
     const [loadError, setLoadError] = useState<string | null>(null);
-    const [liveAlerts, setLiveAlerts] = useMemoryState<ViolationEvent[]>('proktor_monitoring_liveAlerts', []);
-    const [resettingAttemptId, setResettingAttemptId] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
     const [searchName, setSearchName] = useState('');
@@ -246,25 +241,7 @@ function MonitoringContent() {
         setIsRefreshing(false);
     };
 
-    // Umpan pelanggaran dibaca dari log di basis data, bukan dari siaran
-    // realtime: sumber siaran (Supabase) sudah tidak ada, dan umpan dari
-    // basis data juga tetap terisi setelah halaman dimuat ulang.
-    useEffect(() => {
-        if (!selectedExamId) return;
-        let cancelled = false;
 
-        const load = async () => {
-            const events = await getRecentViolationsAction(selectedExamId);
-            if (!cancelled) setLiveAlerts(events);
-        };
-
-        load();
-        const interval = setInterval(load, REFRESH_INTERVAL.monitoring);
-        return () => {
-            cancelled = true;
-            clearInterval(interval);
-        };
-    }, [selectedExamId, setLiveAlerts]);
 
     // Filter kelas + pencarian nama, lalu urutkan pelanggaran terbanyak dulu —
     // peserta bermasalah (terminated) yang perlu di-reset naik ke atas.
@@ -321,18 +298,12 @@ function MonitoringContent() {
     const has2PL = attempts.some(a => a.detailed_scores?.irt_2pl !== undefined);
     const has3PL = attempts.some(a => a.detailed_scores?.irt_3pl !== undefined);
     // Jumlah kolom tabel Rekap dinamis (7 kolom dasar + kolom IRT yang tampil)
-    const rekapColCount = 7 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
+    const rekapColCount = 8 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
 
     // Tombol Kalkulasi IRT hanya relevan jika sistem penilaian ujian memuat
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
     // sistem penilaian IRT yang dipilih"), jadi tombolnya disembunyikan.
     const selectedExam = exams.find(e => e.id === selectedExamId);
-    const configuredViolationLimit = selectedExam?.metadata?.max_violations;
-    const violationLimit = selectedExam?.metadata?.is_safe_mode === false || configuredViolationLimit === null
-        ? null
-        : (typeof configuredViolationLimit === 'number' && Number.isInteger(configuredViolationLimit) && configuredViolationLimit >= 1
-            ? configuredViolationLimit
-            : 3);
     const hasIRTScoring = String(selectedExam?.scoring_type || '')
         .split(',')
         .map((t: string) => t.trim())
@@ -355,7 +326,7 @@ function MonitoringContent() {
                         { label: 'Belum Mengerjakan', value: belumMengerjakan, icon: CheckCircle2 },
                         { label: 'Mengerjakan', value: inProgress, icon: Activity, pulse: inProgress > 0 },
                         { label: 'Selesai', value: completed, icon: CheckCircle2 },
-                        { label: 'Pelanggaran', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
+                        { label: 'Peringatan tercatat', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
                     ].map((stat, i) => (
                         <div key={i} className="bg-white rounded-xl border border-slate-200 text-center px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
                             <div className={`w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-1.5 sm:mb-2 rounded-lg flex items-center justify-center ${
@@ -500,320 +471,7 @@ function MonitoringContent() {
                 <div className="space-y-4">
 
                     <AnimatePresence mode="wait">
-                        {/* === LIVE TAB === */}
-                        {activeTab === 'live' && (
-                            <motion.div
-                                key="live"
-                                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="space-y-4"
-                            >
-                                {/* Status pemantauan. Datanya disegarkan berkala, bukan
-                                    didorong seketika, jadi jedanya disebutkan apa adanya
-                                    alih-alih dilabeli "Live". */}
-                                <div className="flex items-center gap-3 px-4 py-3 bg-white border border-[#3083FF]/30 rounded-lg shadow-sm">
-                                    <span className="relative flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3083FF] opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#3083FF]"></span>
-                                    </span>
-                                    <span className="text-xs font-semibold text-[#3083FF] uppercase tracking-wider">
-                                        Pantauan otomatis &middot; tiap {REFRESH_INTERVAL.monitoring / 1000} detik
-                                    </span>
-                                    <div className="ml-auto flex items-center gap-3 text-[10px] font-medium text-slate-500">
-                                        <span>{inProgress} aktif</span>
-                                        <span className="w-px h-3 bg-slate-200" />
-                                        <span>{totalViolations} pelanggaran</span>
-                                    </div>
-                                </div>
-
-                                {/* Tabel peserta aktif — daftar rapi, pelanggaran pindah ke tab sendiri */}
-                                <div className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
-                                    <div className="px-5 py-4 border-b border-[#3083FF]/20 flex items-center justify-between bg-[#3083FF]/5">
-                                        <h3 className="font-bold text-[#3083FF]">Sedang Mengerjakan</h3>
-                                        <span className="text-[10px] font-semibold text-[#3083FF] uppercase tracking-wider">{inProgress} aktif</span>
-                                    </div>
-
-                                    {activeAttempts.length === 0 ? (
-                                        <div className="py-16 text-center">
-                                            <Users size={36} className="text-slate-200 mx-auto mb-3" />
-                                            <p className="text-slate-400 font-medium">
-                                                {attempts.length > 0
-                                                    ? (inProgress > 0 ? 'Tidak ada peserta aktif yang cocok dengan filter' : 'Tidak ada peserta yang sedang mengerjakan')
-                                                    : 'Belum ada peserta'}
-                                            </p>
-                                            {attempts.length > 0 && inProgress === 0 && (
-                                                <p className="text-slate-300 text-xs mt-2">Semua peserta sudah selesai — lihat tab Rekap.</p>
-                                            )}
-                                            <button onClick={handleRefresh} className="mt-4 px-4 py-2 bg-[#3083FF]/10 text-[#3083FF] text-xs font-semibold rounded-lg hover:bg-[#3083FF]/20 transition-all">
-                                                <RefreshCw size={12} className="inline mr-1" /> Refresh Data
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                        {/* Mobile (<md): tetap kartu seperti sebelumnya */}
-                                        <div className="md:hidden p-4">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                                                {activeAttempts.map((att) => {
-                                                    const liveAlert = liveAlerts.find(a => a.attemptId === att.id);
-                                                    const isInProgress = att.status === 'in_progress';
-                                                    const isTerminated = att.status === 'auto_submitted';
-                                                    const isBelum = att.status === 'belum';
-                                                    // Reset juga tersedia untuk ujian yang SUDAH disubmit (salah pencet
-                                                    // "Selesai" / guru minta perbaikan) — bukan hanya yang di-terminate.
-                                                    const canReset = isTerminated || att.status === 'submitted';
-                                                    const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
-                                                    const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                    const MAX = violationLimit ?? Math.max(violations, 1);
-                                                    const hasViolations = violations > 0;
-
-                                                    let duration = '-';
-                                                    if (att.started_at) {
-                                                        const start = new Date(att.started_at);
-                                                        const end = att.finished_at ? new Date(att.finished_at) : new Date();
-                                                        const diffMins = Math.floor((end.getTime() - start.getTime()) / 60000);
-                                                        const hours = Math.floor(diffMins / 60);
-                                                        const mins = diffMins % 60;
-                                                        duration = hours > 0 ? `${hours}j ${mins}m` : `${mins}m`;
-                                                    }
-
-                                                    return (
-                                                        <div
-                                                            key={att.id}
-                                                            className={`relative rounded-xl border p-4 shadow-sm transition-all overflow-hidden bg-white ${
-                                                                isTerminated
-                                                                    ? 'border-pink-200'
-                                                                    : isInProgress
-                                                                    ? hasViolations
-                                                                        ? 'border-red-200'
-                                                                        : 'border-slate-200'
-                                                                    : 'border-slate-200'
-                                                            }`}
-                                                        >
-                                                            <div className={`absolute top-0 left-0 right-0 h-0.5 ${
-                                                                isTerminated
-                                                                    ? 'bg-pink-500'
-                                                                    : isInProgress
-                                                                    ? hasViolations ? 'bg-red-500' : 'bg-[#3083FF]'
-                                                                    : 'bg-slate-300'
-                                                            }`} />
-
-                                                            <div className="flex items-start gap-3 mt-1">
-                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
-                                                                    isTerminated
-                                                                        ? 'bg-pink-400'
-                                                                        : isInProgress
-                                                                        ? hasViolations ? 'bg-red-400' : 'bg-[#3083FF]'
-                                                                        : 'bg-slate-400'
-                                                                }`}>
-                                                                    {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="font-semibold text-slate-800 text-sm truncate leading-tight">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</p>
-                                                                    {att.kelas_name && att.kelas_name !== '-' && (
-                                                                        <p className="text-xs text-slate-500 truncate mt-0.5">{att.kelas_name}</p>
-                                                                    )}
-                                                                    <p className={`text-[10px] font-semibold uppercase tracking-wider mt-1 ${
-                                                                        isTerminated ? 'text-pink-600' : isInProgress ? 'text-[#3083FF]' : 'text-slate-400'
-                                                                    }`}>
-                                                                                                        <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                                                                    isTerminated ? 'bg-red-50 text-red-600 border border-red-100'
-                                                                    : isInProgress ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                                    : isBelum ? 'bg-slate-50 text-slate-500 border border-slate-200'
-                                                                    : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                }`}>
-                                                                    {isTerminated ? 'TERMINATED' : isInProgress ? (att.connection_status === 'offline' ? 'KONEKSI TERPUTUS' : 'MENGERJAKAN') : isBelum ? 'BELUM' : 'SELESAI'}
-                                                                </span>                                </p>
-                                                                </div>
-                                                                {isInProgress && (
-                                                                    <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse mt-2" />
-                                                                )}
-                                                            </div>
-
-                                                            <div className="mt-3 space-y-2.5">
-                                                                {(isInProgress || isTerminated) && (
-                                                                    <div>
-                                                                        <div className="flex justify-between text-[11px] font-semibold mb-1.5">
-                                                                            <span className={hasViolations ? 'text-red-500' : 'text-slate-400'}>Pelanggaran</span>
-                                                                            <span className={hasViolations ? 'text-red-600' : 'text-slate-400'}>{violations}/{violationLimit ?? '∞'}</span>
-                                                                        </div>
-                                                                        <div className="flex gap-1">
-                                                                            {[...Array(MAX)].map((_, i) => (
-                                                                                <div key={i} className={`flex-1 h-1.5 rounded-full transition-all ${
-                                                                                    i < violations
-                                                                                        ? hasViolations ? 'bg-red-500' : 'bg-[#3083FF]'
-                                                                                        : 'bg-slate-100'
-                                                                                }`} />
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-100 pt-2 text-[11px] font-medium">
-                                                                    <span className="text-slate-500">Pindah Tab <span className={bd.pindah_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.pindah_tab}x</span></span>
-                                                                    <span className="text-slate-500">Close Tab <span className={bd.close_tab > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.close_tab}x</span></span>
-                                                                    <span className="text-slate-500">Lainnya <span className={bd.lainnya > 0 ? 'text-red-600 font-bold' : 'text-[#3083FF]'}>{bd.lainnya}x</span></span>
-                                                                    <span className="text-slate-500 flex items-center gap-1">
-                                                                        <Clock size={10} />
-                                                                        <span className="text-[#3083FF]">{duration}</span>
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {liveAlert && (
-                                                                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[10px] text-amber-800">
-                                                                    <span className="font-bold">Pelanggaran terakhir:</span> {liveAlert.violationLabel}
-                                                                    <span className="block text-amber-600 mt-0.5">
-                                                                        {new Date(liveAlert.timestamp).toLocaleString('id-ID')}
-                                                                    </span>
-                                                                </div>
-                                                            )}
-
-                                                            <div className="mt-3 flex gap-2">
-                                                                <button
-                                                                    onClick={() => router.push(`/dashboard/proktor/monitoring/${att.id}`)}
-                                                                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#3083FF] hover:bg-[#2672e8] text-white rounded-lg text-xs font-semibold transition-all"
-                                                                >
-                                                                    <Eye size={11} /> Detail
-                                                                </button>
-                                                                {canReset && (
-                                                                    <button
-                                                                        onClick={() => handleResetAttempt(att)}
-                                                                        disabled={resettingAttemptId === att.id}
-                                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                                                                    >
-                                                                        {resettingAttemptId === att.id ? (
-                                                                            <Loader2 size={11} className="animate-spin" />
-                                                                        ) : (
-                                                                            <RotateCcw size={11} />
-                                                                        )}
-                                                                        Susulan / Pulihkan
-                                                                    </button>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="mt-2 text-[9px] font-mono text-slate-400 uppercase tracking-wider">
-                                                                {att.started_at ? `Mulai ${new Date(att.started_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-
-                                        {/* Desktop (md+): tabel rapi */}
-                                        <div className="hidden md:block overflow-x-auto">
-                                            <table className="w-full min-w-[980px]">
-                                                <thead>
-                                                    <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                        <th className="p-3 text-center font-bold text-[#3083FF] w-12">No</th>
-                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Nama Peserta</th>
-                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Kelas</th>
-                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Status</th>
-                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Pelanggaran</th>
-                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Pindah Tab</th>
-                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Close Tab</th>
-                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Lainnya</th>
-                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Durasi</th>
-                                                        <th className="p-3 text-left font-bold text-[#3083FF]">Mulai</th>
-                                                        <th className="p-3 text-center font-bold text-[#3083FF]">Aksi</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {activeAttempts.map((att, idx) => {
-                                                        const liveAlert = liveAlerts.find(a => a.attemptId === att.id);
-                                                        const isInProgress = att.status === 'in_progress';
-                                                        const isTerminated = att.status === 'auto_submitted';
-                                                        const isBelum = att.status === 'belum';
-                                                        const canReset = isTerminated || att.status === 'submitted';
-                                                        const violations = liveAlert?.violationCount ?? att.warning_count ?? 0;
-                                                        const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                        const hasViolations = violations > 0;
-
-                                                        let duration = '-';
-                                                        if (att.started_at) {
-                                                            const start = new Date(att.started_at);
-                                                            const end = att.finished_at ? new Date(att.finished_at) : new Date();
-                                                            const diffMins = Math.floor((end.getTime() - start.getTime()) / 60000);
-                                                            const hours = Math.floor(diffMins / 60);
-                                                            const mins = diffMins % 60;
-                                                            duration = hours > 0 ? `${hours}j ${mins}m` : `${mins}m`;
-                                                        }
-
-                                                        return (
-                                                            <tr key={att.id} className={`border-b border-[#3083FF]/10 last:border-0 transition-colors ${
-                                                                isTerminated ? 'bg-pink-50/40' : hasViolations && isInProgress ? 'bg-red-50/40' : 'hover:bg-[#3083FF]/5'
-                                                            }`}>
-                                                                <td className="p-3 text-center text-xs font-bold text-slate-400">{idx + 1}</td>
-                                                                <td className="p-3">
-                                                                    <div className="flex items-center gap-2.5">
-                                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${
-                                                                            isTerminated ? 'bg-pink-400' : isInProgress ? (hasViolations ? 'bg-red-400' : 'bg-[#3083FF]') : 'bg-slate-400'
-                                                                        }`}>
-                                                                            {att.profiles?.full_name?.[0]?.toUpperCase() || '?'}
-                                                                        </div>
-                                                                        <span className="font-medium text-[#3083FF] text-xs">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
-                                                                        {isInProgress && <span className="w-2 h-2 bg-[#3083FF] rounded-full animate-pulse shrink-0" />}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="p-3 text-[11px] font-semibold text-slate-500">{att.kelas_name || '-'}</td>
-                                                                <td className="p-3">
-                                                                <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                                                                    isTerminated ? 'bg-red-50 text-red-600 border border-red-100'
-                                                                    : isInProgress ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                                    : isBelum ? 'bg-slate-50 text-slate-500 border border-slate-200'
-                                                                    : 'bg-blue-50 text-blue-600 border border-blue-100'
-                                                                }`}>
-                                                                    {isTerminated ? 'TERMINATED' : isInProgress ? (att.connection_status === 'offline' ? 'KONEKSI TERPUTUS' : 'MENGERJAKAN') : isBelum ? 'BELUM' : 'SELESAI'}
-                                                                </span>
-                                                                </td>
-                                                                <td className="p-3 text-center">
-                                                                    <span className={`font-bold ${hasViolations ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                        {violations}/{violationLimit ?? '∞'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="p-3 text-center text-xs">
-                                                                    <span className={bd.pindah_tab > 0 ? 'font-bold text-red-500' : 'text-slate-400'}>{bd.pindah_tab}x</span>
-                                                                </td>
-                                                                <td className="p-3 text-center text-xs">
-                                                                    <span className={bd.close_tab > 0 ? 'font-bold text-red-500' : 'text-slate-400'}>{bd.close_tab}x</span>
-                                                                </td>
-                                                                <td className="p-3 text-center text-xs">
-                                                                    <span className={bd.lainnya > 0 ? 'font-bold text-red-500' : 'text-slate-400'}>{bd.lainnya}x</span>
-                                                                </td>
-                                                                <td className="p-3 text-[11px] font-semibold text-[#3083FF]">{duration}</td>
-                                                                <td className="p-3 text-[11px] font-mono text-slate-500">
-                                                                    {att.started_at ? new Date(att.started_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                                                                </td>
-                                                                <td className="p-3">
-                                                                    <div className="flex items-center justify-center gap-1.5">
-                                                                        <button
-                                                                            onClick={() => router.push(`/dashboard/proktor/monitoring/${att.id}`)}
-                                                                            className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all"
-                                                                        >
-                                                                            <Eye size={11} /> Detail
-                                                                        </button>
-                                                                        {canReset && (
-                                                                            <button
-                                                                                onClick={() => handleResetAttempt(att)}
-                                                                                disabled={resettingAttemptId === att.id}
-                                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
-                                                                            >
-                                                                                {resettingAttemptId === att.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
-                                                                                Susulan / Pulihkan
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        </>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
+                        {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} />}
 
                         {/* === REKAP TAB === */}
                         {activeTab === 'results' && (
@@ -826,6 +484,7 @@ function MonitoringContent() {
                                     <table className="w-full min-w-[900px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                                <th className="w-12 p-4 text-left font-bold text-[#3083FF]">No.</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Peserta</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Status</th>
                                                 <th className="p-4 text-left font-bold text-[#3083FF]">Pelanggaran</th>
@@ -845,7 +504,7 @@ function MonitoringContent() {
                                                     {attempts.length > 0 ? 'Belum ada peserta yang selesai (atau tidak cocok dengan filter)' : 'Belum ada data'}
                                                 </td></tr>
                                             ) : (
-                                                finishedAttempts.map((att) => {
+                                                finishedAttempts.map((att, index) => {
                                                     // Kolom Pelanggaran = warning_count (semua jenis), konsisten
                                                     // dengan kartu Live; sebelumnya menampilkan pindah-tab saja.
                                                     const violationCount = att.warning_count ?? 0;
@@ -862,13 +521,13 @@ function MonitoringContent() {
                                                     }
                                                     const isTerminated = att.status === 'auto_submitted';
                                                     const isBelum = att.status === 'belum';
-                                                    const canReset = isTerminated || att.status === 'submitted';
                                                     const statusLabel = isTerminated ? 'Terminated' : att.status === 'submitted' ? 'Selesai' : isBelum ? 'Belum Mengerjakan' : att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan';
 
                                                     return (
                                                         <tr key={att.id}
                                                             className="border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors"
                                                         >
+                                                            <td className="p-4 text-xs text-slate-500 tabular-nums">{index + 1}</td>
                                                             <td className="p-4">
                                                                 <div className="text-xs font-medium text-[#3083FF] leading-tight">
                                                                     {formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}

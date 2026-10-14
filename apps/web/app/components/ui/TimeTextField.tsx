@@ -53,7 +53,10 @@ export function TimeTextField({ value, onChange, label, disabled, required }: {
                 title="Ketik 0830 atau 08:30 (format 24 jam)"
                 disabled={disabled}
                 required={required}
-                className={`h-[38px] w-full rounded-lg border bg-white pl-9 pr-3 font-mono text-sm tabular-nums outline-none transition-colors placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15 disabled:opacity-50 ${invalid ? 'border-red-400' : 'border-slate-200'}`}
+                // Modal controls supply their own padding, overriding utilities.
+                // Reserve the icon gutter explicitly for both placeholder and value.
+                style={{ paddingLeft: 40, paddingRight: 12 }}
+                className={`h-[38px] w-full rounded-lg border bg-white pl-10 pr-3 font-mono text-sm tabular-nums outline-none transition-colors placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15 disabled:opacity-50 ${invalid ? 'border-red-400' : 'border-slate-200'}`}
                 onFocus={event => { event.currentTarget.select(); validate(event.currentTarget); }}
                 onChange={event => {
                     const input = event.currentTarget;

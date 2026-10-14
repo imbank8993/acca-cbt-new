@@ -28,6 +28,7 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
         ? attempt.total_score == null ? 'pending' : attempt.needs_manual_grading ? 'manual' : 'complete' : 'not_submitted';
     if (grading === 'pending') attention.push('Jawaban terkumpul, menunggu penilaian');
     return {
+        client_context: attempt.metadata?.client_context || null,
         server_now: now.toISOString(), connection_status: connection, deadline_at: deadlineAt,
         remaining_seconds: remaining, saved_answer_count: saved, total_questions: questionCount,
         unanswered_count: Math.max(0, questionCount - saved), last_answer_saved_at: savedDates.at(-1) || null,

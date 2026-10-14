@@ -7,7 +7,7 @@ import {
     NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { hasBoundSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
@@ -904,9 +904,9 @@ export class ExamAttemptsService {
             await this.verifyStoredSubmission(user, examId, clientAttemptId!, deviceId!, studentAnswers,
                 answerRevisions, assignmentData, frozenSubmission, true, true);
         const { data: visibility, error } = await this.db.from('cbt_exams')
-            .select('show_results').eq('id', examId).maybeSingle();
+            .select('show_results, scoring_type, metadata').eq('id', examId).maybeSingle();
         return { ...result, submissionVerified, verifiedAttemptId: submissionVerified ? clientAttemptId : undefined,
-            score: !error && visibility?.show_results === true ? result.score : null };
+            score: !error && visibility?.show_results === true && studentScoreType(visibility) === 'classical' ? result.score : null };
     }
 
     private async verifyStoredSubmission(

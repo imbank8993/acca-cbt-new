@@ -54,11 +54,12 @@ export function TopScorersCard({
     }, [examLimit]);
 
     useEffect(() => {
-        void load();
+        let active = true;
+        void Promise.resolve().then(() => { if (active) return load(); });
         const id = setInterval(() => {
             if (document.visibilityState === 'visible') void load();
         }, REFRESH_MS);
-        return () => clearInterval(id);
+        return () => { active = false; clearInterval(id); };
     }, [load]);
 
     const totalPages = Math.max(1, Math.ceil(exams.length / EXAMS_PER_PAGE));
@@ -135,6 +136,9 @@ export function TopScorersCard({
                                     {exam.participantCount}
                                 </span>
                             </div>
+
+                            <p className="mb-2 text-[10px] text-slate-500">{exam.scoreLabel || 'Klasikal'}{exam.scoredCount < exam.participantCount ? ` · ${exam.scoredCount}/${exam.participantCount} peserta dinilai` : ''}</p>
+                            {exam.topScorers.length === 0 && <p className="text-xs text-slate-500">{exam.scoreLabel?.startsWith('IRT') ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
 
                             {/* 3 siswa teratas (nama saja tanpa NISN) */}
                             <div className="space-y-1">

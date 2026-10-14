@@ -88,6 +88,9 @@ export interface StudentResultExam {
 }
 
 export interface StudentResult {
+    display_score?: number | null;
+    score_type?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
+    score_label?: string;
     id: string;
     total_score: number | null;
     score_irt: number | null;
@@ -117,6 +120,9 @@ export interface StudentAttemptDetails {
     answerKeysReleased: boolean;
     answerKeysMessage?: string | null;
     attempt: {
+        display_score?: number | null;
+        score_type?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
+        score_label?: string;
         id: string;
         total_score?: number | null;
         score_irt?: number | null;

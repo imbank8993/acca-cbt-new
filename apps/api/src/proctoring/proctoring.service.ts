@@ -212,7 +212,8 @@ export class ProctoringService {
     }
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
-    async heartbeat(user: AuthUser, attemptId: string, deviceId: string, syncHealth?: ClientSyncHealth) {
+    async heartbeat(user: AuthUser, attemptId: string, deviceId: string, syncHealth?: ClientSyncHealth,
+        clientContext?: { browser: string | null; os: string | null; ip_address: string | null }) {
         let health: ClientSyncHealth | undefined;
         try { health = validateSyncHealth(syncHealth); }
         catch { throw new BadRequestException('Laporan penyimpanan tidak valid.'); }
@@ -229,6 +230,7 @@ export class ProctoringService {
             }
             const now = await this.databaseNow(db);
             const metadata = { ...(attempt.metadata || {}) };
+            if (clientContext) metadata.client_context = { ...clientContext, observed_at: now.toISOString() };
             const previous = metadata.sync_health;
             const lastSeen = Date.parse(attempt.last_seen_at || '');
             const log = async (event_type: string, details: Record<string, unknown>) => {

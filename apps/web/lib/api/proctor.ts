@@ -150,6 +150,7 @@ export interface OrganizationExam {
 }
 
 export interface ExamAttemptRecord {
+    client_context?: { browser: string | null; os: string | null; ip_address: string | null; observed_at: string } | null;
     server_now?: string;
     last_seen_at?: string | null;
     deadline_at?: string | null;
@@ -355,6 +356,8 @@ export interface TopScorer {
 }
 
 export interface ExamTopScorers {
+    scoreLabel: string;
+    scoredCount: number;
     examId: string;
     title: string;
     examType: string | null;
@@ -505,6 +508,7 @@ export interface ExamInput {
     randomizeQuestions?: boolean;
     randomizeOptions?: boolean;
     showResults?: boolean;
+    studentScoreType?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
     showAnswerKeys?: boolean;
     isSafeMode?: boolean;
     maxViolations?: number | null;

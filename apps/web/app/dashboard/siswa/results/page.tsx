@@ -1,4 +1,5 @@
 "use client";
+import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { getStudentResultsResult,type StudentResult } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -69,6 +70,8 @@ export default function StudentResultsPage() {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {results.map((attempt) => {
+                        const displayedScore = attempt.display_score !== undefined ? attempt.display_score : selectedStudentScore(attempt, attempt.exams);
+                        const scoreLabel = attempt.score_label || STUDENT_SCORE_LABELS[studentScoreType(attempt.exams)];
                         const canViewDetails = attempt.exams?.show_results === true;
 
                         return (
@@ -122,25 +125,18 @@ export default function StudentResultsPage() {
                                         <div className="flex items-center gap-4">
                                             <div className="text-center min-w-[70px]">
                                                 <p className={`text-[8px] font-extrabold uppercase tracking-widest mb-0.5 ${attempt.needs_manual_grading ? 'text-amber-600' : 'text-slate-400'}`}>
-                                                    {attempt.total_score == null ? 'Menunggu Penilaian' : attempt.needs_manual_grading ? 'Nilai Sementara' : 'Klasik'}
+                                                    {scoreLabel}
                                                 </p>
                                                 <div className="flex items-baseline justify-center gap-0.5">
-                                                    <span className="text-xl font-black text-[#3083FF] font-mono">{attempt.total_score == null ? '—' : Number(attempt.total_score).toFixed(0)}</span>
+                                                    <span className="text-xl font-black text-[#3083FF] font-mono">{displayedScore == null ? '—' : Number(displayedScore).toFixed(2)}</span>
                                                     <span className="text-[9px] font-bold text-slate-400">/100</span>
                                                 </div>
+                                                {displayedScore == null && <p className="mt-1 text-[9px] text-slate-500">{scoreLabel.startsWith('IRT') && !attempt.needs_manual_grading ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
                                                 {attempt.needs_manual_grading && (
                                                     <p className="text-[8px] font-semibold text-amber-600 mt-0.5 leading-none whitespace-nowrap">Uraian pending</p>
                                                 )}
                                             </div>
-                                            {attempt.score_irt != null && (
-                                                <div className="text-center border-l border-slate-100 pl-4 min-w-[60px]">
-                                                    <p className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">IRT</p>
-                                                    <div className="flex items-baseline justify-center gap-0.5">
-                                                        <span className="text-xl font-black text-[#3083FF] font-mono">{Number(attempt.score_irt).toFixed(2)}</span>
-                                                        <span className="text-[9px] font-bold text-slate-400">/100</span>
-                                                    </div>
-                                                </div>
-                                            )}
+
                                         </div>
                                     )}
                                     {canViewDetails && (

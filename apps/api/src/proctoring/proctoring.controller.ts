@@ -6,6 +6,7 @@ import {
     Param,
     ParseUUIDPipe,
     Post,
+    Req,
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
@@ -15,6 +16,8 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ProctoringService, STUDENT_SECURITY_EVENTS } from './proctoring.service';
+import type { Request } from 'express';
+import { examClientContext } from '../common/exam-client-context';
 
 class LogViolationDto {
     @ApiProperty({ example: 'tab_switch' })
@@ -136,8 +139,9 @@ export class ProctoringController {
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: HeartbeatDto,
+        @Req() request: Request,
     ) {
-        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth);
+        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth, examClientContext(request));
     }
 
     @Post('attempts/:attemptId/reset')

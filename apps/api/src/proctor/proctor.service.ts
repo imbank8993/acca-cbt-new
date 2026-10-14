@@ -64,8 +64,9 @@ export class ProctorService {
      *
      * Satu query dengan ROW_NUMBER() supaya tidak menarik seluruh pengerjaan ke
      * memori. Hanya pengerjaan yang SUDAH dikumpulkan dan SUDAH bernilai yang
-     * dihitung — esai yang menunggu koreksi (total_score null) dilewati agar
-     * peringkat tidak menyesatkan. Nilai sama diurutkan menurut siapa yang
+     * dihitung. Ujian IRT memakai score_irt tanpa fallback ke total_score;
+     * hasil yang belum tersedia tetap ditampilkan sebagai menunggu penilaian.
+     * Esai yang menunggu koreksi tidak diperingkat. Nilai sama diurutkan menurut siapa yang
      * lebih dulu mengumpulkan. Ujian yang diarsipkan tidak ditampilkan.
      */
     async getTopScorers(
@@ -82,47 +83,61 @@ export class ProctorService {
                 exam_type: string | null;
                 last_finished_at: Date | null;
                 participant_count: number;
-                rank: number;
+                rank: number | null;
+                score_label: string;
+                scored_count: number;
                 user_id: string;
                 full_name: string | null;
                 identity_number: string | null;
-                total_score: string | number;
+                total_score: string | number | null;
                 finished_at: Date | null;
             }>
         >(
-            `WITH scored AS (
-                SELECT a.exam_id, a.user_id, a.total_score, a.finished_at,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY a.exam_id
-                           ORDER BY a.total_score DESC, a.finished_at ASC NULLS LAST
-                       ) AS rank,
-                       COUNT(*) OVER (PARTITION BY a.exam_id)::int AS participant_count,
-                       MAX(a.finished_at) OVER (PARTITION BY a.exam_id) AS last_finished_at
+            `WITH candidates AS (
+                SELECT a.exam_id, a.user_id, a.finished_at,
+                       CASE WHEN a.needs_manual_grading IS TRUE THEN NULL
+                            WHEN chosen.score_type = 'classical' THEN a.total_score
+                            ELSE COALESCE((a.detailed_scores->>chosen.score_type)::numeric,
+                                CASE WHEN chosen.score_type = defaults.score_type THEN a.score_irt END) END AS ranking_score,
+                       CASE WHEN chosen.score_type = 'irt_3pl' THEN 'IRT 3PL'
+                            WHEN chosen.score_type = 'irt_2pl' THEN 'IRT 2PL'
+                            WHEN chosen.score_type = 'irt_1pl' THEN 'IRT 1PL'
+                            ELSE 'Klasikal' END AS score_label
                   FROM public.cbt_exam_attempts a
                   JOIN public.cbt_exams e ON e.id = a.exam_id
+                  CROSS JOIN LATERAL (SELECT CASE
+                    WHEN e.scoring_type LIKE '%irt_3pl%' THEN 'irt_3pl'
+                    WHEN e.scoring_type LIKE '%irt_2pl%' THEN 'irt_2pl'
+                    WHEN e.scoring_type LIKE '%irt_1pl%' THEN 'irt_1pl'
+                    ELSE 'classical' END AS score_type) defaults
+                  CROSS JOIN LATERAL (SELECT CASE
+                    WHEN e.metadata->>'student_score_type' = 'classical' THEN 'classical'
+                    WHEN e.metadata->>'student_score_type' IN ('irt_1pl','irt_2pl','irt_3pl')
+                      AND e.scoring_type LIKE '%' || (e.metadata->>'student_score_type') || '%'
+                    THEN e.metadata->>'student_score_type' ELSE defaults.score_type END AS score_type) chosen
                  WHERE e.organization_id = $1::uuid
                    AND COALESCE(e.metadata->>'archived_at', '') = ''
                    AND COALESCE(e.exam_type, '') <> 'assignment'
                    AND a.status IN ('submitted', 'auto_submitted')
-                   AND a.total_score IS NOT NULL
-             ),
-             recent_exams AS (
-                SELECT exam_id
-                  FROM scored
-                 GROUP BY exam_id
-                 ORDER BY MAX(last_finished_at) DESC NULLS LAST
-                 LIMIT $2
+             ), recent_exams AS (
+                SELECT exam_id, score_label, COUNT(*)::int AS participant_count,
+                       COUNT(ranking_score)::int AS scored_count, MAX(finished_at) AS last_finished_at
+                  FROM candidates GROUP BY exam_id, score_label
+                 ORDER BY MAX(finished_at) DESC NULLS LAST, exam_id LIMIT $2
+             ), ranked AS (
+                SELECT c.*, ROW_NUMBER() OVER (PARTITION BY c.exam_id
+                    ORDER BY c.ranking_score DESC, c.finished_at ASC NULLS LAST, c.user_id) AS rank
+                  FROM candidates c JOIN recent_exams e ON e.exam_id = c.exam_id
+                 WHERE c.ranking_score IS NOT NULL
              )
-             SELECT s.exam_id, e.title AS exam_title, e.exam_type,
-                    s.last_finished_at, s.participant_count, s.rank::int AS rank,
-                    s.user_id, p.full_name, p.identity_number,
-                    s.total_score, s.finished_at
-               FROM scored s
-               JOIN recent_exams r ON r.exam_id = s.exam_id
-               JOIN public.cbt_exams e ON e.id = s.exam_id
-               LEFT JOIN public.cbt_profiles p ON p.id = s.user_id
-              WHERE s.rank <= $3
-              ORDER BY s.last_finished_at DESC NULLS LAST, s.exam_id, s.rank`,
+             SELECT e.exam_id, x.title AS exam_title, x.exam_type,
+                    e.score_label, e.scored_count, e.last_finished_at, e.participant_count,
+                    r.rank::int AS rank, r.user_id, p.full_name, p.identity_number,
+                    r.ranking_score AS total_score, r.finished_at
+               FROM recent_exams e JOIN public.cbt_exams x ON x.id = e.exam_id
+               LEFT JOIN ranked r ON r.exam_id = e.exam_id AND r.rank <= $3
+               LEFT JOIN public.cbt_profiles p ON p.id = r.user_id
+              ORDER BY e.last_finished_at DESC NULLS LAST, e.exam_id, r.rank`,
             organizationId,
             opts.examLimit,
             opts.perExam,
@@ -134,6 +149,8 @@ export class ProctorService {
             title: string;
             examType: string | null;
             participantCount: number;
+            scoreLabel: string;
+            scoredCount: number;
             lastFinishedAt: string | null;
             topScorers: Array<{
                 rank: number;
@@ -153,11 +170,14 @@ export class ProctorService {
                     title: r.exam_title,
                     examType: r.exam_type,
                     participantCount: Number(r.participant_count) || 0,
+                    scoreLabel: r.score_label,
+                    scoredCount: Number(r.scored_count) || 0,
                     lastFinishedAt: iso(r.last_finished_at),
                     topScorers: [],
                 };
                 byExam.set(r.exam_id, exam);
             }
+            if (r.rank === null || r.total_score === null) continue;
             exam.topScorers.push({
                 rank: Number(r.rank),
                 userId: r.user_id,

@@ -10,7 +10,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { publicStudentScores, type AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamAccess, canAccessExam, loadExamAudience } from './exam-access';
 
@@ -320,8 +320,8 @@ export class StudentsService {
         const { data, error } = await this.db
             .from('cbt_exam_attempts')
             .select(
-                `id, total_score, score_irt, finished_at, status, needs_manual_grading,
-                 exams:cbt_exams(title, duration_minutes, show_results, scoring_type)`,
+                `id, total_score, score_irt, detailed_scores, finished_at, status, needs_manual_grading,
+                 exams:cbt_exams(title, duration_minutes, show_results, scoring_type, metadata)`,
             )
             .eq('user_id', user.id)
             .in('status', FINISHED_STATUSES)
@@ -331,9 +331,12 @@ export class StudentsService {
             this.logger.error(`Gagal membaca riwayat nilai: ${error.message}`);
             throw new InternalServerErrorException('Hasil ujian belum dapat dimuat. Silakan coba lagi.');
         }
-        return ((data as any[]) || []).map(row => row.exams?.show_results === true ? row : {
-            ...row, total_score: null, score_irt: null,
-        });
+        return ((data as any[]) || []).map(row => ({
+            id: row.id, finished_at: row.finished_at, status: row.status, needs_manual_grading: row.needs_manual_grading,
+            ...publicStudentScores(row, row.exams),
+            exams: row.exams ? { title: row.exams.title, duration_minutes: row.exams.duration_minutes,
+                show_results: row.exams.show_results, scoring_type: row.exams.scoring_type } : null,
+        }));
     }
 
     /**
@@ -347,7 +350,7 @@ export class StudentsService {
             .from('cbt_exam_attempts')
             .select(
                 `id, total_score, status, needs_manual_grading, user_id, started_at, finished_at,
-                 personal_end_time, score_irt, metadata,
+                 personal_end_time, score_irt, detailed_scores, metadata,
                  exams:cbt_exams(id, title, show_results, question_bank_id, scoring_type, end_time, duration_minutes, metadata)`,
             )
             .eq('id', attemptId)
@@ -369,7 +372,7 @@ export class StudentsService {
 
         // Never return exam configuration or submission metadata in a score summary.
         const publicAttempt = {
-            id: row.id, total_score: row.total_score, score_irt: row.score_irt,
+            id: row.id, ...publicStudentScores(row, row.exams),
             status: row.status, needs_manual_grading: row.needs_manual_grading,
             started_at: row.started_at, finished_at: row.finished_at,
             personal_end_time: row.personal_end_time,

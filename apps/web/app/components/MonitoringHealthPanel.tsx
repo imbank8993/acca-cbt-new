@@ -6,7 +6,7 @@ import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, gradingLabel, monitoringAttention, storageLabels } from '@/lib/monitoring-health';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { AttemptHistoryModal } from '@/app/components/monitoring';
-import { matchesAnswerCount, savedAnswerCount, sortByAnswerCount } from '@/lib/monitoring-answer-count';
+import { unansweredQuestionCount, sortByAnswerCount, sortByUnansweredCount } from '@/lib/monitoring-answer-count';
 import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
@@ -21,7 +21,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<MonitoringStatusFilter>('all');
     const [classFilter, setClassFilter] = useState('');
-    const [answerCountFilter, setAnswerCountFilter] = useState('');
+    const [onlyIncomplete, setOnlyIncomplete] = useState(false);
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
     const [zone, setZone] = useState<string | null>(null);
     const [page, setPage] = useState(1);
@@ -49,9 +49,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
         .filter((name): name is string => Boolean(name)))]
         .sort((a, b) => a.localeCompare(b, 'id'));
     const normalizedSearch = searchQuery.trim().toLowerCase();
-    const answerCounts = [...new Set(attempts.map(savedAnswerCount).filter((count): count is number => count !== null))].sort((a, b) => a - b);
-    const rows = sortByAnswerCount((onlyAttention ? needingAttention : attempts)
-        .filter(attempt => matchesAnswerCount(attempt, answerCountFilter))
+    const rows = (onlyIncomplete ? sortByUnansweredCount : sortByAnswerCount)((onlyAttention ? needingAttention : attempts)
+        .filter(attempt => !onlyIncomplete || (unansweredQuestionCount(attempt) ?? 0) > 0)
         .filter(attempt => !classFilter || attempt.kelas_name?.trim() === classFilter)
         .filter(attempt => {
             if (statusFilter === 'submitted') return attempt.status === 'submitted';
@@ -69,7 +68,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             ].some(value => String(value || '').toLowerCase().includes(normalizedSearch));
         })
         );
-    const hasActiveFilter = onlyAttention || statusFilter !== 'all' || Boolean(classFilter) || Boolean(normalizedSearch) || Boolean(answerCountFilter);
+    const hasActiveFilter = onlyAttention || statusFilter !== 'all' || Boolean(classFilter) || Boolean(normalizedSearch) || onlyIncomplete;
     const pageCount = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pageCount);
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
@@ -128,23 +127,15 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                         </button>
                     )}
                 </div>
-                <div className="w-full sm:w-[200px]">
-                    <InlineSelect
-                        value={answerCountFilter}
-                        onChange={val => { setAnswerCountFilter(val); setPage(1); }}
-                        title="Filter jumlah soal dijawab"
-                        minWidth="100%"
-                        height="38px"
-                        className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
-                        options={[
-                            { value: '', label: 'Semua jumlah soal' },
-                            { value: 'incomplete', label: 'Belum semua dijawab' },
-                            { value: 'complete', label: 'Semua soal dijawab' },
-                            ...answerCounts.map(count => ({ value: String(count), label: `${count} soal dijawab` })),
-                            ...(attempts.some(attempt => savedAnswerCount(attempt) === null) ? [{ value: 'unknown', label: 'Jumlah belum tersedia' }] : []),
-                        ]}
-                    />
-                </div>
+                <button type="button" role="switch" aria-checked={onlyIncomplete}
+                    onClick={() => { setOnlyIncomplete(value => !value); setPage(1); }}
+                    title="Tampilkan peserta yang belum menjawab semua soal, dari soal belum dijawab terbanyak."
+                    className={`flex h-[38px] shrink-0 items-center gap-2 rounded-lg px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${onlyIncomplete ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    <span aria-hidden="true" className={`relative h-5 w-9 rounded-full transition-colors ${onlyIncomplete ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                        <span className={`absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${onlyIncomplete ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                    </span>
+                    Belum terjawab
+                </button>
                 <div className="w-full sm:w-[200px]">
                     <InlineSelect
                         value={statusFilter}
@@ -186,8 +177,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} /><ShieldAlert size={16} className="text-amber-500" />Peringatan</label>
         </div>
         <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[980px] text-left text-xs">
-            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort="ascending" title="Jumlah soal dijawab, dari paling sedikit">Jawaban ↑</th><th className="p-3 font-semibold">Sinkronisasi</th><th className="p-3 font-semibold">Waktu / koneksi</th><th className="p-3 font-semibold">Penilaian / riwayat</th></tr></thead>
-            <tbody>{visibleRows.map(attempt => {
+            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="w-12 p-3 font-semibold">No.</th><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="p-3 font-semibold">Sinkronisasi</th><th className="p-3 font-semibold">Waktu / koneksi</th><th className="p-3 font-semibold">Penilaian / riwayat</th></tr></thead>
+            <tbody>{visibleRows.map((attempt, index) => {
                 const health = attempt.sync_health;
                 const reasons = monitoringAttention(attempt, elapsed);
                 const timing = monitoringTime(attempt, elapsed);
@@ -202,6 +193,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                         ? 'Ditutup otomatis'
                         : attempt.status === 'submitted' ? 'Selesai' : 'Belum mulai';
                 return <tr key={attempt.id} className={`border-b align-top last:border-b-0 ${reasons.length ? 'bg-amber-50/60' : 'odd:bg-white even:bg-slate-50/50'} hover:bg-blue-50/50`}>
+                    <td className="p-3 text-slate-500 tabular-nums">{(currentPage - 1) * 25 + index + 1}</td>
                     <td className="p-3">
                         <span className="text-xs font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>

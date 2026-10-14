@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { availableStudentScoreTypes, studentScoreType, STUDENT_SCORE_LABELS, type StudentScoreType } from '@acca-cbt/shared';
 import {
     AlertCircle,
     FileText,
@@ -68,6 +69,7 @@ interface ExamFormData {
     randomizeQuestions: boolean;
     randomizeOptions: boolean;
     showResults: boolean;
+    studentScoreType: StudentScoreType;
     showAnswerKeys: boolean;
     isSafeMode: boolean;
     maxViolations: number | null;
@@ -100,6 +102,7 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     randomizeQuestions: true,
     randomizeOptions: true,
     showResults: false,
+    studentScoreType: 'classical',
     showAnswerKeys: false,
     isSafeMode: true,
     maxViolations: 3,
@@ -198,6 +201,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 randomizeQuestions: exam.randomize_questions ?? true,
                 randomizeOptions: exam.randomize_options ?? true,
                 showResults: exam.show_results ?? false,
+                studentScoreType: studentScoreType(exam),
                 showAnswerKeys: exam.metadata?.show_answer_keys === true,
                 isSafeMode: exam.metadata?.is_safe_mode ?? true,
                 maxViolations: exam.metadata?.max_violations === null
@@ -511,6 +515,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 randomizeQuestions: formData.randomizeQuestions,
                 randomizeOptions: formData.randomizeOptions,
                 showResults: formData.showResults,
+                studentScoreType: formData.studentScoreType,
                 showAnswerKeys: formData.showAnswerKeys,
                 isSafeMode: formData.isSafeMode,
                 maxViolations: formData.maxViolations,
@@ -654,11 +659,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     }))}
                                     value={formData.scoringTypes}
                                     onChange={(selectedVals) => {
-                                        const hasIRT = selectedVals.some((type) => type.startsWith('irt_'));
                                         setFormData((prev) => ({
                                             ...prev,
                                             scoringTypes: selectedVals,
-                                            ...(hasIRT ? { showResults: false } : {}),
+                                            studentScoreType: !prev.scoringTypes.some(type => type.startsWith('irt_')) && selectedVals.some(type => type.startsWith('irt_'))
+                                                ? studentScoreType({ scoring_type: selectedVals.join(',') })
+                                                : availableStudentScoreTypes(selectedVals.join(',')).includes(prev.studentScoreType)
+                                                ? prev.studentScoreType : studentScoreType({ scoring_type: selectedVals.join(',') }),
                                         }));
                                     }}
                                     placeholder="Pilih Sistem Penilaian..."
@@ -1177,14 +1184,11 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             <fieldset className="space-y-2.5">
                                 <legend className="mb-2 text-xs font-semibold text-slate-500">Hasil siswa</legend>
                             <label
-                                className={`flex items-center gap-2 ${
-                                    formData.scoringTypes.some((t) => t.startsWith('irt_')) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                                }`}
+                                className="flex items-center gap-2 cursor-pointer"
                             >
                                 <input
                                     type="checkbox"
                                     checked={formData.showResults}
-                                    disabled={formData.scoringTypes.some((t) => t.startsWith('irt_'))}
                                     onChange={(e) => setFormData((prev) => ({ ...prev, showResults: e.target.checked }))}
                                     className="w-4 h-4 rounded border-slate-300 text-[#3083FF] focus:ring-[#3083FF]/20 disabled:bg-slate-200"
                                 />
@@ -1192,6 +1196,13 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     Tampilkan nilai
                                 </span>
                             </label>
+                            <div className="pl-6">
+                                <label className="mb-1 block text-[11px] text-slate-500">Nilai yang ditampilkan</label>
+                                <InlineSelect value={formData.studentScoreType}
+                                    onChange={value => setFormData(prev => ({ ...prev, studentScoreType: value as StudentScoreType }))}
+                                    options={availableStudentScoreTypes(formData.scoringTypes.join(',')).map(value => ({ value, label: STUDENT_SCORE_LABELS[value] }))}
+                                    title="Nilai yang ditampilkan kepada siswa" height="34px" />
+                            </div>
                         <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
                             <input type="checkbox" checked={formData.showAnswerKeys}
                                 aria-describedby="exam-answer-keys-hint"
@@ -1203,7 +1214,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             Setelah semua sesi selesai dan nilai dibuka.
                         </p>
                         {formData.scoringTypes.some((t) => t.startsWith('irt_')) && (
-                            <p className="pl-6 text-[11px] text-slate-500">Nilai tidak ditampilkan untuk IRT.</p>
+                            <p className="pl-6 text-[11px] text-slate-500">Nilai IRT muncul setelah perhitungan tersedia.</p>
                         )}
                             </fieldset>
                         </div>

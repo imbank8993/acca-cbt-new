@@ -12,6 +12,7 @@ import {
 import { Modal, ModalBody, ModalFooter } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { currentRegularClasses } from '@/lib/exam-class-selection';
 import type {
     ClassStudent,
     OrganizationClass,
@@ -21,6 +22,7 @@ import {
     assignExamAction,
     listExamAssignmentsAction,
     listClassStudents,
+    getActiveSchoolYear,
 } from '@/lib/api/proctor';
 
 export interface AssignExamModalProps {
@@ -64,6 +66,22 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
 }) => {
     const [isLoadingExisting, setIsLoadingExisting] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [activeSchoolYear, setActiveSchoolYear] = useState<string | null>(null);
+    const [loadingSchoolYear, setLoadingSchoolYear] = useState(true);
+    const regularClasses = useMemo(() => currentRegularClasses(classes, activeSchoolYear), [classes, activeSchoolYear]);
+    useEffect(() => {
+        if (!isOpen) return;
+        let alive = true;
+        void Promise.resolve().then(() => {
+            if (!alive) return null;
+            setActiveSchoolYear(null);
+            setLoadingSchoolYear(true);
+            return getActiveSchoolYear();
+        }).then(year => {
+            if (alive) { setActiveSchoolYear(year?.year || null); setLoadingSchoolYear(false); }
+        }).catch(() => { if (alive) { setActiveSchoolYear(null); setLoadingSchoolYear(false); } });
+        return () => { alive = false; };
+    }, [isOpen]);
     const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
     const [classAssignments, setClassAssignments] = useState<
         Record<string, { mode: 'all' | 'selected'; studentIds: string[] }>
@@ -80,7 +98,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
         if (!isOpen) return;
         const missingIds = classes
             .map((c) => c.id)
-            .filter((id) => !availableClassStudents[id] || availableClassStudents[id].length === 0);
+            .filter((id) => !Object.prototype.hasOwnProperty.call(availableClassStudents, id));
         if (missingIds.length > 0) {
             listClassStudents(missingIds)
                 .then((res) => {
@@ -310,19 +328,18 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
     };
 
     const handleToggleAllClasses = () => {
-        if (selectedClassIds.length === classes.length) {
-            setSelectedClassIds([]);
-        } else {
-            const allIds = classes.map((c) => c.id);
+            const allIds = regularClasses.map((c) => c.id);
+            if (!activeSchoolYear || !allIds.length) return;
             setSelectedClassIds(allIds);
             setClassAssignments((prev) => {
                 const next = { ...prev };
                 for (const id of allIds) {
-                    if (!next[id]) next[id] = { mode: 'all', studentIds: [] };
+                    next[id] = { mode: 'all', studentIds: [] };
                 }
                 return next;
             });
-        }
+            setActiveClassId(allIds[0]);
+            setRightView('all_selected');
     };
 
     const handleSetClassMode = (classId: string, mode: 'all' | 'selected') => {
@@ -504,13 +521,16 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={handleToggleAllClasses}
-                                    className="text-[11px] font-semibold text-[#3083FF] hover:underline"
+                                    disabled={loadingSchoolYear || !regularClasses.length}
+                                    title="Pilih semua siswa dari kelas reguler tahun ajaran aktif"
+                                    className="text-[11px] font-semibold text-[#3083FF] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    {selectedClassIds.length === classes.length
-                                        ? 'Batalkan Semua'
-                                        : 'Pilih Semua'}
+                                    Semua siswa
                                 </button>
+                                {selectedClassIds.length > 0 && <button type="button" onClick={() => setSelectedClassIds([])} className="text-[11px] text-slate-500 hover:underline">Kosongkan</button>}
                             </div>
+                            <p className="mb-2 text-[11px] text-slate-500">{loadingSchoolYear ? 'Memuat tahun ajaran aktif...' : activeSchoolYear ? `Semua siswa: kelas reguler ${activeSchoolYear}` : 'Tahun ajaran aktif belum tersedia; pilih kelas satu per satu.'}</p>
+                            <p className="mb-2 text-[11px] text-slate-500">Centang untuk memilih kelas. Klik kartu untuk melihat siswa.</p>
 
                             {/* Class Search */}
                             <div className="relative mb-2.5">
@@ -554,32 +574,33 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                 onClick={() => {
                                                     setActiveClassId(cls.id);
                                                     setRightView('class_detail');
-                                                    if (!isSelected) {
-                                                        handleToggleClass(cls.id);
-                                                    }
                                                 }}
                                                 className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                                                    isActive
+                                                    isSelected
                                                         ? 'border-[#3083FF] bg-blue-50/60 shadow-xs ring-1 ring-[#3083FF]/20'
-                                                        : isSelected
-                                                        ? 'border-blue-200 bg-white hover:border-blue-300'
+                                                        : isActive
+                                                        ? 'border-slate-400 bg-slate-50'
                                                         : 'border-slate-200/80 bg-white hover:border-slate-300 opacity-70 hover:opacity-100'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                    <label onClick={(e) => e.stopPropagation()} className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-blue-100/60">
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
+                                                        aria-label={`Pilih kelas ${cls.name}`}
+                                                        onClick={(e) => e.stopPropagation()}
                                                         onChange={(e) => {
                                                             e.stopPropagation();
                                                             handleToggleClass(cls.id);
                                                         }}
                                                         className="w-4 h-4 rounded border-slate-300 text-[#3083FF] shrink-0 focus:ring-0 cursor-pointer"
                                                     />
+                                                    </label>
                                                     <div className="min-w-0 flex-1">
                                                         <p
                                                             className={`text-xs font-semibold truncate ${
-                                                                isActive
+                                                                isSelected
                                                                     ? 'text-[#3083FF]'
                                                                     : 'text-slate-800'
                                                             }`}
@@ -739,6 +760,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                             ) : activeClass ? (
                                 /* ── VIEW: CLASS DETAIL & STUDENT SELECTION ────────── */
                                 <div className="flex flex-col h-full min-h-0">
+                                    {!selectedClassIds.includes(activeClass.id) && <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Pratinjau siswa. Kelas ini belum dipilih sebagai peserta ujian.</p>}
                                     {/* Class Detail Header */}
                                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                         <div className="flex items-center gap-2 min-w-0">
@@ -766,7 +788,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                 }`}
                                             >
                                                 <UserCheck size={12} />
-                                                <span>Semua Siswa</span>
+                                                <span>Semua di kelas ini</span>
                                             </button>
                                             <button
                                                 type="button"
@@ -807,8 +829,8 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                                                                 className="flex items-center justify-between p-2 rounded-xl border border-slate-200/80 bg-slate-50/50"
                                                             >
                                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                                                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                                                                        ✓
+                                                                    <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${selectedClassIds.includes(activeClass.id) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                                        {selectedClassIds.includes(activeClass.id) ? '✓' : '•'}
                                                                     </div>
                                                                     <div className="min-w-0 flex-1">
                                                                         <p className="text-xs font-medium text-slate-800 truncate">

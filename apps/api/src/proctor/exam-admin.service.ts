@@ -6,7 +6,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { availableStudentScoreTypes, studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { CbtRolesService } from '../auth/cbt-roles.service';
 import { insertIdempotently } from '../common/idempotent-create';
@@ -603,8 +603,14 @@ export class ExamAdminService {
     ): Record<string, unknown> {
         const isAssignment = examType === 'assignment';
 
+        if (dto.studentScoreType && !availableStudentScoreTypes(dto.scoringType).includes(dto.studentScoreType)) {
+            throw new BadRequestException('Jenis nilai siswa harus sesuai dengan sistem penilaian ujian.');
+        }
+
         return {
             ...existing,
+            student_score_type: studentScoreType({ scoring_type: dto.scoringType || 'classical',
+                metadata: { student_score_type: dto.studentScoreType ?? existing.student_score_type } }),
             show_answer_keys: dto.showAnswerKeys ?? existing.show_answer_keys ?? false,
             is_safe_mode: dto.isSafeMode ?? existing.is_safe_mode ?? true,
             // `null` adalah pilihan eksplisit "tanpa batas". Ujian lama yang

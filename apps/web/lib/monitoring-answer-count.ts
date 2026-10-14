@@ -28,3 +28,21 @@ export function sortByAnswerCount(attempts: ExamAttemptRecord[]): ExamAttemptRec
             a.id.localeCompare(b.id);
     });
 }
+
+export function unansweredQuestionCount(attempt: ExamAttemptRecord): number | null {
+    const saved = savedAnswerCount(attempt);
+    const total = attempt.total_questions;
+    if (saved === null || typeof total !== 'number' || !Number.isSafeInteger(total) || total <= 0) return null;
+    return Math.max(0, total - saved);
+}
+
+export function sortByUnansweredCount(attempts: ExamAttemptRecord[]): ExamAttemptRecord[] {
+    return [...attempts].sort((a, b) => {
+        const left = unansweredQuestionCount(a), right = unansweredQuestionCount(b);
+        if (left === null && right !== null) return 1;
+        if (right === null && left !== null) return -1;
+        return (right ?? 0) - (left ?? 0) ||
+            (a.profiles?.full_name || '').localeCompare(b.profiles?.full_name || '', 'id', { sensitivity: 'base' }) ||
+            a.id.localeCompare(b.id);
+    });
+}

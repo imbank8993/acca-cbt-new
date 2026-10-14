@@ -1,4 +1,5 @@
 "use client";
+import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { getAttemptDetailsResult,type StudentAttemptAnswer,type StudentAttemptDetails,type StudentResultQuestion } from '@/lib/api/students';
 import { formatSchoolDateTime } from '@/lib/school-time';
@@ -129,9 +130,11 @@ export default function StudentResultDetailsPage() {
 
     const correctCount = pengetahuanAnswers.filter((answer) => answer.isCorrect).length;
     const totalPengetahuanCount = pengetahuanAnswers.length;
-    const gradingPending = attempt.total_score == null;
-    const totalScore = Number(attempt.total_score || 0);
-    const scoreIrt = attempt.score_irt != null ? Number(attempt.score_irt) : null;
+    const displayedScore = attempt.display_score !== undefined ? attempt.display_score : selectedStudentScore(attempt, attempt.exams);
+    const scoreLabel = attempt.score_label || STUDENT_SCORE_LABELS[studentScoreType(attempt.exams)];
+    const gradingPending = displayedScore == null;
+    const totalScore = Number(displayedScore || 0);
+
 
     const hasDimensionScores = attempt.metadata?.dimension_scores && Object.keys(attempt.metadata.dimension_scores).length > 0;
     const dimensionScores = attempt.metadata?.dimension_scores || {};
@@ -173,24 +176,13 @@ export default function StudentResultDetailsPage() {
                         {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && (
                             <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
                                 <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{gradingPending ? 'Menunggu Penilaian' : attempt.needs_manual_grading ? 'Nilai Sementara' : 'Nilai Klasik'}</p>
+                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{scoreLabel}</p>
                                     <p className="text-3xl font-black tracking-tighter text-[#3083FF] leading-none font-mono">
-                                        {gradingPending ? '—' : totalScore.toFixed(0)}
+                                        {gradingPending ? '—' : totalScore.toFixed(2)}
                                     </p>
                                     <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
+                                    {gradingPending && <p className="mt-2 text-[10px] text-slate-500">{scoreLabel.startsWith('IRT') && !attempt.needs_manual_grading ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
                                 </div>
-                                {scoreIrt != null && (
-                                    <>
-                                        <div className="w-px h-10 bg-slate-200" />
-                                        <div className="text-center min-w-[60px]">
-                                            <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Nilai IRT</p>
-                                            <p className="text-3xl font-black tracking-tighter text-indigo-600 leading-none font-mono">
-                                                {scoreIrt.toFixed(2)}
-                                            </p>
-                                            <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
-                                        </div>
-                                    </>
-                                )}
                                 {hasPengetahuan && <>
                                 <div className="w-px h-10 bg-slate-200" />
                                 <div className="text-center min-w-[60px]">

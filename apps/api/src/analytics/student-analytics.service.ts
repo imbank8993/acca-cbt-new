@@ -1,14 +1,14 @@
 import { ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { selectedStudentScore, type AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { examDeadline } from '../common/exam-deadline';
 
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
 const SUBJECTIVE_TYPES = new Set(['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison']);
-const SELECT = `id, exam_id, user_id, total_score, status, needs_manual_grading,
+const SELECT = `id, exam_id, user_id, total_score, score_irt, detailed_scores, status, needs_manual_grading,
     started_at, finished_at, personal_end_time, metadata,
-    exams:cbt_exams(id, organization_id, show_results, title, subject_id,
+    exams:cbt_exams(id, organization_id, show_results, scoring_type, title, subject_id,
         subjects:cbt_subjects(name), duration_minutes, exam_type, end_time, metadata,
         question_banks:cbt_question_banks(subject))`;
 const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -23,12 +23,7 @@ export function calculateTrend(scores: number[]): 'up' | 'down' | 'stable' {
 }
 
 export function analyticsScore(attempt: any): number | null {
-    if (attempt.total_score == null || attempt.needs_manual_grading === true ||
-        attempt.metadata?.relative_scoring_pending === true) return null;
-    if (!['number', 'string'].includes(typeof attempt.total_score) ||
-        (typeof attempt.total_score === 'string' && !attempt.total_score.trim())) return null;
-    const score = Number(attempt.total_score);
-    return Number.isFinite(score) && score >= 0 && score <= 100 ? score : null;
+    return selectedStudentScore(attempt, attempt.exams);
 }
 
 /** Upload delay and abandoned sessions must not inflate working time. */
@@ -108,9 +103,9 @@ export class StudentAnalyticsService {
     private async cohort(user: AuthUser, attempts: any[]) {
         if (!attempts.length) return { rank: null, percentile: null, totalStudents: 0, comparison: null };
         const examIds = attempts.map(attempt => attempt.exams.id);
-        const result = await this.db.from('cbt_exam_attempts').select(`id, exam_id, user_id, total_score,
+        const result = await this.db.from('cbt_exam_attempts').select(`id, exam_id, user_id, total_score, score_irt, detailed_scores,
             needs_manual_grading, metadata, finished_at,
-            exams:cbt_exams(id, organization_id, show_results)`)
+            exams:cbt_exams(id, organization_id, show_results, scoring_type, metadata)`)
             .in('exam_id', examIds).in('status', FINISHED_STATUSES);
         if (result.error) throw new InternalServerErrorException('Perbandingan nilai belum dapat dimuat.');
         const school = attempts[0].exams.organization_id;
