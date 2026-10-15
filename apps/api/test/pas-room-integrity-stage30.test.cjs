@@ -25,6 +25,7 @@ function member(userId, role, active = true) {
 function tables() {
     return {
         cbt_pas_periods: [{ id: 'period-1', organization_id: 'school-1' }],
+        cbt_pas_sessions: [{ id: 'session-1', pas_period_id: 'period-1' }, { id: 'session-2', pas_period_id: 'period-1' }, { id: 'session-other', pas_period_id: 'period-2' }],
         cbt_pas_rooms: [
             { id: 'room-a', pas_period_id: 'period-1', name: 'A', capacity: 3 },
             { id: 'room-b', pas_period_id: 'period-1', name: 'B', capacity: 2 },
@@ -40,7 +41,7 @@ function tables() {
             { id: 'placement-2', pas_period_id: 'period-1', pas_room_id: 'room-b', user_id: 'student-2' },
         ],
         cbt_pas_room_invigilators: [
-            { id: 'inv-1', pas_room_id: 'room-a', user_id: 'watcher-1' },
+            { id: 'inv-1', pas_room_id: 'room-a', session_id: 'session-1', user_id: 'watcher-1' },
         ],
     };
 }
@@ -50,7 +51,7 @@ test('ROOM-01: penggantian pengawas atomik dan ID ganda disimpan sekali', async 
     const service = new PasRoomsService(db, authz);
 
     const result = await service.assignInvigilators(
-        user, 'room-a', ['teacher-1', 'teacher-1', 'watcher-1'],
+        user, 'room-a', ['teacher-1', 'teacher-1', 'watcher-1'], 'session-1',
     );
 
     assert.equal(result.assigned, 2);
@@ -67,13 +68,48 @@ test('ROOM-02: kegagalan menyimpan pengawas memulihkan daftar lama', async () =>
     const service = new PasRoomsService(db, authz);
 
     await assert.rejects(
-        service.assignInvigilators(user, 'room-a', ['teacher-1']),
+        service.assignInvigilators(user, 'room-a', ['teacher-1'], 'session-1'),
         /gagal menyimpan pengawas/i,
     );
     assert.deepEqual(
         db.tables.cbt_pas_room_invigilators.map((row) => row.user_id),
         ['watcher-1'],
     );
+});
+
+test('room invigilators are independent for each session, including clearing just one session', async () => {
+    const db = fixtureDb(tables());
+    const service = new PasRoomsService(db, authz);
+    await service.assignInvigilators(user, 'room-a', ['teacher-1'], 'session-1');
+    await service.assignInvigilators(user, 'room-a', ['watcher-1'], 'session-2');
+    assert.deepEqual(db.tables.cbt_pas_room_invigilators.map(row => [row.session_id, row.user_id]),
+        [['session-1', 'teacher-1'], ['session-2', 'watcher-1']]);
+    await service.assignInvigilators(user, 'room-a', [], 'session-1');
+    assert.deepEqual(db.tables.cbt_pas_room_invigilators.map(row => [row.session_id, row.user_id]), [['session-2', 'watcher-1']]);
+    await service.assignInvigilators(user, 'room-a', ['watcher-1'], 'session-1');
+    assert.equal(db.tables.cbt_pas_room_invigilators.filter(row => row.user_id === 'watcher-1').length, 2);
+});
+
+test('a missing session or a session from another period cannot alter room invigilators', async () => {
+    const db = fixtureDb(tables());
+    const service = new PasRoomsService(db, authz);
+    const before = structuredClone(db.tables);
+    await assert.rejects(service.assignInvigilators(user, 'room-a', ['teacher-1'], ''), /Pilih sesi/);
+    await assert.rejects(service.assignInvigilators(user, 'room-a', ['teacher-1'], 'session-other'), /periode ruang yang sama/);
+    assert.deepEqual(db.tables, before);
+    assert.equal(db.writes.length, 0);
+});
+
+test('UI room previews and recaps select only the requested session', () => {
+    const { getRoomSessionInvigilators } = require('../../web/lib/api/pas.ts');
+    const room = { pas_room_invigilators: [
+        { user_id: 'alice', session_id: 'morning' }, { user_id: 'bob', session_id: 'afternoon' },
+        { user_id: 'old', session_id: null },
+    ] };
+    assert.deepEqual(getRoomSessionInvigilators(room, 'morning').map(i => i.user_id), ['alice']);
+    assert.deepEqual(getRoomSessionInvigilators(room, 'afternoon').map(i => i.user_id), ['bob']);
+    assert.deepEqual(getRoomSessionInvigilators(room, 'evening'), []);
+    assert.deepEqual(getRoomSessionInvigilators(room), []);
 });
 
 test('ROOM-03: siswa dipindahkan atomik dan peserta yang sudah ada tidak dihitung dua kali', async () => {
@@ -138,7 +174,7 @@ test('ROOM-06: ruang lintas periode dan pengguna dengan peran salah ditolak', as
         /peran yang sesuai/i,
     );
     await assert.rejects(
-        service.assignInvigilators(user, 'room-a', ['student-1']),
+        service.assignInvigilators(user, 'room-a', ['student-1'], 'session-1'),
         /peran yang sesuai/i,
     );
 });

@@ -31,10 +31,12 @@ import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import {
     listValidations,
     decideValidation,
+    listMyValidationTasks,
     type ValidationSession,
     type ValidationStatus,
 } from '@/lib/api/validations';
 import { listQuestionBanks, type QuestionBank } from '@/lib/api/questions';
+import { getSessionUser } from '@/lib/session';
 import { AssignValidationModal } from './AssignValidationModal';
 import { ValidationReportModal } from './ValidationReportModal';
 
@@ -54,6 +56,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [decision, setDecision] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
     const [savingDecision, setSavingDecision] = useState(false);
     const [decisionError, setDecisionError] = useState<string | null>(null);
+    const [myTasksCount, setMyTasksCount] = useState<number>(0);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     useEffect(() => {
         const token = {};
@@ -84,12 +88,18 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [valList, bankList] = await Promise.all([
+            const [valList, bankList, sessionUser, myTasks] = await Promise.all([
                 listValidations(),
                 listQuestionBanks(),
+                getSessionUser(),
+                listMyValidationTasks().catch(() => []),
             ]);
             setValidations(valList);
             setBanks(bankList);
+            if (sessionUser) {
+                setCurrentUserId(sessionUser.id);
+            }
+            setMyTasksCount(myTasks.length);
         } catch (e) {
             console.error('Failed to load validations', e);
         } finally {
@@ -101,6 +111,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         loadData();
     }, [loadData]);
 
+    const myAssignedCount = validations.filter(v => v.validators?.some(val => val.validator_id === currentUserId)).length;
+
     const filtered = validations.filter(v => {
         const matchesSearch =
             v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,6 +122,9 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
 
         if (!matchesSearch) return false;
         if (statusFilter === 'all') return true;
+        if (statusFilter === 'my_tasks') {
+            return v.validators?.some(val => val.validator_id === currentUserId);
+        }
         return v.status === statusFilter;
     });
 
@@ -150,7 +165,31 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
 
     return (
         <div className="space-y-4">
-            {/* Filter Toolbar (Standardized, tanpa heading berulang karena sudah ada di header) */}
+            {/* Navigasi Tab Peran Terpadu */}
+            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px mb-1">
+                <Link
+                    href={role === 'Admin' ? '/dashboard/admin/questions/validations' : '/dashboard/proktor/questions/validations'}
+                    className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary flex items-center gap-2 transition-all"
+                >
+                    <ShieldCheck size={14} /> Kelola Sesi Validasi ({role})
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+                        {validations.length}
+                    </span>
+                </Link>
+                <Link
+                    href="/dashboard/guru/validations"
+                    className="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-2 transition-all"
+                >
+                    <UserCheck size={14} /> Tugas Validasi Saya
+                    {myTasksCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            {myTasksCount}
+                        </span>
+                    )}
+                </Link>
+            </div>
+
+            {/* Filter Toolbar (Standardized) */}
             <FilterToolbar className="validation-toolbar">
                 <FilterSearch
                     value={searchQuery}
@@ -164,6 +203,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     onChange={setStatusFilter}
                     options={[
                         { value: 'all', label: 'Semua Status' },
+                        ...(myAssignedCount > 0 ? [{ value: 'my_tasks', label: `Tugas Saya (${myAssignedCount})` }] : []),
                         { value: 'pending', label: 'Menunggu' },
                         { value: 'in_progress', label: 'Sedang Divalidasi' },
                         { value: 'revision_needed', label: 'Perlu Revisi' },

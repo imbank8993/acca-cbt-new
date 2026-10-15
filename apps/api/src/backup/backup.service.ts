@@ -269,7 +269,14 @@ export class BackupService {
                 await this.insert('cbt_pas_sessions', plain(data.pas_sessions), db);
                 await this.insert('cbt_pas_rooms', plain(data.pas_rooms), db);
                 await this.insert('cbt_pas_class_schedules', plain(data.pas_class_schedules), db);
-                await this.insert('cbt_pas_room_invigilators', withUser(data.pas_room_invigilators), db);
+                const invigilators = withUser(data.pas_room_invigilators).flatMap(row => {
+                    if (row.session_id) return [row];
+                    const room = (data.pas_rooms || []).find(room => room.id === row.pas_room_id);
+                    const sessions = (data.pas_sessions || []).filter(session => session.pas_period_id === room?.pas_period_id);
+                    return sessions.length ? sessions.map((session, index) => ({ ...row,
+                        id: index === 0 ? row.id : randomUUID(), session_id: session.id })) : [row];
+                });
+                await this.insert('cbt_pas_room_invigilators', invigilators, db);
                 await this.insert('cbt_pas_room_students', withUser(data.pas_room_students), db);
 
                 const attempts = withOrg(withUser(data.exam_attempts));
@@ -377,6 +384,7 @@ export class BackupService {
             ['pas_class_schedules', 'class_id', classIds],
             ['pas_room_invigilators', 'pas_room_id', roomIds],
             ['pas_room_invigilators', 'user_id', userIds],
+            ['pas_room_invigilators', 'session_id', sessionIds, true],
             ['pas_room_students', 'pas_room_id', roomIds], ['pas_room_students', 'user_id', userIds],
         ];
         for (const [table, field, valid, nullable] of references) {
@@ -386,6 +394,14 @@ export class BackupService {
                 if (!valid.has(value)) {
                     throw new BadRequestException(`Referensi ${table}.${field} tidak valid.`);
                 }
+            }
+        }
+        for (const assignment of rows('pas_room_invigilators')) {
+            if (!assignment.session_id) continue;
+            const room = rows('pas_rooms').find(row => row.id === assignment.pas_room_id);
+            const session = rows('pas_sessions').find(row => row.id === assignment.session_id);
+            if (!room || !session || room.pas_period_id !== session.pas_period_id) {
+                throw new BadRequestException('Ruang dan sesi pengawas dalam arsip harus berasal dari periode yang sama.');
             }
         }
         for (const target of rows('exam_targets')) {

@@ -48,7 +48,7 @@ export class PasRoomsService {
             .from('cbt_pas_rooms')
             .select(
                 `id, name, capacity,
-                 pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, profiles:cbt_profiles!user_id(full_name)),
+                 pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, profiles:cbt_profiles!user_id(full_name)),
                  pas_room_students:cbt_pas_room_students!cbt_pas_room_students_pas_room_id_fkey(user_id, profiles:cbt_profiles!user_id(full_name))`,
             )
             .eq('pas_period_id', periodId)
@@ -92,12 +92,13 @@ export class PasRoomsService {
      * yang diinginkan, jadi daftar lama dikosongkan lebih dulu. Daftar kosong
      * berarti ruang itu memang tidak punya pengawas.
      */
-    async assignInvigilators(user: AuthUser, roomId: string, userIds: string[]) {
+    async assignInvigilators(user: AuthUser, roomId: string, userIds: string[], sessionId: string) {
         await this.assertRoomAccess(user, roomId);
+        if (!sessionId) throw new BadRequestException('Pilih sesi ujian terlebih dahulu.');
         const uniqueUserIds = [...new Set(userIds)];
 
         return this.db.transaction(async (db) => {
-            await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}`);
+            await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${sessionId}`);
 
             const { data: room } = await db
                 .from('cbt_pas_rooms')
@@ -105,6 +106,11 @@ export class PasRoomsService {
                 .eq('id', roomId)
                 .maybeSingle();
             if (!room) throw new NotFoundException('Ruang ujian tidak ditemukan.');
+
+            const { data: session, error: sessionError } = await db.from('cbt_pas_sessions')
+                .select('id').eq('id', sessionId).eq('pas_period_id', room.pas_period_id).maybeSingle();
+            if (sessionError) throw new BadRequestException('Sesi ujian belum dapat diperiksa.');
+            if (!session) throw new BadRequestException('Sesi ujian harus berasal dari periode ruang yang sama.');
 
             const { data: period } = await db
                 .from('cbt_pas_periods')
@@ -124,19 +130,19 @@ export class PasRoomsService {
             const { error: deleteError } = await db
                 .from('cbt_pas_room_invigilators')
                 .delete()
-                .eq('pas_room_id', roomId);
+                .eq('pas_room_id', roomId).eq('session_id', sessionId);
             if (deleteError) {
                 throw new BadRequestException(`Gagal mengganti pengawas: ${deleteError.message}`);
             }
 
             if (uniqueUserIds.length > 0) {
                 const { error } = await db.from('cbt_pas_room_invigilators').insert(
-                    uniqueUserIds.map((userId) => ({ pas_room_id: roomId, user_id: userId })),
+                    uniqueUserIds.map((userId) => ({ pas_room_id: roomId, session_id: sessionId, user_id: userId })),
                 );
                 if (error) throw new BadRequestException(`Gagal menyimpan pengawas: ${error.message}`);
             }
 
-            return { roomId, assigned: uniqueUserIds.length };
+            return { roomId, sessionId, assigned: uniqueUserIds.length };
         });
     }
 

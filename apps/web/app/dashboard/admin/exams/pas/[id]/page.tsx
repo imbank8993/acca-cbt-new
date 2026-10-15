@@ -14,6 +14,8 @@ getPASPeriod,
 listOrganizationClasses,
 listPASSessions,
 listPASRooms,
+
+getRoomSessionInvigilators,
 listSubjects,
 removePASScheduleAction,
 type PASRoom,
@@ -778,7 +780,7 @@ export default function AdminPASDetailPage() {
                                                                     const matchedRoom = rooms.find(
                                                                         (r) => (r.name || '').trim().toLowerCase() === sc.room?.trim().toLowerCase(),
                                                                     );
-                                                                    const invigilatorNames = matchedRoom?.pas_room_invigilators?.map((i) => i.profiles?.full_name).filter(Boolean) || [];
+                                                                    const invigilatorNames = getRoomSessionInvigilators(matchedRoom, sc.session_id).map((i) => i.profiles?.full_name).filter(Boolean);
 
                                                                     return (
                                                                         <div className="flex flex-col gap-1">

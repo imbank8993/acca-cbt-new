@@ -9,24 +9,46 @@ import {
     Play,
     CheckCircle2,
     AlertCircle,
+    XCircle,
     User,
     BookOpen,
     Layers,
     RefreshCw,
+    UserCheck,
+    Table as TableIcon,
+    LayoutGrid,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/Spinner';
+import {
+    FilterToolbar,
+    FilterSearch,
+    FilterSelect,
+    FilterActions,
+} from '@/app/components/ui/filtertoolbar';
 import { listMyValidationTasks, type ValidationTask } from '@/lib/api/validations';
+import { getSessionUser } from '@/lib/session';
+import type { AuthUser } from '@acca-cbt/shared';
 
 export default function GuruValidationTasksPage() {
     const [tasks, setTasks] = useState<ValidationTask[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+    const [user, setUser] = useState<AuthUser | null>(null);
 
     const loadTasks = useCallback(async () => {
         setLoading(true);
         try {
-            const list = await listMyValidationTasks();
+            const [list, sessionUser] = await Promise.all([
+                listMyValidationTasks(),
+                getSessionUser(),
+            ]);
             setTasks(list);
+            if (sessionUser) {
+                setUser(sessionUser);
+            }
         } catch (e) {
             console.error('Failed to load my validation tasks', e);
         } finally {
@@ -38,49 +60,276 @@ export default function GuruValidationTasksPage() {
         loadTasks();
     }, [loadTasks]);
 
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2.5">
-                        <ShieldCheck className="text-primary" size={26} />
-                        Tugas Validasi Bank Soal
-                    </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Daftar bank soal yang ditugaskan kepada Anda untuk divalidasi.
-                    </p>
-                </div>
-                <Button
-                    variant="outline"
-                    onClick={loadTasks}
-                    className="flex items-center gap-2 text-xs font-bold"
-                >
-                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
-                </Button>
-            </div>
+    const canManage = Boolean(user?.resolved?.admin || user?.resolved?.proktor || user?.resolved?.superadmin);
+    const manageRoleLabel = user?.resolved?.admin || user?.resolved?.superadmin ? 'Admin' : 'Proktor';
+    const manageUrl = user?.resolved?.admin || user?.resolved?.superadmin 
+        ? '/dashboard/admin/questions/validations' 
+        : '/dashboard/proktor/questions/validations';
 
+    const filtered = tasks.filter(task => {
+        const val = task.validation;
+        const title = val.title || '';
+        const subject = val.bank?.subject || '';
+        const creator = val.bank?.creator_name || (val.bank as any)?.creator?.full_name || '';
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = title.toLowerCase().includes(q) || subject.toLowerCase().includes(q) || creator.toLowerCase().includes(q);
+
+        if (!matchesSearch) return false;
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'submitted') return task.status === 'submitted';
+        if (statusFilter === 'in_progress') return task.status === 'in_progress';
+        if (statusFilter === 'assigned') return task.status === 'assigned';
+        return true;
+    });
+
+    const getRecommendationInfo = (rec?: string | null) => {
+        switch (rec) {
+            case 'approved':
+                return {
+                    label: 'Disetujui',
+                    className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+                    icon: <CheckCircle2 size={12} />
+                };
+            case 'revision_needed':
+                return {
+                    label: 'Perlu Revisi',
+                    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                    icon: <AlertCircle size={12} />
+                };
+            case 'rejected':
+                return {
+                    label: 'Ditolak',
+                    className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                    icon: <XCircle size={12} />
+                };
+            default:
+                return null;
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        if (status === 'submitted') {
+            return (
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center gap-1.5 whitespace-nowrap">
+                    <CheckCircle2 size={12} /> Validasi Selesai
+                </span>
+            );
+        }
+        if (status === 'in_progress') {
+            return (
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center gap-1.5 whitespace-nowrap">
+                    <Clock size={12} /> Sedang Dikerjakan
+                </span>
+            );
+        }
+        return (
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center gap-1.5 whitespace-nowrap">
+                <AlertCircle size={12} /> Belum Dikerjakan
+            </span>
+        );
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Navigasi Tab Peran Terpadu (jika memiliki peran Admin/Proktor) */}
+            {canManage && (
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px mb-1">
+                    <Link
+                        href="/dashboard/guru/validations"
+                        className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary flex items-center gap-2 transition-all"
+                    >
+                        <UserCheck size={14} /> Tugas Validasi Saya
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+                            {tasks.length}
+                        </span>
+                    </Link>
+                    <Link
+                        href={manageUrl}
+                        className="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-2 transition-all"
+                    >
+                        <ShieldCheck size={14} /> Kelola Sesi Validasi ({manageRoleLabel})
+                    </Link>
+                </div>
+            )}
+
+            {/* Filter Toolbar (Standardized ACCA Design) */}
+            <FilterToolbar className="validation-toolbar">
+                <FilterSearch
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Cari bank soal, mapel, atau penyusun..."
+                    width={320}
+                />
+                <FilterSelect
+                    label="Status"
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={[
+                        { value: 'all', label: 'Semua Status' },
+                        { value: 'assigned', label: 'Belum Dikerjakan' },
+                        { value: 'in_progress', label: 'Sedang Dikerjakan' },
+                        { value: 'submitted', label: 'Validasi Selesai' },
+                    ]}
+                />
+                <FilterActions className="flex items-center gap-2">
+                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('table')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                viewMode === 'table'
+                                    ? 'bg-white dark:bg-slate-900 text-primary shadow-xs'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                            title="Tampilan Tabel"
+                        >
+                            <TableIcon size={13} /> Tabel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('cards')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                viewMode === 'cards'
+                                    ? 'bg-white dark:bg-slate-900 text-primary shadow-xs'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                            title="Tampilan Kartu"
+                        >
+                            <LayoutGrid size={13} /> Kartu
+                        </button>
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={loadTasks}
+                        className="flex items-center gap-1.5 text-xs font-bold h-[38px] px-3"
+                    >
+                        <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
+                    </Button>
+                </FilterActions>
+            </FilterToolbar>
+
+            {/* Content Area */}
             {loading ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <div className="py-20 flex flex-col items-center justify-center gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                     <Spinner size={32} />
                     <p className="text-xs text-slate-400 font-medium">Memuat tugas validasi Anda...</p>
                 </div>
-            ) : tasks.length === 0 ? (
+            ) : filtered.length === 0 ? (
                 <div className="py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center p-6">
                     <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
                         <CheckCircle2 size={28} />
                     </div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                        Tidak Ada Tugas Validasi Aktif
+                        Tidak Ada Tugas Validasi
                     </h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                        Saat ini Anda belum memiliki tugas penelaahan bank soal dari Admin atau Proktor.
+                        {tasks.length === 0
+                            ? 'Saat ini Anda belum memiliki tugas penelaahan bank soal dari Admin atau Proktor.'
+                            : 'Tidak ada tugas yang cocok dengan filter pencarian.'}
                     </p>
                 </div>
+            ) : viewMode === 'table' ? (
+                /* Desktop/Responsive Table View - Perfectly Consistent with Admin View */
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    <th className="py-3 px-4">Bank Soal</th>
+                                    <th className="py-3 px-4">Arahan Proktor</th>
+                                    <th className="py-3 px-4">Status Tugas</th>
+                                    <th className="py-3 px-4">Rekomendasi Anda</th>
+                                    <th className="py-3 px-4">Batas Waktu</th>
+                                    <th className="py-3 px-4 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                {filtered.map(task => {
+                                    const val = task.validation;
+                                    const isSubmitted = task.status === 'submitted';
+                                    const creatorName = val.bank?.creator_name || (val.bank as any)?.creator?.full_name || 'Guru Mapel';
+                                    const recInfo = getRecommendationInfo(task.general_recommendation);
+
+                                    return (
+                                        <tr key={task.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                            {/* Bank Soal */}
+                                            <td className="py-3.5 px-4 max-w-xs">
+                                                <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={val.title}>
+                                                    {val.title}
+                                                </p>
+                                                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                    <Layers size={11} />
+                                                    {val.bank?.subject || 'Mapel Umum'} • {val.bank?.class_level || 'Semua Kelas'} • {creatorName}
+                                                </p>
+                                            </td>
+
+                                            {/* Arahan Proktor */}
+                                            <td className="py-3.5 px-4 max-w-xs">
+                                                {val.instructions ? (
+                                                    <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2" title={val.instructions}>
+                                                        "{val.instructions}"
+                                                    </p>
+                                                ) : (
+                                                    <span className="text-slate-400 text-[11px]">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* Status Tugas */}
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
+                                                {getStatusBadge(task.status)}
+                                            </td>
+
+                                            {/* Rekomendasi Anda */}
+                                            <td className="py-3.5 px-4 whitespace-nowrap">
+                                                {recInfo ? (
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${recInfo.className}`}>
+                                                        {recInfo.icon} {recInfo.label}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400 text-[11px]">-</span>
+                                                )}
+                                            </td>
+
+                                            {/* Batas Waktu */}
+                                            <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
+                                                {val.deadline ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar size={12} className="text-slate-400" />
+                                                        {new Date(val.deadline).toLocaleDateString('id-ID')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-400">Tanpa batas</span>
+                                                )}
+                                            </td>
+
+                                            {/* Aksi */}
+                                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                                <Link
+                                                    href={`/dashboard/guru/validations/${val.id}/review`}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                                        isSubmitted
+                                                            ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                                            : 'bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20'
+                                                    }`}
+                                                >
+                                                    <Play size={12} className={isSubmitted ? '' : 'fill-white'} />
+                                                    {isSubmitted ? 'Buka Hasil Validasi' : 'Mulai Validasi'}
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {tasks.map(task => {
+                /* Card View */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filtered.map(task => {
                         const val = task.validation;
                         const isSubmitted = task.status === 'submitted';
+                        const recInfo = getRecommendationInfo(task.general_recommendation);
 
                         return (
                             <div
@@ -89,29 +338,7 @@ export default function GuruValidationTasksPage() {
                             >
                                 <div>
                                     <div className="flex items-center justify-between gap-2 mb-3">
-                                        <span
-                                            className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
-                                                isSubmitted
-                                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                                    : task.status === 'in_progress'
-                                                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
-                                                    : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
-                                            }`}
-                                        >
-                                            {isSubmitted ? (
-                                                <>
-                                                    <CheckCircle2 size={12} /> Validasi Selesai
-                                                </>
-                                            ) : task.status === 'in_progress' ? (
-                                                <>
-                                                    <Clock size={12} /> Sedang Dikerjakan
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <AlertCircle size={12} /> Belum Dikerjakan
-                                                </>
-                                            )}
-                                        </span>
+                                        {getStatusBadge(task.status)}
 
                                         <span className="text-[11px] text-slate-400 flex items-center gap-1">
                                             <Calendar size={12} />
@@ -125,7 +352,7 @@ export default function GuruValidationTasksPage() {
                                         {val.title}
                                     </h3>
 
-                                    <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 mb-4">
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 mb-3">
                                         <p className="flex items-center gap-1.5">
                                             <Layers size={13} className="text-slate-400" />
                                             {val.bank?.subject || 'Mapel Umum'} • {val.bank?.class_level || 'Semua Kelas'}
@@ -137,7 +364,7 @@ export default function GuruValidationTasksPage() {
                                     </div>
 
                                     {val.instructions && (
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs text-slate-600 dark:text-slate-300 mb-4 border border-slate-100 dark:border-slate-800">
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs text-slate-600 dark:text-slate-300 mb-3 border border-slate-100 dark:border-slate-800">
                                             <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5">
                                                 Arahan Proktor:
                                             </span>
@@ -145,10 +372,10 @@ export default function GuruValidationTasksPage() {
                                         </div>
                                     )}
 
-                                    {isSubmitted && task.general_recommendation && (
-                                        <div className="p-2.5 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 mb-4">
-                                            <span className="font-bold">Rekomendasi Anda: </span>
-                                            <span className="capitalize">{task.general_recommendation.replace('_', ' ')}</span>
+                                    {isSubmitted && recInfo && (
+                                        <div className={`p-2.5 border rounded-xl text-xs font-semibold flex items-center justify-between mb-3 ${recInfo.className}`}>
+                                            <span className="text-slate-600 dark:text-slate-300 font-normal">Rekomendasi Anda:</span>
+                                            <span className="font-bold flex items-center gap-1">{recInfo.icon} {recInfo.label}</span>
                                         </div>
                                     )}
                                 </div>
@@ -156,7 +383,7 @@ export default function GuruValidationTasksPage() {
                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                                     <Link
                                         href={`/dashboard/guru/validations/${val.id}/review`}
-                                        className="w-full"
+                                        className="w-full block"
                                     >
                                         <Button
                                             className={`w-full text-xs font-bold flex items-center justify-center gap-2 ${

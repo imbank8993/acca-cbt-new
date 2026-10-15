@@ -158,3 +158,9 @@ export class AssignRoomStudentsDto extends AssignUsersDto {
     @IsUUID('4', { message: 'roomId tidak valid' })
     roomId!: string;
 }
+
+export class AssignRoomInvigilatorsDto extends AssignUsersDto {
+    @ApiProperty({ description: 'Sesi tempat pengawas bertugas di ruang ini.' })
+    @IsUUID('4', { message: 'Pilih sesi ujian yang valid.' })
+    sessionId!: string;
+}

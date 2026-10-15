@@ -5,6 +5,7 @@ import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import {
     assignProctorsToRoomAction,
+    getRoomSessionInvigilators,
     assignStudentsToRoomAction,
     createPASRoomAction,
     createPASSessionAction,
@@ -84,6 +85,8 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
     // State for assignments in the selected room
     const [selectedProctorIds, setSelectedProctorIds] = useState<string[]>([]);
+    const [selectedProctorSessionId, setSelectedProctorSessionId] = useState('');
+    const selectedProctorSession = sessions.find(session => session.id === selectedProctorSessionId);
     const [quickAddProctorId, setQuickAddProctorId] = useState('');
 
     // Student assignment state
@@ -122,14 +125,14 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const teacherAssignmentMap = useMemo(() => {
         const map = new Map<string, string[]>();
         for (const r of rooms) {
-            const invigilators = r.pas_room_invigilators || [];
+            const invigilators = getRoomSessionInvigilators(r, selectedProctorSessionId);
             for (const inv of invigilators) {
                 const current = map.get(inv.user_id) || [];
                 map.set(inv.user_id, [...current, r.name]);
             }
         }
         return map;
-    }, [rooms]);
+    }, [rooms, selectedProctorSessionId]);
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -142,7 +145,11 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
             ]);
             if (teacherResult.status === 'fulfilled') setTeachers(teacherResult.value);
             if (classResult.status === 'fulfilled') setClasses(classResult.value);
-            if (sessionResult.status === 'fulfilled') setSessions(sessionResult.value);
+            if (sessionResult.status === 'fulfilled') {
+                setSessions(sessionResult.value);
+                setSelectedProctorSessionId(previous => sessionResult.value.some(session => session.id === previous)
+                    ? previous : sessionResult.value[0]?.id || '');
+            }
             if (roomResult.status === 'rejected') throw roomResult.reason;
             const roomList = roomResult.value;
             setRooms(roomList);
@@ -166,14 +173,22 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         return () => window.clearTimeout(initialLoad);
     }, [loadData]);
 
-    // When selectedRoom changes, update the selectedProctorIds
     useEffect(() => {
-        if (selectedRoom) {
-            setSelectedProctorIds(selectedRoom.pas_room_invigilators?.map((inv) => inv.user_id) || []);
+        const timer = window.setTimeout(() => {
+            setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).map(inv => inv.user_id));
             setQuickAddProctorId('');
             setIsProctorSaved(false);
-        }
-    }, [selectedRoom]);
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [selectedRoom, selectedProctorSessionId]);
+
+    const handleProctorSessionChange = (value: string) => {
+        if (isSaving) return;
+        setSelectedProctorSessionId(value);
+        setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, value).map(inv => inv.user_id));
+        setQuickAddProctorId('');
+        setIsProctorSaved(false);
+    };
 
     const handleCreateRoom = async () => {
         const name = newRoomName.trim();
@@ -233,22 +248,26 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleSaveProctors = async (idsToSave?: string[]) => {
-        if (!selectedRoom) return;
+        if (!selectedRoom || !selectedProctorSessionId || isSaving) return;
         const targetIds = idsToSave !== undefined ? idsToSave : selectedProctorIds;
         setIsSaving(true);
-        const result = await assignProctorsToRoomAction(selectedRoom.id, targetIds);
-        if (result.success) {
+        setRoomError('');
+        try {
+            const result = await assignProctorsToRoomAction(selectedRoom.id, targetIds, selectedProctorSessionId);
+            if (!result.success) throw new Error(result.error || 'Penugasan pengawas belum tersimpan.');
             await refreshRooms();
             setIsProctorSaved(true);
             setTimeout(() => setIsProctorSaved(false), 3000);
-        } else {
-            alert(result.error);
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Penugasan pengawas belum tersimpan.');
+            setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).map(inv => inv.user_id));
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
 
     const handleQuickAddProctor = (teacherId: string) => {
-        if (!teacherId || !selectedRoom) return;
+        if (!teacherId || !selectedRoom || !selectedProctorSessionId || isSaving) return;
         if (!selectedProctorIds.includes(teacherId)) {
             const newIds = [...selectedProctorIds, teacherId];
             setSelectedProctorIds(newIds);
@@ -258,7 +277,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     };
 
     const handleRemoveProctor = (proctorId: string) => {
-        if (!selectedRoom) return;
+        if (!selectedRoom || !selectedProctorSessionId || isSaving) return;
         const newIds = selectedProctorIds.filter((id) => id !== proctorId);
         setSelectedProctorIds(newIds);
         void handleSaveProctors(newIds);
@@ -322,6 +341,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
             setIsCreatingSession(false);
             const sessionList = await listPASSessions(period.id);
             setSessions(sessionList);
+            setSelectedProctorSessionId(previous => sessionList.some(session => session.id === previous) ? previous : sessionList[0]?.id || '');
         } else {
             alert(result.error);
         }
@@ -336,6 +356,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         if (result.success) {
             const sessionList = await listPASSessions(period.id);
             setSessions(sessionList);
+            setSelectedProctorSessionId(previous => sessionList.some(session => session.id === previous) ? previous : sessionList[0]?.id || '');
         } else {
             alert(result.error);
         }
@@ -533,7 +554,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                     {rooms.map((room) => {
                                         const isSelected = selectedRoom?.id === room.id;
                                         const studentCount = room.pas_room_students?.length || 0;
-                                        const invigilators = room.pas_room_invigilators || [];
+                                        const invigilators = getRoomSessionInvigilators(room, selectedProctorSessionId);
                                         const proctorCount = invigilators.length;
                                         const isOverCapacity = studentCount > room.capacity;
                                         const matchingSchedules = allSchedules.filter(
@@ -543,7 +564,11 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                         return (
                                             <div
                                                 key={room.id}
-                                                onClick={() => setSelectedRoomId(room.id)}
+                                                onClick={() => {
+                                                    if (isSaving) return;
+                                                    setSelectedRoomId(room.id);
+                                                    setSelectedProctorIds(getRoomSessionInvigilators(room, selectedProctorSessionId).map(inv => inv.user_id));
+                                                }}
                                                 className={`pas-room-card p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                                                     isSelected
                                                         ? 'border-[#3083FF] bg-[#3083FF]/5 ring-2 ring-[#3083FF]/25 shadow-xs'
@@ -581,7 +606,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                     {/* Pengawas Badges Preview */}
                                                     <div className="mt-3 pt-2.5 border-t border-slate-100">
                                                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
-                                                            <ShieldCheck size={11} className="text-[#3083FF]" /> Pengawas Bertugas:
+                                                            <ShieldCheck size={11} className="text-[#3083FF]" /> Pengawas · {selectedProctorSession?.name || 'Pilih sesi'}:
                                                         </div>
                                                         {proctorCount === 0 ? (
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
@@ -664,9 +689,23 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             )}
                                         </div>
 
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-slate-700">Sesi penugasan pengawas</label>
+                                            <InlineSelect
+                                                value={selectedProctorSessionId}
+                                                onChange={handleProctorSessionChange}
+                                                disabled={isSaving || sessions.length === 0}
+                                                title="Pilih Sesi Pengawas"
+                                                minWidth="100%"
+                                                options={sessions.map(session => ({ value: session.id,
+                                                    label: session.name + ' (' + session.start_time.slice(0, 5) + '–' + session.end_time.slice(0, 5) + ' ' + tzLabel + ')' }))}
+                                            />
+                                            <p className="text-xs text-slate-500">{sessions.length ? 'Pengawas disimpan khusus untuk sesi yang dipilih. Sesi lain dapat memiliki pengawas berbeda.' : 'Buat sesi ujian terlebih dahulu pada tab Sesi Ujian.'}</p>
+                                        </div>
+
                                         {/* Daftar Pengawas Saat Ini */}
                                         <div className="space-y-2">
-                                            <p className="text-xs font-semibold text-slate-700">Daftar Pengawas yang Bertugas di Ruang Ini:</p>
+                                            <p className="text-xs font-semibold text-slate-700">Pengawas {selectedProctorSession?.name || 'pada sesi yang dipilih'}:</p>
                                             {selectedProctorIds.length === 0 ? (
                                                 <div className="p-4 bg-white rounded-xl border border-dashed border-amber-200 text-center">
                                                     <AlertTriangle size={20} className="mx-auto text-amber-500 mb-1" />
@@ -679,7 +718,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                                                     {selectedProctorIds.map((proctorId) => {
                                                         const teacher = teachers.find((t) => t.id === proctorId);
-                                                        const invigilatorRecord = selectedRoom.pas_room_invigilators?.find((i) => i.user_id === proctorId);
+                                                        const invigilatorRecord = getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).find((i) => i.user_id === proctorId);
                                                         const teacherName = teacher?.name || invigilatorRecord?.profiles?.full_name || 'Pengawas';
                                                         const roles = teacher?.roles || ['Pengawas'];
 
@@ -718,6 +757,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                                 </div>
                                                                 <button
                                                                     type="button"
+                                                                    disabled={isSaving}
                                                                     onClick={() => handleRemoveProctor(proctorId)}
                                                                     className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
                                                                     title="Hapus pengawas dari ruangan ini"
@@ -738,6 +778,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                     Pilih Guru / Pengawas untuk Ditambahkan:
                                                 </label>
                                                 <InlineSelect
+                                                    disabled={!selectedProctorSessionId || isSaving}
                                                     value={quickAddProctorId}
                                                     onChange={handleQuickAddProctor}
                                                     minWidth="100%"
@@ -765,7 +806,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                     variant="primary"
                                                     size="sm"
                                                     onClick={() => void handleSaveProctors()}
-                                                    disabled={isSaving}
+                                                    disabled={!selectedProctorSessionId || isSaving}
                                                     isLoading={isSaving}
                                                     leftIcon={<Save size={13} />}
                                                 >
@@ -1065,7 +1106,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             const r = rooms.find((room) => room.name.toLowerCase() === (rName || '').toLowerCase());
                                             if (r?.pas_room_invigilators) {
                                                 for (const inv of r.pas_room_invigilators) {
-                                                    if (inv.profiles?.full_name) onDutyProctors.add(inv.profiles.full_name);
+                                                    if (inv.session_id === session.id && inv.profiles?.full_name) onDutyProctors.add(inv.profiles.full_name);
                                                 }
                                             }
                                         }
@@ -1196,7 +1237,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                                 const roomObj = rooms.find(
                                                     (r) => (r.name || '').trim().toLowerCase() === (sc.room || '').trim().toLowerCase(),
                                                 );
-                                                const invigilatorNames = roomObj?.pas_room_invigilators?.map((i) => i.profiles?.full_name).filter(Boolean) || [];
+                                                const invigilatorNames = getRoomSessionInvigilators(roomObj, sc.session_id).map((i) => i.profiles?.full_name).filter(Boolean);
 
                                                 return (
                                                     <tr key={sc.id} className="hover:bg-slate-50/70">

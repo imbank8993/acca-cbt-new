@@ -126,3 +126,36 @@ test('SCHOOL-08: identitas pengguna duplikat ditolak sebelum data dihapus', asyn
     assert.deepEqual(db.tables.cbt_classes, [{ id: 'old', organization_id: 'target' }]);
     assert.equal(db.writes.length, 0);
 });
+
+for (const scoped of [false, true]) {
+    test(`restore ${scoped ? 'session-specific' : 'legacy room-wide'} invigilators preserves assignments per session`, async () => {
+        const db = fixtureDb({ cbt_roles: [{ id: 'role-guru', name: 'Guru' }] });
+        const service = new BackupService(db, authz, authUsers, schoolScope);
+        service.prepareUsers = async () => new Map([['teacher', 'local-teacher']]);
+        await service.import(user, payload({
+            users_data: [{ original_user_id: 'teacher', email: 'teacher@example.test', role: 'Guru' }],
+            pas_periods: [{ id: 'p' }], pas_rooms: [{ id: 'r', pas_period_id: 'p' }],
+            pas_sessions: [{ id: 's1', pas_period_id: 'p' }, { id: 's2', pas_period_id: 'p' }],
+            pas_room_invigilators: scoped
+                ? [{ id: 'a', pas_room_id: 'r', user_id: 'teacher', session_id: 's1' },
+                    { id: 'b', pas_room_id: 'r', user_id: 'teacher', session_id: 's2' }]
+                : [{ id: 'a', pas_room_id: 'r', user_id: 'teacher' }],
+        }));
+        const rows = db.tables.cbt_pas_room_invigilators;
+        assert.deepEqual(rows.map(row => row.session_id).sort(), ['s1', 's2']);
+        assert.equal(new Set(rows.map(row => row.id)).size, 2);
+        assert.ok(rows.every(row => row.user_id === 'local-teacher'));
+    });
+}
+
+test('restore rejects room/session assignments across periods before any writes', async () => {
+    const db = fixtureDb();
+    const service = new BackupService(db, authz, authUsers, schoolScope);
+    await assert.rejects(service.import(user, payload({
+        users_data: [{ original_user_id: 'teacher', email: 'teacher@example.test' }],
+        pas_periods: [{ id: 'p1' }, { id: 'p2' }], pas_rooms: [{ id: 'r', pas_period_id: 'p1' }],
+        pas_sessions: [{ id: 's', pas_period_id: 'p2' }],
+        pas_room_invigilators: [{ id: 'a', pas_room_id: 'r', session_id: 's', user_id: 'teacher' }],
+    })), /periode yang sama/);
+    assert.equal(db.writes.length, 0);
+});

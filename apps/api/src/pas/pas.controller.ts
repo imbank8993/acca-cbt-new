@@ -21,7 +21,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import {
     AssignRoomStudentsDto,
-    AssignUsersDto,
+    AssignRoomInvigilatorsDto,
     CreatePASPeriodDto,
     CreatePASRoomDto,
     CreatePASScheduleDto,
@@ -224,13 +224,13 @@ export class PasController {
     }
 
     @Put('rooms/:roomId/invigilators')
-    @ApiOperation({ summary: 'Ganti seluruh daftar pengawas satu ruang' })
+    @ApiOperation({ summary: 'Ganti daftar pengawas ruang untuk satu sesi ujian' })
     assignInvigilators(
         @CurrentUser() user: AuthUser,
         @Param('roomId', ParseUUIDPipe) roomId: string,
-        @Body() dto: AssignUsersDto,
+        @Body() dto: AssignRoomInvigilatorsDto,
     ) {
-        return this.rooms.assignInvigilators(user, roomId, dto.userIds);
+        return this.rooms.assignInvigilators(user, roomId, dto.userIds, dto.sessionId);
     }
 
     @Put('periods/:periodId/room-students')

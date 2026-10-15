@@ -16,6 +16,7 @@ export interface PASStaffMember {
 
 export interface PASRoomMember {
     user_id: string;
+    session_id?: string | null;
     profiles?: {
         full_name?: string | null;
     } | null;
@@ -28,6 +29,10 @@ export interface PASRoom {
     capacity: number;
     pas_room_invigilators?: PASRoomMember[];
     pas_room_students?: PASRoomMember[];
+}
+
+export function getRoomSessionInvigilators(room: Pick<PASRoom, 'pas_room_invigilators'> | null | undefined, sessionId?: string | null): PASRoomMember[] {
+    return sessionId ? (room?.pas_room_invigilators || []).filter(member => member.session_id === sessionId) : [];
 }
 
 export interface MasterRoom {
@@ -231,10 +236,10 @@ export function deletePASRoomAction(roomId: string) {
     );
 }
 
-export function assignProctorsToRoomAction(roomId: string, userIds: string[]) {
-    return apiSend<{ roomId: string; assigned: number }>(
+export function assignProctorsToRoomAction(roomId: string, userIds: string[], sessionId: string) {
+    return apiSend<{ roomId: string; sessionId: string; assigned: number }>(
         `/api/pas/rooms/${encodeURIComponent(roomId)}/invigilators`,
-        { userIds },
+        { userIds, sessionId },
         'PUT',
     );
 }
