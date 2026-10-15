@@ -1,11 +1,12 @@
 "use client";
+import { AnswerOutcomeFilters } from '@/app/components/AnswerOutcomeFilters';
 import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
 import { matchesQuestionSearch } from '@/lib/question-search';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { AttemptAnalyticsHeader } from '@/app/components/AttemptAnalyticsHeader';
 import { AttemptScoreCard } from '@/app/components/AttemptScoreCard';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { summarizeAnswerOutcomes } from '@/lib/answer-stats';
+import { matchesAnswerOutcome, summarizeAnswerOutcomes, type AnswerOutcomeFilter } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -60,6 +61,7 @@ export default function AttemptAnalyticsPage() {
     const [data, setData] = useMemoryState<AttemptFullDetails | null>(`admin_monitoring_${attemptId}_data`, null);
     const [grades, setGrades] = useState<Record<string, number>>({});
     const [questionSearch, setQuestionSearch] = useState('');
+    const [answerFilter, setAnswerFilter] = useState<AnswerOutcomeFilter>('all');
     const [activeTab, setActiveTab] = useState<'questions' | 'security'>('questions');
 
     useEffect(() => {
@@ -138,7 +140,7 @@ export default function AttemptAnalyticsPage() {
 
     const { attempt, answers, securityLogs } = data;
     const visibleAnswers = answers.map((answer, index) => ({ answer, index })).filter(({ answer, index }) =>
-        answer.bank_questions && matchesQuestionSearch(answer.bank_questions.question_text, index + 1, questionSearch));
+        matchesAnswerOutcome(answer, answerFilter) && answer.bank_questions && matchesQuestionSearch(answer.bank_questions.question_text, index + 1, questionSearch));
     const studentName = formatStudentName(attempt.profiles?.full_name, 'Tanpa Nama');
     const examTitle = attempt.exams?.title || 'Ujian';
 
@@ -280,8 +282,9 @@ export default function AttemptAnalyticsPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === 'questions' && (
                             <motion.div key="questions" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5 sm:space-y-6">
+                                <AnswerOutcomeFilters value={answerFilter} onChange={setAnswerFilter} stats={stats!} />
                                 <QuestionSearchBar value={questionSearch} onChange={setQuestionSearch} matched={visibleAnswers.length} total={answers.length} />
-                                {visibleAnswers.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Tidak ada soal yang cocok dengan pencarian.</p>}
+                                {visibleAnswers.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Tidak ada soal yang cocok dengan filter dan pencarian.</p>}
                                 {visibleAnswers.map(({ answer, index }, position) => {
                                     const q = answer.bank_questions;
                                     if (!q) return null;

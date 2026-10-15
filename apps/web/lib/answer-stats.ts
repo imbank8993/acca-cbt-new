@@ -12,6 +12,14 @@ export interface AnswerOutcomeSummary {
 
 const ESSAY_TYPES = new Set(['essay', 'esay', 'uraian']);
 
+export type AnswerOutcomeFilter = 'all' | 'correct' | 'wrong';
+
+export function matchesAnswerOutcome(answer: AnswerOutcome, filter: AnswerOutcomeFilter): boolean {
+    if (filter === 'all') return true;
+    if (ESSAY_TYPES.has(answer.bank_questions?.type || '')) return false;
+    return answer.is_correct === (filter === 'correct');
+}
+
 /** Hitung benar/salah hanya untuk soal objektif; esai tetap menunggu penilaian. */
 export function summarizeAnswerOutcomes(answers: AnswerOutcome[]): AnswerOutcomeSummary {
     const objective = answers.filter(answer => !ESSAY_TYPES.has(answer.bank_questions?.type || ''));
