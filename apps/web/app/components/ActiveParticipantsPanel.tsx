@@ -3,16 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { activeMonitoringFacts, activeMonitoringRows, type ActiveMonitoringFilter } from '@/lib/active-monitoring';
+import { activeMonitoringFacts, activeMonitoringRows } from '@/lib/active-monitoring';
 import { formatStudentName, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
 import { formatMonitoringDuration } from '@/lib/monitoring-time';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { securityViolationLabel } from '@/lib/security-violations';
 
-const filters: { value: ActiveMonitoringFilter; label: string }[] = [
-    { value: 'all', label: 'Semua aktif' }, { value: 'attention', label: 'Perlu perhatian' },
-    { value: 'offline', label: 'Tidak ada kontak terbaru' }, { value: 'ending', label: 'Waktu ≤5 menit' },
-];
 const countdown = (seconds: number | null) => seconds === null ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 function DeviceLine({ attempt }: { attempt: ExamAttemptRecord }) {
@@ -27,7 +23,6 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
     attempts: ExamAttemptRecord[];
     onViewDetails?: (id: string) => void;
 }) {
-    const [filter, setFilter] = useState<ActiveMonitoringFilter>('all');
     const [page, setPage] = useState(1);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [zone, setZone] = useState<string | null>(null);
@@ -51,19 +46,12 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
         if (!selectedId && dialog?.open) dialog.close();
     }, [selectedId]);
     const date = (value?: string | null) => value ? zone ? formatSchoolDateTime(value, zone) : `${new Date(value).toISOString()} (UTC)` : 'Belum tercatat';
-    const all = activeMonitoringRows(attempts, 'all', elapsed);
-    const rows = activeMonitoringRows(attempts, filter, elapsed);
+    const rows = activeMonitoringRows(attempts, 'all', elapsed);
     const pages = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pages);
     const selected = attempts.find(attempt => attempt.id === selectedId);
     const selectedFacts = selected ? activeMonitoringFacts(selected, elapsed) : null;
-    const attentionCount = all.filter(({ facts }) => facts.priority > 0).length;
     return <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Peserta ujian aktif">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-            <div><h3 className="font-semibold text-slate-800">Peserta Aktif</h3><p className="mt-1 text-xs text-slate-500">{all.length} peserta · {attentionCount} perlu perhatian · prioritas bantuan ditampilkan dahulu</p></div>
-            <div className="flex flex-wrap gap-1" aria-label="Filter peserta aktif">{filters.map(item => <button key={item.value} type="button" aria-pressed={filter === item.value}
-                onClick={() => { setFilter(item.value); setPage(1); }} className={`rounded-lg px-3 py-2 text-xs font-medium ${filter === item.value ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>{item.label}</button>)}</div>
-        </div>
         <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm">
             <thead className="bg-slate-50 text-xs text-slate-500"><tr>{['No.', 'Peserta', 'Progres', 'Sisa waktu', 'Koneksi', 'Perhatian', ''].map((label, index) => <th key={index} className="px-5 py-3 font-semibold">{label}</th>)}</tr></thead>
             <tbody>{rows.slice((currentPage - 1) * 25, currentPage * 25).map(({ attempt, facts }, index) => {

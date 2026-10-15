@@ -1,4 +1,5 @@
 "use client";
+import '@/components/exams/exams-mobile.css';
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
 import { CreateExamModal } from '@/components/exams/CreateExamModal';
 import { DeleteExamModal } from '@/components/exams/DeleteExamModal';
@@ -478,7 +479,7 @@ const ExamsPage = () => {
             {timeZoneError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {/* Tab Navigation */}
-            <div className="grid grid-cols-2 lg:flex lg:flex-row gap-2 mb-6">
+            <div className="exam-status-tabs flex gap-2 mb-6">
                 {tabs.map(tab => {
                     const Icon = tab.icon;
                     let count = 0;
@@ -927,7 +928,7 @@ const ExamsPage = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <div className="exam-folder-actions flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => router.push('/dashboard/proktor/exams/pas/' + period.id)}
                                             className="px-4 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20"
@@ -1028,7 +1029,7 @@ const ExamsPage = () => {
                                 </div>
 
                                 {/* Card Actions */}
-                                <div className="flex flex-wrap gap-2 px-4 pb-4">
+                                <div className="exam-card-actions flex flex-wrap gap-2 px-4 pb-4">
                                     {/* Publish Toggle */}
                                     <button
                                         onClick={() => handlePublishToggle(exam)}
@@ -1068,7 +1069,7 @@ const ExamsPage = () => {
                                     {exam.exam_type === 'assignment' && (
                                         <button
                                             onClick={() => router.push('/dashboard/proktor/assignments/' + exam.id)}
-                                            className="flex-1 sm:flex-none px-3 py-2 text-xs bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-all font-medium flex items-center justify-center gap-1.5"
+                                            className="exam-review-action flex-1 sm:flex-none px-3 py-2 text-xs bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-all font-medium flex items-center justify-center gap-1.5"
                                         >
                                             <FileText size={12} />
                                             Review Tugas

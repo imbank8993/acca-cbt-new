@@ -487,7 +487,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-16 lg:top-0 z-30 print:hidden">
+            <div className="bg-white border-b border-slate-200 relative lg:sticky lg:top-0 z-30 print:hidden">
                 <div className="max-w-6xl mx-auto px-4 md:px-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between py-3 sm:py-0 sm:h-14 gap-3 sm:gap-0">
                         <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
@@ -674,11 +674,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                          />
                      </div>
                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-                         {canManage && (filteredQuestions.length > 0) && (<button onClick={toggleSelectAll} className="flex-1 sm:flex-none justify-center px-2 sm:px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors">
+                         {canManage && (filteredQuestions.length > 0) && (<button onClick={toggleSelectAll} aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'} aria-pressed={selectedQuestions.size === filteredQuestions.length} className="flex-none w-10 sm:w-auto justify-center px-2 sm:px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors">
                                  {selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={15} className="text-blue-600" /> : <Square size={15} />}
                                  <span className="hidden sm:inline">Semua</span>
                              </button>)}
-                         {canManage && (selectedQuestions.size > 0) && (<button onClick={requestBulkDelete} disabled={isBulkDeleting} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors disabled:opacity-50">
+                         {canManage && (selectedQuestions.size > 0) && (<button onClick={requestBulkDelete} disabled={isBulkDeleting} className="flex-none justify-center px-2 sm:px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors disabled:opacity-50">
                                  {isBulkDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} 
                                  <span className="hidden sm:inline">Hapus ({selectedQuestions.size})</span>
                                  <span className="sm:hidden">{selectedQuestions.size}</span>

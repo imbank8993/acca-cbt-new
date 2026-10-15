@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
+import './validations-mobile.css';
 import Link from 'next/link';
 import {
     ShieldCheck,
@@ -52,6 +54,16 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [decision, setDecision] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
     const [savingDecision, setSavingDecision] = useState(false);
     const [decisionError, setDecisionError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const token = {};
+        registerPageFab(token, {
+            label: 'Tambah Validasi',
+            icon: 'plus',
+            run: () => setIsAssignModalOpen(true),
+        });
+        return () => unregisterPageFab(token);
+    }, []);
 
     const saveDecision = async () => {
         if (!selectedDetailVal) return;
@@ -139,7 +151,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     return (
         <div className="space-y-4">
             {/* Filter Toolbar (Standardized, tanpa heading berulang karena sudah ada di header) */}
-            <FilterToolbar>
+            <FilterToolbar className="validation-toolbar">
                 <FilterSearch
                     value={searchQuery}
                     onChange={setSearchQuery}
@@ -159,7 +171,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         { value: 'rejected', label: 'Ditolak' },
                     ]}
                 />
-                <FilterActions>
+                <FilterActions className="validation-create-actions">
                     <Button
                         onClick={() => setIsAssignModalOpen(true)}
                         className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-md shadow-primary/20"
@@ -188,7 +200,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     </p>
                     <Button
                         onClick={() => setIsAssignModalOpen(true)}
-                        className="bg-primary text-white font-bold text-xs"
+                        className="validation-create-action bg-primary text-white font-bold text-xs"
                     >
                         <Plus size={14} className="mr-1.5" /> Tambah Validasi
                     </Button>

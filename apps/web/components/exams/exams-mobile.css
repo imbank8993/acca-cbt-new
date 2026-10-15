@@ -1,0 +1,47 @@
+@media (max-width: 1023.98px) {
+  .exam-status-tabs {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-block: 2px;
+  }
+
+  .exam-status-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .exam-status-tabs > button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .exam-folder-actions {
+    align-self: flex-end;
+    margin-left: auto;
+  }
+
+  .exam-card-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .exam-card-actions > button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    justify-content: center;
+  }
+
+  .exam-card-actions > button:nth-child(-n+2) {
+    grid-column: span 2;
+  }
+
+  .exam-card-actions > .exam-review-action {
+    grid-column: 1 / -1;
+  }
+}

@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { formatStudentName, monitoringEventLabels } from '@/lib/monitoring-health';
+import { formatStudentName, gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
+import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
+import { unansweredQuestionCount } from '@/lib/monitoring-answer-count';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import {
   History,
@@ -20,12 +22,18 @@ export interface AttemptHistoryModalProps {
   open: boolean;
   attempt: ExamAttemptRecord | null;
   onClose: () => void;
+  showSessionDetails?: boolean;
+  elapsedSeconds?: number;
+  onViewAnswers?: (id: string) => void;
 }
 
 export function AttemptHistoryModal({
   open,
   attempt,
   onClose,
+  showSessionDetails = false,
+  elapsedSeconds = 0,
+  onViewAnswers,
 }: AttemptHistoryModalProps) {
   const [zone, setZone] = useState<string | null>(null);
 
@@ -47,6 +55,11 @@ export function AttemptHistoryModal({
   const className = attempt.kelas_name || '—';
   const nis = attempt.profiles?.identity_number || '—';
   const historyList = attempt.monitoring_history || [];
+  const timing = monitoringTime(attempt, elapsedSeconds);
+  const health = attempt.sync_health;
+  const reportAge = health && attempt.server_now
+    ? (Date.parse(attempt.server_now) - Date.parse(health.receivedAt)) / 1000 + elapsedSeconds : Infinity;
+  const fresh = health?.fresh && reportAge <= 45;
 
   const formatDate = (value?: string | null) => {
     if (!value) return 'Belum tercatat';
@@ -109,7 +122,7 @@ export function AttemptHistoryModal({
     >
       <ModalHeader
         id="history-modal-title"
-        title="Riwayat Kontak & Pemantauan Sesi"
+        title={showSessionDetails ? 'Detail Peserta & Riwayat' : 'Riwayat Kontak & Pemantauan Sesi'}
         icon={<History className="text-[#3083FF]" size={20} />}
         onClose={onClose}
       />
@@ -132,6 +145,43 @@ export function AttemptHistoryModal({
             Total {historyList.length} Catatan Riwayat
           </span>
         </div>
+
+        {showSessionDetails && (
+          <div className="space-y-4 text-sm">
+            <section aria-label="Detail jawaban dan sinkronisasi">
+              <h3 className="mb-2 font-semibold">Jawaban & sinkronisasi</h3>
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {[
+                  ['Jawaban di server', `${attempt.saved_answer_count ?? '—'} / ${attempt.total_questions ?? '—'} soal`],
+                  ['Belum dijawab', String(unansweredQuestionCount(attempt) ?? '—')],
+                  ['Simpan terakhir', formatDate(attempt.last_answer_saved_at)],
+                  ['Jawaban lokal', health ? String(health.localAnswerCount) : 'Belum ada laporan'],
+                  ['Antrean pengiriman', health ? String(health.pendingAnswerCount) : 'Belum ada laporan'],
+                  ['Penyimpanan perangkat', health ? storageLabels[health.storageState] : 'Belum ada laporan'],
+                  ['Laporan perangkat', health ? `${formatDate(health.receivedAt)}${fresh ? '' : ' · Laporan lama'}` : 'Belum ada laporan'],
+                  ['Penilaian', gradingLabel(attempt)],
+                ].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
+              </dl>
+            </section>
+            <section aria-label="Detail waktu dan koneksi">
+              <h3 className="mb-2 font-semibold">Waktu & koneksi</h3>
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {[
+                  ['Mulai', formatDate(attempt.started_at)], ['Selesai', formatDate(attempt.finished_at)],
+                  ['Batas sesi', formatDate(attempt.deadline_at)], ['Kontak server terakhir', formatDate(attempt.last_seen_at)],
+                  ['Lama mengerjakan', formatMonitoringDuration(timing.workedSeconds)],
+                  ['Waktu sesi', formatMonitoringDuration(timing.availableSeconds)],
+                  ['Koneksi', attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsedSeconds > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'],
+                ].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
+              </dl>
+            </section>
+            <section aria-label="Rincian peringatan">
+              <h3 className="mb-2 font-semibold">Peringatan</h3>
+              <p>{attempt.warning_count ?? 0} peringatan · Pindah tab {attempt.violation_breakdown?.pindah_tab ?? attempt.tab_switch_count ?? 0} · Tutup tab {attempt.violation_breakdown?.close_tab ?? 0} · Lainnya {attempt.violation_breakdown?.lainnya ?? 0}</p>
+              {monitoringAttention(attempt, elapsedSeconds).map(reason => <p key={reason} className="mt-1 text-amber-700">{reason}</p>)}
+            </section>
+          </div>
+        )}
 
         {/* Timeline Events List */}
         <div className="pt-2">
@@ -252,6 +302,7 @@ export function AttemptHistoryModal({
       </ModalBody>
 
       <ModalFooter align="end">
+        {showSessionDetails && onViewAnswers && <Button type="button" variant="primary" onClick={() => { onViewAnswers(attempt.id); onClose(); }}>Rincian jawaban</Button>}
         <Button type="button" variant="cancel" onClick={onClose}>
           Tutup
         </Button>

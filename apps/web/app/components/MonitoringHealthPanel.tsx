@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, History, Search, ShieldAlert, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Search, ShieldAlert, X } from 'lucide-react';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { formatStudentName, gradingLabel, monitoringAttention, storageLabels } from '@/lib/monitoring-health';
+import { formatStudentName, gradingLabel, monitoringAttention } from '@/lib/monitoring-health';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { AttemptHistoryModal } from '@/app/components/monitoring';
 import { unansweredQuestionCount, sortByAnswerCount, sortByUnansweredCount } from '@/lib/monitoring-answer-count';
-import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
+import { monitoringTime } from '@/lib/monitoring-time';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
@@ -26,7 +26,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const [zone, setZone] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [expanded, setExpanded] = useState(defaultExpanded);
-    const [selectedHistoryAttempt, setSelectedHistoryAttempt] = useState<ExamAttemptRecord | null>(null);
+    const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
     const sampledAt = attempts[0]?.server_now;
     const elapsed = clock.sample === sampledAt ? clock.elapsed : 0;
@@ -176,79 +176,40 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             </div>
             <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} /><ShieldAlert size={16} className="text-amber-500" />Peringatan</label>
         </div>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[980px] text-left text-xs">
-            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="w-12 p-3 font-semibold">No.</th><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="p-3 font-semibold">Sinkronisasi</th><th className="p-3 font-semibold">Waktu / koneksi</th><th className="p-3 font-semibold">Penilaian / riwayat</th></tr></thead>
-            <tbody>{visibleRows.map((attempt, index) => {
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[720px] text-left text-xs">
+            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="p-3 font-semibold">Status</th><th className="p-3 font-semibold">Peringatan</th><th className="p-3 font-semibold">Aksi</th></tr></thead>
+            <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
                 const reasons = monitoringAttention(attempt, elapsed);
-                const timing = monitoringTime(attempt, elapsed);
-                const remaining = timing.remainingSeconds;
+                const remaining = monitoringTime(attempt, elapsed).remainingSeconds;
                 const reportAge = health && attempt.server_now ? (Date.parse(attempt.server_now) - Date.parse(health.receivedAt)) / 1000 + elapsed : Infinity;
                 const fresh = health?.fresh && reportAge <= 45;
                 const violationCount = attempt.warning_count ?? 0;
-                const breakdown = attempt.violation_breakdown;
-                const statusLabel = attempt.status === 'in_progress'
-                    ? attempt.connection_status === 'offline' ? 'Tidak ada kontak terbaru' : 'Mengerjakan'
-                    : attempt.status === 'auto_submitted'
-                        ? 'Ditutup otomatis'
-                        : attempt.status === 'submitted' ? 'Selesai' : 'Belum mulai';
-                return <tr key={attempt.id} className={`border-b align-top last:border-b-0 ${reasons.length ? 'bg-amber-50/60' : 'odd:bg-white even:bg-slate-50/50'} hover:bg-blue-50/50`}>
-                    <td className="p-3 text-slate-500 tabular-nums">{(currentPage - 1) * 25 + index + 1}</td>
+                const active = attempt.status === 'in_progress';
+                const statusLabel = active ? 'Mengerjakan'
+                    : ['submitted', 'auto_submitted'].includes(attempt.status) ? gradingLabel(attempt) : 'Belum mulai';
+                return <tr key={attempt.id} className="border-b align-top last:border-b-0">
                     <td className="p-3">
-                        <span className="text-xs font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
+                        <span className="font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
-                        <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${
-                            attempt.status === 'in_progress' ? 'bg-blue-50 text-blue-700'
-                                : attempt.status === 'auto_submitted' ? 'bg-amber-100 text-amber-800'
-                                    : attempt.status === 'submitted' ? 'bg-emerald-50 text-emerald-700'
-                                        : 'bg-slate-100 text-slate-600'
-                        }`}>{statusLabel}</span>
-                        {(attempt.status === 'in_progress' || attempt.status === 'auto_submitted') && (
-                            <div className={`mt-1 ${violationCount > 0 ? 'font-semibold text-amber-800' : 'text-slate-500'}`}>
-                                Peringatan {violationCount} · Pindah tab {breakdown?.pindah_tab ?? attempt.tab_switch_count ?? 0}
-                                {' · '}Tutup tab {breakdown?.close_tab ?? 0} · Lainnya {breakdown?.lainnya ?? 0}
-                            </div>
-                        )}
                     </td>
-                    <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} soal</strong><div className="mt-1">Belum dijawab: {attempt.unanswered_count ?? '—'}</div><div className="mt-1 text-slate-500">Simpan: {date(attempt.last_answer_saved_at)}</div></td>
-                    <td className="p-3">{health ? <><div>Lokal: {health.localAnswerCount} · Antrean: {health.pendingAnswerCount}</div><div>Penyimpanan: {storageLabels[health.storageState]}</div><div className="mt-1 text-slate-500">{date(health.receivedAt)}{!fresh && ' · Laporan lama'}</div></> : <span className="text-slate-500">Belum ada laporan</span>}</td>
+                    <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
                     <td className="p-3">
-                        <strong>{attempt.status === 'in_progress' && remaining !== null ? `Sisa ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}` : '—'}</strong>
-                        <div className="mt-1">Batas: {date(attempt.deadline_at)}</div>
-                        <div>{attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsed > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'}</div>
-                        <div className="text-slate-500">Kontak server terakhir: {date(attempt.last_seen_at)}</div>
-                        <div className="mt-1 text-slate-500">Mulai: {date(attempt.started_at)}</div>
-                        <div className="mt-1 text-slate-500">Lama mengerjakan: {formatMonitoringDuration(timing.workedSeconds)}</div>
-                        {timing.availableSeconds !== null && <div className="mt-1 text-slate-500" title="Dihitung dari waktu mulai hingga batas sesi, termasuk batas akhir jadwal ujian.">Waktu sesi: {formatMonitoringDuration(timing.availableSeconds)}</div>}
+                        <span className="font-medium">{statusLabel}</span>
+                        {active && remaining !== null && <div className="mt-1 text-slate-500">Sisa {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</div>}
+                        {active && attempt.connection_status === 'offline' && <div className="mt-1 text-amber-700">Tidak ada kontak terbaru</div>}
+                        {active && fresh && health && health.pendingAnswerCount > 0 && <div className="mt-1 text-amber-700">{health.pendingAnswerCount} jawaban menunggu dikirim</div>}
+                        {active && fresh && health?.storageState === 'unavailable' && <div className="mt-1 text-amber-700">Penyimpanan perangkat bermasalah</div>}
                     </td>
                     <td className="p-3">
-                        <span className={attempt.status === 'auto_submitted'
-                            ? 'inline-flex rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800'
-                            : 'font-semibold'}>
-                            {gradingLabel(attempt)}
-                        </span>
-                        {reasons.map(reason => <div key={reason} className="mt-1 text-amber-800">{reason}</div>)}
-
-                        <div className="mt-2">
-                            <button
-                                type="button"
-                                onClick={() => setSelectedHistoryAttempt(attempt)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50/80 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-xs cursor-pointer"
-                            >
-                                <History size={13} /> Riwayat ({attempt.monitoring_history?.length || 0})
-                            </button>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            {onViewDetails && <button className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(attempt.id)}>Detail</button>}
+                        <span className={violationCount > 0 ? 'font-medium text-amber-700' : 'text-slate-500'}>{violationCount > 0 ? violationCount + ' peringatan' : '—'}</span>
+                        {active && reasons.length > 0 && <div className="mt-1 text-amber-700">Perlu pemeriksaan</div>}
+                    </td>
+                    <td className="p-3">
+                        <div className="flex flex-wrap gap-2">
+                            <button type="button" className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedAttemptId(attempt.id)}>Detail</button>
                             {onRecover && ['submitted', 'auto_submitted'].includes(attempt.status) && (
-                                <button
-                                    type="button"
-                                    className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium"
-                                    onClick={() => void onRecover(attempt)}
-                                >
-                                    Susulan / Pulihkan
-                                </button>
+                                <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>Susulan / Pulihkan</button>
                             )}
                         </div>
                     </td>
@@ -285,9 +246,12 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
 
         {/* Shared Modals */}
         <AttemptHistoryModal
-            open={!!selectedHistoryAttempt}
-            attempt={selectedHistoryAttempt}
-            onClose={() => setSelectedHistoryAttempt(null)}
+            open={!!selectedAttemptId}
+            attempt={attempts.find(attempt => attempt.id === selectedAttemptId) || null}
+            onClose={() => setSelectedAttemptId(null)}
+            showSessionDetails
+            elapsedSeconds={elapsed}
+            onViewAnswers={onViewDetails}
         />
     </section>;
 }

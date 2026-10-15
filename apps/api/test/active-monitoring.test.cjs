@@ -74,7 +74,7 @@ test('stale reports are explicitly historical and contact expires after 45 secon
     assert.ok(old.reasons.includes('Terakhir: 2 jawaban menunggu sinkronisasi'));
     assert.equal(activeMonitoringFacts(row({ last_seen_at:null })).connection, 'unknown');
 });
-test('active table filters and detail panel use the latest roster data and show device information', () => {
+test('active table starts without a duplicate header and detail panel uses the latest roster data', () => {
     const state=[]; let cursor=0;
     const React = {
         createElement(type,props,...children) { return typeof type==='function' ? type(props) : {type,props:props||{},children}; },
@@ -96,9 +96,11 @@ test('active table filters and detail panel use the latest roster data and show 
     const render=()=>{cursor=0;return mod.exports.ActiveParticipantsPanel({attempts})};
     let tree=render();
     assert.match(text(tree),/Chrome 131/);assert.match(text(tree),/IP: 192\.0\.2\.8/);
-    nodes(tree).find(node=>node.type==='button'&&text(node)==='Waktu ≤5 menit').props.onClick();
-    tree=render();assert.equal(nodes(tree).filter(node=>node.type==='tbody')[0].children[0].length,1);
-    nodes(tree).find(node=>node.type==='button'&&text(node)==='Detail').props.onClick();
+    assert.equal(nodes(tree).some(node=>node.props['aria-label']==='Filter peserta aktif'),false);
+    assert.doesNotMatch(text(tree),/prioritas bantuan ditampilkan dahulu/);
+    assert.equal(nodes(tree).filter(node=>node.type==='tbody')[0].children[0].length,2);
+    const endingRow=nodes(tree).find(node=>node.type==='tr'&&node.props.key==='ending');
+    nodes(endingRow).find(node=>node.type==='button'&&text(node)==='Detail').props.onClick();
     attempts=attempts.map(a=>a.id==='ending'?{...a,saved_answer_count:30}:a);
     tree=render();const dialog=nodes(tree).find(node=>node.type==='dialog');
     assert.match(text(dialog),/30 \/ 40/);

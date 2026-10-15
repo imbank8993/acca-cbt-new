@@ -1,0 +1,8 @@
+/* The center BottomNav action replaces duplicate creation buttons on mobile. */
+@media (max-width: 1023.98px) {
+  .validation-toolbar .validation-create-actions,
+  .validation-toolbar .ftb-mobile-actions,
+  .validation-create-action {
+    display: none !important;
+  }
+}

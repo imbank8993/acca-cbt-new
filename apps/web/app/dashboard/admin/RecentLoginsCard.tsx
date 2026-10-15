@@ -1,5 +1,7 @@
 'use client';
 
+import './recent-logins.css';
+
 import { getLoginHistory } from '@/lib/api/proctor';
 import type { LoginHistoryRecord, LoginStats, RecentLogin } from '@/lib/api/proctor';
 import {
@@ -33,7 +35,8 @@ function UserAvatar({
     if (avatarUrl && !imgError) {
         return (
             <div
-                className={`w-9 h-9 rounded-full overflow-hidden shrink-0 border ${
+                data-login-success={success}
+                className={`login-activity-avatar w-9 h-9 rounded-full overflow-hidden shrink-0 border ${
                     success ? 'border-[#3083FF]/20 bg-slate-100' : 'border-rose-200 bg-rose-50'
                 }`}
             >
@@ -50,7 +53,8 @@ function UserAvatar({
 
     return (
         <div
-            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border ${
+            data-login-success={success}
+            className={`login-activity-avatar w-9 h-9 rounded-full flex items-center justify-center shrink-0 border ${
                 success
                     ? 'bg-gradient-to-br from-[#3083FF]/15 to-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
                     : 'bg-rose-50 border-rose-200 text-rose-500'
@@ -189,7 +193,8 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
         return (
             <div
                 key={record.id}
-                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
+                data-login-success={record.success}
+                className={`login-activity-row group flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
                     record.success
                         ? 'border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03]'
                         : 'bg-rose-50/40 border-rose-100/80 hover:bg-rose-50/70'
@@ -203,7 +208,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                         success={record.success}
                     />
                     <span
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                        className={`login-activity-status-dot absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
                             record.success ? 'bg-[#3083FF]' : 'bg-rose-500'
                         }`}
                     />
@@ -216,7 +221,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                     </p>
                     <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 truncate">
                         {record.role && (
-                            <span className="font-semibold text-[#3083FF]/80 shrink-0">{record.role}</span>
+                            <span className="login-activity-role font-semibold text-[#3083FF]/80 shrink-0">{record.role}</span>
                         )}
                         {record.role && (deviceLabel || record.ipAddress) && (
                             <span className="text-slate-300">•</span>
@@ -243,7 +248,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
 
                 {/* Waktu (desktop) */}
                 <div className="hidden sm:block shrink-0 text-right">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold whitespace-nowrap ${
+                    <span data-login-success={record.success} className={`login-activity-time inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold whitespace-nowrap ${
                         record.success
                             ? 'bg-[#3083FF]/[0.07] text-[#3083FF]'
                             : 'bg-rose-100/70 text-rose-600'
@@ -259,7 +264,8 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
     const renderFallbackRow = (login: LoginUser) => (
         <div
             key={login.id}
-            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03] transition-all"
+            data-login-success="true"
+            className="login-activity-row group flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03] transition-all"
         >
             <div className="relative shrink-0">
                 <UserAvatar
@@ -268,7 +274,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                     success={login.isActive}
                 />
                 <span
-                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                    className={`login-activity-status-dot absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
                         login.isActive ? 'bg-[#3083FF]' : 'bg-slate-300'
                     }`}
                 />
@@ -277,13 +283,13 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                 <p className="text-xs font-bold text-slate-800 truncate group-hover:text-[#3083FF] transition-colors">
                     {login.fullName}
                 </p>
-                <p className="text-[11px] font-medium text-[#3083FF]/80 mt-0.5">{login.role}</p>
+                <p className="login-activity-role text-[11px] font-medium text-[#3083FF]/80 mt-0.5">{login.role}</p>
                 <p className="sm:hidden text-[10px] text-slate-400 mt-0.5">
                     {getTimeAgo(login.lastLoginAt)}
                 </p>
             </div>
             <div className="hidden sm:block shrink-0 text-right">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF] whitespace-nowrap">
+                <span data-login-success="true" className="login-activity-time inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF] whitespace-nowrap">
                     {getTimeAgo(login.lastLoginAt)}
                 </span>
             </div>
@@ -431,7 +437,8 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                                 return (
                                     <div
                                         key={record.id}
-                                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                        data-login-success={record.success}
+                                        className={`login-activity-row flex items-center gap-3 p-3 rounded-xl border transition-all ${
                                             record.success
                                                 ? 'border-transparent hover:border-[#3083FF]/15 hover:bg-[#3083FF]/[0.03]'
                                                 : 'bg-rose-50/40 border-rose-100/80 hover:bg-rose-50/70'
@@ -445,7 +452,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                                                 success={record.success}
                                             />
                                             <span
-                                                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
+                                                className={`login-activity-status-dot absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
                                                     record.success ? 'bg-[#3083FF]' : 'bg-rose-500'
                                                 }`}
                                             />
@@ -457,7 +464,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
                                                 <p className="text-xs font-bold text-slate-800 truncate">{record.fullName}</p>
                                                 <MethodBadge method={record.loginMethod} />
                                                 {record.role && (
-                                                    <span className="text-[10px] bg-[#3083FF]/[0.06] text-[#3083FF] px-1.5 py-0.5 rounded font-semibold">
+                                                    <span className="login-activity-role text-[10px] bg-[#3083FF]/[0.06] text-[#3083FF] px-1.5 py-0.5 rounded font-semibold">
                                                         {record.role}
                                                     </span>
                                                 )}
@@ -488,7 +495,7 @@ export function RecentLoginsCard({ initialLogins }: { initialLogins: LoginUser[]
 
                                         {/* Waktu */}
                                         <div className="hidden sm:block shrink-0 text-right">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF]">
+                                            <span data-login-success={record.success} className="login-activity-time inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3083FF]/[0.07] text-[#3083FF]">
                                                 {getTimeAgo(record.createdAt)}
                                             </span>
                                             <p className="text-[10px] text-slate-400 mt-1 tabular-nums">{formatTime(record.createdAt)}</p>
