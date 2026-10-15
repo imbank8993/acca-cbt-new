@@ -18,7 +18,7 @@ test('class checkbox toggles once, preview does not select, and all students rep
  const state=[];let cursor=0,initial=true;const effects=[];let saved;
  const React={createElement:(type,props,...children)=>({type,props:props||{},children}),Fragment:'fragment',
   useState(initialValue){const i=cursor++;if(!(i in state))state[i]=initialValue;return[state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value}]},
-  useMemo:fn=>fn(),useEffect:fn=>{if(initial)effects.push(fn)}};
+  useMemo:fn=>fn(),useEffectEvent:fn=>fn,useEffect:fn=>{if(initial)effects.push(fn)}};
  const classes=[regular('a','X A'),regular('b','XI B'),regular('old','XII D','2025/2026'),{...regular('extra','XI Kimia 1'),type:'tambahan'}];
  const props={isOpen:true,onClose(){},classes,classStudents:Object.fromEntries(classes.map(c=>[c.id,[]])),
   initialSelectedClassIds:['extra'],initialClassAssignments:{a:{mode:'selected',studentIds:['one']},extra:{mode:'all',studentIds:[]}},

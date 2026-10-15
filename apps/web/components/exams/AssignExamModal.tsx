@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import {
     Globe,
     Loader2,
@@ -119,8 +119,9 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
     const [searchAllSelected, setSearchAllSelected] = useState('');
     const [error, setError] = useState<string | null>(null);
 
-    // Load initial assignment data when modal opens
-    useEffect(() => {
+    // Read the latest initial values only when starting a modal session. Parent
+    // refreshes and inline callbacks must not overwrite the user's current draft.
+    const initializeAssignments = useEffectEvent(() => {
         let isMounted = true;
         const initializeId = window.setTimeout(() => {
             if (!isOpen) {
@@ -210,6 +211,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                 }
             })
             .catch((err) => {
+                if (!isMounted) return;
                 console.error('Failed to load assignments', err);
                 setError('Gagal memuat penugasan kelas yang sudah ada.');
             })
@@ -222,7 +224,13 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
             isMounted = false;
             window.clearTimeout(initializeId);
         };
-    }, [isOpen, exam, classes, onSaveAssignments, initialSelectedClassIds, initialClassAssignments]);
+    });
+
+    const assignmentExamId = exam?.id;
+    const isPickerMode = Boolean(onSaveAssignments);
+    useEffect(() => {
+        return initializeAssignments();
+    }, [isOpen, assignmentExamId, isPickerMode]);
 
     // Active class helper
     const activeClass = useMemo(() => {
@@ -1015,7 +1023,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                             type="button"
                             variant="primary"
                             onClick={handleSubmit}
-                            disabled={isSubmitting || (!onSaveAssignments && selectedClassIds.length === 0)}
+                            disabled={isSubmitting || isLoadingExisting || (!onSaveAssignments && selectedClassIds.length === 0)}
                             isLoading={isSubmitting}
                             icon={onSaveAssignments ? 'check' : 'save'}
                         >
