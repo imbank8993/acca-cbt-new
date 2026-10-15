@@ -191,7 +191,7 @@
 }
 
 .dark .uimsel-trigger {
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     border-color: rgba(59, 130, 246, 0.75);
     color: #e2e8f0;
 }

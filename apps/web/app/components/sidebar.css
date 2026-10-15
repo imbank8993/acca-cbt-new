@@ -24,7 +24,7 @@
 
 .dark {
   /* Google One AI Dark Mode Palette */
-  --sidebar-bg: #0b1329;
+  --sidebar-bg: var(--card, #0d1221);
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
@@ -95,7 +95,7 @@
 }
 
 .dark .sidebar {
-  background: #0b1329;
+  background: var(--sidebar-bg);
   border: none !important;
   border-right: 1px solid var(--sidebar-border) !important;
   box-shadow: none !important;

@@ -324,7 +324,7 @@ body.dark .ui-btn--unpublish:hover:not(:disabled),
 }
 
 .dark .ui-btn--more {
-  background: #000000;
+  background: var(--card, #0d1221);
   color: #60a5fa;
   border: 1.5px solid rgba(26, 115, 232, 0.75);
 }

@@ -2079,10 +2079,12 @@ span[style*="white-space: pre"] {
 /* ============================================
    DARK MODE SYSTEM STYLES
    ============================================ */
+html.dark,
 .dark {
   --background: #0d1221;
   --foreground: #e8edf5;
-  --card: #161d30;
+  /* Cards, navigation and dialogs share one base surface. */
+  --card: #0d1221;
   --card-foreground: #e8edf5;
   
   --primary: #4f8ef7;
@@ -2090,7 +2092,7 @@ span[style*="white-space: pre"] {
   --primary-light: #7aabf9;
   --primary-hover: #4f8ef7;
 
-  --secondary: #161d30;
+  --secondary: var(--card);
   --secondary-foreground: #7d8da8;
   
   --muted: #1c2439;
@@ -2107,18 +2109,18 @@ span[style*="white-space: pre"] {
   --info-light: #172554;
 
   /* Layout & Navigation Tokens (Eden Style Dark - Sync with ACCA) */
-  --sidebar-bg: #0d1221;
+  --sidebar-bg: var(--card);
   --sidebar-text: #94a3b8;
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
   --sidebar-hover: rgba(37, 99, 235, 0.12);
   --sidebar-border: rgba(37, 99, 235, 0.35);
-  --header-bg: #0d1221;
+  --header-bg: var(--card);
   --header-border: rgba(37, 99, 235, 0.35);
   --header-text: #e2e8f0;
   --n-bg: #020718;
-  --n-card: #0b1329;
-  --n-surface: #0b1329;
+  --n-card: var(--card);
+  --n-surface: var(--card);
   --n-border: rgba(37, 99, 235, 0.35);
 
   /* Redefine Tailwind v4 theme variables in dark mode for seamless integration */
@@ -2170,7 +2172,7 @@ span[style*="white-space: pre"] {
 .dark .bg-white,
 .dark .bg-card,
 .dark [class*="bg-white"] {
-  background-color: #161d30 !important;
+  background-color: var(--card) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
 }
 
@@ -2617,7 +2619,7 @@ span[style*="white-space: pre"] {
 .dark aside,
 .dark .header,
 .dark header {
-  background-color: #0d1221 !important;
+  background-color: var(--card) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -2839,6 +2841,6 @@ span[style*="white-space: pre"] {
 }
 
 @media (max-width: 1023.98px) {
-  html.dark { --sidebar-bg: #0b1329; --header-bg: #0b1329; }
+  html.dark { --sidebar-bg: var(--card); --header-bg: var(--card); }
 }
-@media (max-width: 1023.98px) { html.dark .sidebar, html.dark .header { background-color: #0b1329 !important; } }
+@media (max-width: 1023.98px) { html.dark .sidebar, html.dark .header { background-color: var(--card) !important; } }

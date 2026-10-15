@@ -1392,7 +1392,7 @@ html.dark .ftb-backBtn:hover {
 
 .dark .sk__btnActionMenu,
 .dark .sk__btnMore {
-    background: #000000;
+    background: var(--card, #0d1221);
     border-color: rgba(59, 130, 246, 0.35);
     color: #e2e8f0;
 }
@@ -1403,13 +1403,13 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .sk__menu {
-    background: #000000;
+    background: var(--card, #0d1221);
     border-color: rgba(59, 130, 246, 0.35);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
 .dark .sk__menuItem {
-    background: #000000;
+    background: var(--card, #0d1221);
     border-color: rgba(59, 130, 246, 0.25);
     color: #e2e8f0;
 }
@@ -1450,7 +1450,7 @@ html.dark .ftb-backBtn:hover {
 /* ===================== Dark Mode ===================== */
 
 .dark .ftb-toolbar {
-    background-color: #000000;
+    background-color: var(--card, #0d1221);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
     border-radius: 16px;
 }
@@ -1492,7 +1492,7 @@ html.dark .ftb-backBtn:hover {
     }
 
     html.dark .ftb-mobile-inlineActions .ftb-btn-icon-mobile {
-        background: #000000 !important;
+        background: var(--card, #0d1221) !important;
         border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
         color: #60a5fa !important;
         box-shadow: none !important;
@@ -1511,7 +1511,7 @@ html.dark .ftb-backBtn:hover {
     }
 
     .dark .ftb-mobile-search-wrap .ftb-field--search .ftb-box {
-        background: #000000 !important;
+        background: var(--input, #1c2439) !important;
         border: 1px solid rgba(59, 130, 246, 0.4) !important;
     }
 
@@ -1529,11 +1529,11 @@ html.dark .ftb-backBtn:hover {
     .dark .ftb-embedded-filter-badge {
         background: #1a73e8 !important;
         color: #ffffff !important;
-        border-color: #000000 !important;
+        border-color: var(--input, #1c2439) !important;
     }
 
     .dark .ftb-mobile-filter-btn {
-        background: #000000 !important;
+        background: var(--card, #0d1221) !important;
         border: 1px solid rgba(59, 130, 246, 0.4) !important;
         color: #60a5fa !important;
     }
@@ -1549,7 +1549,7 @@ html.dark .ftb-backBtn:hover {
     .dark .ftb-mobile-inlineActions .ftb-btn-icon-mobile,
     .dark .ftb-mobile-inlineActions .ui-btn.ftb-btn-icon-mobile,
     .dark .ftb-mobile-inlineActions button.ftb-btn-icon-mobile {
-        background: #000000 !important;
+        background: var(--card, #0d1221) !important;
         border: 1px solid rgba(59, 130, 246, 0.4) !important;
         color: #60a5fa !important;
     }
@@ -1560,13 +1560,13 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-box {
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
 }
 
 .dark .ftb-field--search .ftb-box {
     border-radius: 9999px;
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
 }
 
@@ -1595,12 +1595,12 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-box select.ftb-input option {
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     color: #ffffff;
 }
 
 .dark .ftb-box input.ftb-input::placeholder {
-    color: #64748b;
+    color: #94a3b8 !important;
 }
 
 .dark .ftb-box input.ftb-input[type="month"]::-webkit-calendar-picker-indicator,
@@ -1609,14 +1609,14 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-toolbar .ftb-field .dpk-trigger {
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
     color: #ffffff;
 }
 
 .dark .ftb-actions button:not(.ui-btn),
 .dark .ftb-btn--ghost {
-    background-color: #000000;
+    background-color: var(--card, #0d1221);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
     color: #60a5fa;
     border-radius: 12px;
@@ -1651,7 +1651,7 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-toggle {
-    background-color: #000000;
+    background-color: var(--input, #1c2439);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
     color: #ffffff;
 }
@@ -1665,7 +1665,7 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-mobile-filter-btn {
-    background-color: #000000;
+    background-color: var(--card, #0d1221);
     border: 1.8px solid rgba(26, 115, 232, 0.75);
     color: #60a5fa;
 }
@@ -1686,7 +1686,7 @@ html.dark .ftb-backBtn:hover {
 .dark .ftb-mobile-filter-badge {
     background: #1a73e8;
     color: #ffffff;
-    border-color: #000000;
+    border-color: var(--card, #0d1221);
 }
 
 /* ===================== Mobile Filter Modal ===================== */
@@ -1836,7 +1836,7 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .mui-opt {
-    background: #000000;
+    background: var(--card, #0d1221);
     border-color: rgba(59, 130, 246, 0.35);
     color: #f1f5f9;
 }

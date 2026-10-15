@@ -952,7 +952,6 @@ const ExamsPage = () => {
                         const isPublic = exam.metadata?.is_public === true;
                         const canPublish = isAssigned || isPublic;
                         const isArchived = exam.status === 'archived';
-                        const isDraft = !exam.is_published && !isArchived;
                         return (
                             <div key={exam.id} className={`bg-white border rounded-xl overflow-hidden transition-all hover:shadow-lg ${
                                 exam.is_published
@@ -998,43 +997,22 @@ const ExamsPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Bank info badge */}
-                                    <div className={`mt-3 px-3 py-2 rounded-lg border ${
-                                        isDraft
-                                            ? 'bg-red-50/60 border-red-200/60 text-red-600'
-                                            : 'bg-[#3083FF]/5 border-[#3083FF]/20 text-[#3083FF]'
-                                    }`}>
-                                        <p className={`text-xs font-medium truncate ${
-                                            isDraft ? 'text-red-600' : 'text-[#3083FF]'
-                                        }`}>
-                                            <BookOpen size={11} className={`inline mr-1.5 ${isDraft ? 'text-red-600' : 'text-[#3083FF]'}`} />
+                                    {/* Bank soal dan peserta dalam satu baris */}
+                                    <div className="mt-3 flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                        <span className="min-w-0 truncate" title={bank?.title || 'Bank soal dihapus'}>
                                             {bank?.title || 'Bank soal dihapus'}
-                                        </p>
+                                        </span>
+                                        <span aria-hidden="true" className="shrink-0">•</span>
+                                        <span className={'shrink-0 whitespace-nowrap' + (!isPublic && !isAssigned ? ' text-red-600' : '')}>
+                                            {isPublic
+                                                ? 'Umum • Semua siswa'
+                                                : isAssigned
+                                                    ? assignment.classCount > 0
+                                                        ? assignment.classCount + ' kelas'
+                                                        : assignment.studentCount + ' siswa'
+                                                    : 'Belum ditugaskan'}
+                                        </span>
                                     </div>
-
-                                    {/* Assignment Status Badge */}
-                                    {isPublic ? (
-                                        <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
-                                            <Globe size={12} className="text-[#3083FF] shrink-0" />
-                                            <p className="text-xs text-[#3083FF] font-medium">
-                                                <strong>Umum</strong> • Semua siswa
-                                            </p>
-                                        </div>
-                                    ) : isAssigned ? (
-                                        <div className="mt-2 px-3 py-2 bg-[#3083FF]/5 rounded-lg border border-[#3083FF]/20 flex items-center gap-2">
-                                            <CheckCircle2 size={12} className="text-[#3083FF] shrink-0" />
-                                            <p className="text-xs text-[#3083FF] font-medium">
-                                                <strong>{assignment.classCount > 0 ? `${assignment.classCount} kelas` : `${assignment.studentCount} siswa`}</strong>
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="mt-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200 flex items-center gap-2">
-                                            <AlertCircle size={12} className="text-red-600 shrink-0" />
-                                            <p className="text-xs text-red-700 font-medium">
-                                                Belum ditugaskan ke kelas manapun
-                                            </p>
-                                        </div>
-                                    )}
 
                                     {/* Info row */}
                                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3 text-xs sm:text-sm text-slate-500">
