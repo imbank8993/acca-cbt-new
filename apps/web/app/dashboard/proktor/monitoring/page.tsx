@@ -1,4 +1,5 @@
 "use client";
+import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
@@ -320,7 +321,7 @@ function MonitoringContent() {
     const pagedAnalysis = analysis.slice((safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE, safeAnalysisPage * ANALYSIS_PAGE_SIZE);
 
     return (
-        <div className="pb-24 max-w-7xl mx-auto">
+        <div className="monitoring-page pb-24 max-w-7xl mx-auto">
             {/* Header — Navy gradient */}
             {/* Stats Cards - Outside Banner */}
             {selectedExamId && (
@@ -357,10 +358,10 @@ function MonitoringContent() {
             <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
+            <div className="monitoring-controls flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
                 <div>
                     {selectedExamId ? (
-                        <div className="flex max-w-full gap-1 overflow-x-auto bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+                        <div className="monitoring-tabs flex max-w-full gap-1 overflow-x-auto p-1 rounded-xl">
                             {[
                                 { id: 'live', label: 'Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'results', label: 'Rekap', icon: Users, badge: null as number | null },

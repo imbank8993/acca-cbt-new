@@ -1,4 +1,5 @@
 "use client";
+import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
@@ -429,12 +430,12 @@ function MonitoringContent() {
     const pagedAnalysis = analysis.slice((safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE, safeAnalysisPage * ANALYSIS_PAGE_SIZE);
 
     return (
-        <div className="pb-24 max-w-7xl mx-auto">
-            <div className="mb-5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="monitoring-page pb-24 max-w-7xl mx-auto">
+            <div className="monitoring-controls mb-5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                     {selectedExamId && (
                         <div className="w-full min-w-0 overflow-x-auto lg:w-auto lg:shrink-0">
-                            <div className="flex w-max min-w-full gap-1 rounded-lg border border-[#3083FF]/20 bg-slate-50 p-1 lg:w-fit lg:min-w-0">
+                            <div className="monitoring-tabs flex w-max min-w-full gap-1 rounded-lg p-1 lg:w-fit lg:min-w-0">
                                 {[
                                 { id: 'live', label: 'Peserta Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'answers', label: 'Sinkronisasi Jawaban', icon: ShieldAlert, badge: null as number | null },
@@ -490,7 +491,7 @@ function MonitoringContent() {
                     </div>
                 </div>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
-                    <div className="mt-3 border-t border-slate-100 pt-3">
+                    <div className="mt-3 pt-1">
                     <FilterToolbar className="monitoring-results-toolbar">
                         <FilterSearch
                             value={searchName}
@@ -565,7 +566,7 @@ function MonitoringContent() {
                         { label: 'Selesai', value: completed, icon: CheckCircle2 },
                         { label: 'Peringatan tercatat', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
                     ].map((stat) => (
-                        <div key={stat.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                        <div key={stat.label} className="monitoring-stat-card flex items-center gap-3 rounded-xl bg-white px-3 py-3">
                             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                                 stat.alert ? 'bg-red-50 text-red-600' : 'bg-[#3083FF]/10 text-[#3083FF]'
                             }`}>

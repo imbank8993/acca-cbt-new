@@ -1,0 +1,37 @@
+/* Match the navigation surface instead of tinting entire class rows blue. */
+.dark .classes-table,
+.dark .classes-table thead,
+.dark .classes-table tbody,
+.dark .classes-table tr,
+.dark .classes-table tr:hover {
+  background: var(--card, #0d1221) !important;
+}
+
+.dark .classes-table th,
+.dark .classes-table td {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.dark .classes-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+.dark .classes-table .classes-type,
+.dark .classes-table .classes-student-count {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--foreground, #e8edf5) !important;
+  box-shadow: none !important;
+}
+
+.dark .classes-table .classes-student-count:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dark .classes-table .classes-student-count:focus-visible {
+  outline: 2px solid #3083ff;
+  outline-offset: 2px;
+}

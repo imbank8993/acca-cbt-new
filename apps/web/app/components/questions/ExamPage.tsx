@@ -29,6 +29,7 @@ writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
 import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
+import { sampleExamNetwork, examNetworkLabel } from '@/lib/exam-network';
 import { ExamClock } from '@/lib/exam-clock';
 import { hasExamFullscreen, supportsExamFullscreen, subscribeExamFullscreen, type FullscreenElement } from '@/lib/exam-fullscreen';
 import { acquireExamEditorLock } from '@/lib/exam-editor-lock';
@@ -135,6 +136,8 @@ export default function ExamPage() {
     const [accessError, setAccessError] = useState('');
 
     // Offline Tolerance
+    const networkSampleRef = useRef({ weak: false, streak: 0 });
+    const [isNetworkWeak, setIsNetworkWeak] = useState(false);
     const [serverUnavailableAt, setServerUnavailableAt] = useState<string | null>(null);
     const connectionReportRef = useRef<{ at: string; remainingSeconds: number; reason: 'browser_offline' | 'server_unreachable' } | null>(null);
     const connectionAttemptRef = useRef<string | null>(null);
@@ -1173,6 +1176,7 @@ export default function ExamPage() {
 
     useEffect(() => {
         const handleOnline = () => {
+            setIsOffline(false);
             void (async () => {
                 if (!await revalidateOfflineSession()) return;
                 setIsOffline(false);
@@ -1424,6 +1428,7 @@ export default function ExamPage() {
             if (!navigator.onLine) { recordConnectionInterruption('browser_offline'); return; }
             if (offlineRecoveryRef.current) return;
             const report = connectionReportRef.current;
+            const heartbeatStarted = performance.now();
             const heartbeat = await heartbeatExamAttempt(attempt.id, {
                 localAnswerCount: Object.values(answersRef.current).filter(value => value.trim().length > 0).length,
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
@@ -1432,6 +1437,8 @@ export default function ExamPage() {
             }).catch(() => undefined);
             if (cancelled) return;
             if (heartbeat?.success) {
+                networkSampleRef.current = sampleExamNetwork(networkSampleRef.current, performance.now() - heartbeatStarted);
+                setIsNetworkWeak(networkSampleRef.current.weak);
                 if (navigator.onLine && connectionReportRef.current === report) setServerUnavailableAt(null);
                 if (report && connectionReportRef.current === report) {
                     connectionReportRef.current = null;
@@ -1616,9 +1623,10 @@ export default function ExamPage() {
     }, []);
 
     const safeMode = exam?.metadata?.is_safe_mode !== false;
-    const syncNotice = isOffline || serverUnavailableAt
-        ? { tone: 'amber' as const, text: 'Koneksi terputus · jawaban menunggu sinkronisasi',
-            details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; pengiriman dicoba kembali saat koneksi pulih. ${storageWarning || ''}` }
+    const networkLabel = examNetworkLabel(isOffline, !!serverUnavailableAt, isNetworkWeak);
+    const syncNotice = networkLabel
+        ? { tone: 'amber' as const, text: networkLabel,
+            details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; sinkronisasi jawaban dicoba otomatis. Status ini tidak memastikan semua jawaban sudah tersimpan di server. ${storageWarning || ''}` }
         : failedSyncCount > 0
             ? { tone: 'amber' as const, text: `${failedSyncCount} jawaban menunggu sinkronisasi`, details: 'Pengiriman dicoba kembali otomatis. Jangan tutup halaman sampai jawaban tersimpan di server.' }
             : recoverySummary

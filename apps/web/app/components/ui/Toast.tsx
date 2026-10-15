@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence,motion } from 'framer-motion';
 import { AlertTriangle,CheckCircle2,Info,X,XCircle } from 'lucide-react';
-import { createContext,ReactNode,useCallback,useContext,useState } from 'react';
+import { createContext,ReactNode,useCallback,useContext,useMemo,useState } from 'react';
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -88,8 +88,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     addToast({ type: 'info', title, message });
   }, [addToast]);
 
+  const context = useMemo(() => ({ toast, dismiss, success, error, warning, info }),
+    [toast, dismiss, success, error, warning, info]);
+
   return (
-    <ToastContext.Provider value={{ toast, dismiss, success, error, warning, info }}>
+    <ToastContext.Provider value={context}>
       {children}
 
       {/* Toast Container */}

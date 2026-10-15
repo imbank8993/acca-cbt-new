@@ -1,4 +1,5 @@
 "use client";
+import '@/app/components/classes/classes.css';
 import { alertDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { editClassAction,getProctorOrganization,getStudentsByClassAction,type ClassStudent,type OrganizationClass,type ProctorOrganization } from '@/lib/api/proctor';
@@ -345,7 +346,7 @@ export default function GuruClassesPage() {
                     {/* Desktop: Table */}
                     <div className="hidden lg:block bg-white border border-[#3083FF]/30 rounded-lg overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table className="classes-table w-full">
                                 <thead>
                                     <tr className="border-b border-[#3083FF]/20 bg-[#3083FF]/5">
                                         <th className="text-left text-[10px] font-bold text-[#3083FF] uppercase tracking-wider px-6 py-4">Nama Kelas</th>
@@ -371,7 +372,7 @@ export default function GuruClassesPage() {
                                                 <span className="text-sm text-slate-500">{cls.school_year || '—'}</span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
+                                                <span className={`classes-type inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider ${
                                                     cls.type === 'reguler' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30'
                                                 }`}>
                                                     {cls.type === 'reguler' ? 'Utama' : 'Tambahan'}
@@ -384,7 +385,7 @@ export default function GuruClassesPage() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <button onClick={() => handleViewStudents(cls)} className="inline-flex items-center gap-1 text-sm font-semibold text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-3 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer">
+                                                <button onClick={() => handleViewStudents(cls)} className="classes-student-count inline-flex items-center gap-1 text-sm font-semibold text-[#3083FF] bg-[#3083FF]/10 hover:bg-[#3083FF]/20 transition-all px-3 py-1 rounded-lg border border-[#3083FF]/20 cursor-pointer">
                                                     <Users size={12} />
                                                     {cls.studentCount || 0}
                                                 </button>

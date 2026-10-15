@@ -1,0 +1,70 @@
+/* Keep one surface per section instead of nesting outlined panels. */
+.monitoring-page {
+  --monitoring-line: rgba(15, 23, 42, 0.1);
+  --monitoring-control: #f8fafc;
+}
+
+.dark .monitoring-page {
+  --monitoring-line: rgba(255, 255, 255, 0.08);
+  --monitoring-control: var(--input, #1c2439);
+}
+
+.monitoring-page .monitoring-controls,
+.monitoring-page .monitoring-stat-card,
+.monitoring-page .monitoring-tabs,
+.monitoring-page .monitoring-tabs button {
+  border: 0 !important;
+  box-shadow: none;
+}
+
+.monitoring-page .monitoring-controls .ftb-toolbar {
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.monitoring-page .monitoring-controls .ftb-toolbar .ftb-field .ftb-box,
+.monitoring-page .monitoring-controls .uimsel-trigger,
+.monitoring-page .monitoring-controls .uisel select.uisel-input,
+.monitoring-page .monitoring-controls .ss__trigger {
+  border: 1px solid var(--monitoring-line) !important;
+  border-radius: 8px !important;
+  background: var(--monitoring-control) !important;
+  box-shadow: none !important;
+}
+
+/* The searchable select already has an outer field; its input needs no frame. */
+.monitoring-page .monitoring-controls .ss__mainInput,
+.monitoring-page .monitoring-controls .ss__mainInput:focus {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.monitoring-page .monitoring-controls .ftb-toolbar .ftb-field .ftb-box:focus-within,
+.monitoring-page .monitoring-controls .ss__trigger:focus-within,
+.monitoring-page .monitoring-controls .ss__trigger.is-open,
+.monitoring-page .monitoring-controls .uimsel-trigger:focus-visible,
+.monitoring-page .monitoring-controls .uimsel.is-open .uimsel-trigger,
+.monitoring-page .monitoring-controls .uisel select.uisel-input:focus-visible {
+  border-color: #3083ff !important;
+  box-shadow: 0 0 0 2px rgba(48, 131, 255, 0.18) !important;
+}
+
+.monitoring-page .monitoring-tabs button:focus-visible {
+  outline: 2px solid #3083ff;
+  outline-offset: 2px;
+}
+
+/* Horizontal separators are enough to follow rows without a full cell grid. */
+.monitoring-page table th,
+.monitoring-page table td {
+  border: 0 !important;
+  border-bottom: 1px solid var(--monitoring-line) !important;
+}
+
+.monitoring-page table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
