@@ -9,13 +9,59 @@ require('ts-node').register({ project: path.resolve(__dirname, '../tsconfig.json
 const { fixtureDb } = require('./fixture-db.cjs');
 const { PasSchedulesService } = require('../src/pas/pas-schedules.service.ts');
 const { PasService } = require('../src/pas/pas.service.ts');
+const { normalizeSqlTime, dateTimeToUtc } = require('../src/common/school-time.ts');
 
 const user = { id: 'proctor-1', isPlatformAdmin: false };
 const authz = {
+    assertStaffByRecord: async () => {},
     assertProktor: async () => {},
     assertProktorByRecord: async () => {},
     assertProktorByParent: async () => {},
 };
+
+test('session clocks decode Prisma epoch dates without shifting the local hour', () => {
+    for (const value of ['08:15', '08:15:00', '1970-01-01T08:15:00.000Z', new Date('1970-01-01T08:15:00Z')]) {
+        assert.equal(normalizeSqlTime(value), '08:15:00');
+    }
+    for (const value of ['1970-', '24:00', '08:60', '08:15:60', null, new Date(NaN)]) {
+        assert.equal(normalizeSqlTime(value), null);
+    }
+    assert.equal(dateTimeToUtc('2026-09-15T00:00:00.000Z', '1970-01-01T08:15:00.000Z', 'Asia/Makassar'),
+        '2026-09-15T00:15:00.000Z');
+});
+
+test('session list and folder schedule return clock strings instead of the dummy year 1970', async () => {
+    const db = fixtureDb(tables());
+    db.tables.cbt_pas_sessions[0].start_time = '1970-01-01T07:30:00.000Z';
+    db.tables.cbt_pas_sessions[0].end_time = '1970-01-01T09:30:00.000Z';
+    db.tables.cbt_pas_class_schedules[0].scheduled_time = '1970-01-01T07:30:00.000Z';
+    const sessions = await new PasSchedulesService(db, authz).listSessions(user, 'period-1');
+    assert.equal(sessions[0].start_time.substring(0, 5), '07:30');
+    assert.equal(sessions[0].end_time.substring(0, 5), '09:30');
+    const period = await new PasService(db, authz).getPeriod(user, 'period-1');
+    assert.equal(period.pas_class_schedules[0].scheduled_time, '07:30:00');
+});
+
+test('scheduling and generation accept SQL TIME in Prisma format and convert WITA exactly once', async () => {
+    const db = fixtureDb(tables());
+    db.tables.cbt_pas_sessions[0].start_time = '1970-01-01T07:30:00.000Z';
+    db.tables.cbt_pas_sessions[0].end_time = '1970-01-01T09:30:00.000Z';
+    const service = new PasSchedulesService(db, authz, { getSchoolTimeZone: async () => 'Asia/Makassar' });
+    await service.addSchedule(user, { clientRequestId: '00000000-0000-4000-8000-000000000111',
+        pas_period_id: 'period-1', bank_id: 'bank-1', class_id: 'class-1', session_id: 'session-used',
+        scheduled_date: '2026-09-16', duration_override: 90 });
+    const created = db.tables.cbt_pas_class_schedules.find(s => s.id !== 'schedule-1');
+    assert.equal(created.scheduled_time, '07:30:00');
+    assert.equal(created.window_end_time, '09:30:00');
+    // Existing rows are also decoded correctly when generating exams.
+    created.scheduled_date = '2026-09-16T00:00:00.000Z';
+    created.scheduled_time = '1970-01-01T07:30:00.000Z';
+    created.window_end_time = '1970-01-01T09:30:00.000Z';
+    const result = await service.generate(user, [created.id]);
+    assert.equal(result.created, 1);
+    assert.equal(db.tables.cbt_exams[0].start_time, '2026-09-15T23:30:00.000Z');
+    assert.equal(db.tables.cbt_exams[0].end_time, '2026-09-16T01:30:00.000Z');
+});
 
 function tables(locked = false) {
     return {

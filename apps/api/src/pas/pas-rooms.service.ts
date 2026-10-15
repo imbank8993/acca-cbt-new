@@ -48,15 +48,15 @@ export class PasRoomsService {
             .from('cbt_pas_rooms')
             .select(
                 `id, name, capacity,
-                 pas_room_invigilators:cbt_pas_room_invigilators(user_id, profiles:cbt_profiles(full_name)),
-                 pas_room_students:cbt_pas_room_students(user_id, profiles:cbt_profiles(full_name))`,
+                 pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, profiles:cbt_profiles!user_id(full_name)),
+                 pas_room_students:cbt_pas_room_students!cbt_pas_room_students_pas_room_id_fkey(user_id, profiles:cbt_profiles!user_id(full_name))`,
             )
             .eq('pas_period_id', periodId)
             .order('name');
 
         if (error) {
             this.logger.error(`Gagal membaca daftar ruang: ${error.message}`);
-            return [];
+            throw new ServiceUnavailableException('Daftar ruang ujian belum dapat dimuat. Silakan coba lagi.');
         }
         return (data as any[]) || [];
     }

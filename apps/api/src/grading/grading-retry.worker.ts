@@ -29,6 +29,8 @@ export class GradingRetryWorker implements OnModuleInit, OnModuleDestroy {
         try {
             await this.grading.retryPendingAutoSubmissions(undefined, 25);
             if (this.stopped) return;
+            await this.grading.retryLiveQuestionRegrades();
+            if (this.stopped) return;
             const exams = await this.db.raw<Array<{ exam_id: string }>>(`
                 SELECT DISTINCT a.exam_id FROM public.cbt_exam_attempts a
                 JOIN public.cbt_exams e ON e.id = a.exam_id

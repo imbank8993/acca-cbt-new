@@ -116,7 +116,6 @@ export default function Sidebar({
         'Guru': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/guru' },
             { icon: 'fa-graduation-cap', label: 'Bahan Ajar', href: '/dashboard/learning' },
-            { icon: 'fa-bell', label: 'Notifikasi', href: '/dashboard/notifications' },
             { icon: 'fa-users', label: 'Kelas', href: '/dashboard/guru/classes' },
             { icon: 'fa-book-open', label: 'Bank Soal', href: '/dashboard/guru/questions' },
             { icon: 'fa-shield-halved', label: 'Validasi Soal', href: '/dashboard/guru/validations' },
@@ -133,7 +132,6 @@ export default function Sidebar({
         ],
         'Pengawas': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/pengawas' },
-            { icon: 'fa-bell', label: 'Notifikasi', href: '/dashboard/notifications' },
             { icon: 'fa-eye', label: 'Monitoring', href: '/dashboard/pengawas/monitoring' },
         ],
     }), []);

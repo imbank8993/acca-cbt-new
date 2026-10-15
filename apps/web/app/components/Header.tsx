@@ -9,7 +9,6 @@ import { ArrowLeft,LogOut,Menu,Moon,Sun,User as UserIcon } from 'lucide-react';
 import { usePathname,useRouter } from 'next/navigation';
 import { useEffect,useRef,useState } from 'react';
 import './header.css';
-import { NotificationBell } from './ui/NotificationBell';
 
 export interface HeaderUser {
     id?: string;
@@ -187,8 +186,6 @@ export default function Header({
                 </div>
 
                 <div className="header-right">
-                    <NotificationBell userId={user?.id} />
-
                     <button
                         type="button"
                         onClick={toggleDarkMode}

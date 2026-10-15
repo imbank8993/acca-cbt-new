@@ -13,7 +13,7 @@ import {
     insertIdempotentlyWithStatus,
 } from '../common/idempotent-create';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
-import { dateTimeToUtc } from '../common/school-time';
+import { dateTimeToUtc, normalizeSqlTime } from '../common/school-time';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
@@ -50,7 +50,9 @@ export class PasSchedulesService {
             this.logger.error(`Gagal membaca daftar sesi: ${error.message}`);
             return [];
         }
-        return (data as any[]) || [];
+        return ((data as any[]) || []).map(session => ({ ...session,
+            start_time: this.sessionClock(session.start_time), end_time: this.sessionClock(session.end_time),
+        }));
     }
 
     async createSession(user: AuthUser, periodId: string, dto: CreatePASSessionDto) {
@@ -207,7 +209,8 @@ export class PasSchedulesService {
                 throw new NotFoundException('Mata pelajaran aktif tidak ditemukan pada sekolah ini.');
             }
 
-            const times = session as { start_time: string; end_time: string };
+            const times = { start_time: this.sessionClock(session.start_time),
+                end_time: this.sessionClock(session.end_time) };
 
             const data = await insertIdempotently<{ id: string }>(db, {
                 table: 'cbt_pas_class_schedules',
@@ -373,9 +376,10 @@ export class PasSchedulesService {
             if (!cls) return `${scheduleId}: kelas bukan milik sekolah periode`;
 
             const duration = schedule.duration_minutes || 90;
-            const closeTime = schedule.window_end_time || schedule.scheduled_time;
+            const openTime = this.sessionClock(schedule.scheduled_time);
+            const closeTime = this.sessionClock(schedule.window_end_time || schedule.scheduled_time);
             const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
-            const startTime = dateTimeToUtc(schedule.scheduled_date, schedule.scheduled_time, timeZone);
+            const startTime = dateTimeToUtc(schedule.scheduled_date, openTime, timeZone);
             const endTime = dateTimeToUtc(schedule.scheduled_date, closeTime, timeZone);
             if (!startTime || !endTime || new Date(endTime) <= new Date(startTime)) {
                 return `${scheduleId}: jendela waktu ujian tidak valid`;
@@ -409,7 +413,7 @@ export class PasSchedulesService {
                     pas_period_name: folderName || null,
                     pas_schedule_id: scheduleId,
                     bank_title: bankTitle,
-                    window_open: schedule.scheduled_time,
+                    window_open: openTime,
                     window_close: closeTime,
                     exam_duration: duration,
                 },
@@ -451,6 +455,12 @@ export class PasSchedulesService {
 
             return null;
         });
+    }
+
+    private sessionClock(value: string | Date): string {
+        const clock = normalizeSqlTime(value);
+        if (!clock) throw new BadRequestException('Jam sesi ujian tidak valid. Periksa kembali jam mulai dan selesai.');
+        return clock;
     }
 
     private lockPeriod(db: DbSession, periodId: string): Promise<void> {

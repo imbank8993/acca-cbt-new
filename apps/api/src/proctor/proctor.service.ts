@@ -251,7 +251,11 @@ export class ProctorService {
             ...empty,
             totalMembers: members.count || 0,
             totalBanks: banks.count || 0,
-            draftExams: rows.filter((e) => !e.is_published && e.status !== 'active').length,
+            // Legacy response key: the dashboard displays this as Ujian Mendatang.
+            draftExams: rows.filter(
+                (e) => e.is_published && e.status === 'active' &&
+                    ms(e.start_time) > now && (!e.end_time || ms(e.end_time) > now),
+            ).length,
             ongoingExams: rows.filter(
                 (e) => e.is_published && e.status === 'active' && withinWindow(e),
             ).length,

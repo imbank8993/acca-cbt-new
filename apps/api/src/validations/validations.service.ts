@@ -9,6 +9,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { compareQuestions } from '../common/bank-question-order';
 import {
     CreateValidationDto,
     SaveValidationNoteDto,
@@ -261,7 +262,7 @@ export class ValidationsService {
         return {
             validation,
             myValidatorStatus: vAssignment,
-            questions: ((questions as any[]) || []).filter(q => !q.metadata?._deleted),
+            questions: ((questions as any[]) || []).filter(q => !q.metadata?._deleted).sort(compareQuestions),
             notes: (notes as any[]) || [],
         };
     }

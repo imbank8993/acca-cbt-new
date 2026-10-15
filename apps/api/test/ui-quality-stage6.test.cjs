@@ -51,7 +51,7 @@ test('UX-11: ekspor dapat mewakili pilihan kompleks dan jawaban terstruktur', ()
     );
 });
 
-test('BUG-14/UX-10: hook dan pagination tetap terjaga pada sumber UI', () => {
+test('BUG-14/UX-10: hooks remain before early returns and removed notification pages have no navigation links', () => {
     const viewer = fs.readFileSync(
         path.resolve(__dirname, '../../web/app/components/questions/ExamViewer.tsx'), 'utf8',
     );
@@ -60,11 +60,12 @@ test('BUG-14/UX-10: hook dan pagination tetap terjaga pada sumber UI', () => {
     assert.ok(viewer.indexOf('const [studentDocUrl') < earlyReturn);
     assert.ok(viewer.lastIndexOf('useEffect(') < earlyReturn);
 
-    const notificationPage = fs.readFileSync(
-        path.resolve(__dirname, '../../web/app/dashboard/notifications/page.tsx'), 'utf8',
-    );
-    assert.match(notificationPage, /Muat Lebih Banyak/);
-    assert.match(notificationPage, /offset,/);
+    assert.equal(fs.existsSync(path.resolve(__dirname, '../../web/app/dashboard/notifications/page.tsx')), false);
+    assert.equal(fs.existsSync(path.resolve(__dirname, '../../web/app/dashboard/notifications/settings/page.tsx')), false);
+    for (const file of ['Header.tsx', 'Sidebar.tsx', 'MobileNav.tsx']) {
+        const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components', file), 'utf8');
+        assert.doesNotMatch(source, /NotificationBell|\/dashboard\/notifications/);
+    }
     const notificationController = fs.readFileSync(
         path.resolve(__dirname, '../src/notifications/notifications.controller.ts'), 'utf8',
     );

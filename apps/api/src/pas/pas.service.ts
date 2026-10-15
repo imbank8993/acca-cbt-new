@@ -12,6 +12,7 @@ import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-d
 import { insertIdempotently } from '../common/idempotent-create';
 import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { normalizeSqlTime } from '../common/school-time';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
 
 /**
@@ -95,7 +96,11 @@ export class PasService {
             .select('*, classes:cbt_classes(name), question_banks:cbt_question_banks(id, title)')
             .eq('pas_period_id', periodId);
 
-        return { ...(period as object), pas_class_schedules: (schedules as any[]) || [] };
+        return { ...(period as object), pas_class_schedules: ((schedules as any[]) || []).map(schedule => ({
+            ...schedule,
+            scheduled_time: normalizeSqlTime(schedule.scheduled_time),
+            window_end_time: normalizeSqlTime(schedule.window_end_time),
+        })) };
     }
 
     async createPeriod(user: AuthUser, organizationId: string, dto: CreatePASPeriodDto) {

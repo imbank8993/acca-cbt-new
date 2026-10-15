@@ -328,15 +328,15 @@ export async function saveQuestionAction(data: {
     }[];
 }) {
     const res = data.id
-        ? await apiSend<{ id: string; activeExams: { id: string; title: string }[] }>(
+        ? await apiSend<{ id: string; activeExams: { id: string; title: string }[]; updatedExams?: number }>(
             '/api/question-banks/questions', data, 'PUT',
         )
         : await apiIdempotentMutation<{
-            id: string; activeExams: { id: string; title: string }[]
+            id: string; activeExams: { id: string; title: string }[]; updatedExams?: number
         }>('/api/question-banks/questions', data, 'PUT');
 
     return res.success
-        ? { success: true as const, id: res.id, activeExams: res.activeExams }
+        ? { success: true as const, id: res.id, activeExams: res.activeExams, updatedExams: res.updatedExams || 0 }
         : { success: false as const, activeExams: [], error: res.error };
 }
 

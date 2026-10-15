@@ -23,12 +23,14 @@ removeExamSubmissionRegistration,
 removeSecurityEvent,
 resolveDurableDeviceId,
 updateExamRecoveryPosition,
+updateExamRecoveryQuestions,
 validateExamRecoverySession,
 writeExamRecoverySession,
 writeExamSnapshot,
 } from '@/lib/exam-durable-storage';
 import { cacheExamOfflineShell,isExamPwaEnabled,removeExamOfflineShell } from '@/lib/exam-pwa';
 import { examAutoRetryDelay } from '@/lib/exam-retry';
+import { mergeExamQuestionUpdates } from '@/lib/exam-question-updates';
 import { sampleExamNetwork, examNetworkLabel } from '@/lib/exam-network';
 import { ExamClock } from '@/lib/exam-clock';
 import { hasExamFullscreen, supportsExamFullscreen, subscribeExamFullscreen, type FullscreenElement } from '@/lib/exam-fullscreen';
@@ -205,9 +207,13 @@ export default function ExamPage() {
     // ── Live exam question update polling ─────────────────────
     useEffect(() => {
         if (!examId || isCompleted || accessDenied || loading) return;
+        let disposed = false;
+        let checking = false;
 
         const checkUpdates = async () => {
-            if (!navigator.onLine || questionsRef.current.length === 0) return;
+            if (disposed || checking || !navigator.onLine || questionsRef.current.length === 0) return;
+            checking = true;
+            const attemptId = attemptRef.current?.id;
             try {
                 const currentRevs: Record<string, number> = {};
                 questionsRef.current.forEach(q => {
@@ -224,15 +230,14 @@ export default function ExamPage() {
                     'POST',
                 );
 
-                if (res.success && res.hasUpdates && res.updatedQuestionIds?.length > 0) {
-                    const updatedMap = new Map((res.questions || []).map(q => [q.id, q]));
-
-                    // Merge into questions state
-                    setQuestions(prev => {
-                        const next = prev.map(q => updatedMap.get(q.id) || q);
-                        questionsRef.current = next;
-                        return next;
-                    });
+                if (!disposed && attemptId && attemptRef.current?.id === attemptId &&
+                    res.success && res.hasUpdates && res.updatedQuestionIds?.length > 0) {
+                    const next = mergeExamQuestionUpdates(questionsRef.current, res.questions || []);
+                    questionsRef.current = next;
+                    setQuestions(next);
+                    try { await updateExamRecoveryQuestions(examId, attemptId, next); }
+                    catch { /* Online revisions still render when offline storage is unavailable. */ }
+                    if (disposed || attemptRef.current?.id !== attemptId) return;
 
                     // Add to updatedQuestionIds for badge & red pulse indicator
                     setUpdatedQuestionIds(prev => new Set([...prev, ...res.updatedQuestionIds]));
@@ -252,11 +257,16 @@ export default function ExamPage() {
                 }
             } catch {
                 // Ignore silent background update check errors
+            } finally {
+                checking = false;
             }
         };
 
         const timer = setInterval(checkUpdates, 15000);
-        return () => clearInterval(timer);
+        const reconnect = () => { void checkUpdates(); };
+        window.addEventListener('online', reconnect);
+        void checkUpdates();
+        return () => { disposed = true; clearInterval(timer); window.removeEventListener('online', reconnect); };
     }, [examId, isCompleted, accessDenied, loading]);
 
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */

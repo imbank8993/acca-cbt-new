@@ -91,14 +91,28 @@ export function localDateTimeToUtc(
     return parsed.toISOString();
 }
 
-/** Combine a local date and time in an IANA time zone into a UTC instant. */
+/** Decode SQL TIME without applying a timezone conversion to the stored clock. */
+export function normalizeSqlTime(value: string | Date | null | undefined): string | null {
+    // Prisma represents SQL TIME as an epoch Date. Its UTC clock fields encode
+    // the wall time; converting them to the school's zone would shift the clock twice.
+    const raw = value instanceof Date
+        ? (Number.isFinite(value.getTime()) ? value.toISOString() : '') : value?.trim();
+    const match = raw?.match(/^(?:\d{4}-\d{2}-\d{2}T)?(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?$/);
+    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || Number(match[3] || 0) > 59) return null;
+    return `${match[1]}:${match[2]}:${match[3] || '00'}`;
+}
+
+/** Combine SQL DATE/TIME values, including Prisma's ISO representation, into a UTC instant. */
 export function dateTimeToUtc(
     date: string | null | undefined,
     time: string | null | undefined,
     timeZone = DEFAULT_SCHOOL_TIME_ZONE,
 ): string | null {
     if (!date || !time) return null;
-    return localDateTimeToUtc(`${date}T${time}`, timeZone);
+    const day = date.match(/^(\d{4}-\d{2}-\d{2})(?:T00:00:00(?:\.0+)?Z)?$/)?.[1];
+    const clock = normalizeSqlTime(time);
+    if (!day || !clock) return null;
+    return localDateTimeToUtc(`${day}T${clock}`, timeZone);
 }
 
 /** Format a UTC instant as a wall clock time in the configured time zone. */

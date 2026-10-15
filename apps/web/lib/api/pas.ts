@@ -212,7 +212,8 @@ export async function listPASRooms(periodId: string): Promise<PASRoom[]> {
     const res = await apiGet<{ rooms: PASRoom[] }>(
         `/api/pas/periods/${encodeURIComponent(periodId)}/rooms`,
     );
-    return res.success ? res.rooms : [];
+    if (!res.success) throw new Error(res.error || 'Daftar ruang ujian belum dapat dimuat.');
+    return res.rooms;
 }
 
 export function createPASRoomAction(periodId: string, name: string, capacity: number) {

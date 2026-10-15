@@ -6,6 +6,7 @@ const { fixtureDb } = require('./fixture-db.cjs');
 const { ValidationsService } = require('../src/validations/validations.service.ts');
 const { AuthorizationService } = require('../src/auth/authorization.service.ts');
 const { QuestionBanksService } = require('../src/questions/question-banks.service.ts');
+const { QuestionsService } = require('../src/questions/questions.service.ts');
 const { ForbiddenException } = require('@nestjs/common');
 const user = id => ({ id, organizationId: 'school', roles: [id === 'admin' ? 'ADMIN' : 'GURU'], isPlatformAdmin: false });
 function setup(rule = 'any', options = {}) {
@@ -38,6 +39,31 @@ test('Owner, assigned validators and admin retain detail and review access', asy
         assert.equal((await service.getDetail(user(id), 'session')).id, 'session');
         assert.equal((await service.getReviewData(user(id), 'session')).questions.length, 2);
     }
+});
+
+test('validation numbering matches bank creation order, including imported positions and identical timestamps', async () => {
+    const { db, service, authz } = setup();
+    const question = (id, created, metadata = {}) => ({ id, bank_id: 'bank', created_at: created,
+        updated_at: '2026-10-15T00:00:00Z', metadata });
+    db.tables.cbt_bank_questions = [
+        question('third', '2026-10-01T08:00:00Z', { order_index: 2 }),
+        question('legacy-b', '2026-10-01T10:00:00Z'),
+        question('second', '2026-10-01T08:00:00Z', { order_index: 1 }),
+        question('first', '2026-10-02T08:00:00Z', { order_index: 0 }),
+        question('legacy-a', '2026-10-01T10:00:00Z'),
+        question('legacy-oldest', '2026-09-30T08:00:00Z'),
+        question('deleted', '2026-09-29T00:00:00Z', { _deleted: true, order_index: -1 }),
+        { ...question('foreign', '2026-09-29T00:00:00Z'), bank_id: 'other' },
+    ];
+    const expected = ['first', 'second', 'third', 'legacy-oldest', 'legacy-a', 'legacy-b'];
+    const bank = new QuestionsService(db, authz, {});
+    assert.deepEqual((await bank.listByBank(user('owner'), 'bank')).map(q => q.id), expected);
+    const review = await service.getReviewData(user('a'), 'session');
+    assert.deepEqual(review.questions.map(q => q.id), expected);
+    db.tables.cbt_bank_questions.reverse();
+    db.tables.cbt_bank_questions.find(q => q.id === 'first').updated_at = '2026-10-16T00:00:00Z';
+    assert.deepEqual((await service.getReviewData(user('a'), 'session')).questions.map(q => q.id), expected);
+    assert.equal(db.writes.length, 0);
 });
 for (const [label, payload] of [
     ['another bank', note({ questionId: 'foreign' })],

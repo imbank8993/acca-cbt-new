@@ -1132,6 +1132,10 @@ export class ExamAttemptsService {
             try {
                 const graded = await this.gradeSubmission(examId, committed.answers!);
                 await this.db.transaction(async db => {
+                    await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
+                    if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(graded.questions)) {
+                        throw new BadRequestException('Soal atau kunci diperbarui. Penilaian akan diulang otomatis.');
+                    }
                     await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
                     const { data: current, error } = await db.from('cbt_exam_attempts')
                         .select('status, finished_at, metadata, total_score').eq('id', attempt.id).maybeSingle();
@@ -1181,6 +1185,7 @@ export class ExamAttemptsService {
      */
     private async gradeSubmission(examId: string, studentAnswers: Record<string, string>) {
         const empty = {
+            questions: [] as Awaited<ReturnType<typeof loadFrozenExamQuestions>>,
             scaledScore: 0,
             dimensionScores: {} as Record<string, number>,
             needsManualGrading: false,
@@ -1230,6 +1235,7 @@ export class ExamAttemptsService {
         }
 
         return {
+            questions,
             scaledScore: result.scaled_score,
             dimensionScores: result.dimension_scores || {},
             needsManualGrading: result.needs_manual_grading,

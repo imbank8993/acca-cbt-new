@@ -44,7 +44,6 @@ const PAGE_ICONS: Record<string, string> = {
     'schedule': 'calendar-week-fill',
     'results': 'award-fill',
     'analytics': 'graph-up',
-    'notifications': 'bell-fill',
     'settings': 'gear-fill',
     // Indonesian aliases
     'bank-soal': 'journal-text',
@@ -54,7 +53,6 @@ const PAGE_ICONS: Record<string, string> = {
     'bahan-ajar': 'book-open',
     'hasil-ujian': 'award-fill',
     'analisis': 'graph-up',
-    'notifikasi': 'bell-fill',
     'pengaturan': 'gear-fill',
 }
 
@@ -70,7 +68,6 @@ const PAGE_LABELS: Record<string, string> = {
     'schedule': 'Jadwal Ujian',
     'results': 'Hasil Ujian',
     'analytics': 'Analisis',
-    'notifications': 'Notifikasi',
     'settings': 'Pengaturan Umum',
 }
 
@@ -276,6 +273,8 @@ export default function BottomNav({
     const pinnedItems = useMemo(() => {
         return pinned
             .filter(id => Boolean(id) && typeof id === 'string')
+            // Hide saved shortcuts to the removed notification pages.
+            .filter(id => !/(^|\/)(notifications|notifikasi)(\/|[?#]|$)/.test(id))
             .map(id => {
                 const targetPath = id.startsWith('/') ? id : `/${id}`
                 return {

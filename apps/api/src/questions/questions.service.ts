@@ -4,6 +4,8 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { syncLiveExamQuestion } from '../common/live-exam-question-updates';
+import { compareQuestions } from '../common/bank-question-order';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -58,7 +60,7 @@ export class QuestionsService {
      * Simpan satu soal beserta opsinya.
      *
      * Mengembalikan `activeExams`: ujian yang SEDANG berjalan memakai bank ini.
-     * Snapshot ujian yang sudah dibekukan tidak berubah ketika bank diedit.
+     * Revisi diteruskan ke ujian yang belum selesai; arsip tetap memakai versi lamanya.
      */
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
@@ -173,13 +175,15 @@ export class QuestionsService {
                 await this.replaceOptions(questionId, dto.options, db);
             }
             await this.touchBank(dto.bankId, db);
-            // Existing exam snapshots are immutable; bank edits affect future exams only.
-            return { questionId, replayed: false };
+            const updatedExams = dto.id
+                ? await syncLiveExamQuestion(db, questionId, organizationId, user.id) : 0;
+            return { questionId, replayed: false, updatedExams };
         });
 
         const questionId = saved.questionId;
 
-        return { id: questionId, activeExams: await this.activeExamsUsing(dto.bankId) };
+        return { id: questionId, activeExams: await this.activeExamsUsing(dto.bankId),
+            updatedExams: saved.updatedExams || 0 };
     }
 
     /** Tambal satu kunci di `metadata` tanpa menyentuh kunci lainnya. */
@@ -571,31 +575,3 @@ function dedupeOptions(options: any[]): any[] {
         })
         .sort((a, b) => (a.order || 0) - (b.order || 0));
 }
-
-/**
- * Urutan soal di layar penyusunan: `metadata.order_index` bila ada, lalu
- * `created_at`, lalu `id`.
- *
- * Pemutus terakhir berdasarkan id itu bukan hiasan: soal hasil impor massal
- * berbagi `created_at` yang sama persis, dan tanpa pemutus yang pasti, menyimpan
- * satu soal bisa mengacak nomor soal lainnya.
- */
-function compareQuestions(a: any, b: any): number {
-    const orderA = a.metadata?.order_index;
-    const orderB = b.metadata?.order_index;
-
-    if (orderA !== undefined && orderB !== undefined) {
-        if (orderA !== orderB) return orderA - orderB;
-    } else if (orderA !== undefined) {
-        return -1;
-    } else if (orderB !== undefined) {
-        return 1;
-    }
-
-    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-    if (timeA !== timeB) return timeA - timeB;
-
-    return String(a.id).localeCompare(String(b.id));
-}
-

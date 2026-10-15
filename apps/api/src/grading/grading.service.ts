@@ -174,7 +174,7 @@ export class GradingService {
         });
     }
 
-    /** Regrade only finished attempts against their immutable exam snapshot. */
+    /** Regrade only finished attempts against the current, explicitly revised exam version. */
     async regradeAttempt(attemptId: string): Promise<void> {
         const { data: attempt, error } = await this.db.from('cbt_exam_attempts')
             .select('exam_id, status').eq('id', attemptId).maybeSingle();
@@ -375,8 +375,51 @@ export class GradingService {
         return { recovered, failed };
     }
 
+    /** Finish bank-edit regrades durably, including derived scores. Safe to retry after a restart. */
+    async retryLiveQuestionRegrades(): Promise<void> {
+        const exams = await this.db.from('cbt_exams').select('id, metadata, scoring_type')
+            .contains('metadata', { live_question_regrade_pending: true }).order('id').limit(25);
+        if (exams.error) throw new InternalServerErrorException('Antrean revisi kunci belum dapat dibaca.');
+        for (const exam of exams.data || []) {
+            try {
+                const revision = exam.metadata.live_question_revision;
+                const attempts = await this.db.from('cbt_exam_attempts').select('id, total_score')
+                    .eq('exam_id', exam.id).in('status', FINISHED_STATUSES);
+                if (attempts.error) throw new InternalServerErrorException('Nilai revisi belum dapat diperiksa.');
+                if ((attempts.data || []).some((attempt: { total_score: number | null }) => attempt.total_score == null)) continue;
+                if (attempts.data?.length) {
+                    await this.applyRelativeQuizScoringIfQuiz(exam.id);
+                    if (String(exam.scoring_type || '').split(',').some(type => type.trim().startsWith('irt'))) {
+                        await this.calculateIrtForExam(exam.id);
+                    }
+                }
+                await this.db.transaction(async db => {
+                    await advisoryTransactionLock(db, `exam-key-correction:${exam.id}`);
+                    await db.raw('SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE', exam.id);
+                    const latest = await db.from('cbt_exams').select('metadata').eq('id', exam.id).maybeSingle();
+                    if (latest.error || !latest.data) throw new InternalServerErrorException('Status revisi belum dapat dibaca.');
+                    if (latest.data.metadata?.live_question_revision !== revision) return;
+                    const pending = await db.from('cbt_exam_attempts').select('id').eq('exam_id', exam.id)
+                        .in('status', FINISHED_STATUSES).is('total_score', null).limit(1);
+                    if (pending.error) throw new InternalServerErrorException('Antrean peserta belum dapat diperiksa.');
+                    if (pending.data?.length) return;
+                    const saved = await db.from('cbt_exams').update({ metadata: { ...latest.data.metadata,
+                        live_question_regrade_pending: false, live_question_regraded_at: new Date().toISOString() } }).eq('id', exam.id);
+                    if (saved.error) throw new InternalServerErrorException('Status penilaian ulang belum tersimpan.');
+                });
+            } catch (error) {
+                this.logger.error(`Penilaian ulang revisi ${exam.id} masih tertunda: ${(error as Error).message}`);
+            }
+        }
+    }
+
     async calculateIrt(user: AuthUser, examId: string) {
         await this.authz.assertExamStaff(user, examId);
+        return this.calculateIrtForExam(examId);
+    }
+
+    /** Internal worker entry point; HTTP callers use the authorized method above. */
+    async calculateIrtForExam(examId: string) {
 
         const { data: exam } = await this.db
             .from('cbt_exams')

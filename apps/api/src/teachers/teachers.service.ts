@@ -391,8 +391,12 @@ export class TeachersService {
             (e) => e.exam_type !== 'pas' && e.exam_type !== 'pat',
         );
 
+        const nowMs = new Date(now).getTime();
         const draftExams = examRows.filter(
-            (e) => !e.is_published && e.status !== 'active',
+            // Legacy response key: the dashboard displays this as Ujian Mendatang.
+            (e) => e.is_published && e.status === 'active' &&
+                new Date(e.start_time).getTime() > nowMs &&
+                (!e.end_time || new Date(e.end_time).getTime() > nowMs),
         ).length;
 
         const ongoingExams = examRows.filter(

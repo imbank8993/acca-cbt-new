@@ -3,12 +3,10 @@ import { motion } from 'framer-motion';
 import {
 Activity,
 BarChart3,
-Bell,
 BookOpen,
 Calendar,
 ClipboardCheck,
 LayoutDashboard,
-Settings,
 Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -59,7 +57,6 @@ const MobileNav = () => {
         'Pengawas': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/pengawas' },
             { icon: Activity, label: 'Monitor', href: '/dashboard/pengawas/monitoring' },
-            { icon: Bell, label: 'Notif', href: '/dashboard/notifications' },
         ],
         'Siswa': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/siswa' },
@@ -69,8 +66,7 @@ const MobileNav = () => {
             { icon: Activity, label: 'Analisis', href: '/dashboard/siswa/analytics' },
         ],
         'User': [
-            { icon: Bell, label: 'Notif', href: '/dashboard/notifications' },
-            { icon: Settings, label: 'Set', href: '/dashboard/notifications/settings' },
+            { icon: LayoutDashboard, label: 'Dash', href: '/dashboard' },
         ]
     };
 

@@ -14,6 +14,7 @@ import {
 import { publicStudentScores, type AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamAccess, canAccessExam, loadExamAudience } from './exam-access';
+import { studentExamMetadata } from './student-exam-metadata';
 
 /** Status attempt yang berarti siswa sudah selesai mengerjakan. */
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
@@ -262,6 +263,7 @@ export class StudentsService {
 
         return visibleExams.map((exam) => ({
             ...exam,
+            metadata: studentExamMetadata(exam.metadata),
             isCompleted: completed.has(exam.id),
             isInProgress: inProgress.has(exam.id),
         }));
@@ -312,7 +314,8 @@ export class StudentsService {
             .maybeSingle();
         if (attemptError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
 
-        return { exam: data, profile: profile ?? null, hasStartedAttempt: Boolean(startedAttempt) };
+        return { exam: { ...data, metadata: studentExamMetadata(data.metadata) },
+            profile: profile ?? null, hasStartedAttempt: Boolean(startedAttempt) };
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────

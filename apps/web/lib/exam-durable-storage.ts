@@ -229,14 +229,33 @@ export async function readExamRecoverySession(examId: string): Promise<ExamRecov
 }
 
 export async function updateExamRecoveryPosition(examId: string, lastQuestionIndex: number): Promise<void> {
-    const current = await readExamRecoverySession(examId);
-    if (!current) return;
-    await writeExamRecoverySession({
-        ...current,
-        lastQuestionIndex: Math.max(0, Math.floor(lastQuestionIndex)),
-        // Memindahkan nomor soal tidak memperbarui umur/verifikasi paket.
-        cachedAt: current.cachedAt,
+    await patchExamRecoverySession(examId, current => ({
+        ...current, lastQuestionIndex: Math.max(0, Math.floor(lastQuestionIndex)),
+    }));
+}
+
+/** A single IndexedDB transaction avoids overwriting revisions during navigation or reviving a removed session. */
+async function patchExamRecoverySession(
+    examId: string, patch: (current: ExamRecoverySession) => ExamRecoverySession,
+): Promise<void> {
+    await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
+        const read = store.get(examId);
+        read.onerror = () => reject(read.error);
+        read.onsuccess = () => {
+            const current = normalizeRecoverySession(read.result);
+            if (!current) { resolve(); return; }
+            const write = store.put(patch(current));
+            write.onsuccess = () => resolve();
+            write.onerror = () => reject(write.error);
+        };
     });
+}
+
+export async function updateExamRecoveryQuestions(
+    examId: string, attemptId: string, questions: ExamRecoverySession['questions'],
+): Promise<void> {
+    await patchExamRecoverySession(examId, current => current.attemptId === attemptId
+        ? { ...current, questions } : current);
 }
 
 export async function removeExamRecoverySession(examId: string): Promise<void> {

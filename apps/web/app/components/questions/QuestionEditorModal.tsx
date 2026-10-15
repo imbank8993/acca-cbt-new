@@ -1,5 +1,6 @@
 "use client";
 import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
+import { useToast } from '@/app/components/ui/Toast';
 import InlineSelect from '@/components/ui/InlineSelect';
 import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionMetadata,QuestionOptionDraft,QuestionRecord } from '@/lib/api/questions';
 import type { ProctorOrganization } from '@/lib/api/proctor';
@@ -162,6 +163,7 @@ export default function QuestionEditorModal({
     kisiKisiList,
     isBulkImportPreview
 }: QuestionEditorModalProps) {
+    const toast = useToast();
     useEffect(() => {
         const scrollY = window.scrollY;
         document.documentElement.classList.add('scroll-locked', 'cbt-editor-open');
@@ -380,6 +382,9 @@ export default function QuestionEditorModal({
         console.log('[QuestionEditorModal] Save result:', result);
 
         if (result.success) {
+            if (result.updatedExams > 0) {
+                toast.success('Revisi soal tersimpan', `Diterapkan ke ${result.updatedExams} ujian yang belum selesai. Halaman siswa akan menerima pembaruan; perubahan kunci diproses untuk penilaian ulang otomatis.`);
+            }
             if ((afterSave === 'prev' || afterSave === 'next') && onNavigate) {
                 // Keep the editor open and jump to the adjacent question.
                 await onSaveSuccess();

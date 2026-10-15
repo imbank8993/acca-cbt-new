@@ -1,9 +1,10 @@
 "use client";
+import '@/app/components/pas-room-management.css';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import RoomManagementModal from '@/app/dashboard/proktor/pas/RoomManagementModal';
 import { InlineSelect } from '@/components/ui/InlineSelect';
-import { MultiSelect } from '@/components/ui/MultiSelect';
+import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
 import {
 addPASScheduleAction,
@@ -25,7 +26,6 @@ import { Button } from '@/app/components/ui/button';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
-ArrowLeft,
 BookOpen,
 Calendar,
 Check,
@@ -47,7 +47,7 @@ import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
-type TabId = 'schedules' | 'live_today' | 'detail';
+type TabId = 'schedules' | 'live_today';
 
 export default function ProctorPASDetailPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
@@ -341,30 +341,17 @@ export default function ProctorPASDetailPage() {
             <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                        <Link
-                            href="/dashboard/proktor/exams"
-                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all border border-slate-200/80 shrink-0"
-                            title="Kembali ke Daftar Ujian"
-                        >
-                            <ArrowLeft size={16} />
-                        </Link>
                         <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3083FF] shrink-0">
                             <FolderOpen size={20} />
                         </div>
                         <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/20 uppercase">
-                                    {period.type?.toUpperCase() === 'PAT' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'Ganjil' : 'Genap'}
-                                </span>
-                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md border border-slate-200">
-                                    {period.school_year}
-                                </span>
-                                {period.is_locked && (
+                            {period.is_locked && (
+                                <div className="flex mb-1">
                                     <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded-md flex items-center gap-1">
                                         <Lock size={10} /> Terkunci
                                     </span>
-                                )}
-                            </div>
+                                </div>
+                            )}
                             <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{period.name}</h1>
                             <p className="text-slate-500 text-xs font-medium flex items-center gap-1.5 mt-0.5">
                                 <Calendar size={12} className="text-slate-400" />
@@ -446,15 +433,6 @@ export default function ProctorPASDetailPage() {
                         )}
                     </button>
 
-                    <button
-                        onClick={() => setActiveTab('detail')}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            activeTab === 'detail' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                        <Settings size={13} />
-                        Detail Folder
-                    </button>
                 </div>
 
                 {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
@@ -874,44 +852,6 @@ export default function ProctorPASDetailPage() {
                 </div>
             )}
 
-            {/* ─── DETAIL TAB ─── */}
-            {activeTab === 'detail' && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Nama Folder / Nama Ujian</p>
-                            <p className="text-sm font-semibold text-slate-900">{period.name}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Tipe</p>
-                            <p className="text-sm font-semibold text-slate-900 uppercase">{period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Tahun Ajaran</p>
-                            <p className="text-sm font-semibold text-slate-900">{period.school_year}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Semester</p>
-                            <p className="text-sm font-semibold text-slate-900">{period.semester === 'ganjil' ? 'Ganjil' : 'Genap'}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Tanggal Mulai</p>
-                            <p className="text-sm font-semibold text-slate-900">{formatDate(period.start_date)}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-medium mb-1">Tanggal Selesai</p>
-                            <p className="text-sm font-semibold text-slate-900">{formatDate(period.end_date)}</p>
-                        </div>
-                    </div>
-                    <div className="pt-4 border-t border-slate-100">
-                        <p className="text-xs text-slate-400 font-medium mb-2">Status</p>
-                        <span className={`px-3 py-1.5 text-xs font-bold rounded-full ${period.is_locked ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            {period.is_locked ? 'TERKUNCI' : 'AKTIF'}
-                        </span>
-                    </div>
-                </div>
-            )}
-
             {/* ─── ADD SCHEDULE MODAL ─── */}
             <AnimatePresence>
                 {isAddScheduleOpen && (
@@ -933,23 +873,20 @@ export default function ProctorPASDetailPage() {
                                 </div>
                             </div>
 
-                            <form onSubmit={handleAddSchedule} className="mt-5 space-y-4">
+                            <form onSubmit={handleAddSchedule} className="pas-schedule-form mt-5 space-y-4">
                                 <div>
                                     <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Bank Soal *</label>
-                                    <InlineSelect
-                                        value={scheduleForm.bank_id}
-                                        onChange={(val) => handleBankChange(val)}
-                                        minWidth="100%"
-                                        height="40px"
-                                        title="Pilih Bank Soal"
-                                        options={[
-                                            { value: '', label: '— Pilih Bank Soal —' },
-                                            ...qBanks.map((b) => ({
-                                                value: b.id,
-                                                label: `${b.title} — ${b.subject || 'Umum'} (${b.question_count ?? b.total_questions ?? 0} soal)`,
-                                            })),
-                                        ]}
-                                    />
+                                    <SearchableSelect
+                                    value={scheduleForm.bank_id}
+                                    onChange={val => handleBankChange(String(val || ''))}
+                                    placeholder="Cari atau pilih bank soal..."
+                                    searchPlaceholder="Ketik nama bank soal..."
+                                    options={qBanks.map(b => ({
+                                        value: b.id,
+                                        label: b.title,
+                                        subLabel: (b.subject || 'Umum') + ' · ' + (b.question_count ?? b.total_questions ?? 0) + ' soal',
+                                    }))}
+                                />
                                 </div>
 
                                 <div>
@@ -974,16 +911,16 @@ export default function ProctorPASDetailPage() {
                                     <label className="text-xs font-semibold text-slate-700 mb-1.5 block">
                                         Kelas Tujuan * {scheduleForm.class_ids.length > 0 && <span className="text-primary font-normal">({scheduleForm.class_ids.length} kelas dipilih)</span>}
                                     </label>
-                                    <MultiSelect
-                                        options={classes.map((c) => ({ value: c.id, label: c.name }))}
-                                        value={scheduleForm.class_ids}
-                                        onChange={(vals) => setScheduleForm(p => ({ ...p, class_ids: vals }))}
-                                        placeholder="— Pilih Kelas Tujuan —"
-                                        allSelectedText="Semua Kelas Terpilih"
-                                        minWidth="100%"
-                                        height="40px"
-                                        showQuickActions={true}
-                                    />
+                                    <SearchableSelect
+                                multiple
+                                options={classes.map(c => ({ value: c.id, label: c.name.replace(/^kelas\s+/i, '') }))}
+                                value={scheduleForm.class_ids}
+                                onChange={vals => setScheduleForm(p => ({ ...p, class_ids: Array.isArray(vals) ? vals.map(String) : [] }))}
+                                placeholder="Cari atau pilih kelas..."
+                                searchPlaceholder="Ketik nama kelas..."
+                                itemLabel="kelas"
+                                showQuickActions
+                            />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

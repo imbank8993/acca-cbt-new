@@ -1,4 +1,5 @@
 "use client";
+import '@/app/components/pas-room-management.css';
 
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
@@ -91,6 +92,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
     const [isLoading, setIsLoading] = useState(true);
+    const [roomError, setRoomError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [isProctorSaved, setIsProctorSaved] = useState(false);
 
@@ -132,16 +134,20 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [roomList, teacherList, classList, sessionList] = await Promise.all([
+            const [roomResult, teacherResult, classResult, sessionResult] = await Promise.allSettled([
                 listPASRooms(period.id),
                 listTeachersAndInvigilators(),
                 listOrganizationClasses({ activeYearOnly: true }),
                 listPASSessions(period.id),
             ]);
+            if (teacherResult.status === 'fulfilled') setTeachers(teacherResult.value);
+            if (classResult.status === 'fulfilled') setClasses(classResult.value);
+            if (sessionResult.status === 'fulfilled') setSessions(sessionResult.value);
+            if (roomResult.status === 'rejected') throw roomResult.reason;
+            const roomList = roomResult.value;
             setRooms(roomList);
-            setTeachers(teacherList);
-            setClasses(classList);
-            setSessions(sessionList);
+            setRoomError([teacherResult, classResult, sessionResult].some(result => result.status === 'rejected')
+                ? 'Daftar ruang sudah dimuat, tetapi sebagian data pengawas, kelas, atau sesi belum tersedia. Coba muat ulang daftar.' : '');
 
             // Auto-select first room if none selected yet and rooms exist
             setSelectedRoomId((prev) => {
@@ -149,9 +155,10 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                 return roomList.length > 0 ? roomList[0].id : null;
             });
         } catch (error) {
-            console.error('Failed to load room data', error);
+            setRoomError(error instanceof Error ? error.message : 'Data ruang belum dapat dimuat.');
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     }, [period.id]);
 
     useEffect(() => {
@@ -169,22 +176,45 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
     }, [selectedRoom]);
 
     const handleCreateRoom = async () => {
-        if (!newRoomName.trim()) return;
+        const name = newRoomName.trim();
+        if (!name || isSaving) return;
+        if (!Number.isInteger(newRoomCapacity) || newRoomCapacity < 1) {
+            setRoomError('Kapasitas ruang minimal 1 kursi dan harus berupa bilangan bulat.');
+            return;
+        }
         setIsSaving(true);
-        const result = await createPASRoomAction(period.id, newRoomName.trim(), newRoomCapacity);
-        if (result.success) {
+        setRoomError('');
+        try {
+            const result = await createPASRoomAction(period.id, name, newRoomCapacity);
+            if (!result.success) throw new Error(result.error || 'Ruang belum berhasil disimpan.');
             setNewRoomName('');
             setNewRoomCapacity(30);
             setIsCreatingRoom(false);
-            const updatedRooms = await listPASRooms(period.id);
-            setRooms(updatedRooms);
             if (result.id) {
+                const savedRoom: PASRoom = { id: result.id, name, capacity: newRoomCapacity,
+                    pas_room_invigilators: [], pas_room_students: [] };
+                setRooms(previous => previous.some(room => room.id === result.id) ? previous : [...previous, savedRoom]);
                 setSelectedRoomId(result.id);
             }
-        } else {
-            alert(result.error);
+            try { setRooms(await listPASRooms(period.id)); }
+            catch { setRoomError('Ruang sudah tersimpan, tetapi daftar terbaru belum dapat dimuat. Coba muat ulang daftar.'); }
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Ruang belum berhasil disimpan. Silakan coba lagi.');
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
+    };
+
+    const refreshRooms = async () => {
+        try {
+            const updated = await listPASRooms(period.id);
+            setRooms(updated);
+            setRoomError('');
+            return updated;
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Daftar ruang belum dapat dimuat.');
+            return rooms;
+        }
     };
 
     const handleDeleteRoom = async (roomId: string) => {
@@ -192,8 +222,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         setIsSaving(true);
         const result = await deletePASRoomAction(roomId);
         if (result.success) {
-            const updatedRooms = await listPASRooms(period.id);
-            setRooms(updatedRooms);
+            const updatedRooms = await refreshRooms();
             if (selectedRoomId === roomId) {
                 setSelectedRoomId(updatedRooms.length > 0 ? updatedRooms[0].id : null);
             }
@@ -209,8 +238,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         setIsSaving(true);
         const result = await assignProctorsToRoomAction(selectedRoom.id, targetIds);
         if (result.success) {
-            const updatedRooms = await listPASRooms(period.id);
-            setRooms(updatedRooms);
+            await refreshRooms();
             setIsProctorSaved(true);
             setTimeout(() => setIsProctorSaved(false), 3000);
         } else {
@@ -258,8 +286,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         setIsSaving(true);
         const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
         if (result.success) {
-            const updatedRooms = await listPASRooms(period.id);
-            setRooms(updatedRooms);
+            await refreshRooms();
             setSelectedStudentIds([]);
         } else {
             alert(result.error);
@@ -278,8 +305,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
         setIsSaving(true);
         const result = await removeStudentFromRoomAction(period.id, userId);
         if (result.success) {
-            const updatedRooms = await listPASRooms(period.id);
-            setRooms(updatedRooms);
+            await refreshRooms();
         } else {
             alert(result.error);
         }
@@ -337,14 +363,14 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
             open={true}
             onClose={onClose}
             size="2xl"
-            title="Manajemen Ruang, Sesi & Pengawas"
-            subtitle={<span>Folder: <strong className="text-slate-800 font-semibold">{period.name}</strong> • {period.school_year}</span>}
+            title="Ruang, Sesi & Pengawas"
+            subtitle={period.name}
             icon="door-open"
-            className="!max-w-5xl"
+            className="pas-room-management !max-w-5xl"
         >
             <div className="flex flex-col flex-1 min-h-0 bg-white">
                 {/* ── Tabs Bar ── */}
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 pt-2 bg-slate-50/60 shrink-0 flex-wrap gap-2">
+                <div className="pas-room-tabs flex items-center justify-between border-b border-slate-200 px-6 pt-2 shrink-0 gap-2">
                     <div className="flex gap-2">
                         <button
                             type="button"
@@ -356,7 +382,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                             }`}
                         >
                             <DoorOpen size={15} />
-                            Ruangan & Pengawas
+                            Ruang & Pengawas
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 activeTab === 'rooms' ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-slate-200 text-slate-600'
                             }`}>
@@ -392,7 +418,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                             }`}
                         >
                             <ShieldCheck size={15} />
-                            Rekap Jadwal & Pengawasan
+                            Jadwal
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
                                 {allSchedules.length}
                             </span>
@@ -406,6 +432,12 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
                 {/* ── Modal Body Content ── */}
                 <ModalBody className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
+                    {roomError && (
+                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                            <p>{roomError}</p>
+                            <button type="button" className="mt-2 font-semibold underline" onClick={() => void loadData()}>Muat ulang daftar</button>
+                        </div>
+                    )}
                     {timeZoneError && (
                         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 font-medium">
                             {timeZoneError}
@@ -416,13 +448,13 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                         TAB 1: RUANGAN & PENGAWAS
                        ══════════════════════════════════════════════════════════ */}
                     {activeTab === 'rooms' && (
-                        <div className="space-y-6">
+                        <div className="space-y-4">
                             {/* Header Section */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div>
                                     <h3 className="font-bold text-slate-900 text-sm">Daftar Ruang Ujian</h3>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        Pilih ruang di bawah untuk menentukan guru pengawas yang bertugas serta alokasi siswa.
+                                        Atur pengawas dan peserta untuk setiap ruang.
                                     </p>
                                 </div>
                                 {!period.is_locked && (
@@ -439,7 +471,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
 
                             {/* Form Tambah Ruang Baru */}
                             {!period.is_locked && isCreatingRoom && (
-                                <div className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl flex flex-col sm:flex-row gap-3 items-end shadow-2xs">
+                                <div className="pas-room-create grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px_auto] gap-3 items-end">
                                     <div className="flex-1 w-full">
                                         <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Ruang *</label>
                                         <PASRoomInput
@@ -449,8 +481,8 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             existingRooms={rooms}
                                         />
                                     </div>
-                                    <div className="w-full sm:w-36">
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kapasitas Kursi</label>
+                                    <div className="w-full">
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kapasitas</label>
                                         <input
                                             type="number"
                                             min="1"
@@ -477,7 +509,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             isLoading={isSaving}
                                             leftIcon={<Save size={14} />}
                                         >
-                                            Simpan Ruang
+                                            Simpan
                                         </Button>
                                     </div>
                                 </div>
@@ -488,22 +520,13 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                 <div className="text-center py-10 text-slate-400 text-xs flex items-center justify-center gap-2">
                                     <Loader2 size={18} className="animate-spin text-[#3083FF]" /> Memuat data ruangan...
                                 </div>
-                            ) : rooms.length === 0 ? (
-                                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
+                            ) : rooms.length === 0 && !roomError ? (
+                                <div className="pas-room-empty text-center py-8 text-slate-500">
                                     <DoorOpen size={36} className="mx-auto mb-2.5 text-slate-300" />
                                     <p className="font-bold text-slate-800 text-sm">Belum ada ruang yang dibuat</p>
                                     <p className="text-xs text-slate-400 mt-0.5 max-w-sm mx-auto">
-                                        Tambahkan ruang ujian terlebih dahulu untuk menetapkan pengawas dan alokasi siswa.
+                                        Tambah ruang untuk mulai mengatur peserta dan pengawas.
                                     </p>
-                                    {!period.is_locked && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsCreatingRoom(true)}
-                                            className="mt-3.5 px-4 py-2 text-xs bg-[#3083FF] text-white rounded-xl hover:bg-[#2563EB] inline-flex items-center gap-1.5 font-bold shadow-xs transition-colors"
-                                        >
-                                            <Plus size={14} /> Tambah Ruang Baru
-                                        </button>
-                                    )}
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
@@ -521,7 +544,7 @@ export default function RoomManagementModal({ period, onClose }: RoomManagementM
                                             <div
                                                 key={room.id}
                                                 onClick={() => setSelectedRoomId(room.id)}
-                                                className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                                                className={`pas-room-card p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                                                     isSelected
                                                         ? 'border-[#3083FF] bg-[#3083FF]/5 ring-2 ring-[#3083FF]/25 shadow-xs'
                                                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-2xs'

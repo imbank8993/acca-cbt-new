@@ -25,8 +25,9 @@ const response = score => ({ ...batch(score), items: [{ ...batch(score).items[0]
 const staff = { assertExamStaff: async () => {} };
 const noRelative = { applyRelativeQuizScoringIfQuiz: async () => ({}) };
 
-test('bank edits preserve finished and active exam snapshots and do not trigger regrade', async () => {
+test('bank edits preserve completed exam snapshots and do not trigger historical regrade', async () => {
     const db = fixture();
+    db.tables.cbt_exams[0].status = 'completed';
     db.tables.cbt_bank_questions = [{ ...q, bank_id: 'bank', revision: 1 }];
     const before = structuredClone(db.tables.cbt_exam_question_snapshots);
     await new QuestionsService(db, { assertBankAccess: async () => 'school' }, {
