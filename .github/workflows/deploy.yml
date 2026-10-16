@@ -60,9 +60,15 @@ jobs:
     name: Deploy to VPS
     needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Trigger Remote Deployment via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_REPOSITORY: ${{ github.repository }}
+          DEPLOY_BRANCH: ${{ github.ref_name }}
         with:
           host: ${{ secrets.VPS_HOST || secrets.SSH_HOST }}
           username: ${{ secrets.VPS_USERNAME || secrets.SSH_USER || 'root' }}
@@ -71,22 +77,45 @@ jobs:
           port: ${{ secrets.VPS_PORT || secrets.SSH_PORT || 22 }}
           command_timeout: 30m
           timeout: 30m
+          envs: DEPLOY_GITHUB_TOKEN,DEPLOY_REPOSITORY,DEPLOY_BRANCH
           script: |
             set -e
             echo "🚀 Menghubungkan ke VPS..."
             TARGET_DIR="${{ secrets.VPS_APP_DIR || '/www/wwwroot/acca-cbt-new' }}"
+            REPOSITORY_URL="https://github.com/$DEPLOY_REPOSITORY.git"
+
+            # Supply the job's read-only token only while fetching source.
+            # The helper contains no token and is removed before the Docker build.
+            : "${DEPLOY_GITHUB_TOKEN:?Token GitHub Actions tidak tersedia}"
+            ASKPASS_FILE=$(mktemp)
+            trap 'rm -f "$ASKPASS_FILE"' EXIT HUP INT TERM
+            cat > "$ASKPASS_FILE" <<'ASKPASS'
+            #!/bin/sh
+            case "$1" in
+              *Username*) printf '%s\n' 'x-access-token' ;;
+              *Password*) printf '%s\n' "$DEPLOY_GITHUB_TOKEN" ;;
+            esac
+            ASKPASS
+            chmod 700 "$ASKPASS_FILE"
+            export GIT_ASKPASS="$ASKPASS_FILE"
+            export GIT_TERMINAL_PROMPT=0
 
             if [ ! -d "$TARGET_DIR" ]; then
               echo "Direktori $TARGET_DIR belum ada, melakukan clone perdana..."
               mkdir -p "$(dirname "$TARGET_DIR")"
-              git clone https://github.com/imbank8993/acca-cbt-new.git "$TARGET_DIR"
+              git -c credential.helper= clone "$REPOSITORY_URL" "$TARGET_DIR"
             fi
 
             cd "$TARGET_DIR"
 
-            echo "📥 Mengambil commit terbaru dari GitHub (${{ github.ref_name }})..."
-            git fetch origin ${{ github.ref_name }}
-            git reset --hard origin/${{ github.ref_name }}
+            echo "📥 Mengambil commit terbaru dari GitHub ($DEPLOY_BRANCH)..."
+            git remote set-url origin "$REPOSITORY_URL"
+            git -c credential.helper= fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+
+            rm -f "$ASKPASS_FILE"
+            trap - EXIT HUP INT TERM
+            unset DEPLOY_GITHUB_TOKEN GIT_ASKPASS
 
             if [ ! -f ".env" ]; then
               echo "⚠️ PERINGATAN: File .env tidak ditemukan di $TARGET_DIR!"
