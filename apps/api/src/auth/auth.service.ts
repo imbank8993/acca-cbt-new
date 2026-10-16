@@ -178,9 +178,10 @@ export class AuthService {
     if (identityNumber) profilePayload.identity_number = identityNumber;
 
     if (Object.keys(profilePayload).length > 1) {
-      await this.db
+      const { error } = await this.db
         .from('cbt_profiles')
         .upsert(profilePayload, { onConflict: 'id' });
+      if (error) this.logger.warn(`Failed to sync SSO profile: ${error.message}`);
     }
 
     const { data: member } = await this.db
@@ -324,7 +325,7 @@ export class AuthService {
           identityNumber !== profile?.identity_number ||
           fullName !== profile?.full_name
         ) {
-          await this.db
+          const { error } = await this.db
             .from('cbt_profiles')
             .upsert(
               {
@@ -335,6 +336,7 @@ export class AuthService {
               },
               { onConflict: 'id' },
             );
+          if (error) throw new Error(error.message);
 
           profile = {
             id: user.id,

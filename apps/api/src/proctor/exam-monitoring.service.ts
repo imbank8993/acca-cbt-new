@@ -2,7 +2,7 @@ import { attemptHealth } from '../common/attempt-health';
 import { MONITORING_EVENTS } from '../common/exam-monitoring';
 import { readExamQuestionVersion, hasExamQuestionSnapshots, loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -72,7 +72,8 @@ export class ExamMonitoringService {
      * pengawas tidak bisa melihat siapa yang tertinggal.
      */
     async listAttempts(user: AuthUser, examId: string) {
-        await this.authz.assertExamMonitoring(user, examId);
+        const studentIds = await this.authz.assertExamMonitoring(user, examId);
+        const allowedStudents = studentIds === undefined ? null : new Set(studentIds);
 
         // Pengerjaan yang tenggatnya lewat ditutup lebih dulu, supaya status
         // "sedang mengerjakan" di layar benar-benar berarti sedang mengerjakan.
@@ -93,7 +94,7 @@ export class ExamMonitoringService {
             throw new BadRequestException('Data monitoring belum dapat dibaca.');
         }
 
-        const attempts = (data as any[]) || [];
+        const attempts = ((data as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
         const attemptIds = attempts.map((a) => a.id);
         const attemptUserIds = new Set(attempts.map((a) => a.user_id).filter(Boolean));
 
@@ -119,9 +120,12 @@ export class ExamMonitoringService {
         }
 
         const [{ data: exam }, questions] = await Promise.all([
-            this.db.from('cbt_exams').select('start_time, end_time, duration_minutes').eq('id', examId).maybeSingle(),
+            this.db.from('cbt_exams').select('id, organization_id, created_by, exam_type, start_time, end_time, duration_minutes').eq('id', examId).maybeSingle(),
             readExamQuestionVersion(this.db, examId),
         ]);
+        const resetScope = exam ? await this.authz.getExamResetScope?.(user, { ...exam, id: examId }) : null;
+        const resetStudents = new Set(resetScope?.studentIds || []);
+        const canReset = (studentId: string) => Boolean(resetScope?.allParticipants || resetStudents.has(studentId));
         const questionIds = new Set(questions.map(question => question.id));
         const answersByAttempt = new Map<string, any[]>();
         for (const ids of chunk(attemptIds, ID_BATCH)) {
@@ -164,6 +168,7 @@ export class ExamMonitoringService {
             if (attempt.finished_at) history.push({ type: attempt.status === 'submitted' ? 'SUBMITTED' : 'AUTO_SUBMITTED', at: attempt.finished_at } as any);
             history.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
             return { ...attempt,
+                canReset: canReset(attempt.user_id),
                 kelas_name: assigned.classByUser.get(attempt.user_id) || '-',
                 violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
                 ...attemptHealth(attempt, exam || {}, answersByAttempt.get(attempt.id) || [], now, questions.length),
@@ -172,10 +177,12 @@ export class ExamMonitoringService {
         });
 
         for (const [userId, profile] of assigned.profileByUser) {
+            if (allowedStudents && !allowedStudents.has(userId)) continue;
             if (attemptUserIds.has(userId)) continue;
 
             rows.push({
                 id: `unstarted-${userId}`,
+                canReset: false,
                 status: 'belum',
                 total_score: null,
                 score_irt: null,
@@ -197,7 +204,22 @@ export class ExamMonitoringService {
             });
         }
 
+        await this.fillMissingIdentityNumbers(rows);
         return rows;
+    }
+
+    /** Identitas lama dapat kosong; cocokkan master melalui UUID akun, bukan nama. */
+    private async fillMissingIdentityNumbers(rows: any[]) {
+        const missing = rows.filter(row => !String(row.profiles?.identity_number || '').trim());
+        for (const ids of chunk([...new Set<string>(missing.map(row => row.user_id).filter(Boolean))], ID_BATCH)) {
+            const { data, error } = await this.db.from('users').select('auth_id, nip').in('auth_id', ids);
+            if (error) throw new BadRequestException('Identitas peserta dari master belum dapat dibaca.');
+            const identities = new Map((data || []).map((row: any) => [row.auth_id, String(row.nip || '').trim()]));
+            for (const row of missing) {
+                const identity = identities.get(row.user_id);
+                if (identity) row.profiles = { ...row.profiles, identity_number: identity };
+            }
+        }
     }
 
     /** Siswa di kelas-kelas yang ditugasi ujian ini, beserta nama kelasnya. */
@@ -367,14 +389,15 @@ export class ExamMonitoringService {
      * dimuat ulang. Sejak Supabase tidak ada, umpannya tidak pernah terisi lagi.
      */
     async listRecentViolations(user: AuthUser, examId: string, limit: number) {
-        await this.authz.assertExamMonitoring(user, examId);
+        const studentIds = await this.authz.assertExamMonitoring(user, examId);
+        const allowedStudents = studentIds === undefined ? null : new Set(studentIds);
 
         const { data: attemptRows } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, warning_count, profiles:cbt_profiles(full_name)')
+            .select('id, user_id, warning_count, profiles:cbt_profiles(full_name)')
             .eq('exam_id', examId);
 
-        const attempts = (attemptRows as any[]) || [];
+        const attempts = ((attemptRows as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
         if (attempts.length === 0) return [];
 
         const byId = new Map(attempts.map((a) => [a.id, a]));
@@ -430,7 +453,8 @@ export class ExamMonitoringService {
      * salah, dan angkanya menyesatkan justru saat ujian sedang berlangsung.
      */
     async getItemAnalysis(user: AuthUser, examId: string) {
-        await this.authz.assertExamMonitoring(user, examId);
+        const studentIds = await this.authz.assertExamMonitoring(user, examId);
+        const allowedStudents = studentIds === undefined ? null : new Set(studentIds);
 
         const { data: examRow } = await this.db
             .from('cbt_exams')
@@ -470,7 +494,8 @@ export class ExamMonitoringService {
             .eq('exam_id', examId);
 
         if (attemptError) throw new BadRequestException('Data peserta analisis belum dapat dibaca.');
-        const attemptList = (attemptRows as any[]) || [];
+        const attemptList = ((attemptRows as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
+        await this.fillMissingIdentityNumbers(attemptList);
         const attemptIds = attemptList.map((a) => a.id);
         if (attemptIds.length === 0) return { questions, answers: [], detailed: null };
 
@@ -663,7 +688,10 @@ export class ExamMonitoringService {
         if (!data) throw new NotFoundException('Pengerjaan tidak ditemukan.');
 
         const attempt = data as any;
-        await this.authz.assertExamMonitoring(user, attempt.exam_id);
+        const studentIds = await this.authz.assertExamMonitoring(user, attempt.exam_id);
+        if (studentIds !== undefined && !studentIds.includes(attempt.user_id)) {
+            throw new ForbiddenException('Peserta tidak berada di ruang dan sesi pengawasan Anda.');
+        }
 
         const [{ data: answerRows }, { data: securityLogs }] = await Promise.all([
             this.db

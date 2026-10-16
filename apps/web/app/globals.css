@@ -263,6 +263,16 @@ textarea {
   font-family: var(--font-sans);
 }
 
+/* Folder PAS and monitoring tabs share the same label typography. */
+.monitoring-tabs > button,
+.pas-folder-tabs > button {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+  letter-spacing: normal;
+}
+
 /* Font utility classes */
 .font-heading {
   font-family: var(--font-heading) !important;

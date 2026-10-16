@@ -2,7 +2,7 @@
 import '@/app/components/pas-room-management.css';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
-import RoomManagementModal from '@/app/dashboard/admin/pas/RoomManagementModal';
+import RoomManagementPanel from '@/app/dashboard/admin/pas/RoomManagementModal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
 import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
@@ -38,9 +38,7 @@ FolderOpen,
 Loader2,
 Lock,
 Monitor,
-Plus,
 Search,
-Settings,
 ShieldCheck,
 Table,
 Trash2,
@@ -49,10 +47,10 @@ Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams,useRouter } from 'next/navigation';
-import React,{ useCallback,useEffect,useMemo,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
-type TabId = 'schedules' | 'live_today';
+type TabId = 'schedules' | 'live_today' | 'rooms' | 'sessions' | 'bulk';
 
 export default function AdminPASDetailPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
@@ -71,8 +69,6 @@ export default function AdminPASDetailPage() {
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAddScheduleOpen, setIsAddScheduleOpen] = useState(false);
-    const [isBulkInputOpen, setIsBulkInputOpen] = useState(false);
-    const [isRoomManagementOpen, setIsRoomManagementOpen] = useState(false);
     const [selectedScheduleIds, setSelectedScheduleIds] = useMemoryState<string[]>('proktor_exams_pas__id__selectedScheduleIds', []);
     const [isGenerating, setIsGenerating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -421,8 +417,8 @@ export default function AdminPASDetailPage() {
             </div>
 
             {/* ── Tabs & Actions Toolbar ── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+            <div className="flex flex-col md:flex-row md:flex-wrap md:items-center justify-between gap-3">
+                <div className="pas-folder-tabs flex gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit overflow-x-auto shrink-0 [&>button]:shrink-0 [&>button]:whitespace-nowrap">
                     <button
                         onClick={() => setActiveTab('schedules')}
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -454,9 +450,26 @@ export default function AdminPASDetailPage() {
                         )}
                     </button>
 
+                    {(['rooms', 'sessions'] as const).map(tab => (
+                        <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                                activeTab === tab ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                            }`}>
+                            {tab === 'rooms' ? 'Ruang' : 'Sesi Ujian'}
+                        </button>
+                    ))}
+                    {!period.is_locked && (
+                        <button type="button" onClick={() => setActiveTab('bulk')}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                                activeTab === 'bulk' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                            }`}>
+                            <Table size={13} />
+                            Jadwal Massal
+                        </button>
+                    )}
                 </div>
 
-                {!period.is_locked && activeTab === 'schedules' && !isBulkInputOpen && (
+                {!period.is_locked && activeTab === 'schedules' && (
                     <div className="flex items-center gap-2 flex-wrap">
                         {ungeneratedIds.length > 0 && (
                             <Button
@@ -469,22 +482,7 @@ export default function AdminPASDetailPage() {
                                 Aktifkan Semua ({ungeneratedIds.length})
                             </Button>
                         )}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsRoomManagementOpen(true)}
-                            leftIcon={<Settings size={13} />}
-                        >
-                            Sesi & Ruang {rooms.length > 0 ? `(${rooms.length})` : ''}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsBulkInputOpen(true)}
-                            leftIcon={<Table size={13} />}
-                        >
-                            Jadwal Massal
-                        </Button>
+
                         <Button
                             variant="primary"
                             size="sm"
@@ -504,27 +502,33 @@ export default function AdminPASDetailPage() {
                 )}
             </div>
 
+            {(activeTab === 'rooms' || activeTab === 'sessions') && (
+                <RoomManagementPanel period={period} view={activeTab}
+                    onChange={() => void loadData()} />
+            )}
+
+            {activeTab === 'bulk' && !period.is_locked && (
+                <BulkScheduleGrid
+                    periodId={periodId}
+                    period={period}
+                    classes={classes}
+                    subjects={subjects}
+                    qBanks={qBanks}
+                    sessions={sessions}
+                    onComplete={() => {
+                        setActiveTab('schedules');
+                        void loadData();
+                    }}
+                    onCancel={() => setActiveTab('schedules')}
+                />
+            )}
+
             {/* ── SCHEDULES & LIVE TAB ── */}
             {(activeTab === 'schedules' || activeTab === 'live_today') && (
                 <div className="space-y-4">
-                    {isBulkInputOpen && (
-                        <BulkScheduleGrid
-                            periodId={periodId}
-                            period={period}
-                            classes={classes}
-                            subjects={subjects}
-                            qBanks={qBanks}
-                            sessions={sessions}
-                            onComplete={() => {
-                                setIsBulkInputOpen(false);
-                                void loadData();
-                            }}
-                            onCancel={() => setIsBulkInputOpen(false)}
-                        />
-                    )}
 
                     {/* Filter Bar */}
-                    {schedules.length > 0 && !isBulkInputOpen && (
+                    {schedules.length > 0 && (
                         <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-2xs flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
@@ -590,7 +594,7 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {/* Empty State: Live Today Empty */}
-                    {!isBulkInputOpen && activeTab === 'live_today' && liveSchedules.length === 0 && (
+                    {activeTab === 'live_today' && liveSchedules.length === 0 && (
                         <div className="py-14 text-center text-slate-400 border border-dashed border-slate-200 rounded-2xl bg-white">
                             <Calendar size={36} className="mx-auto mb-2.5 opacity-40 text-slate-400" />
                             <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal ujian hari ini</p>
@@ -599,7 +603,7 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {/* Empty State: Folder Empty */}
-                    {!isBulkInputOpen && activeTab === 'schedules' && schedules.length === 0 && (
+                    {activeTab === 'schedules' && schedules.length === 0 && (
                         <div className="py-14 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl bg-white p-6">
                             <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3083FF] mx-auto mb-3">
                                 <FolderOpen size={24} />
@@ -629,7 +633,7 @@ export default function AdminPASDetailPage() {
                                         variant="outline"
                                         size="sm"
                                         leftIcon={<Table size={13} />}
-                                        onClick={() => setIsBulkInputOpen(true)}
+                                        onClick={() => setActiveTab('bulk')}
                                     >
                                         Jadwal Massal
                                     </Button>
@@ -639,7 +643,7 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {/* Empty State: Filter Result Empty */}
-                    {!isBulkInputOpen && schedules.length > 0 && filteredSchedules.length === 0 && (
+                    {schedules.length > 0 && filteredSchedules.length === 0 && (
                         <div className="py-12 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl bg-white p-6">
                             <Search size={32} className="mx-auto mb-2 text-slate-300" />
                             <p className="font-semibold text-slate-700 text-sm">Tidak ada jadwal yang cocok</p>
@@ -658,7 +662,7 @@ export default function AdminPASDetailPage() {
                     )}
 
                     {/* ── Grouped Schedules Table per Date ── */}
-                    {!isBulkInputOpen && groupedSchedules.map((dayGroup) => {
+                    {groupedSchedules.map((dayGroup) => {
                         const daySchedules = dayGroup.sessions.flatMap((s) => s.schedules);
                         const dayScheduleIds = daySchedules.map((sc) => sc.id);
                         const isAllDaySelected = dayScheduleIds.length > 0 && dayScheduleIds.every((id) => selectedScheduleIds.includes(id));
@@ -798,7 +802,7 @@ export default function AdminPASDetailPage() {
                                                                             ) : (
                                                                                 <button
                                                                                     type="button"
-                                                                                    onClick={() => setIsRoomManagementOpen(true)}
+                                                                                    onClick={() => setActiveTab('rooms')}
                                                                                     className="flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-800 transition-colors w-fit font-medium"
                                                                                     title="Klik untuk mengatur pengawas di ruangan ini"
                                                                                 >
@@ -1040,17 +1044,6 @@ export default function AdminPASDetailPage() {
                     </ModalFooter>
                 </form>
             </Modal>
-
-            {/* ─── ROOM & SESSION MANAGEMENT MODAL ─── */}
-            {isRoomManagementOpen && (
-                <RoomManagementModal
-                    period={period}
-                    onClose={() => {
-                        setIsRoomManagementOpen(false);
-                        void loadData(); // Reload sessions and rooms in case they changed
-                    }}
-                />
-            )}
         </div>
     );
 }

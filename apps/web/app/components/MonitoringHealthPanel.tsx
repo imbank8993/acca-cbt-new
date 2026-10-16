@@ -208,7 +208,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3">
                         <div className="flex flex-wrap gap-2">
                             <button type="button" className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedAttemptId(attempt.id)}>Detail</button>
-                            {onRecover && ['submitted', 'auto_submitted'].includes(attempt.status) && (
+                            {onRecover && attempt.canReset === true && ['submitted', 'auto_submitted'].includes(attempt.status) && (
                                 <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>Susulan / Pulihkan</button>
                             )}
                         </div>

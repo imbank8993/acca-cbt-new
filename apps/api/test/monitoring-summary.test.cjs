@@ -33,7 +33,7 @@ function mount(file, component, props) {
 const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
 const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
 const now = '2026-10-15T06:00:00Z';
-const attempt = () => ({ id: 'a', status: 'auto_submitted', profiles: { full_name: 'Andi', identity_number: '123' },
+const attempt = () => ({ id: 'a', canReset: true, status: 'auto_submitted', profiles: { full_name: 'Andi', identity_number: '123' },
     kelas_name: 'XII C', saved_answer_count: 15, total_questions: 15, total_score: 90, warning_count: 2,
     started_at: '2026-10-15T05:00:00Z', deadline_at: now, finished_at: now, server_now: now, last_seen_at: now,
     sync_health: { localAnswerCount: 15, pendingAnswerCount: 0, storageState: 'healthy', receivedAt: now, fresh: true },
@@ -85,4 +85,15 @@ test('active sessions show remaining time and pending sends without recovery con
     assert.match(text(tree), /Sisa 5:00/);
     assert.match(text(tree), /2 jawaban menunggu dikirim/);
     assert.equal(nodes(tree).some(n => n.type === 'button' && text(n) === 'Susulan / Pulihkan'), false);
+});
+
+test('summary shows recovery only for students explicitly authorized by the server', () => {
+    for (const canReset of [false, undefined]) {
+        const row = { ...attempt(), canReset };
+        const tree = mount('MonitoringHealthPanel.tsx', 'MonitoringHealthPanel', {
+            attempts: [row], defaultExpanded: true, onRecover() { throw new Error('Unauthorized recovery'); },
+        })();
+        assert.match(text(tree), /Andi/);
+        assert.equal(nodes(tree).some(n => n.type === 'button' && text(n) === 'Susulan / Pulihkan'), false);
+    }
 });

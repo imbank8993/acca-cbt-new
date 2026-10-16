@@ -3,7 +3,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { CbtRolesService } from './cbt-roles.service';
 import { SingleSchoolService } from './single-school.service';
-import { assignedPasExamIds } from '../common/pas-monitoring-access';
+import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
 
 /**
  * Otorisasi per-organisasi, dipindahkan dari `apps/web/lib/server-authz.ts`.
@@ -224,7 +224,7 @@ export class AuthorizationService {
      *  - Jenis lain: seluruh staf, TETAPI Guru hanya boleh mengelola ujian yang
      *    ia buat sendiri. Proktor/Admin bebas.
      */
-    async assertExamStaff(user: AuthUser, examId: string, operation: 'manage' | 'reset' = 'manage'): Promise<void> {
+    async assertExamStaff(user: AuthUser, examId: string, operation: 'manage' | 'reset' = 'manage', studentId?: string): Promise<void> {
         if (!examId) throw new NotFoundException('Data tidak ditemukan.');
 
         const { data: exam } = await this.db
@@ -242,24 +242,49 @@ export class AuthorizationService {
             is_published?: boolean;
         };
 
+        if (operation === 'reset') {
+            const scope = await this.getExamResetScope(user, { ...record, id: examId });
+            if (scope && (scope.allParticipants || (studentId && scope.studentIds.includes(studentId)))) return;
+            throw new ForbiddenException('Reset, pulihkan, dan susulan hanya untuk pembuat ujian atau pengawas PAS pada ruang dan sesi tugasnya.');
+        }
         if (!await this.canManageExam(user, record, operation)) {
-            if (operation === 'reset') throw new ForbiddenException('Anda hanya dapat mereset peserta pada ujian yang Anda buat sendiri.');
             throw new ForbiddenException('Anda hanya dapat mengelola ujian yang Anda buat sendiri. PAS/PAT hanya dapat dikelola Proktor/Admin.');
         }
     }
 
-    /** Same policy for write authorization and read-only monitoring controls. */
+    /** Ownership of a bank grants monitoring only, never recovery rights. */
+    async getExamResetScope(user: AuthUser, record: {
+        id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null;
+    }, assignedStudents?: Map<string, string[]>): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
+        const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
+        const full = { allParticipants: true, studentIds: [] };
+        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
+        const proctor = await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']);
+        if (record.exam_type === 'pas' && proctor) return full;
+        if (record.created_by === user.id && (proctor || await this.roles.hasOrgRole(user.id, organizationId, ['Guru']))) return full;
+        if (record.exam_type === 'pas' && record.id &&
+            await this.roles.hasOrgRole(user.id, organizationId, ['Guru', 'Pengawas'])) {
+            const assignments = assignedStudents ?? await assignedPasExamStudents(this.db, user.id, organizationId);
+            const studentIds = assignments.get(record.id);
+            if (studentIds?.length) return { allParticipants: false, studentIds };
+        }
+        return null;
+    }
+
+    /** Same policy for write authorization and monitoring controls. */
     async canManageExam(user: AuthUser, record: {
+        id?: string;
         organization_id: string | null;
         created_by: string | null;
         exam_type: string | null;
         is_published?: boolean;
-    }, operation: 'manage' | 'reset' = 'manage'): Promise<boolean> {
+    }, operation: 'manage' | 'reset' = 'manage', assignedStudents?: Map<string, string[]>): Promise<boolean> {
+        if (operation === 'reset') return Boolean(await this.getExamResetScope(user, record, assignedStudents));
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return true;
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Admin'])) return true;
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
-            return record.created_by === user.id || (operation !== 'reset' && record.is_published === true);
+            return record.created_by === user.id || record.is_published === true;
         }
         if (record.exam_type === 'pas' || record.exam_type === 'pat') return false;
         return record.created_by === user.id &&
@@ -268,10 +293,10 @@ export class AuthorizationService {
 
     /**
      * Otorisasi pemantauan ujian dan log pelanggaran.
-     * Dapat diakses oleh Proktor, Admin, Pengawas di organisasinya,
-     * Guru (untuk ujiannya sendiri), serta pemilik bank soal yang dipakai ujian.
+     * undefined berarti seluruh peserta; array membatasi peserta pengawas ruang.
+     * Pemilik bank soal tetap memantau kelas peserta lintas ruang.
      */
-    async assertExamMonitoring(user: AuthUser, examId: string): Promise<void> {
+    async assertExamMonitoring(user: AuthUser, examId: string): Promise<string[] | undefined> {
         if (!examId) throw new NotFoundException('Data tidak ditemukan.');
 
         const { data: exam } = await this.db
@@ -297,20 +322,17 @@ export class AuthorizationService {
             throw new ForbiddenException('Ujian milik guru lain belum dipublikasikan.');
         }
 
-        // Proktor, Admin, dan Pengawas boleh memantau seluruh ujian di organisasinya
+        // Admin dan Proktor tetap memantau seluruh peserta.
         const isMonitorStaff = await this.roles.hasOrgRole(
             user.id,
             record.organization_id,
-            ['Proktor', 'Admin', 'Pengawas'],
+            ['Proktor', 'Admin'],
         );
         if (isMonitorStaff) return;
 
         // Guru boleh memantau ujian buatannya sendiri
         const isTeacher = await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
         if (isTeacher && record.created_by === user.id) return;
-
-        if (isTeacher && record.organization_id &&
-            (await assignedPasExamIds(this.db, user.id, record.organization_id)).includes(examId)) return;
 
         // Guru boleh memantau ujian yang menggunakan bank soal miliknya
         if (isTeacher && record.question_bank_id) {
@@ -320,6 +342,13 @@ export class AuthorizationService {
                 .eq('id', record.question_bank_id)
                 .maybeSingle();
             if ((bank as { created_by?: string } | null)?.created_by === user.id) return;
+        }
+
+        const isInvigilator = await this.roles.hasOrgRole(user.id, record.organization_id, ['Pengawas']);
+        if (isInvigilator && !isPasMonitoringExam(record)) return;
+        if ((isTeacher || isInvigilator) && record.organization_id) {
+            const assigned = await assignedPasExamStudents(this.db, user.id, record.organization_id);
+            if (assigned.has(examId)) return assigned.get(examId)!;
         }
 
         throw new ForbiddenException('Anda tidak memiliki izin memantau ujian ini.');

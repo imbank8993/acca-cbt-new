@@ -291,15 +291,15 @@ export class ProctoringService {
 
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, exam_id')
+            .select('id, exam_id, user_id')
             .eq('id', attemptId)
             .maybeSingle();
 
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
 
-        // Proktor dan Guru hanya mereset ujian buatannya sendiri; Admin tetap penuh.
+        // Pembuat ujian dan Admin; khusus PAS, Proktor serta pengawas ruang yang ditugaskan.
         // Tanpa ini siswa bisa membatalkan terminasi attempt-nya sendiri.
-        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset');
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset', (attempt as { user_id: string }).user_id);
 
         return this.db.transaction(async db => {
             await db.raw(
@@ -436,11 +436,11 @@ export class ProctoringService {
 
         const { data: attempt } = await this.db
             .from('cbt_exam_attempts')
-            .select('id, exam_id')
+            .select('id, exam_id, user_id')
             .eq('id', attemptId)
             .maybeSingle();
         if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset');
+        await this.authz.assertExamStaff(user, (attempt as { exam_id: string }).exam_id, 'reset', (attempt as { user_id: string }).user_id);
 
         return this.db.transaction(async db => {
             await db.raw(

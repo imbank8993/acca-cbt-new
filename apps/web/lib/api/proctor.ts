@@ -152,6 +152,7 @@ export interface OrganizationExam {
 }
 
 export interface ExamAttemptRecord {
+    canReset?: boolean;
     client_context?: { browser: string | null; os: string | null; ip_address: string | null; observed_at: string } | null;
     server_now?: string;
     last_seen_at?: string | null;

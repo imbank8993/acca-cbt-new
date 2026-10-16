@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
@@ -37,7 +37,12 @@ const PRESET_REASONS = [
 
 const QUICK_DURATIONS = [15, 30, 45, 60, 90, 120];
 
-export function ResetExamModal({
+export function ResetExamModal(props: ResetExamModalProps) {
+  if (!props.open || !props.attempt || props.attempt.canReset !== true) return null;
+  return <ResetExamForm key={props.attempt.id} {...props} />;
+}
+
+function ResetExamForm({
   open,
   attempt,
   examDuration,
@@ -58,16 +63,6 @@ export function ResetExamModal({
     60
   ) || 60;
 
-  // Reset form state when modal opens with attempt
-  useEffect(() => {
-    if (open && attempt) {
-      setMode('PULIHKAN');
-      setReason('');
-      setDuration(15);
-      setErrorMessage(null);
-    }
-  }, [open, attempt]);
-
   // Adjust default duration when mode changes
   const handleModeSelect = (newMode: ResetMode) => {
     setMode(newMode);
@@ -82,7 +77,7 @@ export function ResetExamModal({
     new Set([...QUICK_DURATIONS, resolvedExamDuration])
   ).sort((a, b) => a - b);
 
-  if (!open || !attempt) return null;
+  if (!open || !attempt || attempt.canReset !== true) return null;
 
   const studentName = formatStudentName(attempt.profiles?.full_name, 'Siswa');
   const className = attempt.kelas_name || '—';

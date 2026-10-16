@@ -23,6 +23,29 @@ function fixture() {
 const monitor = db => new ExamMonitoringService(db, { assertExamMonitoring: async () => {}, assertExamStaff: async () => {} },
     { post: async () => ({ items: [], matrix: [] }) }, { retryPendingAutoSubmissions: async () => ({ recovered: 0, failed: 0 }) }, {});
 
+test('export fills missing NISN by account UUID from master and preserves leading zeros', async () => {
+    const db = fixture();
+    db.tables.cbt_exam_attempts[0].profiles.identity_number = '   ';
+    db.tables.users = [{ auth_id: 'student', nip: '0012345678' }, { auth_id: 'other', nip: '999' }];
+    const rows = await monitor(db).listAttempts({}, 'exam');
+    assert.equal(rows[0].profiles.identity_number, '0012345678');
+    const workbook = await buildAnalysisWorkbook({ exam: { id: 'exam', title: 'Ujian' }, attempts: rows, analysis: [] });
+    const recap = XLSX.utils.sheet_to_json(workbook.Sheets.Rekap_Hasil)[0];
+    assert.equal(recap['NIS / ID'], '0012345678');
+    db.tables.cbt_exam_attempts[0].profiles.identity_number = '002';
+    assert.equal((await monitor(db).listAttempts({}, 'exam'))[0].profiles.identity_number, '002');
+});
+
+test('unstarted students also receive master identity without matching by name', async () => {
+    const db = fixture();
+    db.tables.cbt_exam_participants = [{ exam_id: 'exam', user_id: 'new' }];
+    db.tables.cbt_profiles = [{ id: 'new', full_name: 'Siswa', identity_number: null }];
+    db.tables.users = [{ auth_id: 'new', nip: '00012' }];
+    const rows = await monitor(db).listAttempts({}, 'exam');
+    assert.equal(rows.find(row => row.user_id === 'new').profiles.identity_number, '00012');
+    assert.equal(rows.find(row => row.user_id === 'student').profiles.identity_number, '001');
+});
+
 test('heartbeat stores only validated client reports stamped by server and preserves metadata', async () => {
     const db = fixture();
     const service = new ProctoringService(db, {}, {});

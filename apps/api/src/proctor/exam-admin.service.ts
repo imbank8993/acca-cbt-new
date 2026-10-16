@@ -13,7 +13,7 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { localDateTimeToUtc } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
-import { assignedPasExamIds } from '../common/pas-monitoring-access';
+import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
 /** Jenis ujian yang hanya boleh dibuat dan diubah Proktor/Admin. */
@@ -52,9 +52,10 @@ export class ExamAdminService {
 
         let query = this.db.from('cbt_exams').select('*').eq('organization_id', organizationId);
 
-        const canSeeAll =
-            (await this.isElevated(user, organizationId)) ||
-            (await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']));
+        const elevated = await this.isElevated(user, organizationId);
+        const isInvigilator = await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']);
+        const canSeeAll = elevated || isInvigilator;
+        let assignedStudents: Map<string, string[]> | undefined;
         const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
             await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
         if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
@@ -67,7 +68,8 @@ export class ExamAdminService {
                 .eq('created_by', user.id);
             const bankIds = ((ownedBanks as Array<{ id: string }>) || []).map((b) => b.id);
 
-            const assignedIds = await assignedPasExamIds(this.db, user.id, organizationId);
+            assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
+            const assignedIds = [...assignedStudents.keys()];
             const conditions = [`created_by.eq.${user.id}`];
             if (bankIds.length) conditions.push(`question_bank_id.in.(${bankIds.join(',')})`);
             if (assignedIds.length) conditions.push(`id.in.(${assignedIds.join(',')})`);
@@ -81,7 +83,19 @@ export class ExamAdminService {
             return [];
         }
 
-        const exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true);
+        let exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true);
+        if (isInvigilator && !elevated) {
+            assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
+            const assignedIds = new Set(assignedStudents.keys());
+            const teacher = await this.roles.hasOrgRole(user.id, organizationId, ['Guru']);
+            const { data: banks, error: bankError } = teacher
+                ? await this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id)
+                : { data: [], error: null };
+            if (bankError) throw new BadRequestException('Kepemilikan bank soal belum dapat diperiksa.');
+            const ownedIds = new Set((banks || []).map((bank: { id: string }) => bank.id));
+            exams = exams.filter(exam => !isPasMonitoringExam(exam) || assignedIds.has(exam.id) ||
+                (teacher && (exam.created_by === user.id || ownedIds.has(exam.question_bank_id))));
+        }
         const ownedBankIds = new Set<string>();
         let examSources: Array<{ exam_id: string; bank_id: string }> = [];
         if (restrictedProctor) {
@@ -112,11 +126,15 @@ export class ExamAdminService {
             }
         }
 
+        // Reuse assignments for every exam instead of reloading room rosters per row.
+        if (!elevated && !assignedStudents && exams.some(exam => exam.exam_type === 'pas')) {
+            assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
+        }
         return Promise.all(exams.map(async (exam) => ({
             ...exam,
             creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
             canManage: await this.authz.canManageExam(user, exam),
-            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset'),
+            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents),
             canCorrectKeys: !restrictedProctor || (() => {
                 const ids = [...(exam.question_bank_id ? [exam.question_bank_id] : []), ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id)];
                 return ids.length > 0 && ids.every(id => ownedBankIds.has(id));

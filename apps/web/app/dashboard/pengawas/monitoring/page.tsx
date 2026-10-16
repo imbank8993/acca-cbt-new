@@ -4,7 +4,6 @@ import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
 import SearchableSelect from '@/components/ui/SearchableSelect';
-import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
@@ -17,7 +16,6 @@ getProctorOrganization,
     type OrganizationExam,
     type ViolationEvent
 } from '@/lib/api/proctor';
-import { promptRecoveryDuration,promptRecoveryReason,resetExamAttempt,startMakeupExam } from '@/lib/api/proctoring';
 import { getSessionUser } from '@/lib/session';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { examTypeLabel } from '@/lib/exam-types';
@@ -25,7 +23,6 @@ import {
 AlertTriangle,
 ArrowLeft,
 CheckCircle2,
-ChevronDown,
 Radio,
 RefreshCw,
 RotateCcw,
@@ -51,7 +48,7 @@ function MonitoringContent() {
     const [liveAlerts, setLiveAlerts] = useState<ViolationEvent[]>([]);
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState('');
-    const [resettingId, setResettingId] = useState<string | null>(null);
+    const [resettingId] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'finished' | 'belum'>('all');
 
     const loadData = useCallback(async (isSilent = false) => {
@@ -116,7 +113,9 @@ function MonitoringContent() {
 
     const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
+    const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
     const handleReset = (attempt: ExamAttemptRecord) => {
+        if (!canResetParticipants || attempt.canReset !== true || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
     };
     // Ekstraksi kelas unik
@@ -208,7 +207,7 @@ function MonitoringContent() {
                 </div>
             </div>
 
-            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={handleReset} />
+            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleReset : undefined} />
 
             {/* Quick Stat Pill Tabs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -396,7 +395,7 @@ function MonitoringContent() {
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-2 text-right sm:px-4">
-                                                        {isFinished && !attempt.id.startsWith('unstarted-') && (
+                                                        {canResetParticipants && attempt.canReset === true && isFinished && !attempt.id.startsWith('unstarted-') && (
                                                             <button
                                                                 onClick={() =>
                                                                     handleReset(attempt)
@@ -477,7 +476,7 @@ function MonitoringContent() {
             </div>
 
             <ResetExamModal
-                open={!!selectedResetAttempt}
+                open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}
                 attempt={selectedResetAttempt}
                 examDuration={
                     exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??

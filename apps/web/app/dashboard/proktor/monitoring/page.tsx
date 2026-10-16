@@ -200,7 +200,7 @@ function MonitoringContent() {
     const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
 
     const handleResetAttempt = (attempt: ExamAttemptRecord) => {
-        if (!canResetParticipants || attempt.exam_id !== selectedExamId) return;
+        if (!canResetParticipants || attempt.canReset !== true || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
     };
     const handleCalculateIRT = async () => {
@@ -810,7 +810,7 @@ function MonitoringContent() {
             </AnimatePresence>
 
             <ResetExamModal
-                open={canResetParticipants && selectedResetAttempt?.exam_id === selectedExamId}
+                open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}
                 attempt={selectedResetAttempt}
                 examDuration={
                     exams.find(e => e.id === (selectedResetAttempt?.exam_id || selectedExamId))?.duration_minutes ??

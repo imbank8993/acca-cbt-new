@@ -1,47 +1,14 @@
-.pas-room-management .pas-room-tabs {
-  background: transparent;
+.pas-room-management .pas-room-list {
+  background: var(--card);
 }
 
-.pas-room-management .pas-room-tabs > div:first-child {
+.pas-room-management .pas-room-detail-section + .pas-room-detail-section {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.pas-room-page {
   min-width: 0;
-  overflow-x: auto;
-}
-
-.pas-room-management .pas-room-tabs button {
-  flex-shrink: 0;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.pas-room-management .pas-room-tabs button > svg,
-.pas-room-management .pas-room-empty > svg {
-  display: none;
-}
-
-.pas-room-management .pas-room-tabs button > span {
-  background: transparent !important;
-  color: inherit !important;
-  padding-inline: 2px;
-}
-
-.pas-room-management .pas-room-create {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.pas-room-management .pas-room-card {
-  box-shadow: none;
-}
-
-.pas-room-management .pas-room-card [class*="bg-blue-50"],
-.pas-room-management .pas-room-card [class*="bg-amber-50"] {
-  background: transparent !important;
-  border: 0 !important;
-  padding-inline: 0;
-}
-
-.dark .pas-room-management .pas-room-card {
-  background: var(--card) !important;
 }
 
 .pas-schedule-form .ss .ss__trigger {
@@ -60,10 +27,4 @@
 .pas-schedule-form .ss .ss__trigger:focus-within {
   border-color: #3083ff !important;
   box-shadow: 0 0 0 2px rgba(48, 131, 255, 0.15);
-}
-
-@media (max-width: 639.98px) {
-  .pas-room-management .pas-room-tabs {
-    padding-inline: 16px;
-  }
 }
