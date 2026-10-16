@@ -72,6 +72,7 @@ interface ExamFormData {
     studentScoreType: StudentScoreType;
     showAnswerKeys: boolean;
     isSafeMode: boolean;
+    screenshotEnabled: boolean;
     maxViolations: number | null;
     bankId: string;
     startTime: string;
@@ -105,6 +106,7 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     studentScoreType: 'classical',
     showAnswerKeys: false,
     isSafeMode: true,
+    screenshotEnabled: false,
     maxViolations: 3,
     bankId: '',
     startTime: '',
@@ -204,6 +206,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 studentScoreType: studentScoreType(exam),
                 showAnswerKeys: exam.metadata?.show_answer_keys === true,
                 isSafeMode: exam.metadata?.is_safe_mode ?? true,
+                screenshotEnabled: exam.metadata?.screenshot_enabled === true,
                 maxViolations: exam.metadata?.max_violations === null
                     ? null
                     : (typeof exam.metadata?.max_violations === 'number'
@@ -435,6 +438,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     semester: formData.pasSemester,
                     start_date: formData.pasStartDate,
                     end_date: formData.pasEndDate,
+                    screenshot_enabled: formData.screenshotEnabled,
                 });
 
                 if (!res.success) {
@@ -518,6 +522,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 studentScoreType: formData.studentScoreType,
                 showAnswerKeys: formData.showAnswerKeys,
                 isSafeMode: formData.isSafeMode,
+                screenshotEnabled: formData.screenshotEnabled,
                 maxViolations: formData.maxViolations,
                 scoringType: formData.scoringTypes.join(','),
                 isPublic: formData.examType === 'lainnya' ? formData.isPublic : false,
@@ -1274,6 +1279,16 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     </div>
                         </>
                     )}
+                    <div className="border-t border-slate-100 pt-4">
+                        <label className="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                            <input type="checkbox" checked={formData.screenshotEnabled}
+                                onChange={e => setFormData(prev => ({ ...prev, screenshotEnabled: e.target.checked }))}
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600" />
+                            <span><span className="font-semibold">Aktifkan Screenshot Pelanggaran</span>
+                                <span className="mt-1 block text-xs text-slate-500">Siswa wajib berbagi layar penuh. Hanya kejadian tertentu yang disimpan, maksimal 10 gambar per peserta; gambar dihapus setelah 7 hari.</span>
+                            </span>
+                        </label>
+                    </div>
                 </ModalBody>
                 <ModalFooter>
                     <Button

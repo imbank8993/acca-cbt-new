@@ -86,6 +86,10 @@ class ExamFieldsDto {
     @IsBoolean()
     isSafeMode?: boolean;
 
+    @IsOptional()
+    @IsBoolean()
+    screenshotEnabled?: boolean;
+
     @ApiPropertyOptional({
         nullable: true,
         minimum: 1,

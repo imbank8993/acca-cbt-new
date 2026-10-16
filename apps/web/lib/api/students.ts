@@ -251,7 +251,7 @@ export async function getExamQuestionsAction(examId: string) {
  * menyusulkan jawaban yang hanya sempat tersimpan di localStorage ketika waktu
  * habis saat perangkat sedang offline.
  */
-export async function startExamAttemptAction(examId: string, deviceId?: string) {
+export async function startExamAttemptAction(examId: string, deviceId?: string, screenCaptureReady = false) {
     const res = await apiSend<{
         started: boolean;
         error?: string;
@@ -259,7 +259,7 @@ export async function startExamAttemptAction(examId: string, deviceId?: string) 
         attempt?: StudentExamAttempt;
         answers?: StudentSavedAnswer[];
         remainingSeconds?: number;
-    }>(`/api/students/exams/${encodeURIComponent(examId)}/attempts`, { deviceId });
+    }>(`/api/students/exams/${encodeURIComponent(examId)}/attempts`, { deviceId, screenCaptureReady });
 
     // Permintaannya sendiri gagal — sesi habis, jaringan putus, backend mati.
     if (!res.success) {

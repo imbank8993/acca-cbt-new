@@ -27,6 +27,7 @@ export class StorageAccessService {
 
     async assertRead(user: AuthUser, key: string): Promise<void> {
         if (!user) throw new ForbiddenException('Sesi tidak valid.');
+        if (key.startsWith('exam-evidence/')) throw new ForbiddenException('Gunakan akses bukti ujian yang terotorisasi.');
         if (key.startsWith(`users/${user.id}/`)) return; // uploader preview, including unsaved drafts
         if (key.startsWith('assignments/')) {
             const [, examId, owner] = key.split('/');

@@ -5,8 +5,9 @@ import { AlertTriangle, Maximize2, ShieldCheck } from 'lucide-react';
 import type { StudentExam } from '@/lib/api/students';
 import { exitExamFullscreen, hasExamFullscreen, subscribeExamFullscreen, type FullscreenElement } from '@/lib/exam-fullscreen';
 
-export function ExamStartPreparation({ exam, onConfirm, onBack }: {
+export function ExamStartPreparation({ exam, onConfirm, onBack, screenShare }: {
     exam: StudentExam;
+    screenShare?: { sharing: boolean; busy: boolean; error: string; request: () => Promise<void> };
     onConfirm: (fullscreenReady: boolean) => void;
     onBack: () => void;
 }) {
@@ -48,6 +49,10 @@ export function ExamStartPreparation({ exam, onConfirm, onBack }: {
 
     function confirmStart() {
         if (confirmedRef.current || leavingRef.current || busy) return;
+        if (exam.metadata?.screenshot_enabled === true && !screenShare?.sharing) {
+            setError('Bagikan seluruh layar sebelum memulai ujian.');
+            return;
+        }
         if (!unsupported && !hasExamFullscreen()) {
             setReady(false);
             setError('Aktifkan kembali layar penuh sebelum memulai ujian.');
@@ -92,11 +97,22 @@ export function ExamStartPreparation({ exam, onConfirm, onBack }: {
                     <p className="mb-2 flex items-center gap-2 font-semibold"><AlertTriangle size={18} /> Durasi ujian: {exam.duration_minutes || 60} menit</p>
                     <p>Setelah dimulai, waktu terus berjalan meskipun halaman ditutup atau koneksi terputus. Waktu pengerjaan tetap dibatasi jadwal penutupan ujian.</p>
                 </div>
+                {exam.metadata?.screenshot_enabled === true && (
+                    <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <p className="font-semibold">Berbagi seluruh layar wajib untuk ujian ini</p>
+                        <p className="mt-1 text-xs">Screenshot hanya disimpan saat ada indikasi pelanggaran. Maksimal 10 gambar, masa simpan 7 hari, hanya dapat dibaca pengawas berwenang.</p>
+                        <button type="button" disabled={screenShare?.busy} onClick={() => void screenShare?.request()}
+                            className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">
+                            {screenShare?.sharing ? 'Layar sudah dibagikan' : screenShare?.busy ? 'Meminta izin...' : 'Bagikan Layar'}
+                        </button>
+                        {screenShare?.error && <p role="alert" className="mt-2 text-xs text-red-600">{screenShare.error}</p>}
+                    </div>
+                )}
                 {unsupported && <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">Browser ini tidak mendukung layar penuh. Anda tetap dapat memulai ujian setelah konfirmasi.</p>}
                 {error && <p role="alert" className="mb-4 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
                 {ready ? (
                     <div className="flex flex-col gap-3">
-                        <button onClick={confirmStart} disabled={busy} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-60">Ya, Mulai Ujian</button>
+                        <button onClick={confirmStart} disabled={busy || (exam.metadata?.screenshot_enabled === true && !screenShare?.sharing)} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-60">Ya, Mulai Ujian</button>
                         <button onClick={() => void goBack()} disabled={busy} className="w-full rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300 disabled:opacity-60">Belum, Kembali ke Jadwal</button>
                     </div>
                 ) : (

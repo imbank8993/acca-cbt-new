@@ -63,6 +63,7 @@ exports.fixtureDb = function fixtureDb(initial = {}, failedTables = [], options 
                     ? row[args[0]] === null || row[args[0]] === undefined
                     : row[args[0]] === args[1]);
                 if (method === 'gt') predicates.push(row => row[args[0]] > args[1]);
+                if (method === 'lte') predicates.push(row => row[args[0]] <= args[1]);
                 if (method === 'contains') predicates.push(row => {
                     const actual = row[args[0]];
                     const expected = args[1];

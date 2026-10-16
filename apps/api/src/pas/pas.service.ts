@@ -124,6 +124,7 @@ export class PasService {
                 semester: dto.semester || 'ganjil',
                 start_date: dto.start_date,
                 end_date: dto.end_date,
+                screenshot_enabled: dto.screenshot_enabled === true,
                 created_by: user.id,
                 is_locked: false,
             },

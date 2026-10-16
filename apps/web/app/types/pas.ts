@@ -17,6 +17,7 @@ export interface Subject {
 }
 
 export interface PASPeriod {
+  screenshot_enabled?: boolean;
   id: string;
   organization_id: string;
   name: string;

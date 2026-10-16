@@ -7,6 +7,7 @@ import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
 import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
 import { unansweredQuestionCount } from '@/lib/monitoring-answer-count';
+import { AttemptScreenshots } from './AttemptScreenshots';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import {
   History,
@@ -299,6 +300,7 @@ export function AttemptHistoryModal({
             </div>
           )}
         </div>
+        <AttemptScreenshots key={attempt.id} attemptId={attempt.id} />
       </ModalBody>
 
       <ModalFooter align="end">

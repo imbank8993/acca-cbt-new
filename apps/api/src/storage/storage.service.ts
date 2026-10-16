@@ -4,6 +4,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -254,6 +255,24 @@ export class StorageService {
       const message = (err as Error).message || String(err);
       this.logger.warn(`Gagal menghapus '${key}': ${message}`);
       return { success: false, error: message };
+    }
+  }
+
+  /** Bounded orphan sweep for encrypted evidence only; other uploads are untouched. */
+  async deleteExpiredEvidenceObjects(before: Date): Promise<void> {
+    if (!this.client) return;
+    let continuation: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const listed = await this.client.send(new ListObjectsV2Command({
+        Bucket: this.bucket, Prefix: 'exam-evidence/', ContinuationToken: continuation, MaxKeys: 100,
+      }));
+      for (const object of listed.Contents || []) {
+        if (object.Key?.startsWith('exam-evidence/') && object.LastModified && object.LastModified < before) {
+          await this.deleteObject(object.Key);
+        }
+      }
+      if (!listed.IsTruncated || !listed.NextContinuationToken) break;
+      continuation = listed.NextContinuationToken;
     }
   }
 

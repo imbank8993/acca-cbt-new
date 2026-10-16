@@ -134,7 +134,7 @@ export class StudentsController {
         @Param('examId', ParseUUIDPipe) examId: string,
         @Body() dto: StartAttemptDto,
     ) {
-        return this.attempts.start(user, examId, dto.deviceId);
+        return this.attempts.start(user, examId, dto.deviceId, dto.screenCaptureReady);
     }
 
     @Put('attempts/:attemptId/answers/:questionId')

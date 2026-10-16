@@ -1,4 +1,4 @@
-export const MONITORING_EVENTS = ['SYNC_HEALTH_CHANGED', 'CONNECTION_GAP_DETECTED', 'CONNECTION_INTERRUPTION_REPORTED'];
+export const MONITORING_EVENTS = ['SCREEN_SHARE_STOPPED', 'SYNC_HEALTH_CHANGED', 'CONNECTION_GAP_DETECTED', 'CONNECTION_INTERRUPTION_REPORTED'];
 
 export interface ClientSyncHealth {
     interruption?: { at: string; remainingSeconds: number; reason: 'browser_offline' | 'server_unreachable' };

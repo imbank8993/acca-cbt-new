@@ -353,7 +353,7 @@ export class PasSchedulesService {
 
             const { data: period } = await db
                 .from('cbt_pas_periods')
-                .select('organization_id, name, type, school_year, semester, is_locked')
+                .select('organization_id, name, type, school_year, semester, is_locked, screenshot_enabled')
                 .eq('id', schedule.pas_period_id)
                 .maybeSingle();
 
@@ -409,6 +409,7 @@ export class PasSchedulesService {
                 metadata: {
                     is_safe_mode: true,
                     is_pas_exam: true,
+                    screenshot_enabled: periodRow.screenshot_enabled === true,
                     pas_period_id: schedule.pas_period_id,
                     pas_period_name: folderName || null,
                     pas_schedule_id: scheduleId,

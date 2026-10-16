@@ -514,6 +514,7 @@ export interface ExamInput {
     studentScoreType?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
     showAnswerKeys?: boolean;
     isSafeMode?: boolean;
+    screenshotEnabled?: boolean;
     maxViolations?: number | null;
     scoringType?: string;
     isPublic?: boolean;

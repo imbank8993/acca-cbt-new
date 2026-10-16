@@ -27,7 +27,6 @@ import {
 import type { PASPeriod, PASSession } from '@/app/types/pas';
 import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
-import { MultiSelect } from '@/components/ui/MultiSelect';
 import { Button } from '@/app/components/ui/button';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZoneLabel } from '@/lib/school-time';
@@ -37,18 +36,16 @@ import {
     Clock,
     DoorOpen,
     Loader2,
-    Plus,
     Save,
     ShieldCheck,
     Trash2,
-    UserCheck,
     X,
-    AlertCircle,
     Calendar,
     AlertTriangle,
     Lock,
+    Search,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface RoomManagementPanelProps {
     period: PASPeriod;
@@ -73,9 +70,15 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     const [newSessionName, setNewSessionName] = useState('');
     const [newSessionStart, setNewSessionStart] = useState('07:30');
     const [newSessionEnd, setNewSessionEnd] = useState('09:30');
+    const [sessionError, setSessionError] = useState('');
 
     // State for selected room to manage
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+    const [roomDetailTab, setRoomDetailTab] = useState<'students' | 'proctors' | 'schedules'>('students');
+    const [addingStudents, setAddingStudents] = useState(false);
+    const [studentSearch, setStudentSearch] = useState('');
+    const [isClassLoading, setIsClassLoading] = useState(false);
+    const classRequest = useRef(0);
 
     // State for assignments in the selected room
     const [selectedProctorIds, setSelectedProctorIds] = useState<string[]>([]);
@@ -114,6 +117,25 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     );
 
     const exceedsCapacity = newStudentCount > remainingCapacity;
+    const studentRoomMap = useMemo(() => new Map(rooms.flatMap(room =>
+        (room.pas_room_students || []).map(student => [student.user_id, room] as const))), [rooms]);
+    const visibleClassStudents = classStudents.filter(student =>
+        `${student.name || student.full_name || ''} ${student.identity_number || ''}`.toLocaleLowerCase('id-ID').includes(studentSearch.toLocaleLowerCase('id-ID')));
+    const selectableStudents = visibleClassStudents.filter(student => !assignedStudentIds.has(student.id));
+    const visibleRoomStudents = (selectedRoom?.pas_room_students || []).filter(student =>
+        formatStudentName(student.profiles?.full_name, 'Tanpa Nama').toLocaleLowerCase('id-ID').includes(studentSearch.toLocaleLowerCase('id-ID')));
+
+    const openRoom = (roomId: string) => {
+        classRequest.current++;
+        setSelectedRoomId(roomId);
+        setRoomDetailTab('students');
+        setAddingStudents(false);
+        setStudentSearch('');
+        setSelectedClassId('');
+        setClassStudents([]);
+        setSelectedStudentIds([]);
+        setIsClassLoading(false);
+    };
 
     // Map which teacher is assigned to which other rooms
     const teacherAssignmentMap = useMemo(() => {
@@ -286,37 +308,48 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     };
 
     const handleLoadClassStudents = async (classId: string) => {
+        const request = ++classRequest.current;
         setSelectedClassId(classId);
         setSelectedStudentIds([]);
+        setClassStudents([]);
+        setStudentSearch('');
         if (!classId) {
-            setClassStudents([]);
+            setIsClassLoading(false);
             return;
         }
-        setIsLoading(true);
-        const data = await getStudentsByClassAction(classId);
-        setClassStudents(data);
-        setIsLoading(false);
+        setIsClassLoading(true);
+        try {
+            const data = await getStudentsByClassAction(classId);
+            if (request === classRequest.current) setClassStudents(data);
+        } catch (error) {
+            if (request === classRequest.current) setRoomError(error instanceof Error ? error.message : 'Daftar peserta belum dapat dimuat.');
+        } finally {
+            if (request === classRequest.current) setIsClassLoading(false);
+        }
     };
 
     const handleAddStudentsToRoom = async () => {
-        if (!selectedRoom || selectedStudentIds.length === 0) return;
+        if (!selectedRoom || selectedStudentIds.length === 0 || isSaving || isClassLoading) return;
         if (exceedsCapacity) {
             alert(`Kapasitas ruang tidak mencukupi. Tersedia ${remainingCapacity} kursi.`);
             return;
         }
         setIsSaving(true);
-        const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
-        if (result.success) {
+        setRoomError('');
+        try {
+            const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
+            if (!result.success) throw new Error(result.error || 'Peserta belum berhasil ditambahkan.');
             await refreshRooms();
             setSelectedStudentIds([]);
-        } else {
-            alert(result.error);
-        }
-        setIsSaving(false);
+            setAddingStudents(false);
+            setStudentSearch('');
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Peserta belum berhasil ditambahkan.');
+        } finally { setIsSaving(false); }
     };
 
     const handleRemoveStudent = async (userId: string) => {
-        if (!selectedRoom) return;
+        if (!selectedRoom || isSaving) return;
         if (!await deleteConfirmDialog({
             title: 'Keluarkan Siswa dari Ruang?',
             text: 'Penempatan siswa di ruang ujian ini akan dihapus. Akun siswa tetap tersedia.',
@@ -324,47 +357,56 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
             cancelText: 'Tidak',
         })) return;
         setIsSaving(true);
-        const result = await removeStudentFromRoomAction(period.id, userId);
-        if (result.success) {
+        try {
+            const result = await removeStudentFromRoomAction(period.id, userId);
+            if (!result.success) throw new Error(result.error || 'Peserta belum berhasil dikeluarkan.');
             await refreshRooms();
-        } else {
-            alert(result.error);
-        }
-        setIsSaving(false);
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Peserta belum berhasil dikeluarkan.');
+        } finally { setIsSaving(false); }
     };
 
     const handleCreateSession = async () => {
         if (period.is_locked) return;
-        if (!newSessionName.trim() || !newSessionStart || !newSessionEnd) return;
+        if (!newSessionName.trim() || !newSessionStart || !newSessionEnd || isSaving) return;
+        if (newSessionEnd <= newSessionStart) {
+            setSessionError('Jam selesai harus setelah jam mulai.');
+            return;
+        }
         setIsSaving(true);
-        const result = await createPASSessionAction(period.id, newSessionName.trim(), newSessionStart, newSessionEnd);
-        if (result.success) {
+        setSessionError('');
+        try {
+            const result = await createPASSessionAction(period.id, newSessionName.trim(), newSessionStart, newSessionEnd);
+            if (!result.success) throw new Error(result.error || 'Sesi belum berhasil disimpan.');
             setNewSessionName('');
             setIsCreatingSession(false);
-            const sessionList = await listPASSessions(period.id);
-            setSessions(sessionList);
             onChange?.();
-            setSelectedProctorSessionId(previous => sessionList.some(session => session.id === previous) ? previous : sessionList[0]?.id || '');
-        } else {
-            alert(result.error);
-        }
-        setIsSaving(false);
+            try {
+                const sessionList = await listPASSessions(period.id);
+                setSessions(sessionList);
+                setSelectedProctorSessionId(previous => sessionList.some(session => session.id === previous) ? previous : sessionList[0]?.id || '');
+            } catch { setRoomError('Sesi sudah tersimpan, tetapi daftar terbaru belum dapat dimuat. Muat ulang daftar.'); }
+        } catch (error) {
+            setSessionError(error instanceof Error ? error.message : 'Sesi belum berhasil disimpan.');
+        } finally { setIsSaving(false); }
     };
 
     const handleDeleteSession = async (sessionId: string) => {
         if (period.is_locked) return;
+        if (isSaving) return;
         if (!await deleteConfirmDialog('Hapus Sesi Ujian?', 'Hapus sesi ini?')) return;
         setIsSaving(true);
-        const result = await deletePASSessionAction(sessionId);
-        if (result.success) {
+        try {
+            const result = await deletePASSessionAction(sessionId);
+            if (!result.success) throw new Error(result.error || 'Sesi belum berhasil dihapus.');
+            setSessions(previous => previous.filter(session => session.id !== sessionId));
+            onChange?.();
             const sessionList = await listPASSessions(period.id);
             setSessions(sessionList);
-            onChange?.();
             setSelectedProctorSessionId(previous => sessionList.some(session => session.id === previous) ? previous : sessionList[0]?.id || '');
-        } else {
-            alert(result.error);
-        }
-        setIsSaving(false);
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Daftar sesi belum dapat diperbarui.');
+        } finally { setIsSaving(false); }
     };
 
     // Schedules in the period
@@ -499,7 +541,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                         <Button variant="outline" size="sm" disabled={isSaving}
-                                            onClick={() => setSelectedRoomId(room.id)}>
+                                            onClick={() => openRoom(room.id)}>
                                             Atur Ruang
                                         </Button>
                                         {!period.is_locked && (
@@ -519,12 +561,22 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                     {/* ── DETAIL RUANGAN TERPILIH ── */}
                     {selectedRoom && (
                         <Modal open onClose={() => { if (!isSaving) setSelectedRoomId(null); }} size="2xl"
-                            title={selectedRoom.name} subtitle="Pengawas per sesi dan alokasi siswa" icon="door-open"
-                            className="pas-room-management !max-w-5xl">
-                        <ModalBody className="p-4 sm:p-6 space-y-6">
+                            title={selectedRoom.name} subtitle={`${assignedStudentIds.size} dari ${selectedRoom.capacity} kursi terisi · ${remainingCapacity} kursi tersedia`} icon="door-open"
+                            className="pas-room-management !max-w-3xl">
+                        <div className="pas-room-detail-tabs flex gap-1 px-4 sm:px-6 pt-3" role="tablist" aria-label="Pengaturan ruang">
+                            {([{ id: 'students', label: 'Peserta' }, { id: 'proctors', label: 'Pengawas' }, { id: 'schedules', label: 'Jadwal' }] as const).map(tab => (
+                                <button key={tab.id} type="button" role="tab" aria-selected={roomDetailTab === tab.id}
+                                    id={`room-tab-${tab.id}`} aria-controls={`room-panel-${tab.id}`} disabled={isSaving}
+                                    onClick={() => setRoomDetailTab(tab.id)}
+                                    className={`px-4 py-2.5 text-sm font-semibold rounded-lg ${roomDetailTab === tab.id ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                        <ModalBody className="p-4 sm:p-6">
                             {roomError && <div role="alert" className="text-sm text-red-600">{roomError}</div>}
                             {/* 1. SEKSI PENGAWAS RUANGAN */}
-                            <div className="pas-room-detail-section space-y-3.5">
+                            {roomDetailTab === 'proctors' && <div role="tabpanel" id="room-panel-proctors" aria-labelledby="room-tab-proctors" className="space-y-3.5">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
                                         <ShieldCheck size={16} className="text-[#3083FF]" />
@@ -662,17 +714,17 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                         </Button>
                                     </div>
                                 </div>
-                            </div>
+                            </div>}
 
                             {/* 2. SEKSI JADWAL UJIAN DI RUANG INI */}
-                            <div className="pas-room-detail-section space-y-3">
+                            {roomDetailTab === 'schedules' && <div role="tabpanel" id="room-panel-schedules" aria-labelledby="room-tab-schedules" className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
                                         <Calendar size={15} className="text-[#3083FF]" />
                                         Jadwal Ujian di Ruangan Ini ({roomSchedules.length})
                                     </div>
                                     <span className="text-[11px] text-slate-500 font-medium">
-                                        Diawasi oleh pengawas ruangan di atas
+                                        Pengawas mengikuti sesi masing-masing
                                     </span>
                                 </div>
 
@@ -740,104 +792,83 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                         </table>
                                     </div>
                                 )}
-                            </div>
+                            </div>}
 
-                            {/* 3. SEKSI ALOKASI SISWA */}
-                            <div className="pas-room-detail-section space-y-4">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
-                                        <UserCheck size={16} className="text-[#3083FF]" />
-                                        Alokasi Siswa di Ruangan Ini
-                                    </div>
-                                    <span className="text-xs font-semibold px-2.5 py-1 bg-white rounded-lg text-slate-600 border border-slate-200 shadow-2xs">
-                                        Terisi: <strong className="text-slate-900">{assignedStudentIds.size}</strong> / {selectedRoom.capacity} · Sisa <strong className={remainingCapacity === 0 ? 'text-red-600' : 'text-emerald-600'}>{remainingCapacity}</strong> kursi
-                                    </span>
+                            {roomDetailTab === 'students' && <div role="tabpanel" id="room-panel-students" aria-labelledby="room-tab-students" className="space-y-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-sm font-semibold text-slate-900">{addingStudents ? 'Tambah peserta' : `Peserta ruangan (${assignedStudentIds.size})`}</h3>
+                                    <Button variant={addingStudents ? 'outline' : 'primary'} size="sm" disabled={isSaving}
+                                        onClick={() => { setAddingStudents(!addingStudents); setStudentSearch(''); setSelectedStudentIds([]); }}>
+                                        {addingStudents ? 'Kembali ke daftar' : 'Tambah Peserta'}
+                                    </Button>
                                 </div>
 
-                                {/* Pilih Siswa per Kelas */}
-                                <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
-                                    <p className="text-xs font-semibold text-slate-700">Tambah Siswa dari Kelas:</p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                        <InlineSelect
-                                            value={selectedClassId}
-                                            onChange={(val) => void handleLoadClassStudents(val)}
-                                            minWidth="100%"
-                                            height="40px"
-                                            title="Pilih Kelas Asal"
-                                            options={[
-                                                { value: '', label: '— Pilih Kelas Asal —' },
-                                                ...classes.map((c) => ({ value: c.id, label: `Kelas ${c.name}` })),
-                                            ]}
-                                        />
-                                        {selectedClassId && (
-                                            <MultiSelect
-                                                options={classStudents.map((s) => ({
-                                                    value: s.id,
-                                                    label: formatStudentName(s.name, 'Tanpa Nama'),
-                                                }))}
-                                                value={selectedStudentIds}
-                                                onChange={setSelectedStudentIds}
-                                                placeholder="— Pilih Siswa —"
-                                                allSelectedText="Semua Siswa Terpilih"
-                                                height="40px"
-                                                minWidth="100%"
-                                                showQuickActions={true}
-                                            />
-                                        )}
-                                    </div>
+                                {addingStudents && <div className="space-y-3">
+                                    <InlineSelect value={selectedClassId} disabled={isSaving} onChange={val => void handleLoadClassStudents(val)}
+                                        minWidth="100%" height="40px" title="Kelas asal peserta"
+                                        options={[{ value: '', label: 'Pilih kelas asal' }, ...classes.map(c => ({ value: c.id, label: c.name.replace(/^kelas\s+/i, '') }))]} />
+                                    <p className="text-xs text-slate-500">Centang peserta yang akan ditempatkan di ruangan ini. Peserta dari ruang lain akan dipindahkan.</p>
+                                </div>}
 
-                                    {selectedClassId && selectedStudentIds.length > 0 && (
-                                        <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-                                            {exceedsCapacity ? (
-                                                <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
-                                                    <AlertCircle size={13} /> Pilihan melebihi sisa kapasitas ({remainingCapacity} kursi tersisa).
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-slate-500 font-medium">
-                                                    {selectedStudentIds.length} siswa siap dimasukkan ke ruangan ini.
-                                                </span>
-                                            )}
-                                            <Button
-                                                type="button"
-                                                variant="primary"
-                                                size="sm"
-                                                onClick={handleAddStudentsToRoom}
-                                                disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving}
-                                                isLoading={isSaving}
-                                                leftIcon={<Plus size={13} />}
-                                            >
-                                                Tambahkan ({selectedStudentIds.length}) Siswa
-                                            </Button>
+                                {(!addingStudents || selectedClassId) && <label className="pas-room-search flex items-center gap-2 rounded-lg px-3 py-2.5">
+                                    <Search size={16} className="shrink-0 text-slate-400" />
+                                    <input type="search" value={studentSearch} onChange={e => setStudentSearch(e.target.value)}
+                                        aria-label={addingStudents ? 'Cari peserta dari kelas' : 'Cari peserta ruangan'} placeholder="Cari nama peserta..."
+                                        className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+                                </label>}
+
+                                {addingStudents ? <>
+                                    {isClassLoading ? <p role="status" className="py-8 text-center text-sm text-slate-500">Memuat peserta...</p>
+                                    : !selectedClassId ? <p className="py-8 text-center text-sm text-slate-500">Pilih kelas untuk melihat peserta.</p>
+                                    : <>
+                                        {selectableStudents.length > 0 && <label className="flex items-center gap-3 px-2 text-sm text-slate-600">
+                                            <input type="checkbox" disabled={isSaving}
+                                                checked={selectableStudents.every(student => selectedStudentIds.includes(student.id))}
+                                                onChange={e => setSelectedStudentIds(previous => e.target.checked
+                                                    ? [...new Set([...previous, ...selectableStudents.map(student => student.id)])]
+                                                    : previous.filter(id => !selectableStudents.some(student => student.id === id)))} />
+                                            Pilih semua hasil ({selectableStudents.length})
+                                        </label>}
+                                        <div className="pas-room-student-list max-h-72 overflow-y-auto divide-y divide-slate-100">
+                                            {visibleClassStudents.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Tidak ada peserta yang cocok.</p>}
+                                            {visibleClassStudents.map(student => {
+                                                const alreadyHere = assignedStudentIds.has(student.id);
+                                                const previousRoom = studentRoomMap.get(student.id);
+                                                return <label key={student.id} className="flex items-center gap-3 px-2 py-3 text-sm">
+                                                    <input type="checkbox" disabled={isSaving || alreadyHere} checked={alreadyHere || selectedStudentIds.includes(student.id)}
+                                                        onChange={e => setSelectedStudentIds(previous => e.target.checked ? [...new Set([...previous, student.id])] : previous.filter(id => id !== student.id))} />
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block font-medium text-slate-800">{formatStudentName(student.name || student.full_name, 'Tanpa Nama')}</span>
+                                                        {(student.identity_number || previousRoom) && <span className="mt-0.5 block text-xs text-slate-500">
+                                                            {[student.identity_number, alreadyHere ? 'Sudah di ruangan ini' : previousRoom ? `Dari ${previousRoom.name}` : ''].filter(Boolean).join(' · ')}
+                                                        </span>}
+                                                    </span>
+                                                </label>;
+                                            })}
                                         </div>
-                                    )}
-                                </div>
-
-                                {/* Daftar Siswa yang Telah Masuk Ruangan */}
-                                <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-white divide-y divide-slate-100">
-                                    {(!selectedRoom.pas_room_students || selectedRoom.pas_room_students.length === 0) ? (
-                                        <div className="text-xs text-slate-400 p-6 text-center">
-                                            Belum ada siswa yang dialokasikan ke ruangan ini.
-                                        </div>
-                                    ) : (
-                                        selectedRoom.pas_room_students.map((student, idx) => (
-                                            <div key={student.user_id} className="flex items-center justify-between px-3.5 py-2 hover:bg-slate-50/80 transition-colors">
-                                                <div className="flex items-center gap-2.5 text-xs text-slate-700">
-                                                    <span className="text-[10px] text-slate-400 font-bold w-5">{idx + 1}.</span>
-                                                    <span className="font-semibold">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleRemoveStudent(student.user_id)}
-                                                    className="text-slate-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
-                                                    title="Keluarkan siswa dari ruang"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                                    </>}
+                                    <div className="pas-room-add-footer flex flex-wrap items-center justify-between gap-3 pt-3">
+                                        <p className={`text-xs ${exceedsCapacity ? 'text-red-600' : 'text-slate-500'}`} role={exceedsCapacity ? 'alert' : 'status'}>
+                                            {exceedsCapacity ? `Pilihan melebihi sisa kapasitas (${remainingCapacity} kursi).` : `${selectedStudentIds.length} dipilih · ${remainingCapacity} kursi tersedia`}
+                                        </p>
+                                        <Button variant="primary" size="sm" onClick={() => void handleAddStudentsToRoom()}
+                                            disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving} isLoading={isSaving}>
+                                            Tambahkan Peserta{selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ''}
+                                        </Button>
+                                    </div>
+                                </> : <div className="pas-room-student-list max-h-96 overflow-y-auto divide-y divide-slate-100">
+                                    {visibleRoomStudents.length === 0 && <p className="py-10 text-center text-sm text-slate-500">
+                                        {assignedStudentIds.size ? 'Tidak ada peserta yang cocok.' : 'Belum ada peserta. Pilih Tambah Peserta untuk mengisi ruangan.'}
+                                    </p>}
+                                    {visibleRoomStudents.map((student, idx) => <div key={student.user_id} className="flex items-center gap-3 py-3 px-2 text-sm">
+                                        <span className="w-6 shrink-0 text-xs text-slate-400">{idx + 1}</span>
+                                        <span className="min-w-0 flex-1 font-medium text-slate-800">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
+                                        <button type="button" disabled={isSaving} onClick={() => void handleRemoveStudent(student.user_id)}
+                                            className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:text-red-600 disabled:opacity-50"
+                                            aria-label={`Keluarkan ${formatStudentName(student.profiles?.full_name, 'peserta')} dari ruang`}>Keluarkan</button>
+                                    </div>)}
+                                </div>}
+                            </div>}
                         </ModalBody>
                         <ModalFooter>
                             <Button variant="outline" disabled={isSaving} onClick={() => setSelectedRoomId(null)}>Selesai</Button>
@@ -851,201 +882,105 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                 TAB 2: SESI UJIAN
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'sessions' && (
-                <div className="space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <h3 className="font-bold text-slate-900 text-sm">Daftar Sesi Ujian</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Atur slot waktu pelaksanaan ujian dalam folder ini.
-                            </p>
+                            <h3 className="font-semibold text-sm text-slate-900">Sesi Ujian ({sessions.length})</h3>
+                            <p className="mt-1 text-xs text-slate-500">Jam pelaksanaan dalam zona waktu {tzLabel}.</p>
                         </div>
-                        {period.is_locked ? (
-                            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
-                                <Lock size={13} /> Periode terkunci
-                            </span>
-                        ) : (
-                            !period.is_locked && (
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    icon="add"
-                                    onClick={() => setIsCreatingSession(!isCreatingSession)}
-                                >
-                                    Tambah Sesi Baru
-                                </Button>
-                            )
+                        {period.is_locked ? <span className="flex items-center gap-1.5 text-xs text-slate-500"><Lock size={13} /> Periode terkunci</span>
+                        : !period.is_locked && (
+                            <Button variant="primary" size="sm" icon="add" disabled={isSaving}
+                                onClick={() => { setSessionError(''); setIsCreatingSession(true); }}>
+                                Tambah Sesi
+                            </Button>
                         )}
                     </div>
 
-                    {/* Form Tambah Sesi */}
                     {!period.is_locked && isCreatingSession && (
-                        <div className="p-4 bg-slate-50/90 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-end shadow-2xs">
-                            <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Sesi *</label>
-                                <input
-                                    type="text"
-                                    value={newSessionName}
-                                    onChange={e => setNewSessionName(e.target.value)}
-                                    placeholder="Misal: Sesi 1, Sesi Pagi"
-                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Jam Mulai ({tzLabel}) *</label>
-                                <input
-                                    type="time"
-                                    value={newSessionStart}
-                                    onChange={e => setNewSessionStart(e.target.value)}
-                                    className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Jam Selesai ({tzLabel}) *</label>
-                                <input
-                                    type="time"
-                                    value={newSessionEnd}
-                                    onChange={e => setNewSessionEnd(e.target.value)}
-                                    className="w-full h-[40px] px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
-                            </div>
-                            <div className="sm:col-span-4 flex justify-end gap-2 mt-1">
-                                <Button
-                                    type="button"
-                                    variant="cancel"
-                                    size="sm"
-                                    onClick={() => setIsCreatingSession(false)}
-                                >
-                                    Batal
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={handleCreateSession}
-                                    disabled={!newSessionName.trim() || isSaving}
-                                    isLoading={isSaving}
-                                    leftIcon={<Save size={13} />}
-                                >
-                                    Simpan Sesi
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Daftar Sesi */}
-                    {isLoading ? (
-                        <div className="text-center py-10 text-slate-400 text-xs flex items-center justify-center gap-2">
-                            <Loader2 size={18} className="animate-spin text-[#3083FF]" /> Memuat data sesi...
-                        </div>
-                    ) : sessions.length === 0 ? (
-                        <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
-                            <Clock size={36} className="mx-auto mb-2 text-slate-300" />
-                            <p className="font-bold text-slate-800 text-sm">Belum ada sesi yang dibuat</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                                Silakan tambah sesi ujian untuk digunakan saat penjadwalan kelas.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-                            {sessions.map((session) => {
-                                const sessionSchedules = allSchedules.filter((s) => s.session_id === session.id);
-                                const isSessionInUse = sessionSchedules.length > 0;
-
-                                // Find active rooms and invigilators in this session
-                                const activeRooms = [...new Set(sessionSchedules.map((s) => s.room).filter(Boolean))];
-                                const onDutyProctors = new Set<string>();
-                                for (const rName of activeRooms) {
-                                    const r = rooms.find((room) => room.name.toLowerCase() === (rName || '').toLowerCase());
-                                    if (r?.pas_room_invigilators) {
-                                        for (const inv of r.pas_room_invigilators) {
-                                            if (inv.session_id === session.id && inv.profiles?.full_name) onDutyProctors.add(inv.profiles.full_name);
-                                        }
-                                    }
-                                }
-
-                                return (
-                                    <div
-                                        key={session.id}
-                                        className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all flex flex-col justify-between shadow-2xs group"
-                                    >
-                                        <div>
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-[#3083FF]">
-                                                        <Clock size={16} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-slate-900 text-sm">{session.name}</div>
-                                                        <div className="text-xs text-slate-500 font-mono font-medium">
-                                                            {session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {tzLabel}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {!period.is_locked && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (isSessionInUse) {
-                                                                alert(`Sesi tidak dapat dihapus karena masih digunakan oleh ${sessionSchedules.length} jadwal.`);
-                                                                return;
-                                                            }
-                                                            void handleDeleteSession(session.id);
-                                                        }}
-                                                        disabled={isSessionInUse}
-                                                        className={`p-1.5 rounded-lg transition-colors ${
-                                                            isSessionInUse
-                                                                ? 'text-slate-300 cursor-not-allowed opacity-50'
-                                                                : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
-                                                        }`}
-                                                        title={isSessionInUse ? `Dipakai ${sessionSchedules.length} jadwal` : 'Hapus Sesi'}
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {/* Pengawas & Jadwal di Sesi Ini */}
-                                            <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1.5">
-                                                <div className="flex items-center justify-between text-[11px]">
-                                                    <span className="text-slate-500 font-medium">Jadwal Kelas:</span>
-                                                    <span className={`font-bold ${isSessionInUse ? 'text-[#3083FF]' : 'text-slate-400'}`}>
-                                                        {sessionSchedules.length} Jadwal
-                                                    </span>
-                                                </div>
-
-                                                {isSessionInUse && (
-                                                    <div className="text-[10px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 space-y-1">
-                                                        <div>
-                                                            <strong className="text-slate-700">Ruangan: </strong>
-                                                            {activeRooms.length > 0 ? activeRooms.join(', ') : 'Belum diatur'}
-                                                        </div>
-                                                        {onDutyProctors.size > 0 && (
-                                                            <div className="text-emerald-700 font-medium">
-                                                                <strong>Pengawas: </strong>
-                                                                {Array.from(onDutyProctors).join(', ')}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                                            {isSessionInUse ? (
-                                                <span className="text-[10px] font-bold text-[#3083FF] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                                                    Aktif ({sessionSchedules.length} jadwal)
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] font-medium text-slate-400">
-                                                    Belum ada jadwal
-                                                </span>
-                                            )}
-                                        </div>
+                        <Modal open title="Tambah Sesi Ujian" subtitle={`Jam pelaksanaan (${tzLabel})`} icon="clock" size="sm"
+                            className="pas-room-management" onClose={() => { if (!isSaving) setIsCreatingSession(false); }}>
+                            <ModalBody className="space-y-4 p-4 sm:p-6">
+                                {sessionError && <p role="alert" className="text-sm text-red-600">{sessionError}</p>}
+                                <div>
+                                    <label htmlFor="pas-session-name" className="mb-1.5 block text-sm font-medium text-slate-700">Nama sesi</label>
+                                    <input id="pas-session-name" type="text" value={newSessionName} disabled={isSaving}
+                                        onChange={e => setNewSessionName(e.target.value)} placeholder="Contoh: Sesi 1"
+                                        className="pas-session-input w-full rounded-lg px-3 py-2.5 text-sm" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label htmlFor="pas-session-start" className="mb-1.5 block text-sm font-medium text-slate-700">Jam mulai</label>
+                                        <input id="pas-session-start" type="time" value={newSessionStart} disabled={isSaving}
+                                            onChange={e => setNewSessionStart(e.target.value)}
+                                            className="pas-session-input w-full min-w-0 rounded-lg px-3 py-2.5 text-sm" />
                                     </div>
-                                );
-                            })}
-                        </div>
+                                    <div>
+                                        <label htmlFor="pas-session-end" className="mb-1.5 block text-sm font-medium text-slate-700">Jam selesai</label>
+                                        <input id="pas-session-end" type="time" value={newSessionEnd} disabled={isSaving}
+                                            onChange={e => setNewSessionEnd(e.target.value)}
+                                            className="pas-session-input w-full min-w-0 rounded-lg px-3 py-2.5 text-sm" />
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500">Tanggal ujian ditentukan saat menjadwalkan bank soal, sesuai periode folder.</p>
+                            </ModalBody>
+                            <ModalFooter>
+                                <Button variant="outline" size="sm" disabled={isSaving} onClick={() => setIsCreatingSession(false)}>Batal</Button>
+                                <Button variant="primary" size="sm" onClick={() => void handleCreateSession()}
+                                    disabled={!newSessionName.trim() || !newSessionStart || !newSessionEnd || isSaving} isLoading={isSaving}>Simpan Sesi</Button>
+                            </ModalFooter>
+                        </Modal>
                     )}
+
+                    {isLoading ? <p role="status" className="py-10 text-center text-sm text-slate-500">Memuat sesi ujian...</p>
+                    : sessions.length === 0 ? <div className="pas-session-empty rounded-xl py-10 px-4 text-center">
+                        <Clock size={28} className="mx-auto mb-3 text-slate-400" />
+                        <p className="text-sm font-semibold text-slate-800">Belum ada sesi ujian</p>
+                        <p className="mt-1 text-xs text-slate-500">Tambahkan sesi untuk menentukan jam ujian.</p>
+                    </div> : <div className="pas-session-list rounded-xl divide-y divide-slate-100">
+                        {sessions.map(session => {
+                            const sessionSchedules = allSchedules.filter(schedule => schedule.session_id === session.id);
+                            const isSessionInUse = sessionSchedules.length > 0;
+                            const activeRooms = [...new Set(sessionSchedules.map(schedule => schedule.room).filter(Boolean))];
+                            const onDutyProctors = new Set<string>();
+                            for (const name of activeRooms) {
+                                const room = rooms.find(room => room.name.trim().toLowerCase() === name?.trim().toLowerCase());
+                                for (const inv of getRoomSessionInvigilators(room, session.id)) {
+                                    const name = inv.profiles?.full_name || teachers.find(teacher => teacher.id === inv.user_id)?.name;
+                                    if (name) onDutyProctors.add(name);
+                                }
+                            }
+                            return <div key={session.id} className="px-4 py-4 sm:px-5">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <h4 className="break-words text-sm font-semibold text-slate-900">{session.name}</h4>
+                                        <p className="mt-1 text-sm text-slate-600 tabular-nums">{session.start_time.slice(0, 5)} – {session.end_time.slice(0, 5)} {tzLabel}</p>
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-3">
+                                        <span className="text-xs text-slate-500">{sessionSchedules.length} jadwal</span>
+                                        {!period.is_locked && (
+                                            <button type="button" onClick={() => void handleDeleteSession(session.id)}
+                                                disabled={isSaving || isSessionInUse} aria-label={`Hapus sesi ${session.name}`}
+                                                title={isSessionInUse ? 'Sesi masih dipakai jadwal dan tidak dapat dihapus' : 'Hapus sesi'}
+                                                className="rounded-lg p-2 text-slate-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                                                <Trash2 size={15} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                {isSessionInUse && <details className="mt-3 text-xs text-slate-500">
+                                    <summary className="cursor-pointer py-1 font-medium text-blue-600">Lihat jadwal</summary>
+                                    <div className="mt-2 space-y-3">
+                                        {sessionSchedules.map(schedule => <div key={schedule.id} className="space-y-1">
+                                            <p className="font-medium text-slate-800">{schedule.question_banks?.title || 'Bank Soal'} · {schedule.classes?.name || 'Semua kelas'}</p>
+                                            <p>{schedule.scheduled_date || 'Tanggal belum diatur'} · {schedule.room || 'Ruang belum diatur'}</p>
+                                        </div>)}
+                                        {onDutyProctors.size > 0 && <p>Pengawas: {Array.from(onDutyProctors).join(', ')}</p>}
+                                    </div>
+                                </details>}
+                            </div>;
+                        })}
+                    </div>}
                 </div>
             )}
 

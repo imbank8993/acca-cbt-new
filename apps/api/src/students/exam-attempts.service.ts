@@ -177,7 +177,7 @@ export class ExamAttemptsService {
      * yang memundurkan jam laptopnya tidak boleh bisa membuka ujian lebih awal
      * atau memperpanjang durasinya.
      */
-    async start(user: AuthUser, examId: string, deviceId?: string) {
+    async start(user: AuthUser, examId: string, deviceId?: string, screenCaptureReady = false) {
         const now = await this.serverNow();
 
         const { data: exam } = await this.db
@@ -191,6 +191,9 @@ export class ExamAttemptsService {
         if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
 
         await assertExamAccess(this.db, user, exam);
+        if (exam.metadata?.screenshot_enabled === true && !screenCaptureReady) {
+            throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
+        }
         const device = this.requireDeviceId(deviceId);
 
         const row = exam as {

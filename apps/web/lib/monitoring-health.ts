@@ -1,6 +1,7 @@
 import type { ExamAttemptRecord } from './api/proctor';
 
 export const monitoringEventLabels: Record<string, string> = {
+    SCREEN_SHARE_STOPPED: 'Berbagi layar dihentikan',
     ATTEMPT_STARTED: 'Mulai ujian', SUBMITTED: 'Dikumpulkan siswa', AUTO_SUBMITTED: 'Ditutup otomatis',
     RESET_BY_PROCTOR: 'Pemulihan dibuka', MAKEUP_EXAM_STARTED: 'Ujian susulan dibuka',
     FORCE_TERMINATED: 'Dihentikan pengawas', SYNC_HEALTH_CHANGED: 'Laporan penyimpanan berubah',

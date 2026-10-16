@@ -47,6 +47,7 @@ function sanitizeFolder(raw: string, callerId: string): string {
     .slice(0, 4);
 
   if (segments.length === 0) return 'misc';
+  if (segments[0] === 'exam-evidence') throw new ForbiddenException('Folder bukti ujian tidak menerima upload umum.');
 
   // Paksa userId ke identity pemanggil agar tidak bisa menulis ke folder orang lain.
   if (segments[0] === 'assignments') {

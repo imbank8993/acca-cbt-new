@@ -24,6 +24,8 @@ export class JoinClassDto {
 }
 
 export class StartAttemptDto {
+    @IsOptional() @IsBoolean()
+    screenCaptureReady?: boolean;
     @ApiPropertyOptional({
         description:
             'Sidik jari perangkat. Pengerjaan terikat pada perangkat pertama; ' +

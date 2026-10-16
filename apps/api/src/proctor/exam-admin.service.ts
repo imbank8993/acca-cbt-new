@@ -657,6 +657,7 @@ export class ExamAdminService {
                 metadata: { student_score_type: dto.studentScoreType ?? existing.student_score_type } }),
             show_answer_keys: dto.showAnswerKeys ?? existing.show_answer_keys ?? false,
             is_safe_mode: dto.isSafeMode ?? existing.is_safe_mode ?? true,
+            screenshot_enabled: dto.screenshotEnabled ?? existing.screenshot_enabled ?? false,
             // `null` adalah pilihan eksplisit "tanpa batas". Ujian lama yang
             // belum memiliki bidang ini tetap memakai perilaku lama: 3.
             max_violations: dto.maxViolations !== undefined

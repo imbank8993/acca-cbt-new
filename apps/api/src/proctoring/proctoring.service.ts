@@ -36,7 +36,7 @@ const NON_WARNING_EVENTS = [
 /** Klien mengirim 'tab_switch' dan 'window_blur'; 'blur' adalah nilai warisan. */
 const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
 export const STUDENT_SECURITY_EVENTS = [
-    ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
+    'SCREEN_SHARE_STOPPED', ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
     'copy_paste_attempt', 'right_click_attempt', 'tab_close', 'focus_interruption',
 ];
 

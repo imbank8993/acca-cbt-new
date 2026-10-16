@@ -11,6 +11,51 @@
   min-width: 0;
 }
 
+.pas-room-management .pas-room-detail-tabs {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.pas-room-management .pas-room-search {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.pas-room-management .pas-room-search input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.pas-room-management .pas-room-student-list {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.pas-room-management .pas-room-add-footer {
+  border-top: 1px solid var(--border);
+}
+
+.pas-room-page .pas-session-list,
+.pas-room-page .pas-session-empty {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.pas-room-management .pas-session-input {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.pas-room-management .pas-session-input:focus {
+  outline: 2px solid #3083ff;
+  outline-offset: 1px;
+}
+
 .pas-schedule-form .ss .ss__trigger {
   background: var(--card);
   border: 1px solid var(--border) !important;

@@ -87,6 +87,7 @@ export function createPASPeriodAction(
         semester?: string;
         start_date: string;
         end_date: string;
+        screenshot_enabled?: boolean;
     },
 ) {
     return apiCreate<{ id: string }>('/api/pas/periods', input);

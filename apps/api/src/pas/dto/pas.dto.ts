@@ -16,6 +16,8 @@ import {
 const DATE_EXAMPLE = '2026-06-01';
 
 export class CreatePASPeriodDto {
+    @IsOptional() @IsBoolean()
+    screenshot_enabled?: boolean;
     @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
     @IsUUID('4', { message: 'clientRequestId tidak valid' })
     clientRequestId!: string;

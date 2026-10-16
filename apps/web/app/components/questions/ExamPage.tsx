@@ -45,6 +45,7 @@ import { useCallback,useEffect,useRef,useState } from 'react';
 import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
+import { useExamScreenshots } from '@/hooks/useExamScreenshots';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
     if (exam?.metadata?.is_safe_mode === false) return null;
@@ -95,6 +96,9 @@ export default function ExamPage() {
     const [exam, setExam] = useState<StudentExam | null>(null);
     const maxViolations = resolveMaxViolations(exam);
     const [isCompleted, setIsCompleted] = useState(false);
+    const screenshots = useExamScreenshots(examId, isCompleted);
+    const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, upload: uploadScreenshot } = screenshots;
+    const wasScreenSharing = useRef(false);
     const [questions, setQuestions] = useState<StudentExamQuestion[]>([]);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -518,6 +522,11 @@ export default function ExamPage() {
 
                 const examData = detail.exam;
                 setExam(examData);
+                if (examData.metadata?.screenshot_enabled === true && !screenSharingRef.current) {
+                    setAwaitingStart(true);
+                    setLoading(false);
+                    return;
+                }
 
                 if (!detail.hasStartedAttempt && confirmedStartExamIdRef.current !== examId) {
                     setAwaitingStart(true);
@@ -537,7 +546,7 @@ export default function ExamPage() {
 
                 // Start or resume attempt (bound to this device — see device lock)
                 const startRequestedAt = performance.now();
-                const result = await startExamAttemptAction(examId, durableDeviceId);
+                const result = await startExamAttemptAction(examId, durableDeviceId, screenSharingRef.current);
                 if (cancelled) return;
                 clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
                 if (!result.success) {
@@ -852,7 +861,7 @@ export default function ExamPage() {
             setLoading(false);
         });
         return () => { cancelled = true; fetchExamDataRef.current = null; ownsEditorLockRef.current = false; releaseEditor?.(); };
-    }, [examId, restoreAssignment]);
+    }, [examId, restoreAssignment, screenSharingRef]);
 
     // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
     // Sedikit debounce menghindari penulisan beruntun saat siswa menekan tombol
@@ -1048,7 +1057,7 @@ export default function ExamPage() {
         if (!localAttempt?.id || !navigator.onLine) return false;
 
         const startRequestedAt = performance.now();
-        const result = await startExamAttemptAction(examId, getDeviceId());
+        const result = await startExamAttemptAction(examId, getDeviceId(), screenSharingRef.current);
         if (!result.success) {
             if (result.retryable) {
                 setIsOffline(true);
@@ -1097,7 +1106,7 @@ export default function ExamPage() {
             // boleh membatalkan sinkronisasi jawaban yang sedang menunggu.
         }
         return true;
-    }, [examId, submissionOnly]);
+    }, [examId, submissionOnly, screenSharingRef]);
 
     /** Tutup UI hanya setelah server benar-benar mengonfirmasi terminasi. */
     const confirmPendingTermination = useCallback(async (reason: string): Promise<boolean> => {
@@ -1268,10 +1277,11 @@ export default function ExamPage() {
     // ── Security event listeners ─────────────────────────────
     useEffect(() => {
         if (!attempt || isCompleted || loading || accessDenied || submissionOnly) return;
-        if (exam?.metadata?.is_safe_mode === false) return;
+        if (exam?.metadata?.is_safe_mode === false && exam?.metadata?.screenshot_enabled !== true) return;
 
         const handleSecurityViolation = async (type: string) => {
-            if (submitInFlightRef.current || frozenSnapshotRef.current || terminationReasonRef.current) return;
+            if (submitInFlightRef.current || frozenSnapshotRef.current || terminationReasonRef.current || screenRequestingRef.current) return;
+            if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
             const focusOnly = type === 'focus_interruption';
             // Cooldown GLOBAL lintas-jenis, bukan per-jenis: satu aksi pengguna
             // memicu beberapa event sekaligus (alt-tab = blur + visibilitychange,
@@ -1296,8 +1306,10 @@ export default function ExamPage() {
 
             try {
                 const createdAt = new Date().toISOString();
+                const eventId = createSecurityEventId();
+                const captured = !focusOnly && exam?.metadata?.screenshot_enabled === true ? captureScreenshot() : Promise.resolve(null);
                 const stored = await enqueueSecurityEvent({
-                    id: createSecurityEventId(),
+                    id: eventId,
                     attemptId: attempt.id,
                     eventType: type,
                     metadata: { timestamp: createdAt },
@@ -1314,6 +1326,7 @@ export default function ExamPage() {
                     beaconPendingAnswers();
                 }
                 const securityResult = await flushSecurityEvents();
+                if (stored.saved && securityResult) void captured.then(blob => uploadScreenshot(attempt.id, eventId, getDeviceId(), blob));
                 if (securityResult?.terminated) return;
                 const effectiveLimit = securityResult?.maxViolations ?? maxViolations;
                 const effectiveCount = securityResult?.warningCount ?? newCount;
@@ -1386,7 +1399,16 @@ export default function ExamPage() {
             document.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('keydown', onKeyDown);
         };
-    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers]);
+    }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers, captureScreenshot, uploadScreenshot, screenSharingRef, screenRequestingRef]);
+
+    useEffect(() => {
+        if (!attempt || isCompleted || exam?.metadata?.screenshot_enabled !== true) return;
+        if (screenshots.sharing) { wasScreenSharing.current = true; return; }
+        if (!wasScreenSharing.current) return;
+        wasScreenSharing.current = false;
+        void enqueueSecurityEvent({ id: createSecurityEventId(), attemptId: attempt.id, eventType: 'SCREEN_SHARE_STOPPED',
+            metadata: { reason: 'Siswa menghentikan berbagi layar' }, createdAt: new Date().toISOString() }).then(() => flushSecurityEvents());
+    }, [attempt, isCompleted, exam, screenshots.sharing, flushSecurityEvents]);
 
     // Retry berkala untuk autosave yang gagal. Sebelumnya jawaban yang gagal
     // tersimpan hanya tersusul kalau kebetulan ada event 'online' — kegagalan
@@ -1653,6 +1675,7 @@ export default function ExamPage() {
         return <ExamStartPreparation
             key={examId}
             exam={exam}
+            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, request: screenshots.requestShare }}
             onBack={() => router.push('/dashboard/siswa/schedule')}
             onConfirm={(fullscreenReady) => {
                 setIsFullScreen(fullscreenReady);
@@ -1792,6 +1815,16 @@ export default function ExamPage() {
 
     return (
         <>
+            {exam?.metadata?.screenshot_enabled === true && !screenshots.sharing && !isCompleted && !submissionOnly && (
+                <div role="dialog" aria-modal="true" aria-label="Bagikan kembali layar" className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 p-5">
+                    <div className="max-w-md rounded-2xl bg-white p-6 text-center text-slate-900">
+                        <h2 className="text-lg font-bold">Bagikan kembali seluruh layar</h2>
+                        <p className="mt-2 text-sm">Berbagi layar terhenti. Jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
+                        {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
+                        <button type="button" disabled={screenshots.busy} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>
+                    </div>
+                </div>
+            )}
             <ExamViewer
             mode="exam"
             questions={questions}
