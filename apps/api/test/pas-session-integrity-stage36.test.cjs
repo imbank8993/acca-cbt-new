@@ -13,6 +13,7 @@ const { normalizeSqlTime, dateTimeToUtc } = require('../src/common/school-time.t
 
 const user = { id: 'proctor-1', isPlatformAdmin: false };
 const authz = {
+    assertBankAccess: async () => {},
     assertStaffByRecord: async () => {},
     assertProktor: async () => {},
     assertProktorByRecord: async () => {},

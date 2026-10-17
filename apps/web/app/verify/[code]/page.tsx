@@ -330,14 +330,14 @@ export default function VerifyPASDocumentPage() {
                                         ) : (
                                             <FileCheck2 size={13} />
                                         )}
-                                        Sidik Jari Kriptografi (SHA-256)
+                                        Integritas Dokumen
                                     </span>
                                     <span className="text-[11px] text-slate-300">
                                         Waktu TTD: <strong>{formatDateTime(result.signed_at)}</strong>
                                     </span>
                                 </div>
                                 <div className="font-mono text-[11px] bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 break-all text-emerald-300">
-                                    {result.signature_hash}
+                                    Isi dokumen diperiksa terhadap salinan yang telah di-ACC.
                                 </div>
                                 {result.paired_codes && (
                                     <div className="pt-1 flex items-center justify-between text-[11px] text-slate-300 flex-wrap gap-2">

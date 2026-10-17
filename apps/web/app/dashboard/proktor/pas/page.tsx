@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
+import { Modal, ModalBody, ModalFooter, ModalField } from '@/components/ui/modal';
+import { Button } from '@/components/ui/button';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 
 type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn' | 'am';
@@ -369,117 +371,138 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
             )}
 
             {/* CREATE PERIOD MODAL */}
-            <AnimatePresence>
-                {isAddPeriodOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
-                            <button onClick={() => setIsAddPeriodOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            <div className="flex items-center gap-2.5 mb-4">
-                                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                                    <FolderOpen size={20} className="text-primary" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Buat Folder Ujian</h3>
-                                    <p className="text-xs text-slate-500">Rumah ujian untuk memilih & menjadwalkan banyak bank soal</p>
-                                </div>
+            <Modal
+                open={isAddPeriodOpen}
+                onClose={() => setIsAddPeriodOpen(false)}
+                size="xl"
+                variant="add"
+                icon={<FolderOpen size={18} />}
+                title={`Buat Folder Ujian ${periodForm.type === 'am' ? 'Asesmen Madrasah' : 'ASAS / ASAT'}`}
+                subtitle="Rumah ujian untuk memilih & menjadwalkan banyak bank soal"
+                labelledBy="modal-create-pas-period"
+                className="create-exam-modal"
+            >
+                <form onSubmit={handleCreatePeriod}>
+                    <ModalBody className="create-exam-modal__body">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <ModalField label="Nama Folder / Nama Ujian" required hint="Nama ini akan menjadi nama ujian untuk setiap bank soal di dalamnya">
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder={periodForm.type === 'am' ? 'Contoh: Asesmen Madrasah 2026/2027' : 'Contoh: ASAS Ganjil 2025/2026'}
+                                    value={periodForm.name}
+                                    onChange={e => setPeriodForm({ ...periodForm, name: e.target.value })}
+                                />
+                            </ModalField>
+
+                            <ModalField label="Semester" required>
+                                <InlineSelect
+                                    value={periodForm.semester}
+                                    onChange={val => setPeriodForm({ ...periodForm, semester: val as Semester })}
+                                    options={[
+                                        { value: 'ganjil', label: 'Semester Ganjil' },
+                                        { value: 'genap', label: 'Semester Genap' },
+                                    ]}
+                                />
+                            </ModalField>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <ModalField label="Kategori Asesmen" required>
+                                <InlineSelect
+                                    value={periodForm.type}
+                                    onChange={val => setPeriodForm({ ...periodForm, type: val as PeriodType })}
+                                    options={[
+                                        { value: 'pas', label: 'ASAS / PAS (Akhir Semester)' },
+                                        { value: 'pat', label: 'ASAT / PAT (Akhir Tahun)' },
+                                        { value: 'pts', label: 'PTS / UTS' },
+                                        { value: 'pkn', label: 'Asesmen Lainnya' },
+                                        { value: 'am', label: 'Asesmen Madrasah' },
+                                    ]}
+                                />
+                            </ModalField>
+
+                            <ModalField label="Tahun Ajaran" required>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Contoh: 2025/2026"
+                                    value={periodForm.school_year}
+                                    onChange={e => setPeriodForm({ ...periodForm, school_year: e.target.value })}
+                                />
+                            </ModalField>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <ModalField label="Tanggal Mulai" required>
+                                    <input
+                                        required
+                                        type="date"
+                                        value={periodForm.start_date}
+                                        onChange={e => setPeriodForm({ ...periodForm, start_date: e.target.value })}
+                                    />
+                                </ModalField>
+
+                                <ModalField label="Tanggal Selesai" required>
+                                    <input
+                                        required
+                                        type="date"
+                                        min={periodForm.start_date || undefined}
+                                        value={periodForm.end_date}
+                                        onChange={e => setPeriodForm({ ...periodForm, end_date: e.target.value })}
+                                    />
+                                </ModalField>
                             </div>
-                            <form onSubmit={handleCreatePeriod} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Folder / Nama Ujian *</label>
-                                    <input required type="text" placeholder={periodForm.type === 'am' ? 'Contoh: Asesmen Madrasah 2026/2027' : 'Contoh: ASAS Ganjil 2025/2026'}
-                                        value={periodForm.name}
-                                        onChange={e => setPeriodForm({ ...periodForm, name: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
-                                    <p className="text-[11px] text-slate-400 mt-1">Nama folder ini akan menjadi nama ujian untuk setiap bank soal yang dijadwalkan di dalamnya.</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Kategori</label>
-                                        <select value={periodForm.type}
-                                            onChange={e => setPeriodForm({ ...periodForm, type: e.target.value as PeriodType })}
-                                            className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none">
-                                            <option value="pas">ASAS / PAS (Akhir Semester)</option>
-                                            <option value="pat">ASAT / PAT (Akhir Tahun)</option>
-                                            <option value="pts">PTS / UTS</option>
-                                            <option value="pkn">Asesmen Lainnya</option>
-                                            <option value="am">Asesmen Madrasah</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Semester</label>
-                                        <select value={periodForm.semester}
-                                            onChange={e => setPeriodForm({ ...periodForm, semester: e.target.value as Semester })}
-                                            className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none">
-                                            <option value="ganjil">Ganjil</option>
-                                            <option value="genap">Genap</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Tahun Ajaran *</label>
-                                    <input required type="text" placeholder="Contoh: 2025/2026"
-                                        value={periodForm.school_year}
-                                        onChange={e => setPeriodForm({ ...periodForm, school_year: e.target.value })}
-                                        className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Mulai</label>
-                                        <input required type="date"
-                                            value={periodForm.start_date}
-                                            onChange={e => setPeriodForm({ ...periodForm, start_date: e.target.value })}
-                                            className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Selesai</label>
-                                        <input required type="date"
-                                            min={periodForm.start_date || undefined}
-                                            value={periodForm.end_date}
-                                            onChange={e => setPeriodForm({ ...periodForm, end_date: e.target.value })}
-                                            className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
-                                    </div>
-                                </div>
-                                <div className="pt-2 border-t border-slate-100">
-                                    <p className="text-xs font-semibold text-slate-700 mb-2">Administrasi Dokumen (Opsional)</p>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">Nama Ketua Panitia</label>
-                                            <input
-                                                type="text"
-                                                placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
-                                                value={periodForm.committee_chair_name}
-                                                onChange={e => setPeriodForm({ ...periodForm, committee_chair_name: e.target.value })}
-                                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-slate-600 mb-1">NIP Ketua Panitia</label>
-                                            <input
-                                                type="text"
-                                                placeholder="NIP (opsional)..."
-                                                value={periodForm.committee_chair_nip}
-                                                onChange={e => setPeriodForm({ ...periodForm, committee_chair_nip: e.target.value })}
-                                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                <button type="submit" disabled={isSubmitting}
-                                    className="w-full py-3 bg-primary text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
-                                    {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                    Buat Folder & Pilih Bank Soal
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <UserCheck size={14} className="text-[#3083FF]" />
+                                <span className="text-xs font-bold text-slate-800">Kepanitiaan Ujian (Administrasi Dokumen)</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <ModalField label="Nama Lengkap & Gelar Ketua Panitia" hint="Dicantumkan pada Berita Acara dan Daftar Hadir">
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
+                                        value={periodForm.committee_chair_name}
+                                        onChange={e => setPeriodForm({ ...periodForm, committee_chair_name: e.target.value })}
+                                    />
+                                </ModalField>
+
+                                <ModalField label="NIP Ketua Panitia (Opsional)">
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: 197505102000031002 atau -"
+                                        value={periodForm.committee_chair_nip}
+                                        onChange={e => setPeriodForm({ ...periodForm, committee_chair_nip: e.target.value })}
+                                    />
+                                </ModalField>
+                            </div>
+                        </div>
+                    </ModalBody>
+
+                    <ModalFooter>
+                        <Button
+                            type="button"
+                            variant="cancel"
+                            onClick={() => setIsAddPeriodOpen(false)}
+                            disabled={isSubmitting}
+                            icon="cancel"
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            isLoading={isSubmitting}
+                            disabled={isSubmitting || !periodForm.name.trim()}
+                            icon={isSubmitting ? undefined : "save"}
+                        >
+                            Buat Folder & Pilih Bank Soal
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
 
             {editingPeriod && (
                 <EditPASPeriodModal

@@ -11,6 +11,8 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { insertIdempotently } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
+import { writablePasPeriod } from '../common/pas-period-policy';
+import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
 /**
@@ -64,25 +66,41 @@ export class PasRoomsService {
     async createRoom(user: AuthUser, periodId: string, dto: CreatePASRoomDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const data = await insertIdempotently<{ id: string }>(this.db, {
-            table: 'cbt_pas_rooms',
-            scope: { column: 'pas_period_id', value: periodId },
-            clientRequestId: dto.clientRequestId,
-            fingerprint: dto,
-            select: 'id',
-            payload: { pas_period_id: periodId, name: dto.name, capacity: dto.capacity },
+        return this.db.transaction(async db => {
+            await writablePasPeriod(db, periodId);
+            const data = await insertIdempotently<{ id: string }>(db, {
+                table: 'cbt_pas_rooms',
+                scope: { column: 'pas_period_id', value: periodId },
+                clientRequestId: dto.clientRequestId,
+                fingerprint: dto,
+                select: 'id',
+                payload: { pas_period_id: periodId, name: dto.name, capacity: dto.capacity },
         });
 
         return { id: data.id };
+        });
     }
 
     async removeRoom(user: AuthUser, roomId: string) {
         await this.assertRoomAccess(user, roomId);
 
-        const { error } = await this.db.from('cbt_pas_rooms').delete().eq('id', roomId);
-        if (error) throw new BadRequestException(error.message);
-
-        return { id: roomId };
+        return this.db.transaction(async db => {
+            const { data: room } = await db.from('cbt_pas_rooms').select('pas_period_id').eq('id', roomId).maybeSingle();
+            if (!room) throw new NotFoundException('Ruang ujian tidak ditemukan.');
+            await writablePasPeriod(db, room.pas_period_id);
+            await advisoryTransactionLock(db, 'pas-room-students:' + room.pas_period_id);
+            const { data: reports, error: reportError } = await db.from('cbt_pas_administration_reports').select('id').eq('pas_room_id', roomId).limit(1);
+            if (reportError) throw new BadRequestException('Riwayat ruang belum dapat diperiksa.');
+            if (reports?.length) throw new ConflictException('Ruang memiliki riwayat administrasi dan tidak dapat dihapus.');
+            const { data: schedules, error: scheduleError } = await db.from('cbt_pas_class_schedules').select('exam_id').eq('pas_period_id', room.pas_period_id);
+            if (scheduleError) throw new BadRequestException('Riwayat ujian belum dapat diperiksa.');
+            const examIds = (schedules || []).map((row: { exam_id?: string }) => row.exam_id).filter(Boolean);
+            await lockExamsForDeletion(db, examIds);
+            await assertExamsHaveNoHistory(db, examIds);
+            const { error } = await db.from('cbt_pas_rooms').delete().eq('id', roomId);
+            if (error) throw new BadRequestException('Ruang belum berhasil dihapus.');
+            return { id: roomId };
+        });
     }
 
     /**
@@ -98,14 +116,14 @@ export class PasRoomsService {
         const uniqueUserIds = [...new Set(userIds)];
 
         return this.db.transaction(async (db) => {
-            await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${sessionId}`);
-
             const { data: room } = await db
                 .from('cbt_pas_rooms')
                 .select('pas_period_id')
                 .eq('id', roomId)
                 .maybeSingle();
             if (!room) throw new NotFoundException('Ruang ujian tidak ditemukan.');
+            await writablePasPeriod(db, room.pas_period_id);
+            await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${sessionId}`);
 
             const { data: session, error: sessionError } = await db.from('cbt_pas_sessions')
                 .select('id').eq('id', sessionId).eq('pas_period_id', room.pas_period_id).maybeSingle();
@@ -161,6 +179,7 @@ export class PasRoomsService {
         return this.db.transaction(async (db) => {
             // Semua pemindahan siswa dalam satu periode berbagi lock agar dua
             // admin tidak sama-sama melihat sisa kapasitas yang sama.
+            await writablePasPeriod(db, periodId);
             await advisoryTransactionLock(db, `pas-room-students:${periodId}`);
 
             const [{ data: period }, { data: room }] = await Promise.all([
@@ -227,15 +246,13 @@ export class PasRoomsService {
     async removeStudent(user: AuthUser, periodId: string, userId: string) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 
-        const { error } = await this.db
-            .from('cbt_pas_room_students')
-            .delete()
-            .eq('pas_period_id', periodId)
-            .eq('user_id', userId);
-
-        if (error) throw new BadRequestException(error.message);
-
-        return { periodId, userId };
+        return this.db.transaction(async db => {
+            await writablePasPeriod(db, periodId);
+            await advisoryTransactionLock(db, 'pas-room-students:' + periodId);
+            const { error } = await db.from('cbt_pas_room_students').delete().eq('pas_period_id', periodId).eq('user_id', userId);
+            if (error) throw new BadRequestException('Peserta belum berhasil dikeluarkan dari ruang.');
+            return { periodId, userId };
+        });
     }
 
     private assertRoomAccess(user: AuthUser, roomId: string): Promise<void> {

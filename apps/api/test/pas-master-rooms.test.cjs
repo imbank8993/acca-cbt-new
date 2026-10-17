@@ -27,7 +27,7 @@ test('master room catalog checks staff scope before reading master', async () =>
 });
 
 test('master catalog failure is distinguished from an empty catalog and manual room creation still works', async () => {
-    const db = fixtureDb({}, ['master_ruangan']);
+    const db = fixtureDb({ cbt_pas_periods: [{ id: 'period', is_locked: false }] }, ['master_ruangan']);
     const service = new PasRoomsService(db, { assertOrgStaff: async () => {}, assertProktorByRecord: async () => {} });
     await assert.rejects(service.listMasterRooms({ id: 'staff' }, 'school'), /manual/);
     await service.createRoom({ id: 'staff' }, 'period', { name: 'Ruang tambahan', capacity: 18, clientRequestId: 'request-manual' });

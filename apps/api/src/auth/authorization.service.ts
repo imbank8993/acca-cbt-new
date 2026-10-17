@@ -169,10 +169,10 @@ export class AuthorizationService {
      * pemanggil membutuhkannya untuk baris yang akan ia tulis — dan mengambilnya
      * dari sini berarti tidak ada jalur yang memakai organisasi kiriman klien.
      */
-    async assertBankAccess(user: AuthUser, bankId: string, access: 'read' | 'write' = 'write'): Promise<string> {
+    async assertBankAccess(user: AuthUser, bankId: string, access: 'read' | 'write' = 'write', db: Pick<DbService, 'from'> = this.db): Promise<string> {
         if (!bankId) throw new NotFoundException('Bank soal tidak ditemukan.');
 
-        const { data } = await this.db
+        const { data } = await db
             .from('cbt_question_banks')
             .select('organization_id, created_by, is_published')
             .eq('id', bankId)

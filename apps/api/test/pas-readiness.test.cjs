@@ -116,7 +116,7 @@ test('readiness label renders missing requirements and never infers ready from e
 
 const { PasSchedulesService } = require('../src/pas/pas-schedules.service.ts');
 function activationService(db, auth = {}) {
- return new PasSchedulesService(db, { assertProktorByParent: async () => {}, ...auth }, { getSchoolTimeZone: async () => 'Asia/Makassar' });
+ return new PasSchedulesService(db, { assertProktorByParent: async () => {}, assertBankAccess: async () => {}, ...auth }, { getSchoolTimeZone: async () => 'Asia/Makassar' });
 }
 
 test('a complete schedule is ready before activation; missing supervisors reject direct API activation with no writes', async () => {

@@ -399,6 +399,7 @@ export interface PASAdministrationSlot {
         committee_chair_name: string;
         committee_chair_nip: string;
         signature_version: number;
+        integrity_valid?: boolean;
         proctor_nip?: string;
         verification_code: string;
         status?: 'draft' | 'submitted' | 'approved' | 'rejected';
@@ -568,6 +569,7 @@ export interface PASAdministrationOverviewItem {
     assigned_invigilators: string[];
     student_count: number;
     report_id: string | null;
+    signature_version?: number;
     status: 'draft' | 'submitted' | 'approved' | 'rejected';
     invigilator_name: string;
     proctor_name: string;

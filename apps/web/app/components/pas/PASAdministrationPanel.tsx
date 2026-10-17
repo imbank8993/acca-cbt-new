@@ -646,9 +646,12 @@ export default function PASAdministrationPanel({
         }) : false;
 
     const prepareDocument = async () => {
-        // Reprinting an unchanged signed document must keep its original signers.
-        if (slot?.report.signed_at && slot.report.signature_version === 2 && !hasDocumentChanges) return slot;
-        return handleSaveSlot(resolvedRole === 'pengawas' ? 'submit' : 'approve', false);
+        if (slot?.report.status === 'approved' && slot.report.signature_version >= 3 &&
+            slot.report.integrity_valid !== false && !hasDocumentChanges) return slot;
+        await alertDialog({ title: 'Dokumen Belum Siap Dicetak',
+            text: 'Simpan dan kirim perubahan, lalu minta Proktor melakukan ACC. Dokumen lama perlu diperiksa dan di-ACC ulang sebelum dicetak sebagai dokumen resmi.',
+            variant: 'warning' });
+        return null;
     };
 
     const baVerificationCode = slot?.report.verification_code || '';
@@ -1463,7 +1466,7 @@ ${KOP_AND_A4_CSS}
                                     <tbody className="divide-y divide-slate-100">
                                         {overviewItems.map((item) => {
                                             const isSubmitted = item.status === 'submitted';
-                                            const isApproved = item.status === 'approved';
+                                            const isApproved = item.status === 'approved' && (item.signature_version || 1) >= 3;
                                             const isRejected = item.status === 'rejected';
 
                                             return (
@@ -1687,12 +1690,12 @@ ${KOP_AND_A4_CSS}
                                         variant="primary"
                                         size="sm"
                                         onClick={() => void handleApproveSlot()}
-                                        disabled={!slot || isLoading || isApproving || slot.report.status === 'approved'}
+                                        disabled={!slot || isLoading || isApproving || (slot.report.status === 'approved' && slot.report.signature_version >= 3)}
                                         isLoading={isApproving}
                                         className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                         leftIcon={<CheckCircle2 size={13} />}
                                     >
-                                        {slot?.report.status === 'approved' ? 'Telah Di-ACC (Resmi)' : 'ACC Dokumen Resmi'}
+                                        {slot?.report.status === 'approved' && slot.report.signature_version >= 3 ? 'Telah Di-ACC (Resmi)' : 'ACC Dokumen Resmi'}
                                     </Button>
                                 )}
                             </div>
@@ -1876,12 +1879,12 @@ ${KOP_AND_A4_CSS}
                                                 variant="primary"
                                                 size="sm"
                                                 onClick={() => void handleApproveSlot()}
-                                                disabled={isLoading || isApproving || slot.report.status === 'approved'}
+                                                disabled={isLoading || isApproving || (slot.report.status === 'approved' && slot.report.signature_version >= 3)}
                                                 isLoading={isApproving}
                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                                 leftIcon={<CheckCircle2 size={13} />}
                                             >
-                                                {slot.report.status === 'approved' ? 'Telah Di-ACC (Resmi)' : 'ACC Menjadi Dokumen Resmi'}
+                                                {slot.report.status === 'approved' && slot.report.signature_version >= 3 ? 'Telah Di-ACC (Resmi)' : 'ACC Menjadi Dokumen Resmi'}
                                             </Button>
                                         </>
                                     )}
@@ -2180,7 +2183,7 @@ ${KOP_AND_A4_CSS}
                                 </div>
                                 <p className="mt-1.5 text-sm font-semibold text-slate-900">{slot.committee_chair?.committee_chair_name || 'Belum diatur'}</p>
                                 {slot.committee_chair?.committee_chair_nip && <p className="text-xs text-slate-500">NIP. {slot.committee_chair.committee_chair_nip}</p>}
-                                {slot.report.is_saved && slot.report.signature_version !== 2 && <p className="mt-2 text-xs text-amber-700">Dokumen lama belum mencantumkan Ketua Panitia. Simpan kembali untuk memperbarui penandatangan.</p>}
+                                {slot.report.is_saved && slot.report.signature_version < 3 && <p className="mt-2 text-xs text-amber-700">Dokumen lama perlu diperiksa dan di-ACC ulang agar seluruh isinya terlindungi.</p>}
                             </div>
 
                             {/* Digital Verification Card */}
@@ -2292,12 +2295,12 @@ ${KOP_AND_A4_CSS}
                                             variant="primary"
                                             size="sm"
                                             onClick={() => void handleApproveSlot()}
-                                            disabled={isApproving || slot.report.status === 'approved'}
+                                            disabled={isApproving || (slot.report.status === 'approved' && slot.report.signature_version >= 3)}
                                             isLoading={isApproving}
                                             className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                             leftIcon={<CheckCircle2 size={13} />}
                                         >
-                                            {slot.report.status === 'approved' ? 'Telah Di-ACC (Resmi)' : 'ACC Menjadi Dokumen Resmi'}
+                                            {slot.report.status === 'approved' && slot.report.signature_version >= 3 ? 'Telah Di-ACC (Resmi)' : 'ACC Menjadi Dokumen Resmi'}
                                         </Button>
                                     </div>
                                 )}

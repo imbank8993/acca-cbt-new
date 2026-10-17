@@ -1,10 +1,13 @@
 import {
     BadRequestException,
+    ConflictException,
     ForbiddenException,
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import { documentHash, snapshotDocument, intactDocument } from './administration-document';
+import { writablePasPeriod, pasDate } from '../common/pas-period-policy';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { normalizeSqlTime } from '../common/school-time';
@@ -37,12 +40,8 @@ export function buildVerificationCodePair(
     examDate: string,
 ): { beritaAcaraCode: string; daftarHadirCode: string } {
     const cleanDate = cleanDateString(examDate).replace(/-/g, '');
-    const digest = createHash('sha256')
-        .update(`${periodId}:${roomId}:${sessionId}:${cleanDate}`)
-        .digest('hex')
-        .toUpperCase();
-    const tokenA = `${digest.slice(0, 4)}-${digest.slice(4, 8)}`;
-    const tokenB = `${digest.slice(8, 12)}-${digest.slice(12, 16)}`;
+    const tokenA = randomBytes(16).toString('hex').toUpperCase();
+    const tokenB = randomBytes(16).toString('hex').toUpperCase();
     return {
         beritaAcaraCode: `BA-PAS-${cleanDate}-${tokenA}`,
         daftarHadirCode: `DH-PAS-${cleanDate}-${tokenB}`,
@@ -136,7 +135,7 @@ export class PasAdministrationService {
         }
 
         const organizationId = (period as any).organization_id as string;
-        await this.authz.assertOrgStaff(user, organizationId);
+        await this.authz.assertOrgMonitoring(user, organizationId);
 
         const isManager = await this.isProktorOrAdmin(user, organizationId);
         if (!isManager) {
@@ -169,7 +168,7 @@ export class PasAdministrationService {
     }
 
     async listMyAssignments(user: AuthUser, organizationId: string) {
-        await this.authz.assertOrgStaff(user, organizationId);
+        await this.authz.assertOrgMonitoring(user, organizationId);
         const isManager = await this.isProktorOrAdmin(user, organizationId);
 
         const { data: periods } = await this.db
@@ -308,6 +307,7 @@ export class PasAdministrationService {
     async getAdministrationSlot(
         user: AuthUser,
         params: { periodId: string; roomId: string; sessionId: string; examDate?: string },
+        live = false,
     ) {
         const { period, room, session, organizationId } = await this.assertSlotAccess(
             user,
@@ -585,7 +585,7 @@ export class PasAdministrationService {
         const signatureVersion = savedReport ? Number(savedReport.signature_version || 1) : 2;
         const committeeChairName = savedReport ? savedReport.committee_chair_name || '' : configuredChair.committee_chair_name;
         const committeeChairNip = savedReport ? savedReport.committee_chair_nip || '' : configuredChair.committee_chair_nip;
-        const proctorNip = signatureVersion === 2 && savedReport ? savedReport.proctor_nip || '' : defaultProctorNip;
+        const proctorNip = signatureVersion >= 2 && savedReport ? savedReport.proctor_nip || '' : defaultProctorNip;
         const defaultCodes = buildVerificationCodePair(period.id, room.id, session.id, effectiveDate);
 
         const invigilatorName = savedReport?.invigilator_name || defaultInvigilatorName;
@@ -633,7 +633,7 @@ export class PasAdministrationService {
             kepala_sekolah_nip: ps.kepala_sekolah_nip || null,
         };
 
-        return {
+        const slot = {
             organization: {
                 id: organizationId,
                 name: orgName,
@@ -712,6 +712,7 @@ export class PasAdministrationService {
                 verification_code: verificationCode,
                 attendance_verification_code: attendanceVerificationCode,
                 signature_hash: signatureHash,
+                integrity_valid: savedReport?.signature_version === 3 ? intactDocument(savedReport) : undefined,
                 signed_at: savedReport?.signed_at || null,
                 submitted_at: savedReport?.submitted_at || null,
                 submitted_by: savedReport?.submitted_by || null,
@@ -723,10 +724,16 @@ export class PasAdministrationService {
             students,
             counts,
         };
+        if (!live && savedReport?.signature_version === 3 && savedReport.document_snapshot && ['submitted', 'approved'].includes(savedReport.status)) {
+            const frozen = savedReport.document_snapshot;
+            return { ...slot, ...frozen, period: { ...frozen.period, is_locked: period.is_locked },
+                report: { ...slot.report, ...frozen.report } };
+        }
+        return slot;
     }
 
     async saveAdministrationSlot(user: AuthUser, dto: SavePASAdministrationDto) {
-        const examDate = cleanDateString(dto.exam_date);
+        const examDate = pasDate(dto.exam_date);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate)) {
             throw new BadRequestException('Format tanggal pelaksanaan harus YYYY-MM-DD.');
         }
@@ -738,7 +745,12 @@ export class PasAdministrationService {
             dto.session_id,
         );
 
+        const liveSlot = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate }, true);
+        if (!liveSlot.schedules.length) throw new BadRequestException('Tidak ada jadwal ujian untuk ruang, sesi, dan tanggal ini.');
+        if (dto.action === 'approve') await this.authz.assertProktor(user, organizationId);
         await this.db.transaction(async (db) => {
+            await writablePasPeriod(db, period.id);
+            await advisoryTransactionLock(db, 'pas-room-students:' + period.id);
             await advisoryTransactionLock(
                 db,
                 `pas-admin-slot:${period.id}:${room.id}:${session.id}:${examDate}`,
@@ -758,15 +770,19 @@ export class PasAdministrationService {
             const resolvedProctorNip = creator.identity_number || creator.nis || '';
 
             // Validate room students
-            const { data: roomStudents } = await db
+            const { data: roomStudents, error: roomReadError } = await db
                 .from('cbt_pas_room_students')
                 .select('user_id')
                 .eq('pas_room_id', room.id);
 
+            if (roomReadError) throw new BadRequestException('Peserta ruang belum dapat diperiksa.');
             const validStudentIds = new Set(
                 ((roomStudents as Array<{ user_id: string }>) || []).map((r) => r.user_id),
             );
 
+            if (liveSlot.students.length !== validStudentIds.size || liveSlot.students.some((student: any) => !validStudentIds.has(student.user_id))) {
+                throw new ConflictException('Penempatan peserta berubah. Muat ulang dokumen sebelum menyimpan.');
+            }
             const incomingAttendances = (dto.attendances || []).filter((item) =>
                 validStudentIds.has(item.user_id),
             );
@@ -856,7 +872,7 @@ export class PasAdministrationService {
 
             const { data: existingReport } = await db
                 .from('cbt_pas_administration_reports')
-                .select('id, verification_code, attendance_verification_code')
+                .select('id, verification_code, attendance_verification_code, status')
                 .eq('pas_period_id', period.id)
                 .eq('pas_room_id', room.id)
                 .eq('session_id', session.id)
@@ -878,22 +894,20 @@ export class PasAdministrationService {
                     ? String(dto.incident_summary).trim()
                     : 'Tidak ada kendala atau insiden khusus selama pelaksanaan ujian.';
 
-            const signatureHash = computeAdministrationSignatureHash({
-                organizationId,
-                periodId: period.id,
-                roomId: room.id,
-                sessionId: session.id,
-                examDate,
-                invigilatorName: resolvedInvigilatorName,
-                proctorName: resolvedProctorName,
-                signatureVersion: 2,
-                committeeChairName: chair.committee_chair_name,
-                committeeChairNip: chair.committee_chair_nip,
-                proctorNip: resolvedProctorNip,
-                beritaAcaraCode: verificationCode,
-                daftarHadirCode: attendanceVerificationCode,
-                counts,
+            const invigilatorNip = liveSlot.invigilators.find((inv: any) => inv.user_id === resolvedInvigilatorId)?.identity_number || liveSlot.report.invigilator_nip || '';
+            const documentSnapshot = snapshotDocument({ ...liveSlot,
+                students: liveSlot.students.map((student: any) => {
+                    const attendance = incomingAttendances.find(item => item.user_id === student.user_id);
+                    const status = statusByStudent.get(student.user_id) || 'hadir';
+                    return { ...student, status, attendance_status: status, remark: String(attendance?.remark || '').trim() };
+                }), counts,
+            }, { notes, incident_summary: incidentSummary,
+                invigilator_id: resolvedInvigilatorId, invigilator_name: resolvedInvigilatorName, invigilator_nip: invigilatorNip,
+                proctor_id: period.created_by, proctor_name: resolvedProctorName, proctor_nip: resolvedProctorNip,
+                committee_chair_name: chair.committee_chair_name, committee_chair_nip: chair.committee_chair_nip,
+                verification_code: verificationCode, attendance_verification_code: attendanceVerificationCode,
             });
+            const signatureHash = documentHash(documentSnapshot);
 
             const nowIso = new Date().toISOString();
             const isManager = await this.isProktorOrAdmin(user, organizationId);
@@ -910,13 +924,13 @@ export class PasAdministrationService {
                     submittedBy = (existingReport as any)?.submitted_by || null;
                 } else if (dto.action === 'submit') {
                     finalStatus = 'submitted';
-                } else {
+                } else if (dto.action === 'approve') {
                     finalStatus = 'approved';
                     approvedAt = nowIso;
                     approvedBy = user.id;
                     submittedAt = (existingReport as any)?.submitted_at || nowIso;
                     submittedBy = (existingReport as any)?.submitted_by || user.id;
-                }
+                } else { finalStatus = 'submitted'; }
             } else {
                 if (dto.action === 'save_draft') {
                     finalStatus = 'draft';
@@ -928,6 +942,8 @@ export class PasAdministrationService {
                     submittedBy = user.id;
                 }
             }
+
+            if ((existingReport as any)?.status === 'approved' && !isManager) throw new ConflictException('Dokumen resmi harus dikembalikan oleh Proktor sebelum diperbaiki.');
 
             if ((existingReport as any)?.id) {
                 const { error: updErr } = await db
@@ -942,7 +958,8 @@ export class PasAdministrationService {
                         proctor_nip: resolvedProctorNip,
                         committee_chair_name: chair.committee_chair_name,
                         committee_chair_nip: chair.committee_chair_nip,
-                        signature_version: 2,
+                        signature_version: 3,
+                        document_snapshot: documentSnapshot,
                         signature_hash: signatureHash,
                         signed_at: nowIso,
                         status: finalStatus,
@@ -976,7 +993,8 @@ export class PasAdministrationService {
                         proctor_nip: resolvedProctorNip,
                         committee_chair_name: chair.committee_chair_name,
                         committee_chair_nip: chair.committee_chair_nip,
-                        signature_version: 2,
+                        signature_version: 3,
+                        document_snapshot: documentSnapshot,
                         verification_code: verificationCode,
                         attendance_verification_code: attendanceVerificationCode,
                         signature_hash: signatureHash,
@@ -1019,96 +1037,60 @@ export class PasAdministrationService {
 
         await this.authz.assertProktor(user, organizationId);
 
-        const { data: creator } = await this.db
-            .from('cbt_profiles')
-            .select('id, full_name, identity_number, nis')
-            .eq('id', user.id)
-            .maybeSingle();
-        const resolvedProctorName = creator?.full_name?.trim() || user.fullName || user.email || 'Proktor Ujian';
-        const resolvedProctorNip = creator?.identity_number || creator?.nis || '';
-
-        const nowIso = new Date().toISOString();
-
-        const { data: existingReport } = await this.db
-            .from('cbt_pas_administration_reports')
-            .select('*')
-            .eq('pas_period_id', period.id)
-            .eq('pas_room_id', room.id)
-            .eq('session_id', session.id)
-            .eq('exam_date', examDate)
-            .maybeSingle();
-
-        if (!existingReport) {
-            await this.saveAdministrationSlot(user, {
-                ...dto,
-                action: 'approve',
-            });
-        } else {
-            const { error: updErr } = await this.db
-                .from('cbt_pas_administration_reports')
-                .update({
-                    status: 'approved',
-                    approved_at: nowIso,
-                    approved_by: user.id,
-                    proctor_id: user.id,
-                    proctor_name: resolvedProctorName,
-                    proctor_nip: resolvedProctorNip,
-                    rejection_note: '',
-                    updated_by: user.id,
-                    updated_at: nowIso,
-                })
-                .eq('id', (existingReport as any).id);
-
-            if (updErr) {
-                throw new BadRequestException(`Gagal menyetujui berita acara: ${updErr.message}`);
+        const current = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate });
+        await this.db.transaction(async db => {
+            await writablePasPeriod(db, period.id);
+            await advisoryTransactionLock(db, 'pas-room-students:' + period.id);
+            await advisoryTransactionLock(db, 'pas-admin-slot:' + period.id + ':' + room.id + ':' + session.id + ':' + examDate);
+            const { data: report, error } = await db.from('cbt_pas_administration_reports').select('*')
+                .eq('pas_period_id', period.id).eq('pas_room_id', room.id).eq('session_id', session.id).eq('exam_date', examDate).maybeSingle();
+            if (error) throw new BadRequestException('Dokumen belum dapat diperiksa.');
+            if (!report || !['submitted', 'approved'].includes(report.status)) throw new ConflictException('Dokumen harus dikirim ke Proktor sebelum di-ACC.');
+            if (report.signature_hash !== current.report.signature_hash || String(report.updated_at || '') !== String(current.report.updated_at || '')) {
+                throw new ConflictException('Dokumen berubah. Muat ulang dan periksa kembali sebelum ACC.');
             }
-        }
-
-        return this.getAdministrationSlot(user, {
-            periodId: period.id,
-            roomId: room.id,
-            sessionId: session.id,
-            examDate,
+            let snapshot;
+            if (report.signature_version === 3) {
+                if (!intactDocument(report)) throw new ConflictException('Integritas dokumen tidak cocok. Kembalikan untuk diperbaiki.');
+                snapshot = report.document_snapshot;
+            } else {
+                snapshot = snapshotDocument(current, { ...current.report,
+                    proctor_id: period.created_by, proctor_name: current.proctor_creator.full_name,
+                    proctor_nip: current.proctor_creator.identity_number || '',
+                });
+            }
+            const now = new Date().toISOString();
+            const { error: updateError } = await db.from('cbt_pas_administration_reports').update({
+                status: 'approved', approved_at: now, approved_by: user.id, signed_at: now,
+                proctor_id: snapshot.report.proctor_id, proctor_name: snapshot.report.proctor_name,
+                proctor_nip: snapshot.report.proctor_nip, signature_version: 3,
+                document_snapshot: snapshot, signature_hash: documentHash(snapshot),
+                rejection_note: '', updated_by: user.id, updated_at: now,
+            }).eq('id', report.id);
+            if (updateError) throw new BadRequestException('Dokumen belum berhasil disahkan.');
         });
+        return this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate });
     }
 
     async rejectAdministrationSlot(user: AuthUser, dto: RejectPASAdministrationDto) {
-        const examDate = cleanDateString(dto.exam_date);
-        const { period, room, session, organizationId } = await this.assertSlotAccess(
-            user,
-            dto.pas_period_id,
-            dto.pas_room_id,
-            dto.session_id,
-        );
-
+        const examDate = pasDate(dto.exam_date);
+        const { period, room, session, organizationId } = await this.assertSlotAccess(user, dto.pas_period_id, dto.pas_room_id, dto.session_id);
         await this.authz.assertProktor(user, organizationId);
-
-        const nowIso = new Date().toISOString();
-        const note = String(dto.rejection_note || 'Perlu perbaikan oleh pengawas ruang').trim();
-
-        const { error: updErr } = await this.db
-            .from('cbt_pas_administration_reports')
-            .update({
-                status: 'rejected',
-                rejection_note: note,
-                updated_by: user.id,
-                updated_at: nowIso,
-            })
-            .eq('pas_period_id', period.id)
-            .eq('pas_room_id', room.id)
-            .eq('session_id', session.id)
-            .eq('exam_date', examDate);
-
-        if (updErr) {
-            throw new BadRequestException(`Gagal mengembalikan berita acara: ${updErr.message}`);
-        }
-
-        return this.getAdministrationSlot(user, {
-            periodId: period.id,
-            roomId: room.id,
-            sessionId: session.id,
-            examDate,
+        await this.db.transaction(async db => {
+            await writablePasPeriod(db, period.id);
+            await advisoryTransactionLock(db, 'pas-room-students:' + period.id);
+            await advisoryTransactionLock(db, 'pas-admin-slot:' + period.id + ':' + room.id + ':' + session.id + ':' + examDate);
+            const { data: report, error: readError } = await db.from('cbt_pas_administration_reports').select('id')
+                .eq('pas_period_id', period.id).eq('pas_room_id', room.id).eq('session_id', session.id).eq('exam_date', examDate).maybeSingle();
+            if (readError || !report) throw new BadRequestException('Dokumen yang akan dikembalikan tidak ditemukan.');
+            const { error } = await db.from('cbt_pas_administration_reports').update({
+                status: 'rejected', approved_at: null, approved_by: null,
+                rejection_note: String(dto.rejection_note || 'Perlu perbaikan oleh pengawas ruang').trim(),
+                updated_by: user.id, updated_at: new Date().toISOString(),
+            }).eq('id', report.id);
+            if (error) throw new BadRequestException('Dokumen belum berhasil dikembalikan.');
         });
+        return this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate });
     }
 
     async getPeriodAdministrationOverview(user: AuthUser, periodId: string) {
@@ -1120,7 +1102,7 @@ export class PasAdministrationService {
 
         if (!period) throw new NotFoundException('Periode ujian tidak ditemukan.');
         const organizationId = (period as any).organization_id as string;
-        await this.authz.assertOrgStaff(user, organizationId);
+        await this.authz.assertOrgMonitoring(user, organizationId);
 
         const [
             { data: rooms },
@@ -1149,7 +1131,7 @@ export class PasAdministrationService {
                 .eq('pas_period_id', periodId),
             this.db
                 .from('cbt_pas_administration_reports')
-                .select('id, pas_room_id, session_id, exam_date, status, invigilator_name, proctor_name, verification_code, attendance_verification_code, submitted_at, approved_at, notes, incident_summary, rejection_note')
+                .select('id, pas_room_id, session_id, exam_date, status, signature_version, invigilator_name, proctor_name, verification_code, attendance_verification_code, submitted_at, approved_at, notes, incident_summary, rejection_note')
                 .eq('pas_period_id', periodId),
             this.db
                 .from('cbt_pas_student_attendances')
@@ -1226,6 +1208,7 @@ export class PasAdministrationService {
                         student_count: studentCount,
                         report_id: report?.id || null,
                         status: report?.status || (report?.signed_at ? 'approved' : 'draft'),
+                        signature_version: report?.signature_version || 1,
                         invigilator_name: report?.invigilator_name || invigilators.join(', ') || '-',
                         proctor_name: report?.proctor_name || '-',
                         submitted_at: report?.submitted_at || null,
@@ -1250,188 +1233,30 @@ export class PasAdministrationService {
 
     async verifyDocumentByCode(rawCode: string) {
         const code = String(rawCode || '').trim().toUpperCase();
-        if (!code) {
-            return { verified: false, valid: false, message: 'Kode verifikasi tidak boleh kosong.' };
-        }
-
-        const { data: byBa } = await this.db
-            .from('cbt_pas_administration_reports')
-            .select('*')
-            .eq('verification_code', code)
-            .maybeSingle();
-
-        const { data: byDh } = !byBa
-            ? await this.db
-                  .from('cbt_pas_administration_reports')
-                  .select('*')
-                  .eq('attendance_verification_code', code)
-                  .maybeSingle()
-            : { data: null };
-
-        const report = (byBa || byDh) as Record<string, any> | null;
-        if (!report) {
-            return {
-                verified: false,
-                valid: false,
-                code,
-                verification_code: code,
-                message: 'Dokumen dengan kode verifikasi ini tidak ditemukan atau belum disahkan di sistem.',
-            };
-        }
-
+        const invalid = { verified: false, valid: false, integrity_valid: false, verification_code: code,
+            message: 'Dokumen tidak ditemukan, belum disetujui, atau persetujuannya sudah dicabut.' };
+        if (!/^(BA|DH)-PAS-\d{8}-[A-F0-9-]{8,40}$/.test(code)) return invalid;
+        const { data: byBa, error: baError } = await this.db.from('cbt_pas_administration_reports').select('*').eq('verification_code', code).maybeSingle();
+        const { data: byDh, error: dhError } = !byBa ? await this.db.from('cbt_pas_administration_reports').select('*').eq('attendance_verification_code', code).maybeSingle() : { data: null, error: null };
+        if (baError || dhError) throw new BadRequestException('Verifikasi dokumen belum tersedia. Coba kembali.');
+        const report = byBa || byDh;
+        if (!report || report.status !== 'approved' || !report.approved_at || !report.approved_by) return invalid;
+        if (report.signature_version !== 3) return { ...invalid, requires_resign: true, message: 'Dokumen lama perlu diperiksa dan di-ACC ulang untuk verifikasi isi lengkap.' };
+        if (!intactDocument(report)) return { ...invalid, message: 'Integritas isi dokumen tidak cocok dengan salinan yang disahkan.' };
+        const doc = report.document_snapshot;
         const documentType = byBa ? 'berita_acara' : 'daftar_hadir';
-        const documentLabel = byBa ? 'Berita Acara Pelaksanaan Ujian' : 'Daftar Hadir Peserta Ujian';
-        const examDate = cleanDateString(report.exam_date);
-
-        const [
-            { data: organization },
-            { data: period },
-            { data: room },
-            { data: session },
-            { data: roomStudents },
-            { data: attendances },
-            { data: schedules },
-        ] = await Promise.all([
-            this.db
-                .from('cbt_organizations')
-                .select('id, name, logo_url')
-                .eq('id', report.organization_id)
-                .maybeSingle(),
-            this.db
-                .from('cbt_pas_periods')
-                .select('id, name, type, school_year, semester')
-                .eq('id', report.pas_period_id)
-                .maybeSingle(),
-            this.db
-                .from('cbt_pas_rooms')
-                .select('id, name, capacity')
-                .eq('id', report.pas_room_id)
-                .maybeSingle(),
-            this.db
-                .from('cbt_pas_sessions')
-                .select('id, name, start_time, end_time')
-                .eq('id', report.session_id)
-                .maybeSingle(),
-            this.db
-                .from('cbt_pas_room_students')
-                .select('user_id, profiles:cbt_profiles!user_id(full_name)')
-                .eq('pas_room_id', report.pas_room_id),
-            this.db
-                .from('cbt_pas_student_attendances')
-                .select('user_id, status, remark')
-                .eq('pas_period_id', report.pas_period_id)
-                .eq('pas_room_id', report.pas_room_id)
-                .eq('session_id', report.session_id)
-                .eq('exam_date', examDate),
-            this.db
-                .from('cbt_pas_class_schedules')
-                .select('id, scheduled_date, classes:cbt_classes(name), question_banks:cbt_question_banks(title, subject)')
-                .eq('pas_period_id', report.pas_period_id)
-                .eq('session_id', report.session_id)
-                .eq('scheduled_date', examDate),
-        ]);
-
-        const studentRows = ((roomStudents as any[]) || []);
-        const attMap = new Map<string, { status: AttendanceStatus; remark: string }>();
-        for (const a of ((attendances as any[]) || [])) {
-            const st = String(a.status || 'hadir').toLowerCase() as AttendanceStatus;
-            attMap.set(a.user_id, {
-                status: VALID_ATTENDANCE_STATUSES.has(st) ? st : 'hadir',
-                remark: String(a.remark || ''),
-            });
-        }
-
-        const counts = {
-            total: studentRows.length,
-            hadir: 0,
-            sakit: 0,
-            izin: 0,
-            alpha: 0,
-        };
-        const nonPresentStudents: Array<{ full_name: string; status: AttendanceStatus; remark: string }> = [];
-
-        for (const s of studentRows) {
-            const att = attMap.get(s.user_id);
-            const st = att?.status || 'hadir';
-            counts[st] += 1;
-            if (st !== 'hadir') {
-                nonPresentStudents.push({
-                    full_name: s.profiles?.full_name || 'Peserta',
-                    status: st,
-                    remark: att?.remark || '',
-                });
-            }
-        }
-
-        const expectedHash = computeAdministrationSignatureHash({
-            organizationId: report.organization_id,
-            periodId: report.pas_period_id,
-            roomId: report.pas_room_id,
-            sessionId: report.session_id,
-            examDate,
-            invigilatorName: report.invigilator_name || '',
-            proctorName: report.proctor_name || '',
-            signatureVersion: Number(report.signature_version || 1),
-            committeeChairName: report.committee_chair_name || '',
-            committeeChairNip: report.committee_chair_nip || '',
-            proctorNip: report.proctor_nip || '',
-            beritaAcaraCode: report.verification_code,
-            daftarHadirCode: report.attendance_verification_code,
-            counts,
-        });
-
-        const integrityValid = report.signature_hash === expectedHash;
-
+        // Public verification intentionally excludes student identities, attendance
+        // remarks, incident details, and internal signature hashes.
         return {
-            verified: true,
-            valid: true,
-            integrity_valid: integrityValid,
-            integrity_verified: integrityValid,
-            code,
-            verification_code: code,
-            document_type: documentType,
-            document_label: documentLabel,
-            document_title: documentLabel,
-            paired_codes: {
-                berita_acara: report.verification_code,
-                daftar_hadir: report.attendance_verification_code,
-            },
-            attendance_verification_code: report.attendance_verification_code,
-            signature_hash: report.signature_hash,
-            signed_at: report.signed_at,
-            organization_name: (organization as any)?.name || 'Madrasah / Sekolah',
-            period: {
-                id: (period as any)?.id || report.pas_period_id,
-                name: (period as any)?.name || 'Periode Ujian',
-                school_year: (period as any)?.school_year || '-',
-                semester: (period as any)?.semester || '-',
-            },
-            room: {
-                id: (room as any)?.id || report.pas_room_id,
-                name: (room as any)?.name || '-',
-                capacity: Number((room as any)?.capacity) || 0,
-            },
-            session: {
-                id: (session as any)?.id || report.session_id,
-                name: (session as any)?.name || '-',
-                start_time: normalizeSqlTime((session as any)?.start_time) || '07:30:00',
-                end_time: normalizeSqlTime((session as any)?.end_time) || '09:30:00',
-            },
-            exam_date: examDate,
-            schedules: ((schedules as any[]) || []).map((sc) => ({
-                bank_title: sc.question_banks?.title || 'Bank Soal',
-                subject_name: sc.question_banks?.subject || '-',
-                class_name: sc.classes?.name || '-',
-            })),
-            invigilator_name: report.invigilator_name || 'Pengawas Ruang',
-            proctor_name: report.proctor_name || 'Proktor Ujian',
-            committee_chair_name: report.committee_chair_name || '',
-            committee_chair_nip: report.committee_chair_nip || '',
-            signature_version: Number(report.signature_version || 1),
-            notes: report.notes || '',
-            incident_summary: report.incident_summary || '',
-            counts,
-            non_present_students: nonPresentStudents,
+            verified: true, valid: true, integrity_valid: true, integrity_verified: true,
+            verification_code: code, document_type: documentType,
+            document_label: byBa ? 'Berita Acara Pelaksanaan Ujian' : 'Daftar Hadir Peserta Ujian',
+            organization_name: doc.organization.name, period: { id: doc.period.id, name: doc.period.name, school_year: doc.period.school_year, semester: doc.period.semester },
+            room: { id: doc.room.id, name: doc.room.name }, session: doc.session,
+            exam_date: doc.exam_date, signed_at: report.signed_at, approved_at: report.approved_at,
+            invigilator_name: doc.report.invigilator_name, proctor_name: doc.report.proctor_name,
+            committee_chair_name: doc.report.committee_chair_name,
+            signature_version: 3, counts: doc.counts,
         };
     }
 }

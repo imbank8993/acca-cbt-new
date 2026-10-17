@@ -16,6 +16,7 @@ const authz = {
     assertOrgStaff: async () => {},
     assertProktorByRecord: async () => {},
     assertProktorByParent: async () => {},
+    assertBankAccess: async () => {},
 };
 
 function catalogTables() {

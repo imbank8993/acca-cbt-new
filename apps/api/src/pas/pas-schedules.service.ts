@@ -205,6 +205,7 @@ export class PasSchedulesService {
             ]);
 
             if (!bank) throw new NotFoundException('Bank soal tidak ditemukan pada sekolah ini.');
+            await this.authz.assertBankAccess?.(user, dto.bank_id, 'read', db);
             if (!cls) throw new NotFoundException('Kelas tidak ditemukan pada sekolah ini.');
             if (dto.subject_id && !subject) {
                 throw new NotFoundException('Mata pelajaran aktif tidak ditemukan pada sekolah ini.');
@@ -319,7 +320,7 @@ export class PasSchedulesService {
                     'cbt_pas_periods',
                 );
 
-                const reason = await this.generateOne(scheduleId);
+                const reason = await this.generateOne(user, scheduleId);
                 if (reason) skipped.push(reason);
                 else created++;
             } catch (err) {
@@ -334,7 +335,7 @@ export class PasSchedulesService {
     async setActivation(user: AuthUser, scheduleId: string, active: boolean) {
         await this.authz.assertProktorByParent(user, 'cbt_pas_class_schedules', scheduleId, 'pas_period_id', 'cbt_pas_periods');
         if (active) {
-            const reason = await this.generateOne(scheduleId, true);
+            const reason = await this.generateOne(user, scheduleId, true);
             if (reason) throw new ConflictException(reason);
             return { id: scheduleId, active: true };
         }
@@ -353,7 +354,7 @@ export class PasSchedulesService {
         });
     }
 
-    private async generateOne(scheduleId: string, activate = false): Promise<string | null> {
+    private async generateOne(user: AuthUser, scheduleId: string, activate = false): Promise<string | null> {
         const { data: source } = await this.db.from('cbt_pas_class_schedules')
             .select('pas_period_id').eq('id', scheduleId).maybeSingle();
         if (!source) return `${scheduleId}: jadwal tidak ditemukan`;
@@ -391,6 +392,7 @@ export class PasSchedulesService {
 
             const periodRow = period as any;
             if (periodRow.is_locked) return `${scheduleId}: periode terkunci`;
+            await this.authz.assertBankAccess?.(user, schedule.bank_id, 'read', db);
             if (activate) {
                 const readiness = (await loadPasReadiness(db, { ...periodRow, id: schedule.pas_period_id }, [schedule])).get(scheduleId);
                 if (!readiness?.ready) throw new ConflictException(`Jadwal belum siap: ${readiness?.issues.join('; ') || 'kelengkapan belum dapat diperiksa'}`);

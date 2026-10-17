@@ -14,6 +14,7 @@ import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
 import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASPeriodDto } from './dto/pas.dto';
+import { writablePasPeriod, pasDateRange, pasDate } from '../common/pas-period-policy';
 import { loadPasReadiness } from './pas-readiness';
 
 /**
@@ -113,9 +114,7 @@ export class PasService {
     async createPeriod(user: AuthUser, organizationId: string, dto: CreatePASPeriodDto) {
         await this.authz.assertProktor(user, organizationId);
 
-        if (new Date(dto.start_date) > new Date(dto.end_date)) {
-            throw new BadRequestException('Tanggal mulai harus sebelum tanggal selesai.');
-        }
+        pasDateRange(dto.start_date, dto.end_date);
 
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'cbt_pas_periods',
@@ -148,59 +147,41 @@ export class PasService {
         const nip = dto.committee_chair_nip?.trim() || null;
         if (!name) throw new BadRequestException('Nama Ketua Panitia wajib diisi.');
 
-        const { error } = await this.db.from('cbt_pas_periods').update({
-            committee_chair_name: name,
-            committee_chair_nip: nip,
-        }).eq('id', periodId);
-
-        if (error) throw new BadRequestException(`Gagal menyimpan Ketua Panitia: ${error.message}`);
+        await this.updatePeriod(user, periodId, { committee_chair_name: name, committee_chair_nip: nip || '' });
         return { id: periodId, committee_chair_name: name, committee_chair_nip: nip };
     }
 
     async updatePeriod(user: AuthUser, periodId: string, dto: UpdatePASPeriodDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
-        const { data: period } = await this.db
-            .from('cbt_pas_periods')
-            .select('*')
-            .eq('id', periodId)
-            .maybeSingle();
-
-        if (!period) throw new NotFoundException('Periode tidak ditemukan.');
-
-        const updateData: Record<string, any> = {};
-        if (dto.name !== undefined) {
-            const trimmed = dto.name.trim();
-            if (!trimmed) throw new BadRequestException('Nama folder ujian wajib diisi.');
-            updateData.name = trimmed;
-        }
-        if (dto.type !== undefined) updateData.type = dto.type;
-        if (dto.school_year !== undefined) {
-            const trimmedYear = dto.school_year.trim();
-            if (!trimmedYear) throw new BadRequestException('Tahun ajaran wajib diisi.');
-            updateData.school_year = trimmedYear;
-        }
-        if (dto.semester !== undefined) updateData.semester = dto.semester;
-        if (dto.start_date !== undefined) updateData.start_date = dto.start_date;
-        if (dto.end_date !== undefined) updateData.end_date = dto.end_date;
-        if (dto.committee_chair_name !== undefined) {
-            updateData.committee_chair_name = dto.committee_chair_name.trim() || null;
-        }
-        if (dto.committee_chair_nip !== undefined) {
-            updateData.committee_chair_nip = dto.committee_chair_nip.trim() || null;
-        }
-
-        if (Object.keys(updateData).length === 0) {
-            return period;
-        }
-
-        const { data, error } = await this.db.from('cbt_pas_periods')
-            .update(updateData)
-            .eq('id', periodId)
-            .select()
-            .single();
-
-        if (error) throw new BadRequestException(`Gagal memperbarui folder ujian: ${error.message}`);
-        return data;
+        return this.db.transaction(async db => {
+            const period = await writablePasPeriod(db, periodId);
+            const range = pasDateRange(dto.start_date ?? period.start_date, dto.end_date ?? period.end_date);
+            if (dto.type !== undefined && !['pas', 'pat', 'am', 'pts', 'pkn'].includes(dto.type)) throw new BadRequestException('Jenis ujian tidak valid.');
+            if (dto.semester !== undefined && !['ganjil', 'genap'].includes(dto.semester)) throw new BadRequestException('Semester tidak valid.');
+            const { data: schedules, error } = await db.from('cbt_pas_class_schedules')
+                .select('exam_id, scheduled_date').eq('pas_period_id', periodId);
+            if (error) throw new BadRequestException('Jadwal periode belum dapat diperiksa.');
+            if ((schedules || []).some((row: { scheduled_date: string; exam_id?: string }) => { const date = pasDate(row.scheduled_date); return date < range.start || date > range.end; })) {
+                throw new ConflictException('Rentang tanggal baru tidak mencakup seluruh jadwal ujian. Sesuaikan jadwal terlebih dahulu.');
+            }
+            const updateData: Record<string, unknown> = {};
+            for (const key of ['name', 'type', 'school_year', 'semester', 'committee_chair_name', 'committee_chair_nip'] as const) {
+                if (dto[key] !== undefined) updateData[key] = dto[key]!.trim();
+            }
+            if (updateData.name === '' || updateData.school_year === '') throw new BadRequestException('Nama folder dan tahun ajaran wajib diisi.');
+            const identityChanged = ['name', 'type', 'school_year', 'semester'].some(key => updateData[key] !== undefined && updateData[key] !== period[key]);
+            const { data: reports, error: reportError } = await db.from('cbt_pas_administration_reports').select('id').eq('pas_period_id', periodId).limit(1);
+            if (reportError) throw new BadRequestException('Riwayat administrasi belum dapat diperiksa.');
+            if (identityChanged && ((schedules || []).some((row: { scheduled_date: string; exam_id?: string }) => row.exam_id) || reports?.length)) {
+                throw new ConflictException('Identitas folder tidak dapat diubah setelah ujian dibangkitkan atau administrasi tersimpan.');
+            }
+            if (dto.start_date !== undefined) updateData.start_date = range.start;
+            if (dto.end_date !== undefined) updateData.end_date = range.end;
+            if (!Object.keys(updateData).length) return period;
+            const { data, error: updateError } = await db.from('cbt_pas_periods').update(updateData).eq('id', periodId).select().single();
+            if (updateError) throw new BadRequestException('Folder ujian belum berhasil diperbarui.');
+            return data;
+        });
     }
 
     async setPeriodLock(user: AuthUser, periodId: string, lock: boolean) {
@@ -254,6 +235,9 @@ export class PasService {
                 .filter((id): id is string => Boolean(id));
             await lockExamsForDeletion(db, examIds);
             await assertExamsHaveNoHistory(db, examIds);
+            const { data: reports, error: reportError } = await db.from('cbt_pas_administration_reports').select('id').eq('pas_period_id', periodId).limit(1);
+            if (reportError) throw new BadRequestException('Riwayat administrasi belum dapat diperiksa.');
+            if (reports?.length) throw new ConflictException('Periode memiliki riwayat administrasi dan tidak dapat dihapus.');
 
             const { error } = await db.from('cbt_pas_periods').delete().eq('id', periodId);
             if (error) throw new BadRequestException(`Gagal menghapus periode: ${error.message}`);
