@@ -25,7 +25,7 @@ import { listOrganizationLabels,listQuestionBanks } from '@/lib/api/questions';
 import type { OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject,SchoolYear } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
-import { matchesExamType } from '@/lib/exam-types';
+import { isFolderExamCategory, matchesExamType } from '@/lib/exam-types';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -292,6 +292,7 @@ const ExamsPage = () => {
     };
 
     const matchesPasPeriodTab = (p: PASPeriod, tabId: TabId): boolean => {
+        if (!matchesExamType(p.type, typeFilter)) return false;
         const now = new Date();
         const start = new Date(p.start_date ?? 0);
         const end = new Date(p.end_date ?? 0);
@@ -483,7 +484,7 @@ const ExamsPage = () => {
                 {tabs.map(tab => {
                     const Icon = tab.icon;
                     let count = 0;
-                    if (typeFilter === 'asas_asat') {
+                    if (isFolderExamCategory(typeFilter)) {
                         count = pasPeriods.filter(p => matchesPasPeriodTab(p, tab.id)).length;
                     } else if (typeFilter === 'all') {
                         count = exams.filter(e => getExamTabFilter(e, tab.id)).length + pasPeriods.filter(p => matchesPasPeriodTab(p, tab.id)).length;
@@ -518,7 +519,7 @@ const ExamsPage = () => {
             </div>
 
             {/* Search + Filters + Sort */}
-            {typeFilter !== 'asas_asat' && (
+            {!isFolderExamCategory(typeFilter) && (
                 <div className="mb-6">
                     <FilterToolbar actionsInline>
                         <FilterSearch
@@ -537,6 +538,7 @@ const ExamsPage = () => {
                                 { value: 'all', label: 'Semua Jenis Ujian' },
                                 { value: 'daily', label: 'Ulangan Harian' },
                                 { value: 'asas_asat', label: 'ASAS/ASAT' },
+                                { value: 'am', label: 'Asesmen Madrasah' },
                                 { value: 'tryout', label: 'Try Out' },
                                 { value: 'assignment', label: 'Tugas' },
                                 { value: 'lainnya', label: 'Lainnya' },
@@ -568,9 +570,9 @@ const ExamsPage = () => {
             )}
 
             {/* ─────────────── PAS TAB CONTENT ─────────────── */}
-            {typeFilter === 'asas_asat' && (
+            {isFolderExamCategory(typeFilter) && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-1 sm:p-6 mb-6">
-                    <ProctorPASPage activeTab={activeTab} />
+                    <ProctorPASPage key={typeFilter} activeTab={activeTab} typeFilter={typeFilter} onTypeFilterChange={setTypeFilter} />
                 </div>
             )}
 
@@ -846,7 +848,7 @@ const ExamsPage = () => {
 
 
             {/* Exam List */}
-            {typeFilter !== 'asas_asat' && (
+            {!isFolderExamCategory(typeFilter) && (
                 isLoading ? (
                 <div className="flex justify-center py-16">
                     <Spinner variant="buble" size={32} />
@@ -896,7 +898,7 @@ const ExamsPage = () => {
                                                         ? 'bg-red-50 text-red-600 border border-red-200'
                                                         : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
                                                 }`}>
-                                                    FOLDER UJIAN {period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
+                                                    FOLDER UJIAN {period.type === 'am' ? 'Asesmen Madrasah' : period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>
                                                 {isDraft && (
                                                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">

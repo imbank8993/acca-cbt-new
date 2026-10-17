@@ -89,6 +89,19 @@ function tables(locked = false) {
     };
 }
 
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: generates a folder exam with screenshot settings and class targets`, async () => {
+    const db = fixtureDb(tables());
+    Object.assign(db.tables.cbt_pas_periods[0], { type: assessmentType, name: 'Ujian Bersama', screenshot_enabled: true });
+    const service = new PasSchedulesService(db, authz, { getSchoolTimeZone: async () => 'Asia/Makassar' });
+    const result = await service.generate(user, ['schedule-1']);
+    assert.equal(result.created, 1);
+    const exam = db.tables.cbt_exams[0];
+    assert.equal(exam.exam_type, assessmentType);
+    assert.equal(exam.metadata.pas_period_id, 'period-1');
+    assert.equal(exam.metadata.screenshot_enabled, true);
+    assert.equal(db.tables.cbt_exam_targets[0].class_id, 'class-1');
+});
+
 test('SESSION-01: periode terkunci menolak penambahan sesi', async () => {
     const db = fixtureDb(tables(true));
     const service = new PasSchedulesService(db, authz);
@@ -193,6 +206,7 @@ test('SESSION-08: UI Admin dan Proktor menyembunyikan mutasi saat terkunci', () 
         assert.match(source, /Periode terkunci/i);
         assert.match(source, /!period\.is_locked && isCreatingSession/);
         assert.match(source, /!period\.is_locked && \(/);
+        assert.doesNotMatch(source, /Lihat jadwal/);
     }
 });
 

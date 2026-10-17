@@ -11,10 +11,12 @@ export function AttemptScreenshots({ attemptId }: { attemptId: string }) {
     useEffect(() => {
         let active = true;
         if (!attemptId || attemptId.startsWith('unstarted-')) return;
-        void apiGet<{ screenshots: Evidence[] }>(`/api/proctoring/attempts/${encodeURIComponent(attemptId)}/screenshots`)
+        const load = () => apiGet<{ screenshots: Evidence[] }>(`/api/proctoring/attempts/${encodeURIComponent(attemptId)}/screenshots`)
             .then(result => { if (active) setState({ attemptId, rows: result.success ? result.screenshots : [], error: result.success ? '' : result.error }); })
             .catch(() => { if (active) setState({ attemptId, rows: [], error: 'Bukti screenshot belum dapat dimuat.' }); });
-        return () => { active = false; };
+        void load();
+        const timer = window.setInterval(() => { void load(); }, 10_000);
+        return () => { active = false; window.clearInterval(timer); };
     }, [attemptId]);
     if (!attemptId || attemptId.startsWith('unstarted-')) return null;
     const current = state?.attemptId === attemptId ? state : null;

@@ -9,6 +9,8 @@ import {
     PASSubjectSummary,
 } from '@/lib/api/pas';
 import { getActiveSchoolYear,getProctorOrganization,ProctorOrganization } from '@/lib/api/proctor';
+import { InlineSelect } from '@/components/ui/InlineSelect';
+import { matchesExamType } from '@/lib/exam-types';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import type { PASPeriod } from '@/app/types/pas';
@@ -29,10 +31,10 @@ X
 import { useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
 
-type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn';
+type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn' | 'am';
 type Semester = 'ganjil' | 'genap';
 
-export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: string }) {
+export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', onTypeFilterChange }: { activeTab?: string; typeFilter?: string; onTypeFilterChange?: (type: string) => void }) {
     const router = useRouter();
     const [user, setUser] = useState<AuthUser | null>(null);
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
@@ -128,7 +130,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
     };
 
     const handleDeletePeriod = async (periodId: string) => {
-        if (!await deleteConfirmDialog('Hapus Folder Ujian?', 'Yakin menghapus folder ujian ASAS/ASAT ini beserta jadwal yang belum dikerjakan?')) return;
+        if (!await deleteConfirmDialog('Hapus Folder Ujian?', 'Yakin menghapus folder ujian ini beserta jadwal yang belum dikerjakan?')) return;
         const result = await deletePASPeriodAction(periodId);
         if (result.success) await loadData();
         else await alertDialog({ title: 'Gagal', text: result.error, variant: 'danger' });
@@ -140,11 +142,12 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
     };
 
     const getPeriodTypeLabel = (type: string) => {
-        const labels: Record<string, string> = { pas: 'ASAS / PAS', pat: 'ASAT / PAT', pts: 'PTS / UTS', pkn: 'Asesmen Lainnya' };
+        const labels: Record<string, string> = { pas: 'ASAS / PAS', pat: 'ASAT / PAT', pts: 'PTS / UTS', pkn: 'Asesmen Lainnya', am: 'Asesmen Madrasah' };
         return labels[type] || type.toUpperCase();
     };
 
     const filteredPeriods = periods.filter(p => {
+        if (!matchesExamType(p.type, typeFilter)) return false;
         const matchesSearch = p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                               p.school_year?.toLowerCase().includes(searchQuery.toLowerCase());
         
@@ -178,22 +181,39 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
     return (
         <div className="max-w-6xl mx-auto space-y-6 pb-20">
             {/* Actions Bar */}
+            {onTypeFilterChange && (
+                <div className="max-w-sm">
+                    <InlineSelect
+                        aria-label="Jenis ujian folder"
+                        value={typeFilter}
+                        onChange={onTypeFilterChange}
+                        options={[
+                            { value: 'all', label: 'Semua Jenis Ujian' },
+                            { value: 'asas_asat', label: 'ASAS/ASAT' },
+                            { value: 'am', label: 'Asesmen Madrasah' },
+                        ]}
+                    />
+                </div>
+            )}
             <div className="flex flex-col sm:flex-row items-center gap-3">
                 <div className="relative flex-1 w-full">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                         type="text"
-                        placeholder="Cari folder ujian ASAS/ASAT..."
+                        placeholder="Cari folder ujian..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/10 outline-none"
                     />
                 </div>
                 <button
-                    onClick={() => setIsAddPeriodOpen(true)}
+                    onClick={() => {
+                        setPeriodForm(prev => ({ ...prev, type: typeFilter === 'am' ? 'am' : 'pas' }));
+                        setIsAddPeriodOpen(true);
+                    }}
                     className="w-full sm:w-auto px-6 py-3 text-sm bg-primary text-white rounded-xl hover:bg-primary/90 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 font-medium transition-all cursor-pointer"
                 >
-                    <Plus size={16} /> Buat Folder ASAS/ASAT
+                    <Plus size={16} /> Buat Folder Ujian
                 </button>
             </div>
 
@@ -201,8 +221,8 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
             {filteredPeriods.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
                     <FolderOpen size={40} className="mx-auto mb-3 opacity-40" />
-                    <p className="font-medium">Belum ada Folder Ujian ASAS/ASAT</p>
-                    <p className="text-sm mt-1">Klik &quot;Buat Folder ASAS/ASAT&quot; untuk membuat rumah ujian baru dan menjadwalkan bank soal di dalamnya</p>
+                    <p className="font-medium">Belum ada Folder Ujian</p>
+                    <p className="text-sm mt-1">Klik &quot;Buat Folder Ujian&quot; untuk membuat rumah ujian baru dan menjadwalkan bank soal di dalamnya</p>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -333,14 +353,14 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
                                     <FolderOpen size={20} className="text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Buat Folder Ujian ASAS/ASAT</h3>
+                                    <h3 className="text-lg font-bold text-slate-900">Buat Folder Ujian</h3>
                                     <p className="text-xs text-slate-500">Rumah ujian untuk memilih & menjadwalkan banyak bank soal</p>
                                 </div>
                             </div>
                             <form onSubmit={handleCreatePeriod} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Folder / Nama Ujian *</label>
-                                    <input required type="text" placeholder="Contoh: ASAS Ganjil 2025/2026"
+                                    <input required type="text" placeholder={periodForm.type === 'am' ? 'Contoh: Asesmen Madrasah 2026/2027' : 'Contoh: ASAS Ganjil 2025/2026'}
                                         value={periodForm.name}
                                         onChange={e => setPeriodForm({ ...periodForm, name: e.target.value })}
                                         className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
@@ -356,6 +376,7 @@ export default function ProctorPASPage({ activeTab = 'all' }: { activeTab?: stri
                                             <option value="pat">ASAT / PAT (Akhir Tahun)</option>
                                             <option value="pts">PTS / UTS</option>
                                             <option value="pkn">Asesmen Lainnya</option>
+                                            <option value="am">Asesmen Madrasah</option>
                                         </select>
                                     </div>
                                     <div>

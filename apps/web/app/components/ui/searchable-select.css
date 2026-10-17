@@ -302,7 +302,7 @@
 
 /* Dark mode overrides */
 .dark .ss__trigger {
-  background: #0b1329 !important;
+  background: var(--input, #1c2439) !important;
   border: 1.5px solid rgba(59, 130, 246, 0.45) !important;
 }
 .dark .ss__mainInput {
@@ -319,7 +319,7 @@
   color: #60a5fa !important;
 }
 .dark .ss__drop {
-  background: #0b1329 !important;
+  background: var(--input, #1c2439) !important;
   border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
 }

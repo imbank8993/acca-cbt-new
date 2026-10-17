@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { assertValidTimeZone, DEFAULT_SCHOOL_TIME_ZONE } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
+import { EXAM_ADMINISTRATION_SETTING_KEY, normalizeExamAdministrationSettings } from '../common/exam-administration-settings';
 
 export interface SettingRow {
     id: string;
@@ -159,6 +160,7 @@ export class SettingsService {
      * pernyataan UPSERT menyerahkan penyelesaiannya ke PostgreSQL.
      */
     async upsert(key: string, value: unknown): Promise<void> {
+        if (key === EXAM_ADMINISTRATION_SETTING_KEY) value = normalizeExamAdministrationSettings(value);
         const { error } = await this.db.from('acca_settings').upsert(
             { key, value, updated_at: new Date().toISOString() },
             { onConflict: 'key' },

@@ -2091,6 +2091,7 @@ span[style*="white-space: pre"] {
    ============================================ */
 html.dark,
 .dark {
+  color-scheme: dark;
   --background: #0d1221;
   --foreground: #e8edf5;
   /* Cards, navigation and dialogs share one base surface. */
@@ -2189,7 +2190,7 @@ html.dark,
 .dark .bg-slate-100,
 .dark .bg-gray-100,
 .dark .bg-zinc-100 {
-  background-color: #1c2439 !important;
+  background-color: var(--input, #1c2439) !important;
 }
 
 .dark .bg-slate-200,
@@ -2578,7 +2579,15 @@ html.dark,
 }
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #4a5568 !important;
+  color: #94a3b8 !important;
+}
+
+/* Native popups need an explicit surface as well as the select itself.
+   Otherwise Windows can render a light popup with inherited light text. */
+.dark select option,
+.dark select optgroup {
+  background-color: var(--input, #1c2439) !important;
+  color: var(--foreground, #e8edf5) !important;
 }
 
 /* Tables */

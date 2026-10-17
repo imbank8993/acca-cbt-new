@@ -1,0 +1,16 @@
+.monitoring-exam-picker { min-width: 0; }
+.monitoring-exam-picker .ss__itemMain,
+.monitoring-exam-picker .ss__itemSub {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+.monitoring-exam-picker__context {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #64748b;
+    overflow-wrap: anywhere;
+}
+.monitoring-exam-picker__context p { margin: 0; }
+.dark .monitoring-exam-picker__context { color: #94a3b8; }

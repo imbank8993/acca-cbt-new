@@ -10,7 +10,11 @@ require('ts-node').register({
     compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' },
 });
 
-const { saveBulkScheduleRows } = require('../../web/lib/pas/bulk-schedule.ts');
+const {
+    saveBulkScheduleRows,
+    resolveBankSubjectId,
+    parseImportedScheduleRows,
+} = require('../../web/lib/pas/bulk-schedule.ts');
 
 function row(id, changes = {}) {
     return {
@@ -137,3 +141,72 @@ test('BULK-07: database dan klien mempertahankan pengaman retry dan duplikasi', 
     assert.match(client, /stored\?\.fingerprint === fingerprint/);
     assert.match(client, /result\.success \|\| !result\.retryable/);
 });
+
+test('BULK-08: subject_id opsional dan duration_minutes dipetakan ke duration_override', async () => {
+    const payloads = [];
+    const result = await saveBulkScheduleRows('period-1', [
+        row('no-subj', { subject_id: '', duration_minutes: 90, room: 'Lab 1' }),
+    ], async (input) => {
+        payloads.push(input);
+        return { success: true };
+    });
+
+    assert.equal(result.outcomes.length, 1);
+    assert.equal(result.outcomes[0].success, true);
+    assert.equal(payloads[0].subject_id, undefined);
+    assert.equal(payloads[0].duration_override, 90);
+    assert.equal(payloads[0].room, 'Lab 1');
+});
+
+test('BULK-09: import Excel/CSV memetakan referensi, memecah multi-kelas, dan menandai referensi yang tidak cocok', () => {
+    const catalog = {
+        subjects: [{ id: 'sub-mat', name: 'Matematika' }],
+        classes: [
+            { id: 'cls-10a', name: 'X-A' },
+            { id: 'cls-10b', name: 'X-B' },
+        ],
+        qBanks: [{ id: 'bank-mat', title: 'PAS Matematika Kelas X', subject: 'Matematika' }],
+        sessions: [{ id: 'ses-1', name: 'Sesi 1', start_time: '07:30:00', end_time: '09:30:00' }],
+    };
+
+    assert.equal(
+        resolveBankSubjectId('bank-mat', catalog.qBanks, catalog.subjects),
+        'sub-mat',
+    );
+
+    let seq = 0;
+    const parsed = parseImportedScheduleRows([
+        {
+            'Bank Soal': 'PAS Matematika Kelas X',
+            'Kelas': 'X-A, X-B',
+            'Tanggal': '20/12/2026',
+            'Sesi Ujian': 'Sesi 1',
+            'Durasi (Menit)': '90',
+            'Ruangan': 'Ruang 01',
+        },
+        {
+            'Bank Soal': 'Bank Tidak Ada',
+            'Kelas': 'X-A',
+            'Tanggal': '2026-12-21',
+            'Sesi Ujian': 'Sesi 9',
+        },
+    ], catalog, () => `imp-${++seq}`);
+
+    assert.equal(parsed.length, 3);
+    assert.equal(parsed[0].bank_id, 'bank-mat');
+    assert.equal(parsed[0].subject_id, 'sub-mat');
+    assert.equal(parsed[0].class_id, 'cls-10a');
+    assert.equal(parsed[0].date, '2026-12-20');
+    assert.equal(parsed[0].session_id, 'ses-1');
+    assert.equal(parsed[0].duration_minutes, 90);
+    assert.equal(parsed[0].room, 'Ruang 01');
+    assert.equal(parsed[0].status, 'idle');
+
+    assert.equal(parsed[1].class_id, 'cls-10b');
+    assert.equal(parsed[1].status, 'idle');
+
+    assert.equal(parsed[2].status, 'error');
+    assert.match(parsed[2].error, /Bank soal "Bank Tidak Ada" tidak ditemukan/);
+    assert.match(parsed[2].error, /Sesi "Sesi 9" tidak ditemukan/);
+});
+

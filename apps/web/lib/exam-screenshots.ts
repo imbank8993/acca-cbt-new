@@ -2,6 +2,22 @@ export const SCREENSHOT_MAX_BYTES = 200 * 1024;
 export const SCREENSHOT_MAX_COUNT = 10;
 export const SCREENSHOT_COOLDOWN_MS = 30_000;
 
+/** Reuse the same event and payload: a lost response must not duplicate evidence. */
+export async function sendScreenshotWithRetry<T extends { success: boolean; retryable?: boolean }>(
+    send: () => Promise<T>,
+    wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
+): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const result = await send();
+            if (result.success || !result.retryable || attempt >= 2) return result;
+        } catch (error) {
+            if (attempt >= 2) throw error;
+        }
+        await wait(1000 * (attempt + 1));
+    }
+}
+
 /** Keep small text readable, reducing dimensions only when quality alone is insufficient. */
 export async function encodeScreenFrame(video: HTMLVideoElement): Promise<Blob> {
     if (!video.videoWidth || !video.videoHeight) throw new Error('Gambar layar belum tersedia.');

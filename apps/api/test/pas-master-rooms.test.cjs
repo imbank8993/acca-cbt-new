@@ -68,6 +68,8 @@ test('single room field offers master suggestions, copies capacity and still acc
     const closed = render();
     nodes(closed).find(n => n.type === 'input').props.onFocus();
     const tree = render();
+    const listbox = nodes(tree).find(n => n.props.role === 'listbox');
+    assert.doesNotMatch(listbox.props.className || '', /\babsolute\b/);
     const options = nodes(tree).filter(n => n.props.role === 'option');
     assert.deepEqual(options.map(n => nodes(n).find(child => child.type === 'span').children[0]), ['Ruang A', 'Lab Komputer']);
     assert.equal(nodes(tree).filter(n => n.type === 'input').length, 1);
@@ -79,6 +81,10 @@ test('single room field offers master suggestions, copies capacity and still acc
     assert.equal(name, 'Lab Komputer'); assert.equal(capacity, 24);
     input.props.onChange({ target: { value: 'Ruang khusus' } });
     assert.equal(name, 'Ruang khusus'); assert.equal(capacity, 24);
+    for (const role of ['admin', 'proktor']) {
+        const modal = fs.readFileSync(path.resolve(__dirname, `../../web/app/dashboard/${role}/pas/RoomManagementModal.tsx`), 'utf8');
+        assert.match(modal, /title="Tambah Ruang"[\s\S]*?size="md"[\s\S]*?<div className="pas-room-create space-y-4">[\s\S]*?<ModalFooter>/);
+    }
 });
 
 test('room-list failures are reported instead of appearing as an empty catalog', async () => {

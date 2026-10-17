@@ -15,5 +15,14 @@ export function sortMonitoringExams(exams: OrganizationExam[], now = Date.now())
 }
 
 export function monitoringExamLabel(exam: OrganizationExam): string {
-    return exam.title;
+    const bank = typeof exam.metadata?.bank_title === 'string'
+        ? exam.metadata.bank_title.trim() : exam.question_bank_title?.trim();
+    return bank && bank !== exam.title.trim() ? `${exam.title} — ${bank}` : exam.title;
+}
+
+/** The generated PAS description contains bank, target class, school year and semester. */
+export function monitoringExamDetails(exam: OrganizationExam): string {
+    const description = typeof exam.description === 'string' ? exam.description.trim() : '';
+    const subject = typeof exam.subject === 'string' ? exam.subject.trim() : '';
+    return description || subject;
 }

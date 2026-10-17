@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { encodeScreenFrame, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64 } from '@/lib/exam-screenshots';
+import { encodeScreenFrame, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
 import { apiSend } from '@/lib/api/client';
 
 export function useExamScreenshots(examId: string, completed: boolean) {
@@ -70,15 +70,28 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         try { return await encodeScreenFrame(video.current); }
         catch { if (mounted.current) setError('Screenshot kejadian ini belum berhasil diambil. Catatan kejadian tetap disimpan.'); return null; }
     }, []);
-    const upload = useCallback(async (attemptId: string, eventId: string, deviceId: string, blob: Blob | null) => {
-        if (!blob) return;
+    const upload = useCallback(async (attemptId: string, eventId: string, deviceId: string, blobOrBase64: Blob | string | null): Promise<boolean> => {
+        if (!blobOrBase64) return true;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
         try {
-            const result = await apiSend<{ saved: boolean; reason?: string }>(`/api/proctoring/attempts/${encodeURIComponent(attemptId)}/screenshots`,
-                { clientEventId: eventId, deviceId, imageBase64: await screenshotBase64(blob) }, 'POST', { timeoutMs: 20_000 });
-            if (result.success && result.saved) count.current++;
-            else if (result.success && result.reason === 'limit') count.current = SCREENSHOT_MAX_COUNT;
-            else if (!result.success && mounted.current) setError('Screenshot kejadian ini belum berhasil dikirim. Catatan kejadian tetap disimpan.');
-        } catch { if (mounted.current) setError('Screenshot belum berhasil dikirim. Catatan kejadian tetap disimpan.'); }
+            const imageBase64 = typeof blobOrBase64 === 'string' ? blobOrBase64 : await screenshotBase64(blobOrBase64);
+            const payload = { clientEventId: eventId, deviceId, imageBase64 };
+            const result = await sendScreenshotWithRetry(() => apiSend<{ saved: boolean; reason?: string }>(`/api/proctoring/attempts/${encodeURIComponent(attemptId)}/screenshots`,
+                payload, 'POST', { timeoutMs: 20_000 }));
+            if (result.success) {
+                if (result.saved) count.current++;
+                else if (result.reason === 'limit') count.current = SCREENSHOT_MAX_COUNT;
+                if (mounted.current) setError('');
+                return true;
+            }
+            if (result.retryable === false) {
+                if (mounted.current) setError('Screenshot kejadian ini belum berhasil dikirim. Catatan kejadian tetap disimpan.');
+                return true;
+            }
+            return false;
+        } catch {
+            return false;
+        }
     }, []);
     return { sharing, sharingRef, busy, requesting, error, requestShare, capture, upload, stop };
 }

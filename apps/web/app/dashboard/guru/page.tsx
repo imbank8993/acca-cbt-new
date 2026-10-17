@@ -77,7 +77,7 @@ export default function GuruDashboard() {
             ]);
             setStats(statData);
             // Guru cannot see ASAS/ASAT exams
-            setExams(examData.filter((exam) => exam.exam_type !== 'pas' && exam.exam_type !== 'pat'));
+            setExams(examData.filter((exam) => exam.exam_type !== 'pas' && exam.exam_type !== 'pat' && exam.exam_type !== 'am'));
             setLogins(loginData.filter(hasLoginTime));
             
             setAnnouncements(pickAnnouncements(announcementConfig, 'show_proktor'));

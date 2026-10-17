@@ -14,10 +14,10 @@ import { localDateTimeToUtc } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
+import { isSemesterAssessmentExam } from '../common/exam-types';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
 /** Jenis ujian yang hanya boleh dibuat dan diubah Proktor/Admin. */
-const RESTRICTED_EXAM_TYPES = ['pas', 'pat'];
 
 /**
  * Pengelolaan ujian oleh staf: membuat, mengubah, menerbitkan, dan menugaskan.
@@ -58,7 +58,7 @@ export class ExamAdminService {
         let assignedStudents: Map<string, string[]> | undefined;
         const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
             await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true,exam_type.in.(pas,pat,pts,pkn)`);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true,exam_type.in.(pas,pat,pts,pkn,am)`);
         else if (!canSeeAll) {
             // Cari bank soal milik guru ini
             const { data: ownedBanks } = await this.db
@@ -127,7 +127,7 @@ export class ExamAdminService {
         }
 
         // Reuse assignments for every exam instead of reloading room rosters per row.
-        if (!elevated && !assignedStudents && exams.some(exam => exam.exam_type === 'pas')) {
+        if (!elevated && !assignedStudents && exams.some(exam => isSemesterAssessmentExam(exam))) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
         }
         return Promise.all(exams.map(async (exam) => ({
@@ -614,11 +614,11 @@ export class ExamAdminService {
         organizationId: string,
         examType: string,
     ): Promise<void> {
-        if (!RESTRICTED_EXAM_TYPES.includes(examType)) return;
+        if (!isSemesterAssessmentExam({ exam_type: examType })) return;
 
         if (!(await this.isElevated(user, organizationId))) {
             throw new ForbiddenException(
-                'Hanya Proktor yang dapat membuat atau mengubah ujian jenis PAS/PAT.',
+                'Hanya Proktor/Admin yang dapat membuat atau mengubah ujian ASAS/ASAT dan Asesmen Madrasah.',
             );
         }
     }

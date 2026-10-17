@@ -46,6 +46,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
+import { screenshotBase64 } from '@/lib/exam-screenshots';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
     if (exam?.metadata?.is_safe_mode === false) return null;
@@ -1129,50 +1130,71 @@ export default function ExamPage() {
         }
     }, [retryFailedAnswers, beaconPendingAnswers]);
 
+    const securityFlushTailRef = useRef<Promise<unknown>>(Promise.resolve());
+
     /** Kirim antrean satu per satu; hapus hanya sesudah server mengakuinya. */
-    const flushSecurityEvents = useCallback(async (): Promise<{
+    const flushSecurityEvents = useCallback(async (deferTerminationReload = false): Promise<{
         warningCount: number;
         maxViolations: number | null;
         terminated: boolean;
     } | null> => {
-        const att = attemptRef.current;
-        if (!att?.id || offlineRecoveryRef.current || !navigator.onLine) return null;
-        const events = await readSecurityEvents(att.id);
-        let latest: { warningCount: number; maxViolations: number | null; terminated: boolean } | null = null;
-        for (let index = 0; index < events.length; index++) {
-            const event = events[index];
-            const result = await logSecurityViolation(
-                att.id,
-                event.eventType,
-                event.metadata,
-                event.id,
-            );
-            if (!result.success) break;
-            latest = {
-                warningCount: result.warningCount,
-                maxViolations: result.maxViolations,
-                terminated: result.terminated,
-            };
-            await removeSecurityEvent(att.id, event.id);
-            if (result.terminated) {
-                // Event setelah ambang tidak lagi relevan karena attempt sudah
-                // ditutup oleh server. Bersihkan agar antrean lokal tidak macet.
-                await Promise.all(events.slice(index + 1).map((queued) =>
-                    removeSecurityEvent(att.id, queued.id),
-                ));
-                break;
+        const run = async () => {
+            const att = attemptRef.current;
+            if (!att?.id || offlineRecoveryRef.current || !navigator.onLine) return null;
+            const events = await readSecurityEvents(att.id);
+            let latest: { warningCount: number; maxViolations: number | null; terminated: boolean } | null = null;
+            for (let index = 0; index < events.length; index++) {
+                const event = events[index];
+                const result = await logSecurityViolation(
+                    att.id,
+                    event.eventType,
+                    event.metadata,
+                    event.id,
+                );
+                if (!result.success) break;
+                latest = {
+                    warningCount: result.warningCount,
+                    maxViolations: result.maxViolations,
+                    terminated: result.terminated,
+                };
+                if (event.screenshotBase64) {
+                    const screenshotDone = await uploadScreenshot(
+                        att.id,
+                        event.id,
+                        getDeviceId(),
+                        event.screenshotBase64,
+                    );
+                    if (!screenshotDone) {
+                        // Catatan pelanggaran sudah diakui server (idempoten berdasarkan event.id),
+                        // tetapi pengiriman gambar SS terputus. Pertahankan di antrean lokal
+                        // agar otomatis diunggah ulang saat koneksi kembali stabil.
+                        break;
+                    }
+                }
+                await removeSecurityEvent(att.id, event.id);
+                if (result.terminated) {
+                    // Event setelah ambang tidak lagi relevan karena attempt sudah
+                    // ditutup oleh server. Bersihkan agar antrean lokal tidak macet.
+                    await Promise.all(events.slice(index + 1).map((queued) =>
+                        removeSecurityEvent(att.id, queued.id),
+                    ));
+                    break;
+                }
             }
-        }
-        if (latest) {
-            violationCountRef.current = latest.warningCount;
-            setViolationCount(latest.warningCount);
-            if (latest.terminated) {
-                await clearCbtSession();
-                window.location.reload();
+            if (latest) {
+                violationCountRef.current = latest.warningCount;
+                setViolationCount(latest.warningCount);
+                if (latest.terminated && !deferTerminationReload) {
+                    await clearCbtSession();
+                    window.location.reload();
+                }
             }
-        }
-        return latest;
-    }, []);
+            return latest;
+        };
+        const next = securityFlushTailRef.current.catch(() => null).then(run);
+        securityFlushTailRef.current = next;
+        return next;
+    }, [uploadScreenshot]);
 
     const requireTermination = useCallback((reason: string) => {
         terminationReasonRef.current = reason;
@@ -1201,6 +1223,7 @@ export default function ExamPage() {
                 setIsOffline(false);
                 if (!attemptRef.current?.id) return;
                 if (submissionOnly || frozenSnapshotRef.current || clockRef.current.remainingSeconds() <= 0) {
+                    await flushSecurityEvents(true).catch(() => null);
                     await handleSubmitExam(undefined, { isAuto: true });
                     return;
                 }
@@ -1257,6 +1280,7 @@ export default function ExamPage() {
         const retry = async () => {
             if (!navigator.onLine || submitInFlightRef.current) return;
             if (!await revalidateOfflineSession()) return;
+            await flushSecurityEvents(true).catch(() => null);
             if (active && !submitInFlightRef.current) {
                 await handleSubmitExam(undefined, { isAuto: true });
             }
@@ -1267,7 +1291,7 @@ export default function ExamPage() {
             active = false;
             clearInterval(interval);
         };
-    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession]);
+    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession, flushSecurityEvents]);
 
     useEffect(() => {
         if (!attempt?.id || isCompleted || loading || accessDenied || submissionOnly) return;
@@ -1308,13 +1332,27 @@ export default function ExamPage() {
                 const createdAt = new Date().toISOString();
                 const eventId = createSecurityEventId();
                 const captured = !focusOnly && exam?.metadata?.screenshot_enabled === true ? captureScreenshot() : Promise.resolve(null);
-                const stored = await enqueueSecurityEvent({
+                let stored = await enqueueSecurityEvent({
                     id: eventId,
                     attemptId: attempt.id,
                     eventType: type,
                     metadata: { timestamp: createdAt },
                     createdAt,
                 });
+                const screenshotBlob = await captured;
+                if (screenshotBlob) {
+                    const encodedScreenshot = await screenshotBase64(screenshotBlob).catch(() => null);
+                    if (encodedScreenshot) {
+                        stored = await enqueueSecurityEvent({
+                            id: eventId,
+                            attemptId: attempt.id,
+                            eventType: type,
+                            metadata: { timestamp: createdAt },
+                            createdAt,
+                            screenshotBase64: encodedScreenshot,
+                        });
+                    }
+                }
                 if (!stored.saved) {
                     setStorageWarning('Event keamanan gagal disimpan di perangkat. Hubungi proktor.');
                 }
@@ -1325,9 +1363,15 @@ export default function ExamPage() {
                     await retryFailedAnswers();
                     beaconPendingAnswers();
                 }
-                const securityResult = await flushSecurityEvents();
-                if (stored.saved && securityResult) void captured.then(blob => uploadScreenshot(attempt.id, eventId, getDeviceId(), blob));
-                if (securityResult?.terminated) return;
+                const securityResult = await flushSecurityEvents(true);
+                if (!stored.saved && securityResult && screenshotBlob) {
+                    await uploadScreenshot(attempt.id, eventId, getDeviceId(), screenshotBlob);
+                }
+                if (securityResult?.terminated) {
+                    await clearCbtSession();
+                    window.location.reload();
+                    return;
+                }
                 const effectiveLimit = securityResult?.maxViolations ?? maxViolations;
                 const effectiveCount = securityResult?.warningCount ?? newCount;
                 if (!focusOnly && effectiveLimit !== null && effectiveCount >= effectiveLimit) {

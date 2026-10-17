@@ -29,7 +29,9 @@ import {
     GeneratePASExamsDto,
     PASActivationDto,
     LockPASPeriodDto,
+    SavePASAdministrationDto,
 } from './dto/pas.dto';
+import { PasAdministrationService } from './pas-administration.service';
 import { PasRoomsService } from './pas-rooms.service';
 import { PasSchedulesService } from './pas-schedules.service';
 import { PasService } from './pas.service';
@@ -44,12 +46,13 @@ import { PasService } from './pas.service';
 @ApiBearerAuth()
 @Controller('pas')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'PROKTOR', 'GURU')
+@Roles('ADMIN', 'PROKTOR', 'GURU', 'PENGAWAS')
 export class PasController {
     constructor(
         private readonly pas: PasService,
         private readonly schedules: PasSchedulesService,
         private readonly rooms: PasRoomsService,
+        private readonly administration: PasAdministrationService,
     ) {}
 
     // ── Periode ──────────────────────────────────────────────────────────────
@@ -257,4 +260,58 @@ export class PasController {
     ) {
         return this.rooms.removeStudent(user, periodId, userId);
     }
+
+    // ── Administrasi (Berita Acara & Daftar Hadir) ──────────────────────────
+
+    @Get('my-assignments')
+    @ApiOperation({ summary: 'Daftar penugasan ruang & sesi untuk pengawas/proktor' })
+    async listMyAssignments(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+    ) {
+        return { assignments: await this.administration.listMyAssignments(user, organizationId) };
+    }
+
+    @Get('administration/slot')
+    @ApiOperation({ summary: 'Data Berita Acara & Daftar Hadir untuk satu ruang, sesi, dan tanggal' })
+    async getAdministrationSlot(
+        @CurrentUser() user: AuthUser,
+        @Query('periodId', ParseUUIDPipe) periodId: string,
+        @Query('roomId', ParseUUIDPipe) roomId: string,
+        @Query('sessionId', ParseUUIDPipe) sessionId: string,
+        @Query('examDate') examDate?: string,
+    ) {
+        return {
+            slot: await this.administration.getAdministrationSlot(user, {
+                periodId,
+                roomId,
+                sessionId,
+                examDate,
+            }),
+        };
+    }
+
+    @Put('administration/slot')
+    @ApiOperation({ summary: 'Simpan & sahkan Berita Acara beserta Daftar Hadir peserta' })
+    async saveAdministrationSlot(
+        @CurrentUser() user: AuthUser,
+        @Body() dto: SavePASAdministrationDto,
+    ) {
+        return {
+            slot: await this.administration.saveAdministrationSlot(user, dto),
+        };
+    }
 }
+
+@ApiTags('pas-verification')
+@Controller('pas')
+export class PasPublicVerificationController {
+    constructor(private readonly administration: PasAdministrationService) {}
+
+    @Get('verify/:code')
+    @ApiOperation({ summary: 'Verifikasi publik keaslian dokumen Berita Acara atau Daftar Hadir' })
+    async verifyDocument(@Param('code') code: string) {
+        return this.administration.verifyDocumentByCode(code);
+    }
+}
+

@@ -44,9 +44,10 @@ Zap
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
+import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
-type TabId = 'schedules' | 'live_today' | 'rooms' | 'sessions' | 'bulk';
+type TabId = 'schedules' | 'live_today' | 'rooms' | 'sessions' | 'invigilators' | 'administration' | 'bulk';
 
 export default function ProctorPASDetailPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
@@ -420,14 +421,23 @@ export default function ProctorPASDetailPage() {
                         )}
                     </button>
 
-                    {(['rooms', 'sessions'] as const).map(tab => (
+                    {(['rooms', 'sessions', 'invigilators'] as const).map(tab => (
                         <button key={tab} type="button" onClick={() => setActiveTab(tab)}
                             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                                 activeTab === tab ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
                             }`}>
-                            {tab === 'rooms' ? 'Ruang' : 'Sesi Ujian'}
+                            {tab === 'rooms' ? 'Ruang' : tab === 'sessions' ? 'Sesi Ujian' : 'Pengawas'}
                         </button>
                     ))}
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('administration')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                            activeTab === 'administration' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        Administrasi
+                    </button>
                     {!period.is_locked && (
                         <button type="button" onClick={() => setActiveTab('bulk')}
                             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
@@ -472,9 +482,17 @@ export default function ProctorPASDetailPage() {
                 )}
             </div>
 
-            {(activeTab === 'rooms' || activeTab === 'sessions') && (
+            {(activeTab === 'rooms' || activeTab === 'sessions' || activeTab === 'invigilators') && (
                 <RoomManagementPanel period={period} view={activeTab}
                     onChange={() => void loadData()} />
+            )}
+
+            {activeTab === 'administration' && (
+                <PASAdministrationPanel
+                    period={period}
+                    rooms={rooms}
+                    sessions={sessions}
+                />
             )}
 
             {activeTab === 'bulk' && !period.is_locked && (
@@ -485,6 +503,7 @@ export default function ProctorPASDetailPage() {
                     subjects={subjects}
                     qBanks={qBanks}
                     sessions={sessions}
+                    rooms={rooms}
                     onComplete={() => {
                         setActiveTab('schedules');
                         void loadData();

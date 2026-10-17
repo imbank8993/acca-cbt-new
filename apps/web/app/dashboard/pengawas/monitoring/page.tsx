@@ -1,9 +1,9 @@
 "use client";
-import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
-import SearchableSelect from '@/components/ui/SearchableSelect';
+import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
 import { Spinner } from '@/app/components/ui/Spinner';
 
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
@@ -18,7 +18,6 @@ getProctorOrganization,
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
 import { formatStudentName } from '@/lib/monitoring-health';
-import { examTypeLabel } from '@/lib/exam-types';
 import {
 AlertTriangle,
 ArrowLeft,
@@ -182,15 +181,9 @@ function MonitoringContent() {
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     {/* Pilih Ujian */}
                     <div className="relative flex-1 sm:w-72">
-                        <SearchableSelect
-                            className="w-full"
-                            placeholder="Cari atau pilih ujian..."
-                                searchPlaceholder="Ketik nama ujian..."
-                            options={sortMonitoringExams(exams, monitoringNow).map((exam) => ({
-                                value: exam.id,
-                                    statusDot: isMonitoringExamActive(exam, monitoringNow) ? 'Ujian aktif' : undefined,
-                                label: `${monitoringExamLabel(exam)} (${exam.exam_type ? examTypeLabel(exam.exam_type) : 'Ujian'})`,
-                            }))}
+                        <MonitoringExamPicker
+                            exams={exams}
+                            now={monitoringNow}
                             value={selectedExamId}
                             onChange={(val) => handleExamChange(String(val || ''))}
                         />

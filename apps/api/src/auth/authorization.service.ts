@@ -4,6 +4,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { CbtRolesService } from './cbt-roles.service';
 import { SingleSchoolService } from './single-school.service';
 import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
+import { isSemesterAssessmentExam } from '../common/exam-types';
 
 /**
  * Otorisasi per-organisasi, dipindahkan dari `apps/web/lib/server-authz.ts`.
@@ -260,9 +261,9 @@ export class AuthorizationService {
         const full = { allParticipants: true, studentIds: [] };
         if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
         const proctor = await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']);
-        if (record.exam_type === 'pas' && proctor) return full;
+        if (isSemesterAssessmentExam(record) && proctor) return full;
         if (record.created_by === user.id && (proctor || await this.roles.hasOrgRole(user.id, organizationId, ['Guru']))) return full;
-        if (record.exam_type === 'pas' && record.id &&
+        if (isSemesterAssessmentExam(record) && record.id &&
             await this.roles.hasOrgRole(user.id, organizationId, ['Guru', 'Pengawas'])) {
             const assignments = assignedStudents ?? await assignedPasExamStudents(this.db, user.id, organizationId);
             const studentIds = assignments.get(record.id);
@@ -286,7 +287,7 @@ export class AuthorizationService {
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
             return record.created_by === user.id || record.is_published === true;
         }
-        if (record.exam_type === 'pas' || record.exam_type === 'pat') return false;
+        if (isSemesterAssessmentExam(record)) return false;
         return record.created_by === user.id &&
             await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru']);
     }

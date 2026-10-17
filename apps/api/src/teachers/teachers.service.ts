@@ -11,6 +11,7 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
+import { isSemesterAssessmentExam } from '../common/exam-types';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { GradingService } from '../grading/grading.service';
 
@@ -388,7 +389,7 @@ export class TeachersService {
         ]);
 
         const examRows = ((exams.data as any[]) || []).filter(
-            (e) => e.exam_type !== 'pas' && e.exam_type !== 'pat',
+            (e) => !isSemesterAssessmentExam(e),
         );
 
         const nowMs = new Date(now).getTime();

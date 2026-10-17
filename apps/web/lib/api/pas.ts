@@ -264,3 +264,254 @@ export function removeStudentFromRoomAction(periodId: string, userId: string) {
         'DELETE',
     );
 }
+
+// ── Administrasi (Berita Acara & Daftar Hadir) ───────────────────────────────
+
+export type PASAttendanceStatus = 'hadir' | 'sakit' | 'izin' | 'alpha';
+
+export interface PASAdministrationStudentRow {
+    user_id: string;
+    full_name: string;
+    nis: string;
+    identity_number: string;
+    class_name: string;
+    exam_title: string;
+    started_at: string | null;
+    finished_at: string | null;
+    attempt_status: string | null;
+    status: PASAttendanceStatus;
+    attendance_status: PASAttendanceStatus;
+    remark: string;
+}
+
+export interface PASAdministrationSlot {
+    organization: {
+        id: string;
+        name: string;
+        logo_url: string | null;
+    };
+    profil_sekolah?: {
+        nama?: string | null;
+        jenjang?: string | null;
+        jenis?: string | null;
+        alamat?: string | null;
+        desa_kelurahan?: string | null;
+        kecamatan?: string | null;
+        kabupaten_kota?: string | null;
+        provinsi?: string | null;
+        kode_pos?: string | null;
+        telepon?: string | null;
+        email?: string | null;
+        website?: string | null;
+        logo_url?: string | null;
+        kepala_sekolah_nama?: string | null;
+        kepala_sekolah_nip?: string | null;
+    };
+    period: {
+        id: string;
+        name: string;
+        type: string;
+        school_year: string;
+        semester: string;
+        start_date: string;
+        end_date: string;
+        is_locked: boolean;
+        created_by: string | null;
+        organization_name: string;
+    };
+    room: {
+        id: string;
+        name: string;
+        capacity: number;
+    };
+    session: {
+        id: string;
+        name: string;
+        start_time: string;
+        end_time: string;
+    };
+    exam_date: string;
+    available_dates: string[];
+    schedules: Array<{
+        id: string;
+        bank_title: string;
+        subject_name: string;
+        class_name: string;
+        duration_minutes: number;
+    }>;
+    invigilators: Array<{
+        user_id: string;
+        full_name: string;
+        identity_number: string | null;
+    }>;
+    proctor_creator: {
+        id: string | null;
+        full_name: string;
+        identity_number: string | null;
+    };
+    committee_chair: {
+        committee_chair_name: string;
+        committee_chair_nip: string;
+    };
+    report: {
+        id: string | null;
+        is_saved: boolean;
+        notes: string;
+        incident_summary: string;
+        invigilator_id: string | null;
+        invigilator_name: string;
+        invigilator_nip?: string;
+        proctor_id: string | null;
+        proctor_name: string;
+        committee_chair_name: string;
+        committee_chair_nip: string;
+        signature_version: number;
+        proctor_nip?: string;
+        verification_code: string;
+        attendance_verification_code: string;
+        signature_hash: string;
+        signed_at: string | null;
+        updated_at: string | null;
+    };
+    students: PASAdministrationStudentRow[];
+    counts: {
+        total: number;
+        hadir: number;
+        sakit: number;
+        izin: number;
+        alpha: number;
+    };
+}
+
+export interface PASVerificationResult {
+    verified: boolean;
+    valid?: boolean;
+    integrity_valid?: boolean;
+    integrity_verified?: boolean;
+    verification_code: string;
+    document_type?: 'berita_acara' | 'daftar_hadir';
+    document_label?: string;
+    paired_codes?: {
+        berita_acara: string;
+        daftar_hadir: string;
+    };
+    organization_name?: string;
+    period?: {
+        id: string;
+        name: string;
+        school_year: string;
+        semester: string;
+    };
+    room?: {
+        id: string;
+        name: string;
+    };
+    session?: {
+        id: string;
+        name: string;
+        start_time: string;
+        end_time: string;
+    };
+    exam_date?: string;
+    invigilator_name?: string;
+    proctor_name?: string;
+    committee_chair_name?: string;
+    committee_chair_nip?: string;
+    signature_version?: number;
+    notes?: string;
+    incident_summary?: string;
+    signature_hash?: string;
+    signed_at?: string;
+    counts?: {
+        total: number;
+        hadir: number;
+        sakit: number;
+        izin: number;
+        alpha: number;
+    };
+    message?: string;
+}
+
+export interface PASAssignmentSlotSummary {
+    period: {
+        id: string;
+        name: string;
+        type?: string;
+        school_year: string;
+        semester: string;
+        start_date: string;
+        end_date: string;
+        is_locked: boolean;
+    };
+    room: {
+        id: string;
+        name: string;
+        capacity: number;
+        student_count: number;
+    };
+    session: {
+        id: string;
+        name: string;
+        start_time: string;
+        end_time: string;
+    };
+    invigilators: Array<{
+        user_id: string;
+        full_name: string;
+    }>;
+    is_assigned_to_me: boolean;
+    scheduled_dates: string[];
+    saved_reports: Array<{
+        id: string;
+        exam_date: string;
+        verification_code: string;
+        attendance_verification_code: string;
+        signed_at: string;
+    }>;
+}
+
+export async function listMyPASAssignments(): Promise<PASAssignmentSlotSummary[]> {
+    const res = await apiGet<{ assignments: PASAssignmentSlotSummary[] }>('/api/pas/my-assignments');
+    if (!res.success) throw new Error(res.error || 'Penugasan ruang dan sesi belum dapat dimuat.');
+    return res.assignments || [];
+}
+
+export async function getPASAdministrationSlot(params: {
+    periodId: string;
+    roomId: string;
+    sessionId: string;
+    examDate?: string;
+}): Promise<PASAdministrationSlot> {
+    const query = new URLSearchParams({
+        periodId: params.periodId,
+        roomId: params.roomId,
+        sessionId: params.sessionId,
+    });
+    if (params.examDate) query.set('examDate', params.examDate);
+    const res = await apiGet<{ slot: PASAdministrationSlot }>(
+        `/api/pas/administration/slot?${query.toString()}`,
+    );
+    if (!res.success) throw new Error(res.error || 'Data administrasi ujian belum dapat dimuat.');
+    return res.slot;
+}
+
+export function savePASAdministrationSlotAction(input: {
+    pas_period_id: string;
+    pas_room_id: string;
+    session_id: string;
+    exam_date: string;
+    notes?: string;
+    incident_summary?: string;
+    invigilator_id?: string;
+    invigilator_name?: string;
+    proctor_id?: string;
+    proctor_name?: string;
+    attendances?: Array<{
+        user_id: string;
+        status: PASAttendanceStatus;
+        remark?: string;
+    }>;
+}) {
+    return apiSend<{ slot: PASAdministrationSlot }>('/api/pas/administration/slot', input, 'PUT');
+}
+

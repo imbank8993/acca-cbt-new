@@ -357,7 +357,7 @@ create table if not exists pas_periods (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references organizations(id) on delete cascade,
   name text not null,
-  type text check (type in ('pas','pat','pts','pkn')) default 'pas',
+  type text check (type in ('pas','pat','pts','pkn','am')) default 'pas',
   school_year text not null,
   semester text check (semester in ('ganjil','genap')) not null,
   start_date date not null,
@@ -801,7 +801,7 @@ on conflict do nothing;
 alter table exams add column if not exists is_published boolean default false;
 alter table exams add column if not exists show_results boolean default false;
 alter table exams add column if not exists metadata jsonb default '{}';
-alter table exams add column if not exists exam_type text check (exam_type in ('daily','pas','pat','pts','pkn','lainnya','assignment','tryout','quiz')) default 'pas';
+alter table exams add column if not exists exam_type text check (exam_type in ('daily','pas','pat','pts','pkn','am','lainnya','assignment','tryout','quiz')) default 'pas';
 alter table exams add column if not exists description text;
 alter table exams drop constraint if exists exams_status_check;
 alter table exams add constraint exams_status_check check (status in ('draft','scheduled','active','ended','archived','finished'));

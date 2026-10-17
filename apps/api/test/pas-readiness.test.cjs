@@ -128,11 +128,12 @@ test('a complete schedule is ready before activation; missing supervisors reject
  assert.deepEqual(f.db.tables, before);
 });
 
-test('PAS activation, deactivate and reactivate reuse the same exam and preserve attempts and answers', async () => {
- const f = fixture(); f.schedule.exam_id = null; f.db.tables.cbt_exams = []; f.db.tables.cbt_exam_targets = [];
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: activation, deactivation and reactivation preserve the exam and student answers`, async () => {
+ const f = fixture(); f.period.type = assessmentType; f.schedule.exam_id = null; f.db.tables.cbt_exams = []; f.db.tables.cbt_exam_targets = [];
  const service = activationService(f.db);
  await service.setActivation({ id: 'admin' }, 'sc', true);
  const examId = f.db.tables.cbt_pas_class_schedules[0].exam_id;
+ assert.equal(f.db.tables.cbt_exams[0].exam_type, assessmentType);
  assert.ok(examId); assert.equal(f.db.tables.cbt_exams[0].is_published, true);
  f.db.tables.cbt_exam_attempts = [{ id: 'a', exam_id: examId, user_id: 'u1', status: 'in_progress' }];
  f.db.tables.cbt_answers = [{ attempt_id: 'a', question_id: 'q', selected_option_id: 'o' }];
@@ -199,9 +200,9 @@ test('activation web proxy forwards PUT and student access follows activation st
  assert.equal(canAccessExam({ id: 'e', organization_id: 'school', is_published: true }, audience), true);
 });
 
-test('generic exam publication cannot bypass PAS readiness activation', async () => {
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: generic publication cannot bypass folder readiness checks`, async () => {
  const { ExamAdminService } = require('../src/proctor/exam-admin.service.ts');
- const f = fixture(); f.db.tables.cbt_exams[0].is_published = false;
+ const f = fixture(); f.db.tables.cbt_exams[0].exam_type = assessmentType; f.db.tables.cbt_exams[0].is_published = false;
  f.db.tables.cbt_exams[0].metadata = { is_pas_exam: true, pas_schedule_id: 'sc' };
  const service = new ExamAdminService(f.db, { assertExamStaff: async () => {} }, {});
  await assert.rejects(service.setPublished({ id: 'admin' }, 'e', true), /kelengkapan ruang dan pengawas/);

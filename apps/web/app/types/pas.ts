@@ -2,7 +2,7 @@
 // PAS/PAT System Types
 // =====================================================
 
-export type PASPeriodType = 'pas' | 'pat' | 'pts' | 'pkn';
+export type PASPeriodType = 'pas' | 'pat' | 'pts' | 'pkn' | 'am';
 export type Semester = 'ganjil' | 'genap';
 export type ScheduleStatus = 'scheduled' | 'active' | 'finished' | 'cancelled';
 export type DifficultyTarget = 'easy' | 'medium' | 'hard' | 'mixed' | string;

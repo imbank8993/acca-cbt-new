@@ -50,7 +50,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface RoomManagementPanelProps {
     period: PASPeriod;
-    view: 'rooms' | 'sessions';
+    view: 'rooms' | 'sessions' | 'invigilators';
     onChange?: () => void;
 }
 
@@ -73,19 +73,19 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     const [newSessionEnd, setNewSessionEnd] = useState('09:30');
     const [sessionError, setSessionError] = useState('');
 
-    // State for selected room to manage
+    // State for selected room to manage (Peserta & Jadwal)
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-    const [roomDetailTab, setRoomDetailTab] = useState<'students' | 'proctors' | 'schedules'>('students');
+    const [roomDetailTab, setRoomDetailTab] = useState<'students' | 'schedules'>('students');
     const [addingStudents, setAddingStudents] = useState(false);
     const [studentSearch, setStudentSearch] = useState('');
     const [isClassLoading, setIsClassLoading] = useState(false);
     const classRequest = useRef(0);
 
-    // State for assignments in the selected room
-    const [selectedProctorIds, setSelectedProctorIds] = useState<string[]>([]);
+    // State for invigilator mapping tab (by session & room)
     const [selectedProctorSessionId, setSelectedProctorSessionId] = useState('');
     const selectedProctorSession = sessions.find(session => session.id === selectedProctorSessionId);
-    const [quickAddProctorId, setQuickAddProctorId] = useState('');
+    const [savingProctorRoomId, setSavingProctorRoomId] = useState<string | null>(null);
+    const [savedProctorRoomId, setSavedProctorRoomId] = useState<string | null>(null);
 
     // Student assignment state
     const [selectedClassId, setSelectedClassId] = useState('');
@@ -95,7 +95,6 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     const [isLoading, setIsLoading] = useState(true);
     const [roomError, setRoomError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    const [isProctorSaved, setIsProctorSaved] = useState(false);
 
     const selectedRoom = useMemo(
         () => rooms.find((r) => r.id === selectedRoomId) || null,
@@ -186,7 +185,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
     }, [period.id]);
 
     useEffect(() => {
-        if (activeTab !== 'sessions') return;
+        if (activeTab === 'rooms') return;
         const timer = window.setTimeout(() => setSelectedRoomId(null), 0);
         return () => window.clearTimeout(timer);
     }, [activeTab]);
@@ -196,21 +195,10 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
         return () => window.clearTimeout(initialLoad);
     }, [loadData]);
 
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).map(inv => inv.user_id));
-            setQuickAddProctorId('');
-            setIsProctorSaved(false);
-        }, 0);
-        return () => window.clearTimeout(timer);
-    }, [selectedRoom, selectedProctorSessionId]);
-
     const handleProctorSessionChange = (value: string) => {
         if (isSaving) return;
         setSelectedProctorSessionId(value);
-        setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, value).map(inv => inv.user_id));
-        setQuickAddProctorId('');
-        setIsProctorSaved(false);
+        setSavedProctorRoomId(null);
     };
 
     const handleCreateRoom = async () => {
@@ -272,40 +260,42 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
         setIsSaving(false);
     };
 
-    const handleSaveProctors = async (idsToSave?: string[]) => {
-        if (!selectedRoom || !selectedProctorSessionId || isSaving) return;
-        const targetIds = idsToSave !== undefined ? idsToSave : selectedProctorIds;
+    const handleSaveRoomProctors = async (roomId: string, targetIds: string[]) => {
+        if (!selectedProctorSessionId || isSaving) return;
         setIsSaving(true);
+        setSavingProctorRoomId(roomId);
         setRoomError('');
         try {
-            const result = await assignProctorsToRoomAction(selectedRoom.id, targetIds, selectedProctorSessionId);
+            const result = await assignProctorsToRoomAction(roomId, targetIds, selectedProctorSessionId);
             if (!result.success) throw new Error(result.error || 'Penugasan pengawas belum tersimpan.');
             await refreshRooms();
-            setIsProctorSaved(true);
-            setTimeout(() => setIsProctorSaved(false), 3000);
+            setSavedProctorRoomId(roomId);
+            setTimeout(() => {
+                setSavedProctorRoomId((prev) => (prev === roomId ? null : prev));
+            }, 3000);
         } catch (error) {
             setRoomError(error instanceof Error ? error.message : 'Penugasan pengawas belum tersimpan.');
-            setSelectedProctorIds(getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).map(inv => inv.user_id));
         } finally {
             setIsSaving(false);
+            setSavingProctorRoomId(null);
         }
     };
 
-    const handleQuickAddProctor = (teacherId: string) => {
-        if (!teacherId || !selectedRoom || !selectedProctorSessionId || isSaving) return;
-        if (!selectedProctorIds.includes(teacherId)) {
-            const newIds = [...selectedProctorIds, teacherId];
-            setSelectedProctorIds(newIds);
-            void handleSaveProctors(newIds);
+    const handleAddRoomProctor = (room: PASRoom, teacherId: string) => {
+        if (!teacherId || !selectedProctorSessionId || isSaving) return;
+        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId).map((inv) => inv.user_id);
+        if (!currentIds.includes(teacherId)) {
+            void handleSaveRoomProctors(room.id, [...currentIds, teacherId]);
         }
-        setQuickAddProctorId('');
     };
 
-    const handleRemoveProctor = (proctorId: string) => {
-        if (!selectedRoom || !selectedProctorSessionId || isSaving) return;
-        const newIds = selectedProctorIds.filter((id) => id !== proctorId);
-        setSelectedProctorIds(newIds);
-        void handleSaveProctors(newIds);
+    const handleRemoveRoomProctor = (room: PASRoom, proctorId: string) => {
+        if (!selectedProctorSessionId || isSaving) return;
+        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId).map((inv) => inv.user_id);
+        void handleSaveRoomProctors(
+            room.id,
+            currentIds.filter((id) => id !== proctorId),
+        );
     };
 
     const handleLoadClassStudents = async (classId: string) => {
@@ -419,11 +409,6 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
         return allSchedules.filter((sc) => (sc.room || '').trim().toLowerCase() === selectedRoom.name.trim().toLowerCase());
     }, [allSchedules, selectedRoom]);
 
-    // Available teachers for quick add in selected room
-    const availableTeachersForSelectedRoom = useMemo(() => {
-        return teachers.filter((t) => !selectedProctorIds.includes(t.id));
-    }, [teachers, selectedProctorIds]);
-
     const tzLabel = getSchoolTimeZoneLabel(timeZone);
 
     return (
@@ -441,7 +426,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
             )}
 
             {/* ══════════════════════════════════════════════════════════
-                TAB 1: RUANGAN & PENGAWAS
+                TAB 1: RUANGAN & PESERTA
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'rooms' && (
                 <div className="space-y-4">
@@ -450,7 +435,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                         <div>
                             <h3 className="font-bold text-slate-900 text-sm">Daftar Ruang Ujian</h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Atur pengawas dan peserta untuk setiap ruang.
+                                Atur kapasitas dan penempatan peserta untuk setiap ruang ujian.
                             </p>
                         </div>
                         {!period.is_locked && (
@@ -468,34 +453,40 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                     {/* Form Tambah Ruang Baru */}
                     {!period.is_locked && isCreatingRoom && (
                         <Modal open title="Tambah Ruang" subtitle={period.name} icon="door-open"
-                            onClose={() => { if (!isSaving) setIsCreatingRoom(false); }} size="lg" className="pas-room-management">
-                        <ModalBody>
-                        {roomError && <div role="alert" className="mb-3 text-sm text-red-600">{roomError}</div>}
-                        <div className="pas-room-create grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px_auto] gap-3 items-end">
-                            <div className="flex-1 w-full">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Nama Ruang *</label>
-                                <PASRoomInput
-                                    value={newRoomName}
-                                    onChange={setNewRoomName}
-                                    onCapacityChange={setNewRoomCapacity}
-                                    existingRooms={rooms}
-                                />
-                            </div>
-                            <div className="w-full">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Kapasitas</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={newRoomCapacity}
-                                    onChange={e => setNewRoomCapacity(parseInt(e.target.value) || 0)}
-                                    className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
-                            </div>
-                            <div className="flex gap-2 w-full sm:w-auto">
+                            onClose={() => { if (!isSaving) setIsCreatingRoom(false); }} size="md" className="pas-room-management">
+                            <ModalBody className="space-y-4 p-4 sm:p-6">
+                                {roomError && <div role="alert" className="text-sm text-red-600">{roomError}</div>}
+                                <div className="pas-room-create space-y-4">
+                                    <div>
+                                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Nama Ruang *</label>
+                                        <PASRoomInput
+                                            value={newRoomName}
+                                            onChange={setNewRoomName}
+                                            onCapacityChange={setNewRoomCapacity}
+                                            existingRooms={rooms}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="pas-room-capacity" className="mb-1.5 block text-sm font-medium text-slate-700">Kapasitas (Kursi)</label>
+                                        <input
+                                            id="pas-room-capacity"
+                                            type="number"
+                                            min="1"
+                                            disabled={isSaving}
+                                            value={newRoomCapacity}
+                                            onChange={e => setNewRoomCapacity(parseInt(e.target.value) || 0)}
+                                            className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
+                                        />
+                                        <p className="mt-1.5 text-xs text-slate-500">Pilih ruang dari daftar master untuk mengisi kapasitas otomatis, atau atur jumlah kursi secara manual.</p>
+                                    </div>
+                                </div>
+                            </ModalBody>
+                            <ModalFooter>
                                 <Button
                                     type="button"
                                     variant="cancel"
                                     size="sm"
+                                    disabled={isSaving}
                                     onClick={() => setIsCreatingRoom(false)}
                                 >
                                     Batal
@@ -511,9 +502,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                 >
                                     Simpan
                                 </Button>
-                            </div>
-                        </div>
-                        </ModalBody>
+                            </ModalFooter>
                         </Modal>
                     )}
 
@@ -527,7 +516,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                             <DoorOpen size={36} className="mx-auto mb-2.5 text-slate-300" />
                             <p className="font-bold text-slate-800 text-sm">Belum ada ruang yang dibuat</p>
                             <p className="text-xs text-slate-400 mt-0.5 max-w-sm mx-auto">
-                                Tambah ruang untuk mulai mengatur peserta dan pengawas.
+                                Tambah ruang untuk mulai mengatur penempatan peserta ujian.
                             </p>
                         </div>
                     ) : (
@@ -559,13 +548,13 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                         </div>
                     )}
 
-                    {/* ── DETAIL RUANGAN TERPILIH ── */}
+                    {/* ── DETAIL RUANGAN TERPILIH (PESERTA & JADWAL SAJA) ── */}
                     {selectedRoom && (
                         <Modal open onClose={() => { if (!isSaving) setSelectedRoomId(null); }} size="2xl"
                             title={selectedRoom.name} subtitle={`${assignedStudentIds.size} dari ${selectedRoom.capacity} kursi terisi · ${remainingCapacity} kursi tersedia`} icon="door-open"
                             className="pas-room-management pas-room-detail-modal !max-w-3xl">
                         <div className="pas-room-detail-tabs flex gap-1 px-4 sm:px-6 pt-3" role="tablist" aria-label="Pengaturan ruang">
-                            {([{ id: 'students', label: 'Peserta' }, { id: 'proctors', label: 'Pengawas' }, { id: 'schedules', label: 'Jadwal' }] as const).map(tab => (
+                            {([{ id: 'students', label: 'Peserta' }, { id: 'schedules', label: 'Jadwal' }] as const).map(tab => (
                                 <button key={tab.id} type="button" role="tab" aria-selected={roomDetailTab === tab.id}
                                     id={`room-tab-${tab.id}`} aria-controls={`room-panel-${tab.id}`} disabled={isSaving}
                                     onClick={() => setRoomDetailTab(tab.id)}
@@ -576,148 +565,8 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                         </div>
                         <ModalBody className="p-4 sm:p-6">
                             {roomError && <div role="alert" className="text-sm text-red-600">{roomError}</div>}
-                            {/* 1. SEKSI PENGAWAS RUANGAN */}
-                            {roomDetailTab === 'proctors' && <div role="tabpanel" id="room-panel-proctors" aria-labelledby="room-tab-proctors" className="space-y-3.5">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
-                                        <ShieldCheck size={16} className="text-[#3083FF]" />
-                                        Pengawas Ruangan
-                                    </div>
-                                    {isProctorSaved && (
-                                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 animate-in fade-in">
-                                            <Check size={13} /> Penugasan Pengawas Disimpan
-                                        </span>
-                                    )}
-                                </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-slate-700">Sesi penugasan pengawas</label>
-                                    <InlineSelect
-                                        value={selectedProctorSessionId}
-                                        onChange={handleProctorSessionChange}
-                                        disabled={isSaving || sessions.length === 0}
-                                        title="Pilih Sesi Pengawas"
-                                        minWidth="100%"
-                                        options={sessions.map(session => ({ value: session.id,
-                                            label: session.name + ' (' + session.start_time.slice(0, 5) + '–' + session.end_time.slice(0, 5) + ' ' + tzLabel + ')' }))}
-                                    />
-                                    <p className="text-xs text-slate-500">{sessions.length ? 'Pengawas disimpan khusus untuk sesi yang dipilih. Sesi lain dapat memiliki pengawas berbeda.' : 'Buat sesi ujian terlebih dahulu pada tab Sesi Ujian.'}</p>
-                                </div>
-
-                                {/* Daftar Pengawas Saat Ini */}
-                                <div className="space-y-2">
-                                    <p className="text-xs font-semibold text-slate-700">Pengawas {selectedProctorSession?.name || 'pada sesi yang dipilih'}:</p>
-                                    {selectedProctorIds.length === 0 ? (
-                                        <div className="p-4 bg-white rounded-xl border border-dashed border-amber-200 text-center">
-                                            <AlertTriangle size={20} className="mx-auto text-amber-500 mb-1" />
-                                            <p className="text-xs font-bold text-slate-700">Belum ada pengawas yang ditugaskan</p>
-                                            <p className="text-[11px] text-slate-400 mt-0.5">
-                                                Pilih guru/pengawas pada dropdown di bawah untuk menugaskan ke ruangan ini.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                                            {selectedProctorIds.map((proctorId) => {
-                                                const teacher = teachers.find((t) => t.id === proctorId);
-                                                const invigilatorRecord = getRoomSessionInvigilators(selectedRoom, selectedProctorSessionId).find((i) => i.user_id === proctorId);
-                                                const teacherName = teacher?.name || invigilatorRecord?.profiles?.full_name || 'Pengawas';
-                                                const roles = teacher?.roles || ['Pengawas'];
-
-                                                // Check if this teacher is also assigned to other rooms
-                                                const otherRooms = (teacherAssignmentMap.get(proctorId) || []).filter(
-                                                    (rName) => rName.toLowerCase() !== selectedRoom.name.toLowerCase(),
-                                                );
-
-                                                return (
-                                                    <div
-                                                        key={proctorId}
-                                                        className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-xl shadow-2xs hover:border-slate-300 transition-colors"
-                                                    >
-                                                        <div className="flex items-center gap-2 min-w-0 pr-1">
-                                                            <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0 font-bold text-xs">
-                                                                <ShieldCheck size={14} />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-xs font-bold text-slate-800 truncate" title={teacherName}>
-                                                                    {teacherName}
-                                                                </p>
-                                                                <div className="flex items-center gap-1 flex-wrap">
-                                                                    <span className="text-[10px] text-slate-400">
-                                                                        {roles.join(', ')}
-                                                                    </span>
-                                                                    {otherRooms.length > 0 && (
-                                                                        <span
-                                                                            className="text-[9px] px-1 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold"
-                                                                            title={`Guru ini juga ditugaskan di: ${otherRooms.join(', ')}`}
-                                                                        >
-                                                                            Juga di: {otherRooms.join(', ')}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            disabled={isSaving}
-                                                            onClick={() => handleRemoveProctor(proctorId)}
-                                                            className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                                                            title="Hapus pengawas dari ruangan ini"
-                                                        >
-                                                            <X size={15} />
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Quick Add Pengawas Dropdown menggunakan InlineSelect */}
-                                <div className="pt-2 border-t border-slate-200/80 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                                    <div className="flex-1">
-                                        <label className="text-[11px] font-semibold text-slate-600 mb-1 block">
-                                            Pilih Guru / Pengawas untuk Ditambahkan:
-                                        </label>
-                                        <InlineSelect
-                                            disabled={!selectedProctorSessionId || isSaving}
-                                            value={quickAddProctorId}
-                                            onChange={handleQuickAddProctor}
-                                            minWidth="100%"
-                                            height="38px"
-                                            title="Pilih Guru / Pengawas"
-                                            options={[
-                                                { value: '', label: '— Pilih Guru / Pengawas untuk Ditambahkan —' },
-                                                ...availableTeachersForSelectedRoom.map((t) => {
-                                                    const otherRooms = (teacherAssignmentMap.get(t.id) || []).filter(
-                                                        (rName) => rName.toLowerCase() !== selectedRoom.name.toLowerCase(),
-                                                    );
-                                                    const conflictNotice = otherRooms.length > 0 ? ` (⚠️ Ditugaskan di: ${otherRooms.join(', ')})` : '';
-                                                    return {
-                                                        value: t.id,
-                                                        label: `${t.name}${t.roles?.length ? ` (${t.roles.join(', ')})` : ''}${conflictNotice}`,
-                                                    };
-                                                }),
-                                            ]}
-                                        />
-                                    </div>
-
-                                    <div className="sm:self-end">
-                                        <Button
-                                            type="button"
-                                            variant="primary"
-                                            size="sm"
-                                            onClick={() => void handleSaveProctors()}
-                                            disabled={!selectedProctorSessionId || isSaving}
-                                            isLoading={isSaving}
-                                            leftIcon={<Save size={13} />}
-                                        >
-                                            Simpan Pengawas
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>}
-
-                            {/* 2. SEKSI JADWAL UJIAN DI RUANG INI */}
+                            {/* SEKSI JADWAL UJIAN DI RUANG INI */}
                             {roomDetailTab === 'schedules' && <div role="tabpanel" id="room-panel-schedules" aria-labelledby="room-tab-schedules" className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 font-bold text-slate-800 text-xs uppercase tracking-wider">
@@ -725,7 +574,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                         Jadwal Ujian di Ruangan Ini ({roomSchedules.length})
                                     </div>
                                     <span className="text-[11px] text-slate-500 font-medium">
-                                        Pengawas mengikuti sesi masing-masing
+                                        Pengawas diatur pada tab Pengawas
                                     </span>
                                 </div>
 
@@ -928,48 +777,263 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                         <p className="mt-1 text-xs text-slate-500">Tambahkan sesi untuk menentukan jam ujian.</p>
                     </div> : <div className="pas-session-list rounded-xl divide-y divide-slate-100">
                         {sessions.map(session => {
-                            const sessionSchedules = allSchedules.filter(schedule => schedule.session_id === session.id);
-                            const isSessionInUse = sessionSchedules.length > 0;
-                            const activeRooms = [...new Set(sessionSchedules.map(schedule => schedule.room).filter(Boolean))];
-                            const onDutyProctors = new Set<string>();
-                            for (const name of activeRooms) {
-                                const room = rooms.find(room => room.name.trim().toLowerCase() === name?.trim().toLowerCase());
-                                for (const inv of getRoomSessionInvigilators(room, session.id)) {
-                                    const name = inv.profiles?.full_name || teachers.find(teacher => teacher.id === inv.user_id)?.name;
-                                    if (name) onDutyProctors.add(name);
-                                }
-                            }
+                            const isSessionInUse = allSchedules.some(schedule => schedule.session_id === session.id);
                             return <div key={session.id} className="px-4 py-4 sm:px-5">
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="min-w-0">
                                         <h4 className="break-words text-sm font-semibold text-slate-900">{session.name}</h4>
                                         <p className="mt-1 text-sm text-slate-600 tabular-nums">{session.start_time.slice(0, 5)} – {session.end_time.slice(0, 5)} {tzLabel}</p>
                                     </div>
-                                    <div className="flex shrink-0 items-center gap-3">
-                                        <span className="text-xs text-slate-500">{sessionSchedules.length} jadwal</span>
-                                        {!period.is_locked && (
-                                            <button type="button" onClick={() => void handleDeleteSession(session.id)}
-                                                disabled={isSaving || isSessionInUse} aria-label={`Hapus sesi ${session.name}`}
-                                                title={isSessionInUse ? 'Sesi masih dipakai jadwal dan tidak dapat dihapus' : 'Hapus sesi'}
-                                                className="rounded-lg p-2 text-slate-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed">
-                                                <Trash2 size={15} />
-                                            </button>
-                                        )}
-                                    </div>
+                                    {!period.is_locked && (
+                                        <button type="button" onClick={() => void handleDeleteSession(session.id)}
+                                            disabled={isSaving || isSessionInUse} aria-label={`Hapus sesi ${session.name}`}
+                                            title={isSessionInUse ? 'Sesi masih dipakai jadwal dan tidak dapat dihapus' : 'Hapus sesi'}
+                                            className="shrink-0 rounded-lg p-2 text-slate-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
                                 </div>
-                                {isSessionInUse && <details className="mt-3 text-xs text-slate-500">
-                                    <summary className="cursor-pointer py-1 font-medium text-blue-600">Lihat jadwal</summary>
-                                    <div className="mt-2 space-y-3">
-                                        {sessionSchedules.map(schedule => <div key={schedule.id} className="space-y-1">
-                                            <p className="font-medium text-slate-800">{schedule.question_banks?.title || 'Bank Soal'} · {schedule.classes?.name || 'Semua kelas'}</p>
-                                            <p>{schedule.scheduled_date || 'Tanggal belum diatur'} · {schedule.room || 'Ruang belum diatur'}</p>
-                                        </div>)}
-                                        {onDutyProctors.size > 0 && <p>Pengawas: {Array.from(onDutyProctors).join(', ')}</p>}
-                                    </div>
-                                </details>}
                             </div>;
                         })}
                     </div>}
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                TAB 3: PEMETAAN PENGAWAS (BERDASARKAN RUANG & SESI)
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'invigilators' && (
+                <div className="space-y-4">
+                    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                    <ShieldCheck size={17} className="text-[#3083FF]" />
+                                    Pemetaan Pengawas Ruang & Sesi
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Pilih sesi ujian lalu tetapkan pengawas untuk setiap ruangan ujian.
+                                </p>
+                            </div>
+                            {period.is_locked && (
+                                <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                                    <Lock size={13} /> Periode terkunci
+                                </span>
+                            )}
+                        </div>
+
+                        {sessions.length === 0 ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-800 flex items-center gap-2.5">
+                                <AlertTriangle size={16} className="shrink-0 text-amber-600" />
+                                <span>Belum ada sesi ujian. Tambahkan sesi terlebih dahulu pada tab <strong>Sesi Ujian</strong>.</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                                <span className="text-xs font-semibold text-slate-600 mr-1">Pilih Sesi:</span>
+                                {sessions.map((session) => {
+                                    const active = selectedProctorSessionId === session.id;
+                                    const filledRoomsCount = rooms.filter(
+                                        (r) => getRoomSessionInvigilators(r, session.id).length > 0,
+                                    ).length;
+                                    return (
+                                        <button
+                                            key={session.id}
+                                            type="button"
+                                            onClick={() => handleProctorSessionChange(session.id)}
+                                            disabled={isSaving}
+                                            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-2 ${
+                                                active
+                                                    ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
+                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <span>{session.name}</span>
+                                            <span className={`text-[10px] font-mono ${active ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                ({session.start_time.slice(0, 5)}–{session.end_time.slice(0, 5)})
+                                            </span>
+                                            <span
+                                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                                                    active
+                                                        ? 'bg-white/20 text-white'
+                                                        : filledRoomsCount === rooms.length && rooms.length > 0
+                                                          ? 'bg-emerald-100 text-emerald-700'
+                                                          : 'bg-amber-100 text-amber-700'
+                                                }`}
+                                            >
+                                                {filledRoomsCount}/{rooms.length} ruang
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {isLoading ? (
+                        <div className="text-center py-10 text-slate-400 text-xs flex items-center justify-center gap-2">
+                            <Loader2 size={18} className="animate-spin text-[#3083FF]" /> Memuat data pemetaan pengawas...
+                        </div>
+                    ) : rooms.length === 0 ? (
+                        <div className="pas-room-empty text-center py-8 text-slate-500 bg-white rounded-2xl border border-slate-200">
+                            <DoorOpen size={36} className="mx-auto mb-2.5 text-slate-300" />
+                            <p className="font-bold text-slate-800 text-sm">Belum ada ruang ujian</p>
+                            <p className="text-xs text-slate-400 mt-0.5 max-w-sm mx-auto">
+                                Buat ruang ujian terlebih dahulu pada tab <strong>Ruang</strong> sebelum memetakan pengawas.
+                            </p>
+                        </div>
+                    ) : sessions.length > 0 && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {rooms.map((room) => {
+                                const assignedInvigilators = getRoomSessionInvigilators(room, selectedProctorSessionId);
+                                const assignedIds = assignedInvigilators.map((i) => i.user_id);
+                                const availableTeachers = teachers.filter((t) => !assignedIds.includes(t.id));
+                                const isRoomSaving = savingProctorRoomId === room.id;
+                                const isRoomSaved = savedProctorRoomId === room.id;
+
+                                return (
+                                    <div
+                                        key={room.id}
+                                        className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4"
+                                    >
+                                        <div className="space-y-3">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h4 className="font-bold text-sm text-slate-900">{room.name}</h4>
+                                                        <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                            {room.pas_room_students?.length || 0}/{room.capacity} peserta
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        Sesi: <strong>{selectedProctorSession?.name || '-'}</strong>
+                                                        {selectedProctorSession
+                                                            ? ` (${selectedProctorSession.start_time.slice(0, 5)}–${selectedProctorSession.end_time.slice(0, 5)} ${tzLabel})`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {isRoomSaving && (
+                                                        <span className="text-[11px] font-semibold text-blue-600 flex items-center gap-1">
+                                                            <Loader2 size={12} className="animate-spin" /> Menyimpan...
+                                                        </span>
+                                                    )}
+                                                    {isRoomSaved && !isRoomSaving && (
+                                                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                            <Check size={12} /> Tersimpan
+                                                        </span>
+                                                    )}
+                                                    <span
+                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                            assignedIds.length > 0
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                        }`}
+                                                    >
+                                                        {assignedIds.length > 0
+                                                            ? `${assignedIds.length} Pengawas`
+                                                            : 'Belum Ada Pengawas'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Daftar Pengawas di Ruang & Sesi Ini */}
+                                            {assignedIds.length === 0 ? (
+                                                <div className="p-3 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 text-center">
+                                                    <p className="text-xs text-slate-500">
+                                                        Belum ada pengawas untuk <strong>{room.name}</strong> pada{' '}
+                                                        <strong>{selectedProctorSession?.name || 'sesi ini'}</strong>.
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {assignedIds.map((proctorId) => {
+                                                        const teacher = teachers.find((t) => t.id === proctorId);
+                                                        const invRecord = assignedInvigilators.find((i) => i.user_id === proctorId);
+                                                        const teacherName =
+                                                            teacher?.name || invRecord?.profiles?.full_name || 'Pengawas';
+                                                        const roles = teacher?.roles || ['Pengawas'];
+                                                        const otherRooms = (teacherAssignmentMap.get(proctorId) || []).filter(
+                                                            (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
+                                                        );
+
+                                                        return (
+                                                            <div
+                                                                key={proctorId}
+                                                                className="flex items-center justify-between p-2.5 bg-slate-50/80 border border-slate-200/90 rounded-xl"
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
+                                                                        <ShieldCheck size={14} />
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-xs font-bold text-slate-800 truncate">
+                                                                            {teacherName}
+                                                                        </p>
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-[10px] text-slate-500">
+                                                                                {roles.join(', ')}
+                                                                            </span>
+                                                                            {otherRooms.length > 0 && (
+                                                                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                                                                                    Juga di: {otherRooms.join(', ')}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {!period.is_locked && (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={isSaving}
+                                                                        onClick={() => handleRemoveRoomProctor(room, proctorId)}
+                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                                                                        title="Hapus pengawas dari ruang dan sesi ini"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Dropdown Tambah Pengawas */}
+                                        {!period.is_locked && (
+                                            <div className="pt-2 border-t border-slate-100">
+                                                <InlineSelect
+                                                    disabled={!selectedProctorSessionId || isSaving}
+                                                    value=""
+                                                    onChange={(teacherId) => handleAddRoomProctor(room, teacherId)}
+                                                    minWidth="100%"
+                                                    height="36px"
+                                                    title={`Tambah Pengawas ke ${room.name}`}
+                                                    options={[
+                                                        { value: '', label: '+ Tambah Guru / Pengawas ke Ruangan Ini...' },
+                                                        ...availableTeachers.map((t) => {
+                                                            const otherRooms = (teacherAssignmentMap.get(t.id) || []).filter(
+                                                                (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
+                                                            );
+                                                            const conflictNotice =
+                                                                otherRooms.length > 0
+                                                                    ? ` (⚠️ Ditugaskan di: ${otherRooms.join(', ')})`
+                                                                    : '';
+                                                            return {
+                                                                value: t.id,
+                                                                label: `${t.name}${t.roles?.length ? ` (${t.roles.join(', ')})` : ''}${conflictNotice}`,
+                                                            };
+                                                        }),
+                                                    ]}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 

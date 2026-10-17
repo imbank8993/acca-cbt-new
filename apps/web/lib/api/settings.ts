@@ -25,6 +25,12 @@ export interface AppConfig {
     time_zone_source?: 'site_settings' | 'app_config' | 'default';
 }
 
+/** key: 'exam_administration' — shared by ASAS, ASAT and AM documents. */
+export interface ExamAdministrationSettings {
+    committee_chair_name: string;
+    committee_chair_nip: string;
+}
+
 /** key: 'announcement_config' — bisa satu objek, bisa array. */
 export interface Announcement {
     id?: string;

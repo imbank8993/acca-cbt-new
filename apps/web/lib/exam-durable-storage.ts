@@ -45,6 +45,7 @@ export interface QueuedSecurityEvent {
     eventType: string;
     metadata: Record<string, unknown>;
     createdAt: string;
+    screenshotBase64?: string;
 }
 
 /**
@@ -299,7 +300,8 @@ function readLegacySecurityQueue(attemptId: string): QueuedSecurityEvent[] {
         return parsed.filter((item): item is QueuedSecurityEvent =>
             Boolean(item) && typeof item.id === 'string' && item.attemptId === attemptId &&
             typeof item.eventType === 'string' && typeof item.createdAt === 'string' &&
-            typeof item.metadata === 'object' && item.metadata !== null,
+            typeof item.metadata === 'object' && item.metadata !== null &&
+            (item.screenshotBase64 === undefined || typeof item.screenshotBase64 === 'string'),
         );
     } catch {
         return [];
@@ -311,7 +313,15 @@ function writeLegacySecurityQueue(attemptId: string, events: QueuedSecurityEvent
         localStorage.setItem(securityQueueKey(attemptId), JSON.stringify(events));
         return true;
     } catch {
-        return false;
+        // Bila kuota localStorage penuh akibat ukuran base64 screenshot, tetap
+        // cadangkan catatan pelanggaran teksnya sementara gambar disimpan di IndexedDB.
+        try {
+            const withoutScreenshots = events.map(({ screenshotBase64: _, ...rest }) => rest);
+            localStorage.setItem(securityQueueKey(attemptId), JSON.stringify(withoutScreenshots));
+            return true;
+        } catch {
+            return false;
+        }
     }
 }
 
@@ -370,7 +380,15 @@ export function createSecurityEventId(): string {
 /** Simpan event sebelum mencoba jaringan agar offline/reload tidak menghilangkannya. */
 export async function enqueueSecurityEvent(event: QueuedSecurityEvent): Promise<ExamStorageWriteResult> {
     const legacy = readLegacySecurityQueue(event.attemptId);
-    if (!legacy.some(item => item.id === event.id)) legacy.push(event);
+    const existingIndex = legacy.findIndex(item => item.id === event.id);
+    if (existingIndex >= 0) {
+        const prev = legacy[existingIndex];
+        legacy[existingIndex] = prev.screenshotBase64 && !event.screenshotBase64
+            ? { ...event, screenshotBase64: prev.screenshotBase64 }
+            : event;
+    } else {
+        legacy.push(event);
+    }
     const mirrored = writeLegacySecurityQueue(event.attemptId, legacy);
     try {
         await idbPutSecurityEvent(event);
@@ -386,7 +404,14 @@ export async function readSecurityEvents(attemptId: string): Promise<QueuedSecur
     const legacy = readLegacySecurityQueue(attemptId);
     try {
         const durable = await idbReadSecurityEvents(attemptId);
-        const merged = new Map([...legacy, ...durable].map(event => [event.id, event]));
+        const merged = new Map<string, QueuedSecurityEvent>();
+        for (const event of legacy) merged.set(event.id, event);
+        for (const event of durable) {
+            const prev = merged.get(event.id);
+            merged.set(event.id, prev?.screenshotBase64 && !event.screenshotBase64
+                ? { ...event, screenshotBase64: prev.screenshotBase64 }
+                : event);
+        }
         return Array.from(merged.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     } catch {
         return legacy.sort((a, b) => a.createdAt.localeCompare(b.createdAt));

@@ -103,7 +103,7 @@ test('proctors retain monitoring of inactive PAS exams while ordinary foreign dr
  const admin = new ExamAdminService(db, auth, roles);
  assert.deepEqual((await admin.list({ id: 'proctor' }, 'school')).map(row => row.id), ['e1', 'e2', 'e3']);
  const query = db.queries.filter(query => query.table === 'cbt_exams').find(query => query.calls.some(call => call[0] === 'or'));
- assert.deepEqual(query.calls.find(call => call[0] === 'or'), ['or', 'created_by.eq.proctor,is_published.eq.true,exam_type.in.(pas,pat,pts,pkn)']);
+ assert.deepEqual(query.calls.find(call => call[0] === 'or'), ['or', 'created_by.eq.proctor,is_published.eq.true,exam_type.in.(pas,pat,pts,pkn,am)']);
 });
 
 test('room monitoring discovers exams across class/room boundaries but never another session', async () => {
@@ -113,6 +113,17 @@ test('room monitoring discovers exams across class/room boundaries but never ano
  await assert.rejects(auth.assertExamMonitoring({ id: 'guard' }, 'e3'), /izin/);
  db.tables.cbt_pas_room_invigilators[0].user_id = 'teacherGuard';
  assert.deepEqual(await auth.assertExamMonitoring({ id: 'teacherGuard' }, 'e2'), ['u1', 'u3', 'u5']);
+});
+
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: assigned room monitoring and reset permissions match`, async () => {
+ const { db, auth } = roomFixture();
+ for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
+ assert.deepEqual(await auth.assertExamMonitoring({ id: 'guard' }, 'e1'), ['u1', 'u3', 'u5']);
+ await assert.rejects(auth.assertExamMonitoring({ id: 'guard' }, 'e3'), /izin/);
+ const exam = db.tables.cbt_exams[0];
+ assert.equal((await auth.getExamResetScope({ id: 'proctor' }, exam)).allParticipants, true);
+ assert.deepEqual((await auth.getExamResetScope({ id: 'guard' }, exam)).studentIds, ['u1', 'u3', 'u5']);
+ assert.equal(await auth.canManageExam({ id: 'teacherGuard' }, { ...exam, created_by: 'teacherGuard' }), false);
 });
 
 test('room roster includes only its started and unstarted students, across different classes', async () => {
@@ -201,9 +212,10 @@ for (const examType of ['quiz', 'daily', 'assignment', 'pas', 'pat', 'pts', 'pkn
  });
 }
 
-test('PAS invigilators can recover and start makeup only for students in their room and session', async () => {
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: invigilators recover and start makeup only for their room and session`, async () => {
  for (const method of ['resetAttempt', 'startMakeupAttempt']) {
   const { db, auth } = roomFixture();
+  for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
   const service = new ProctoringService(db, auth, {});
   await assert.rejects(service[method]({ id: 'guard' }, 'a2', 'Gangguan jaringan', 15), /ruang dan sesi/);
   assert.equal(db.writes.length, 0);
@@ -216,6 +228,7 @@ test('PAS invigilators can recover and start makeup only for students in their r
   assert.equal(event.attempt_id, 'a1');
  }
  const { db, auth } = roomFixture();
+ for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
  db.tables.cbt_exam_attempts.push({ id: 'later', exam_id: 'e3', user_id: 'u1', status: 'submitted' });
  const service = new ProctoringService(db, auth, {});
  await assert.rejects(service.resetAttempt({ id: 'guard' }, 'later', 'Gangguan jaringan', 15), /ruang dan sesi/);
@@ -224,10 +237,11 @@ test('PAS invigilators can recover and start makeup only for students in their r
  assert.equal(db.writes.length, 0);
 });
 
-test('Proktor/Admin have full PAS recovery and makeup rights, including other exam creators', async () => {
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: Proktor/Admin have full recovery and makeup rights`, async () => {
  for (const id of ['proctor', 'admin']) {
   for (const method of ['resetAttempt', 'startMakeupAttempt']) {
    const { db, auth } = roomFixture();
+   for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
    const service = new ProctoringService(db, auth, {});
    assert.equal(await auth.canManageExam({ id }, db.tables.cbt_exams[0], 'reset'), true);
    await service[method]({ id }, 'a2', 'Gangguan jaringan', 15);

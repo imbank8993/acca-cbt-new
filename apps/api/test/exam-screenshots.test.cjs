@@ -71,6 +71,14 @@ test('saved screenshots replay idempotently; altered payloads never replace earl
  assert.equal(Date.parse(row.expires_at) - Date.parse(row.created_at), 7 * 86400000);
 });
 
+test('the last violation screenshot can still be saved after automatic submission', async () => {
+ const f = fixture();
+ f.db.tables.cbt_exam_attempts[0].status = 'auto_submitted';
+ const result = await upload(f);
+ assert.equal(result.saved, true);
+ assert.equal(f.db.tables.cbt_exam_screenshots.length, 1);
+});
+
 test('quota and cooldown are enforced by the server even after browser reload; records survive image expiration', async () => {
  const f = fixture();
  f.db.tables.cbt_exam_screenshots = Array.from({ length: 10 }, (_, i) => ({ id: 'old-' + i, attempt_id: 'attempt', created_at: '2020-01-01', deleted_at: '2020-01-08' }));
@@ -133,3 +141,74 @@ test('enabled exams require screen-sharing readiness before starting or resuming
  db.tables.cbt_exams[0].metadata.screenshot_enabled = false;
  assert.equal((await service.start({ id: 'student' }, 'exam', device)).started, true);
 });
+
+test('offline queued screenshots survive reconnect burst upload when captured >= 30s apart while enforcing cooldown for closer events', async () => {
+ const f = fixture();
+ const nowMs = Date.now();
+ const t1 = new Date(nowMs - 5 * 60 * 1000).toISOString();
+ const t2 = new Date(nowMs - 4 * 60 * 1000).toISOString();
+ const tTooClose = new Date(nowMs - 4 * 60 * 1000 + 10_000).toISOString();
+ f.db.tables.cbt_attempt_security_logs = [
+  { id: 'ev-1', attempt_id: 'attempt', event_type: 'tab_switch', created_at: new Date(nowMs - 5 * 60 * 1000).toISOString(), metadata: { client_event_id: 'offline-1', source: 'student', timestamp: t1 } },
+  { id: 'ev-2', attempt_id: 'attempt', event_type: 'exit_fullscreen', created_at: new Date(nowMs).toISOString(), metadata: { client_event_id: 'offline-2', source: 'student', timestamp: t2 } },
+  { id: 'ev-3', attempt_id: 'attempt', event_type: 'restricted_shortcut', created_at: new Date(nowMs).toISOString(), metadata: { client_event_id: 'offline-3', source: 'student', timestamp: tTooClose } },
+ ];
+ const first = await upload(f, { id: 'student' }, 'offline-1');
+ const second = await upload(f, { id: 'student' }, 'offline-2');
+ const third = await upload(f, { id: 'student' }, 'offline-3');
+ assert.equal(first.saved, true);
+ assert.equal(second.saved, true);
+ assert.deepEqual(third, { saved: false, reason: 'cooldown' });
+ assert.equal(f.db.tables.cbt_exam_screenshots.length, 2);
+ assert.equal(f.db.tables.cbt_exam_screenshots[0].created_at, t1);
+ assert.equal(f.db.tables.cbt_exam_screenshots[1].created_at, t2);
+});
+
+test('durable security queue persists screenshotBase64 and falls back gracefully if localStorage quota is exceeded', async () => {
+ const securityStorage = require('../../web/lib/exam-durable-storage.ts');
+ const values = new Map();
+ let throwOnLargePayload = false;
+ const prevIdb = global.indexedDB;
+ const prevLocal = global.localStorage;
+ delete global.indexedDB;
+ global.localStorage = {
+  getItem: key => values.get(key) ?? null,
+  setItem: (key, value) => {
+   if (throwOnLargePayload && value.includes(encoded)) throw new Error('QuotaExceededError');
+   values.set(key, value);
+  },
+  removeItem: key => values.delete(key),
+ };
+ try {
+  const baseEvent = {
+   id: 'offline-ss-event',
+   attemptId: 'attempt-ss',
+   eventType: 'tab_switch',
+   metadata: { timestamp: '2026-10-17T03:00:00.000Z' },
+   createdAt: '2026-10-17T03:00:00.000Z',
+  };
+  await securityStorage.enqueueSecurityEvent(baseEvent);
+  await securityStorage.enqueueSecurityEvent({ ...baseEvent, screenshotBase64: encoded });
+  const queued = await securityStorage.readSecurityEvents('attempt-ss');
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].screenshotBase64, encoded);
+
+  // Even if localStorage rejects the large screenshot payload, the security event itself is still preserved.
+  throwOnLargePayload = true;
+  const fallbackWrite = await securityStorage.enqueueSecurityEvent({
+   id: 'offline-ss-event-2',
+   attemptId: 'attempt-ss',
+   eventType: 'exit_fullscreen',
+   metadata: { timestamp: '2026-10-17T03:01:00.000Z' },
+   createdAt: '2026-10-17T03:01:00.000Z',
+   screenshotBase64: encoded,
+  });
+  assert.equal(fallbackWrite.saved, true);
+  const afterQuota = await securityStorage.readSecurityEvents('attempt-ss');
+  assert.equal(afterQuota.length, 2);
+ } finally {
+  if (prevIdb !== undefined) global.indexedDB = prevIdb;
+  if (prevLocal === undefined) delete global.localStorage; else global.localStorage = prevLocal;
+ }
+});
+

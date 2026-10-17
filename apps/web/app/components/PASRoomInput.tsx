@@ -81,15 +81,15 @@ export function PASRoomInput({ value, onChange, onCapacityChange, existingRooms 
                 if (room?.capacity && room.capacity > 0) onCapacityChange?.(room.capacity);
             }}
             placeholder="Cari atau ketik nama ruang..."
-            className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
+            className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
         />
         {open && <div id={id} role="listbox" aria-label="Daftar ruang"
-            className="absolute left-0 right-0 top-[42px] z-50 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-[var(--card)]">
+            className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-700 dark:bg-[var(--card)]">
             {filtered.map((room, index) => <button key={room.name} type="button" role="option" id={`${id}-${index}`}
                 aria-selected={index === active}
                 onMouseDown={event => event.preventDefault()}
                 onClick={() => select(room)}
-                className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800 ${index === active ? 'bg-blue-50 dark:bg-slate-800' : ''}`}>
+                className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-blue-50 dark:text-slate-200 dark:hover:bg-slate-800 ${index === active ? 'bg-blue-50 dark:bg-slate-800' : ''}`}>
                 <span>{room.name}</span>
                 <span className="shrink-0 text-xs text-slate-500">{room.capacity ? `${room.capacity} kursi` : ''}</span>
             </button>)}

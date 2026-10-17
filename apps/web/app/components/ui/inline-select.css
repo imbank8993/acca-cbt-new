@@ -66,13 +66,13 @@
 }
 
 .dark .uisel select.uisel-input {
-    background-color: #0b1329 !important;
+    background-color: var(--input, #1c2439) !important;
     border: 1.5px solid rgba(59, 130, 246, 0.45) !important;
     color: #e2e8f0 !important;
 }
 
 .dark .uisel select.uisel-input option {
-    background-color: #0b1329 !important;
+    background-color: var(--input, #1c2439) !important;
     color: #ffffff !important;
 }
 

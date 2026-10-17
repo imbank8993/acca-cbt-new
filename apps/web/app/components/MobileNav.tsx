@@ -7,6 +7,7 @@ BookOpen,
 Calendar,
 ClipboardCheck,
 LayoutDashboard,
+Settings,
 Users
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -29,9 +30,7 @@ const MobileNav = () => {
 
     // Setiap href di bawah menunjuk halaman yang benar-benar ada.
     //
-    // Sebelumnya menu ini diwarisi dari produk asalnya dan separuh tautannya
-    // mati — yang terburuk /dashboard/settings, yang muncul di SETIAP peran,
-    // sehingga tombol "Set" tidak pernah berfungsi untuk siapa pun.
+    // Pengaturan hanya tersedia pada Admin/Proktor melalui route perannya.
     const navConfig: Record<string, Array<{ icon: LucideIcon; label: string; href: string }>> = {
         'Admin': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/admin' },
@@ -39,6 +38,7 @@ const MobileNav = () => {
             { icon: Activity, label: 'Monitor', href: '/dashboard/admin/monitoring' },
             { icon: BookOpen, label: 'Bank', href: '/dashboard/admin/questions' },
             { icon: Users, label: 'Kelas', href: '/dashboard/admin/classes' },
+            { icon: Settings, label: 'Set', href: '/dashboard/admin/settings' },
         ],
         'Proktor': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/proktor' },
@@ -46,6 +46,7 @@ const MobileNav = () => {
             { icon: Activity, label: 'Monitor', href: '/dashboard/proktor/monitoring' },
             { icon: BookOpen, label: 'Bank', href: '/dashboard/proktor/questions' },
             { icon: Users, label: 'Kelas', href: '/dashboard/proktor/classes' },
+            { icon: Settings, label: 'Set', href: '/dashboard/proktor/settings' },
         ],
         'Guru': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/guru' },
@@ -57,6 +58,7 @@ const MobileNav = () => {
         'Pengawas': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/pengawas' },
             { icon: Activity, label: 'Monitor', href: '/dashboard/pengawas/monitoring' },
+            { icon: ClipboardCheck, label: 'Admin', href: '/dashboard/pengawas/administration' },
         ],
         'Siswa': [
             { icon: LayoutDashboard, label: 'Dash', href: '/dashboard/siswa' },

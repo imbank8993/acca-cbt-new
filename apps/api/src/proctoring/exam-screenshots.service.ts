@@ -10,6 +10,7 @@ import { advisoryTransactionLock } from '../common/transaction-lock';
 export const SCREENSHOT_LIMIT = 10;
 export const SCREENSHOT_BYTES = 200 * 1024;
 export const SCREENSHOT_INTERVAL_MS = 30_000;
+export const SCREENSHOT_MAX_EVENT_AGE_MS = 6 * 60 * 60 * 1000;
 export const SCREENSHOT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
 
@@ -65,7 +66,7 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
                 const { data: exam } = await db.from('cbt_exams').select('metadata').eq('id', attempt.exam_id).maybeSingle();
                 if (exam?.metadata?.screenshot_enabled !== true) throw new ForbiddenException('Screenshot tidak diaktifkan pada ujian ini.');
                 const { data: event, error: eventError } = await db.from('cbt_attempt_security_logs')
-                    .select('id, event_type, created_at').eq('attempt_id', attemptId)
+                    .select('id, event_type, created_at, metadata').eq('attempt_id', attemptId)
                     .contains('metadata', { client_event_id: clientEventId, source: 'student' }).maybeSingle();
                 if (eventError) throw new ServiceUnavailableException('Catatan kejadian belum dapat diperiksa.');
                 const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
@@ -80,11 +81,15 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
                     return { saved: true, id: previous.id };
                 }
                 const age = now.getTime() - Date.parse(event.created_at);
-                if (age < -5000 || age > 120_000 || !['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status)) throw new BadRequestException('Waktu pengiriman screenshot sudah lewat.');
+                if (age < -5000 || age > SCREENSHOT_MAX_EVENT_AGE_MS || !['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status)) throw new BadRequestException('Waktu pengiriman screenshot sudah lewat.');
+                const rawClientTime = typeof event.metadata?.timestamp === 'string' ? Date.parse(event.metadata.timestamp) : NaN;
+                const capturedAt = Number.isFinite(rawClientTime) && rawClientTime <= now.getTime() + 5000 && now.getTime() - rawClientTime <= SCREENSHOT_MAX_EVENT_AGE_MS
+                    ? new Date(Math.min(rawClientTime, now.getTime()))
+                    : now;
                 const { data: rows, error: rowsError } = await db.from('cbt_exam_screenshots').select('created_at').eq('attempt_id', attemptId);
                 if (rowsError) throw new ServiceUnavailableException('Kuota screenshot belum dapat diperiksa.');
                 if ((rows || []).length >= SCREENSHOT_LIMIT) return { saved: false, reason: 'limit' };
-                if ((rows || []).some((row: { created_at: string }) => now.getTime() - Date.parse(row.created_at) < SCREENSHOT_INTERVAL_MS)) return { saved: false, reason: 'cooldown' };
+                if ((rows || []).some((row: { created_at: string }) => Math.abs(capturedAt.getTime() - Date.parse(row.created_at)) < SCREENSHOT_INTERVAL_MS)) return { saved: false, reason: 'cooldown' };
                 const id = randomUUID();
                 const objectKey = `exam-evidence/${now.toISOString().slice(0, 10)}/${id}.bin`;
                 const stored = await this.storage.putObject(objectKey, encryptScreenshot(image, key), 'application/octet-stream');
@@ -92,7 +97,7 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
                 uploadedKey = objectKey;
                 const { error: insertError } = await db.from('cbt_exam_screenshots').insert({ id, attempt_id: attemptId, event_id: event.id,
                     event_type: event.event_type, object_key: objectKey, content_type: contentType, byte_size: image.length, content_hash: hash,
-                    created_at: now.toISOString(), expires_at: new Date(now.getTime() + SCREENSHOT_RETENTION_MS).toISOString() });
+                    created_at: capturedAt.toISOString(), expires_at: new Date(capturedAt.getTime() + SCREENSHOT_RETENTION_MS).toISOString() });
                 if (insertError) throw new ServiceUnavailableException('Catatan screenshot belum berhasil disimpan.');
                 return { saved: true, id };
             });

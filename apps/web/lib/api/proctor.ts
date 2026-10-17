@@ -512,7 +512,7 @@ export interface ExamInput {
     title: string;
     description?: string;
     duration: number;
-    examType?: 'daily' | 'pas' | 'pat' | 'tryout' | 'lainnya' | 'assignment';
+    examType?: 'daily' | 'pas' | 'pat' | 'am' | 'tryout' | 'lainnya' | 'assignment';
     timeZone?: string;
     startTime?: string;
     endTime?: string;

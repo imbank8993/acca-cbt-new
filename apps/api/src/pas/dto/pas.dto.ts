@@ -171,3 +171,74 @@ export class AssignRoomInvigilatorsDto extends AssignUsersDto {
     @IsUUID('4', { message: 'Pilih sesi ujian yang valid.' })
     sessionId!: string;
 }
+
+export class PASStudentAttendanceItemDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'user_id peserta tidak valid' })
+    user_id!: string;
+
+    @ApiProperty({ example: 'hadir', enum: ['hadir', 'sakit', 'izin', 'alpha'] })
+    @IsString()
+    @IsNotEmpty()
+    status!: 'hadir' | 'sakit' | 'izin' | 'alpha';
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    remark?: string;
+}
+
+export class SavePASAdministrationDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'pas_period_id tidak valid' })
+    pas_period_id!: string;
+
+    @ApiProperty()
+    @IsUUID('4', { message: 'pas_room_id tidak valid' })
+    pas_room_id!: string;
+
+    @ApiProperty()
+    @IsUUID('4', { message: 'session_id tidak valid' })
+    session_id!: string;
+
+    @ApiProperty({ example: DATE_EXAMPLE })
+    @IsString()
+    @IsNotEmpty({ message: 'Tanggal pelaksanaan wajib diisi.' })
+    exam_date!: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    notes?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    incident_summary?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('4', { message: 'invigilator_id tidak valid' })
+    invigilator_id?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    invigilator_name?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsUUID('4', { message: 'proctor_id tidak valid' })
+    proctor_id?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    proctor_name?: string;
+
+    @ApiPropertyOptional({ type: [PASStudentAttendanceItemDto] })
+    @IsOptional()
+    @IsArray()
+    attendances?: PASStudentAttendanceItemDto[];
+}
+

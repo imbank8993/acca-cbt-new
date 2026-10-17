@@ -1,9 +1,10 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from './chunk';
+import { isSemesterAssessmentExam } from './exam-types';
 
 export function isPasMonitoringExam(exam: { exam_type?: string | null }): boolean {
-    return ['pas', 'pat', 'pts', 'pkn'].includes(exam.exam_type || '');
+    return isSemesterAssessmentExam(exam) || ['pts', 'pkn'].includes(exam.exam_type || '');
 }
 
 /** Resolve rooms and their actual occupants through school-owned periods and sessions. */

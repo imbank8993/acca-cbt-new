@@ -373,7 +373,7 @@
    DARK MODE
 ========================================================= */
 .dark .dpk-trigger {
-    background: #0b1329 !important;
+    background: var(--input, #1c2439) !important;
     border: 1px solid rgba(59, 130, 246, 0.35) !important;
     color: #f1f5f9 !important;
 }
@@ -398,7 +398,7 @@
 }
 
 .dark .dpk-panel {
-    background: #0b1329 !important;
+    background: var(--input, #1c2439) !important;
     border: 1px solid rgba(48, 131, 255, 0.4) !important;
     border-radius: 16px !important;
     box-shadow: 0 0 35px rgba(48, 131, 255, 0.35) !important;
@@ -452,7 +452,7 @@
 }
 
 .dark .dpk-range-summary {
-    background: #0b1329 !important;
+    background: var(--input, #1c2439) !important;
     border: 1px solid rgba(48, 131, 255, 0.25) !important;
 }
 
