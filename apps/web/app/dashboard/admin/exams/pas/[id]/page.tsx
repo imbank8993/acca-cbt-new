@@ -17,8 +17,6 @@ getPASPeriod,
 listOrganizationClasses,
 listPASSessions,
 listPASRooms,
-
-    deletePASPeriodAction,
     listSubjects,
     removePASScheduleAction,
     type PASRoom,
@@ -36,13 +34,11 @@ import {
     BookOpen,
     Calendar,
     Check,
-    Edit3,
     FolderOpen,
     Loader2,
     Lock,
     Search,
     Table,
-    Trash2,
     UserCheck,
     X,
     Zap
@@ -78,22 +74,6 @@ export default function AdminPASDetailPage() {
     const [classFilter, setClassFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-    const handleDeletePeriod = async () => {
-        if (!period) return;
-        const ok = await deleteConfirmDialog({
-            title: 'Hapus Folder Ujian?',
-            text: `Semua jadwal, ruang, dan data administrasi di dalam folder "${period.name}" akan dihapus permanen.`,
-        });
-        if (!ok) return;
-        const res = await deletePASPeriodAction(period.id);
-        if (res.success) {
-            await alertDialog({ title: 'Berhasil', text: 'Folder ujian berhasil dihapus.', variant: 'success' });
-            router.push('/dashboard/admin/exams');
-        } else {
-            await alertDialog({ title: 'Gagal Menghapus', text: res.error || 'Terjadi kesalahan saat menghapus folder.', variant: 'danger' });
-        }
-    };
 
     const [scheduleForm, setScheduleForm] = useState({
         bank_id: '',
@@ -435,28 +415,6 @@ export default function AdminPASDetailPage() {
                                 <p className="text-sm font-bold text-slate-800">{readySchedulesCount}/{schedules.length} Siap</p>
                             </div>
                         </div>
-
-                        {!period.is_locked && (
-                            <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEditModalOpen(true)}
-                                    className="px-2.5 py-2 text-slate-700 hover:text-[#3083FF] hover:bg-blue-50 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
-                                    title="Edit Folder & Ketua Panitia"
-                                >
-                                    <Edit3 size={13} />
-                                    <span className="hidden sm:inline">Edit Folder</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleDeletePeriod}
-                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center justify-center"
-                                    title="Hapus Folder Ujian"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
