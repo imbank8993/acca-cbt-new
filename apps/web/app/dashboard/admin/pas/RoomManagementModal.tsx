@@ -50,12 +50,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface RoomManagementPanelProps {
     period: PASPeriod;
-    view: 'rooms' | 'sessions' | 'invigilators';
+    view?: 'rooms' | 'sessions' | 'invigilators';
+    onViewChange?: (view: 'rooms' | 'sessions' | 'invigilators') => void;
     onChange?: () => void;
 }
 
-export default function RoomManagementPanel({ period, view: activeTab, onChange }: RoomManagementPanelProps) {
+export default function RoomManagementPanel({ period, view, onViewChange, onChange }: RoomManagementPanelProps) {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
+    const [internalTab, setInternalTab] = useState<'rooms' | 'sessions' | 'invigilators'>(view || 'rooms');
+    const activeTab = view || internalTab;
+
+    useEffect(() => {
+        if (view) setInternalTab(view);
+    }, [view]);
+
+    const handleTabChange = (nextTab: 'rooms' | 'sessions' | 'invigilators') => {
+        setInternalTab(nextTab);
+        onViewChange?.(nextTab);
+    };
+
     const [rooms, setRooms] = useState<PASRoom[]>([]);
     const [teachers, setTeachers] = useState<PASStaffMember[]>([]);
     const [classes, setClasses] = useState<OrganizationClass[]>([]);
@@ -424,6 +437,60 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                     {timeZoneError}
                 </div>
             )}
+
+            {/* ── Sub-tab Navigation (Ruang, Sesi, Pengawas) ── */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl w-fit border border-slate-200/70">
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('rooms')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'rooms'
+                            ? 'bg-white text-[#3083FF] shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                    <DoorOpen size={13} />
+                    Ruang Ujian
+                    {rooms.length > 0 && (
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            activeTab === 'rooms' ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {rooms.length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('sessions')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'sessions'
+                            ? 'bg-white text-[#3083FF] shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                    <Clock size={13} />
+                    Sesi Ujian
+                    {sessions.length > 0 && (
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            activeTab === 'sessions' ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            {sessions.length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleTabChange('invigilators')}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'invigilators'
+                            ? 'bg-white text-[#3083FF] shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                    <ShieldCheck size={13} />
+                    Pengawas Ruang
+                </button>
+            </div>
 
             {/* ══════════════════════════════════════════════════════════
                 TAB 1: RUANGAN & PESERTA

@@ -34,6 +34,8 @@ import {
     BookOpen,
     Calendar,
     Check,
+    DoorOpen,
+    FileText,
     FolderOpen,
     Loader2,
     Lock,
@@ -49,7 +51,8 @@ import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel'
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
-type TabId = 'schedules' | 'live_today' | 'rooms' | 'sessions' | 'invigilators' | 'administration' | 'bulk';
+type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'administration' | 'bulk';
+type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
 
 export default function ProctorPASDetailPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
@@ -65,6 +68,7 @@ export default function ProctorPASDetailPage() {
     const [rooms, setRooms] = useState<PASRoom[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
+    const [logisticsSubTab, setLogisticsSubTab] = useState<LogisticsSubTab>('rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAddScheduleOpen, setIsAddScheduleOpen] = useState(false);
     const [selectedScheduleIds, setSelectedScheduleIds] = useMemoryState<string[]>('proktor_exams_pas__id__selectedScheduleIds', []);
@@ -440,14 +444,23 @@ export default function ProctorPASDetailPage() {
                         )}
                     </button>
 
-                    {(['rooms', 'sessions', 'invigilators'] as const).map(tab => (
-                        <button key={tab} type="button" onClick={() => setActiveTab(tab)}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                                activeTab === tab ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('rooms_sessions')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                            activeTab === 'rooms_sessions' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <DoorOpen size={13} />
+                        Ruang & Sesi
+                        {rooms.length > 0 && (
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                activeTab === 'rooms_sessions' ? 'bg-[#3083FF]/10 text-[#3083FF]' : 'bg-slate-200 text-slate-500'
                             }`}>
-                            {tab === 'rooms' ? 'Ruang' : tab === 'sessions' ? 'Sesi Ujian' : 'Pengawas'}
-                        </button>
-                    ))}
+                                {rooms.length}
+                            </span>
+                        )}
+                    </button>
                     <button
                         type="button"
                         onClick={() => setActiveTab('administration')}
@@ -455,6 +468,7 @@ export default function ProctorPASDetailPage() {
                             activeTab === 'administration' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
                         }`}
                     >
+                        <FileText size={13} />
                         Administrasi
                     </button>
                     {!period.is_locked && (
@@ -501,9 +515,13 @@ export default function ProctorPASDetailPage() {
                 )}
             </div>
 
-            {(activeTab === 'rooms' || activeTab === 'sessions' || activeTab === 'invigilators') && (
-                <RoomManagementPanel period={period} view={activeTab}
-                    onChange={() => void loadData()} />
+            {activeTab === 'rooms_sessions' && (
+                <RoomManagementPanel
+                    period={period}
+                    view={logisticsSubTab}
+                    onViewChange={setLogisticsSubTab}
+                    onChange={() => void loadData()}
+                />
             )}
 
             {activeTab === 'administration' && (
@@ -776,7 +794,14 @@ export default function ProctorPASDetailPage() {
                                                                 <div className="mt-1 text-xs text-slate-500 tabular-nums">{timeLabel} {tzLabel}</div>
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                <PASScheduleRooms schedule={sc} rooms={rooms} onManage={() => setActiveTab('rooms')} />
+                                                                <PASScheduleRooms
+                                                                    schedule={sc}
+                                                                    rooms={rooms}
+                                                                    onManage={() => {
+                                                                        setActiveTab('rooms_sessions');
+                                                                        setLogisticsSubTab('rooms');
+                                                                    }}
+                                                                />
                                                             </td>
                                                             <td className="py-3 px-3">
                                                                 <PASScheduleStatus schedule={sc} />
