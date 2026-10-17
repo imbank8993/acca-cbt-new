@@ -84,7 +84,12 @@ test('active table starts without a duplicate header and detail panel uses the l
     const source=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/ActiveParticipantsPanel.tsx'),'utf8');
     const code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.React,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
     const mod={exports:{}};
+    const roomSource=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/monitoring/ParticipantRoomInfo.tsx'),'utf8');
+    const roomCode=ts.transpileModule(roomSource,{compilerOptions:{jsx:ts.JsxEmit.React,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+    const roomMod={exports:{}};
+    new Function('module','exports','React',roomCode)(roomMod,roomMod.exports,React);
     const modules={ react:React, '@/lib/active-monitoring':{activeMonitoringRows,activeMonitoringFacts},
+        './monitoring/ParticipantRoomInfo':roomMod.exports,
         '@/lib/monitoring-time':require('../../web/lib/monitoring-time.ts'),
         '@/lib/monitoring-health':require('../../web/lib/monitoring-health.ts'),
         '@/lib/school-time':{formatSchoolDateTime:value=>value,getSchoolTimeZone:async()=>'Asia/Makassar'},
@@ -93,17 +98,26 @@ test('active table starts without a duplicate header and detail panel uses the l
     const nodes=root=>!root||typeof root!=='object'?[]:Array.isArray(root)?root.flatMap(nodes):[root,...nodes(root.children)];
     const text=root=>root==null||typeof root==='boolean'?'':typeof root!=='object'?String(root):Array.isArray(root)?root.map(text).join(''):text(root.children);
     let attempts=[row({client_context:{browser:'Chrome 131',os:'Windows',ip_address:'192.0.2.8',observed_at:now}}),row({id:'ending',deadline_at:'2026-10-14T06:03:00Z'})];
+    attempts[1].pas_location={status:'assigned',room_name:'Laboratorium IPA',session_name:'Sesi Pagi',invigilators:[{id:'guard',full_name:'Bu Sari'}]};
     const render=()=>{cursor=0;return mod.exports.ActiveParticipantsPanel({attempts})};
     let tree=render();
     assert.match(text(tree),/Chrome 131/);assert.match(text(tree),/IP: 192\.0\.2\.8/);
+    assert.match(text(tree),/Ruang: Laboratorium IPA · Sesi Pagi/);
+    assert.match(text(tree),/Pengawas: Bu Sari/);
+    assert.equal(text(roomMod.exports.ParticipantRoomInfo({attempt:{}})), '');
+    assert.match(text(roomMod.exports.ParticipantRoomInfo({attempt:{pas_location:{status:'unavailable'}}})),/belum tersedia/);
+    assert.match(text(roomMod.exports.ParticipantRoomInfo({attempt:{pas_location:{status:'unassigned',invigilators:[]}}})),/Belum ditempatkan/);
+    assert.match(text(roomMod.exports.ParticipantRoomInfo({attempt:{pas_location:{status:'assigned',room_name:'Lab',invigilators:[]}}})),/Belum ditugaskan/);
     assert.equal(nodes(tree).some(node=>node.props['aria-label']==='Filter peserta aktif'),false);
     assert.doesNotMatch(text(tree),/prioritas bantuan ditampilkan dahulu/);
     assert.equal(nodes(tree).filter(node=>node.type==='tbody')[0].children[0].length,2);
     const endingRow=nodes(tree).find(node=>node.type==='tr'&&node.props.key==='ending');
     nodes(endingRow).find(node=>node.type==='button'&&text(node)==='Detail').props.onClick();
-    attempts=attempts.map(a=>a.id==='ending'?{...a,saved_answer_count:30}:a);
+    attempts=attempts.map(a=>a.id==='ending'?{...a,saved_answer_count:30,pas_location:{...a.pas_location,invigilators:[{id:'replacement',full_name:'Pak Budi'}]}}:a);
     tree=render();const dialog=nodes(tree).find(node=>node.type==='dialog');
     assert.match(text(dialog),/30 \/ 40/);
+    assert.match(text(dialog),/Pengawas: Pak Budi/);
+    assert.doesNotMatch(text(dialog),/Bu Sari/);
     assert.equal(dialog.props['aria-labelledby'],'active-participant-title');
     nodes(dialog).find(node=>node.type==='button'&&node.props['aria-label']==='Tutup detail peserta').props.onClick();
     tree=render();assert.doesNotMatch(text(nodes(tree).find(node=>node.type==='dialog')), /30 \/ 40/);

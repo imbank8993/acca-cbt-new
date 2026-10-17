@@ -58,7 +58,7 @@ export class ExamAdminService {
         let assignedStudents: Map<string, string[]> | undefined;
         const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
             await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true,exam_type.in.(pas,pat,pts,pkn)`);
         else if (!canSeeAll) {
             // Cari bank soal milik guru ini
             const { data: ownedBanks } = await this.db
@@ -83,7 +83,7 @@ export class ExamAdminService {
             return [];
         }
 
-        let exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true);
+        let exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true || isPasMonitoringExam(exam));
         if (isInvigilator && !elevated) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
             const assignedIds = new Set(assignedStudents.keys());
@@ -308,6 +308,9 @@ export class ExamAdminService {
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
+        if ((data as { metadata?: Record<string, any> }).metadata?.is_pas_exam === true) {
+            throw new ConflictException('Aktifkan ujian PAS melalui jadwal folder agar kelengkapan ruang dan pengawas diperiksa.');
+        }
         if ((data as { status?: string }).status === 'archived') {
             throw new ConflictException('Pulihkan ujian dari arsip sebelum menerbitkannya.');
         }

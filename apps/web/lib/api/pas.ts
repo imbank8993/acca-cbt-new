@@ -212,6 +212,10 @@ export async function generateExamsFromSchedulesAction(scheduleIds: string[]) {
     };
 }
 
+export async function setPASScheduleActivationAction(scheduleId: string, active: boolean) {
+    return apiSend<{ id: string; active: boolean }>(`/api/pas/schedules/${encodeURIComponent(scheduleId)}/activation`, { active }, 'PUT', { timeoutMs: 120_000 });
+}
+
 // ── Ruang ────────────────────────────────────────────────────────────────────
 
 export async function listPASRooms(periodId: string): Promise<PASRoom[]> {

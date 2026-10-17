@@ -1,5 +1,6 @@
 "use client";
 import '@/app/components/pas-room-management.css';
+import { PASScheduleStatus } from '@/app/components/PASScheduleStatus';
 
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
@@ -562,7 +563,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                     {selectedRoom && (
                         <Modal open onClose={() => { if (!isSaving) setSelectedRoomId(null); }} size="2xl"
                             title={selectedRoom.name} subtitle={`${assignedStudentIds.size} dari ${selectedRoom.capacity} kursi terisi · ${remainingCapacity} kursi tersedia`} icon="door-open"
-                            className="pas-room-management !max-w-3xl">
+                            className="pas-room-management pas-room-detail-modal !max-w-3xl">
                         <div className="pas-room-detail-tabs flex gap-1 px-4 sm:px-6 pt-3" role="tablist" aria-label="Pengaturan ruang">
                             {([{ id: 'students', label: 'Peserta' }, { id: 'proctors', label: 'Pengawas' }, { id: 'schedules', label: 'Jadwal' }] as const).map(tab => (
                                 <button key={tab.id} type="button" role="tab" aria-selected={roomDetailTab === tab.id}
@@ -771,19 +772,7 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                                                                 {sc.duration_minutes || 90} mnt
                                                             </td>
                                                             <td className="py-2.5 px-3">
-                                                                {sc.status === 'active' ? (
-                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
-                                                                        SEDANG UJIAN
-                                                                    </span>
-                                                                ) : sc.exam_id ? (
-                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                        Siap
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                                                        Belum Aktif
-                                                                    </span>
-                                                                )}
+                                                                <PASScheduleStatus schedule={sc} />
                                                             </td>
                                                         </tr>
                                                     );

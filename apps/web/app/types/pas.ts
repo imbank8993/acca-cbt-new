@@ -70,6 +70,9 @@ export interface PASSession {
 }
 
 export interface PASClassSchedule {
+  allocated_room_ids?: string[];
+  is_activated?: boolean | null;
+  readiness?: { ready: boolean; issues: string[] };
   id: string;
   pas_period_id: string;
   bank_id: string | null;

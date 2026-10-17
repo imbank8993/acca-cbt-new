@@ -93,7 +93,7 @@ export function PASRoomInput({ value, onChange, onCapacityChange, existingRooms 
                 <span>{room.name}</span>
                 <span className="shrink-0 text-xs text-slate-500">{room.capacity ? `${room.capacity} kursi` : ''}</span>
             </button>)}
-            {!filtered.length && <p className="px-3 py-2 text-xs text-slate-500">{loading ? 'Memuat daftar ruang…' : query ? 'Tidak ada yang cocok. Nama ini dapat disimpan sebagai ruang baru.' : 'Belum ada ruang dalam daftar. Ketik nama untuk membuat ruang baru.'}</p>}
+            {!filtered.length && <p className="px-3 py-2 text-xs text-slate-500">{loading ? 'Memuat daftar ruang…' : 'Nama ruang boleh diketik bebas, tidak harus ada dalam daftar master.'}</p>}
         </div>}
         {loading && <p className="text-[11px] text-slate-500" role="status">Memuat daftar ruang…</p>}
         {error && <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500" role="status">

@@ -11,10 +11,115 @@
   min-width: 0;
 }
 
+.pas-schedule-table {
+  width: 100%;
+  min-width: 1000px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+}
+.pas-schedule-table .pas-col-check { width: 44px; }
+.pas-schedule-table .pas-col-time { width: 210px; }
+.pas-schedule-table .pas-col-room { width: 24%; }
+.pas-schedule-table .pas-col-status { width: 132px; }
+.pas-schedule-table .pas-col-actions { width: 168px; }
+.pas-schedule-table th {
+  padding: 13px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground, #64748b);
+}
+.pas-schedule-table td {
+  padding: 18px 16px !important;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.pas-schedule-table td:first-child { padding-inline: 12px !important; }
+.pas-schedule-table tbody tr { background: var(--card); }
+.pas-schedule-table tbody tr:hover,
+.pas-schedule-table tbody tr[data-selected="true"] {
+  background-color: color-mix(in srgb, var(--card) 94%, #3083ff 6%) !important;
+}
+.pas-schedule-actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.pas-schedule-activation {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(48, 131, 255, 0.1);
+  color: #3083ff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pas-schedule-activation.is-active { background: transparent; color: var(--muted-foreground, #64748b); }
+.pas-schedule-activation:disabled { opacity: 0.45; cursor: not-allowed; }
+.pas-schedule-more { padding: 6px; border-radius: 8px; color: var(--muted-foreground, #64748b); }
+.pas-schedule-more:hover { background: rgba(148, 163, 184, 0.12); }
+.pas-schedule-menu {
+  position: fixed;
+  z-index: 100;
+  width: 192px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+.pas-schedule-menu a, .pas-schedule-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+.pas-schedule-menu .is-danger { color: #ef4444; }
+.pas-schedule-menu a:hover, .pas-schedule-menu button:hover,
+.pas-schedule-menu a:focus-visible, .pas-schedule-menu button:focus-visible {
+  background: rgba(148, 163, 184, 0.12);
+  outline: none;
+}
+
 .pas-room-management .pas-room-detail-tabs {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
+}
+
+/* Keep the room dialog frame stable across participants, supervisors and schedules. */
+.mdl-panel.pas-room-detail-modal {
+  width: min(768px, 100%);
+  height: min(720px, calc(100vh - 32px)) !important;
+  height: min(720px, calc(100dvh - 32px)) !important;
+  max-height: calc(100vh - 32px) !important;
+  max-height: calc(100dvh - 32px) !important;
+}
+
+.pas-room-detail-modal > .mdl-head,
+.pas-room-detail-modal > .pas-room-detail-tabs,
+.pas-room-detail-modal > .mdl-foot {
+  flex: 0 0 auto;
+}
+
+.pas-room-detail-modal > .mdl-body {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 767px) {
+  .mdl-panel.pas-room-detail-modal {
+    height: min(720px, calc(100vh - env(safe-area-inset-top, 0px) - 20px)) !important;
+    height: min(720px, calc(100dvh - env(safe-area-inset-top, 0px) - 20px)) !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - 20px) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 20px) !important;
+  }
 }
 
 .pas-room-management .pas-room-search {

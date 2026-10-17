@@ -4,6 +4,7 @@ import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
 import { matchesQuestionSearch } from '@/lib/question-search';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { AttemptAnalyticsHeader } from '@/app/components/AttemptAnalyticsHeader';
+import { ParticipantRoomInfo } from '@/app/components/monitoring/ParticipantRoomInfo';
 import { AttemptScoreCard } from '@/app/components/AttemptScoreCard';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { matchesAnswerOutcome, summarizeAnswerOutcomes, type AnswerOutcomeFilter } from '@/lib/answer-stats';
@@ -137,6 +138,7 @@ export default function AttemptAnalyticsPage() {
                 studentName={studentName}
                 avatarUrl={attempt.profiles?.avatar_url}
             >
+                <ParticipantRoomInfo attempt={attempt} />
                 {(attempt.needs_manual_grading || (canManage && Object.keys(grades).length > 0)) && (
                     <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5">
                         {attempt.needs_manual_grading && (

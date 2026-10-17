@@ -318,7 +318,7 @@ export class AuthorizationService {
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return;
 
-        if (await this.isRestrictedProctor(user, record.organization_id!) && record.created_by !== user.id && record.is_published !== true) {
+        if (await this.isRestrictedProctor(user, record.organization_id!) && record.created_by !== user.id && record.is_published !== true && !isPasMonitoringExam(record)) {
             throw new ForbiddenException('Ujian milik guru lain belum dipublikasikan.');
         }
 

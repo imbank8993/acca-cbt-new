@@ -8,6 +8,7 @@ import { formatStudentName, monitoringEventLabels, storageLabels } from '@/lib/m
 import { formatMonitoringDuration } from '@/lib/monitoring-time';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { securityViolationLabel } from '@/lib/security-violations';
+import { ParticipantRoomInfo } from './monitoring/ParticipantRoomInfo';
 
 const countdown = (seconds: number | null) => seconds === null ? '—' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -61,7 +62,8 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
                 return <tr key={attempt.id} className={`border-t border-slate-100 align-top hover:bg-slate-50 ${facts.priority === 3 ? 'bg-amber-50/40' : ''}`}>
                     <td className="px-5 py-4 text-xs text-slate-500 tabular-nums">{(currentPage - 1) * 25 + index + 1}</td>
                     <td className="px-5 py-4"><button type="button" onClick={() => setSelectedId(attempt.id)} className="text-left text-xs font-semibold text-slate-800 hover:text-blue-600">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</button>
-                        <DeviceLine attempt={attempt} /><div className="mt-1 text-xs text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div></td>
+                        <DeviceLine attempt={attempt} /><div className="mt-1 text-xs text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
+                        <ParticipantRoomInfo attempt={attempt} /></td>
                     <td className="px-5 py-4"><span className="font-semibold text-slate-800">{saved ?? '—'} / {total ?? '—'}</span><div className="mt-1 text-[11px] text-slate-500">Jawaban tersimpan</div>
                         {progress !== null && <div className="mt-2 h-1.5 w-24 rounded-full bg-slate-100" role="progressbar" aria-label={`Progres ${attempt.profiles?.full_name || 'peserta'}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div>}</td>
                     <td className="px-5 py-4"><strong className={`tabular-nums ${facts.ending ? 'text-amber-700' : 'text-slate-800'}`}>{countdown(facts.remainingSeconds)}</strong><div className="mt-1 text-[11px] text-slate-500">Mulai {date(attempt.started_at)}</div></td>
@@ -79,6 +81,7 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
             <div className="flex h-full flex-col"><div className="flex items-center justify-between border-b border-slate-200 p-5"><h3 id="active-participant-title" className="font-semibold">Detail Peserta</h3><button type="button" onClick={() => setSelectedId(null)} aria-label="Tutup detail peserta" className="rounded-lg p-2 hover:bg-slate-100"><X size={18} /></button></div>
                 {selected && selectedFacts ? <div className="flex-1 overflow-y-auto p-5 text-sm">
                     <h4 className="font-semibold text-slate-800">{formatStudentName(selected.profiles?.full_name, 'Tanpa nama')}</h4><DeviceLine attempt={selected} /><p className="mt-1 text-xs text-slate-500">{selected.profiles?.identity_number || '—'} · {selected.kelas_name || '—'}</p>
+                    <ParticipantRoomInfo attempt={selected} />
                     <dl className="my-6 grid grid-cols-2 gap-4">{[
                         ['Status', selected.status === 'in_progress' ? 'Mengerjakan' : 'Sesi berakhir'], ['Sisa waktu', countdown(selectedFacts.remainingSeconds)],
                         ['Jawaban server', `${selected.saved_answer_count ?? '—'} / ${selected.total_questions ?? '—'}`], ['Lokal terakhir', selected.sync_health ? `${selected.sync_health.localAnswerCount} jawaban${selectedFacts.fresh ? '' : ' (laporan lama)'}` : 'Belum dilaporkan'],

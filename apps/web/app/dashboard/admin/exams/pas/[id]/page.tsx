@@ -1,7 +1,10 @@
 "use client";
 import '@/app/components/pas-room-management.css';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
+import { PASScheduleActions } from '@/app/components/PASScheduleActions';
+import { PASScheduleRooms } from '@/app/components/PASScheduleRooms';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
+import { PASScheduleStatus, isPASScheduleReady } from '@/app/components/PASScheduleStatus';
 import RoomManagementPanel from '@/app/dashboard/admin/pas/RoomManagementModal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
@@ -9,13 +12,12 @@ import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';
 import {
 addPASScheduleAction,
-generateExamsFromSchedulesAction,
+setPASScheduleActivationAction,
 getPASPeriod,
 listOrganizationClasses,
 listPASSessions,
 listPASRooms,
 
-getRoomSessionInvigilators,
 listSubjects,
 removePASScheduleAction,
 type PASRoom,
@@ -33,19 +35,14 @@ AlertTriangle,
 BookOpen,
 Calendar,
 Check,
-Clock,
 FolderOpen,
 Loader2,
 Lock,
-Monitor,
 Search,
-ShieldCheck,
 Table,
-Trash2,
 X,
 Zap
 } from 'lucide-react';
-import Link from 'next/link';
 import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
 import BulkScheduleGrid from './BulkScheduleGrid';
@@ -148,7 +145,6 @@ export default function AdminPASDetailPage() {
             return;
         }
         setIsSubmitting(true);
-        const createdIds: string[] = [];
         for (const classId of scheduleForm.class_ids) {
             const result = await addPASScheduleAction({
                 pas_period_id: periodId,
@@ -165,12 +161,6 @@ export default function AdminPASDetailPage() {
                 setIsSubmitting(false);
                 return;
             }
-            if (result.id) {
-                createdIds.push(result.id);
-            }
-        }
-        if (createdIds.length > 0) {
-            await generateExamsFromSchedulesAction(createdIds);
         }
         setIsAddScheduleOpen(false);
         setScheduleForm({ bank_id: '', subject_id: '', class_ids: [], scheduled_date: '', session_id: '', duration_minutes: 90, room: '' });
@@ -189,35 +179,25 @@ export default function AdminPASDetailPage() {
         setSelectedScheduleIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
 
-    const handleGenerateExams = async (idsToGenerate?: string[]) => {
-        const targetIds = idsToGenerate || selectedScheduleIds;
-        if (targetIds.length === 0) {
-            await alertDialog({ title: 'Perhatian', text: 'Pilih jadwal terlebih dahulu.', variant: 'warning' });
-            return;
-        }
-        if (!await confirmDialog({
-            title: 'Generate & Aktifkan Ujian?',
-            text: `Generate dan aktifkan ${targetIds.length} jadwal ujian di dalam folder "${period?.name || 'ASAS/ASAT'}"?`,
-            confirmText: 'Ya, Generate & Aktifkan',
-            variant: 'primary',
-        })) return;
+    const handleActivation = async (ids: string[], active: boolean) => {
+        if (!ids.length || isGenerating) return;
+        if (!await confirmDialog({ title: active ? 'Aktifkan Ujian?' : 'Nonaktifkan Ujian?',
+            text: active ? `Aktifkan ${ids.length} jadwal? Kelengkapan diperiksa kembali sebelum aktivasi.`
+                : `Nonaktifkan ${ids.length} jadwal? Ujian tidak tersedia untuk siswa; jawaban yang sudah tersimpan tetap dipertahankan.`,
+            confirmText: active ? 'Aktifkan' : 'Nonaktifkan' })) return;
         setIsGenerating(true);
-        const result = await generateExamsFromSchedulesAction(targetIds);
-        if (result.success) {
-            const skipped = result.skipped || [];
-            await alertDialog({
-                title: 'Berhasil Generate Ujian',
-                text: [
-                    `${result.created} ujian berhasil dibuat dengan nama "${period?.name}".`,
-                    skipped.length > 0 ? `${skipped.length} jadwal dilewati:\n${skipped.join('\n')}` : '',
-                ].filter(Boolean).join('\n\n'),
-                variant: 'success',
-            });
-            const skippedIds = new Set(skipped.map((item) => item.split(':')[0].trim()));
-            setSelectedScheduleIds((ids) => ids.filter((id) => skippedIds.has(id)));
+        try {
+            const errors: string[] = [];
+            for (const id of ids) {
+                const result = await setPASScheduleActivationAction(id, active);
+                if (!result.success) errors.push(result.error || 'Perubahan aktivasi gagal.');
+            }
             await loadData();
-        } else { await alertDialog({ title: 'Gagal', text: result.error || 'Gagal generate', variant: 'danger' }); }
-        setIsGenerating(false);
+            setSelectedScheduleIds([]);
+            if (errors.length) await alertDialog({ title: 'Sebagian jadwal belum dapat diproses', text: errors.join('\n'), variant: 'warning' });
+        } catch (error) {
+            await alertDialog({ title: 'Status aktivasi belum dapat diperbarui', text: error instanceof Error ? error.message : 'Muat ulang daftar untuk memeriksa status terakhir.', variant: 'warning' });
+        } finally { setIsGenerating(false); }
     };
 
     const formatDate = (dateStr: string | null | undefined) => {
@@ -307,8 +287,10 @@ export default function AdminPASDetailPage() {
 
     const schedules = period.pas_class_schedules || [];
     const uniqueBankCount = new Set(schedules.map((sc) => sc.bank_id).filter(Boolean)).size;
-    const readySchedulesCount = schedules.filter((sc) => Boolean(sc.exam_id)).length;
-    const ungeneratedIds = schedules.filter((sc) => !sc.exam_id).map((sc) => sc.id);
+    const readySchedulesCount = schedules.filter(isPASScheduleReady).length;
+    const readyInactiveIds = schedules.filter(sc => sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
+    const selectedReadyIds = schedules.filter(sc => selectedScheduleIds.includes(sc.id) && !period.is_locked && sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
+    const selectedActiveIds = schedules.filter(sc => selectedScheduleIds.includes(sc.id) && sc.is_activated === true).map(sc => sc.id);
 
     // Live Today filter
     const todayStr = schoolTodayDate(timeZone);
@@ -330,8 +312,10 @@ export default function AdminPASDetailPage() {
 
         if (classFilter !== 'all' && sc.class_id !== classFilter) return false;
 
-        if (statusFilter === 'ready' && !sc.exam_id) return false;
-        if (statusFilter === 'pending' && sc.exam_id) return false;
+        if (statusFilter === 'ready' && !isPASScheduleReady(sc)) return false;
+        if (statusFilter === 'pending' && isPASScheduleReady(sc)) return false;
+        if (statusFilter === 'enabled' && sc.is_activated !== true) return false;
+        if (statusFilter === 'disabled' && sc.is_activated !== false) return false;
         if (statusFilter === 'active' && sc.status !== 'active') return false;
         if (statusFilter === 'finished' && sc.status !== 'finished') return false;
 
@@ -471,15 +455,15 @@ export default function AdminPASDetailPage() {
 
                 {!period.is_locked && activeTab === 'schedules' && (
                     <div className="flex items-center gap-2 flex-wrap">
-                        {ungeneratedIds.length > 0 && (
+                        {readyInactiveIds.length > 0 && (
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => void handleGenerateExams(ungeneratedIds)}
+                                onClick={() => void handleActivation(readyInactiveIds, true)}
                                 disabled={isGenerating}
                                 leftIcon={isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} className="text-amber-500" />}
                             >
-                                Aktifkan Semua ({ungeneratedIds.length})
+                                Aktifkan yang Siap ({readyInactiveIds.length})
                             </Button>
                         )}
 
@@ -568,7 +552,9 @@ export default function AdminPASDetailPage() {
                                     options={[
                                         { value: 'all', label: 'Semua Status' },
                                         { value: 'ready', label: 'Siap Ujian' },
-                                        { value: 'pending', label: 'Belum Aktif' },
+                                        { value: 'enabled', label: 'Aktif' },
+                                        { value: 'disabled', label: 'Nonaktif' },
+                                        { value: 'pending', label: 'Belum Lengkap' },
                                         { value: 'active', label: 'Sedang Ujian' },
                                         { value: 'finished', label: 'Selesai' },
                                     ]}
@@ -715,17 +701,16 @@ export default function AdminPASDetailPage() {
 
                                 {/* Tabel Jadwal */}
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse min-w-[700px]">
+                                    <table className="pas-schedule-table">
+                                        <colgroup><col className="pas-col-check" /><col /><col className="pas-col-time" /><col className="pas-col-room" /><col className="pas-col-status" /><col className="pas-col-actions" /></colgroup>
                                         <thead>
                                             <tr className="bg-white border-b border-slate-200/80 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                                                <th className="py-2.5 px-3 w-10 text-center">#</th>
-                                                <th className="py-2.5 px-3 w-40">Sesi & Waktu</th>
-                                                <th className="py-2.5 px-3">Bank Soal / Mapel</th>
-                                                <th className="py-2.5 px-3 w-28">Kelas</th>
-                                                <th className="py-2.5 px-3 w-36">Ruang & Pengawas</th>
-                                                <th className="py-2.5 px-3 w-24">Durasi</th>
-                                                <th className="py-2.5 px-3 w-32">Status</th>
-                                                <th className="py-2.5 px-3 w-24 text-right">Aksi</th>
+                                                <th className="text-center"><span className="sr-only">Pilih jadwal</span></th>
+                                                <th>Bank Soal / Kelas</th>
+                                                <th>Sesi & Waktu</th>
+                                                <th>Ruang & Pengawas</th>
+                                                <th>Status</th>
+                                                <th className="text-right">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -738,128 +723,47 @@ export default function AdminPASDetailPage() {
 
                                                 return session.schedules.map((sc) => {
                                                     const isSelected = selectedScheduleIds.includes(sc.id);
-                                                    const isReady = Boolean(sc.exam_id);
                                                     const bankTitle = getBankTitle(sc.bank_id, sc);
-                                                    const subjectName = sc.subjects?.name;
 
                                                     return (
                                                         <tr
                                                             key={sc.id}
-                                                            className={`transition-colors hover:bg-slate-50/70 ${
-                                                                isSelected ? 'bg-blue-50/40' : ''
-                                                            }`}
+                                                            className="transition-colors"
+                                                            data-selected={isSelected}
                                                         >
                                                             <td className="py-3 px-3 text-center">
                                                                 <input
                                                                     type="checkbox"
+                                                                    aria-label={`Pilih jadwal ${bankTitle}`}
                                                                     checked={isSelected}
                                                                     onChange={() => toggleScheduleSelect(sc.id)}
                                                                     className="w-4 h-4 rounded text-[#3083FF] focus:ring-[#3083FF]/20 cursor-pointer"
                                                                 />
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                <div className="font-semibold text-slate-800">{sessionName}</div>
-                                                                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
-                                                                    <Clock size={11} />
-                                                                    <span>{timeLabel} {tzLabel}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="py-3 px-3">
                                                                 <div className="font-bold text-slate-900 text-xs sm:text-sm">
                                                                     {bankTitle}
                                                                 </div>
-                                                                {subjectName && (
-                                                                    <div className="text-[11px] text-slate-500 mt-0.5">
-                                                                        {subjectName}
-                                                                    </div>
-                                                                )}
+                                                                <div className="mt-1 text-xs font-normal text-slate-500">
+                                                                    {sc.classes?.name ? `Kelas ${sc.classes.name.replace(/^kelas\s+/i, '')}` : 'Kelas belum ditentukan'}
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div className="font-medium text-slate-800">{sessionName} <span className="font-normal text-slate-500">· {sc.duration_minutes || 90} menit</span></div>
+                                                                <div className="mt-1 text-xs text-slate-500 tabular-nums">{timeLabel} {tzLabel}</div>
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200/80">
-                                                                    Kelas {sc.classes?.name || 'Semua Kelas'}
-                                                                </span>
+                                                                <PASScheduleRooms schedule={sc} rooms={rooms} onManage={() => setActiveTab('rooms')} />
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                {sc.room ? (() => {
-                                                                    const matchedRoom = rooms.find(
-                                                                        (r) => (r.name || '').trim().toLowerCase() === sc.room?.trim().toLowerCase(),
-                                                                    );
-                                                                    const invigilatorNames = getRoomSessionInvigilators(matchedRoom, sc.session_id).map((i) => i.profiles?.full_name).filter(Boolean);
-
-                                                                    return (
-                                                                        <div className="flex flex-col gap-1">
-                                                                            <span className="inline-block px-2 py-0.5 rounded-md bg-blue-50 text-[#3083FF] font-semibold text-[11px] border border-blue-200/60 w-fit">
-                                                                                R. {sc.room}
-                                                                            </span>
-                                                                            {invigilatorNames.length > 0 ? (
-                                                                                <div
-                                                                                    className="flex items-center gap-1 text-[11px] text-slate-700 font-medium"
-                                                                                    title={`Pengawas: ${invigilatorNames.join(', ')}`}
-                                                                                >
-                                                                                    <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
-                                                                                    <span className="truncate max-w-[130px]">{invigilatorNames.join(', ')}</span>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => setActiveTab('rooms')}
-                                                                                    className="flex items-center gap-1 text-[10px] text-amber-600 hover:text-amber-800 transition-colors w-fit font-medium"
-                                                                                    title="Klik untuk mengatur pengawas di ruangan ini"
-                                                                                >
-                                                                                    <AlertTriangle size={10} className="shrink-0" />
-                                                                                    <span>Atur pengawas</span>
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    );
-                                                                })() : (
-                                                                    <span className="text-slate-400">-</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-3 px-3 font-medium text-slate-600">
-                                                                {sc.duration_minutes || 90} mnt
-                                                            </td>
-                                                            <td className="py-3 px-3">
-                                                                {sc.status === 'active' ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
-                                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                                                        SEDANG UJIAN
-                                                                    </span>
-                                                                ) : sc.status === 'finished' ? (
-                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                                                                        SELESAI
-                                                                    </span>
-                                                                ) : isReady ? (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                        <Check size={10} /> Siap
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                                                        Belum Aktif
-                                                                    </span>
-                                                                )}
+                                                                <PASScheduleStatus schedule={sc} />
                                                             </td>
                                                             <td className="py-3 px-3 text-right">
-                                                                <div className="flex items-center justify-end gap-1">
-                                                                    {sc.exam_id && (
-                                                                        <Link
-                                                                            href={`/dashboard/admin/monitoring?exam=${sc.exam_id}`}
-                                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-[#3083FF] hover:bg-[#3083FF]/10 transition-colors"
-                                                                            title="Buka Pemantauan"
-                                                                        >
-                                                                            <Monitor size={14} />
-                                                                        </Link>
-                                                                    )}
-                                                                    {!period.is_locked && (
-                                                                        <button
-                                                                            onClick={() => handleRemoveSchedule(sc.id)}
-                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                                                            title="Hapus Jadwal"
-                                                                        >
-                                                                            <Trash2 size={14} />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
+                                                                <PASScheduleActions active={sc.is_activated} busy={isGenerating}
+                                                                    canActivate={isPASScheduleReady(sc) && sc.is_activated === false && !period.is_locked}
+                                                                    canDelete={!period.is_locked} monitoringHref={sc.exam_id ? `/dashboard/admin/monitoring?exam=${sc.exam_id}` : undefined}
+                                                                    onActivate={() => void handleActivation([sc.id], sc.is_activated !== true)}
+                                                                    onDelete={() => void handleRemoveSchedule(sc.id)} />
                                                             </td>
                                                         </tr>
                                                     );
@@ -874,7 +778,7 @@ export default function AdminPASDetailPage() {
 
                     {/* ── Floating Action Bar for Selected Schedules ── */}
                     {selectedScheduleIds.length > 0 && (
-                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex items-center gap-4 max-w-xl w-[92%] sm:w-auto">
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex flex-wrap items-center gap-4 max-w-xl w-[92%] sm:w-auto">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
                                 <Zap size={16} />
                             </div>
@@ -883,10 +787,10 @@ export default function AdminPASDetailPage() {
                                     {selectedScheduleIds.length} Jadwal Dipilih
                                 </p>
                                 <p className="text-[11px] text-slate-500 truncate hidden sm:block">
-                                    Generate & aktifkan ujian &ldquo;{period.name}&rdquo; untuk kelas terpilih
+                                    Aktifkan jadwal siap atau nonaktifkan ujian yang dipilih
                                 </p>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0 ml-auto">
+                            <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                                 <button
                                     type="button"
                                     onClick={() => setSelectedScheduleIds([])}
@@ -894,14 +798,18 @@ export default function AdminPASDetailPage() {
                                 >
                                     Batal
                                 </button>
+                                <Button variant="outline" size="sm" disabled={isGenerating || selectedActiveIds.length === 0}
+                                    onClick={() => void handleActivation(selectedActiveIds, false)}>
+                                    Nonaktifkan ({selectedActiveIds.length})
+                                </Button>
                                 <Button
                                     variant="primary"
                                     size="sm"
-                                    onClick={() => void handleGenerateExams()}
-                                    disabled={isGenerating}
+                                    onClick={() => void handleActivation(selectedReadyIds, true)}
+                                    disabled={isGenerating || selectedReadyIds.length === 0}
                                     leftIcon={isGenerating ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
                                 >
-                                    {isGenerating ? 'Memproses...' : 'Generate Ujian'}
+                                    {isGenerating ? 'Memproses...' : `Aktifkan (${selectedReadyIds.length})`}
                                 </Button>
                             </div>
                         </div>
@@ -1013,7 +921,7 @@ export default function AdminPASDetailPage() {
                                 />
                             </ModalField>
 
-                            <ModalField label="Ruang Ujian (Opsional)" hint="Dapat dipilih dari ruang periode atau diketik manual">
+                            <ModalField label="Ruang Ujian (Opsional)" hint="Nama bebas, tidak harus dari master. Penempatan peserta dan pengawas diatur pada tab Ruang.">
                                 <PASRoomInput
                                     value={scheduleForm.room}
                                     onChange={room => setScheduleForm(p => ({ ...p, room }))}

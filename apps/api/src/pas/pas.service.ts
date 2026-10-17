@@ -14,6 +14,7 @@ import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
 import type { CreatePASPeriodDto } from './dto/pas.dto';
+import { loadPasReadiness } from './pas-readiness';
 
 /**
  * Periode PAS/PAT dan data pendukungnya.
@@ -91,13 +92,19 @@ export class PasService {
 
         if (!period) throw new NotFoundException('Periode tidak ditemukan.');
 
-        const { data: schedules } = await this.db
+        const { data: schedules, error: schedulesError } = await this.db
             .from('cbt_pas_class_schedules')
             .select('*, classes:cbt_classes(name), question_banks:cbt_question_banks(id, title)')
             .eq('pas_period_id', periodId);
 
+        if (schedulesError) throw new BadRequestException('Daftar jadwal belum dapat dibaca.');
+        const readiness = await loadPasReadiness(this.db, period, schedules || []);
+
         return { ...(period as object), pas_class_schedules: ((schedules as any[]) || []).map(schedule => ({
             ...schedule,
+            readiness: readiness.get(schedule.id),
+            is_activated: readiness.get(schedule.id)?.activated ?? null,
+            allocated_room_ids: readiness.get(schedule.id)?.room_ids || [],
             scheduled_time: normalizeSqlTime(schedule.scheduled_time),
             window_end_time: normalizeSqlTime(schedule.window_end_time),
         })) };

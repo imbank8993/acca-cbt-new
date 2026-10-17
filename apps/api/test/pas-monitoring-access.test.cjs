@@ -7,6 +7,7 @@ const { assignedPasExamIds } = require('../src/common/pas-monitoring-access.ts')
 const { AuthorizationService } = require('../src/auth/authorization.service.ts');
 const { ExamAdminService } = require('../src/proctor/exam-admin.service.ts');
 const { ExamMonitoringService } = require('../src/proctor/exam-monitoring.service.ts');
+const { loadPasParticipantLocations } = require('../src/common/pas-participant-location.ts');
 const { ProctoringService } = require('../src/proctoring/proctoring.service.ts');
 const { sortMonitoringExams, isMonitoringExamActive, monitoringExamLabel } = require('../../web/lib/monitoring-exams.ts');
 function fixture() {
@@ -91,6 +92,19 @@ function roomFixture(failedTables = []) {
  const service = new ExamMonitoringService(db, auth, scoring, grading, { findById: async () => ({ email: 'student@example.com' }) });
  return { db, auth, roles, service };
 }
+
+test('proctors retain monitoring of inactive PAS exams while ordinary foreign drafts stay private', async () => {
+ const { db, auth, roles, service } = roomFixture();
+ for (const exam of db.tables.cbt_exams) exam.is_published = false;
+ db.tables.cbt_exams.push({ id: 'private-draft', organization_id: 'school', created_by: 'teacher', exam_type: 'daily', is_published: false });
+ assert.equal(await auth.assertExamMonitoring({ id: 'proctor' }, 'e1'), undefined);
+ assert.deepEqual((await service.listAttempts({ id: 'proctor' }, 'e1')).map(row => row.user_id), ['u1', 'u2', 'u5']);
+ await assert.rejects(auth.assertExamMonitoring({ id: 'proctor' }, 'private-draft'), /belum dipublikasikan/);
+ const admin = new ExamAdminService(db, auth, roles);
+ assert.deepEqual((await admin.list({ id: 'proctor' }, 'school')).map(row => row.id), ['e1', 'e2', 'e3']);
+ const query = db.queries.filter(query => query.table === 'cbt_exams').find(query => query.calls.some(call => call[0] === 'or'));
+ assert.deepEqual(query.calls.find(call => call[0] === 'or'), ['or', 'created_by.eq.proctor,is_published.eq.true,exam_type.in.(pas,pat,pts,pkn)']);
+});
 
 test('room monitoring discovers exams across class/room boundaries but never another session', async () => {
  const { db, auth } = roomFixture();
@@ -234,4 +248,75 @@ test('a bank author who also supervises PAS sees all class students but only get
  const recovery = new ProctoringService(db, auth, {});
  await assert.rejects(recovery.resetAttempt({ id: 'author' }, 'a2', 'Gangguan jaringan', 15), /ruang dan sesi/);
  await recovery.resetAttempt({ id: 'author' }, 'a1', 'Gangguan jaringan', 15);
+});
+
+test('PAS author monitoring shows actual room and all session invigilators for started and unstarted participants', async () => {
+ const { db, service } = roomFixture();
+ db.tables.cbt_pas_sessions = [{ id: 's1', pas_period_id: 'p1', name: 'Sesi Pagi' }, { id: 's2', pas_period_id: 'p1', name: 'Sesi Siang' }];
+ db.tables.cbt_pas_room_invigilators.push(
+  { user_id: 'guard2', pas_room_id: 'r2', session_id: 's1' },
+  { user_id: 'guard3', pas_room_id: 'r2', session_id: 's1' },
+  { user_id: 'afternoon', pas_room_id: 'r1', session_id: 's2' });
+ db.tables.cbt_profiles = [{ id: 'guard', full_name: 'Pengawas Pagi' }, { id: 'guard2', full_name: 'Pengawas Dua' },
+  { id: 'guard3', full_name: 'Pengawas Tiga' }, { id: 'afternoon', full_name: 'Pengawas Siang' }];
+ const rows = await service.listAttempts({ id: 'author' }, 'e1');
+ assert.equal(rows.find(row => row.user_id === 'u1').pas_location.room_name, 'Ruang 1'); // schedule label says Ruang 2
+ assert.deepEqual(rows.find(row => row.user_id === 'u1').pas_location.invigilators.map(p => p.full_name), ['Pengawas Pagi']);
+ assert.deepEqual(rows.find(row => row.user_id === 'u2').pas_location.invigilators.map(p => p.full_name), ['Pengawas Dua', 'Pengawas Tiga']);
+ assert.equal(rows.find(row => row.user_id === 'u5').pas_location.session_name, 'Sesi Pagi');
+ assert.equal(rows.find(row => row.user_id === 'u5').pas_location.room_name, 'Ruang 1');
+ const detail = await service.getAttemptDetails({ id: 'author' }, 'a2');
+ assert.equal(detail.attempt.pas_location.room_name, 'Ruang 2');
+ const afternoon = await loadPasParticipantLocations(db, db.tables.cbt_exams[2], ['u1']);
+ assert.deepEqual(afternoon.get('u1').invigilators.map(p => p.full_name), ['Pengawas Siang']);
+ assert.equal(rows.find(row => row.user_id === 'u1').canReset, false);
+});
+
+test('PAS room information never substitutes the schedule label or another period for an unallocated student', async () => {
+ const { db } = roomFixture();
+ db.tables.cbt_pas_sessions = [{ id: 's1', pas_period_id: 'p1', name: 'Pagi' }];
+ db.tables.cbt_pas_room_students = [{ user_id: 'u1', pas_room_id: 'foreign', pas_period_id: 'p2' }];
+ db.tables.cbt_pas_rooms.push({ id: 'foreign', pas_period_id: 'p2', name: 'Other school room' });
+ const locations = await loadPasParticipantLocations(db, db.tables.cbt_exams[0], ['u1', 'u2']);
+ assert.equal(locations.get('u1').status, 'unassigned');
+ assert.equal(locations.get('u1').room_name, null);
+ assert.deepEqual(locations.get('u1').invigilators, []);
+ assert.equal(locations.get('u2').status, 'unassigned');
+ db.tables.cbt_pas_room_students = [{ user_id: 'u1', pas_room_id: 'r1', pas_period_id: 'p1' }];
+ db.tables.cbt_pas_room_invigilators = [{ user_id: 'guard', pas_room_id: 'r1', session_id: 's2' }];
+ assert.deepEqual((await loadPasParticipantLocations(db, db.tables.cbt_exams[0], ['u1'])).get('u1').invigilators, []);
+});
+
+test('missing or failed PAS context reads are explicit and do not make the monitoring roster disappear', async () => {
+ const { db } = roomFixture();
+ for (const table of ['cbt_pas_class_schedules', 'cbt_pas_periods', 'cbt_pas_sessions', 'cbt_pas_room_students', 'cbt_pas_rooms', 'cbt_pas_room_invigilators', 'cbt_profiles']) {
+  const broken = fixtureDb({ ...db.tables, cbt_pas_sessions: [{ id: 's1', pas_period_id: 'p1', name: 'Pagi' }] }, [table]);
+  const location = (await loadPasParticipantLocations(broken, db.tables.cbt_exams[0], ['u1'])).get('u1');
+  assert.equal(location.status, 'unavailable', table);
+  assert.equal(location.room_name, null, table);
+ }
+ const broken = roomFixture(['cbt_pas_sessions']);
+ const rows = await broken.service.listAttempts({ id: 'author' }, 'e1');
+ assert.deepEqual(rows.map(row => row.user_id), ['u1', 'u2', 'u5']);
+ assert.ok(rows.every(row => row.pas_location.status === 'unavailable'));
+ db.tables.cbt_pas_periods[0].organization_id = 'other';
+ assert.equal((await loadPasParticipantLocations(db, db.tables.cbt_exams[0], ['u1'])).get('u1').status, 'unavailable');
+});
+
+test('large PAS placement reads are batched and normal exams require no placement queries', async () => {
+ const ids = Array.from({ length: 620 }, (_, index) => `u${index}`);
+ const db = fixtureDb({ cbt_pas_class_schedules: [{ exam_id: 'pas', pas_period_id: 'p', session_id: 's' }],
+  cbt_pas_periods: [{ id: 'p', organization_id: 'school' }], cbt_pas_sessions: [{ id: 's', pas_period_id: 'p', name: 'Pagi' }],
+  cbt_pas_rooms: [{ id: 'room', name: 'Lab', pas_period_id: 'p' }],
+  cbt_pas_room_students: ids.map(user_id => ({ user_id, pas_room_id: 'room', pas_period_id: 'p' })),
+  cbt_pas_room_invigilators: [{ pas_room_id: 'room', session_id: 's', user_id: 'guard' }],
+  cbt_profiles: [{ id: 'guard', full_name: 'Pengawas' }] });
+ const locations = await loadPasParticipantLocations(db, { id: 'pas', organization_id: 'school', exam_type: 'pas' }, ids);
+ assert.equal(locations.size, 620);
+ assert.equal(locations.get('u619').room_name, 'Lab');
+ assert.equal(db.queries.filter(query => query.table === 'cbt_pas_room_students').length, 3);
+ assert.ok(db.queries.length < 15);
+ const before = db.queries.length;
+ assert.equal((await loadPasParticipantLocations(db, { id: 'quiz', exam_type: 'quiz' }, ids)).size, 0);
+ assert.equal(db.queries.length, before);
 });

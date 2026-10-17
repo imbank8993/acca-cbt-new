@@ -8,6 +8,7 @@ import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { AttemptHistoryModal } from '@/app/components/monitoring';
 import { unansweredQuestionCount, sortByAnswerCount, sortByUnansweredCount } from '@/lib/monitoring-answer-count';
 import { monitoringTime } from '@/lib/monitoring-time';
+import { ParticipantRoomInfo } from './monitoring/ParticipantRoomInfo';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
@@ -192,6 +193,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3">
                         <span className="font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
+                        <ParticipantRoomInfo attempt={attempt} />
                     </td>
                     <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
                     <td className="p-3">

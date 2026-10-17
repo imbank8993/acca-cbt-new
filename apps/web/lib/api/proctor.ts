@@ -152,6 +152,14 @@ export interface OrganizationExam {
 }
 
 export interface ExamAttemptRecord {
+    pas_location?: {
+        status: 'assigned' | 'unassigned' | 'unavailable';
+        room_id: string | null;
+        room_name: string | null;
+        session_id: string | null;
+        session_name: string | null;
+        invigilators: Array<{ id: string; full_name: string | null }>;
+    } | null;
     canReset?: boolean;
     client_context?: { browser: string | null; os: string | null; ip_address: string | null; observed_at: string } | null;
     server_now?: string;

@@ -10,6 +10,7 @@ import { chunk } from '../common/chunk';
 import { GradingService } from '../grading/grading.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
+import { loadPasParticipantLocations } from '../common/pas-participant-location';
 
 /** Batas id per klausa `IN (...)`, supaya pernyataan SQL tidak membengkak. */
 const ID_BATCH = 300;
@@ -204,6 +205,8 @@ export class ExamMonitoringService {
             });
         }
 
+        const locations = await loadPasParticipantLocations(this.db, exam || { id: examId }, rows.map(row => row.user_id));
+        for (const row of rows) row.pas_location = locations.get(row.user_id) || null;
         await this.fillMissingIdentityNumbers(rows);
         return rows;
     }
@@ -722,10 +725,11 @@ export class ExamMonitoringService {
         }
 
         const account = await this.authUsers.findById(attempt.user_id);
+        const locations = await loadPasParticipantLocations(this.db, { ...attempt.exams, id: attempt.exam_id }, [attempt.user_id]);
 
         return {
             canManage: await this.authz.canManageExam(user, attempt.exams),
-            attempt: { ...attempt, email: account?.email || '-' },
+            attempt: { ...attempt, email: account?.email || '-', pas_location: locations.get(attempt.user_id) || null },
             answers: answers.sort(
                 (a, b) =>
                     (a.bank_questions?.order_number ?? Number.MAX_SAFE_INTEGER) -

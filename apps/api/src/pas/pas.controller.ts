@@ -27,6 +27,7 @@ import {
     CreatePASScheduleDto,
     CreatePASSessionDto,
     GeneratePASExamsDto,
+    PASActivationDto,
     LockPASPeriodDto,
 } from './dto/pas.dto';
 import { PasRoomsService } from './pas-rooms.service';
@@ -197,6 +198,10 @@ export class PasController {
     }
 
     // ── Ruang ────────────────────────────────────────────────────────────────
+    @Put('schedules/:scheduleId/activation')
+    setActivation(@CurrentUser() user: AuthUser, @Param('scheduleId', ParseUUIDPipe) scheduleId: string, @Body() dto: PASActivationDto) {
+        return this.schedules.setActivation(user, scheduleId, dto.active);
+    }
 
     @Get('periods/:periodId/rooms')
     @ApiOperation({ summary: 'Ruang ujian beserta pengawas dan pesertanya' })

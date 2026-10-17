@@ -18,6 +18,7 @@ import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
+import { loadPasReadiness } from './pas-readiness';
 
 /**
  * Jadwal kelas dan sesi waktu sebuah periode PAS, serta pembangkitan ujiannya.
@@ -330,7 +331,29 @@ export class PasSchedulesService {
     }
 
     /** Mengembalikan alasan jika dilewati, atau `null` bila ujian berhasil dibuat. */
-    private async generateOne(scheduleId: string): Promise<string | null> {
+    async setActivation(user: AuthUser, scheduleId: string, active: boolean) {
+        await this.authz.assertProktorByParent(user, 'cbt_pas_class_schedules', scheduleId, 'pas_period_id', 'cbt_pas_periods');
+        if (active) {
+            const reason = await this.generateOne(scheduleId, true);
+            if (reason) throw new ConflictException(reason);
+            return { id: scheduleId, active: true };
+        }
+        const { data: source } = await this.db.from('cbt_pas_class_schedules').select('pas_period_id').eq('id', scheduleId).maybeSingle();
+        if (!source) throw new NotFoundException('Jadwal tidak ditemukan.');
+        return this.db.transaction(async db => {
+            await this.lockPeriod(db, source.pas_period_id);
+            await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
+            const { data: schedule, error } = await db.from('cbt_pas_class_schedules').select('exam_id').eq('id', scheduleId).maybeSingle();
+            if (error || !schedule) throw new BadRequestException('Jadwal belum dapat dibaca.');
+            if (schedule.exam_id) {
+                const { error: updateError } = await db.from('cbt_exams').update({ is_published: false }).eq('id', schedule.exam_id);
+                if (updateError) throw new BadRequestException('Ujian belum berhasil dinonaktifkan.');
+            }
+            return { id: scheduleId, active: false };
+        });
+    }
+
+    private async generateOne(scheduleId: string, activate = false): Promise<string | null> {
         const { data: source } = await this.db.from('cbt_pas_class_schedules')
             .select('pas_period_id').eq('id', scheduleId).maybeSingle();
         if (!source) return `${scheduleId}: jadwal tidak ditemukan`;
@@ -339,6 +362,7 @@ export class PasSchedulesService {
         return this.db.transaction(async (db) => {
             await this.lockPeriod(db, sourcePeriodId);
             await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
+            if (activate) await advisoryTransactionLock(db, `pas-room-students:${sourcePeriodId}`);
 
             const { data } = await db
                 .from('cbt_pas_class_schedules')
@@ -349,11 +373,17 @@ export class PasSchedulesService {
             if (!data) return `${scheduleId}: jadwal tidak ditemukan`;
 
             const schedule = data as any;
-            if (schedule.exam_id) return `${scheduleId}: ujian sudah pernah dibangkitkan`;
+            if (activate) {
+                const { data: rooms, error } = await db.from('cbt_pas_rooms').select('id').eq('pas_period_id', sourcePeriodId);
+                if (error) throw new BadRequestException('Penugasan pengawas belum dapat diperiksa.');
+                for (const roomId of (rooms || []).map((room: { id: string }) => room.id).sort()) {
+                    await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${schedule.session_id}`);
+                }
+            }
 
             const { data: period } = await db
                 .from('cbt_pas_periods')
-                .select('organization_id, name, type, school_year, semester, is_locked, screenshot_enabled')
+                .select('id, organization_id, name, type, school_year, semester, is_locked, screenshot_enabled, start_date, end_date')
                 .eq('id', schedule.pas_period_id)
                 .maybeSingle();
 
@@ -361,6 +391,17 @@ export class PasSchedulesService {
 
             const periodRow = period as any;
             if (periodRow.is_locked) return `${scheduleId}: periode terkunci`;
+            if (activate) {
+                const readiness = (await loadPasReadiness(db, { ...periodRow, id: schedule.pas_period_id }, [schedule])).get(scheduleId);
+                if (!readiness?.ready) throw new ConflictException(`Jadwal belum siap: ${readiness?.issues.join('; ') || 'kelengkapan belum dapat diperiksa'}`);
+            }
+            if (schedule.exam_id) {
+                if (!activate) return `${scheduleId}: ujian sudah pernah dibangkitkan`;
+                const { data: existing } = await db.from('cbt_exams').select('status').eq('id', schedule.exam_id).maybeSingle();
+                const { error } = await db.from('cbt_exams').update({ is_published: true, ...(existing?.status === 'draft' ? { status: 'scheduled' } : {}) }).eq('id', schedule.exam_id);
+                if (error) throw new BadRequestException('Ujian belum berhasil diaktifkan.');
+                return null;
+            }
             const [{ data: bank }, { data: cls }] = await Promise.all([
                 schedule.bank_id
                     ? db.from('cbt_question_banks').select('title').eq('id', schedule.bank_id)
@@ -403,7 +444,7 @@ export class PasSchedulesService {
                 randomize_questions: true,
                 randomize_options: true,
                 show_results: false,
-                is_published: true,
+                is_published: activate,
                 status: 'scheduled',
                 exam_type: periodRow.type || 'pas',
                 metadata: {

@@ -5,6 +5,7 @@ import { isMonitoringExamActive, monitoringExamLabel, sortMonitoringExams } from
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { ParticipantRoomInfo } from '@/app/components/monitoring/ParticipantRoomInfo';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import SearchableSelect from '@/components/ui/SearchableSelect';
@@ -543,6 +544,7 @@ function MonitoringContent() {
                                                                 <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
                                                                     {att.kelas_name || '-'}
                                                                 </div>
+                                                                <ParticipantRoomInfo attempt={att} />
                                                             </td>
                                                             <td className="p-4">
                                                                 <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${

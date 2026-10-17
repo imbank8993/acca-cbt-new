@@ -111,6 +111,11 @@ export class GeneratePASExamsDto {
     scheduleIds!: string[];
 }
 
+export class PASActivationDto {
+    @IsBoolean()
+    active!: boolean;
+}
+
 export class CreatePASSessionDto {
     @ApiProperty({ description: 'UUID stabil untuk mencegah data ganda saat permintaan diulang.' })
     @IsUUID('4', { message: 'clientRequestId tidak valid' })

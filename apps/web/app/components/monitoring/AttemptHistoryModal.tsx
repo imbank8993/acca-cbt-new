@@ -8,6 +8,7 @@ import { formatStudentName, gradingLabel, monitoringAttention, monitoringEventLa
 import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
 import { unansweredQuestionCount } from '@/lib/monitoring-answer-count';
 import { AttemptScreenshots } from './AttemptScreenshots';
+import { ParticipantRoomInfo } from './ParticipantRoomInfo';
 import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import {
   History,
@@ -140,6 +141,7 @@ export function AttemptHistoryModal({
               <p className="text-slate-500">
                 NIS: <span className="font-mono text-slate-700">{nis}</span> · Kelas: <span className="font-medium text-slate-700">{className}</span>
               </p>
+              <ParticipantRoomInfo attempt={attempt} />
             </div>
           </div>
           <span className="rounded-md bg-white px-2.5 py-1 border border-slate-200 font-bold text-[#3083FF]">
