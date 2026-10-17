@@ -42,6 +42,7 @@ Calendar,
 CheckCircle2,
 ClipboardCheck,
 Clock,
+Edit3,
 Eye,EyeOff,
 FileText,
 FolderOpen,
@@ -59,6 +60,7 @@ Zap
 import { useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import ProctorPASPage from '../pas/page';
 
 type TabId = 'all' | 'draft' | 'active' | 'finished' | 'archived' | 'pas';
@@ -128,6 +130,7 @@ const ExamsPage = () => {
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);
     const [examToDelete, setExamToDelete] = useState<OrganizationExam | null>(null);
+    const [periodToEdit, setPeriodToEdit] = useState<PASPeriod | null>(null);
 
     const loadData = useCallback(async () => {
         // setIsLoading(true); // Disabled for silent background sync
@@ -935,13 +938,21 @@ const ExamsPage = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="exam-folder-actions flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <div className="exam-folder-actions flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
                                             className="px-3.5 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20 cursor-pointer"
                                         >
                                             <FolderOpen size={14} />
                                             Buka Folder
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPeriodToEdit(period as unknown as PASPeriod)}
+                                            className="p-2 text-slate-500 hover:text-[#3083FF] hover:bg-blue-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                            title="Edit Folder & Ketua Panitia"
+                                        >
+                                            <Edit3 size={15} />
                                         </button>
                                         <button
                                             type="button"
@@ -1196,6 +1207,17 @@ const ExamsPage = () => {
                 onClose={() => setExamToDelete(null)}
                 exam={examToDelete}
                 onSuccess={loadData}
+            />
+
+            {/* ─────────────── EDIT PAS PERIOD MODAL ─────────────── */}
+            <EditPASPeriodModal
+                isOpen={!!periodToEdit}
+                period={periodToEdit}
+                onClose={() => setPeriodToEdit(null)}
+                onSuccess={() => {
+                    setPeriodToEdit(null);
+                    void loadData();
+                }}
             />
         </div>
     );
