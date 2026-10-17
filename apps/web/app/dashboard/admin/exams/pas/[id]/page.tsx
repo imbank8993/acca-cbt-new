@@ -18,10 +18,11 @@ listOrganizationClasses,
 listPASSessions,
 listPASRooms,
 
-listSubjects,
-removePASScheduleAction,
-type PASRoom,
-type PASSubjectSummary,
+    deletePASPeriodAction,
+    listSubjects,
+    removePASScheduleAction,
+    type PASRoom,
+    type PASSubjectSummary,
 } from '@/lib/api/pas';
 import type { OrganizationClass } from '@/lib/api/proctor';
 import { listQuestionBanks,type QuestionBank } from '@/lib/api/questions';
@@ -31,22 +32,25 @@ import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { Button } from '@/app/components/ui/button';
 import {
-AlertTriangle,
-BookOpen,
-Calendar,
-Check,
-FolderOpen,
-Loader2,
-Lock,
-Search,
-Table,
-UserCheck,
-X,
-Zap
+    AlertTriangle,
+    BookOpen,
+    Calendar,
+    Check,
+    Edit3,
+    FolderOpen,
+    Loader2,
+    Lock,
+    Search,
+    Table,
+    Trash2,
+    UserCheck,
+    X,
+    Zap
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
+import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
 type TabId = 'schedules' | 'live_today' | 'rooms' | 'sessions' | 'invigilators' | 'administration' | 'bulk';
@@ -73,6 +77,23 @@ export default function AdminPASDetailPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [classFilter, setClassFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+    const handleDeletePeriod = async () => {
+        if (!period) return;
+        const ok = await deleteConfirmDialog({
+            title: 'Hapus Folder Ujian?',
+            text: `Semua jadwal, ruang, dan data administrasi di dalam folder "${period.name}" akan dihapus permanen.`,
+        });
+        if (!ok) return;
+        const res = await deletePASPeriodAction(period.id);
+        if (res.success) {
+            await alertDialog({ title: 'Berhasil', text: 'Folder ujian berhasil dihapus.', variant: 'success' });
+            router.push('/dashboard/admin/exams');
+        } else {
+            await alertDialog({ title: 'Gagal Menghapus', text: res.error || 'Terjadi kesalahan saat menghapus folder.', variant: 'danger' });
+        }
+    };
 
     const [scheduleForm, setScheduleForm] = useState({
         bank_id: '',
@@ -362,15 +383,24 @@ export default function AdminPASDetailPage() {
                                     <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
                                 </span>
                                 <span className="text-slate-300">•</span>
-                                <span className="flex items-center gap-1 text-slate-600">
+                                <span className="flex items-center gap-1.5 text-slate-600">
                                     <UserCheck size={12} className="text-slate-400" />
                                     Ketua Panitia: <strong className="text-slate-700">{period.committee_chair_name || 'Belum diatur'}</strong>
+                                    {!period.is_locked && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditModalOpen(true)}
+                                            className="text-[11px] text-[#3083FF] hover:underline font-semibold cursor-pointer ml-0.5"
+                                        >
+                                            (Ubah)
+                                        </button>
+                                    )}
                                 </span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Clean Metrics Summary */}
+                    {/* Clean Metrics Summary + Folder Actions */}
                     <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap md:justify-end shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                         <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center">
@@ -405,6 +435,28 @@ export default function AdminPASDetailPage() {
                                 <p className="text-sm font-bold text-slate-800">{readySchedulesCount}/{schedules.length} Siap</p>
                             </div>
                         </div>
+
+                        {!period.is_locked && (
+                            <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(true)}
+                                    className="px-2.5 py-2 text-slate-700 hover:text-[#3083FF] hover:bg-blue-50 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                                    title="Edit Folder & Ketua Panitia"
+                                >
+                                    <Edit3 size={13} />
+                                    <span className="hidden sm:inline">Edit Folder</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDeletePeriod}
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+                                    title="Hapus Folder Ujian"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -982,6 +1034,17 @@ export default function AdminPASDetailPage() {
                     </ModalFooter>
                 </form>
             </Modal>
+
+            {isEditModalOpen && period && (
+                <EditPASPeriodModal
+                    isOpen={isEditModalOpen}
+                    period={period}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSuccess={(updated) => {
+                        setPeriod((prev) => (prev ? { ...prev, ...updated } : prev));
+                    }}
+                />
+            )}
         </div>
     );
 }

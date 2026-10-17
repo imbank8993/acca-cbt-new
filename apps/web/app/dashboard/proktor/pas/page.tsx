@@ -17,20 +17,22 @@ import type { PASPeriod } from '@/app/types/pas';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
-BookOpen,
-Calendar,
-Check,
-ChevronRight,
-FolderOpen,
-Loader2,Lock,
-Plus,Search,
-Trash2,
-Unlock,
-UserCheck,
-X
+    BookOpen,
+    Calendar,
+    Check,
+    ChevronRight,
+    Edit3,
+    FolderOpen,
+    Loader2,Lock,
+    Plus,Search,
+    Trash2,
+    Unlock,
+    UserCheck,
+    X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
+import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 
 type PeriodType = 'pas' | 'pat' | 'pts' | 'pkn' | 'am';
 type Semester = 'ganjil' | 'genap';
@@ -45,6 +47,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
     const [searchQuery, setSearchQuery] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAddPeriodOpen, setIsAddPeriodOpen] = useState(false);
+    const [editingPeriod, setEditingPeriod] = useState<PASPeriod | null>(null);
 
     const [periodForm, setPeriodForm] = useState({
         name: '',
@@ -324,6 +327,15 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
 
                                         {!period.is_locked && (
                                             <button
+                                                onClick={() => setEditingPeriod(period)}
+                                                className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
+                                                title="Edit Folder & Ketua Panitia">
+                                                <Edit3 size={15} />
+                                            </button>
+                                        )}
+
+                                        {!period.is_locked && (
+                                            <button
                                                 onClick={() => handleToggleLock(period.id, false)}
                                                 className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                                                 title="Kunci Folder">
@@ -468,6 +480,19 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                     </div>
                 )}
             </AnimatePresence>
+
+            {editingPeriod && (
+                <EditPASPeriodModal
+                    isOpen={Boolean(editingPeriod)}
+                    period={editingPeriod}
+                    onClose={() => setEditingPeriod(null)}
+                    onSuccess={(updated) => {
+                        setPeriods((prev) =>
+                            prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)),
+                        );
+                    }}
+                />
+            )}
         </div>
     );
 }

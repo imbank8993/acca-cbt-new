@@ -21,6 +21,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CurrentSchoolId } from '../common/decorators/current-school-id.decorator';
 import {
+    ApprovePASAdministrationDto,
     AssignRoomStudentsDto,
     AssignRoomInvigilatorsDto,
     CreatePASPeriodDto,
@@ -30,8 +31,10 @@ import {
     GeneratePASExamsDto,
     PASActivationDto,
     LockPASPeriodDto,
+    RejectPASAdministrationDto,
     SavePASAdministrationDto,
     UpdatePASCommitteeChairDto,
+    UpdatePASPeriodDto,
 } from './dto/pas.dto';
 import { PasAdministrationService } from './pas-administration.service';
 import { PasRoomsService } from './pas-rooms.service';
@@ -96,6 +99,17 @@ export class PasController {
         @Body() dto: LockPASPeriodDto,
     ) {
         return this.pas.setPeriodLock(user, periodId, dto.lock);
+    }
+
+    @Patch('periods/:periodId')
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Perbarui folder ujian (nama, tanggal, ketua panitia, dll)' })
+    updatePeriod(
+        @CurrentUser() user: AuthUser,
+        @Param('periodId', ParseUUIDPipe) periodId: string,
+        @Body() dto: UpdatePASPeriodDto,
+    ) {
+        return this.pas.updatePeriod(user, periodId, dto);
     }
 
     @Patch('periods/:periodId/committee-chair')
@@ -312,6 +326,37 @@ export class PasController {
     ) {
         return {
             slot: await this.administration.saveAdministrationSlot(user, dto),
+        };
+    }
+
+    @Get('administration/overview')
+    @ApiOperation({ summary: 'Ringkasan administrasi per ruang & sesi untuk proktor/admin' })
+    async getPeriodAdministrationOverview(
+        @CurrentUser() user: AuthUser,
+        @Query('periodId', ParseUUIDPipe) periodId: string,
+    ) {
+        return this.administration.getPeriodAdministrationOverview(user, periodId);
+    }
+
+    @Post('administration/slot/approve')
+    @ApiOperation({ summary: 'Proktor menyetujui (ACC) Berita Acara & Daftar Hadir menjadi dokumen resmi' })
+    async approveAdministrationSlot(
+        @CurrentUser() user: AuthUser,
+        @Body() dto: ApprovePASAdministrationDto,
+    ) {
+        return {
+            slot: await this.administration.approveAdministrationSlot(user, dto),
+        };
+    }
+
+    @Post('administration/slot/reject')
+    @ApiOperation({ summary: 'Proktor mengembalikan Berita Acara & Daftar Hadir untuk perbaikan pengawas' })
+    async rejectAdministrationSlot(
+        @CurrentUser() user: AuthUser,
+        @Body() dto: RejectPASAdministrationDto,
+    ) {
+        return {
+            slot: await this.administration.rejectAdministrationSlot(user, dto),
         };
     }
 }

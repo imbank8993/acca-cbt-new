@@ -13,7 +13,7 @@ import { Button } from '@/app/components/ui/button';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam,purgeTrialExam,setExamArchived } from '@/lib/api/exams';
 import type { ExamConfig,ExamConfigBank,PASPeriod } from '@/app/types/pas';
-import { listPASPeriods,listSubjects } from '@/lib/api/pas';
+import { deletePASPeriodAction, listPASPeriods, listSubjects } from '@/lib/api/pas';
 import {
 createSchoolYearAction,
 getProctorOrganization,
@@ -938,10 +938,34 @@ const ExamsPage = () => {
                                     <div className="exam-folder-actions flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => router.push('/dashboard/admin/exams/pas/' + period.id)}
-                                            className="px-4 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20"
+                                            className="px-3.5 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20 cursor-pointer"
                                         >
                                             <FolderOpen size={14} />
                                             Buka Folder
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const ok = await confirmDialog({
+                                                    title: 'Hapus Folder Ujian?',
+                                                    text: `Semua jadwal, ruang, dan data administrasi di dalam folder "${period.name}" akan dihapus permanen. Lanjutkan?`,
+                                                    confirmText: 'Ya, Hapus Folder',
+                                                    cancelText: 'Batal',
+                                                    variant: 'danger',
+                                                });
+                                                if (!ok) return;
+                                                const res = await deletePASPeriodAction(period.id);
+                                                if (res.success) {
+                                                    await alertDialog({ title: 'Berhasil', text: 'Folder ujian berhasil dihapus.', variant: 'success' });
+                                                    await loadData();
+                                                } else {
+                                                    await alertDialog({ title: 'Gagal Menghapus', text: res.error || 'Terjadi kesalahan saat menghapus folder.', variant: 'danger' });
+                                                }
+                                            }}
+                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                            title="Hapus Folder Ujian"
+                                        >
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </div>

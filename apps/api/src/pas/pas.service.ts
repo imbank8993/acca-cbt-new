@@ -13,7 +13,7 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
-import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto } from './dto/pas.dto';
+import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASPeriodDto } from './dto/pas.dto';
 import { loadPasReadiness } from './pas-readiness';
 
 /**
@@ -155,6 +155,52 @@ export class PasService {
 
         if (error) throw new BadRequestException(`Gagal menyimpan Ketua Panitia: ${error.message}`);
         return { id: periodId, committee_chair_name: name, committee_chair_nip: nip };
+    }
+
+    async updatePeriod(user: AuthUser, periodId: string, dto: UpdatePASPeriodDto) {
+        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        const { data: period } = await this.db
+            .from('cbt_pas_periods')
+            .select('*')
+            .eq('id', periodId)
+            .maybeSingle();
+
+        if (!period) throw new NotFoundException('Periode tidak ditemukan.');
+
+        const updateData: Record<string, any> = {};
+        if (dto.name !== undefined) {
+            const trimmed = dto.name.trim();
+            if (!trimmed) throw new BadRequestException('Nama folder ujian wajib diisi.');
+            updateData.name = trimmed;
+        }
+        if (dto.type !== undefined) updateData.type = dto.type;
+        if (dto.school_year !== undefined) {
+            const trimmedYear = dto.school_year.trim();
+            if (!trimmedYear) throw new BadRequestException('Tahun ajaran wajib diisi.');
+            updateData.school_year = trimmedYear;
+        }
+        if (dto.semester !== undefined) updateData.semester = dto.semester;
+        if (dto.start_date !== undefined) updateData.start_date = dto.start_date;
+        if (dto.end_date !== undefined) updateData.end_date = dto.end_date;
+        if (dto.committee_chair_name !== undefined) {
+            updateData.committee_chair_name = dto.committee_chair_name.trim() || null;
+        }
+        if (dto.committee_chair_nip !== undefined) {
+            updateData.committee_chair_nip = dto.committee_chair_nip.trim() || null;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return period;
+        }
+
+        const { data, error } = await this.db.from('cbt_pas_periods')
+            .update(updateData)
+            .eq('id', periodId)
+            .select()
+            .single();
+
+        if (error) throw new BadRequestException(`Gagal memperbarui folder ujian: ${error.message}`);
+        return data;
     }
 
     async setPeriodLock(user: AuthUser, periodId: string, lock: boolean) {

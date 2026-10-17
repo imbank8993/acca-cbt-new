@@ -12,3 +12,12 @@ export async function DELETE(request: NextRequest, context: Context) {
     const { periodId } = await context.params;
     return proxy(request, `/pas/periods/${encodeURIComponent(periodId)}`, { method: 'DELETE' });
 }
+
+export async function PATCH(request: NextRequest, context: Context) {
+    const { periodId } = await context.params;
+    const body = await request.text();
+    return proxy(request, `/pas/periods/${encodeURIComponent(periodId)}`, {
+        method: 'PATCH',
+        body: body || undefined,
+    });
+}

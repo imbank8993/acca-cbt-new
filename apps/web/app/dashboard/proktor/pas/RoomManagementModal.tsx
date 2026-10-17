@@ -882,156 +882,139 @@ export default function RoomManagementPanel({ period, view: activeTab, onChange 
                             </p>
                         </div>
                     ) : sessions.length > 0 && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {rooms.map((room) => {
-                                const assignedInvigilators = getRoomSessionInvigilators(room, selectedProctorSessionId);
-                                const assignedIds = assignedInvigilators.map((i) => i.user_id);
-                                const availableTeachers = teachers.filter((t) => !assignedIds.includes(t.id));
-                                const isRoomSaving = savingProctorRoomId === room.id;
-                                const isRoomSaved = savedProctorRoomId === room.id;
+                        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                            <th className="py-3 px-4 w-12 text-center">No</th>
+                                            <th className="py-3 px-4 w-48">Ruang Ujian</th>
+                                            <th className="py-3 px-4">Pengawas Bertugas</th>
+                                            <th className="py-3 px-4 w-72">Tugaskan Pengawas</th>
+                                            <th className="py-3 px-4 w-28 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                        {rooms.map((room, idx) => {
+                                            const assignedInvigilators = getRoomSessionInvigilators(room, selectedProctorSessionId);
+                                            const assignedIds = assignedInvigilators.map((i) => i.user_id);
+                                            const availableTeachers = teachers.filter((t) => !assignedIds.includes(t.id));
+                                            const isRoomSaving = savingProctorRoomId === room.id;
+                                            const isRoomSaved = savedProctorRoomId === room.id;
 
-                                return (
-                                    <div
-                                        key={room.id}
-                                        className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs flex flex-col justify-between gap-4"
-                                    >
-                                        <div className="space-y-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <h4 className="font-bold text-sm text-slate-900">{room.name}</h4>
-                                                        <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                            {room.pas_room_students?.length || 0}/{room.capacity} peserta
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs text-slate-500 mt-0.5">
-                                                        Sesi: <strong>{selectedProctorSession?.name || '-'}</strong>
-                                                        {selectedProctorSession
-                                                            ? ` (${selectedProctorSession.start_time.slice(0, 5)}–${selectedProctorSession.end_time.slice(0, 5)} ${tzLabel})`
-                                                            : ''}
-                                                    </p>
-                                                </div>
+                                            return (
+                                                <tr key={room.id} className="hover:bg-slate-50/60 transition-colors">
+                                                    <td className="py-3 px-4 text-center font-semibold text-slate-400">
+                                                        {idx + 1}
+                                                    </td>
+                                                    <td className="py-3 px-4 align-top">
+                                                        <div className="font-bold text-slate-900 text-xs">{room.name}</div>
+                                                        <div className="text-[11px] text-slate-400 mt-0.5">
+                                                            {room.pas_room_students?.length || 0}/{room.capacity} Peserta
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4 align-top">
+                                                        {assignedIds.length === 0 ? (
+                                                            <span className="text-slate-400 italic text-[11px]">
+                                                                Belum ada pengawas ditugaskan
+                                                            </span>
+                                                        ) : (
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                {assignedIds.map((proctorId) => {
+                                                                    const teacher = teachers.find((t) => t.id === proctorId);
+                                                                    const invRecord = assignedInvigilators.find((i) => i.user_id === proctorId);
+                                                                    const teacherName =
+                                                                        teacher?.name || invRecord?.profiles?.full_name || 'Pengawas';
+                                                                    const otherRooms = (teacherAssignmentMap.get(proctorId) || []).filter(
+                                                                        (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
+                                                                    );
 
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    {isRoomSaving && (
-                                                        <span className="text-[11px] font-semibold text-blue-600 flex items-center gap-1">
-                                                            <Loader2 size={12} className="animate-spin" /> Menyimpan...
-                                                        </span>
-                                                    )}
-                                                    {isRoomSaved && !isRoomSaving && (
-                                                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                            <Check size={12} /> Tersimpan
-                                                        </span>
-                                                    )}
-                                                    <span
-                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                                            assignedIds.length > 0
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                                                        }`}
-                                                    >
-                                                        {assignedIds.length > 0
-                                                            ? `${assignedIds.length} Pengawas`
-                                                            : 'Belum Ada Pengawas'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Daftar Pengawas di Ruang & Sesi Ini */}
-                                            {assignedIds.length === 0 ? (
-                                                <div className="p-3 bg-slate-50/70 rounded-xl border border-dashed border-slate-200 text-center">
-                                                    <p className="text-xs text-slate-500">
-                                                        Belum ada pengawas untuk <strong>{room.name}</strong> pada{' '}
-                                                        <strong>{selectedProctorSession?.name || 'sesi ini'}</strong>.
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    {assignedIds.map((proctorId) => {
-                                                        const teacher = teachers.find((t) => t.id === proctorId);
-                                                        const invRecord = assignedInvigilators.find((i) => i.user_id === proctorId);
-                                                        const teacherName =
-                                                            teacher?.name || invRecord?.profiles?.full_name || 'Pengawas';
-                                                        const roles = teacher?.roles || ['Pengawas'];
-                                                        const otherRooms = (teacherAssignmentMap.get(proctorId) || []).filter(
-                                                            (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
-                                                        );
-
-                                                        return (
-                                                            <div
-                                                                key={proctorId}
-                                                                className="flex items-center justify-between p-2.5 bg-slate-50/80 border border-slate-200/90 rounded-xl"
-                                                            >
-                                                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                                                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
-                                                                        <ShieldCheck size={14} />
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-xs font-bold text-slate-800 truncate">
-                                                                            {teacherName}
-                                                                        </p>
-                                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                                            <span className="text-[10px] text-slate-500">
-                                                                                {roles.join(', ')}
-                                                                            </span>
+                                                                    return (
+                                                                        <span
+                                                                            key={proctorId}
+                                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-xs font-semibold"
+                                                                        >
+                                                                            <ShieldCheck size={12} className="text-[#3083FF] shrink-0" />
+                                                                            <span>{teacherName}</span>
                                                                             {otherRooms.length > 0 && (
-                                                                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
-                                                                                    Juga di: {otherRooms.join(', ')}
+                                                                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-normal">
+                                                                                    juga di {otherRooms.join(', ')}
                                                                                 </span>
                                                                             )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                {!period.is_locked && (
-                                                                    <button
-                                                                        type="button"
-                                                                        disabled={isSaving}
-                                                                        onClick={() => handleRemoveRoomProctor(room, proctorId)}
-                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                                                                        title="Hapus pengawas dari ruang dan sesi ini"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                )}
+                                                                            {!period.is_locked && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    disabled={isSaving}
+                                                                                    onClick={() => handleRemoveRoomProctor(room, proctorId)}
+                                                                                    className="text-slate-400 hover:text-red-600 transition-colors ml-0.5 cursor-pointer"
+                                                                                    title="Hapus pengawas"
+                                                                                >
+                                                                                    <X size={12} />
+                                                                                </button>
+                                                                            )}
+                                                                        </span>
+                                                                    );
+                                                                })}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Dropdown Tambah Pengawas */}
-                                        {!period.is_locked && (
-                                            <div className="pt-2 border-t border-slate-100">
-                                                <InlineSelect
-                                                    disabled={!selectedProctorSessionId || isSaving}
-                                                    value=""
-                                                    onChange={(teacherId) => handleAddRoomProctor(room, teacherId)}
-                                                    minWidth="100%"
-                                                    height="36px"
-                                                    title={`Tambah Pengawas ke ${room.name}`}
-                                                    options={[
-                                                        { value: '', label: '+ Tambah Guru / Pengawas ke Ruangan Ini...' },
-                                                        ...availableTeachers.map((t) => {
-                                                            const otherRooms = (teacherAssignmentMap.get(t.id) || []).filter(
-                                                                (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
-                                                            );
-                                                            const conflictNotice =
-                                                                otherRooms.length > 0
-                                                                    ? ` (⚠️ Ditugaskan di: ${otherRooms.join(', ')})`
-                                                                    : '';
-                                                            return {
-                                                                value: t.id,
-                                                                label: `${t.name}${t.roles?.length ? ` (${t.roles.join(', ')})` : ''}${conflictNotice}`,
-                                                            };
-                                                        }),
-                                                    ]}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 align-top">
+                                                        {!period.is_locked ? (
+                                                            <InlineSelect
+                                                                disabled={!selectedProctorSessionId || isSaving}
+                                                                value=""
+                                                                onChange={(teacherId) => {
+                                                                    if (teacherId) handleAddRoomProctor(room, teacherId);
+                                                                }}
+                                                                minWidth="100%"
+                                                                height="32px"
+                                                                title={`Tugaskan ke ${room.name}`}
+                                                                options={[
+                                                                    { value: '', label: '+ Pilih Pengawas...' },
+                                                                    ...availableTeachers.map((t) => {
+                                                                        const otherRooms = (teacherAssignmentMap.get(t.id) || []).filter(
+                                                                            (rName) => rName.toLowerCase() !== room.name.toLowerCase(),
+                                                                        );
+                                                                        const conflictNotice =
+                                                                            otherRooms.length > 0
+                                                                                ? ` (⚠️ di ${otherRooms.join(', ')})`
+                                                                                : '';
+                                                                        return {
+                                                                            value: t.id,
+                                                                            label: `${t.name}${conflictNotice}`,
+                                                                        };
+                                                                    }),
+                                                                ]}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs italic">Terkunci</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 align-top text-center">
+                                                        {isRoomSaving ? (
+                                                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3083FF]">
+                                                                <Loader2 size={11} className="animate-spin" /> Menyimpan
+                                                            </span>
+                                                        ) : isRoomSaved ? (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                                                <Check size={11} /> Tersimpan
+                                                            </span>
+                                                        ) : assignedIds.length > 0 ? (
+                                                            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                {assignedIds.length} Pengawas
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                                                Kosong
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>

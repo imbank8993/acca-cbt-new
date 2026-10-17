@@ -17,3 +17,16 @@
 .dark .acca-confirm .acca-confirm-body{color:#cbd5e1;border-color:#334155}
 .dark .acca-confirm .acca-confirm-actions{background:#1e293b;border-color:#334155}
 .dark .acca-confirm-actions .acca-confirm-no{background:#0f172a;color:#e2e8f0;border-color:#475569}
+
+/* Scoped to alert dialogs (single-action) */
+.swal2-popup.acca-alert{width:420px;max-width:92%;padding:24px!important;border-radius:20px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 24px 70px rgba(15,23,42,.25);font-family:inherit;text-align:center}
+.acca-alert .swal2-icon{margin:8px auto 14px!important}
+.acca-alert .swal2-title.acca-alert-title{padding:4px 0 8px;margin:0;font-size:17px;font-weight:700;color:#0f172a!important;line-height:1.4}
+.acca-alert .swal2-html-container.acca-alert-body{padding:0 8px;margin:0 0 20px;font-size:13px;line-height:1.55;color:#475569!important}
+.acca-alert .swal2-actions.acca-alert-actions{margin:0;padding:0;width:100%;justify-content:center}
+.acca-alert .acca-alert-btn{min-width:110px;height:40px;padding:0 24px;border-radius:12px;font-family:inherit;font-weight:600;font-size:13px;color:#fff;border:none;cursor:pointer;transition:opacity .15s}
+.acca-alert .acca-alert-btn:hover{opacity:.9}
+.dark .swal2-popup.acca-alert{background:#0f172a;border-color:#334155}
+.dark .acca-alert .swal2-title.acca-alert-title{color:#f8fafc!important}
+.dark .acca-alert .swal2-html-container.acca-alert-body{color:#cbd5e1!important}
+

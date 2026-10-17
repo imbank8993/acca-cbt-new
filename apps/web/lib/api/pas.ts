@@ -95,6 +95,26 @@ export function createPASPeriodAction(
     return apiCreate<{ id: string }>('/api/pas/periods', input);
 }
 
+export function updatePASPeriodAction(
+    periodId: string,
+    data: {
+        name?: string;
+        type?: string;
+        school_year?: string;
+        semester?: string;
+        start_date?: string;
+        end_date?: string;
+        committee_chair_name?: string;
+        committee_chair_nip?: string;
+    },
+) {
+    return apiSend<PASPeriod>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}`,
+        data,
+        'PATCH',
+    );
+}
+
 export function updatePASPeriodCommitteeChairAction(
     periodId: string,
     data: { committee_chair_name: string; committee_chair_nip?: string },
@@ -381,6 +401,12 @@ export interface PASAdministrationSlot {
         signature_version: number;
         proctor_nip?: string;
         verification_code: string;
+        status?: 'draft' | 'submitted' | 'approved' | 'rejected';
+        submitted_at?: string | null;
+        submitted_by?: string | null;
+        approved_at?: string | null;
+        approved_by?: string | null;
+        rejection_note?: string;
         attendance_verification_code: string;
         signature_hash: string;
         signed_at: string | null;
@@ -521,6 +547,7 @@ export function savePASAdministrationSlotAction(input: {
     invigilator_name?: string;
     proctor_id?: string;
     proctor_name?: string;
+    action?: 'save_draft' | 'submit' | 'approve';
     attendances?: Array<{
         user_id: string;
         status: PASAttendanceStatus;
@@ -529,4 +556,70 @@ export function savePASAdministrationSlotAction(input: {
 }) {
     return apiSend<{ slot: PASAdministrationSlot }>('/api/pas/administration/slot', input, 'PUT');
 }
+
+export interface PASAdministrationOverviewItem {
+    room_id: string;
+    room_name: string;
+    session_id: string;
+    session_name: string;
+    start_time: string;
+    end_time: string;
+    exam_date: string;
+    assigned_invigilators: string[];
+    student_count: number;
+    report_id: string | null;
+    status: 'draft' | 'submitted' | 'approved' | 'rejected';
+    invigilator_name: string;
+    proctor_name: string;
+    submitted_at: string | null;
+    approved_at: string | null;
+    rejection_note?: string;
+    verification_code?: string;
+    attendance_verification_code?: string;
+    counts: {
+        total: number;
+        hadir: number;
+        sakit: number;
+        izin: number;
+        alpha: number;
+    };
+}
+
+export async function getPASPeriodAdministrationOverview(
+    periodId: string,
+): Promise<PASAdministrationOverviewItem[]> {
+    const res = await apiGet<PASAdministrationOverviewItem[]>(
+        `/api/pas/administration/overview?periodId=${encodeURIComponent(periodId)}`,
+    );
+    if (!res.success) throw new Error(res.error || 'Overview administrasi belum dapat dimuat.');
+    return (Array.isArray(res) ? res : (res as any).data || (res as any).overview || []) as PASAdministrationOverviewItem[];
+}
+
+export function approvePASAdministrationSlotAction(input: {
+    pas_period_id: string;
+    pas_room_id: string;
+    session_id: string;
+    exam_date: string;
+}) {
+    return apiSend<{ slot: PASAdministrationSlot }>(
+        '/api/pas/administration/slot/approve',
+        input,
+        'POST',
+    );
+}
+
+export function rejectPASAdministrationSlotAction(input: {
+    pas_period_id: string;
+    pas_room_id: string;
+    session_id: string;
+    exam_date: string;
+    rejection_note?: string;
+}) {
+    return apiSend<{ slot: PASAdministrationSlot }>(
+        '/api/pas/administration/slot/reject',
+        input,
+        'POST',
+    );
+}
+
 

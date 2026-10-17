@@ -75,6 +75,48 @@ export class UpdatePASCommitteeChairDto {
     committee_chair_nip?: string;
 }
 
+export class UpdatePASPeriodDto {
+    @ApiPropertyOptional({ example: 'PAS Ganjil 2025/2026' })
+    @IsOptional()
+    @IsString()
+    name?: string;
+
+    @ApiPropertyOptional({ default: 'pas' })
+    @IsOptional()
+    @IsString()
+    type?: string;
+
+    @ApiPropertyOptional({ example: '2025/2026' })
+    @IsOptional()
+    @IsString()
+    school_year?: string;
+
+    @ApiPropertyOptional({ default: 'ganjil' })
+    @IsOptional()
+    @IsString()
+    semester?: string;
+
+    @ApiPropertyOptional({ example: DATE_EXAMPLE })
+    @IsOptional()
+    @IsString()
+    start_date?: string;
+
+    @ApiPropertyOptional({ example: DATE_EXAMPLE })
+    @IsOptional()
+    @IsString()
+    end_date?: string;
+
+    @ApiPropertyOptional({ example: 'Drs. H. Ahmad Fauzi, M.Pd.' })
+    @IsOptional()
+    @IsString()
+    committee_chair_name?: string;
+
+    @ApiPropertyOptional({ example: '197505102000031002' })
+    @IsOptional()
+    @IsString()
+    committee_chair_nip?: string;
+}
+
 export class LockPASPeriodDto {
     @ApiProperty()
     @IsBoolean({ message: 'lock harus berupa boolean' })
@@ -262,5 +304,36 @@ export class SavePASAdministrationDto {
     @IsOptional()
     @IsArray()
     attendances?: PASStudentAttendanceItemDto[];
+
+    @ApiPropertyOptional({ enum: ['save_draft', 'submit', 'approve'] })
+    @IsOptional()
+    @IsString()
+    action?: 'save_draft' | 'submit' | 'approve';
+}
+
+export class ApprovePASAdministrationDto {
+    @ApiProperty()
+    @IsUUID('4', { message: 'pas_period_id tidak valid' })
+    pas_period_id!: string;
+
+    @ApiProperty()
+    @IsUUID('4', { message: 'pas_room_id tidak valid' })
+    pas_room_id!: string;
+
+    @ApiProperty()
+    @IsUUID('4', { message: 'session_id tidak valid' })
+    session_id!: string;
+
+    @ApiProperty({ example: DATE_EXAMPLE })
+    @IsString()
+    @IsNotEmpty({ message: 'Tanggal pelaksanaan wajib diisi.' })
+    exam_date!: string;
+}
+
+export class RejectPASAdministrationDto extends ApprovePASAdministrationDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    rejection_note?: string;
 }
 
