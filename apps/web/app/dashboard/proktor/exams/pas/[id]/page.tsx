@@ -794,14 +794,10 @@ export default function ProctorPASDetailPage() {
                                                                 <div className="mt-1 text-xs text-slate-500 tabular-nums">{timeLabel} {tzLabel}</div>
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                <PASScheduleRooms
-                                                                    schedule={sc}
-                                                                    rooms={rooms}
-                                                                    onManage={() => {
-                                                                        setActiveTab('rooms_sessions');
-                                                                        setLogisticsSubTab('rooms');
-                                                                    }}
-                                                                />
+                                                                <PASScheduleRooms schedule={sc} rooms={rooms} onManage={() => {
+                                                                    setActiveTab('rooms_sessions');
+                                                                    setLogisticsSubTab('rooms');
+                                                                }} />
                                                             </td>
                                                             <td className="py-3 px-3">
                                                                 <PASScheduleStatus schedule={sc} />
