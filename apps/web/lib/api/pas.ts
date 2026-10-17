@@ -88,9 +88,22 @@ export function createPASPeriodAction(
         start_date: string;
         end_date: string;
         screenshot_enabled?: boolean;
+        committee_chair_name?: string;
+        committee_chair_nip?: string;
     },
 ) {
     return apiCreate<{ id: string }>('/api/pas/periods', input);
+}
+
+export function updatePASPeriodCommitteeChairAction(
+    periodId: string,
+    data: { committee_chair_name: string; committee_chair_nip?: string },
+) {
+    return apiSend<{ id: string; committee_chair_name: string; committee_chair_nip: string | null }>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}/committee-chair`,
+        data,
+        'PATCH',
+    );
 }
 
 export function lockPASPeriodAction(periodId: string, lock: boolean) {
@@ -442,6 +455,8 @@ export interface PASAssignmentSlotSummary {
         start_date: string;
         end_date: string;
         is_locked: boolean;
+        committee_chair_name?: string | null;
+        committee_chair_nip?: string | null;
     };
     room: {
         id: string;

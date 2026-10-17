@@ -363,6 +363,8 @@ create table if not exists pas_periods (
   start_date date not null,
   end_date date not null,
   is_locked boolean default false,
+  committee_chair_name text,
+  committee_chair_nip text,
   created_by uuid references profiles(id),
   created_at timestamptz default now()
 );

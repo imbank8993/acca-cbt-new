@@ -12,6 +12,8 @@ require('ts-node').register({
 const { fixtureDb } = require('./fixture-db.cjs');
 const { SettingsService } = require('../src/settings/settings.service.ts');
 const { SettingsController } = require('../src/settings/settings.controller.ts');
+const { PasController } = require('../src/pas/pas.controller.ts');
+const { PasService } = require('../src/pas/pas.service.ts');
 const { drawAdministrationSigners } = require('../../web/lib/pas/administration-signers.ts');
 const { jsPDF } = require('jspdf');
 const {
@@ -164,6 +166,7 @@ function createFixtures() {
 function createAuthzMock(proktorIds = ['proctor-creator-1']) {
     return {
         assertOrgStaff: async () => {},
+        assertProktorByRecord: async () => {},
         assertProktor: async (user) => {
             if (!user.isPlatformAdmin && !proktorIds.includes(user.id)) {
                 const err = new Error('Forbidden');
@@ -436,4 +439,30 @@ test('ADMIN-13: PDF footer wraps long names and moves all three signers together
     for (const label of ['Pengawas Ruang', 'Proktor', 'Mengetahui, Ketua Panitia']) assert.ok(printed.includes(label));
     assert.ok(calls.some(call => Array.isArray(call[0]) && call[0].length > 1 && call[1] === 58));
 });
+
+test('ADMIN-14: period-level committee chair can be configured and updated directly on the exam folder', async () => {
+    const db = fixtureDb(createFixtures());
+    // Give period-1 a specific committee chair
+    db.tables.cbt_pas_periods[0].committee_chair_name = 'Drs. Panitia Folder, M.Pd.';
+    db.tables.cbt_pas_periods[0].committee_chair_nip = '198001012005011001';
+
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const slot = await service.getAdministrationSlot({ id: 'pengawas-1' }, { periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1', examDate: '2026-10-17' });
+    // Should prioritize period-level committee chair over acca_settings
+    assert.equal(slot.committee_chair.committee_chair_name, 'Drs. Panitia Folder, M.Pd.');
+    assert.equal(slot.committee_chair.committee_chair_nip, '198001012005011001');
+
+    // Check roles for updateCommitteeChair on PasController
+    assert.deepEqual(Reflect.getMetadata('roles', PasController.prototype.updateCommitteeChair), ['ADMIN', 'PROKTOR']);
+
+    // Check updateCommitteeChair in PasService
+    const pasService = new PasService(db, createAuthzMock());
+    const updated = await pasService.updateCommitteeChair({ id: 'proctor-1', role: 'PROKTOR', organization_id: 'org-1' }, 'period-1', {
+        committee_chair_name: 'Dra. Ketua Diperbarui, M.Si.',
+        committee_chair_nip: '198202022006022002',
+    });
+    assert.equal(updated.committee_chair_name, 'Dra. Ketua Diperbarui, M.Si.');
+    assert.equal(db.tables.cbt_pas_periods[0].committee_chair_name, 'Dra. Ketua Diperbarui, M.Si.');
+});
+
 

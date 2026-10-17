@@ -27,6 +27,8 @@ export interface PASPeriod {
   start_date: string;
   end_date: string;
   is_locked: boolean;
+  committee_chair_name?: string | null;
+  committee_chair_nip?: string | null;
   created_by: string | null;
   created_at: string;
   // Joined data

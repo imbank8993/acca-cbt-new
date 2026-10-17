@@ -51,6 +51,28 @@ export class CreatePASPeriodDto {
     @IsString()
     @IsNotEmpty({ message: 'Tanggal selesai wajib diisi.' })
     end_date!: string;
+
+    @ApiPropertyOptional({ example: 'Drs. H. Ahmad Fauzi, M.Pd.' })
+    @IsOptional()
+    @IsString()
+    committee_chair_name?: string;
+
+    @ApiPropertyOptional({ example: '197505102000031002' })
+    @IsOptional()
+    @IsString()
+    committee_chair_nip?: string;
+}
+
+export class UpdatePASCommitteeChairDto {
+    @ApiProperty({ example: 'Drs. H. Ahmad Fauzi, M.Pd.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Nama Ketua Panitia wajib diisi.' })
+    committee_chair_name!: string;
+
+    @ApiPropertyOptional({ example: '197505102000031002' })
+    @IsOptional()
+    @IsString()
+    committee_chair_nip?: string;
 }
 
 export class LockPASPeriodDto {

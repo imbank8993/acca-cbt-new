@@ -93,7 +93,6 @@ export default function Sidebar({
             { icon: 'fa-shield-halved', label: 'Validasi Soal', href: '/dashboard/admin/questions/validations' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },
             { icon: 'fa-chart-line', label: 'Monitoring', href: '/dashboard/admin/monitoring' },
-            { icon: 'fa-gear', label: 'Pengaturan', href: '/dashboard/admin/settings' },
             { icon: 'fa-database', label: 'Backup Data', href: '/dashboard/admin/backup' },
         ],
         'Admin': [
@@ -104,7 +103,6 @@ export default function Sidebar({
             { icon: 'fa-shield-halved', label: 'Validasi Soal', href: '/dashboard/admin/questions/validations' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/admin/exams' },
             { icon: 'fa-chart-line', label: 'Monitoring', href: '/dashboard/admin/monitoring' },
-            { icon: 'fa-gear', label: 'Pengaturan', href: '/dashboard/admin/settings' },
             { icon: 'fa-database', label: 'Backup Data', href: '/dashboard/admin/backup' },
         ],
         'Proktor': [
@@ -114,7 +112,6 @@ export default function Sidebar({
             { icon: 'fa-shield-halved', label: 'Validasi Soal', href: '/dashboard/proktor/questions/validations' },
             { icon: 'fa-clipboard-check', label: 'Ujian', href: '/dashboard/proktor/exams' },
             { icon: 'fa-chart-line', label: 'Monitoring', href: '/dashboard/proktor/monitoring' },
-            { icon: 'fa-gear', label: 'Pengaturan', href: '/dashboard/proktor/settings' },
         ],
         'Guru': [
             { icon: 'fa-house', label: 'Dashboard', href: '/dashboard/guru' },

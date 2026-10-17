@@ -13,7 +13,7 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
-import type { CreatePASPeriodDto } from './dto/pas.dto';
+import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto } from './dto/pas.dto';
 import { loadPasReadiness } from './pas-readiness';
 
 /**
@@ -132,12 +132,29 @@ export class PasService {
                 start_date: dto.start_date,
                 end_date: dto.end_date,
                 screenshot_enabled: dto.screenshot_enabled === true,
+                committee_chair_name: dto.committee_chair_name?.trim() || null,
+                committee_chair_nip: dto.committee_chair_nip?.trim() || null,
                 created_by: user.id,
                 is_locked: false,
             },
         });
 
         return { id: data.id };
+    }
+
+    async updateCommitteeChair(user: AuthUser, periodId: string, dto: UpdatePASCommitteeChairDto) {
+        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        const name = dto.committee_chair_name?.trim() || '';
+        const nip = dto.committee_chair_nip?.trim() || null;
+        if (!name) throw new BadRequestException('Nama Ketua Panitia wajib diisi.');
+
+        const { error } = await this.db.from('cbt_pas_periods').update({
+            committee_chair_name: name,
+            committee_chair_nip: nip,
+        }).eq('id', periodId);
+
+        if (error) throw new BadRequestException(`Gagal menyimpan Ketua Panitia: ${error.message}`);
+        return { id: periodId, committee_chair_name: name, committee_chair_nip: nip };
     }
 
     async setPeriodLock(user: AuthUser, periodId: string, lock: boolean) {

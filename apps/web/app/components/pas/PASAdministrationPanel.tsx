@@ -17,19 +17,20 @@ import {
     RefreshCw,
     Save,
     Search,
+    Edit,
     ShieldCheck,
     UserCheck,
     Users,
+    X,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { alertDialog } from '@/lib/confirm-dialog';
 import { drawAdministrationSigners } from '@/lib/pas/administration-signers';
 import {
     getPASAdministrationSlot,
     savePASAdministrationSlotAction,
+    updatePASPeriodCommitteeChairAction,
     type PASAdministrationSlot,
     type PASAttendanceStatus,
 } from '@/lib/api/pas';
@@ -48,6 +49,8 @@ export interface PASAdministrationPanelProps {
         start_date?: string | null;
         end_date?: string | null;
         is_locked?: boolean;
+        committee_chair_name?: string | null;
+        committee_chair_nip?: string | null;
     };
     rooms: Array<{
         id: string;
@@ -64,6 +67,7 @@ export interface PASAdministrationPanelProps {
     initialSessionId?: string;
     initialExamDate?: string;
     onSlotSaved?: (slot: PASAdministrationSlot) => void;
+    onPeriodUpdated?: (chair: { committee_chair_name: string; committee_chair_nip: string | null }) => void;
 }
 
 type AdminSubView = 'editor' | 'berita_acara_a4' | 'daftar_hadir_a4';
@@ -185,10 +189,9 @@ export default function PASAdministrationPanel({
     initialSessionId,
     initialExamDate,
     onSlotSaved,
+    onPeriodUpdated,
 }: PASAdministrationPanelProps) {
     const { timeZone } = useSchoolTimeZone();
-    const pathname = usePathname();
-    const settingsHref = pathname.includes('/admin/') ? '/dashboard/admin/settings' : pathname.includes('/proktor/') ? '/dashboard/proktor/settings' : null;
     const todayDate = useMemo(() => {
         const today = schoolTodayDate(timeZone);
         const start = period.start_date ? period.start_date.split('T')[0] : '';
@@ -197,6 +200,12 @@ export default function PASAdministrationPanel({
         if (end && today > end) return end;
         return today;
     }, [period.end_date, period.start_date, timeZone]);
+
+    const [isChairModalOpen, setIsChairModalOpen] = useState(false);
+    const [chairName, setChairName] = useState('');
+    const [chairNip, setChairNip] = useState('');
+    const [isSavingChair, setIsSavingChair] = useState(false);
+    const [chairError, setChairError] = useState<string | null>(null);
 
     const [selectedRoomId, setSelectedRoomId] = useState<string>(initialRoomId || rooms[0]?.id || '');
     const [selectedSessionId, setSelectedSessionId] = useState<string>(initialSessionId || sessions[0]?.id || '');
@@ -278,6 +287,44 @@ export default function PASAdministrationPanel({
     useEffect(() => {
         void loadSlot();
     }, [loadSlot]);
+
+    const openChairModal = () => {
+        setChairName(slot?.committee_chair?.committee_chair_name || period.committee_chair_name || '');
+        setChairNip(slot?.committee_chair?.committee_chair_nip || period.committee_chair_nip || '');
+        setChairError(null);
+        setIsChairModalOpen(true);
+    };
+
+    const handleSaveCommitteeChair = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmed = chairName.trim();
+        if (!trimmed) {
+            setChairError('Nama Ketua Panitia wajib diisi.');
+            return;
+        }
+        setIsSavingChair(true);
+        setChairError(null);
+        try {
+            const res = await updatePASPeriodCommitteeChairAction(period.id, {
+                committee_chair_name: trimmed,
+                committee_chair_nip: chairNip.trim() || undefined,
+            });
+            if (!res.success) {
+                setChairError(res.error || 'Gagal menyimpan nama Ketua Panitia.');
+                return;
+            }
+            setIsChairModalOpen(false);
+            onPeriodUpdated?.({
+                committee_chair_name: res.committee_chair_name,
+                committee_chair_nip: res.committee_chair_nip,
+            });
+            await loadSlot();
+        } catch (err: any) {
+            setChairError(err?.message || 'Terjadi kesalahan saat menyimpan.');
+        } finally {
+            setIsSavingChair(false);
+        }
+    };
 
     const updateStudentStatus = (userId: string, status: PASAttendanceStatus) => {
         setAttendanceMap((prev) => ({
@@ -361,6 +408,19 @@ export default function PASAdministrationPanel({
 
     const handleSaveSlot = async (silent = false): Promise<PASAdministrationSlot | null> => {
         if (!slot || !selectedRoomId || !selectedSessionId || !selectedDate) return null;
+
+        if (!slot.committee_chair?.committee_chair_name && !period.committee_chair_name) {
+            if (!silent) {
+                await alertDialog({
+                    title: 'Ketua Panitia Belum Diatur',
+                    text: 'Nama Ketua Panitia belum diatur untuk folder ujian ini. Silakan atur nama Ketua Panitia terlebih dahulu sebelum menandatangani Berita Acara dan Daftar Hadir.',
+                    variant: 'warning',
+                });
+                openChairModal();
+            }
+            return null;
+        }
+
         setIsSaving(true);
         setSaveNotice(null);
         try {
@@ -382,16 +442,21 @@ export default function PASAdministrationPanel({
                 attendances,
             });
 
-            if (!res.success || !res.slot) {
+            if (!res.success) {
                 if (!silent) {
                     await alertDialog({
                         title: 'Gagal Menyimpan Administrasi',
-                        text: !res.success
-                            ? res.error
-                            : 'Perubahan Berita Acara dan Daftar Hadir belum dapat disimpan.',
+                        text: res.error || 'Perubahan Berita Acara dan Daftar Hadir belum dapat disimpan.',
                         variant: 'danger',
                     });
+                    if (res.error?.includes('Ketua Panitia')) {
+                        openChairModal();
+                    }
                 }
+                return null;
+            }
+
+            if (!res.slot) {
                 return null;
             }
 
@@ -1564,11 +1629,21 @@ ${KOP_AND_A4_CSS}
                             </div>
 
                             <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                <h4 className="text-xs font-bold text-slate-700">Mengetahui, Ketua Panitia</h4>
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-slate-700">Mengetahui, Ketua Panitia</h4>
+                                    <button
+                                        type="button"
+                                        onClick={openChairModal}
+                                        className="text-xs font-semibold text-[#3083FF] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Edit size={12} />
+                                        {slot.committee_chair?.committee_chair_name ? 'Ubah' : 'Atur Panitia'}
+                                    </button>
+                                </div>
                                 <p className="mt-2 text-sm font-semibold text-slate-900">{slot.committee_chair?.committee_chair_name || 'Belum diatur'}</p>
                                 {slot.committee_chair?.committee_chair_nip && <p className="mt-1 text-xs text-slate-500">NIP. {slot.committee_chair.committee_chair_nip}</p>}
                                 <p className="mt-2 text-xs text-slate-500">
-                                    Diambil dari pengaturan administrasi ujian. {settingsHref ? <Link href={settingsHref} className="font-semibold text-blue-600 underline">Atur Ketua Panitia</Link> : 'Hubungi Proktor atau Admin untuk mengaturnya.'}
+                                    Diatur khusus untuk folder ujian <strong>{period.name}</strong> ini.
                                 </p>
                                 {slot.report.is_saved && slot.report.signature_version !== 2 && <p className="mt-2 text-xs text-amber-700">Dokumen lama belum mencantumkan Ketua Panitia. Simpan kembali untuk memperbarui penandatangan.</p>}
                             </div>
@@ -2143,6 +2218,86 @@ ${KOP_AND_A4_CSS}
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {isChairModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-xl">
+                        <button
+                            type="button"
+                            onClick={() => setIsChairModalOpen(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-center text-[#3083FF] shrink-0">
+                                <UserCheck size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900">Atur Ketua Panitia Ujian</h3>
+                                <p className="text-xs text-slate-500 truncate max-w-[260px]">Folder: {period.name}</p>
+                            </div>
+                        </div>
+
+                        {chairError && (
+                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                                {chairError}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSaveCommitteeChair} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    Nama Lengkap & Gelar Ketua Panitia <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
+                                    value={chairName}
+                                    onChange={(e) => setChairName(e.target.value)}
+                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                    NIP Ketua Panitia (Opsional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Contoh: 197805122005011002 atau -"
+                                    value={chairNip}
+                                    onChange={(e) => setChairNip(e.target.value)}
+                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
+                                />
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                                Nama Ketua Panitia ini akan dicantumkan pada bagian penandatangan (Mengetahui) di <strong>Berita Acara</strong> dan <strong>Daftar Hadir</strong> untuk seluruh ruang dan sesi pada folder ujian ini.
+                            </p>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsChairModalOpen(false)}
+                                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingChair || !chairName.trim()}
+                                    className="bg-[#3083FF] hover:bg-[#256cd1] text-white text-xs h-9 px-4 rounded-xl flex items-center gap-1.5"
+                                >
+                                    {isSavingChair ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                    Simpan Perubahan
+                                </Button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

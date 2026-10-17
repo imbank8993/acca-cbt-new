@@ -89,7 +89,13 @@ export class PasAdministrationService {
         private readonly authz: AuthorizationService,
     ) {}
 
-    private async committeeChair(db: Pick<DbService, 'from'> = this.db) {
+    private async committeeChair(db: Pick<DbService, 'from'> = this.db, period?: Record<string, any>) {
+        if (period?.committee_chair_name && typeof period.committee_chair_name === 'string' && period.committee_chair_name.trim()) {
+            return {
+                committee_chair_name: period.committee_chair_name.trim(),
+                committee_chair_nip: typeof period.committee_chair_nip === 'string' ? period.committee_chair_nip.trim() : '',
+            };
+        }
         const { data, error } = await db.from('acca_settings').select('value')
             .eq('key', EXAM_ADMINISTRATION_SETTING_KEY).maybeSingle();
         if (error) throw new BadRequestException('Pengaturan Ketua Panitia belum dapat dibaca.');
@@ -164,7 +170,7 @@ export class PasAdministrationService {
 
         const { data: periods } = await this.db
             .from('cbt_pas_periods')
-            .select('id, name, type, school_year, semester, start_date, end_date, is_locked, created_by')
+            .select('id, name, type, school_year, semester, start_date, end_date, is_locked, created_by, committee_chair_name, committee_chair_nip')
             .eq('organization_id', organizationId)
             .order('created_at', { ascending: false });
 
@@ -254,6 +260,8 @@ export class PasAdministrationService {
                             start_date: cleanDateString(period.start_date),
                             end_date: cleanDateString(period.end_date),
                             is_locked: Boolean(period.is_locked),
+                            committee_chair_name: period.committee_chair_name || null,
+                            committee_chair_nip: period.committee_chair_nip || null,
                         },
                         room: {
                             id: room.id,
@@ -569,7 +577,7 @@ export class PasAdministrationService {
             (creatorProfile as any)?.identity_number || (creatorProfile as any)?.nis || '-';
 
         const savedReport = savedReportRes.data as Record<string, any> | null;
-        const configuredChair = await this.committeeChair();
+        const configuredChair = await this.committeeChair(this.db, period);
         const signatureVersion = savedReport ? Number(savedReport.signature_version || 1) : 2;
         const committeeChairName = savedReport ? savedReport.committee_chair_name || '' : configuredChair.committee_chair_name;
         const committeeChairNip = savedReport ? savedReport.committee_chair_nip || '' : configuredChair.committee_chair_nip;
@@ -726,9 +734,9 @@ export class PasAdministrationService {
                 `pas-admin-slot:${period.id}:${room.id}:${session.id}:${examDate}`,
             );
 
-            const chair = await this.committeeChair(db);
+            const chair = await this.committeeChair(db, period);
             if (!chair.committee_chair_name) {
-                throw new BadRequestException('Isi nama Ketua Panitia melalui Pengaturan sebelum menandatangani dokumen.');
+                throw new BadRequestException('Nama Ketua Panitia belum diatur pada folder ujian ini. Silakan atur Ketua Panitia terlebih dahulu.');
             }
             const { data: creator, error: creatorError } = await db.from('cbt_profiles')
                 .select('id, full_name, identity_number, nis').eq('id', period.created_by).maybeSingle();

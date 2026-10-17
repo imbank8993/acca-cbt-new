@@ -26,6 +26,7 @@ Loader2,Lock,
 Plus,Search,
 Trash2,
 Unlock,
+UserCheck,
 X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -52,6 +53,8 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
         semester: 'ganjil' as Semester,
         start_date: '',
         end_date: '',
+        committee_chair_name: '',
+        committee_chair_nip: '',
     });
 
     const loadData = useCallback(async () => {
@@ -99,11 +102,22 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
             semester: periodForm.semester,
             start_date: periodForm.start_date,
             end_date: periodForm.end_date,
+            committee_chair_name: periodForm.committee_chair_name.trim() || undefined,
+            committee_chair_nip: periodForm.committee_chair_nip.trim() || undefined,
         });
 
         if (result.success) {
             setIsAddPeriodOpen(false);
-            setPeriodForm(prev => ({ ...prev, name: '', type: 'pas', semester: 'ganjil', start_date: '', end_date: '' }));
+            setPeriodForm(prev => ({
+                ...prev,
+                name: '',
+                type: 'pas',
+                semester: 'ganjil',
+                start_date: '',
+                end_date: '',
+                committee_chair_name: '',
+                committee_chair_nip: '',
+            }));
             await loadData();
             if (result.id) {
                 router.push(`/dashboard/proktor/exams/pas/${result.id}`);
@@ -291,6 +305,12 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                                     <span className="text-slate-400">•</span>
                                                     <span className="text-slate-600">{scheduleCount} Jadwal Kelas</span>
                                                 </span>
+                                                {period.committee_chair_name && (
+                                                    <span className="flex items-center gap-1.5 font-medium text-slate-600">
+                                                        <UserCheck size={14} className={isActive ? 'text-blue-500' : 'text-slate-400'} />
+                                                        <span>Ketua Panitia: <strong className="text-slate-700">{period.committee_chair_name}</strong></span>
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -411,6 +431,31 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                             value={periodForm.end_date}
                                             onChange={e => setPeriodForm({ ...periodForm, end_date: e.target.value })}
                                             className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary/10 outline-none" />
+                                    </div>
+                                </div>
+                                <div className="pt-2 border-t border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-700 mb-2">Administrasi Dokumen (Opsional)</p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">Nama Ketua Panitia</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
+                                                value={periodForm.committee_chair_name}
+                                                onChange={e => setPeriodForm({ ...periodForm, committee_chair_name: e.target.value })}
+                                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 mb-1">NIP Ketua Panitia</label>
+                                            <input
+                                                type="text"
+                                                placeholder="NIP (opsional)..."
+                                                value={periodForm.committee_chair_nip}
+                                                onChange={e => setPeriodForm({ ...periodForm, committee_chair_nip: e.target.value })}
+                                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-primary/10 outline-none"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                                 <button type="submit" disabled={isSubmitting}

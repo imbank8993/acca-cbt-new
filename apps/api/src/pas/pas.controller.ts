@@ -7,6 +7,7 @@ import {
     HttpStatus,
     Param,
     ParseUUIDPipe,
+    Patch,
     Post,
     Put,
     Query,
@@ -30,6 +31,7 @@ import {
     PASActivationDto,
     LockPASPeriodDto,
     SavePASAdministrationDto,
+    UpdatePASCommitteeChairDto,
 } from './dto/pas.dto';
 import { PasAdministrationService } from './pas-administration.service';
 import { PasRoomsService } from './pas-rooms.service';
@@ -94,6 +96,17 @@ export class PasController {
         @Body() dto: LockPASPeriodDto,
     ) {
         return this.pas.setPeriodLock(user, periodId, dto.lock);
+    }
+
+    @Patch('periods/:periodId/committee-chair')
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Perbarui nama & NIP Ketua Panitia pada folder ujian' })
+    updateCommitteeChair(
+        @CurrentUser() user: AuthUser,
+        @Param('periodId', ParseUUIDPipe) periodId: string,
+        @Body() dto: UpdatePASCommitteeChairDto,
+    ) {
+        return this.pas.updateCommitteeChair(user, periodId, dto);
     }
 
     @Delete('periods/:periodId')

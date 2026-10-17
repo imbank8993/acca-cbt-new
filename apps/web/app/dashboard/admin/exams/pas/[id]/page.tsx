@@ -40,6 +40,7 @@ Loader2,
 Lock,
 Search,
 Table,
+UserCheck,
 X,
 Zap
 } from 'lucide-react';
@@ -355,10 +356,17 @@ export default function AdminPASDetailPage() {
                                 </div>
                             )}
                             <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{period.name}</h1>
-                            <p className="text-slate-500 text-xs font-medium flex items-center gap-1.5 mt-0.5">
-                                <Calendar size={12} className="text-slate-400" />
-                                <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
-                            </p>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-slate-500 text-xs font-medium">
+                                <span className="flex items-center gap-1.5">
+                                    <Calendar size={12} className="text-slate-400" />
+                                    <span>{formatDate(period.start_date)} — {formatDate(period.end_date)}</span>
+                                </span>
+                                <span className="text-slate-300">•</span>
+                                <span className="flex items-center gap-1 text-slate-600">
+                                    <UserCheck size={12} className="text-slate-400" />
+                                    Ketua Panitia: <strong className="text-slate-700">{period.committee_chair_name || 'Belum diatur'}</strong>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -506,6 +514,9 @@ export default function AdminPASDetailPage() {
                     period={period}
                     rooms={rooms}
                     sessions={sessions}
+                    onPeriodUpdated={(chair) => {
+                        setPeriod((prev) => (prev ? { ...prev, ...chair } : prev));
+                    }}
                 />
             )}
 
