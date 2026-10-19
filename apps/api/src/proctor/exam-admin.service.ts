@@ -282,6 +282,64 @@ export class ExamAdminService {
         });
     }
 
+    async setScreenShareException(user: AuthUser, examId: string, studentId: string, enabled: boolean, reason?: string) {
+        await this.authz.assertExamStaff(user, examId);
+        const { data: exam, error: examError } = await this.db.from('cbt_exams')
+            .select('id, metadata').eq('id', examId).maybeSingle();
+        if (examError) throw new BadRequestException('Pengaturan ujian belum dapat dibaca.');
+        if (!exam) throw new NotFoundException('Ujian tidak ditemukan.');
+        if ((exam as any).metadata?.screenshot_enabled !== true) {
+            throw new BadRequestException('Pengecualian hanya berlaku untuk ujian yang mewajibkan berbagi layar.');
+        }
+
+        await this.assertExamParticipantAssigned(examId, studentId);
+        const table = 'cbt_exam_screen_share_exceptions';
+        if (!enabled) {
+            const { data: active, error: activeError } = await this.db.from('cbt_exam_attempts')
+                .select('id').eq('exam_id', examId).eq('user_id', studentId).eq('status', 'in_progress').maybeSingle();
+            if (activeError) throw new BadRequestException('Status pengerjaan peserta belum dapat diperiksa.');
+            if (active) throw new ConflictException('Pengecualian tidak dapat dicabut saat peserta sedang mengerjakan ujian.');
+            const { error } = await this.db.from(table).delete().eq('exam_id', examId).eq('user_id', studentId);
+            if (error) throw new BadRequestException('Pengecualian berbagi layar belum dapat dicabut.');
+            return { examId, studentId, enabled: false };
+        }
+
+        const normalizedReason = String(reason || '').trim();
+        if (!normalizedReason) throw new BadRequestException('Tuliskan alasan pengecualian.');
+        if (normalizedReason.length > 240) throw new BadRequestException('Alasan pengecualian maksimal 240 karakter.');
+        const { error } = await this.db.from(table).upsert({ exam_id: examId, user_id: studentId,
+            reason: normalizedReason, created_by: user.id, created_at: new Date().toISOString() },
+        { onConflict: 'exam_id,user_id' });
+        if (error) throw new BadRequestException('Pengecualian berbagi layar belum dapat disimpan.');
+        return { examId, studentId, enabled: true, reason: normalizedReason };
+    }
+
+    private async assertExamParticipantAssigned(examId: string, studentId: string): Promise<void> {
+        const { data: individual, error: individualError } = await this.db.from('cbt_exam_participants')
+            .select('user_id').eq('exam_id', examId).eq('user_id', studentId).maybeSingle();
+        if (individualError) throw new BadRequestException('Penugasan peserta belum dapat diperiksa.');
+        if (individual) return;
+
+        const { data: targets, error: targetError } = await this.db.from('cbt_exam_targets')
+            .select('class_id, additional_class_id').eq('exam_id', examId);
+        if (targetError) throw new BadRequestException('Penugasan kelas belum dapat diperiksa.');
+        const classIds = [...new Set((targets || []).map((target: any) => target.class_id).filter(Boolean))];
+        const additionalClassIds = [...new Set((targets || []).map((target: any) => target.additional_class_id).filter(Boolean))];
+        if (classIds.length) {
+            const { data, error } = await this.db.from('cbt_class_members').select('user_id')
+                .eq('user_id', studentId).in('class_id', classIds);
+            if (error) throw new BadRequestException('Keanggotaan kelas peserta belum dapat diperiksa.');
+            if (data?.length) return;
+        }
+        if (additionalClassIds.length) {
+            const { data, error } = await this.db.from('cbt_additional_class_members').select('user_id')
+                .eq('user_id', studentId).in('class_id', additionalClassIds);
+            if (error) throw new BadRequestException('Keanggotaan kelas tambahan peserta belum dapat diperiksa.');
+            if (data?.length) return;
+        }
+        throw new NotFoundException('Peserta bukan bagian dari penugasan ujian ini.');
+    }
+
     /**
      * Terbitkan atau tarik ujian.
      *

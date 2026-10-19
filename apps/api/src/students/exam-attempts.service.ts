@@ -192,7 +192,10 @@ export class ExamAttemptsService {
 
         await assertExamAccess(this.db, user, exam);
         if (exam.metadata?.screenshot_enabled === true && !screenCaptureReady) {
-            throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
+            const { data: exception, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
+                .select('user_id').eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
+            if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+            if (!exception) throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
         }
         const device = this.requireDeviceId(deviceId);
 

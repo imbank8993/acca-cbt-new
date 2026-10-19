@@ -115,14 +115,14 @@ test('room monitoring discovers exams across class/room boundaries but never ano
  assert.deepEqual(await auth.assertExamMonitoring({ id: 'teacherGuard' }, 'e2'), ['u1', 'u3', 'u5']);
 });
 
-for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: assigned room monitoring and reset permissions match`, async () => {
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: assigned room monitoring does not grant reset permission`, async () => {
  const { db, auth } = roomFixture();
  for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
  assert.deepEqual(await auth.assertExamMonitoring({ id: 'guard' }, 'e1'), ['u1', 'u3', 'u5']);
  await assert.rejects(auth.assertExamMonitoring({ id: 'guard' }, 'e3'), /izin/);
  const exam = db.tables.cbt_exams[0];
- assert.equal((await auth.getExamResetScope({ id: 'proctor' }, exam)).allParticipants, true);
- assert.deepEqual((await auth.getExamResetScope({ id: 'guard' }, exam)).studentIds, ['u1', 'u3', 'u5']);
+ assert.equal(await auth.getExamResetScope({ id: 'proctor' }, exam), null);
+ assert.equal(await auth.getExamResetScope({ id: 'guard' }, exam), null);
  assert.equal(await auth.canManageExam({ id: 'teacherGuard' }, { ...exam, created_by: 'teacherGuard' }), false);
 });
 
@@ -212,56 +212,36 @@ for (const examType of ['quiz', 'daily', 'assignment', 'pas', 'pat', 'pts', 'pkn
  });
 }
 
-for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: invigilators recover and start makeup only for their room and session`, async () => {
- for (const method of ['resetAttempt', 'startMakeupAttempt']) {
-  const { db, auth } = roomFixture();
-  for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
-  const service = new ProctoringService(db, auth, {});
-  await assert.rejects(service[method]({ id: 'guard' }, 'a2', 'Gangguan jaringan', 15), /ruang dan sesi/);
-  assert.equal(db.writes.length, 0);
-  await assert.rejects(auth.assertExamStaff({ id: 'guard' }, 'e1'), /mengelola/);
-  await service[method]({ id: 'guard' }, 'a1', 'Gangguan jaringan', 15);
-  assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
-  assert.equal(db.tables.cbt_answers.some(row => row.attempt_id === 'a1'), method === 'resetAttempt');
-  assert.equal(db.tables.cbt_exam_attempts[1].status, 'submitted');
-  const event = db.tables.cbt_attempt_security_logs.find(row => row.metadata?.actor_user_id === 'guard');
-  assert.equal(event.attempt_id, 'a1');
- }
- const { db, auth } = roomFixture();
- for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
- db.tables.cbt_exam_attempts.push({ id: 'later', exam_id: 'e3', user_id: 'u1', status: 'submitted' });
- const service = new ProctoringService(db, auth, {});
- await assert.rejects(service.resetAttempt({ id: 'guard' }, 'later', 'Gangguan jaringan', 15), /ruang dan sesi/);
- db.tables.cbt_pas_room_invigilators = [];
- await assert.rejects(service.startMakeupAttempt({ id: 'guard' }, 'a1', 'Ujian susulan', 15), /ruang dan sesi/);
- assert.equal(db.writes.length, 0);
-});
-
-for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: Proktor/Admin have full recovery and makeup rights`, async () => {
- for (const id of ['proctor', 'admin']) {
+for (const assessmentType of ['quiz', 'pas', 'pat', 'am']) test(`${assessmentType}: only exam creators can recover or start makeup, for every staff role`, async () => {
+ for (const id of ['guard', 'creator', 'proctor', 'admin']) {
   for (const method of ['resetAttempt', 'startMakeupAttempt']) {
    const { db, auth } = roomFixture();
-   for (const exam of db.tables.cbt_exams) exam.exam_type = assessmentType;
+   db.tables.cbt_exams[0].exam_type = assessmentType;
+   db.tables.cbt_exams[0].created_by = 'someone-else';
    const service = new ProctoringService(db, auth, {});
+   assert.equal(await auth.canManageExam({ id }, db.tables.cbt_exams[0], 'reset'), false);
+   await assert.rejects(service[method]({ id }, 'a1', 'Gangguan jaringan', 15), /pembuat ujian/);
+   assert.equal(db.writes.length, 0);
+   db.tables.cbt_exams[0].created_by = id;
    assert.equal(await auth.canManageExam({ id }, db.tables.cbt_exams[0], 'reset'), true);
-   await service[method]({ id }, 'a2', 'Gangguan jaringan', 15);
-   assert.equal(db.tables.cbt_exam_attempts[1].status, 'in_progress');
+   await service[method]({ id }, 'a1', 'Gangguan jaringan', 15);
+   assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
+   assert.equal(db.tables.cbt_answers.some(row => row.attempt_id === 'a1'), method === 'resetAttempt');
   }
  }
 });
 
-test('a bank author who also supervises PAS sees all class students but only gets actions for their room', async () => {
+test('a bank author who also supervises PAS retains view access without reset rights', async () => {
  const { db, auth, roles, service } = roomFixture();
  const exams = new ExamAdminService(db, auth, roles);
  assert.equal((await exams.list({ id: 'author' }, 'school'))[0].canResetParticipants, false);
- assert.ok((await service.listAttempts({ id: 'author' }, 'e1')).every(row => row.canReset === false));
  db.tables.cbt_pas_room_invigilators.push({ user_id: 'author', pas_room_id: 'r1', session_id: 's1' });
- assert.equal((await exams.list({ id: 'author' }, 'school'))[0].canResetParticipants, true);
+ assert.equal((await exams.list({ id: 'author' }, 'school'))[0].canResetParticipants, false);
  const rows = await service.listAttempts({ id: 'author' }, 'e1');
- assert.deepEqual(rows.map(row => [row.user_id, row.canReset]), [['u1', true], ['u2', false], ['u5', false]]);
+ assert.deepEqual(rows.map(row => [row.user_id, row.canReset]), [['u1', false], ['u2', false], ['u5', false]]);
  const recovery = new ProctoringService(db, auth, {});
- await assert.rejects(recovery.resetAttempt({ id: 'author' }, 'a2', 'Gangguan jaringan', 15), /ruang dan sesi/);
- await recovery.resetAttempt({ id: 'author' }, 'a1', 'Gangguan jaringan', 15);
+ await assert.rejects(recovery.resetAttempt({ id: 'author' }, 'a1', 'Gangguan jaringan', 15), /pembuat ujian/);
+ assert.equal(db.writes.length, 0);
 });
 
 test('PAS author monitoring shows actual room and all session invigilators for started and unstarted participants', async () => {

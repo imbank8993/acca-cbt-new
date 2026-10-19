@@ -5,8 +5,11 @@ import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
+import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -257,7 +260,7 @@ function MonitoringContent() {
     const filteredAttempts = attempts
         .filter((a) => !deferredSearchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(deferredSearchName.trim().toLowerCase()))
         .filter((a) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
-        .sort((a, b) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
+        .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
 
     const totalStudents = attempts.length;
     const inProgress = attempts.filter(a => a.status === 'in_progress').length;
@@ -355,7 +358,19 @@ function MonitoringContent() {
                     <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
                 </div>
             )}
+            {selectedExamId && canResetParticipants && (
+                <BulkResetPanel key={selectedExamId}
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
+                    onRefresh={handleRefresh}
+                />
+            )}
+            {selectedExamId && !canResetParticipants && <p className="text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
             <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
+            {selectedExam && selectedExam.metadata?.is_pas_exam === true && activeTab === 'live' && (
+                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="proktor" />
+            )}
+            {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
 
             {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
             <div className="monitoring-controls flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">

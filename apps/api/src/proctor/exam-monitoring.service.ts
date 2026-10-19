@@ -207,6 +207,13 @@ export class ExamMonitoringService {
 
         const locations = await loadPasParticipantLocations(this.db, exam || { id: examId }, rows.map(row => row.user_id));
         for (const row of rows) row.pas_location = locations.get(row.user_id) || null;
+        const { data: screenShareExceptions, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
+            .select('user_id, reason, created_at, created_by').eq('exam_id', examId);
+        if (exceptionError) throw new BadRequestException('Pengecualian berbagi layar belum dapat dibaca.');
+        const exceptionByStudent = new Map((screenShareExceptions || []).map((item: any) => [item.user_id, {
+            reason: item.reason, created_at: item.created_at, created_by: item.created_by,
+        }]));
+        for (const row of rows) row.screen_share_exception = exceptionByStudent.get(row.user_id) || null;
         await this.fillMissingIdentityNumbers(rows);
         return rows;
     }

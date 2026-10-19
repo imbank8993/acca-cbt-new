@@ -296,6 +296,15 @@ export class StudentsService {
 
         await assertExamAccess(this.db, user, data);
 
+        let screenShareException: { reason: string } | null = null;
+        if ((data as any).metadata?.screenshot_enabled === true) {
+            const { data: exception, error: exceptionError } = await this.db
+                .from('cbt_exam_screen_share_exceptions').select('reason')
+                .eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
+            if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+            screenShareException = exception as { reason: string } | null;
+        }
+
         const { data: profile } = await this.db
             .from('cbt_profiles')
             .select('full_name, identity_number')
@@ -314,7 +323,13 @@ export class StudentsService {
             .maybeSingle();
         if (attemptError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
 
-        return { exam: { ...data, metadata: studentExamMetadata(data.metadata) },
+        const metadata = studentExamMetadata(data.metadata);
+        if (screenShareException) {
+            metadata.screenshot_enabled = false;
+            metadata.screen_share_exception = true;
+            metadata.screen_share_exception_reason = (screenShareException as { reason: string }).reason;
+        }
+        return { exam: { ...data, metadata },
             profile: profile ?? null, hasStartedAttempt: Boolean(startedAttempt) };
     }
 

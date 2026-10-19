@@ -31,7 +31,6 @@ import { Button } from '@/app/components/ui/button';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
     AlertTriangle,
-    BookOpen,
     Calendar,
     Check,
     DoorOpen,
@@ -333,12 +332,9 @@ export default function ProctorPASDetailPage() {
             )}
 
             {/* ── Period Details Header Card ── */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-2xs">
+            <div className="bg-white rounded-xl px-6 py-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                        <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3083FF] shrink-0">
-                            <FolderOpen size={20} />
-                        </div>
                         <div className="min-w-0">
                             {period.is_locked && (
                                 <div className="flex mb-1">
@@ -371,42 +367,11 @@ export default function ProctorPASDetailPage() {
                         </div>
                     </div>
 
-                    {/* Clean Metrics Summary + Folder Actions */}
-                    <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap md:justify-end shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
-                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center">
-                                <BookOpen size={14} />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Bank Soal</p>
-                                <p className="text-sm font-bold text-slate-800">{uniqueBankCount}</p>
-                            </div>
-                        </div>
-
-                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                <Calendar size={14} />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Jadwal Kelas</p>
-                                <p className="text-sm font-bold text-slate-800">{schedules.length}</p>
-                            </div>
-                        </div>
-
-                        <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                readySchedulesCount === schedules.length && schedules.length > 0
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : 'bg-amber-50 text-amber-600'
-                            }`}>
-                                <Check size={14} />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Kesiapan</p>
-                                <p className="text-sm font-bold text-slate-800">{readySchedulesCount}/{schedules.length} Siap</p>
-                            </div>
-                        </div>
-                    </div>
+                    <dl className="flex flex-wrap gap-6 text-xs md:gap-8">
+                        <div><dt className="text-slate-500">Bank soal</dt><dd className="mt-1 font-semibold text-slate-800">{uniqueBankCount}</dd></div>
+                        <div><dt className="text-slate-500">Jadwal kelas</dt><dd className="mt-1 font-semibold text-slate-800">{schedules.length}</dd></div>
+                        <div><dt className="text-slate-500">Kesiapan</dt><dd className="mt-1 font-semibold text-slate-800">{readySchedulesCount}/{schedules.length} siap</dd></div>
+                    </dl>
                 </div>
             </div>
 

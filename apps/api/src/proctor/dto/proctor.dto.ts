@@ -12,6 +12,7 @@ import {
     IsString,
     IsUUID,
     Max,
+    MaxLength,
     Min,
     ValidateIf,
     ValidateNested,
@@ -205,6 +206,18 @@ export class ExamIdsDto {
     @IsArray()
     @IsUUID('4', { each: true, message: 'examIds memuat id yang tidak valid' })
     examIds!: string[];
+}
+
+export class SetExamScreenShareExceptionDto {
+    @ApiProperty({ description: 'Aktifkan atau cabut pengecualian berbagi layar untuk satu peserta.' })
+    @IsBoolean()
+    enabled!: boolean;
+
+    @ApiPropertyOptional({ maxLength: 240, description: 'Alasan pemberian pengecualian.' })
+    @IsOptional()
+    @IsString()
+    @MaxLength(240)
+    reason?: string;
 }
 
 export class ClassIdsDto {

@@ -145,6 +145,7 @@ export interface OrganizationExam {
         is_public?: boolean;
         is_safe_mode?: boolean;
         max_violations?: number | null;
+        screenshot_enabled?: boolean;
         require_bank?: boolean;
         video_url?: string;
         [key: string]: unknown;
@@ -152,6 +153,7 @@ export interface OrganizationExam {
 }
 
 export interface ExamAttemptRecord {
+    screen_share_exception?: { reason: string; created_at: string; created_by: string | null } | null;
     pas_location?: {
         status: 'assigned' | 'unassigned' | 'unavailable';
         room_id: string | null;
@@ -589,6 +591,13 @@ export async function getExamAttemptsAction(examId: string): Promise<ExamAttempt
     const res = await getExamAttemptsResult(examId);
     if (!res.success) throw new Error(res.error || 'Data peserta monitoring belum dapat dimuat.');
     return res.attempts;
+}
+
+export function setExamScreenShareExceptionAction(examId: string, studentId: string, enabled: boolean, reason?: string) {
+    return apiSend<{ examId: string; studentId: string; enabled: boolean; reason?: string }>(
+        `/api/proctor/exams/${encodeURIComponent(examId)}/screen-share-exceptions/${encodeURIComponent(studentId)}`,
+        { enabled, reason }, 'PUT',
+    );
 }
 
 export async function getExamAttemptsResult(examId: string) {

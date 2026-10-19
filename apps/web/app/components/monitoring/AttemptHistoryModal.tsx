@@ -144,52 +144,55 @@ export function AttemptHistoryModal({
               <ParticipantRoomInfo attempt={attempt} />
             </div>
           </div>
-          <span className="rounded-md bg-white px-2.5 py-1 border border-slate-200 font-bold text-[#3083FF]">
-            Total {historyList.length} Catatan Riwayat
-          </span>
         </div>
 
         {showSessionDetails && (
           <div className="space-y-4 text-sm">
-            <section aria-label="Detail jawaban dan sinkronisasi">
-              <h3 className="mb-2 font-semibold">Jawaban & sinkronisasi</h3>
-              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <p className="text-xs font-medium text-slate-600">{gradingLabel(attempt)}</p>
+            <dl className="grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 py-3 text-center">
+              <div className="px-2"><dt className="text-xs text-slate-500">Tersimpan</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{attempt.saved_answer_count ?? '—'} <span className="text-xs font-normal text-slate-500">/ {attempt.total_questions ?? '—'}</span></dd></div>
+              <div className="px-2"><dt className="text-xs text-slate-500">Belum dijawab</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{unansweredQuestionCount(attempt) ?? '—'}</dd></div>
+              <div className="px-2"><dt className="text-xs text-slate-500">Lama mengerjakan</dt><dd className="mt-1 font-semibold tabular-nums">{formatMonitoringDuration(timing.workedSeconds)}</dd></div>
+            </dl>
+            <dl className="space-y-2 text-xs">
+              {[
+                ['Mulai', formatDate(attempt.started_at)],
+                [attempt.status === 'in_progress' ? 'Batas sesi' : 'Selesai', formatDate(attempt.status === 'in_progress' ? attempt.deadline_at : attempt.finished_at)],
+                ['Simpan terakhir', formatDate(attempt.last_answer_saved_at)],
+              ].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-1"><dt className="text-slate-500">{label}</dt><dd className="text-slate-700">{value}</dd></div>)}
+            </dl>
+            {monitoringAttention(attempt, elapsedSeconds).length > 0 && (
+              <div role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {monitoringAttention(attempt, elapsedSeconds).map(reason => <p key={reason}>{reason}</p>)}
+              </div>
+            )}
+            <details key={`warnings-${attempt.id}`} className="border-t border-slate-200 pt-3">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-700">Peringatan · {attempt.warning_count ?? 0}</summary>
+              <p className="mt-2 text-xs text-slate-500">Pindah tab {attempt.violation_breakdown?.pindah_tab ?? attempt.tab_switch_count ?? 0} · Tutup tab {attempt.violation_breakdown?.close_tab ?? 0} · Lainnya {attempt.violation_breakdown?.lainnya ?? 0}</p>
+            </details>
+            <details key={`sync-${attempt.id}`} className="border-t border-slate-200 pt-3">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-700">Detail sinkronisasi & koneksi</summary>
+              <dl className="mt-3 space-y-2 text-xs">
                 {[
-                  ['Jawaban di server', `${attempt.saved_answer_count ?? '—'} / ${attempt.total_questions ?? '—'} soal`],
-                  ['Belum dijawab', String(unansweredQuestionCount(attempt) ?? '—')],
-                  ['Simpan terakhir', formatDate(attempt.last_answer_saved_at)],
                   ['Jawaban lokal', health ? String(health.localAnswerCount) : 'Belum ada laporan'],
                   ['Antrean pengiriman', health ? String(health.pendingAnswerCount) : 'Belum ada laporan'],
                   ['Penyimpanan perangkat', health ? storageLabels[health.storageState] : 'Belum ada laporan'],
                   ['Laporan perangkat', health ? `${formatDate(health.receivedAt)}${fresh ? '' : ' · Laporan lama'}` : 'Belum ada laporan'],
-                  ['Penilaian', gradingLabel(attempt)],
-                ].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
-              </dl>
-            </section>
-            <section aria-label="Detail waktu dan koneksi">
-              <h3 className="mb-2 font-semibold">Waktu & koneksi</h3>
-              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {[
-                  ['Mulai', formatDate(attempt.started_at)], ['Selesai', formatDate(attempt.finished_at)],
-                  ['Batas sesi', formatDate(attempt.deadline_at)], ['Kontak server terakhir', formatDate(attempt.last_seen_at)],
-                  ['Lama mengerjakan', formatMonitoringDuration(timing.workedSeconds)],
+                  ['Kontak server terakhir', formatDate(attempt.last_seen_at)],
+                  ['Batas sesi', formatDate(attempt.deadline_at)],
                   ['Waktu sesi', formatMonitoringDuration(timing.availableSeconds)],
-                  ['Koneksi', attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsedSeconds > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'],
-                ].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
+                  ['Koneksi', attempt.status === 'belum' ? 'Belum mulai' : attempt.status !== 'in_progress' ? 'Sesi berakhir' : elapsedSeconds > 45 ? 'Data perlu diperbarui' : attempt.connection_status === 'online' ? 'Terhubung' : 'Tidak ada kontak terbaru'],
+                ].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-1"><dt className="text-slate-500">{label}</dt><dd className="text-slate-700">{value}</dd></div>)}
               </dl>
-            </section>
-            <section aria-label="Rincian peringatan">
-              <h3 className="mb-2 font-semibold">Peringatan</h3>
-              <p>{attempt.warning_count ?? 0} peringatan · Pindah tab {attempt.violation_breakdown?.pindah_tab ?? attempt.tab_switch_count ?? 0} · Tutup tab {attempt.violation_breakdown?.close_tab ?? 0} · Lainnya {attempt.violation_breakdown?.lainnya ?? 0}</p>
-              {monitoringAttention(attempt, elapsedSeconds).map(reason => <p key={reason} className="mt-1 text-amber-700">{reason}</p>)}
-            </section>
+            </details>
           </div>
         )}
 
         {/* Timeline Events List */}
-        <div className="pt-2">
+        <details key={`history-${attempt.id}`} open={!showSessionDetails} className="border-t border-slate-200 pt-3">
+          <summary className="mb-3 cursor-pointer text-xs font-semibold text-slate-700">Riwayat aktivitas · {historyList.length} catatan</summary>
           {historyList.length === 0 ? (
-            <div className="py-12 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+            <div className="py-4 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
               <Clock size={32} className="mx-auto text-slate-300 mb-2" />
               <p className="text-sm font-semibold text-slate-600">Belum Ada Catatan Riwayat</p>
               <p className="text-xs text-slate-400 mt-1">
@@ -301,7 +304,7 @@ export function AttemptHistoryModal({
               })}
             </div>
           )}
-        </div>
+        </details>
         <AttemptScreenshots key={attempt.id} attemptId={attempt.id} />
       </ModalBody>
 

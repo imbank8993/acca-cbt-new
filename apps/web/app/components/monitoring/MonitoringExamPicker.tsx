@@ -7,7 +7,8 @@ import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import './monitoring-exam-picker.css';
 
-export default function MonitoringExamPicker({ exams, now, value, onChange }: {
+export default function MonitoringExamPicker({ exams, now, value, onChange, compactContext = false }: {
+    compactContext?: boolean;
     exams: OrganizationExam[];
     now: number;
     value: string;
@@ -39,7 +40,7 @@ export default function MonitoringExamPicker({ exams, now, value, onChange }: {
             />
             {selected && (
                 <div className="monitoring-exam-picker__context" aria-live="polite">
-                    <p className="font-semibold text-slate-700 dark:text-slate-200">{monitoringExamLabel(selected)}</p>
+                    {!compactContext && <p className="font-semibold text-slate-700 dark:text-slate-200">{monitoringExamLabel(selected)}</p>}
                     {monitoringExamDetails(selected) && <p>{monitoringExamDetails(selected)}</p>}
                     {schedule(selected) && <p>{schedule(selected)}</p>}
                 </div>

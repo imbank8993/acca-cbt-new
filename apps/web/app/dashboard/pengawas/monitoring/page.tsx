@@ -2,7 +2,9 @@
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
 import { Spinner } from '@/app/components/ui/Spinner';
 
@@ -112,7 +114,8 @@ function MonitoringContent() {
 
     const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
 
-    const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
+    const selectedExam = exams.find(exam => exam.id === selectedExamId);
+    const canResetParticipants = selectedExam?.canResetParticipants === true;
     const handleReset = (attempt: ExamAttemptRecord) => {
         if (!canResetParticipants || attempt.canReset !== true || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
@@ -130,13 +133,13 @@ function MonitoringContent() {
         const matchStatus =
             statusFilter === 'all' ||
             (statusFilter === 'in_progress' && (a.status === 'in_progress' || a.status === 'sedang')) ||
-            (statusFilter === 'finished' && (a.status === 'finished' || a.status === 'selesai')) ||
+            (statusFilter === 'finished' && (['submitted', 'auto_submitted', 'finished', 'selesai'].includes(a.status))) ||
             (statusFilter === 'belum' && (a.status === 'belum' || !a.status));
         return matchName && matchClass && matchStatus;
-    });
+    }).sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
 
     const activeCount = attempts.filter((a) => a.status === 'in_progress' || a.status === 'sedang').length;
-    const finishedCount = attempts.filter((a) => a.status === 'finished' || a.status === 'selesai').length;
+    const finishedCount = attempts.filter((a) => ['submitted', 'auto_submitted', 'finished', 'selesai'].includes(a.status)).length;
     const unstartedCount = attempts.filter((a) => a.status === 'belum' || !a.status).length;
 
     const formatTime = (ts: string | null) => {
@@ -200,7 +203,18 @@ function MonitoringContent() {
                 </div>
             </div>
 
+            {selectedExamId && canResetParticipants && (
+                <BulkResetPanel key={selectedExamId}
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    examDuration={exams.find(exam => exam.id === selectedExamId)?.duration_minutes}
+                    onRefresh={() => void loadData(false)}
+                />
+            )}
+            {selectedExamId && !canResetParticipants && <p className="text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
             <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleReset : undefined} />
+            {selectedExam?.metadata?.is_pas_exam === true && (
+                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
+            )}
 
             {/* Quick Stat Pill Tabs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -330,7 +344,7 @@ function MonitoringContent() {
                                     ) : (
                                         filteredAttempts.map((attempt) => {
                                             const isStarted = attempt.status === 'in_progress' || attempt.status === 'sedang';
-                                            const isFinished = attempt.status === 'finished' || attempt.status === 'selesai';
+                                            const isFinished = ['submitted', 'auto_submitted', 'finished', 'selesai'].includes(attempt.status);
                                             const warningCount = attempt.warning_count || 0;
                                             const tabCount = attempt.tab_switch_count || 0;
                                             const isResetting = resettingId === attempt.id;

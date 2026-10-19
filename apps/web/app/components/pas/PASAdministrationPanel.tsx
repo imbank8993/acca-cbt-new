@@ -1,9 +1,9 @@
 "use client";
 
+import Image from 'next/image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertCircle,
-    Building2,
     Calendar,
     Check,
     CheckCircle2,
@@ -71,6 +71,7 @@ export interface PASAdministrationPanelProps {
     initialRoomId?: string;
     initialSessionId?: string;
     initialExamDate?: string;
+    openOnEditor?: boolean;
     userRole?: 'proktor' | 'admin' | 'pengawas';
     onSlotSaved?: (slot: PASAdministrationSlot) => void;
     onPeriodUpdated?: (chair: { committee_chair_name: string; committee_chair_nip: string | null }) => void;
@@ -194,6 +195,7 @@ export default function PASAdministrationPanel({
     initialRoomId,
     initialSessionId,
     initialExamDate,
+    openOnEditor = false,
     userRole,
     onSlotSaved,
     onPeriodUpdated,
@@ -227,6 +229,7 @@ export default function PASAdministrationPanel({
     const [selectedSessionId, setSelectedSessionId] = useState<string>(initialSessionId || sessions[0]?.id || '');
     const [selectedDate, setSelectedDate] = useState<string>(initialExamDate || todayDate);
     const [subView, setSubView] = useState<AdminSubView>(() => {
+        if (openOnEditor) return 'editor';
         if (initialRoomId) return 'editor';
         if (typeof window !== 'undefined' && window.location.pathname.includes('/pengawas/')) return 'editor';
         return 'overview';
@@ -258,19 +261,16 @@ export default function PASAdministrationPanel({
     const proctorName = slot?.proctor_creator.full_name || '';
     const [attendanceMap, setAttendanceMap] = useState<Record<string, StudentAttendanceDraft>>({});
 
-    useEffect(() => {
+    // Keep incoming navigation targets in sync without an extra effect render.
+    const [previousTargets, setPreviousTargets] = useState({ initialRoomId, initialSessionId, initialExamDate });
+    if (previousTargets.initialRoomId !== initialRoomId || previousTargets.initialSessionId !== initialSessionId || previousTargets.initialExamDate !== initialExamDate) {
+        setPreviousTargets({ initialRoomId, initialSessionId, initialExamDate });
         if (initialRoomId) setSelectedRoomId(initialRoomId);
-        else if (!selectedRoomId && rooms[0]?.id) setSelectedRoomId(rooms[0].id);
-    }, [initialRoomId, rooms, selectedRoomId]);
-
-    useEffect(() => {
         if (initialSessionId) setSelectedSessionId(initialSessionId);
-        else if (!selectedSessionId && sessions[0]?.id) setSelectedSessionId(sessions[0].id);
-    }, [initialSessionId, selectedSessionId, sessions]);
-
-    useEffect(() => {
         if (initialExamDate) setSelectedDate(initialExamDate);
-    }, [initialExamDate]);
+    }
+    if (!selectedRoomId && rooms[0]?.id) setSelectedRoomId(rooms[0].id);
+    if (!selectedSessionId && sessions[0]?.id) setSelectedSessionId(sessions[0].id);
 
     const applySlotState = useCallback((data: PASAdministrationSlot) => {
         setSlot(data);
@@ -315,7 +315,11 @@ export default function PASAdministrationPanel({
     }, [applySlotState, period.id, selectedDate, selectedRoomId, selectedSessionId]);
 
     useEffect(() => {
-        void loadSlot();
+        const timer = window.setTimeout(() => void loadSlot(), 0);
+        return () => {
+            window.clearTimeout(timer);
+            loadRequestRef.current += 1;
+        };
     }, [loadSlot]);
 
     const loadOverview = useCallback(async () => {
@@ -333,9 +337,9 @@ export default function PASAdministrationPanel({
     }, [period.id]);
 
     useEffect(() => {
-        if (resolvedRole !== 'pengawas') {
-            void loadOverview();
-        }
+        if (resolvedRole === 'pengawas') return;
+        const timer = window.setTimeout(() => void loadOverview(), 0);
+        return () => window.clearTimeout(timer);
     }, [loadOverview, resolvedRole]);
 
     const openChairModal = () => {
@@ -369,8 +373,8 @@ export default function PASAdministrationPanel({
                 committee_chair_nip: res.committee_chair_nip,
             });
             await loadSlot();
-        } catch (err: any) {
-            setChairError(err?.message || 'Terjadi kesalahan saat menyimpan.');
+        } catch (err) {
+            setChairError(err instanceof Error ? err.message : 'Terjadi kesalahan saat menyimpan.');
         } finally {
             setIsSavingChair(false);
         }
@@ -671,7 +675,7 @@ export default function PASAdministrationPanel({
         if (!slot?.schedules?.length) return 'Sesuai Jadwal Ujian';
         const names = Array.from(new Set(slot.schedules.map((s) => s.subject_name).filter(Boolean)));
         return names.join(', ') || 'Sesuai Jadwal Ujian';
-    }, [slot?.schedules]);
+    }, [slot]);
 
     const classSummaryLabel = useMemo(() => {
         if (!slot) return '-';
@@ -1279,8 +1283,7 @@ ${KOP_AND_A4_CSS}
                 <AlertCircle size={36} className="mx-auto text-amber-500" />
                 <h3 className="text-sm font-bold text-slate-800">Ruang atau Sesi Ujian Belum Tersedia</h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Tambahkan terlebih dahulu Ruang Ujian pada tab <strong>Ruang</strong> dan Sesi Ujian pada tab{' '}
-                    <strong>Sesi Ujian</strong> sebelum mengelola Berita Acara dan Daftar Hadir.
+                    Tambahkan ruang dan sesi ujian terlebih dahulu.
                 </p>
             </div>
         );
@@ -1288,69 +1291,31 @@ ${KOP_AND_A4_CSS}
 
     return (
         <div className="space-y-4">
-            {/* ── Top Bar: View Switcher Tabs + Committee Chair Pill ── */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-full md:w-fit overflow-x-auto shrink-0 [&>button]:shrink-0">
-                    {resolvedRole !== 'pengawas' && (
-                        <button
-                            type="button"
-                            onClick={() => setSubView('overview')}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                                subView === 'overview'
-                                    ? 'bg-white text-[#3083FF] shadow-2xs'
-                                    : 'text-slate-600 hover:text-slate-800'
-                            }`}
-                        >
-                            <ShieldCheck size={14} className="text-[#3083FF]" />
-                            Monitoring &amp; ACC Dokumen
-                            {pendingApprovalCount > 0 && (
-                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
-                                    {pendingApprovalCount} Menunggu ACC
-                                </span>
-                            )}
-                        </button>
+            <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                    <label htmlFor="pas-administration-view" className="text-xs font-medium text-slate-500">Tampilan</label>
+                    <InlineSelect
+                        id="pas-administration-view"
+                        value={subView}
+                        onChange={value => setSubView(value as AdminSubView)}
+                        title="Pilih tampilan administrasi"
+                        minWidth="220px"
+                        height="36px"
+                        options={[
+                            ...(resolvedRole !== 'pengawas' ? [{ value: 'overview', label: 'Persetujuan dokumen' }] : []),
+                            { value: 'editor', label: 'Absensi & berita acara' },
+                            { value: 'berita_acara_a4', label: 'Berita acara (A4)' },
+                            { value: 'daftar_hadir_a4', label: 'Daftar hadir (A4)' },
+                        ]}
+                    />
+                    {resolvedRole !== 'pengawas' && pendingApprovalCount > 0 && (
+                        <span className="text-xs text-amber-700">{pendingApprovalCount} menunggu persetujuan</span>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => setSubView('editor')}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                            subView === 'editor'
-                                ? 'bg-white text-[#3083FF] shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-800'
-                        }`}
-                    >
-                        <UserCheck size={14} />
-                        Kelola Absensi &amp; Berita Acara
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setSubView('berita_acara_a4')}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                            subView === 'berita_acara_a4'
-                                ? 'bg-white text-[#3083FF] shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-800'
-                        }`}
-                    >
-                        <FileText size={14} />
-                        Dokumen A4: Berita Acara
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setSubView('daftar_hadir_a4')}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                            subView === 'daftar_hadir_a4'
-                                ? 'bg-white text-[#3083FF] shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-800'
-                        }`}
-                    >
-                        <FileCheck2 size={14} />
-                        Dokumen A4: Daftar Hadir
-                    </button>
                 </div>
 
                 {/* Right side: Committee Chair quick config */}
-                <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                {subView !== 'overview' && <div className="flex items-center gap-2 self-start">
+                    <div className="inline-flex flex-wrap items-center gap-2 text-xs">
                         <UserCheck size={13} className="text-[#3083FF] shrink-0" />
                         <span className="text-slate-500">Ketua Panitia:</span>
                         <strong className="text-slate-800 max-w-[180px] truncate">
@@ -1366,69 +1331,33 @@ ${KOP_AND_A4_CSS}
                             </button>
                         )}
                     </div>
-                </div>
+                </div>}
             </div>
 
             {subView === 'overview' ? (
                 <div className="space-y-4">
-                    {/* Metric Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Total Ruang &amp; Sesi</p>
-                                <p className="text-xl font-bold text-slate-900 mt-0.5">{overviewItems.length}</p>
+                    <dl className="flex flex-wrap gap-x-6 gap-y-2 py-2">
+                        {[
+                            ['Ruang & sesi', overviewItems.length],
+                            ['Menunggu persetujuan', pendingApprovalCount],
+                            ['Disahkan', overviewItems.filter(i => i.status === 'approved').length],
+                            ['Draft', overviewItems.filter(i => i.status !== 'approved' && i.status !== 'submitted').length],
+                        ].map(([label, count]) => (
+                            <div key={label} className="flex items-baseline gap-2 text-xs">
+                                <dt className="text-slate-500">{label}</dt>
+                                <dd className="font-semibold tabular-nums text-slate-800">{count}</dd>
                             </div>
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
-                                <Building2 size={18} />
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Menunggu ACC</p>
-                                <p className="text-xl font-bold text-amber-700 mt-0.5">{pendingApprovalCount}</p>
-                            </div>
-                            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
-                                <Clock size={18} />
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Resmi (Disahkan)</p>
-                                <p className="text-xl font-bold text-emerald-700 mt-0.5">
-                                    {overviewItems.filter((i) => i.status === 'approved').length}
-                                </p>
-                            </div>
-                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
-                                <CheckCircle2 size={18} />
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between">
-                            <div>
-                                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Draft / Belum Selesai</p>
-                                <p className="text-xl font-bold text-slate-600 mt-0.5">
-                                    {overviewItems.filter((i) => i.status !== 'approved' && i.status !== 'submitted').length}
-                                </p>
-                            </div>
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
-                                <Edit size={18} />
-                            </div>
-                        </div>
-                    </div>
+                        ))}
+                    </dl>
 
                     {/* Table of all slots */}
-                    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-                        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="px-5 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                                     <FileCheck2 size={16} className="text-[#3083FF]" />
-                                    Rekapitulasi Berita Acara &amp; Daftar Hadir Seluruh Ruang
+                                    Dokumen ruang ujian
                                 </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Pengawas mengisi berita acara dan daftar hadir dari ruang ujian. Setelah dikirim (submit), proktor memeriksa dan melakukan ACC agar menjadi dokumen resmi.
-                                </p>
                             </div>
                             <button
                                 type="button"
@@ -1441,6 +1370,7 @@ ${KOP_AND_A4_CSS}
                             </button>
                         </div>
 
+                        {overviewError && <p role="alert" className="px-5 py-3 text-xs text-red-700">{overviewError}</p>}
                         {isLoadingOverview ? (
                             <div className="p-12 flex flex-col items-center justify-center gap-2 text-slate-500">
                                 <Loader2 size={24} className="animate-spin text-[#3083FF]" />
@@ -1454,12 +1384,12 @@ ${KOP_AND_A4_CSS}
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse text-xs">
                                     <thead>
-                                        <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                        <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                             <th className="py-3 px-4">Ruang &amp; Sesi</th>
-                                            <th className="py-3 px-3">Tanggal Pelaksanaan</th>
-                                            <th className="py-3 px-3">Pengawas Bertugas</th>
-                                            <th className="py-3 px-3 text-center">Kehadiran Peserta</th>
-                                            <th className="py-3 px-3">Status Dokumen</th>
+                                            <th className="py-3 px-3">Tanggal</th>
+                                            <th className="py-3 px-3">Pengawas</th>
+                                            <th className="py-3 px-3 text-center">Kehadiran</th>
+                                            <th className="py-3 px-3">Status</th>
                                             <th className="py-3 px-4 text-right">Aksi</th>
                                         </tr>
                                     </thead>
@@ -1655,24 +1585,6 @@ ${KOP_AND_A4_CSS}
 
                             {/* Quick Action Buttons */}
                             <div className="flex items-center gap-2 flex-wrap">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => void handlePrintA4('berita_acara')}
-                                    disabled={!slot || isLoading}
-                                    leftIcon={<Printer size={13} />}
-                                >
-                                    Cetak Berita Acara (A4)
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => void handlePrintA4('daftar_hadir')}
-                                    disabled={!slot || isLoading}
-                                    leftIcon={<Printer size={13} />}
-                                >
-                                    Cetak Daftar Hadir (A4)
-                                </Button>
                                 {resolvedRole === 'pengawas' ? (
                                     <Button
                                         variant="primary"
@@ -1893,8 +1805,8 @@ ${KOP_AND_A4_CSS}
 
                             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
                     {/* ── Left Column (7 cols): Daftar Hadir & Absensi Peserta ── */}
-                    <div className="xl:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col">
-                        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+                    <div className="xl:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
+                        <div className="px-5 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                                     <Users size={15} className="text-[#3083FF]" />
@@ -1959,7 +1871,7 @@ ${KOP_AND_A4_CSS}
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                         <th className="py-2.5 px-3 w-10 text-center">No</th>
                                         <th className="py-2.5 px-3">Peserta & Kelas</th>
                                         <th className="py-2.5 px-3">Waktu Mulai – Selesai</th>
@@ -2189,7 +2101,7 @@ ${KOP_AND_A4_CSS}
                             {/* Digital Verification Card */}
                             <div className="rounded-xl border border-blue-200/80 bg-blue-50/40 p-3.5 flex items-start gap-3">
                                 {baQrSvgUrl ? (
-                                    <img
+                                    <Image unoptimized width={96} height={96}
                                         src={baQrSvgUrl}
                                         alt="QR Verifikasi Berita Acara"
                                         className="w-16 h-16 rounded-lg border border-slate-200 bg-white p-1 shrink-0"
@@ -2355,7 +2267,7 @@ ${KOP_AND_A4_CSS}
                             {/* KOP SURAT RESMI (Sama persis dengan KOP Laporan Guru Asuh pada acca-new) */}
                             <div className="relative block min-h-[80px]">
                                 {kopParts.logoUrl ? (
-                                    <img
+                                    <Image unoptimized width={96} height={96}
                                         src={kopParts.logoUrl}
                                         alt="Logo Madrasah"
                                         className="absolute left-0 top-0 w-[80px] h-[80px] object-contain"
@@ -2811,7 +2723,7 @@ ${KOP_AND_A4_CSS}
                                 </table>
 
                                 <div className="flex flex-col items-center text-center ml-[20px] gap-[2px] shrink-0">
-                                    <img
+                                    <Image unoptimized width={96} height={96}
                                         src={subView === 'berita_acara_a4' ? baQrSvgUrl : dhQrSvgUrl}
                                         alt="QR Verifikasi"
                                         className="w-[64px] h-[64px] block"

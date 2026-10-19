@@ -8,6 +8,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { ParticipantRoomInfo } from '@/app/components/monitoring/ParticipantRoomInfo';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -272,7 +273,7 @@ function MonitoringContent() {
     const filteredAttempts = attempts
         .filter((a) => !searchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(searchName.trim().toLowerCase()))
         .filter((a) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
-        .sort((a, b) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
+        .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
     // Pembagian tegas: tab "Aktif" = yang SEDANG mengerjakan (live), tab
     // "Rekap" = yang sudah selesai/terminated (info pelanggaran ada di sana).
     const activeAttempts = filteredAttempts.filter((a) => a.status === 'in_progress');
@@ -358,6 +359,14 @@ function MonitoringContent() {
                     <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
                 </div>
             )}
+            {selectedExamId && canResetParticipants && (
+                <BulkResetPanel key={selectedExamId}
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
+                    onRefresh={handleRefresh}
+                />
+            )}
+            {selectedExamId && !canResetParticipants && <p className="text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
             <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
 
             {selectedExamId && !canManage && <p className="mb-4 text-sm text-slate-600">Mode lihat saja. Anda dapat memantau dan mengekspor hasil ujian ini.</p>}

@@ -15,10 +15,13 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const [supported, setSupported] = useState(true);
+    const [surfaceUnverified, setSurfaceUnverified] = useState(false);
 
     const stop = useCallback(() => {
         requestGeneration.current++;
         sharingRef.current = false;
+        if (mounted.current) setSurfaceUnverified(false);
         for (const track of stream.current?.getTracks() || []) { track.onended = null; track.stop(); }
         stream.current = null;
         if (video.current) { video.current.pause(); video.current.srcObject = null; }
@@ -26,6 +29,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     }, []);
     useEffect(() => {
         mounted.current = true;
+        setSupported(Boolean(navigator.mediaDevices?.getDisplayMedia));
         count.current = 0; lastCapture.current = 0;
         return () => { mounted.current = false; stop(); };
     }, [examId, stop]);
@@ -35,16 +39,27 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         if (requesting.current) return;
         setError('');
         if (!navigator.mediaDevices?.getDisplayMedia) {
-            setError('Browser/perangkat ini belum mendukung berbagi seluruh layar. Gunakan browser desktop yang mendukung atau hubungi pengawas.');
+            setSupported(false);
+            setError('Browser/perangkat ini tidak menyediakan berbagi layar. Untuk ujian ini, gunakan laptop atau komputer dengan browser desktop, atau hubungi pengawas sebelum ujian dimulai. Waktu ujian belum berjalan.');
             return;
         }
         requesting.current = true; setBusy(true);
         const generation = ++requestGeneration.current;
         try {
-            const next = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            const displayOptions = {
+                video: { displaySurface: 'monitor' },
+                audio: false,
+                monitorTypeSurfaces: 'include',
+            } as DisplayMediaStreamOptions & { monitorTypeSurfaces: 'include' };
+            const next = await navigator.mediaDevices.getDisplayMedia(displayOptions);
             if (!mounted.current || requestGeneration.current !== generation) { next.getTracks().forEach(track => track.stop()); return; }
             const track = next.getVideoTracks()[0];
-            if (track?.getSettings().displaySurface !== 'monitor') {
+            if (!track || track.readyState !== 'live') {
+                next.getTracks().forEach(track => track.stop());
+                throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
+            }
+            const displaySurface = track.getSettings().displaySurface;
+            if (displaySurface && displaySurface !== 'monitor') {
                 next.getTracks().forEach(track => track.stop());
                 throw new Error('Pilih Seluruh Layar / Entire Screen, bukan tab atau jendela.');
             }
@@ -55,12 +70,18 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             stop();
             stream.current = next; video.current = preview;
             sharingRef.current = true; setSharing(true);
+            setSurfaceUnverified(!displaySurface);
             track.onended = () => {
                 stop();
                 if (mounted.current) { setSharing(false); setError('Berbagi layar terhenti. Bagikan kembali seluruh layar untuk melanjutkan.'); }
             };
         } catch (error) {
-            if (mounted.current) setError(error instanceof Error && error.message.includes('Pilih Seluruh') ? error.message : 'Izin berbagi layar belum diberikan. Klik Bagikan Layar dan pilih Seluruh Layar.');
+            if (mounted.current) {
+                const message = error instanceof Error ? error.message : '';
+                setError(message.includes('Pilih Seluruh') || message.includes('tidak menghasilkan')
+                    ? message
+                    : 'Izin berbagi layar belum berhasil. Coba lagi dan pilih Seluruh Layar. Jika Safari di Mac tetap gagal, muat ulang halaman dan izinkan perekaman layar untuk Safari di System Settings → Privacy & Security → Screen & System Audio Recording.');
+            }
         } finally { requesting.current = false; if (mounted.current) setBusy(false); }
     }, [stop]);
 
@@ -93,5 +114,5 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             return false;
         }
     }, []);
-    return { sharing, sharingRef, busy, requesting, error, requestShare, capture, upload, stop };
+    return { sharing, sharingRef, busy, requesting, error, supported, surfaceUnverified, requestShare, capture, upload, stop };
 }

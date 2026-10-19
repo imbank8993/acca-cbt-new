@@ -35,6 +35,7 @@ import {
     ImportClassesDto,
     PublishExamDto,
     RecentLoginsQueryDto,
+    SetExamScreenShareExceptionDto,
     UpdateClassDto,
     UpdateExamDto,
 } from './dto/proctor.dto';
@@ -324,6 +325,17 @@ export class ProctorController {
             dto.participantAssignments,
             dto.activate ?? true,
         );
+    }
+
+    @Put('exams/:examId/screen-share-exceptions/:studentId')
+    @ApiOperation({ summary: 'Beri atau cabut pengecualian berbagi layar untuk satu peserta ujian' })
+    setExamScreenShareException(
+        @CurrentUser() user: AuthUser,
+        @Param('examId', ParseUUIDPipe) examId: string,
+        @Param('studentId', ParseUUIDPipe) studentId: string,
+        @Body() dto: SetExamScreenShareExceptionDto,
+    ) {
+        return this.exams.setScreenShareException(user, examId, studentId, dto.enabled, dto.reason);
     }
 
     // ── Pemantauan & hasil ───────────────────────────────────────────────────

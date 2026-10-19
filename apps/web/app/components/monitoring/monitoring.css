@@ -58,6 +58,22 @@
   outline-offset: 2px;
 }
 
+.monitoring-page .monitoring-tabs--underline {
+  border-bottom: 1px solid var(--monitoring-line) !important;
+  border-radius: 0;
+}
+
+.monitoring-page .monitoring-tabs--underline button[aria-pressed="true"]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #3083ff;
+  border-radius: 2px 2px 0 0;
+}
+
 /* Horizontal separators are enough to follow rows without a full cell grid. */
 .monitoring-page table th,
 .monitoring-page table td {

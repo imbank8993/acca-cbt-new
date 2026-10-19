@@ -246,7 +246,7 @@ export class AuthorizationService {
         if (operation === 'reset') {
             const scope = await this.getExamResetScope(user, { ...record, id: examId });
             if (scope && (scope.allParticipants || (studentId && scope.studentIds.includes(studentId)))) return;
-            throw new ForbiddenException('Reset, pulihkan, dan susulan hanya untuk pembuat ujian atau pengawas PAS pada ruang dan sesi tugasnya.');
+            throw new ForbiddenException('Reset, pulihkan, dan susulan hanya untuk pembuat ujian. Ujian pengguna lain hanya dapat dilihat.');
         }
         if (!await this.canManageExam(user, record, operation)) {
             throw new ForbiddenException('Anda hanya dapat mengelola ujian yang Anda buat sendiri. PAS/PAT hanya dapat dikelola Proktor/Admin.');
@@ -256,19 +256,11 @@ export class AuthorizationService {
     /** Ownership of a bank grants monitoring only, never recovery rights. */
     async getExamResetScope(user: AuthUser, record: {
         id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null;
-    }, assignedStudents?: Map<string, string[]>): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
+    }, _assignedStudents?: Map<string, string[]>): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
         const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
         const full = { allParticipants: true, studentIds: [] };
-        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
-        const proctor = await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']);
-        if (isSemesterAssessmentExam(record) && proctor) return full;
-        if (record.created_by === user.id && (proctor || await this.roles.hasOrgRole(user.id, organizationId, ['Guru']))) return full;
-        if (isSemesterAssessmentExam(record) && record.id &&
-            await this.roles.hasOrgRole(user.id, organizationId, ['Guru', 'Pengawas'])) {
-            const assignments = assignedStudents ?? await assignedPasExamStudents(this.db, user.id, organizationId);
-            const studentIds = assignments.get(record.id);
-            if (studentIds?.length) return { allParticipants: false, studentIds };
-        }
+        if (record.created_by !== user.id) return null;
+        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin', 'Proktor', 'Guru', 'Pengawas'])) return full;
         return null;
     }
 

@@ -21,6 +21,7 @@ export type ResetMode = 'PULIHKAN' | 'SUSULAN';
 export interface ResetExamModalProps {
   open: boolean;
   attempt: ExamAttemptRecord | null;
+  participantSummary?: string;
   examDuration?: number;
   onClose: () => void;
   onSuccess?: () => void;
@@ -49,6 +50,7 @@ function ResetExamForm({
   onClose,
   onSuccess,
   onConfirm,
+  participantSummary,
 }: ResetExamModalProps) {
   const [mode, setMode] = useState<ResetMode>('PULIHKAN');
   const [reason, setReason] = useState('');
@@ -87,6 +89,7 @@ function ResetExamForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const trimmedReason = reason.trim();
 
     if (trimmedReason.length < 5) {
@@ -144,7 +147,9 @@ function ResetExamForm({
 
       <form onSubmit={handleSubmit}>
         <ModalBody className="space-y-4">
+          {participantSummary && <div role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">{participantSummary} Pilihan tindakan, durasi, dan alasan berlaku untuk semua siswa terpilih. Mode Susulan menghapus semua jawaban dan nilai lama mereka.</div>}
           {/* Student Info Summary Card */}
+          {!participantSummary && (
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3083FF]/10 text-[#3083FF] font-bold text-sm">
@@ -173,6 +178,7 @@ function ResetExamForm({
               </span>
             </div>
           </div>
+          )}
 
           {/* Mode Selection Cards */}
           <div>
@@ -201,7 +207,7 @@ function ResetExamForm({
                     )}
                   </div>
                   <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                    Mempertahankan semua jawaban tersimpan di server. Mengaktifkan kembali sesi agar siswa bisa melanjutkan atau mengirim jawaban.
+                    Buka kembali sesi. Jawaban tersimpan tetap aman.
                   </p>
                 </div>
               </button>
@@ -227,7 +233,7 @@ function ResetExamForm({
                     )}
                   </div>
                   <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                    Menghapus SEMUA jawaban & nilai lama. Memulai sesi baru dari awal dengan waktu pengerjaan utuh.
+                    Ulangi ujian dari awal. Semua jawaban dan nilai lama dihapus.
                   </p>
                 </div>
               </button>
@@ -317,7 +323,7 @@ function ResetExamForm({
               <div>
                 <p className="font-bold">Perhatian Penting:</p>
                 <p className="mt-0.5 text-amber-800">
-                  Semua {savedAnswers} jawaban dan nilai lama milik <strong>{studentName}</strong> akan dihapus permanen. Hasil ujian baru akan dimasukkan ke dalam rekap ujian.
+                  Semua jawaban dan nilai lama milik <strong>{participantSummary || studentName}</strong> akan dihapus permanen. Hasil ujian baru akan dimasukkan ke dalam rekap ujian.
                 </p>
               </div>
             </div>

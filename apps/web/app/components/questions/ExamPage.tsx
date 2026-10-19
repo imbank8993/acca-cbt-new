@@ -1454,14 +1454,17 @@ export default function ExamPage() {
             metadata: { reason: 'Siswa menghentikan berbagi layar' }, createdAt: new Date().toISOString() }).then(() => flushSecurityEvents());
     }, [attempt, isCompleted, exam, screenshots.sharing, flushSecurityEvents]);
 
-    // Retry berkala untuk autosave yang gagal. Sebelumnya jawaban yang gagal
-    // tersimpan hanya tersusul kalau kebetulan ada event 'online' — kegagalan
-    // saat koneksi tetap menyala tidak pernah dicoba ulang sama sekali.
+    // Retry berkala untuk autosave dan bukti keamanan yang masih mengantre.
+    // `navigator.onLine` dapat tetap true ketika server sempat tidak terjangkau,
+    // sehingga jangan hanya mengandalkan event browser `online`.
     useEffect(() => {
         if (!attempt?.id || isCompleted || accessDenied || submissionOnly) return;
-        const iv = setInterval(() => { retryFailedAnswers(); }, 15000);
+        const iv = setInterval(() => {
+            retryFailedAnswers();
+            void flushSecurityEvents().catch(() => null);
+        }, 15000);
         return () => clearInterval(iv);
-    }, [attempt?.id, isCompleted, accessDenied, submissionOnly, retryFailedAnswers]);
+    }, [attempt?.id, isCompleted, accessDenied, submissionOnly, retryFailedAnswers, flushSecurityEvents]);
 
     // Tab ditutup / berpindah ke background: titipkan jawaban yang belum pasti
     // tersimpan lewat sendBeacon. Server action yang masih mengantre di klien
@@ -1719,7 +1722,7 @@ export default function ExamPage() {
         return <ExamStartPreparation
             key={examId}
             exam={exam}
-            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, request: screenshots.requestShare }}
+            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, supported: screenshots.supported, surfaceUnverified: screenshots.surfaceUnverified, request: screenshots.requestShare }}
             onBack={() => router.push('/dashboard/siswa/schedule')}
             onConfirm={(fullscreenReady) => {
                 setIsFullScreen(fullscreenReady);
@@ -1864,8 +1867,10 @@ export default function ExamPage() {
                     <div className="max-w-md rounded-2xl bg-white p-6 text-center text-slate-900">
                         <h2 className="text-lg font-bold">Bagikan kembali seluruh layar</h2>
                         <p className="mt-2 text-sm">Berbagi layar terhenti. Jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
+                        {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Waktu ujian tetap berjalan.</p>}
+                        {screenshots.surfaceUnverified && <p className="mt-2 text-sm text-amber-700">Pastikan Anda memilih “Seluruh Layar / Entire Screen” pada dialog berbagi layar.</p>}
                         {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
-                        <button type="button" disabled={screenshots.busy} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>
+                        <button type="button" disabled={screenshots.busy || screenshots.supported === false} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>
                     </div>
                 </div>
             )}

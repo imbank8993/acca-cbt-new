@@ -5,8 +5,11 @@ import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
+import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
+import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
@@ -344,8 +347,7 @@ function MonitoringContent() {
 
 
 
-    // Filter kelas + pencarian nama, lalu urutkan pelanggaran terbanyak dulu —
-    // peserta bermasalah (terminated) yang perlu di-reset naik ke atas.
+    // Prioritaskan peserta ditutup otomatis yang dapat direset, lalu jumlah pelanggaran.
     const kelasOptions = [...new Set(
         attempts.flatMap((a) => String(a.kelas_name || '').split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== '-'))
     )].sort();
@@ -365,7 +367,8 @@ function MonitoringContent() {
             if (filterStatus === 'belum') return a.status === 'belum';
             return true;
         })
-        .sort((a, b) => (b.warning_count ?? 0) - (a.warning_count ?? 0));
+        .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted')
+            || (b.warning_count ?? 0) - (a.warning_count ?? 0));
 
     const totalStudents = attempts.length;
     const inProgress = attempts.filter(a => a.status === 'in_progress').length;
@@ -431,11 +434,35 @@ function MonitoringContent() {
 
     return (
         <div className="monitoring-page pb-24 max-w-7xl mx-auto">
-            <div className="monitoring-controls mb-5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="monitoring-controls mb-5 rounded-xl bg-white px-4 pt-4 pb-3 sm:px-5">
+                <div className="mb-3">
+                    <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Monitoring Ujian</h1>
+                    <p className="mt-0.5 text-xs text-slate-500">Pantau peserta, jawaban, dan hasil ujian.</p>
+                </div>
+                <div className="flex min-w-0 flex-col gap-3">
+                    <div className="flex w-full min-w-0 items-start gap-2 sm:max-w-2xl">
+                        <div className="min-w-0 flex-1">
+                            <MonitoringExamPicker
+                                compactContext
+                                exams={exams}
+                                now={monitoringNow}
+                                value={selectedExamId}
+                                onChange={(val) => setSelectedExamId(String(val || ''))}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Refresh data monitoring"
+                            title="Refresh data monitoring"
+                            onClick={handleRefresh}
+                            disabled={isRefreshing || !selectedExamId}
+                            className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 hover:text-[#3083FF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-40">
+                            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                     {selectedExamId && (
-                        <div className="w-full min-w-0 overflow-x-auto lg:w-auto lg:shrink-0">
-                            <div className="monitoring-tabs flex w-max min-w-full gap-1 rounded-lg p-1 lg:w-fit lg:min-w-0">
+                        <div className="w-full min-w-0 overflow-x-auto">
+                            <div className="monitoring-tabs monitoring-tabs--underline flex w-max min-w-full gap-4 sm:gap-6">
                                 {[
                                 { id: 'live', label: 'Peserta Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
                                 { id: 'answers', label: 'Sinkronisasi Jawaban', icon: ShieldAlert, badge: null as number | null },
@@ -444,11 +471,13 @@ function MonitoringContent() {
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
+                                        type="button"
+                                        aria-pressed={activeTab === tab.id}
                                         onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-0.5 pb-3 pt-2 text-xs font-semibold transition-colors ${
                                             activeTab === tab.id
-                                                ? 'bg-[#3083FF] text-white shadow-sm'
-                                                : 'text-slate-500 hover:bg-white hover:text-slate-800'
+                                                ? 'text-[#3083FF]'
+                                                : 'text-slate-500 hover:text-slate-800'
                                         }`}
                                     >
                                         <tab.icon size={14} />
@@ -463,26 +492,6 @@ function MonitoringContent() {
                             </div>
                         </div>
                     )}
-                    <div className="flex min-w-0 flex-1 gap-2">
-                        <div className="min-w-0 flex-1">
-                            <MonitoringExamPicker
-                                exams={exams}
-                                now={monitoringNow}
-                                value={selectedExamId}
-                                onChange={(val) => setSelectedExamId(String(val || ''))}
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            aria-label="Refresh data monitoring"
-                            title="Refresh data monitoring"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing || !selectedExamId}
-                            className="inline-flex h-[42px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#3083FF] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#2672e8] disabled:cursor-not-allowed disabled:opacity-40">
-                            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
-                            <span className="hidden sm:inline">Refresh</span>
-                        </button>
-                    </div>
                 </div>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
                     <div className="mt-3 pt-1">
@@ -575,6 +584,18 @@ function MonitoringContent() {
                 </div>
             )}
 
+            {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
+
+            {selectedExamId && canResetParticipants && ['answers', 'live', 'results'].includes(activeTab) && (
+                <BulkResetPanel
+                    key={selectedExamId}
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
+                    onRefresh={handleRefresh}
+                />
+            )}
+            {selectedExamId && !canResetParticipants && <p className="mb-4 text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
+
             {selectedExamId && activeTab === 'answers' && (
                 <MonitoringHealthPanel key={selectedExamId}
                     attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
@@ -617,6 +638,9 @@ function MonitoringContent() {
             )}
 
             {selectedExamId && activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} onViewDetails={id => router.push('/dashboard/admin/monitoring/' + id)} />}
+            {selectedExam && selectedExam.metadata?.is_pas_exam === true && activeTab === 'live' && (
+                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="admin" />
+            )}
 
             {selectedExamId && (
                 <div className="space-y-4">
