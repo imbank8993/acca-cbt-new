@@ -246,7 +246,7 @@ export class AuthorizationService {
         if (operation === 'reset') {
             const scope = await this.getExamResetScope(user, { ...record, id: examId });
             if (scope && (scope.allParticipants || (studentId && scope.studentIds.includes(studentId)))) return;
-            throw new ForbiddenException('Reset, pulihkan, dan susulan hanya untuk pembuat ujian. Ujian pengguna lain hanya dapat dilihat.');
+            throw new ForbiddenException('Reset, pulihkan, dan susulan hanya untuk admin atau pembuat ujian.');
         }
         if (!await this.canManageExam(user, record, operation)) {
             throw new ForbiddenException('Anda hanya dapat mengelola ujian yang Anda buat sendiri. PAS/PAT hanya dapat dikelola Proktor/Admin.');
@@ -259,8 +259,9 @@ export class AuthorizationService {
     }, _assignedStudents?: Map<string, string[]>): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
         const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
         const full = { allParticipants: true, studentIds: [] };
+        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
         if (record.created_by !== user.id) return null;
-        if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin', 'Proktor', 'Guru', 'Pengawas'])) return full;
+        if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru', 'Pengawas'])) return full;
         return null;
     }
 

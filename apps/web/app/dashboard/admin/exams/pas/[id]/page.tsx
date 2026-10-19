@@ -47,6 +47,7 @@ import {
 import { useParams,useRouter } from 'next/navigation';
 import React,{ useCallback,useEffect,useState } from 'react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
+import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/components/pas/CompactExamPeriodWorkspace';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import BulkScheduleGrid from './BulkScheduleGrid';
 
@@ -186,11 +187,11 @@ export default function AdminPASDetailPage() {
     };
 
     const handleActivation = async (ids: string[], active: boolean) => {
-        if (!ids.length || isGenerating) return;
+        if (!ids.length || isGenerating) return false;
         if (!await confirmDialog({ title: active ? 'Aktifkan Ujian?' : 'Nonaktifkan Ujian?',
             text: active ? `Aktifkan ${ids.length} jadwal? Kelengkapan diperiksa kembali sebelum aktivasi.`
                 : `Nonaktifkan ${ids.length} jadwal? Ujian tidak tersedia untuk siswa; jawaban yang sudah tersimpan tetap dipertahankan.`,
-            confirmText: active ? 'Aktifkan' : 'Nonaktifkan' })) return;
+            confirmText: active ? 'Aktifkan' : 'Nonaktifkan' })) return false;
         setIsGenerating(true);
         try {
             const errors: string[] = [];
@@ -201,8 +202,10 @@ export default function AdminPASDetailPage() {
             await loadData();
             setSelectedScheduleIds([]);
             if (errors.length) await alertDialog({ title: 'Sebagian jadwal belum dapat diproses', text: errors.join('\n'), variant: 'warning' });
+            return errors.length === 0;
         } catch (error) {
             await alertDialog({ title: 'Status aktivasi belum dapat diperbarui', text: error instanceof Error ? error.message : 'Muat ulang daftar untuk memeriksa status terakhir.', variant: 'warning' });
+            return false;
         } finally { setIsGenerating(false); }
     };
 
@@ -292,6 +295,17 @@ export default function AdminPASDetailPage() {
     }
 
     const schedules = period.pas_class_schedules || [];
+    const isCompactPeriod = period.type === 'pas' || period.type === 'am';
+    const compactActiveTab = activeTab === 'live_today' ? 'schedules' : activeTab;
+    const openAddSchedule = () => {
+        if (period.is_locked) return;
+        setScheduleForm((prev) => ({
+            ...prev,
+            scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
+            session_id: prev.session_id || sessions[0]?.id || '',
+        }));
+        setIsAddScheduleOpen(true);
+    };
     const uniqueBankCount = new Set(schedules.map((sc) => sc.bank_id).filter(Boolean)).size;
     const readySchedulesCount = schedules.filter(isPASScheduleReady).length;
     const readyInactiveIds = schedules.filter(sc => sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
@@ -344,6 +358,20 @@ export default function AdminPASDetailPage() {
                 </div>
             )}
 
+            {isCompactPeriod && (
+                <CompactExamPeriodHeader
+                    period={period}
+                    schedules={schedules}
+                    activeTab={compactActiveTab}
+                    onTabChange={(tab) => setActiveTab(tab as TabId)}
+                    formatDate={formatDate}
+                    onSettings={() => { if (!period.is_locked) setIsEditModalOpen(true); }}
+                    onAddSchedule={openAddSchedule}
+                    onBulkSchedule={() => { if (!period.is_locked) setActiveTab('bulk'); }}
+                />
+            )}
+
+            {!isCompactPeriod && <>
             {/* ── Period Details Header Card ── */}
             <div className="bg-white rounded-xl px-6 py-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -493,6 +521,8 @@ export default function AdminPASDetailPage() {
                 )}
             </div>
 
+            </>}
+
             {activeTab === 'rooms_sessions' && (
                 <RoomManagementPanel
                     period={period}
@@ -531,7 +561,29 @@ export default function AdminPASDetailPage() {
             )}
 
             {/* ── SCHEDULES & LIVE TAB ── */}
-            {(activeTab === 'schedules' || activeTab === 'live_today') && (
+            {isCompactPeriod && compactActiveTab === 'schedules' && (
+                <CompactExamPeriodSchedules
+                    key={period.id}
+                    period={period}
+                    classes={classes}
+                    sessions={sessions}
+                    rooms={rooms}
+                    timeZone={timeZone}
+                    today={todayStr}
+                    bankTitle={getBankTitle}
+                    busy={isGenerating}
+                    onActivation={handleActivation}
+                    onDelete={(id) => void handleRemoveSchedule(id)}
+                    onManageRooms={() => {
+                        setActiveTab('rooms_sessions');
+                        setLogisticsSubTab('rooms');
+                    }}
+                    monitoringBasePath="/dashboard/admin/monitoring"
+                    onAddSchedule={openAddSchedule}
+                    onBulkSchedule={() => { if (!period.is_locked) setActiveTab('bulk'); }}
+                />
+            )}
+            {!isCompactPeriod && (activeTab === 'schedules' || activeTab === 'live_today') && (
                 <div className="space-y-4">
 
                     {/* Filter Bar */}

@@ -14,15 +14,27 @@ const countdown = (seconds: number | null) => seconds === null ? '—' : `${Math
 
 function DeviceLine({ attempt }: { attempt: ExamAttemptRecord }) {
     const context = attempt.client_context;
-    return <div className="mt-1 break-words text-xs font-normal text-slate-500" title="Browser dari user-agent dan IP jaringan yang tercatat saat kontak terakhir. Beberapa perangkat dapat memakai IP yang sama.">
+    return <div className="mt-2 break-words text-xs font-normal leading-5 text-muted-foreground" title="Browser dari user-agent dan IP jaringan yang tercatat saat kontak terakhir. Beberapa perangkat dapat memakai IP yang sama.">
         {context?.browser || 'Browser belum tercatat'}{context?.os ? ` · ${context.os}` : ''}
         <span className="mx-1.5">·</span>IP: {context?.ip_address || 'Belum tercatat'}
     </div>;
 }
 
-export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
+const compactReason = (reason: string) => {
+    if (reason === 'Tidak ada kontak terbaru') return 'Tanpa kontak';
+    if (reason === 'Koneksi belum dilaporkan') return 'Koneksi belum ada';
+    if (reason === 'Penyimpanan perangkat gagal') return 'Penyimpanan gagal';
+    if (reason === 'Waktu tersisa ≤5 menit') return 'Waktu ≤5 menit';
+    if (reason === 'Batas waktu tercapai') return 'Waktu habis';
+    const pending = reason.match(/^(Terakhir: )?(\d+) jawaban menunggu sinkronisasi$/);
+    if (pending) return `${pending[2]} tertunda${pending[1] ? ' · lama' : ''}`;
+    return reason.replace(' peringatan tercatat', ' peringatan');
+};
+
+export function ActiveParticipantsPanel({ attempts, onViewDetails, attentionOnly = false }: {
     attempts: ExamAttemptRecord[];
     onViewDetails?: (id: string) => void;
+    attentionOnly?: boolean;
 }) {
     const [page, setPage] = useState(1);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -47,42 +59,42 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
         if (!selectedId && dialog?.open) dialog.close();
     }, [selectedId]);
     const date = (value?: string | null) => value ? zone ? formatSchoolDateTime(value, zone) : `${new Date(value).toISOString()} (UTC)` : 'Belum tercatat';
-    const rows = activeMonitoringRows(attempts, 'all', elapsed);
+    const rows = activeMonitoringRows(attempts, attentionOnly ? 'attention' : 'all', elapsed);
     const pages = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pages);
     const selected = attempts.find(attempt => attempt.id === selectedId);
     const selectedFacts = selected ? activeMonitoringFacts(selected, elapsed) : null;
-    return <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Peserta ujian aktif">
-        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500"><tr>{['No.', 'Peserta', 'Progres', 'Sisa waktu', 'Koneksi', 'Perhatian', ''].map((label, index) => <th key={index} className="px-5 py-3 font-semibold">{label}</th>)}</tr></thead>
-            <tbody>{rows.slice((currentPage - 1) * 25, currentPage * 25).map(({ attempt, facts }, index) => {
+    return <section className="mb-4 overflow-hidden rounded-xl border border-border bg-[var(--card)]" aria-label="Peserta ujian aktif">
+        <div className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-blue-500" tabIndex={0} role="region" aria-label="Tabel peserta aktif, geser untuk melihat seluruh kolom"><table className="w-full min-w-[780px] text-left text-sm">
+            <caption className="sr-only">Peserta aktif, diurutkan berdasarkan kebutuhan perhatian dan sisa waktu.</caption>
+            <thead className="bg-slate-50/80 text-[11px] text-muted-foreground dark:bg-slate-800/40"><tr>{['Peserta', 'Progres', 'Sisa waktu', 'Koneksi', 'Perhatian', ''].map((label, index) => <th key={index} scope="col" className={`px-5 py-3.5 font-semibold ${index === 0 ? 'w-[27%]' : ''}`}>{label || <span className="sr-only">Tindakan</span>}</th>)}</tr></thead>
+            <tbody>{rows.slice((currentPage - 1) * 25, currentPage * 25).map(({ attempt, facts }) => {
                 const saved = attempt.saved_answer_count;
                 const total = attempt.total_questions;
                 const progress = saved != null && total != null && total > 0 ? Math.min(100, Math.max(0, saved / total * 100)) : null;
-                return <tr key={attempt.id} className={`border-t border-slate-100 align-top hover:bg-slate-50 ${facts.priority === 3 ? 'bg-amber-50/40' : ''}`}>
-                    <td className="px-5 py-4 text-xs text-slate-500 tabular-nums">{(currentPage - 1) * 25 + index + 1}</td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => setSelectedId(attempt.id)} className="text-left text-xs font-semibold text-slate-800 hover:text-blue-600">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</button>
-                        <DeviceLine attempt={attempt} /><div className="mt-1 text-xs text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
-                        <ParticipantRoomInfo attempt={attempt} /></td>
-                    <td className="px-5 py-4"><span className="font-semibold text-slate-800">{saved ?? '—'} / {total ?? '—'}</span><div className="mt-1 text-[11px] text-slate-500">Jawaban tersimpan</div>
-                        {progress !== null && <div className="mt-2 h-1.5 w-24 rounded-full bg-slate-100" role="progressbar" aria-label={`Progres ${attempt.profiles?.full_name || 'peserta'}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div>}</td>
-                    <td className="px-5 py-4"><strong className={`tabular-nums ${facts.ending ? 'text-amber-700' : 'text-slate-800'}`}>{countdown(facts.remainingSeconds)}</strong><div className="mt-1 text-[11px] text-slate-500">Mulai {date(attempt.started_at)}</div></td>
-                    <td className="px-5 py-4"><span className={`text-xs font-medium ${facts.connection === 'online' ? 'text-blue-700' : facts.connection === 'offline' ? 'text-amber-700' : 'text-slate-500'}`}>{facts.connection === 'online' ? 'Terhubung' : facts.connection === 'offline' ? 'Tidak ada kontak terbaru' : 'Belum diketahui'}</span><div className="mt-1 text-[11px] text-slate-500">Terakhir {date(attempt.last_seen_at)}</div></td>
-                    <td className="max-w-[240px] px-5 py-4 text-xs">{facts.reasons.length ? facts.reasons.map(reason => <div key={reason} className="mb-1 text-amber-800">{reason}</div>) : <span className="text-slate-400">Tidak ada peringatan</span>}</td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => setSelectedId(attempt.id)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50">Detail</button></td>
+                return <tr key={attempt.id} className={`border-t border-border align-middle transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${facts.priority === 3 ? 'bg-amber-50/40 dark:bg-amber-500/5' : ''}`}>
+                    <td className="px-5 py-4"><div className="text-xs font-semibold text-foreground">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">{attempt.kelas_name || 'Kelas belum tercatat'}</div></td>
+                    <td className="px-5 py-4"><span className="text-xs font-semibold tabular-nums text-foreground" aria-label={`${saved ?? 'Belum diketahui'} dari ${total ?? 'belum diketahui'} jawaban tersimpan`}>{saved ?? '—'} <span className="font-normal text-muted-foreground">/ {total ?? '—'}</span></span>
+                        {progress !== null && <div className="mt-2 h-1 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700" role="progressbar" aria-label={`Progres ${attempt.profiles?.full_name || 'peserta'}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}><div className="h-full rounded-full bg-blue-500" style={{ width: `${progress}%` }} /></div>}</td>
+                    <td className="whitespace-nowrap px-5 py-4"><strong className={`text-xs font-semibold tabular-nums ${facts.ending ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>{countdown(facts.remainingSeconds)}</strong></td>
+                    <td className="whitespace-nowrap px-5 py-4"><span className="inline-flex items-center gap-2 text-[11px] text-muted-foreground"><span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${facts.connection === 'online' ? 'bg-emerald-500' : facts.connection === 'offline' ? 'bg-amber-500' : 'bg-slate-400'}`} />{facts.connection === 'online' ? 'Terhubung' : facts.connection === 'offline' ? 'Tanpa kontak' : 'Belum diketahui'}</span></td>
+                    <td className="w-[240px] px-5 py-4 text-[10px]">{facts.reasons.length ? <div className="flex flex-wrap gap-1.5">{facts.reasons.slice(0, 2).map(reason => <span key={reason} title={reason} className="inline-flex whitespace-nowrap rounded-md bg-amber-50 px-2 py-1 font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{compactReason(reason)}</span>)}{facts.reasons.length > 2 && <span className="inline-flex rounded-md bg-amber-50 px-2 py-1 font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300" title={facts.reasons.slice(2).join(' · ')}><span aria-hidden="true">+{facts.reasons.length - 2}</span><span className="sr-only">{facts.reasons.slice(2).join('; ')}</span></span>}</div> : <span className="text-muted-foreground" aria-label="Tidak ada peringatan">—</span>}</td>
+                    <td className="px-5 py-4 text-right"><button type="button" onClick={() => setSelectedId(attempt.id)} aria-label={`Detail ${formatStudentName(attempt.profiles?.full_name, 'peserta')}`} className="rounded-md px-2 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-400 dark:hover:bg-blue-500/10">Detail</button></td>
                 </tr>;
             })}</tbody>
         </table></div>
-        {!rows.length && <p className="px-5 py-12 text-center text-sm text-slate-500">Tidak ada peserta aktif yang cocok dengan filter.</p>}
-        {pages > 1 && <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs text-slate-500"><span>{rows.length} peserta · halaman {currentPage} / {pages}</span><div className="flex gap-3">
-            <button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} className="flex items-center gap-1 disabled:opacity-30"><ChevronLeft size={14} />Sebelumnya</button>
-            <button type="button" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)} className="flex items-center gap-1 disabled:opacity-30">Berikutnya<ChevronRight size={14} /></button></div></div>}
-        <dialog ref={dialogRef} onCancel={() => setSelectedId(null)} className="fixed inset-y-0 left-auto right-0 m-0 h-full max-h-none w-full max-w-lg border-l border-slate-200 bg-white p-0 shadow-xl backdrop:bg-slate-900/30" aria-labelledby="active-participant-title">
-            <div className="flex h-full flex-col"><div className="flex items-center justify-between border-b border-slate-200 p-5"><h3 id="active-participant-title" className="font-semibold">Detail Peserta</h3><button type="button" onClick={() => setSelectedId(null)} aria-label="Tutup detail peserta" className="rounded-lg p-2 hover:bg-slate-100"><X size={18} /></button></div>
+        {!rows.length && <p className="px-5 py-12 text-center text-sm text-muted-foreground">{attentionOnly ? 'Tidak ada peserta aktif yang memerlukan perhatian.' : 'Tidak ada peserta aktif yang cocok dengan filter.'}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-[11px] text-muted-foreground"><span>{rows.length ? `${(currentPage - 1) * 25 + 1}–${Math.min(currentPage * 25, rows.length)} dari ${rows.length} peserta` : '0 peserta'}</span>{pages > 1 && <nav className="flex items-center gap-3" aria-label="Halaman peserta aktif">
+            <span>{currentPage} / {pages}</span><button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} className="flex items-center gap-1 rounded-md p-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft size={14} />Sebelumnya</button>
+            <button type="button" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)} className="flex items-center gap-1 rounded-md p-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-30">Berikutnya<ChevronRight size={14} /></button></nav>}</div>
+        <dialog ref={dialogRef} onCancel={() => setSelectedId(null)} onClose={() => setSelectedId(null)} className="fixed inset-y-0 left-auto right-0 m-0 h-full max-h-none w-full max-w-lg border-l border-border bg-[var(--card)] p-0 text-foreground shadow-xl backdrop:bg-slate-900/30" aria-labelledby="active-participant-title">
+            <div className="flex h-full flex-col"><div className="flex items-center justify-between border-b border-border p-5"><h3 id="active-participant-title" className="font-semibold">Detail Peserta</h3><button type="button" onClick={() => setSelectedId(null)} aria-label="Tutup detail peserta" className="rounded-lg p-2 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"><X size={18} /></button></div>
                 {selected && selectedFacts ? <div className="flex-1 overflow-y-auto p-5 text-sm">
-                    <h4 className="font-semibold text-slate-800">{formatStudentName(selected.profiles?.full_name, 'Tanpa nama')}</h4><DeviceLine attempt={selected} /><p className="mt-1 text-xs text-slate-500">{selected.profiles?.identity_number || '—'} · {selected.kelas_name || '—'}</p>
+                    <h4 className="font-semibold text-foreground">{formatStudentName(selected.profiles?.full_name, 'Tanpa nama')}</h4><p className="mt-1 text-xs text-muted-foreground">{selected.kelas_name || 'Kelas belum tercatat'} · NIS {selected.profiles?.identity_number || '—'}</p><DeviceLine attempt={selected} />
                     <ParticipantRoomInfo attempt={selected} />
-                    <dl className="my-6 grid grid-cols-2 gap-4">{[
+                    {selectedFacts.reasons.length > 0 && <div className="mt-5 rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10"><h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300">Perlu perhatian</h4><ul className="mt-2 space-y-1 text-xs leading-5 text-amber-800 dark:text-amber-300">{selectedFacts.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul></div>}
+                    <dl className="my-6 grid grid-cols-2 gap-x-5 gap-y-5">{[
                         ['Status', selected.status === 'in_progress' ? 'Mengerjakan' : 'Sesi berakhir'], ['Sisa waktu', countdown(selectedFacts.remainingSeconds)],
                         ['Jawaban server', `${selected.saved_answer_count ?? '—'} / ${selected.total_questions ?? '—'}`], ['Lokal terakhir', selected.sync_health ? `${selected.sync_health.localAnswerCount} jawaban${selectedFacts.fresh ? '' : ' (laporan lama)'}` : 'Belum dilaporkan'],
                         ['Menunggu sinkronisasi', selected.sync_health ? `${selectedFacts.pending}${selectedFacts.fresh ? '' : ' (laporan lama)'}` : 'Belum dilaporkan'],
@@ -90,12 +102,12 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails }: {
                         ['Mulai', date(selected.started_at)], ['Batas sesi', date(selected.deadline_at)],
                         ['Lama mengerjakan', formatMonitoringDuration(selectedFacts.workedSeconds)], ['Kontak terakhir', date(selected.last_seen_at)],
                         ['Jawaban disimpan', date(selected.last_answer_saved_at)], ['Data perangkat', date(selected.client_context?.observed_at)],
-                    ].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-slate-800">{value}</dd></div>)}</dl>
-                    <h4 className="mb-3 font-semibold">Riwayat aktivitas</h4><p className="mb-3 text-xs text-slate-500">Catatan perangkat dan koneksi tidak selalu merupakan pelanggaran.</p>
-                    <ol className="space-y-3">{[...(selected.monitoring_history || [])].sort((a,b) => Date.parse(b.at) - Date.parse(a.at)).map((event,index) => <li key={`${event.at}-${index}`} className="border-l-2 border-slate-200 pl-3"><div className="text-xs text-slate-500">{date(event.at)}</div><div className="mt-1">{monitoringEventLabels[event.type] || securityViolationLabel(event.type)}</div>{event.reason && <p className="mt-1 text-xs text-slate-500">{event.reason}</p>}</li>)}</ol>
-                    {!selected.monitoring_history?.length && <p className="text-xs text-slate-500">Belum ada riwayat.</p>}
-                    {onViewDetails && <button type="button" onClick={() => { onViewDetails(selected.id); setSelectedId(null); }} className="mt-6 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white">Buka rincian jawaban</button>}
-                </div> : <p className="p-5 text-sm text-slate-500">Peserta tidak lagi ada dalam daftar ini. Tutup panel untuk melihat data terbaru.</p>}
+                    ].map(([label, value]) => <div key={label}><dt className="text-[11px] text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-xs leading-5 text-foreground">{value}</dd></div>)}</dl>
+                    <h4 className="mb-3 border-t border-border pt-5 font-semibold">Riwayat aktivitas</h4><p className="mb-3 text-xs text-muted-foreground">Catatan perangkat dan koneksi tidak selalu merupakan pelanggaran.</p>
+                    <ol className="space-y-3">{[...(selected.monitoring_history || [])].sort((a,b) => Date.parse(b.at) - Date.parse(a.at)).map((event,index) => <li key={`${event.at}-${index}`} className="border-l-2 border-border pl-3"><div className="text-[11px] text-muted-foreground">{date(event.at)}</div><div className="mt-1 text-xs">{monitoringEventLabels[event.type] || securityViolationLabel(event.type)}</div>{event.reason && <p className="mt-1 text-xs text-muted-foreground">{event.reason}</p>}</li>)}</ol>
+                    {!selected.monitoring_history?.length && <p className="text-xs text-muted-foreground">Belum ada riwayat.</p>}
+                    {onViewDetails && <button type="button" onClick={() => { onViewDetails(selected.id); setSelectedId(null); }} className="mt-6 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">Buka rincian jawaban</button>}
+                </div> : <p className="p-5 text-sm text-muted-foreground">Peserta tidak lagi ada dalam daftar ini. Tutup panel untuk melihat data terbaru.</p>}
             </div>
         </dialog>
     </section>;

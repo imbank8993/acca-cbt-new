@@ -74,7 +74,7 @@ test('stale reports are explicitly historical and contact expires after 45 secon
     assert.ok(old.reasons.includes('Terakhir: 2 jawaban menunggu sinkronisasi'));
     assert.equal(activeMonitoringFacts(row({ last_seen_at:null })).connection, 'unknown');
 });
-test('active table starts without a duplicate header and detail panel uses the latest roster data', () => {
+test('active table stays compact and detail panel uses the latest roster data', () => {
     const state=[]; let cursor=0;
     const React = {
         createElement(type,props,...children) { return typeof type==='function' ? type(props) : {type,props:props||{},children}; },
@@ -99,11 +99,18 @@ test('active table starts without a duplicate header and detail panel uses the l
     const text=root=>root==null||typeof root==='boolean'?'':typeof root!=='object'?String(root):Array.isArray(root)?root.map(text).join(''):text(root.children);
     let attempts=[row({client_context:{browser:'Chrome 131',os:'Windows',ip_address:'192.0.2.8',observed_at:now}}),row({id:'ending',deadline_at:'2026-10-14T06:03:00Z'})];
     attempts[1].pas_location={status:'assigned',room_name:'Laboratorium IPA',session_name:'Sesi Pagi',invigilators:[{id:'guard',full_name:'Bu Sari'}]};
-    const render=()=>{cursor=0;return mod.exports.ActiveParticipantsPanel({attempts})};
+    const render=(props={})=>{cursor=0;return mod.exports.ActiveParticipantsPanel({attempts,...props})};
     let tree=render();
-    assert.match(text(tree),/Chrome 131/);assert.match(text(tree),/IP: 192\.0\.2\.8/);
-    assert.match(text(tree),/Ruang: Laboratorium IPA · Sesi Pagi/);
-    assert.match(text(tree),/Pengawas: Bu Sari/);
+    const body=nodes(tree).find(node=>node.type==='tbody');
+    assert.doesNotMatch(text(body),/Chrome 131|IP: 192\.0\.2\.8|Ruang:|Pengawas:|Mulai /);
+    assert.match(text(tree),/1–2 dari 2 peserta/);
+    const normalRow=nodes(body).find(node=>node.type==='tr'&&node.props.key==='normal');
+    nodes(normalRow).find(node=>node.type==='button'&&text(node)==='Detail').props.onClick();
+    tree=render();
+    const deviceDialog=nodes(tree).find(node=>node.type==='dialog');
+    assert.match(text(deviceDialog),/Chrome 131/);assert.match(text(deviceDialog),/IP: 192\.0\.2\.8/);
+    nodes(deviceDialog).find(node=>node.type==='button'&&node.props['aria-label']==='Tutup detail peserta').props.onClick();
+    tree=render();
     assert.equal(text(roomMod.exports.ParticipantRoomInfo({attempt:{}})), '');
     assert.match(text(roomMod.exports.ParticipantRoomInfo({attempt:{pas_location:{status:'unavailable'}}})),/belum tersedia/);
     assert.match(text(roomMod.exports.ParticipantRoomInfo({attempt:{pas_location:{status:'unassigned',invigilators:[]}}})),/Belum ditempatkan/);
@@ -116,9 +123,18 @@ test('active table starts without a duplicate header and detail panel uses the l
     attempts=attempts.map(a=>a.id==='ending'?{...a,saved_answer_count:30,pas_location:{...a.pas_location,invigilators:[{id:'replacement',full_name:'Pak Budi'}]}}:a);
     tree=render();const dialog=nodes(tree).find(node=>node.type==='dialog');
     assert.match(text(dialog),/30 \/ 40/);
+    assert.match(text(dialog),/Ruang: Laboratorium IPA · Sesi Pagi/);
     assert.match(text(dialog),/Pengawas: Pak Budi/);
     assert.doesNotMatch(text(dialog),/Bu Sari/);
     assert.equal(dialog.props['aria-labelledby'],'active-participant-title');
     nodes(dialog).find(node=>node.type==='button'&&node.props['aria-label']==='Tutup detail peserta').props.onClick();
     tree=render();assert.doesNotMatch(text(nodes(tree).find(node=>node.type==='dialog')), /30 \/ 40/);
+    tree=render({attentionOnly:true});
+    const attentionRows=nodes(tree).filter(node=>node.type==='tbody')[0].children[0];
+    assert.deepEqual(attentionRows.map(node=>node.props.key), ['ending']);
+    assert.match(text(tree),/1–1 dari 1 peserta/);
+    attempts=attempts.filter(attempt=>attempt.id==='normal');
+    tree=render({attentionOnly:true});
+    assert.match(text(tree),/Tidak ada peserta aktif yang memerlukan perhatian\./);
+    assert.match(text(tree),/0 peserta/);
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useClientMounted } from '@/hooks/useClientMounted';
-import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useId,useRef,useState } from 'react';
 import { createPortal } from 'react-dom';
 import './multi-select-dropdown.css';
 
@@ -16,6 +16,7 @@ export interface MultiSelectDropdownProps<T extends string | number = string> {
     value: T[];
     onChange: (value: T[]) => void;
     label?: string;
+    'aria-label'?: string;
     placeholder?: string;
     allSelectedText?: string;
     columns?: number;
@@ -48,6 +49,7 @@ export function MultiSelectDropdown<T extends string | number = string>({
     value,
     onChange,
     label,
+    'aria-label': ariaLabel,
     placeholder = 'Pilih...',
     allSelectedText = 'Semua Terpilih',
     columns = 1,
@@ -58,6 +60,7 @@ export function MultiSelectDropdown<T extends string | number = string>({
     showQuickActions = true,
 }: MultiSelectDropdownProps<T>) {
     const [isOpen, setIsOpen] = useState(false);
+    const menuId = useId();
     const mounted = useClientMounted();
     const [coords, setCoords] = useState<{
         top: number;
@@ -216,6 +219,11 @@ export function MultiSelectDropdown<T extends string | number = string>({
                 <div
                     ref={triggerRef}
                     className="uimsel-trigger"
+                    role="button"
+                    aria-label={ariaLabel || label || placeholder}
+                    aria-expanded={isOpen}
+                    aria-controls={isOpen ? menuId : undefined}
+                    aria-disabled={disabled || undefined}
                     onClick={toggleOpen}
                     tabIndex={disabled ? -1 : 0}
                     onKeyDown={e => {
@@ -233,6 +241,9 @@ export function MultiSelectDropdown<T extends string | number = string>({
                 {isOpen && mounted && coords.width > 0 && typeof document !== 'undefined' && createPortal(
                     <div
                         ref={menuRef}
+                        id={menuId}
+                        role="group"
+                        aria-label={ariaLabel || label || placeholder}
                         className="uimsel-menu"
                         style={{
                             position: 'fixed',

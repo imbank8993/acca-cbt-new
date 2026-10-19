@@ -1,11 +1,13 @@
 "use client";
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
+import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
-import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
+import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
+import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { Spinner } from '@/app/components/ui/Spinner';
 
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/hooks/useAutoRefresh';
@@ -22,22 +24,16 @@ import { getSessionUser } from '@/lib/session';
 import { formatStudentName } from '@/lib/monitoring-health';
 import {
 AlertTriangle,
-ArrowLeft,
 CheckCircle2,
-Radio,
-RefreshCw,
 RotateCcw,
-Search,
-ShieldAlert,
-X
+ShieldAlert
 } from 'lucide-react';
-import { useRouter,useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense,useCallback,useEffect,useState } from 'react';
 
 function MonitoringContent() {
     const monitoringNow = useMonitoringExamClock();
     const searchParams = useSearchParams();
-    const router = useRouter();
     const initialExamId = searchParams.get('exam') || '';
 
     const [isLoading, setIsLoading] = useState(true);
@@ -48,9 +44,11 @@ function MonitoringContent() {
     const [attempts, setAttempts] = useState<ExamAttemptRecord[]>([]);
     const [liveAlerts, setLiveAlerts] = useState<ViolationEvent[]>([]);
     const [searchName, setSearchName] = useState('');
-    const [filterKelas, setFilterKelas] = useState('');
+    const [filterKelas, setFilterKelas] = useState<string[]>([]);
+    const [activeTab, setActiveTab] = useState('live');
+    const [attentionOnly, setAttentionOnly] = useState(false);
     const [resettingId] = useState<string | null>(null);
-    const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'finished' | 'belum'>('all');
+    const [statusFilter, setStatusFilter] = useState('all');
 
     const loadData = useCallback(async (isSilent = false) => {
         if (!isSilent) setIsRefreshing(true);
@@ -95,6 +93,10 @@ function MonitoringContent() {
 
     const handleExamChange = async (examId: string) => {
         setSelectedExamId(examId);
+        setSearchName('');
+        setFilterKelas([]);
+        setStatusFilter('all');
+        setAttentionOnly(false);
         setAttempts([]);
         setLoadError(null);
         setIsRefreshing(true);
@@ -122,25 +124,21 @@ function MonitoringContent() {
     };
     // Ekstraksi kelas unik
     const availableClasses = Array.from(
-        new Set(attempts.map((a) => a.kelas_name).filter((k) => k && k !== '-'))
-    );
+        new Set(attempts.map((a) => a.kelas_name?.trim()).filter((name): name is string => Boolean(name && name !== '-')))
+    ).sort((a, b) => a.localeCompare(b, 'id'));
 
     // Filter daftar pengerjaan
     const filteredAttempts = attempts.filter((a) => {
-        const fullName = a.profiles?.full_name || '';
-        const matchName = fullName.toLowerCase().includes(searchName.toLowerCase());
-        const matchClass = !filterKelas || a.kelas_name === filterKelas;
+        const matchName = [a.profiles?.full_name, a.profiles?.identity_number, a.kelas_name].some(value => String(value || '').toLowerCase().includes(searchName.trim().toLowerCase()));
+        const matchClass = filterKelas.length === 0 || filterKelas.includes(a.kelas_name?.trim() || '');
         const matchStatus =
-            statusFilter === 'all' ||
+            activeTab !== 'results' || statusFilter === 'all' ||
             (statusFilter === 'in_progress' && (a.status === 'in_progress' || a.status === 'sedang')) ||
-            (statusFilter === 'finished' && (['submitted', 'auto_submitted', 'finished', 'selesai'].includes(a.status))) ||
+            (statusFilter === 'submitted' && (['submitted', 'finished', 'selesai'].includes(a.status))) ||
+            (statusFilter === 'auto_submitted' && a.status === 'auto_submitted') ||
             (statusFilter === 'belum' && (a.status === 'belum' || !a.status));
         return matchName && matchClass && matchStatus;
     }).sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
-
-    const activeCount = attempts.filter((a) => a.status === 'in_progress' || a.status === 'sedang').length;
-    const finishedCount = attempts.filter((a) => ['submitted', 'auto_submitted', 'finished', 'selesai'].includes(a.status)).length;
-    const unstartedCount = attempts.filter((a) => a.status === 'belum' || !a.status).length;
 
     const formatTime = (ts: string | null) => {
         if (!ts) return '-';
@@ -152,171 +150,57 @@ function MonitoringContent() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="monitoring-page space-y-5">
+            <MonitoringWorkspaceHeader
+                exams={exams}
+                now={monitoringNow}
+                value={selectedExamId}
+                onExamChange={(examId) => void handleExamChange(examId)}
+                onRefresh={() => void loadData(false)}
+                refreshing={isRefreshing}
+                attempts={attempts}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                tabs={[
+                    { id: 'live', label: 'Peserta aktif' },
+                    { id: 'answers', label: 'Jawaban' },
+                    { id: 'results', label: 'Daftar peserta' },
+                    { id: 'incidents', label: 'Insiden' },
+                    { id: 'admin', label: 'Administrasi' },
+                ]}
+            >
+                {(activeTab === 'live' || activeTab === 'results' || (activeTab === 'admin' && canResetParticipants)) && (
+                    <MonitoringParticipantFilters
+                        search={searchName}
+                        onSearchChange={setSearchName}
+                        classOptions={availableClasses}
+                        selectedClasses={filterKelas}
+                        onClassesChange={setFilterKelas}
+                        status={activeTab === 'results' ? statusFilter : undefined}
+                        onStatusChange={activeTab === 'results' ? setStatusFilter : undefined}
+                        attentionOnly={activeTab === 'live' ? attentionOnly : undefined}
+                        onAttentionChange={activeTab === 'live' ? setAttentionOnly : undefined}
+                    />
+                )}
+            </MonitoringWorkspaceHeader>
+
             {loadError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 <p className="font-semibold">Peserta monitoring gagal dimuat</p>
                 <p className="mt-1">{loadError}</p>
                 <button type="button" onClick={() => void loadData(false)} className="mt-2 font-semibold underline">Coba lagi</button>
             </div>}
-            {/* Header navigasi */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => router.push('/dashboard/pengawas')}
-                        className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-all"
-                        title="Kembali ke Dashboard"
-                    >
-                        <ArrowLeft size={18} className="text-slate-600 dark:text-slate-300" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                            <span>Monitoring Pengawasan Ujian</span>
-                            <span className="text-xs bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                <Radio size={12} className="animate-pulse" /> Live
-                            </span>
-                        </h1>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            Pantau kehadiran, progres pengerjaan, dan insiden kecurangan peserta
-                        </p>
-                    </div>
+
+            {activeTab === 'live' && (isLoading ? (
+                <div className="flex min-h-48 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+                    <Spinner variant="buble" size={24} /> Memuat daftar peserta...
                 </div>
+            ) : <ActiveParticipantsPanel key={selectedExamId} attempts={filteredAttempts} attentionOnly={attentionOnly} />)}
 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    {/* Pilih Ujian */}
-                    <div className="relative flex-1 sm:w-72">
-                        <MonitoringExamPicker
-                            exams={exams}
-                            now={monitoringNow}
-                            value={selectedExamId}
-                            onChange={(val) => handleExamChange(String(val || ''))}
-                        />
-                    </div>
-
-                    <button
-                        onClick={() => loadData(false)}
-                        disabled={isRefreshing}
-                        className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl shadow-xs transition-all disabled:opacity-50 text-slate-600 dark:text-slate-300"
-                        title="Segarkan data sekarang"
-                    >
-                        <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-                    </button>
-                </div>
-            </div>
-
-            {selectedExamId && canResetParticipants && (
-                <BulkResetPanel key={selectedExamId}
-                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
-                    examDuration={exams.find(exam => exam.id === selectedExamId)?.duration_minutes}
-                    onRefresh={() => void loadData(false)}
-                />
-            )}
-            {selectedExamId && !canResetParticipants && <p className="text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
-            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleReset : undefined} />
-            {selectedExam?.metadata?.is_pas_exam === true && (
-                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
+            {activeTab === 'answers' && (
+                <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleReset : undefined} defaultExpanded />
             )}
 
-            {/* Quick Stat Pill Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`p-3.5 rounded-xl border text-left transition-all ${
-                        statusFilter === 'all'
-                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs'
-                            : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                >
-                    <p className="text-[10px] font-black uppercase tracking-wider opacity-70">Total Peserta</p>
-                    <p className="text-2xl font-black mt-0.5">{attempts.length}</p>
-                </button>
-
-                <button
-                    onClick={() => setStatusFilter('in_progress')}
-                    className={`p-3.5 rounded-xl border text-left transition-all ${
-                        statusFilter === 'in_progress'
-                            ? 'bg-blue-600 text-white border-transparent shadow-xs'
-                            : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                >
-                    <p className="text-[10px] font-black uppercase tracking-wider opacity-70">Sedang Ujian</p>
-                    <p className="text-2xl font-black mt-0.5 text-blue-600 dark:text-blue-400 group-hover:text-blue-500">
-                        {activeCount}
-                    </p>
-                </button>
-
-                <button
-                    onClick={() => setStatusFilter('finished')}
-                    className={`p-3.5 rounded-xl border text-left transition-all ${
-                        statusFilter === 'finished'
-                            ? 'bg-emerald-600 text-white border-transparent shadow-xs'
-                            : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                >
-                    <p className="text-[10px] font-black uppercase tracking-wider opacity-70">Sudah Selesai</p>
-                    <p className="text-2xl font-black mt-0.5 text-emerald-600 dark:text-emerald-400">
-                        {finishedCount}
-                    </p>
-                </button>
-
-                <button
-                    onClick={() => setStatusFilter('belum')}
-                    className={`p-3.5 rounded-xl border text-left transition-all ${
-                        statusFilter === 'belum'
-                            ? 'bg-amber-600 text-white border-transparent shadow-xs'
-                            : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}
-                >
-                    <p className="text-[10px] font-black uppercase tracking-wider opacity-70">Belum Memulai</p>
-                    <p className="text-2xl font-black mt-0.5 text-amber-600 dark:text-amber-400">
-                        {unstartedCount}
-                    </p>
-                </button>
-            </div>
-
-            {/* Layout Utama: Filter & Tabel Peserta + Feed Pelanggaran */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Kolom Tabel (2 Kolom di Desktop) */}
-                <div className="lg:col-span-2 space-y-4">
-                    {/* Search & Filter Bar */}
-                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 bg-white dark:bg-slate-900/50 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <div className="relative flex-1">
-                            <Search size={16} className="absolute left-3 top-3 text-slate-400 pointer-events-none" />
-                            <input
-                                type="text"
-                                placeholder="Cari nama siswa..."
-                                value={searchName}
-                                onChange={(e) => setSearchName(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900 dark:text-white"
-                            />
-                            {searchName && (
-                                <button
-                                    onClick={() => setSearchName('')}
-                                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
-                                >
-                                    <X size={14} />
-                                </button>
-                            )}
-                        </div>
-
-                        {availableClasses.length > 0 && (
-                            <div className="sm:w-44">
-                                <select
-                                    value={filterKelas}
-                                    onChange={(e) => setFilterKelas(e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none"
-                                >
-                                    <option value="">Semua Kelas</option>
-                                    {availableClasses.map((cls) => (
-                                        <option key={cls || ''} value={cls || ''}>
-                                            {cls}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Tabel Peserta */}
+            {activeTab === 'results' && (
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
                         <div className="overflow-x-auto">
                             <table className="w-full table-fixed text-left text-xs sm:table-auto">
@@ -428,59 +312,44 @@ function MonitoringContent() {
                             </table>
                         </div>
                     </div>
-                </div>
 
-                {/* Kolom Log Insiden Real-time (1 Kolom di Desktop) */}
-                <div className="space-y-4">
-                    <div className="bg-white dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <ShieldAlert size={18} className="text-rose-500" />
-                                <span>Feed Insiden Keamanan</span>
-                            </h2>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                Auto 10s
-                            </span>
-                        </div>
+            )}
 
-                        {liveAlerts.length === 0 ? (
-                            <div className="py-8 text-center text-slate-400">
-                                <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-500" />
-                                <p className="text-xs font-bold">Ruang ujian tertib</p>
-                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                    Belum ada pelanggaran browser terdeteksi
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-                                {liveAlerts.map((alert) => (
-                                    <div
-                                        key={alert.id}
-                                        className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-700/60"
-                                    >
-                                        <div className="flex justify-between items-start gap-2 mb-1">
-                                            <p className="font-medium text-xs text-slate-900 dark:text-white">
-                                                {formatStudentName(alert.studentName, 'Peserta')}
-                                            </p>
-                                            <span className="text-[10px] font-bold text-slate-400">
-                                                {formatTime(alert.timestamp)}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between text-[11px]">
-                                            <span className="text-slate-500 dark:text-slate-400 font-medium">
-                                                {alert.violationType}
-                                            </span>
-                                            <span className="text-rose-600 dark:text-rose-400 font-black text-[10px]">
-                                                #{alert.violationCount}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+            {activeTab === 'incidents' && (
+                <section className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Insiden keamanan">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white"><ShieldAlert size={16} className="text-slate-400" />Insiden terbaru</h2>
+                        <span className="text-xs text-slate-400">Diperbarui otomatis</span>
                     </div>
-                </div>
-            </div>
+                    {liveAlerts.length === 0 ? (
+                        <div className="px-5 py-12 text-center text-sm text-slate-500">Belum ada insiden.</div>
+                    ) : <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {liveAlerts.map(alert => (
+                            <li key={alert.id} className="flex items-start justify-between gap-4 px-5 py-4">
+                                <div>
+                                    <p className="text-sm font-medium text-slate-800 dark:text-white">{formatStudentName(alert.studentName, 'Peserta')}</p>
+                                    <p className="mt-1 text-xs text-slate-500">{alert.violationType} <span className="ml-2 text-amber-700 dark:text-amber-400">#{alert.violationCount}</span></p>
+                                </div>
+                                <time className="shrink-0 text-xs tabular-nums text-slate-400">{formatTime(alert.timestamp)}</time>
+                            </li>
+                        ))}
+                    </ul>}
+                </section>
+            )}
+
+            {activeTab === 'admin' && <div className="space-y-4">
+                {selectedExamId && canResetParticipants && (
+                    <BulkResetPanel key={selectedExamId}
+                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                        examDuration={exams.find(exam => exam.id === selectedExamId)?.duration_minutes}
+                        onRefresh={() => void loadData(false)}
+                    />
+                )}
+                {selectedExamId && !canResetParticipants && <p className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
+                {selectedExam?.metadata?.is_pas_exam === true && (
+                    <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
+                )}
+            </div>}
 
             <ResetExamModal
                 open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}

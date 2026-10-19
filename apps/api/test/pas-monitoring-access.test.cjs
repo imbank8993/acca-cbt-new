@@ -212,8 +212,8 @@ for (const examType of ['quiz', 'daily', 'assignment', 'pas', 'pat', 'pts', 'pkn
  });
 }
 
-for (const assessmentType of ['quiz', 'pas', 'pat', 'am']) test(`${assessmentType}: only exam creators can recover or start makeup, for every staff role`, async () => {
- for (const id of ['guard', 'creator', 'proctor', 'admin']) {
+for (const assessmentType of ['quiz', 'pas', 'pat', 'am']) test(`${assessmentType}: non-admin staff can recover or start makeup only for their own exams`, async () => {
+ for (const id of ['guard', 'creator', 'proctor']) {
   for (const method of ['resetAttempt', 'startMakeupAttempt']) {
    const { db, auth } = roomFixture();
    db.tables.cbt_exams[0].exam_type = assessmentType;
@@ -228,6 +228,24 @@ for (const assessmentType of ['quiz', 'pas', 'pat', 'am']) test(`${assessmentTyp
    assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
    assert.equal(db.tables.cbt_answers.some(row => row.attempt_id === 'a1'), method === 'resetAttempt');
   }
+ }
+});
+
+for (const examType of ['quiz', 'daily', 'assignment', 'pas', 'pat', 'am', 'pts', 'pkn']) test(`${examType}: admin can reset another creator's participants`, async () => {
+ for (const method of ['resetAttempt', 'startMakeupAttempt']) {
+  const { db, auth, roles, service: monitoring } = roomFixture();
+  db.tables.cbt_exams[0].exam_type = examType;
+  db.tables.cbt_exams[0].created_by = 'someone-else';
+  const exam = db.tables.cbt_exams[0];
+  assert.equal(await auth.canManageExam({ id: 'admin' }, exam, 'reset'), true);
+  const exams = new ExamAdminService(db, auth, roles);
+  assert.equal((await exams.list({ id: 'admin' }, 'school')).find(row => row.id === exam.id).canResetParticipants, true);
+  const rows = await monitoring.listAttempts({ id: 'admin' }, exam.id);
+  assert.equal(rows.find(row => row.id === 'a1').canReset, true);
+  const recovery = new ProctoringService(db, auth, {});
+  await recovery[method]({ id: 'admin' }, 'a1', 'Gangguan jaringan', 15);
+  assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
+  assert.equal(db.tables.cbt_answers.some(row => row.attempt_id === 'a1'), method === 'resetAttempt');
  }
 });
 

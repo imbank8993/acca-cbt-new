@@ -11,10 +11,8 @@ import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import { InlineSelect } from '@/components/ui/InlineSelect';
-import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
-import { MultiSelect } from '@/components/ui/MultiSelect';
-import { FilterActions, FilterSearch, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
+import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
@@ -33,20 +31,14 @@ import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
-Activity,
-AlertOctagon,
 AlertTriangle,
 Calculator,
 CheckCircle2,
 Eye,
 Loader2,
-Radio,
-RefreshCw,
 ShieldAlert,
-TrendingUp,
 UserCheck,
 UserX,
-Users,
 PieChart,
 X
 } from 'lucide-react';
@@ -96,11 +88,12 @@ function MonitoringContent() {
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
-    const [activeTab, setActiveTab] = useState<'live' | 'answers' | 'results' | 'analysis'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'answers' | 'results' | 'analysis' | 'admin'>('live');
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [onlyAttention, setOnlyAttention] = useState(false);
     const [analysisPage, setAnalysisPage] = useState(1);
     const [loadError, setLoadError] = useState<string | null>(null);
     const examRequestGenerationRef = useRef(0);
@@ -134,6 +127,10 @@ function MonitoringContent() {
             setAnalysis([]);
             setDetailedAnalysis(null);
             setLoadError(null);
+            setSearchName('');
+            setFilterKelas([]);
+            setFilterStatus('all');
+            setOnlyAttention(false);
         }
         if (!silent) setIsRefreshing(true);
         try {
@@ -360,7 +357,7 @@ function MonitoringContent() {
             return filterKelas.some((k: string) => studentClasses.includes(k));
         })
         .filter((a) => {
-            if (filterStatus === 'all') return true;
+            if (activeTab === 'live' || filterStatus === 'all') return true;
             if (filterStatus === 'in_progress') return a.status === 'in_progress';
             if (filterStatus === 'submitted') return a.status === 'submitted';
             if (filterStatus === 'auto_submitted') return a.status === 'auto_submitted';
@@ -370,19 +367,6 @@ function MonitoringContent() {
         .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted')
             || (b.warning_count ?? 0) - (a.warning_count ?? 0));
 
-    const totalStudents = attempts.length;
-    const inProgress = attempts.filter(a => a.status === 'in_progress').length;
-    const completed = attempts.filter(a => a.status === 'submitted' || a.status === 'auto_submitted').length;
-    const belumMengerjakan = attempts.filter(a => a.status === 'belum').length;
-    // Pelanggaran di kartu statistik = LIVE: hanya milik peserta yang SEDANG
-    // mengerjakan (dari warning_count DB, bukan broadcast). Saat tidak ada
-    // yang ujian, angka ini 0 — riwayat lengkap tetap ada di Rekap & Detail.
-    const totalViolations = filteredAttempts
-        .filter((a) => a.status === 'in_progress')
-        .reduce((sum, a) => sum + (a.warning_count || 0), 0);
-
-    // Pembagian tegas: tab "Aktif" = yang SEDANG mengerjakan (live), tab
-    // "Rekap" = yang sudah selesai/terminated (info pelanggaran ada di sana).
     const activeAttempts = filteredAttempts.filter((a) => a.status === 'in_progress');
     const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
 
@@ -434,167 +418,43 @@ function MonitoringContent() {
 
     return (
         <div className="monitoring-page pb-24 max-w-7xl mx-auto">
-            <div className="monitoring-controls mb-5 rounded-xl bg-white px-4 pt-4 pb-3 sm:px-5">
-                <div className="mb-3">
-                    <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Monitoring Ujian</h1>
-                    <p className="mt-0.5 text-xs text-slate-500">Pantau peserta, jawaban, dan hasil ujian.</p>
-                </div>
-                <div className="flex min-w-0 flex-col gap-3">
-                    <div className="flex w-full min-w-0 items-start gap-2 sm:max-w-2xl">
-                        <div className="min-w-0 flex-1">
-                            <MonitoringExamPicker
-                                compactContext
-                                exams={exams}
-                                now={monitoringNow}
-                                value={selectedExamId}
-                                onChange={(val) => setSelectedExamId(String(val || ''))}
-                            />
-                        </div>
-                        <button
-                            type="button"
-                            aria-label="Refresh data monitoring"
-                            title="Refresh data monitoring"
-                            onClick={handleRefresh}
-                            disabled={isRefreshing || !selectedExamId}
-                            className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 hover:text-[#3083FF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-40">
-                            <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
-                    {selectedExamId && (
-                        <div className="w-full min-w-0 overflow-x-auto">
-                            <div className="monitoring-tabs monitoring-tabs--underline flex w-max min-w-full gap-4 sm:gap-6">
-                                {[
-                                { id: 'live', label: 'Peserta Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
-                                { id: 'answers', label: 'Sinkronisasi Jawaban', icon: ShieldAlert, badge: null as number | null },
-                                { id: 'results', label: 'Hasil Ujian', icon: Users, badge: null as number | null },
-                                { id: 'analysis', label: 'Analisis Soal', icon: TrendingUp, badge: null as number | null },
-                                ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        type="button"
-                                        aria-pressed={activeTab === tab.id}
-                                        onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-0.5 pb-3 pt-2 text-xs font-semibold transition-colors ${
-                                            activeTab === tab.id
-                                                ? 'text-[#3083FF]'
-                                                : 'text-slate-500 hover:text-slate-800'
-                                        }`}
-                                    >
-                                        <tab.icon size={14} />
-                                        {tab.label}
-                                        {tab.badge && (
-                                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                                                {tab.badge}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
-                    <div className="mt-3 pt-1">
-                    <FilterToolbar className="monitoring-results-toolbar">
-                        <FilterSearch
-                            value={searchName}
-                            onChange={setSearchName}
-                            label="Nama peserta"
-                            placeholder="Cari nama peserta..."
-                            grow={1}
-                            width="220px"
-                            className="[&_.ftb-input]:!text-[13px] [&_.ftb-input]:!font-normal"
-                        />
-                        <div className="min-w-[220px] flex-[1_1_220px]">
-                            <MultiSelect
-                                placeholder="Semua Kelas"
-                                allSelectedText="Semua Kelas Terpilih"
-                                options={kelasOptions.map(k => ({ value: k, label: k }))}
-                                value={filterKelas}
-                                onChange={(vals) => setFilterKelas(vals)}
-                                height="38px"
-                                className="[&_.uimsel-trigger]:!text-[13px] [&_.uimsel-trigger]:!font-normal"
-                            />
-                        </div>
-                        <div className="min-w-[220px] flex-[1_1_220px]">
-                            <InlineSelect
-                                value={filterStatus}
-                                onChange={(val) => setFilterStatus(val)}
-                                title="Filter berdasarkan status"
-                                minWidth="100%"
-                                height="38px"
-                                className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
-                                options={[
-                                    { value: 'all', label: 'Semua Status' },
-                                    { value: 'in_progress', label: 'Sedang Ujian' },
-                                    { value: 'submitted', label: 'Selesai' },
-                                    { value: 'auto_submitted', label: 'Terminated' },
-                                    { value: 'belum', label: 'Belum Mulai' },
-                                ]}
-                            />
-                        </div>
-                        {activeTab === 'results' && (
-                            <FilterActions>
-                                {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
-                                {hasIRTScoring && (
-                                    <Button
-                                        variant="outline"
-                                        onClick={handleCalculateIRT}
-                                        disabled={isRefreshing}
-                                        leftIcon={<Calculator size={16} />}
-                                    >
-                                        Kalkulasi IRT
-                                    </Button>
-                                )}
-                                <Button
-                                    variant="outline"
-                                    icon="export"
-                                    onClick={exportResultsToExcel}
-                                >
-                                    Export
-                                </Button>
-                            </FilterActions>
-                        )}
-                    </FilterToolbar>
-                    </div>
-                )}
-            </div>
+            <MonitoringWorkspaceHeader
+                exams={exams} now={monitoringNow} value={selectedExamId}
+                onExamChange={setSelectedExamId} onRefresh={handleRefresh} refreshing={isRefreshing}
+                attempts={attempts} activeTab={activeTab}
+                onTabChange={tab => setActiveTab(tab as typeof activeTab)}
+                tabs={[
+                    { id: 'live', label: 'Peserta aktif' },
+                    { id: 'answers', label: 'Jawaban' },
+                    { id: 'results', label: 'Hasil' },
+                    { id: 'analysis', label: 'Analisis' },
+                    { id: 'admin', label: 'Administrasi' },
+                ]}
+            >
+                {['live', 'results', 'admin'].includes(activeTab) && <MonitoringParticipantFilters
+                    search={searchName} onSearchChange={setSearchName}
+                    classOptions={kelasOptions} selectedClasses={filterKelas} onClassesChange={setFilterKelas}
+                    status={filterStatus} onStatusChange={activeTab !== 'live' ? setFilterStatus : undefined}
+                    includeActiveStatus={false}
+                    attentionOnly={onlyAttention} onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
+                    actions={activeTab === 'results' ? <>
+                        {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
+                        {hasIRTScoring && <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing} leftIcon={<Calculator size={16} />}>Kalkulasi IRT</Button>}
+                        <Button variant="outline" icon="export" onClick={exportResultsToExcel}>Export</Button>
+                    </> : undefined}
+                />}
+            </MonitoringWorkspaceHeader>
 
-            {selectedExamId && (
-                <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {[
-                        { label: 'Total peserta', value: totalStudents, icon: Users },
-                        { label: 'Belum mulai', value: belumMengerjakan, icon: UserX },
-                        { label: 'Mengerjakan', value: inProgress, icon: Activity, pulse: inProgress > 0 },
-                        { label: 'Selesai', value: completed, icon: CheckCircle2 },
-                        { label: 'Peringatan tercatat', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
-                    ].map((stat) => (
-                        <div key={stat.label} className="monitoring-stat-card flex items-center gap-3 rounded-xl bg-white px-3 py-3">
-                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                stat.alert ? 'bg-red-50 text-red-600' : 'bg-[#3083FF]/10 text-[#3083FF]'
-                            }`}>
-                                <stat.icon size={17} className={stat.pulse ? 'animate-pulse text-emerald-600' : ''} />
-                            </span>
-                            <span className="min-w-0">
-                                <span className="block text-lg font-bold leading-tight text-slate-800">{stat.value}</span>
-                                <span className="block truncate text-[11px] text-slate-500">{stat.label}</span>
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
-
-            {selectedExamId && canResetParticipants && ['answers', 'live', 'results'].includes(activeTab) && (
-                <BulkResetPanel
+            {selectedExamId && activeTab === 'admin' && <>
+                {canResetParticipants ? <BulkResetPanel
                     key={selectedExamId}
                     attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
                     onRefresh={handleRefresh}
-                />
-            )}
-            {selectedExamId && !canResetParticipants && <p className="mb-4 text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
+                /> : <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">Reset memerlukan akses admin atau pembuat ujian.</p>}
+                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
+                {selectedExam?.metadata?.is_pas_exam === true && <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="admin" />}
+            </>}
 
             {selectedExamId && activeTab === 'answers' && (
                 <MonitoringHealthPanel key={selectedExamId}
@@ -637,10 +497,8 @@ function MonitoringContent() {
                 </div>
             )}
 
-            {selectedExamId && activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} onViewDetails={id => router.push('/dashboard/admin/monitoring/' + id)} />}
-            {selectedExam && selectedExam.metadata?.is_pas_exam === true && activeTab === 'live' && (
-                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="admin" />
-            )}
+            {selectedExamId && activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/admin/monitoring/' + id)} />}
+
 
             {selectedExamId && (
                 <div className="space-y-4">

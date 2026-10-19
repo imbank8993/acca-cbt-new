@@ -10,7 +10,8 @@ import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/Mo
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
-import MonitoringExamPicker from '@/app/components/monitoring/MonitoringExamPicker';
+import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
+import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -24,19 +25,12 @@ import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
-Activity,
-AlertOctagon,
 AlertTriangle,
 Calculator,
 CheckCircle2,
-ChevronDown,
 Eye,
 Loader2,
-Radio,
-RefreshCw,
 ShieldAlert,
-TrendingUp,
-Users,
 X
 } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
@@ -72,12 +66,14 @@ function MonitoringContent() {
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
-    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'analysis'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'answers' | 'analysis' | 'administration'>('live');
     const [loadError, setLoadError] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
     const [searchName, setSearchName] = useState('');
-    const [filterKelas, setFilterKelas] = useState('');
+    const [filterKelas, setFilterKelas] = useState<string[]>([]);
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [onlyAttention, setOnlyAttention] = useState(false);
     const [analysisPage, setAnalysisPage] = useState(1);
     const examRequestGenerationRef = useRef(0);
 
@@ -107,7 +103,7 @@ function MonitoringContent() {
         if (lastRequestedExamIdRef.current !== examId) {
             lastRequestedExamIdRef.current = examId;
             setAttempts([]); setAnalysis([]); setLoadError(null);
-            setSearchName(''); setFilterKelas('');
+            setSearchName(''); setFilterKelas([]); setFilterStatus('all'); setOnlyAttention(false);
         }
         if (!silent) setIsRefreshing(true);
         try {
@@ -259,24 +255,13 @@ function MonitoringContent() {
     const deferredSearchName = useDeferredValue(searchName);
     const filteredAttempts = attempts
         .filter((a) => !deferredSearchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(deferredSearchName.trim().toLowerCase()))
-        .filter((a) => !filterKelas || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).includes(filterKelas))
+        .filter((a) => filterKelas.length === 0 || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).some(kelas => filterKelas.includes(kelas)))
         .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
-
-    const totalStudents = attempts.length;
-    const inProgress = attempts.filter(a => a.status === 'in_progress').length;
-    const completed = attempts.filter(a => a.status === 'submitted' || a.status === 'auto_submitted').length;
-    const belumMengerjakan = attempts.filter(a => a.status === 'belum').length;
-    // Pelanggaran di kartu statistik = LIVE: hanya milik peserta yang SEDANG
-    // mengerjakan (dari warning_count DB, bukan broadcast). Saat tidak ada
-    // yang ujian, angka ini 0 — riwayat lengkap tetap ada di Rekap & Detail.
-    const totalViolations = filteredAttempts
-        .filter((a) => a.status === 'in_progress')
-        .reduce((sum, a) => sum + (a.warning_count || 0), 0);
 
     // Pembagian tegas: tab "Aktif" = yang SEDANG mengerjakan (live), tab
     // "Rekap" = yang sudah selesai/terminated (info pelanggaran ada di sana).
     const activeAttempts = filteredAttempts.filter((a) => a.status === 'in_progress');
-    const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress');
+    const finishedAttempts = filteredAttempts.filter((a) => a.status !== 'in_progress' && (filterStatus === 'all' || a.status === filterStatus));
 
     const exportResultsToExcel = async () => {
         try {
@@ -325,151 +310,56 @@ function MonitoringContent() {
 
     return (
         <div className="monitoring-page pb-24 max-w-7xl mx-auto">
-            {/* Header — Navy gradient */}
-            {/* Stats Cards - Outside Banner */}
-            {selectedExamId && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4 sm:mb-6">
-                    {[
-                        { label: 'Total Peserta', value: totalStudents, icon: Users },
-                        { label: 'Belum Mengerjakan', value: belumMengerjakan, icon: CheckCircle2 },
-                        { label: 'Mengerjakan', value: inProgress, icon: Activity, pulse: inProgress > 0 },
-                        { label: 'Selesai', value: completed, icon: CheckCircle2 },
-                        { label: 'Peringatan tercatat', value: totalViolations, icon: AlertOctagon, alert: totalViolations > 0 },
-                    ].map((stat, i) => (
-                        <div key={i} className="bg-white rounded-xl border border-slate-200 text-center px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm">
-                            <div className={`w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-1.5 sm:mb-2 rounded-lg flex items-center justify-center ${
-                                stat.alert ? 'bg-red-100 border border-red-200' : 'bg-[#3083FF]/10 border border-[#3083FF]/30'
-                            }`}>
-                                <stat.icon size={18} className={`${
-                                    stat.alert ? 'text-red-500' : stat.pulse ? 'text-emerald-500 animate-pulse' : 'text-[#3083FF]'
-                                }`} />
-                            </div>
-                            <p className="text-xl sm:text-2xl font-bold text-[#3083FF]">{stat.value}</p>
-                            <p className="text-[11px] sm:text-xs text-slate-500">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
+            <MonitoringWorkspaceHeader
+                exams={exams}
+                now={monitoringNow}
+                value={selectedExamId}
+                onExamChange={setSelectedExamId}
+                onRefresh={handleRefresh}
+                refreshing={isRefreshing}
+                attempts={attempts}
+                activeTab={activeTab}
+                onTabChange={value => setActiveTab(value as typeof activeTab)}
+                tabs={[
+                    { id: 'live', label: 'Peserta aktif' },
+                    { id: 'answers', label: 'Jawaban' },
+                    { id: 'results', label: 'Hasil' },
+                    { id: 'analysis', label: 'Analisis' },
+                    { id: 'administration', label: 'Administrasi' },
+                ]}
+            >
+                {selectedExamId && (activeTab === 'live' || activeTab === 'results' || activeTab === 'administration') && (
+                    <MonitoringParticipantFilters
+                        search={searchName}
+                        onSearchChange={setSearchName}
+                        classOptions={kelasOptions}
+                        selectedClasses={filterKelas}
+                        onClassesChange={setFilterKelas}
+                        status={activeTab === 'results' ? filterStatus : undefined}
+                        includeActiveStatus={false}
+                        onStatusChange={activeTab === 'results' ? setFilterStatus : undefined}
+                        attentionOnly={activeTab === 'live' ? onlyAttention : undefined}
+                        onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
+                        actions={activeTab === 'results' ? <>
+                            {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
+                            {hasIRTScoring && (
+                                <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing} leftIcon={<Calculator size={14} />}>
+                                    Kalkulasi IRT
+                                </Button>
+                            )}
+                            <Button variant="outline" icon="export" onClick={exportResultsToExcel}>Export</Button>
+                        </> : undefined}
+                    />
+                )}
+            </MonitoringWorkspaceHeader>
 
             {selectedExamId && loadError && (
-                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                     <p className="font-semibold">Peserta monitoring gagal dimuat</p>
                     <p className="mt-1">{loadError}</p>
                     <button type="button" onClick={handleRefresh} className="mt-2 font-semibold underline">Coba lagi</button>
                 </div>
             )}
-            {selectedExamId && canResetParticipants && (
-                <BulkResetPanel key={selectedExamId}
-                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
-                    examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
-                    onRefresh={handleRefresh}
-                />
-            )}
-            {selectedExamId && !canResetParticipants && <p className="text-sm text-slate-600">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
-            <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
-            {selectedExam && selectedExam.metadata?.is_pas_exam === true && activeTab === 'live' && (
-                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="proktor" />
-            )}
-            {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
-
-            {/* Control Row: Tabs (if exam selected) & Select Filter/Refresh (always) */}
-            <div className="monitoring-controls flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4 sm:mb-6">
-                <div>
-                    {selectedExamId ? (
-                        <div className="monitoring-tabs flex max-w-full gap-1 overflow-x-auto p-1 rounded-xl">
-                            {[
-                                { id: 'live', label: 'Aktif', icon: Radio, badge: inProgress > 0 ? inProgress : null },
-                                { id: 'results', label: 'Rekap', icon: Users, badge: null as number | null },
-                                { id: 'analysis', label: 'Analisis', icon: TrendingUp, badge: null as number | null },
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                    className={`relative flex shrink-0 items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                        activeTab === tab.id
-                                            ? 'bg-[#3083FF] text-white shadow-sm'
-                                            : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-                                    }`}
-                                >
-                                    <tab.icon size={14} />
-                                    {tab.label}
-                                    {tab.badge && (
-                                        <span className="ml-0.5 w-5 h-5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                                            {tab.badge}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <div />
-                    )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
-                    {/* Pencarian & filter kelas hanya relevan untuk daftar peserta
-                        (Aktif dan Rekap) — tab Pelanggaran berbasis event dan
-                        Analisis berbasis butir soal. */}
-                    {selectedExamId && (activeTab === 'live' || activeTab === 'results') && (
-                        <>
-                            <input
-                                type="text"
-                                value={searchName}
-                                onChange={(e) => setSearchName(e.target.value)}
-                                placeholder="Cari nama peserta..."
-                                className="bg-white border border-[#3083FF]/30 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-[#3083FF]/50 outline-none px-4 py-2.5 rounded-lg text-sm font-medium w-full sm:flex-1 sm:min-w-[150px]"
-                            />
-                            <div className="relative flex-1 min-w-0 sm:max-w-[200px]">
-                                <select
-                                    value={filterKelas}
-                                    onChange={(e) => setFilterKelas(e.target.value)}
-                                    className="appearance-none bg-white border border-[#3083FF]/30 text-slate-800 focus:ring-2 focus:ring-[#3083FF]/50 outline-none pl-4 pr-10 py-2.5 rounded-lg text-sm font-medium w-full truncate cursor-pointer"
-                                >
-                                    <option value="">Semua Kelas</option>
-                                    {kelasOptions.map(k => (
-                                        <option key={k} value={k}>{k}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                            </div>
-                        </>
-                    )}
-                    <div className="relative flex-1 min-w-0 sm:min-w-[280px]">
-                        <MonitoringExamPicker
-                            exams={exams}
-                            now={monitoringNow}
-                            value={selectedExamId}
-                            onChange={(val) => setSelectedExamId(String(val || ''))}
-                        />
-                    </div>
-                    <button onClick={handleRefresh} disabled={isRefreshing || !selectedExamId}
-                        className="shrink-0 bg-[#3083FF] hover:bg-[#3083FF] text-white px-5 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-[#3083FF]/20 cursor-pointer">
-                        <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
-                    </button>
-                    {selectedExamId && activeTab === 'results' && (
-                        <>
-                            {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
-                            {hasIRTScoring && (
-                                <Button
-                                    variant="outline"
-                                    onClick={handleCalculateIRT}
-                                    disabled={isRefreshing}
-                                    leftIcon={<Calculator size={14} />}
-                                >
-                                    Kalkulasi IRT
-                                </Button>
-                            )}
-                            <Button
-                                variant="outline"
-                                icon="export"
-                                onClick={exportResultsToExcel}
-                            >
-                                Export
-                            </Button>
-                        </>
-                    )}
-                </div>
-            </div>
 
             {/* Empty state */}
             {!selectedExamId && (
@@ -486,7 +376,32 @@ function MonitoringContent() {
                 <div className="space-y-4">
 
                     <AnimatePresence mode="wait">
-                        {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} />}
+                        {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} />}
+
+                        {activeTab === 'answers' && (
+                            <motion.div key="answers" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} defaultExpanded />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'administration' && (
+                            <motion.div key="administration" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                                {canResetParticipants && (
+                                    <BulkResetPanel key={selectedExamId}
+                                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                                        examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
+                                        onRefresh={handleRefresh}
+                                    />
+                                )}
+                                {selectedExam && selectedExam.metadata?.is_pas_exam === true && (
+                                    <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="proktor" />
+                                )}
+                                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
+                                {!canResetParticipants && selectedExam?.metadata?.is_pas_exam !== true && !(selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true) && (
+                                    <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">Tidak ada tindakan administrasi yang tersedia untuk ujian ini.</div>
+                                )}
+                            </motion.div>
+                        )}
 
                         {/* === REKAP TAB === */}
                         {activeTab === 'results' && (
