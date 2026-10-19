@@ -78,16 +78,16 @@ test('validation assignment and exam-key correction cannot bypass ownership and 
  await assert.rejects(correction.get(user('proctor'),'public-exam'),denied);
  assert.equal(f.db.writes.length,0);
 });
-test('reset requires proctor authorship even for published exams; administrators and author teachers keep access',async()=>{
+test('reset requires proctor authorship even for published exams; author teachers keep access',async()=>{
  const f=fixture();
  await f.auth.assertExamStaff(user('proctor'),'own-exam','reset');
  for(const exam of ['draft-exam','public-exam'])await assert.rejects(f.auth.assertExamStaff(user('proctor'),exam,'reset'),denied);
- for(const exam of ['own-exam','draft-exam','public-exam'])await f.auth.assertExamStaff(user('admin'),exam,'reset');
- await f.auth.assertExamStaff(user('teacher'),'public-exam','reset');
+ for(const exam of ['draft-exam','public-exam'])await assert.rejects(f.auth.assertExamStaff(user('admin'),exam,'reset'),denied);
+ for(const exam of ['draft-exam','public-exam'])await f.auth.assertExamStaff(user('teacher'),exam,'reset');
  const exams=await f.exams.list(user('proctor'),'school');
  assert.equal(exams.find(e=>e.id==='own-exam').canResetParticipants,true);
  assert.equal(exams.find(e=>e.id==='public-exam').canResetParticipants,false);
- assert.ok((await f.exams.list(user('admin'),'school')).every(e=>e.canResetParticipants===true));
+ assert.ok((await f.exams.list(user('admin'),'school')).every(e=>e.canResetParticipants===false));
 });
 test('direct recovery and makeup endpoints deny foreign exam resets without touching attempts or answers',async()=>{
  const f=fixture();
