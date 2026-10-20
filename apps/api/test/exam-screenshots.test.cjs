@@ -87,6 +87,39 @@ test('quota and cooldown are enforced by the server even after browser reload; r
  assert.deepEqual(await upload(f), { saved: false, reason: 'cooldown' }); assert.equal(f.images.size, 0);
 });
 
+test('reset and makeup start a fresh screenshot quota while rejecting delayed evidence from the previous run', async () => {
+ for (const resetType of ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED']) {
+  const f = fixture();
+  const now = Date.now();
+  const before = new Date(now - 5 * 60_000).toISOString();
+  const resetAt = new Date(now - 2 * 60_000).toISOString();
+  const after = new Date(now - 60_000).toISOString();
+  f.db.tables.cbt_attempt_security_logs = [
+   { id: 'old-event', attempt_id: 'attempt', event_type: 'tab_switch', created_at: before,
+    metadata: { client_event_id: 'old', source: 'student', timestamp: before } },
+   { id: 'reset', attempt_id: 'attempt', event_type: resetType, created_at: resetAt, metadata: {} },
+   { id: 'new-event', attempt_id: 'attempt', event_type: 'tab_switch', created_at: after,
+    metadata: { client_event_id: 'new', source: 'student', timestamp: before } },
+  ];
+  f.db.tables.cbt_exam_screenshots = Array.from({ length: 10 }, (_, i) => ({
+   id: `old-${i}`, attempt_id: 'attempt', created_at: before, deleted_at: before,
+  }));
+  await assert.rejects(upload(f, { id: 'student' }, 'old'), /sesi ujian sebelumnya/);
+  const current = await upload(f, { id: 'student' }, 'new');
+  assert.equal(current.saved, true);
+  assert.equal(f.db.tables.cbt_exam_screenshots.length, 11);
+  assert.ok(Date.parse(f.db.tables.cbt_exam_screenshots[10].created_at) > Date.parse(resetAt));
+  f.db.tables.cbt_attempt_security_logs.push({ id: 'new-event-2', attempt_id: 'attempt',
+   event_type: 'exit_fullscreen', created_at: new Date(now).toISOString(),
+   metadata: { client_event_id: 'new-2', source: 'student', timestamp: before } });
+  assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'cooldown' });
+  f.db.tables.cbt_exam_screenshots.push(...Array.from({ length: 9 }, (_, i) => ({
+   id: `current-${i}`, attempt_id: 'attempt', created_at: after,
+  })));
+  assert.deepEqual(await upload(f, { id: 'student' }, 'new-2'), { saved: false, reason: 'limit' });
+ }
+});
+
 test('a database failure after object upload removes the encrypted orphan and rolls back records', async () => {
  const f = fixture(['cbt_exam_screenshots']);
  await assert.rejects(upload(f)); assert.equal(f.images.size, 0);

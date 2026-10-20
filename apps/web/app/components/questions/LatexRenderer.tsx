@@ -31,6 +31,21 @@ const SANITIZE_CONFIG = {
   ADD_DATA_URI_TAGS: ['img', 'audio', 'video', 'source'],
 };
 
+function isAllowedVideoIframe(src: string | null): boolean {
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    if (url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    if (['www.youtube.com', 'youtube.com', 'www.youtube-nocookie.com', 'youtube-nocookie.com'].includes(host)) {
+      return /^\/embed\/[A-Za-z0-9_-]{11}\/?$/.test(url.pathname);
+    }
+    return host === 'player.vimeo.com' && /^\/video\/\d{1,16}\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
 function processContentClientSide(rawText: string): string {
   if (!rawText) return '';
 
@@ -39,6 +54,12 @@ function processContentClientSide(rawText: string): string {
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(clean, 'text/html');
+
+  // Rich questions support video embeds, but an arbitrary iframe (including
+  // data:/blob: documents) must never run inside the student exam page.
+  doc.querySelectorAll('iframe').forEach((frame) => {
+    if (!isAllowedVideoIframe(frame.getAttribute('src'))) frame.remove();
+  });
 
   // 1. Proses ekspresi matematika ($...$, $$...$$) pada raw text nodes
   const walk = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
@@ -171,7 +192,9 @@ export const LatexRenderer = React.memo(({ text, className = '' }: LatexRenderer
       setProcessedHtml(processed);
     } catch (err) {
       console.error('[LatexRenderer] process error:', err);
-      setProcessedHtml(text);
+      // Preserve the question as plain text if sanitizing/rendering fails.
+      // Falling back to raw HTML here would turn a parser error into stored XSS.
+      setProcessedHtml(escapeHtml(text));
     }
   }, [text, isClient]);
 

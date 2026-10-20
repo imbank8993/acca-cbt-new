@@ -1,5 +1,6 @@
 import { extractRequestToken } from '@/lib/app-jwt';
 import { nestFetchAsUser } from '@/lib/nest-api';
+import { rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
 /** Delete question data through the authorized backend; retain shared media. */
@@ -7,6 +8,8 @@ export async function DELETE(
     request: NextRequest,
     context: { params: Promise<{ bankId: string; questionId: string }> },
 ) {
+    const originError = rejectCrossOriginMutation(request, 'DELETE');
+    if (originError) return originError;
     const { bankId, questionId } = await context.params;
 
     const token = extractRequestToken(request);

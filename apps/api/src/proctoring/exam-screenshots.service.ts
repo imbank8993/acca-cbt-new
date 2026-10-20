@@ -80,13 +80,34 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
                     if (previous.content_hash !== hash) throw new BadRequestException('Bukti untuk kejadian ini sudah tersimpan.');
                     return { saved: true, id: previous.id };
                 }
+                // A proctor reset or makeup reuses the attempt row. Evidence from
+                // the previous run stays available for audit but must not use the
+                // new run's quota, nor be uploaded as a new screenshot afterwards.
+                const { data: lastReset, error: resetError } = await db.from('cbt_attempt_security_logs')
+                    .select('created_at').eq('attempt_id', attemptId)
+                    .in('event_type', ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'])
+                    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+                if (resetError) throw new ServiceUnavailableException('Riwayat sesi belum dapat diperiksa.');
+                const generationStart = lastReset?.created_at as string | undefined;
+                if (generationStart) {
+                    const { data: currentEvent, error: generationError } = await db.from('cbt_attempt_security_logs')
+                        .select('id').eq('id', event.id).gt('created_at', generationStart).maybeSingle();
+                    if (generationError) throw new ServiceUnavailableException('Sesi kejadian belum dapat diperiksa.');
+                    if (!currentEvent) throw new BadRequestException('Bukti berasal dari sesi ujian sebelumnya.');
+                }
                 const age = now.getTime() - Date.parse(event.created_at);
                 if (age < -5000 || age > SCREENSHOT_MAX_EVENT_AGE_MS || !['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status)) throw new BadRequestException('Waktu pengiriman screenshot sudah lewat.');
                 const rawClientTime = typeof event.metadata?.timestamp === 'string' ? Date.parse(event.metadata.timestamp) : NaN;
-                const capturedAt = Number.isFinite(rawClientTime) && rawClientTime <= now.getTime() + 5000 && now.getTime() - rawClientTime <= SCREENSHOT_MAX_EVENT_AGE_MS
-                    ? new Date(Math.min(rawClientTime, now.getTime()))
-                    : now;
-                const { data: rows, error: rowsError } = await db.from('cbt_exam_screenshots').select('created_at').eq('attempt_id', attemptId);
+                const captureTime = Number.isFinite(rawClientTime) && rawClientTime <= now.getTime() + 5000 && now.getTime() - rawClientTime <= SCREENSHOT_MAX_EVENT_AGE_MS
+                    ? Math.min(rawClientTime, now.getTime()) : now.getTime();
+                // Date.parse truncates database microseconds. Advancing one
+                // millisecond keeps current-run evidence on this side of the
+                // reset boundary even when the browser clock was behind.
+                const capturedAt = new Date(generationStart
+                    ? Math.max(captureTime, Date.parse(generationStart) + 1) : captureTime);
+                let quota = db.from('cbt_exam_screenshots').select('created_at').eq('attempt_id', attemptId);
+                if (generationStart) quota = quota.gt('created_at', generationStart);
+                const { data: rows, error: rowsError } = await quota;
                 if (rowsError) throw new ServiceUnavailableException('Kuota screenshot belum dapat diperiksa.');
                 if ((rows || []).length >= SCREENSHOT_LIMIT) return { saved: false, reason: 'limit' };
                 if ((rows || []).some((row: { created_at: string }) => Math.abs(capturedAt.getTime() - Date.parse(row.created_at)) < SCREENSHOT_INTERVAL_MS)) return { saved: false, reason: 'cooldown' };

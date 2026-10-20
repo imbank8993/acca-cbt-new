@@ -4,6 +4,7 @@ import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye
 import { useCallback,useEffect,useState } from 'react';
 import type { AnswerValue,Question } from '@/app/types';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { safeExternalUrl } from '@/lib/safe-url';
 import { securityViolationLabel } from '@/lib/security-violations';
 import AssignmentUploader from './AssignmentUploader';
 import { ExamQuestionCard } from './ExamQuestionCard';
@@ -78,6 +79,27 @@ const getAnswerStatus = (q: Question, ans: AnswerValue) => {
         return ans && String(ans).trim() !== '' ? 'complete' : 'unanswered';
     }
 };
+
+function resolveReferenceVideoEmbedUrl(raw: string): string {
+    if (!/^https?:\/\//.test(raw)) return '';
+    try {
+        const url = new URL(raw);
+        if (url.username || url.password) return '';
+        const host = url.hostname.toLowerCase().replace(/^www\./, '');
+        if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com' || host === 'youtu.be') {
+            const id = host === 'youtu.be' ? url.pathname.slice(1).split('/')[0]
+                : url.pathname === '/watch' ? url.searchParams.get('v')
+                    : /^\/(embed|shorts)\//.test(url.pathname) ? url.pathname.split('/')[2] : null;
+            return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? `https://www.youtube.com/embed/${id}` : '';
+        }
+        if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+            const id = host === 'vimeo.com' ? url.pathname.slice(1).split('/')[0]
+                : url.pathname.match(/^\/video\/(\d+)/)?.[1];
+            return id && /^\d{1,16}$/.test(id) ? `https://player.vimeo.com/video/${id}` : '';
+        }
+    } catch { /* Invalid URL: use no embed. */ }
+    return '';
+}
 
 export interface ExamViewerProps {
     mode: 'exam' | 'preview';
@@ -204,6 +226,9 @@ export function ExamViewer({
     const [localTextNote, setStudentVidUrl] = useState('');
     const studentDocUrl = assignmentDocumentUrl ?? localDocUrl;
     const studentVidUrl = assignmentTextNote ?? localTextNote;
+    const referenceDocumentUrl = safeExternalUrl(assignmentData?.documentUrl);
+    const referenceVideoUrl = safeExternalUrl(assignmentData?.videoUrl);
+    const referenceVideoEmbedUrl = resolveReferenceVideoEmbedUrl(referenceVideoUrl);
 
     const navigateTo = useCallback((index: number) => {
         if (index < 0 || index >= questions.length) return;
@@ -224,7 +249,7 @@ export function ExamViewer({
         }
     }, [currentQIndex, questions, updatedQuestionIds, onClearUpdated]);
 
-    const isLastQuestion = currentQIndex === questions.length - 1;
+    const isLastQuestion = questions.length === 0 || currentQIndex === questions.length - 1;
     const isFirstQuestion = currentQIndex === 0;
     const currentQ = questions[currentQIndex];
     
@@ -311,16 +336,18 @@ export function ExamViewer({
                         )}
 
                         {/* Materi referensi */}
-                        {(assignmentData?.documentUrl || assignmentData?.videoUrl) && (
+                        {(referenceDocumentUrl || referenceVideoUrl) && (
                             <div className="space-y-3">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Materi Referensi</h3>
-                                {assignmentData.videoUrl && (
+                                {referenceVideoEmbedUrl ? (
                                     <div className="rounded-xl overflow-hidden shadow-sm border border-slate-200 aspect-video">
-                                        <iframe src={assignmentData.videoUrl.replace('watch?v=', 'embed/')} className="w-full h-full" allowFullScreen></iframe>
+                                        <iframe title="Video pembelajaran" src={referenceVideoEmbedUrl} className="w-full h-full" allowFullScreen></iframe>
                                     </div>
+                                ) : referenceVideoUrl && (
+                                    <a href={referenceVideoUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-4 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">Buka Video Pembelajaran</a>
                                 )}
-                                {assignmentData.documentUrl && (
-                                    <a href={assignmentData.documentUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-4 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">
+                                {referenceDocumentUrl && (
+                                    <a href={referenceDocumentUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-4 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">
                                         Buka Dokumen / Lampiran Tugas
                                     </a>
                                 )}
@@ -461,16 +488,18 @@ export function ExamViewer({
                             )}
 
                             {/* Materi Referensi */}
-                            {(assignmentData?.documentUrl || assignmentData?.videoUrl) && (
+                            {(referenceDocumentUrl || referenceVideoUrl) && (
                                 <div className="space-y-3">
                                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Materi Referensi</h3>
-                                    {assignmentData.videoUrl && (
+                                    {referenceVideoEmbedUrl ? (
                                         <div className="rounded-xl overflow-hidden shadow-sm border border-slate-200 aspect-video">
-                                            <iframe src={assignmentData.videoUrl.replace('watch?v=', 'embed/')} className="w-full h-full" allowFullScreen></iframe>
+                                            <iframe title="Video pembelajaran" src={referenceVideoEmbedUrl} className="w-full h-full" allowFullScreen></iframe>
                                         </div>
+                                    ) : referenceVideoUrl && (
+                                        <a href={referenceVideoUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">Buka Video Pembelajaran</a>
                                     )}
-                                    {assignmentData.documentUrl && (
-                                        <a href={assignmentData.documentUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">
+                                    {referenceDocumentUrl && (
+                                        <a href={referenceDocumentUrl} target="_blank" rel="noopener noreferrer" className="block w-full p-3 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-center hover:bg-blue-100 transition-colors">
                                             Buka Dokumen / Lampiran
                                         </a>
                                     )}
@@ -664,7 +693,9 @@ export function ExamViewer({
                                 {currentQ?.type === 'mcq' ? 'PG' : currentQ?.type === 'mcq_complex' ? 'PGK' : currentQ?.type === 'true_false' ? 'BS' : currentQ?.type === 'matching' ? 'MJ' : currentQ?.type === 'categorization' ? 'CAT' : currentQ?.type === 'short_answer' ? 'ISIAN' : currentQ?.type === 'essay' ? 'ESAI' : currentQ?.type?.replace('_', ' ')}
                             </span>
                             <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                                Soal {currentQIndex + 1} dari {questions.length} · {currentQ?.score_default || 1} poin
+                                {questions.length > 0
+                                    ? `Soal ${currentQIndex + 1} dari ${questions.length} · ${currentQ?.score_default || 1} poin`
+                                    : 'Tugas tanpa soal'}
                             </span>
                         </div>
                         <span className="shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -684,10 +715,10 @@ export function ExamViewer({
             <div className="shrink-0 bg-white border-t border-slate-200 px-3 md:px-5 py-2.5 md:py-3 safe-area-inset-bottom">
                 <div className="flex items-center justify-between gap-2 md:flex-row-reverse">
                     {/* Navigasi Mobile (Tampilkan Modal) */}
-                    <button onClick={() => setShowNavModal(true)} className="md:hidden flex items-center justify-center gap-1.5 px-3 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-all shrink-0">
+                    {questions.length > 0 && <button onClick={() => setShowNavModal(true)} className="md:hidden flex items-center justify-center gap-1.5 px-3 h-10 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-all shrink-0">
                         <Grid3X3 size={14} />
                         {currentQIndex + 1}/{questions.length}
-                    </button>
+                    </button>}
 
                     {/* Navigation buttons */}
                     <div className="flex items-center gap-1.5 md:gap-2 flex-1 md:w-[260px] md:flex-none justify-end md:justify-between shrink-0">
@@ -701,7 +732,7 @@ export function ExamViewer({
                             </div>
                         </button>
 
-                        <button onClick={() => onToggleDoubtful(currentQ.id)}
+                        {currentQ && <button onClick={() => onToggleDoubtful(currentQ.id)}
                             className={`flex-1 md:flex-none md:w-auto flex items-center justify-center gap-1.5 px-3 md:px-3 h-10 rounded-lg font-bold text-xs transition-all shadow-sm ${
                                 doubtfulAnswers.has(currentQ.id)
                                 ? 'bg-yellow-400 text-slate-800 shadow-yellow-200 hover:bg-yellow-500'
@@ -709,7 +740,7 @@ export function ExamViewer({
                             }`}>
                             <Flag size={14} className={doubtfulAnswers.has(currentQ.id) ? "fill-slate-800" : ""} />
                             <span>Ragu</span>
-                        </button>
+                        </button>}
 
                         {!isLastQuestion ? (
                             <button onClick={() => navigateTo(currentQIndex + 1)}

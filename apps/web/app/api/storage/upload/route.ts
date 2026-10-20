@@ -12,11 +12,14 @@
  */
 
 import { extractRequestToken } from '@/lib/app-jwt';
+import { rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
 const NEST_API_URL = process.env.NEST_API_URL || 'http://127.0.0.1:3009/api';
 
 async function forwardToNest(request: NextRequest, method: 'POST' | 'DELETE') {
+  const originError = rejectCrossOriginMutation(request, method);
+  if (originError) return originError;
   const token = extractRequestToken(request);
   if (!token) {
     return NextResponse.json(

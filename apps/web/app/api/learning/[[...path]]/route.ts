@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractRequestToken } from '@/lib/app-jwt';
-import { proxyGet, proxyJson } from '@/lib/nest-proxy';
+import { proxyGet, proxyJson, rejectCrossOriginMutation } from '@/lib/nest-proxy';
 
 type Context = { params: Promise<{ path?: string[] }> };
 async function handle(request: NextRequest, context: Context) {
@@ -14,6 +14,8 @@ async function handle(request: NextRequest, context: Context) {
             ? proxyGet(request, target + (request.nextUrl.searchParams.get('manage') === '1' ? '?manage=1' : ''))
             : proxyJson(request, target, request.method as 'POST' | 'PUT' | 'DELETE');
     }
+    const originError = rejectCrossOriginMutation(request, request.method);
+    if (originError) return originError;
     const token = extractRequestToken(request);
     if (!token) return NextResponse.json({ success: false, error: 'Silakan login kembali.' }, { status: 401 });
     try {

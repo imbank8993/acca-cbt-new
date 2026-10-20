@@ -1,6 +1,26 @@
 import { extractRequestToken } from '@/lib/app-jwt';
 import { nestFetchAsUser } from '@/lib/nest-api';
+import { resolvePublicOrigin } from '@/lib/public-origin';
 import { NextRequest,NextResponse } from 'next/server';
+
+/** Call before parsing/uploading in custom routes that bypass proxy(). */
+export function rejectCrossOriginMutation(request: NextRequest, method: string): NextResponse | null {
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
+
+    const origin = request.headers.get('origin');
+    if (origin) {
+        try {
+            if (new URL(origin).origin === resolvePublicOrigin(request)) return null;
+        } catch { /* An invalid Origin is never a same-origin request. */ }
+    } else if (request.headers.get('sec-fetch-site') === 'same-origin') {
+        return null;
+    }
+
+    return NextResponse.json(
+        { success: false, error: 'Asal permintaan tidak diizinkan.' },
+        { status: 403 },
+    );
+}
 
 /**
  * Helper terpusat untuk meneruskan permintaan route handler Next.js ke NestJS.
@@ -18,6 +38,9 @@ export async function proxy(
     path: string,
     init: RequestInit = {},
 ): Promise<NextResponse> {
+    const originError = rejectCrossOriginMutation(request, (init.method || request.method).toUpperCase());
+    if (originError) return originError;
+
     const token = extractRequestToken(request);
     if (!token) {
         return NextResponse.json(
@@ -72,6 +95,8 @@ export async function proxyJson(
     path: string,
     method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST',
 ): Promise<NextResponse> {
+    const originError = rejectCrossOriginMutation(request, method);
+    if (originError) return originError;
     const body = await request.text();
     return proxy(request, path, { method, body: body || undefined });
 }

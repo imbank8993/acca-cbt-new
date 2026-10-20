@@ -36,10 +36,10 @@ const { chromium } = require('playwright');
             compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
         }).outputText;
 
-        async function mount({ component = 'hook', surface = 'monitor', permission = 'success', play = 'success', holdDetails = false, remainingSeconds = 3600, evidence = null } = {}) {
+        async function mount({ component = 'hook', surface = 'monitor', permission = 'success', play = 'success', holdDetails = false, remainingSeconds = 3600, evidence = null, authFailure = false, offlineSession = false } = {}) {
             await page.goto('about:blank');
             pageErrors = [];
-            await page.evaluate(({ modules, component, surface, permission, play, holdDetails, remainingSeconds, evidence }) => {
+            await page.evaluate(({ modules, component, surface, permission, play, holdDetails, remainingSeconds, evidence, authFailure, offlineSession }) => {
                 const cache = {};
                 const noop = () => {};
                 const asyncNoop = async () => {};
@@ -117,6 +117,14 @@ const { chromium } = require('playwright');
                 };
                 const exam = { id: 'test-exam', title: 'Ujian Berbagi Layar', duration_minutes: 60,
                     metadata: { is_safe_mode: true, screenshot_enabled: true } };
+                const cachedSession = offlineSession ? {
+                    attemptId: 'attempt', examId: exam.id, deviceId: 'test-device',
+                    user: { id: 'student', email: 'student@example.invalid' }, profile: null,
+                    exam: { ...exam, metadata: { is_safe_mode: true, screenshot_enabled: false } },
+                    attempt: { id: 'attempt', status: 'in_progress', warning_count: 0 },
+                    questions: [{ id: 'q', type: 'essay', content: 'Soal Uji', bank_question_options: [] }],
+                    deadlineAt: Date.now() + remainingSeconds * 1000, lastQuestionIndex: 0,
+                } : null;
                 const router = { push: value => { window.destination = value; } };
                 const toast = { success: noop, warning: noop, error: noop };
                 const params = { id: exam.id };
@@ -124,7 +132,10 @@ const { chromium } = require('playwright');
                 const stubs = {
                     'next/navigation': { useParams: () => params, useRouter: () => router },
                     '@/app/components/ui/Toast': { useToast: () => toast },
-                    '@/lib/session': { getSessionUser: async () => ({ id: 'student', email: 'student@example.invalid' }) },
+                    '@/lib/session': { getSessionUser: async () => {
+                        if (authFailure) throw new Error('Temporary session endpoint failure');
+                        return { id: 'student', email: 'student@example.invalid' };
+                    } },
                     '@/lib/device-id': { getDeviceId: () => 'test-device', setDeviceId: noop },
                     '@/lib/exam-editor-lock': { acquireExamEditorLock: async () => noop },
                     '@/lib/exam-pwa': { isExamPwaEnabled: () => false, cacheExamOfflineShell: asyncNoop, removeExamOfflineShell: asyncNoop },
@@ -154,9 +165,10 @@ const { chromium } = require('playwright');
                     '@/lib/exam-durable-storage': new Proxy({
                         inspectExamStorage: async () => ({ available: true, mode: 'indexeddb' }),
                         resolveDurableDeviceId: async id => id,
-                        readExamSnapshot: async () => null, readExamRecoverySession: async () => null,
+                        readExamSnapshot: async () => offlineSession ? { answers: { q: 'Jawaban lokal' }, doubtfulAnswers: [], revisions: { q: 1 } } : null,
+                        readExamRecoverySession: async () => cachedSession,
                         readSecurityEvents: async attemptId => window.securityQueue.filter(event => event.attemptId === attemptId).map(event => ({ ...event })),
-                        validateExamRecoverySession: () => ({ valid: false }),
+                        validateExamRecoverySession: () => cachedSession ? { valid: true, session: cachedSession } : { valid: false },
                         freezeExamSnapshot: async (_id, snapshot) => snapshot,
                         writeExamSnapshot: async () => ({ saved: true, mode: 'indexeddb' }),
                         createSecurityEventId: () => '00000000-0000-4000-8000-' + String(++eventSequence).padStart(12, '0'),
@@ -250,9 +262,9 @@ const { chromium } = require('playwright');
                 window.encodeScreenFrame = require('@/lib/exam-screenshots').encodeScreenFrame;
                 if (component === 'exam') root.render(React.createElement(require('ExamPage').default));
                 else window.renderHook();
-            }, { modules, component, surface, permission, play, holdDetails, remainingSeconds, evidence });
-            if (component === 'exam' || component === 'preparation') await page.getByRole('heading', { name: 'Persiapan Ujian' }).waitFor();
-            else await page.getByTestId('hook-state').waitFor();
+            }, { modules, component, surface, permission, play, holdDetails, remainingSeconds, evidence, authFailure, offlineSession });
+            if ((component === 'exam' && !offlineSession) || component === 'preparation') await page.getByRole('heading', { name: 'Persiapan Ujian' }).waitFor();
+            else if (component === 'hook') await page.getByTestId('hook-state').waitFor();
         }
         async function requestShare() {
             await page.evaluate(() => { window.sharePromise = window.hook.requestShare(); });
@@ -291,6 +303,12 @@ const { chromium } = require('playwright');
             await page.waitForFunction(() => !window.hook.busy && window.hook.error.length > 0);
             await expectSharing(false); await expectStopped();
             assert.match((await state()).error, /Seluruh Layar/);
+        });
+        await test('unverified capture surface is rejected and requires a proctor exception', async () => {
+            await mount({ surface: null }); await requestShare();
+            await page.waitForFunction(() => !window.hook.busy && window.hook.error.length > 0);
+            await expectSharing(false); await expectStopped();
+            assert.match((await state()).error, /memverifikasi.*Seluruh Layar/);
         });
         await test('temporary capture mute blocks sharing and unmute restores the same stream', async () => {
             await mount(); await requestShare(); await expectSharing(true);
@@ -345,6 +363,28 @@ const { chromium } = require('playwright');
             assert.equal(await page.evaluate(() => window.starts), 0);
             await page.getByRole('button', { name: 'Ya, Mulai Ujian', exact: true }).click();
             assert.equal(await page.evaluate(() => window.starts), 1);
+        });
+        await test('temporary auth endpoint failure restores the validated local exam while the browser reports online', async () => {
+            await mount({ component: 'exam', authFailure: true, offlineSession: true });
+            await page.getByTestId('exam-viewer').waitFor();
+            assert.equal(await page.getByRole('textbox', { name: 'Jawaban', exact: true }).inputValue(), 'Jawaban lokal');
+            assert.equal(await page.evaluate(() => window.detailLoads), 0, 'exam detail must not be required before local recovery');
+            assert.equal(await page.evaluate(() => navigator.onLine), true);
+            assert.equal(await page.getByRole('heading', { name: 'Ujian Belum Dapat Dibuka' }).count(), 0);
+        });
+        await test('Mac command shortcuts are blocked and recorded during the exam', async () => {
+            await mount({ component: 'exam' });
+            await page.getByRole('button', { name: 'Aktifkan Layar Penuh', exact: true }).click();
+            await page.getByRole('button', { name: 'Bagikan Seluruh Layar', exact: true }).click();
+            await page.getByRole('button', { name: 'Ya, Mulai Ujian', exact: true }).click();
+            await page.getByTestId('exam-viewer').waitFor();
+            const prevented = await page.evaluate(() => {
+                const event = new KeyboardEvent('keydown', { key: 'C', metaKey: true, bubbles: true, cancelable: true });
+                window.dispatchEvent(event);
+                return event.defaultPrevented;
+            });
+            assert.equal(prevented, true);
+            await page.waitForFunction(() => window.securityEvents.some(event => event.eventType === 'restricted_shortcut'));
         });
         await test('real ExamPage rechecks sharing before start and automatically stops after successful submission', async () => {
             await mount({ component: 'exam', holdDetails: true });

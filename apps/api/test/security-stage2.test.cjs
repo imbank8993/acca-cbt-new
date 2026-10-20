@@ -146,6 +146,17 @@ test('SEC-09: valid event records server-controlled actor/source', async () => {
     assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.source, 'student');
     assert.ok(STUDENT_SECURITY_EVENTS.includes('tab_close'));
 });
+test('SEC-09: live student events cannot persist plaintext images or oversized metadata', async () => {
+    for (const metadata of [
+        { screenshotBase64: 'a'.repeat(100) },
+        { nested: { image: 'data:image/jpeg;base64,abc' } },
+        { note: 'a'.repeat(4096) },
+    ]) {
+        const db = fixtureDb({ cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, status: 'in_progress' }] });
+        await assert.rejects(new ProctoringService(db, {}, {}).logViolation(user, 'attempt', 'tab_switch', metadata), rejected);
+        assert.equal(db.writes.length, 0);
+    }
+});
 
 for (const key of ['questions/legacy.png', 'users/victim/questions/a.png', 'assignments/exam/victim/a.png', 'backup-restores/a.png', 'users/user-A/../victim/a.png']) {
     test(`SEC-06: refuses deletion of ${key}`, async () => {

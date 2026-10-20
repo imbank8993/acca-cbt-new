@@ -11,6 +11,7 @@ const { chromium } = require('playwright');
     const browser = await chromium.launch({ executablePath, headless: true });
     try {
         const page = await browser.newPage();
+        page.on('pageerror', error => console.error('Exam browser error:', error.message));
         const modules = {};
         for (const [name, pkg, file] of [
             ['react', 'react', 'react.development.js'],
@@ -116,6 +117,11 @@ const { chromium } = require('playwright');
                 const exam = { id: 'test-exam', title: 'Ujian Matematika', duration_minutes: 60, metadata: { is_safe_mode: true } };
                 const noop = () => {};
                 const asyncNoop = async () => {};
+                const screenshotHook = {
+                    sharing: false, sharingRef: { current: false }, requesting: { current: false },
+                    busy: false, error: '', supported: true, requestShare: asyncNoop,
+                    capture: async () => null, upload: async () => true, stop: noop,
+                };
                 const toast = { success: noop, warning: noop, error: noop };
                 const router = { push: noop };
                 const params = { id: exam.id };
@@ -123,10 +129,18 @@ const { chromium } = require('playwright');
                     'next/navigation': { useParams: () => params, useRouter: () => router },
                     '@/app/components/ui/Toast': { useToast: () => toast },
                     '@/lib/session': { getSessionUser: async () => ({ id: 'student', email: 'student@example.invalid' }) },
+                    '@/hooks/useExamScreenshots': { useExamScreenshots: () => screenshotHook },
                     '@/lib/device-id': { getDeviceId: () => 'test-device', setDeviceId: noop },
                     '@/lib/exam-editor-lock': { acquireExamEditorLock: async () => () => { window.lockReleases++; } },
                     '@/lib/exam-pwa': { isExamPwaEnabled: () => false, cacheExamOfflineShell: asyncNoop },
                     '@/lib/monitoring-health': { formatStudentName: value => value },
+                    '@/lib/exam-network': { sampleExamNetwork: () => ({ weak: false }), examNetworkLabel: () => '' },
+                    '@/lib/exam-retry': { examAutoRetryDelay: () => 1000 },
+                    '@/lib/exam-question-updates': { mergeExamQuestionUpdates: (current) => current },
+                    '@/lib/exam-wake-lock': { keepExamScreenAwake: () => noop },
+                    '@/lib/exam-evidence-outbox': { retryExamEvidence: asyncNoop },
+                    '@/lib/exam-screenshots': { screenshotBase64: async () => '' },
+                    '@/lib/session-reset': { clearCbtSession: asyncNoop },
                     '@/lib/errors': { getErrorMessage: error => error.message },
                     '@/lib/api/client': { apiSend: async () => ({ success: true }) },
                     '@/lib/api/proctoring': { heartbeatExamAttempt: async () => ({ success: true }), logSecurityViolation: async () => ({ success: true }) },

@@ -1,7 +1,7 @@
 import { validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
 import { examDeadline } from '../common/exam-deadline';
 import { hasCommittedSubmitIntent } from '../common/submission-commitment';
-import { STUDENT_SECURITY_EVENTS, securityEventCounters } from '../common/student-security-events';
+import { STUDENT_SECURITY_EVENTS, securityEventCounters, validateStudentSecurityMetadata } from '../common/student-security-events';
 export { STUDENT_SECURITY_EVENTS } from '../common/student-security-events';
 import {
     BadRequestException,
@@ -46,6 +46,7 @@ export class ProctoringService {
         if (!STUDENT_SECURITY_EVENTS.includes(eventType)) {
             throw new BadRequestException('Jenis event siswa tidak diizinkan.');
         }
+        validateStudentSecurityMetadata(metadata);
         const result = await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt } = await db

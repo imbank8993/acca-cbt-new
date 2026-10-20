@@ -16,7 +16,6 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [supported, setSupported] = useState(true);
-    const [surfaceUnverified, setSurfaceUnverified] = useState(false);
 
     const releaseStream = useCallback(() => {
         sharingRef.current = false;
@@ -33,7 +32,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         requesting.current = false;
         releaseStream();
         if (mounted.current) {
-            setSharing(false); setBusy(false); setSurfaceUnverified(false); setError('');
+            setSharing(false); setBusy(false); setError('');
         }
     }, [releaseStream]);
     useEffect(() => {
@@ -74,7 +73,10 @@ export function useExamScreenshots(examId: string, completed: boolean) {
                 throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
             }
             const displaySurface = track.getSettings().displaySurface;
-            if (displaySurface && displaySurface !== 'monitor') {
+            if (!displaySurface) {
+                throw new Error('Browser tidak dapat memverifikasi bahwa Seluruh Layar dibagikan. Gunakan browser terbaru atau hubungi pengawas untuk pengecualian, lalu muat ulang halaman.');
+            }
+            if (displaySurface !== 'monitor') {
                 throw new Error('Pilih Seluruh Layar / Entire Screen, bukan tab atau jendela.');
             }
             preview = document.createElement('video');
@@ -88,7 +90,6 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             if (track.readyState !== 'live') throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
             adopted = true;
             sharingRef.current = !track.muted; setSharing(!track.muted);
-            setSurfaceUnverified(!displaySurface);
             track.onended = () => {
                 if (stream.current !== next) return;
                 stop();
@@ -106,7 +107,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         } catch (error) {
             if (isCurrentRequest()) {
                 const message = error instanceof Error ? error.message : '';
-                setError(message.includes('Pilih Seluruh') || message.includes('tidak menghasilkan')
+                setError(message.includes('Pilih Seluruh') || message.includes('tidak menghasilkan') || message.includes('Browser tidak dapat memverifikasi')
                     ? message
                     : 'Izin berbagi layar belum berhasil. Coba lagi dan pilih Seluruh Layar. Jika Safari di Mac tetap gagal, muat ulang halaman dan izinkan perekaman layar untuk Safari di System Settings → Privacy & Security → Screen & System Audio Recording.');
             }
@@ -151,5 +152,5 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             return false;
         }
     }, []);
-    return { sharing, sharingRef, busy, requesting, error, supported, surfaceUnverified, requestShare, capture, upload, stop };
+    return { sharing, sharingRef, busy, requesting, error, supported, requestShare, capture, upload, stop };
 }

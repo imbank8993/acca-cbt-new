@@ -1,5 +1,6 @@
 import { extractRequestToken } from '@/lib/app-jwt';
 import { nestFetchAsUser } from '@/lib/nest-api';
+import { rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { ALLOWED_EXTENSIONS,deleteObject,putObject } from '@/lib/storage';
 import JSZip from 'jszip';
 import { NextRequest,NextResponse } from 'next/server';
@@ -25,6 +26,8 @@ const MAX_ENTRIES = 501;
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']);
 
 export async function POST(request: NextRequest) {
+    const originError = rejectCrossOriginMutation(request, 'POST');
+    if (originError) return originError;
     const token = extractRequestToken(request);
     if (!token) {
         return NextResponse.json(

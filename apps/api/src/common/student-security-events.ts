@@ -20,6 +20,21 @@ export interface SubmissionSecurityEvent {
     createdAt: string;
 }
 
+/** Student logs store descriptors only; screenshots have encrypted, expiring storage. */
+export function validateStudentSecurityMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        throw new BadRequestException('Metadata pengawasan tidak valid.');
+    }
+    let encoded: string | undefined;
+    try { encoded = JSON.stringify(metadata); }
+    catch { throw new BadRequestException('Metadata pengawasan tidak valid.'); }
+    if (typeof encoded !== 'string' || encoded.length > 4096 ||
+        /"(?:screenshotBase64|base64|image|imageData|screenshot)"\s*:|data:image\//i.test(encoded)) {
+        throw new BadRequestException('Gambar harus dikirim melalui unggahan bukti terpisah.');
+    }
+    return metadata;
+}
+
 /** This manifest contains descriptors only. Images use the separate evidence upload. */
 export function validateSubmissionSecurityEvents(value?: SubmissionSecurityEvent[]): SubmissionSecurityEvent[] {
     if (value === undefined) return [];
@@ -31,16 +46,10 @@ export function validateSubmissionSecurityEvents(value?: SubmissionSecurityEvent
         if (!event || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.id) ||
             !STUDENT_SECURITY_EVENTS.includes(event.eventType) || typeof event.createdAt !== 'string' ||
             event.createdAt.length > 40 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(event.createdAt) ||
-            !Number.isFinite(Date.parse(event.createdAt)) ||
-            !event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) {
+            !Number.isFinite(Date.parse(event.createdAt))) {
             throw new BadRequestException('Catatan pengawasan tidak valid.');
         }
-        let encoded: string;
-        try { encoded = JSON.stringify(event.metadata); }
-        catch { throw new BadRequestException('Metadata pengawasan tidak valid.'); }
-        if (encoded.length > 4096 || /"(?:screenshotBase64|base64|image|imageData|screenshot)"\s*:|data:image\//i.test(encoded)) {
-            throw new BadRequestException('Gambar harus dikirim melalui unggahan bukti terpisah.');
-        }
+        validateStudentSecurityMetadata(event.metadata);
         if (ids.has(event.id)) throw new BadRequestException('ID catatan pengawasan berulang.');
         ids.add(event.id);
     }

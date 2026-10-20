@@ -1,7 +1,7 @@
 import { extractRequestToken } from '@/lib/app-jwt';
 import { renderEquationsToImages } from '@/lib/math-equations';
 import { nestFetchAsUser } from '@/lib/nest-api';
-import { proxy } from '@/lib/nest-proxy';
+import { proxy, rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
 type BulkImportQuestion = Record<string, unknown> & {
@@ -21,6 +21,8 @@ export async function POST(
     request: NextRequest,
     context: { params: Promise<{ bankId: string }> },
 ) {
+    const originError = rejectCrossOriginMutation(request, 'POST');
+    if (originError) return originError;
     const { bankId } = await context.params;
 
     let payload: { questions?: BulkImportQuestion[]; clientRequestId?: string };

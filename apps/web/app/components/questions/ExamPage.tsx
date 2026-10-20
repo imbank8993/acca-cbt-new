@@ -495,7 +495,16 @@ export default function ExamPage() {
                     return true;
                 };
 
-                const authUser = await getSessionUser();
+                let authUser: AuthUser | null;
+                try {
+                    authUser = await getSessionUser();
+                } catch (error) {
+                    // A temporary /api/auth/me failure is not a rejected session.
+                    // The validated local recovery package still lets the student
+                    // continue until its original deadline while the API recovers.
+                    if (await restoreOfflineSession(null)) return;
+                    throw error;
+                }
                 if (cancelled) return;
                 if (authUser) setUser(authUser);
                 if (!authUser && !navigator.onLine && await restoreOfflineSession(null)) return;
@@ -1449,7 +1458,7 @@ export default function ExamPage() {
         const onKeyDown = (e: KeyboardEvent) => {
             if (
                 e.key === 'PrintScreen' ||
-                (e.ctrlKey && ['c', 'v', 'u', 's', 'p'].includes(e.key)) ||
+                ((e.ctrlKey || e.metaKey) && ['c', 'v', 'u', 's', 'p'].includes(e.key.toLowerCase())) ||
                 e.key === 'F12'
             ) {
                 e.preventDefault();
@@ -1759,7 +1768,7 @@ export default function ExamPage() {
         return <ExamStartPreparation
             key={examId}
             exam={exam}
-            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, supported: screenshots.supported, surfaceUnverified: screenshots.surfaceUnverified, request: screenshots.requestShare }}
+            screenShare={{ sharing: screenshots.sharing, busy: screenshots.busy, error: screenshots.error, supported: screenshots.supported, request: screenshots.requestShare }}
             onBack={() => router.push('/dashboard/siswa/schedule')}
             onConfirm={(fullscreenReady) => {
                 setIsFullScreen(fullscreenReady);
@@ -1905,7 +1914,6 @@ export default function ExamPage() {
                         <h2 className="text-lg font-bold">Bagikan kembali seluruh layar</h2>
                         <p className="mt-2 text-sm">Berbagi layar wajib aktif sampai ujian selesai. Pengerjaan dikunci sementara; jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
                         {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Waktu ujian tetap berjalan.</p>}
-                        {screenshots.surfaceUnverified && <p className="mt-2 text-sm text-amber-700">Pastikan Anda memilih “Seluruh Layar / Entire Screen” pada dialog berbagi layar.</p>}
                         {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
                         <button type="button" disabled={screenshots.busy || screenshots.supported === false} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>
                     </div>

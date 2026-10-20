@@ -1,4 +1,4 @@
-import { proxy } from '@/lib/nest-proxy';
+import { proxy, rejectCrossOriginMutation } from '@/lib/nest-proxy';
 import { NextRequest,NextResponse } from 'next/server';
 
 /**
@@ -14,6 +14,8 @@ import { NextRequest,NextResponse } from 'next/server';
  * seperti pada autosave biasa.
  */
 export async function POST(request: NextRequest) {
+    const originError = rejectCrossOriginMutation(request, 'POST');
+    if (originError) return originError;
     let payload: { attemptId?: string; answers?: unknown[]; deviceId?: string };
     try {
         payload = await request.json();
