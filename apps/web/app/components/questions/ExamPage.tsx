@@ -12,6 +12,7 @@ createSecurityEventId,
 freezeExamSnapshot,
 ExamSnapshotConflictError,
 type ExamAnswerSnapshot,
+type QueuedSecurityEvent,
 enqueueSecurityEvent,
 inspectExamStorage,
 readExamRecoverySession,
@@ -47,6 +48,7 @@ import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
 import { screenshotBase64 } from '@/lib/exam-screenshots';
+import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
     if (exam?.metadata?.is_safe_mode === false) return null;
@@ -180,6 +182,10 @@ export default function ExamPage() {
     const terminationReasonRef = useRef<string | null>(null);
     // Prevents concurrent / repeated submits (manual double-click, auto-submit retry loop).
     const submitInFlightRef = useRef(false);
+    const submissionSucceededRef = useRef(false);
+    // Descriptors exist before any async capture/storage work, so the final
+    // answer request can register them without waiting for image encoding.
+    const pendingSecurityEventsRef = useRef(new Map<string, QueuedSecurityEvent>());
     const frozenSnapshotRef = useRef<ExamAnswerSnapshot | null>(null);
     const [submissionOnly, setSubmissionOnly] = useState(false);
     const [submissionIssue, setSubmissionIssue] = useState<string | null>(null);
@@ -303,6 +309,7 @@ export default function ExamPage() {
 
     const updateAssignment = useCallback((patch: Partial<NonNullable<ExamAnswerSnapshot['assignmentData']>>) => {
         if (!ownsEditorLockRef.current) return;
+        if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
         const att = attemptRef.current;
         if (!att || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const data = { ...assignmentRef.current, ...patch };
@@ -321,7 +328,7 @@ export default function ExamPage() {
             if (!result.saved) setStorageWarning('Lampiran atau catatan tugas belum tersimpan di perangkat. Jangan tutup halaman; hubungi proktor.');
             else if (result.mode === 'localstorage') setStorageWarning('Cadangan tugas tersimpan di browser. Jangan hapus data browser sebelum pengumpulan dikonfirmasi.');
         }).catch(() => setStorageWarning('Cadangan tugas gagal disimpan. Jangan tutup halaman; hubungi proktor.'));
-    }, []);
+    }, [exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     /** Soal yang jawabannya belum pasti sampai di server (gagal atau masih terbang). */
     const collectPendingRows = useCallback(() => {
@@ -892,6 +899,8 @@ export default function ExamPage() {
         // Ref-based guard (not the async `submitting` state) so a second call in the same
         // tick — or an auto-submit retry after a failure — can't slip through.
         if (!ownsEditorLockRef.current || !user || submitInFlightRef.current || terminationReasonRef.current) return;
+        if (!opts?.isAuto && !submissionOnly && !frozenSnapshotRef.current &&
+            exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
 
         const isAssignment = exam?.exam_type === 'assignment';
         if (assignmentSubmission) pendingAssignmentRef.current = assignmentSubmission;
@@ -943,6 +952,14 @@ export default function ExamPage() {
         setSubmitting(true);
 
         try {
+            const durableEvents = await readSecurityEvents(activeAttempt.id).catch(() => []);
+            const eventManifest = new Map(durableEvents.map(event => [event.id, event]));
+            for (const event of pendingSecurityEventsRef.current.values()) {
+                if (event.attemptId === activeAttempt.id) eventManifest.set(event.id, event);
+            }
+            const securityEvents = Array.from(eventManifest.values())
+                .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-100)
+                .map(({ id, eventType, metadata, createdAt }) => ({ id, eventType, metadata, createdAt }));
             // Retry the same frozen payload; the server validates its attempt and device.
             const result = await submitExamAction(
                 examId,
@@ -951,10 +968,13 @@ export default function ExamPage() {
                 activeAttempt.id,
                 snapshot.revisions,
                 snapshot.frozenSubmission,
+                securityEvents,
             );
             if (result.success) {
                 autoRetryCountRef.current = 0;
+                submissionSucceededRef.current = true;
                 setIsCompleted(true);
+                void retryExamEvidence(activeAttempt.id).catch(() => undefined);
                 if (result.savedAnswersOnly) {
                     toast.warning('Waktu ujian berakhir', 'Hanya jawaban yang sudah sampai di server dinilai. Salinan lokal dipertahankan untuk pemulihan dengan persetujuan proktor.');
                 } else if (result.gradingPending) {
@@ -994,7 +1014,7 @@ export default function ExamPage() {
             submitInFlightRef.current = false;
             scheduleAutoRetry();
         }
-    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry]);
+    }, [user, examId, exam, router, toast, attempt, scheduleAutoRetry, screenSharingRef, submissionOnly]);
 
     // Simpan referensi terbaru agar retry terjadwal selalu memanggil versi
     // dengan closure `answers` termutakhir (bukan snapshot saat gagal).
@@ -1171,20 +1191,20 @@ export default function ExamPage() {
                         break;
                     }
                 }
-                await removeSecurityEvent(att.id, event.id);
+                await removeSecurityEvent(att.id, event.id, event);
                 if (result.terminated) {
                     // Event setelah ambang tidak lagi relevan karena attempt sudah
                     // ditutup oleh server. Bersihkan agar antrean lokal tidak macet.
                     await Promise.all(events.slice(index + 1).map((queued) =>
-                        removeSecurityEvent(att.id, queued.id),
+                        removeSecurityEvent(att.id, queued.id, queued),
                     ));
                     break;
                 }
             }
-            if (latest) {
+            if (latest && attemptRef.current?.id === att.id && !submissionSucceededRef.current) {
                 violationCountRef.current = latest.warningCount;
                 setViolationCount(latest.warningCount);
-                if (latest.terminated && !deferTerminationReload) {
+                if (latest.terminated && !deferTerminationReload && !frozenSnapshotRef.current) {
                     await clearCbtSession();
                     window.location.reload();
                 }
@@ -1223,7 +1243,8 @@ export default function ExamPage() {
                 setIsOffline(false);
                 if (!attemptRef.current?.id) return;
                 if (submissionOnly || frozenSnapshotRef.current || clockRef.current.remainingSeconds() <= 0) {
-                    await flushSecurityEvents(true).catch(() => null);
+                    // The manifest travels with answers; image retries must not
+                    // postpone a frozen submission when the connection returns.
                     await handleSubmitExam(undefined, { isAuto: true });
                     return;
                 }
@@ -1280,7 +1301,6 @@ export default function ExamPage() {
         const retry = async () => {
             if (!navigator.onLine || submitInFlightRef.current) return;
             if (!await revalidateOfflineSession()) return;
-            await flushSecurityEvents(true).catch(() => null);
             if (active && !submitInFlightRef.current) {
                 await handleSubmitExam(undefined, { isAuto: true });
             }
@@ -1291,7 +1311,7 @@ export default function ExamPage() {
             active = false;
             clearInterval(interval);
         };
-    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession, flushSecurityEvents]);
+    }, [waitingForSyncAndSubmit, attempt?.id, isCompleted, accessDenied, handleSubmitExam, revalidateOfflineSession]);
 
     useEffect(() => {
         if (!attempt?.id || isCompleted || loading || accessDenied || submissionOnly) return;
@@ -1328,33 +1348,40 @@ export default function ExamPage() {
                 setViolationCount(newCount);
             }
 
+            const createdAt = new Date().toISOString();
+            const eventId = createSecurityEventId();
+            const event: QueuedSecurityEvent = {
+                id: eventId, attemptId: attempt.id, eventType: type,
+                metadata: { timestamp: createdAt }, createdAt,
+            };
+            pendingSecurityEventsRef.current.set(eventId, event);
             try {
-                const createdAt = new Date().toISOString();
-                const eventId = createSecurityEventId();
                 const captured = !focusOnly && exam?.metadata?.screenshot_enabled === true ? captureScreenshot() : Promise.resolve(null);
-                let stored = await enqueueSecurityEvent({
-                    id: eventId,
-                    attemptId: attempt.id,
-                    eventType: type,
-                    metadata: { timestamp: createdAt },
-                    createdAt,
-                });
+                let stored = await enqueueSecurityEvent(event);
                 const screenshotBlob = await captured;
+                let screenshotQueued = false;
                 if (screenshotBlob) {
                     const encodedScreenshot = await screenshotBase64(screenshotBlob).catch(() => null);
                     if (encodedScreenshot) {
                         stored = await enqueueSecurityEvent({
-                            id: eventId,
-                            attemptId: attempt.id,
-                            eventType: type,
-                            metadata: { timestamp: createdAt },
-                            createdAt,
+                            ...event,
                             screenshotBase64: encodedScreenshot,
                         });
+                        screenshotQueued = stored.saved;
                     }
                 }
                 if (!stored.saved) {
                     setStorageWarning('Event keamanan gagal disimpan di perangkat. Hubungi proktor.');
+                }
+
+                if (submissionSucceededRef.current) {
+                    if (screenshotQueued) await retryExamEvidence(attempt.id);
+                    else if (screenshotBlob) await uploadScreenshot(attempt.id, eventId, getDeviceId(), screenshotBlob);
+                    else {
+                        const acknowledged = await logSecurityViolation(attempt.id, type, event.metadata, eventId);
+                        if (acknowledged.success) await removeSecurityEvent(attempt.id, eventId, event);
+                    }
+                    return;
                 }
 
                 // Dahulukan jawaban bila event lokal ini diperkirakan mencapai
@@ -1367,6 +1394,7 @@ export default function ExamPage() {
                 if (!stored.saved && securityResult && screenshotBlob) {
                     await uploadScreenshot(attempt.id, eventId, getDeviceId(), screenshotBlob);
                 }
+                if (frozenSnapshotRef.current || submissionSucceededRef.current) return;
                 if (securityResult?.terminated) {
                     await clearCbtSession();
                     window.location.reload();
@@ -1379,9 +1407,11 @@ export default function ExamPage() {
                 }
             } catch (err) {
                 console.error('Security violation error:', err);
-                if (!focusOnly && maxViolations !== null && newCount >= maxViolations) {
+                if (!frozenSnapshotRef.current && !submissionSucceededRef.current && !focusOnly && maxViolations !== null && newCount >= maxViolations) {
                     requireTermination(`Batas ${maxViolations} pelanggaran tercapai: ${type}`);
                 }
+            } finally {
+                pendingSecurityEventsRef.current.delete(eventId);
             }
         };
 
@@ -1446,13 +1476,17 @@ export default function ExamPage() {
     }, [attempt, isCompleted, loading, user, profile, exam, accessDenied, submissionOnly, examId, flushSecurityEvents, requireTermination, maxViolations, retryFailedAnswers, beaconPendingAnswers, captureScreenshot, uploadScreenshot, screenSharingRef, screenRequestingRef]);
 
     useEffect(() => {
-        if (!attempt || isCompleted || exam?.metadata?.screenshot_enabled !== true) return;
+        if (!attempt || isCompleted || submissionOnly || exam?.metadata?.screenshot_enabled !== true) return;
         if (screenshots.sharing) { wasScreenSharing.current = true; return; }
         if (!wasScreenSharing.current) return;
         wasScreenSharing.current = false;
-        void enqueueSecurityEvent({ id: createSecurityEventId(), attemptId: attempt.id, eventType: 'SCREEN_SHARE_STOPPED',
-            metadata: { reason: 'Siswa menghentikan berbagi layar' }, createdAt: new Date().toISOString() }).then(() => flushSecurityEvents());
-    }, [attempt, isCompleted, exam, screenshots.sharing, flushSecurityEvents]);
+        const event: QueuedSecurityEvent = { id: createSecurityEventId(), attemptId: attempt.id, eventType: 'SCREEN_SHARE_STOPPED',
+            metadata: { reason: 'Berbagi layar terhenti atau gambar layar tidak tersedia' }, createdAt: new Date().toISOString() };
+        pendingSecurityEventsRef.current.set(event.id, event);
+        void enqueueSecurityEvent(event).then(() => flushSecurityEvents())
+            .catch(() => setStorageWarning('Catatan berbagi layar belum berhasil disimpan. Hubungi proktor.'))
+            .finally(() => pendingSecurityEventsRef.current.delete(event.id));
+    }, [attempt, isCompleted, submissionOnly, exam, screenshots.sharing, flushSecurityEvents]);
 
     // Retry berkala untuk autosave dan bukti keamanan yang masih mengantre.
     // `navigator.onLine` dapat tetap true ketika server sempat tidak terjangkau,
@@ -1583,6 +1617,7 @@ export default function ExamPage() {
 
     const handleAnswerSelect = useCallback(async (questionId: string, answer: string | string[]) => {
         if (!ownsEditorLockRef.current) return;
+        if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
         if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;
@@ -1633,10 +1668,11 @@ export default function ExamPage() {
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [markFailed, submissionOnly]);
+    }, [markFailed, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
         if (!ownsEditorLockRef.current) return;
+        if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
         if (submissionOnly || frozenSnapshotRef.current || submitInFlightRef.current || clockRef.current.remainingSeconds() <= 0) return;
         const revision = (revisionsRef.current[questionId] ?? 0) + 1;
         revisionsRef.current[questionId] = revision;
@@ -1684,7 +1720,7 @@ export default function ExamPage() {
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [markFailed, submissionOnly]);
+    }, [markFailed, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     const handleRequestFullscreen = useCallback(async () => {
         // API yang tidak tersedia tetap memiliki jalur kompatibilitas; jika
@@ -1702,6 +1738,7 @@ export default function ExamPage() {
     }, []);
 
     const safeMode = exam?.metadata?.is_safe_mode !== false;
+    const screenShareBlocked = exam?.metadata?.screenshot_enabled === true && !screenshots.sharing && !isCompleted && !submissionOnly;
     const networkLabel = examNetworkLabel(isOffline, !!serverUnavailableAt, isNetworkWeak);
     const syncNotice = networkLabel
         ? { tone: 'amber' as const, text: networkLabel,
@@ -1862,11 +1899,11 @@ export default function ExamPage() {
 
     return (
         <>
-            {exam?.metadata?.screenshot_enabled === true && !screenshots.sharing && !isCompleted && !submissionOnly && (
+            {screenShareBlocked && (
                 <div role="dialog" aria-modal="true" aria-label="Bagikan kembali layar" className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 p-5">
                     <div className="max-w-md rounded-2xl bg-white p-6 text-center text-slate-900">
                         <h2 className="text-lg font-bold">Bagikan kembali seluruh layar</h2>
-                        <p className="mt-2 text-sm">Berbagi layar terhenti. Jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
+                        <p className="mt-2 text-sm">Berbagi layar wajib aktif sampai ujian selesai. Pengerjaan dikunci sementara; jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
                         {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Waktu ujian tetap berjalan.</p>}
                         {screenshots.surfaceUnverified && <p className="mt-2 text-sm text-amber-700">Pastikan Anda memilih “Seluruh Layar / Entire Screen” pada dialog berbagi layar.</p>}
                         {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
@@ -1874,6 +1911,7 @@ export default function ExamPage() {
                     </div>
                 </div>
             )}
+            <div inert={screenShareBlocked} aria-hidden={screenShareBlocked || undefined} className={screenShareBlocked ? 'invisible' : undefined}>
             <ExamViewer
             mode="exam"
             questions={questions}
@@ -1885,7 +1923,9 @@ export default function ExamPage() {
             studentNisn={profile?.identity_number || ''}
             examTitle={exam?.title || ''}
             currentQIndex={currentQIndex}
-            onNavigate={setCurrentQIndex}
+            onNavigate={index => {
+                if (exam?.metadata?.screenshot_enabled !== true || screenSharingRef.current) setCurrentQIndex(index);
+            }}
             timeLeft={timeLeft}
             isSafeMode={safeMode}
             violationCount={violationCount}
@@ -1917,6 +1957,7 @@ export default function ExamPage() {
                 });
             }}
         />
+            </div>
         </>
     );
 }

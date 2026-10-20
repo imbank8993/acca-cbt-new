@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import { hasActiveSubmitIntent } from './exam-deadline';
+import type { SubmissionSecurityEvent } from './student-security-events';
 
 export interface SubmissionPayload {
     answers: Record<string, string>;
     answerRevisions?: Record<string, number>;
     assignmentData?: Record<string, unknown>;
     frozenSubmission?: { startedAt: string; personalEndTime: string };
+    securityEvents?: SubmissionSecurityEvent[];
 }
 
 function canonical(value: unknown): string {
@@ -27,4 +29,10 @@ export function hasBoundSubmitIntent(metadata: Record<string, unknown> | null | 
     now: Date, deadline: Date, digest?: string): boolean {
     return Boolean(digest) && metadata?.submit_intent_digest === digest &&
         hasActiveSubmitIntent(metadata, now) && Date.parse(String(metadata?.submit_intent_at)) < deadline.getTime();
+}
+
+/** Only a server-bound payload may defer automatic violation closure. */
+export function hasCommittedSubmitIntent(metadata: Record<string, unknown> | null | undefined, now: Date): boolean {
+    return typeof metadata?.submit_intent_digest === 'string' && /^[a-f0-9]{64}$/.test(metadata.submit_intent_digest) &&
+        hasActiveSubmitIntent(metadata, now);
 }

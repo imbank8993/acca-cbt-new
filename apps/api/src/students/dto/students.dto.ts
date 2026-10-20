@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
     IsArray,
+    ArrayMaxSize,
     IsDateString,
     IsBoolean,
     IsNotEmpty,
@@ -11,10 +12,12 @@ import {
     Length,
     IsUUID,
     IsInt,
+    IsIn,
     Min,
     Max,
     ValidateNested,
 } from 'class-validator';
+import { STUDENT_SECURITY_EVENTS, SUBMISSION_SECURITY_EVENT_LIMIT } from '../../common/student-security-events';
 
 export class JoinClassDto {
     @ApiProperty({ example: 'X7K2QM' })
@@ -119,7 +122,28 @@ export class FrozenSubmissionDto {
     personalEndTime!: string;
 }
 
+export class SubmissionSecurityEventDto {
+    @IsUUID()
+    id!: string;
+
+    @IsIn(STUDENT_SECURITY_EVENTS)
+    eventType!: string;
+
+    @IsObject()
+    metadata!: Record<string, unknown>;
+
+    @IsDateString()
+    createdAt!: string;
+}
+
 export class SubmitExamDto {
+    @IsOptional()
+    @IsArray()
+    @ArrayMaxSize(SUBMISSION_SECURITY_EVENT_LIMIT)
+    @ValidateNested({ each: true })
+    @Type(() => SubmissionSecurityEventDto)
+    securityEvents?: SubmissionSecurityEventDto[];
+
     @IsOptional()
     @ValidateNested()
     @Type(() => FrozenSubmissionDto)

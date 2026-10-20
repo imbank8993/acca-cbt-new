@@ -18,17 +18,29 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const [supported, setSupported] = useState(true);
     const [surfaceUnverified, setSurfaceUnverified] = useState(false);
 
-    const stop = useCallback(() => {
-        requestGeneration.current++;
+    const releaseStream = useCallback(() => {
         sharingRef.current = false;
-        if (mounted.current) setSurfaceUnverified(false);
-        for (const track of stream.current?.getTracks() || []) { track.onended = null; track.stop(); }
+        for (const track of stream.current?.getTracks() || []) {
+            track.onended = null; track.onmute = null; track.onunmute = null;
+            track.stop();
+        }
         stream.current = null;
         if (video.current) { video.current.pause(); video.current.srcObject = null; }
         video.current = null;
     }, []);
+    const stop = useCallback(() => {
+        requestGeneration.current++;
+        requesting.current = false;
+        releaseStream();
+        if (mounted.current) {
+            setSharing(false); setBusy(false); setSurfaceUnverified(false); setError('');
+        }
+    }, [releaseStream]);
     useEffect(() => {
         mounted.current = true;
+        stop();
+        // Browser-only capability detection must follow hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSupported(Boolean(navigator.mediaDevices?.getDisplayMedia));
         count.current = 0; lastCapture.current = 0;
         return () => { mounted.current = false; stop(); };
@@ -36,7 +48,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     useEffect(() => { if (completed) stop(); }, [completed, stop]);
 
     const requestShare = useCallback(async () => {
-        if (requesting.current) return;
+        if (completed || !mounted.current || requesting.current || sharingRef.current) return;
         setError('');
         if (!navigator.mediaDevices?.getDisplayMedia) {
             setSupported(false);
@@ -45,45 +57,70 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         }
         requesting.current = true; setBusy(true);
         const generation = ++requestGeneration.current;
+        const isCurrentRequest = () => mounted.current && requestGeneration.current === generation;
+        let next: MediaStream | null = null;
+        let preview: HTMLVideoElement | null = null;
+        let adopted = false;
         try {
             const displayOptions = {
                 video: { displaySurface: 'monitor' },
                 audio: false,
                 monitorTypeSurfaces: 'include',
             } as DisplayMediaStreamOptions & { monitorTypeSurfaces: 'include' };
-            const next = await navigator.mediaDevices.getDisplayMedia(displayOptions);
-            if (!mounted.current || requestGeneration.current !== generation) { next.getTracks().forEach(track => track.stop()); return; }
+            next = await navigator.mediaDevices.getDisplayMedia(displayOptions);
+            if (!isCurrentRequest()) return;
             const track = next.getVideoTracks()[0];
             if (!track || track.readyState !== 'live') {
-                next.getTracks().forEach(track => track.stop());
                 throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
             }
             const displaySurface = track.getSettings().displaySurface;
             if (displaySurface && displaySurface !== 'monitor') {
-                next.getTracks().forEach(track => track.stop());
                 throw new Error('Pilih Seluruh Layar / Entire Screen, bukan tab atau jendela.');
             }
-            const preview = document.createElement('video');
+            preview = document.createElement('video');
             preview.muted = true; preview.playsInline = true; preview.srcObject = next;
-            try { await preview.play(); } catch (error) { next.getTracks().forEach(track => track.stop()); throw error; }
-            if (!mounted.current || requestGeneration.current !== generation || track.readyState !== 'live') { next.getTracks().forEach(t => t.stop()); return; }
-            stop();
+            // Own the pending stream too, so finishing/unmounting can stop it
+            // immediately even while the browser is still preparing playback.
+            releaseStream();
             stream.current = next; video.current = preview;
-            sharingRef.current = true; setSharing(true);
+            await preview.play();
+            if (!isCurrentRequest()) return;
+            if (track.readyState !== 'live') throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
+            adopted = true;
+            sharingRef.current = !track.muted; setSharing(!track.muted);
             setSurfaceUnverified(!displaySurface);
             track.onended = () => {
+                if (stream.current !== next) return;
                 stop();
-                if (mounted.current) { setSharing(false); setError('Berbagi layar terhenti. Bagikan kembali seluruh layar untuk melanjutkan.'); }
+                if (mounted.current) setError('Berbagi layar terhenti. Bagikan kembali seluruh layar untuk melanjutkan.');
+            };
+            track.onmute = () => {
+                if (stream.current !== next || !mounted.current) return;
+                sharingRef.current = false; setSharing(false);
+                setError('Gambar layar sementara tidak tersedia. Pulihkan berbagi layar untuk melanjutkan.');
+            };
+            track.onunmute = () => {
+                if (stream.current !== next || !mounted.current || track.readyState !== 'live') return;
+                sharingRef.current = true; setSharing(true); setError('');
             };
         } catch (error) {
-            if (mounted.current) {
+            if (isCurrentRequest()) {
                 const message = error instanceof Error ? error.message : '';
                 setError(message.includes('Pilih Seluruh') || message.includes('tidak menghasilkan')
                     ? message
                     : 'Izin berbagi layar belum berhasil. Coba lagi dan pilih Seluruh Layar. Jika Safari di Mac tetap gagal, muat ulang halaman dan izinkan perekaman layar untuk Safari di System Settings → Privacy & Security → Screen & System Audio Recording.');
             }
-        } finally { requesting.current = false; if (mounted.current) setBusy(false); }
-    }, [stop]);
+        } finally {
+            if (next && !adopted) {
+                if (stream.current === next) releaseStream();
+                else {
+                    next.getTracks().forEach(track => track.stop());
+                    if (preview) { preview.pause(); preview.srcObject = null; }
+                }
+            }
+            if (isCurrentRequest()) { requesting.current = false; setBusy(false); }
+        }
+    }, [completed, releaseStream, stop]);
 
     const capture = useCallback(async (): Promise<Blob | null> => {
         if (!sharingRef.current || !video.current || count.current >= SCREENSHOT_MAX_COUNT || Date.now() - lastCapture.current < SCREENSHOT_COOLDOWN_MS) return null;

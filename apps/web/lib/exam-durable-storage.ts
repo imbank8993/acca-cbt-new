@@ -349,14 +349,33 @@ async function idbReadSecurityEvents(attemptId: string): Promise<QueuedSecurityE
     });
 }
 
-async function idbDeleteSecurityEvent(id: string): Promise<void> {
+function canRemoveSecurityEvent(event: QueuedSecurityEvent, expected?: Pick<QueuedSecurityEvent, 'screenshotBase64'>): boolean {
+    // A text-only mirror may be removed after its image was acknowledged, but
+    // never discard an image attached while an older descriptor was in flight.
+    return !expected || !event.screenshotBase64 || event.screenshotBase64 === expected.screenshotBase64;
+}
+
+async function idbDeleteSecurityEvent(id: string, expected?: Pick<QueuedSecurityEvent, 'screenshotBase64'>): Promise<void> {
     const db = await openDatabase();
     return new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(SECURITY_EVENT_STORE, 'readwrite');
-        const request = transaction.objectStore(SECURITY_EVENT_STORE).delete(id);
-        request.onerror = () => reject(request.error);
+        const store = transaction.objectStore(SECURITY_EVENT_STORE);
+        if (expected) {
+            const request = store.get(id);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                const event = request.result as QueuedSecurityEvent | undefined;
+                if (!event || !canRemoveSecurityEvent(event, expected)) return;
+                const removal = store.delete(id);
+                removal.onerror = () => reject(removal.error);
+            };
+        } else {
+            const request = store.delete(id);
+            request.onerror = () => reject(request.error);
+        }
         transaction.oncomplete = () => resolve();
         transaction.onabort = () => reject(transaction.error || new Error('Antrean keamanan gagal dihapus'));
+        transaction.onerror = () => reject(transaction.error || new Error('Antrean keamanan gagal dihapus'));
     });
 }
 
@@ -418,9 +437,10 @@ export async function readSecurityEvents(attemptId: string): Promise<QueuedSecur
     }
 }
 
-export async function removeSecurityEvent(attemptId: string, id: string): Promise<void> {
-    try { await idbDeleteSecurityEvent(id); } catch { /* fallback tetap dibersihkan */ }
-    writeLegacySecurityQueue(attemptId, readLegacySecurityQueue(attemptId).filter(event => event.id !== id));
+export async function removeSecurityEvent(attemptId: string, id: string, expectedEvent?: Pick<QueuedSecurityEvent, 'screenshotBase64'>): Promise<void> {
+    try { await idbDeleteSecurityEvent(id, expectedEvent); } catch { /* fallback tetap dibersihkan */ }
+    writeLegacySecurityQueue(attemptId, readLegacySecurityQueue(attemptId)
+        .filter(event => event.id !== id || !canRemoveSecurityEvent(event, expectedEvent)));
 }
 
 async function withStore<T>(

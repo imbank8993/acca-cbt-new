@@ -1,6 +1,7 @@
 "use client";
 import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { getStudentResultsResult,type StudentResult } from '@/lib/api/students';
+import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
@@ -37,6 +38,21 @@ export default function StudentResultsPage() {
         const timer = window.setTimeout(() => void loadResults(), 0);
         return () => window.clearTimeout(timer);
     }, [loadResults]);
+
+    useEffect(() => {
+        const retryEvidence = () => {
+            for (const attemptId of new Set(results.map(result => result.id))) {
+                void retryExamEvidence(attemptId);
+            }
+        };
+        retryEvidence();
+        window.addEventListener('online', retryEvidence);
+        const timer = window.setInterval(retryEvidence, 15_000);
+        return () => {
+            window.removeEventListener('online', retryEvidence);
+            window.clearInterval(timer);
+        };
+    }, [results]);
 
     return (
         <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">

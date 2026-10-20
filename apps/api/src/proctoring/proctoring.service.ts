@@ -1,5 +1,8 @@
-import { MONITORING_EVENTS, validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
+import { validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
 import { examDeadline } from '../common/exam-deadline';
+import { hasCommittedSubmitIntent } from '../common/submission-commitment';
+import { STUDENT_SECURITY_EVENTS, securityEventCounters } from '../common/student-security-events';
+export { STUDENT_SECURITY_EVENTS } from '../common/student-security-events';
 import {
     BadRequestException,
     ForbiddenException,
@@ -11,34 +14,6 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { GradingService } from '../grading/grading.service';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
-
-/**
- * Event yang TIDAK dihitung sebagai peringatan.
- *
- * `tab_close` sengaja dikecualikan: ia dicatat diam-diam saat halaman ujian
- * dibuka kembali (tab sempat tertutup, browser crash, jaringan putus) TANPA
- * modal peringatan ke siswa. Bila ikut dihitung, siswa yang browsernya sempat
- * tertutup dua kali sudah membawa dua "pelanggaran" tak terlihat — satu
- * pelanggaran nyata langsung memicu terminasi. Event-nya tetap ditulis ke log
- * sehingga proktor tetap melihat kolomnya di monitoring.
- */
-const NON_WARNING_EVENTS = [
-    ...MONITORING_EVENTS,
-    'RESET_BY_PROCTOR',
-    'MAKEUP_EXAM_STARTED',
-    'FORCE_TERMINATED',
-    'DEVICE_SWITCH_BLOCKED',
-    'LATE_ANSWER_SYNC',
-    'tab_close',
-    'focus_interruption',
-];
-
-/** Klien mengirim 'tab_switch' dan 'window_blur'; 'blur' adalah nilai warisan. */
-const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
-export const STUDENT_SECURITY_EVENTS = [
-    'SCREEN_SHARE_STOPPED', ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
-    'copy_paste_attempt', 'right_click_attempt', 'tab_close', 'focus_interruption',
-];
 
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
@@ -71,144 +46,118 @@ export class ProctoringService {
         if (!STUDENT_SECURITY_EVENTS.includes(eventType)) {
             throw new BadRequestException('Jenis event siswa tidak diizinkan.');
         }
-        const { data: attempt } = await this.db
-            .from('cbt_exam_attempts')
-            .select('user_id, status, exam_id, warning_count')
-            .eq('id', attemptId)
-            .maybeSingle();
-
-        if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
-        const row = attempt as {
-            user_id: string;
-            status: string;
-            exam_id: string;
-            warning_count: number | null;
-        };
-
-        if (row.user_id !== user.id) {
-            throw new ForbiddenException('Tidak diizinkan.');
-        }
-        let duplicate = false;
-        if (clientEventId) {
-            const { data: existing } = await this.db
-                .from('cbt_attempt_security_logs')
-                .select('id')
-                .eq('attempt_id', attemptId)
-                .contains('metadata', { client_event_id: clientEventId })
+        const result = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: attempt } = await db
+                .from('cbt_exam_attempts')
+                .select('user_id, status, exam_id, warning_count, metadata')
+                .eq('id', attemptId)
                 .maybeSingle();
-            duplicate = Boolean(existing);
-        }
 
-        const { data: exam } = await this.db
-            .from('cbt_exams')
-            .select('metadata')
-            .eq('id', row.exam_id)
-            .maybeSingle();
-        const examMetadata = (exam as { metadata?: Record<string, unknown> } | null)?.metadata || {};
-        const safeMode = examMetadata.is_safe_mode !== false;
-        const configuredLimit = examMetadata.max_violations;
-        const maxViolations = !safeMode || configuredLimit === null
-            ? null
-            : (Number.isInteger(configuredLimit) && Number(configuredLimit) >= 1
-                ? Number(configuredLimit)
-                : 3);
+            if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            const row = attempt as {
+                user_id: string;
+                status: string;
+                exam_id: string;
+                warning_count: number | null;
+                metadata?: Record<string, unknown> | null;
+            };
 
-        // Respons terminasi bisa hilang ketika jaringan putus tepat setelah
-        // server menutup attempt. Retry event yang sama harus tetap berhasil
-        // agar antrean perangkat dapat dibersihkan secara idempoten.
-        if (row.status !== 'in_progress') {
-            if (duplicate) {
-                return {
-                    warningCount: row.warning_count || 0,
-                    duplicate: true,
-                    maxViolations,
-                    terminated: row.status === 'auto_submitted',
-                };
+            if (row.user_id !== user.id) {
+                throw new ForbiddenException('Tidak diizinkan.');
             }
-            throw new BadRequestException('Ujian tidak sedang berlangsung.');
-        }
-
-        if (!duplicate) {
-            const { error: insertError } = await this.db
-                .from('cbt_attempt_security_logs')
-                .insert({ attempt_id: attemptId, event_type: eventType,
-                    metadata: {
-                        ...metadata,
-                        ...(clientEventId ? { client_event_id: clientEventId } : {}),
-                        actor_id: user.id,
-                        source: 'student',
-                    } });
-            if (insertError) {
-                const { data: winner } = clientEventId
-                    ? await this.db.from('cbt_attempt_security_logs')
-                        .select('id')
-                        .eq('attempt_id', attemptId)
-                        .contains('metadata', { client_event_id: clientEventId })
-                        .maybeSingle()
-                    : { data: null };
-                if (!winner) throw new BadRequestException('Log pengawasan belum dapat disimpan.');
-                duplicate = true;
+            let duplicate = false;
+            if (clientEventId) {
+                const { data: existing } = await db
+                    .from('cbt_attempt_security_logs')
+                    .select('id, event_type, metadata')
+                    .eq('attempt_id', attemptId)
+                    .contains('metadata', { client_event_id: clientEventId })
+                    .maybeSingle();
+                if (existing && (existing.event_type !== eventType || existing.metadata?.source !== 'student' ||
+                    existing.metadata?.actor_id !== user.id)) throw new BadRequestException('ID catatan pengawasan tidak cocok.');
+                duplicate = Boolean(existing);
             }
+
+            const { data: exam } = await db
+                .from('cbt_exams')
+                .select('metadata')
+                .eq('id', row.exam_id)
+                .maybeSingle();
+            const examMetadata = (exam as { metadata?: Record<string, unknown> } | null)?.metadata || {};
+            const safeMode = examMetadata.is_safe_mode !== false;
+            const configuredLimit = examMetadata.max_violations;
+            const maxViolations = !safeMode || configuredLimit === null
+                ? null
+                : (Number.isInteger(configuredLimit) && Number(configuredLimit) >= 1
+                    ? Number(configuredLimit)
+                    : 3);
+
+            // Respons terminasi bisa hilang ketika jaringan putus tepat setelah
+            // server menutup attempt. Retry event yang sama harus tetap berhasil
+            // agar antrean perangkat dapat dibersihkan secara idempoten.
+            if (row.status !== 'in_progress') {
+                if (duplicate) {
+                    return {
+                        warningCount: row.warning_count || 0,
+                        duplicate: true,
+                        maxViolations,
+                        terminated: row.status === 'auto_submitted',
+                        shouldTerminate: false,
+                    };
+                }
+                throw new BadRequestException('Ujian tidak sedang berlangsung.');
+            }
+
+            if (!duplicate) {
+                const { error: insertError } = await db
+                    .from('cbt_attempt_security_logs')
+                    .insert({ attempt_id: attemptId, event_type: eventType,
+                        metadata: {
+                            ...metadata,
+                            ...(clientEventId ? { client_event_id: clientEventId } : {}),
+                            actor_id: user.id,
+                            source: 'student',
+                        } });
+                if (insertError) {
+                    const { data: winner } = clientEventId
+                        ? await db.from('cbt_attempt_security_logs')
+                            .select('id')
+                            .eq('attempt_id', attemptId)
+                            .contains('metadata', { client_event_id: clientEventId })
+                            .maybeSingle()
+                        : { data: null };
+                    if (!winner) throw new BadRequestException('Log pengawasan belum dapat disimpan.');
+                    duplicate = true;
+                }
+            }
+
+            // Penghitung diturunkan dengan MENGHITUNG baris log, bukan dengan
+            // baca-ubah-tulis. Increment kehilangan kenaikan yang bersamaan ketika
+            // beberapa event terpicu berdekatan.
+            const updates = await securityEventCounters(db, attemptId);
+            const { error: updateError } = await db
+                .from('cbt_exam_attempts').update(updates).eq('id', attemptId).eq('status', 'in_progress');
+            if (updateError) throw new BadRequestException('Penghitung pengawasan belum dapat diperbarui.');
+
+            const authoritativeCount = updates.warning_count;
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const mustTerminate = maxViolations !== null && authoritativeCount >= maxViolations &&
+                !hasCommittedSubmitIntent(row.metadata, new Date(clock.now));
+            return {
+                warningCount: authoritativeCount,
+                duplicate,
+                maxViolations,
+                terminated: false,
+                shouldTerminate: mustTerminate,
+            };
+        });
+        const { shouldTerminate, ...response } = result;
+        if (shouldTerminate) {
+            response.terminated = await this.forceTerminate(user, attemptId,
+                `Batas ${result.maxViolations} pelanggaran tercapai (${result.warningCount}); event terakhir: ${eventType}.`, true);
         }
-
-        // Penghitung diturunkan dengan MENGHITUNG baris log, bukan dengan
-        // baca-ubah-tulis. Increment kehilangan kenaikan yang bersamaan ketika
-        // beberapa event terpicu berdekatan.
-        const { data: lastReset } = await this.db
-            .from('cbt_attempt_security_logs')
-            .select('created_at')
-            .eq('attempt_id', attemptId)
-            .in('event_type', ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        const since = (lastReset as { created_at?: string } | null)?.created_at;
-
-        let warningQuery = this.db
-            .from('cbt_attempt_security_logs')
-            .select('*', { count: 'exact', head: true })
-            .eq('attempt_id', attemptId)
-            .not('event_type', 'in', NON_WARNING_EVENTS);
-        if (since) warningQuery = warningQuery.gt('created_at', since);
-        const { count: warningCount } = await warningQuery;
-
-        const updates: Record<string, unknown> = { warning_count: warningCount || 0 };
-
-        if (TAB_SWITCH_EVENTS.includes(eventType)) {
-            let tabQuery = this.db
-                .from('cbt_attempt_security_logs')
-                .select('*', { count: 'exact', head: true })
-                .eq('attempt_id', attemptId)
-                .in('event_type', TAB_SWITCH_EVENTS);
-            if (since) tabQuery = tabQuery.gt('created_at', since);
-            const { count: tabCount } = await tabQuery;
-            updates.tab_switch_count = tabCount || 0;
-        }
-
-        const { error: updateError } = await this.db
-            .from('cbt_exam_attempts').update(updates).eq('id', attemptId);
-        if (updateError) throw new BadRequestException('Penghitung pengawasan belum dapat diperbarui.');
-
-        const authoritativeCount = (updates.warning_count as number) || 0;
-        const mustTerminate = maxViolations !== null && authoritativeCount >= maxViolations;
-
-        // Batas ditegakkan di server. Klien tetap menampilkan peringatan, tetapi
-        // tidak dapat menghindari penutupan hanya dengan memodifikasi JavaScript.
-        if (mustTerminate) {
-            await this.forceTerminate(
-                user,
-                attemptId,
-                `Batas ${maxViolations} pelanggaran tercapai (${authoritativeCount}); event terakhir: ${eventType}.`,
-            );
-        }
-
-        return {
-            warningCount: authoritativeCount,
-            duplicate,
-            maxViolations,
-            terminated: mustTerminate,
-        };
+        return response;
     }
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
@@ -600,7 +549,7 @@ export class ProctoringService {
      * melewati batas pelanggaran, dan Proktor/Admin yang menghentikan siswa.
      * Keduanya diizinkan; siswa menghentikan pengerjaan ORANG LAIN tidak.
      */
-    async forceTerminate(user: AuthUser, attemptId: string, reason: string) {
+    async forceTerminate(user: AuthUser, attemptId: string, reason: string, respectSubmitIntent = false): Promise<boolean> {
         const { data: target } = await this.db
             .from('cbt_exam_attempts')
             .select('user_id, organization_id')
@@ -620,6 +569,12 @@ export class ProctoringService {
                 'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
                 attemptId,
             );
+            if (respectSubmitIntent) {
+                const { data: current, error: readError } = await db.from('cbt_exam_attempts')
+                    .select('metadata').eq('id', attemptId).maybeSingle();
+                if (readError) throw new BadRequestException('Status pengumpulan belum dapat diperiksa.');
+                if (hasCommittedSubmitIntent(current?.metadata, await this.databaseNow(db))) return null;
+            }
             const { data: updated, error } = await db
                 .from('cbt_exam_attempts')
                 .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString() })
@@ -638,7 +593,7 @@ export class ProctoringService {
             if (logError) throw new BadRequestException('Jejak terminasi gagal disimpan.');
             return updated;
         });
-        if (!closed) return;
+        if (!closed) return false;
 
         // Jawaban yang sudah tersimpan tetap dinilai. Tanpa ini attempt yang
         // dihentikan tidak pernah punya skor: total_score kosong dan seluruh
@@ -667,6 +622,6 @@ export class ProctoringService {
         //
         // Penguncian yang sebenarnya ada di tingkat attempt: statusnya sudah
         // auto_submitted, sehingga ujian tidak bisa dilanjutkan.
-
+        return true;
     }
 }

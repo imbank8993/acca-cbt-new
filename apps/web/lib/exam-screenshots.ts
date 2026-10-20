@@ -21,14 +21,23 @@ export async function sendScreenshotWithRetry<T extends { success: boolean; retr
 /** Keep small text readable, reducing dimensions only when quality alone is insufficient. */
 export async function encodeScreenFrame(video: HTMLVideoElement): Promise<Blob> {
     if (!video.videoWidth || !video.videoHeight) throw new Error('Gambar layar belum tersedia.');
+    // Freeze the frame before the first async encoding step. Finishing the exam
+    // can stop/detach the live video while smaller encodings are still pending.
+    const frame = document.createElement('canvas');
+    const frameScale = Math.min(1, 1600 / video.videoWidth);
+    frame.width = Math.max(1, Math.round(video.videoWidth * frameScale));
+    frame.height = Math.max(1, Math.round(video.videoHeight * frameScale));
+    const frameContext = frame.getContext('2d');
+    if (!frameContext) throw new Error('Browser tidak mendukung pengambilan gambar layar.');
+    frameContext.drawImage(video, 0, 0, frame.width, frame.height);
     const canvas = document.createElement('canvas');
     for (const width of [1600, 1280, 1024]) {
-        const scale = Math.min(1, width / video.videoWidth);
-        canvas.width = Math.round(video.videoWidth * scale);
-        canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+        const scale = Math.min(1, width / frame.width);
+        canvas.width = Math.max(1, Math.round(frame.width * scale));
+        canvas.height = Math.max(1, Math.round(frame.height * scale));
         const context = canvas.getContext('2d');
         if (!context) throw new Error('Browser tidak mendukung pengambilan gambar layar.');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        context.drawImage(frame, 0, 0, canvas.width, canvas.height);
         for (const quality of [0.8, 0.65, 0.5]) {
             for (const mime of ['image/webp', 'image/jpeg']) {
                 const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mime, quality));

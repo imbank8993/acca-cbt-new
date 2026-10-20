@@ -27,6 +27,14 @@ export interface AnswerPayload {
     is_doubtful?: boolean;
 }
 
+/** Small event manifest; image delivery is kept separate from answer submission. */
+export interface SubmissionSecurityEvent {
+    id: string;
+    eventType: string;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+}
+
 // ── Kelas ────────────────────────────────────────────────────────────────────
 
 export interface StudentClass {
@@ -325,6 +333,7 @@ export function getExamSubmissionStatus(attemptId: string) {
 export async function beginSubmitAction(attemptId: string, submission?: {
     answers: Record<string, string>; answerRevisions?: Record<string, number>;
     assignmentData?: Record<string, unknown>; frozenSubmission?: { startedAt: string; personalEndTime: string };
+    securityEvents?: SubmissionSecurityEvent[];
 }) {
     return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
@@ -363,12 +372,13 @@ export async function submitExamAction(
     attemptId?: string,
     answerRevisions?: Record<string, number>,
     frozenSubmission?: { startedAt: string; personalEndTime: string },
+    securityEvents?: SubmissionSecurityEvent[],
 ) {
     const finalAnswers = { ...studentAnswers };
     const finalRevisions = answerRevisions ? { ...answerRevisions } : undefined;
     // Capture the exact request before waiting for another delivery's lock.
     const payload = JSON.parse(JSON.stringify({ answers: finalAnswers, answerRevisions: finalRevisions,
-        assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission }));
+        assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission, securityEvents }));
     return withExamSubmissionLock(attemptId || examId, async () => {
         if (attemptId) {
             const intent = await beginSubmitAction(attemptId, payload);

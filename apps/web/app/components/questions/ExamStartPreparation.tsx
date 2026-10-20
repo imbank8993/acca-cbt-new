@@ -100,10 +100,11 @@ export function ExamStartPreparation({ exam, onConfirm, onBack, screenShare }: {
                 {exam.metadata?.screenshot_enabled === true && (
                     <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         <p className="font-semibold">Bagikan Seluruh Layar untuk ujian ini</p>
+                        <p className="mt-1 text-xs">Berbagi layar wajib aktif sampai ujian selesai dan akan berhenti otomatis setelah pengumpulan dikonfirmasi. Jika terhenti, pengerjaan dikunci sementara dan waktu tetap berjalan.</p>
                         <p className="mt-1 text-xs">Screenshot hanya disimpan saat ada indikasi pelanggaran. Maksimal 10 gambar, masa simpan 7 hari, hanya dapat dibaca pengawas berwenang.</p>
                         {screenShare?.supported === false && <p role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-100 p-3 text-xs text-amber-900">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan laptop atau komputer dengan browser desktop, atau hubungi pengawas sebelum ujian dimulai. Waktu ujian belum berjalan.</p>}
                         {screenShare?.surfaceUnverified && <p role="status" className="mt-3 rounded-lg border border-amber-300 bg-amber-100 p-3 text-xs text-amber-900">Browser tidak memberi tahu aplikasi jenis layar yang dipilih. Pastikan Anda memilih “Seluruh Layar / Entire Screen” pada dialog berbagi layar.</p>}
-                        <button type="button" disabled={screenShare?.busy || screenShare?.supported === false} onClick={() => void screenShare?.request()}
+                        <button type="button" disabled={screenShare?.sharing || screenShare?.busy || screenShare?.supported === false} onClick={() => void screenShare?.request()}
                             className="mt-3 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-50">
                             {screenShare?.sharing ? 'Seluruh Layar sudah dibagikan' : screenShare?.busy ? 'Meminta izin...' : 'Bagikan Seluruh Layar'}
                         </button>

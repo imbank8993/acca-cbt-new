@@ -237,6 +237,7 @@ function assignmentHandlers(api) {
     const state = {};
     const sandbox = {
         useCallback: fn => fn, ownsEditorLockRef: { current: true },
+        exam: {}, screenSharingRef: { current: true },
         assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
         pendingAssignmentRef: { current: undefined }, attemptRef: { current: { id: 'a' } },
         frozenSnapshotRef: { current: null }, submitInFlightRef: { current: false },
@@ -368,6 +369,7 @@ test('the exam page stops before sending or deleting data when freezing detects 
     const snapshot = { answers: { q: 'newer' }, revisions: { q: 2 }, doubtfulAnswers: [] };
     const context = {
         useCallback: fn => fn, user: { id: 'student' }, examId: 'exam', exam: {}, attempt: { id: 'a' },
+        screenSharingRef: { current: true }, submissionOnly: false,
         ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
         frozenSnapshotRef: { current: snapshot }, attemptRef: { current: { id: 'a' } },
         pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
@@ -440,6 +442,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
         const sandbox = {
             useCallback: fn => fn, useEffect: fn => fn(),
             user: { id: 'student' }, examId: 'exam', exam: { exam_type: 'daily' }, attempt,
+            screenSharingRef: { current: true }, submissionOnly: false,
             loading: false, accessDenied: false, isCompleted: false, submitting: false, timeLeft: 0, isOffline: scenario === 'offline',
             ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
             frozenSnapshotRef: { current: null }, attemptRef: { current: attempt },
@@ -447,7 +450,9 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
             assignmentRef: { current: { fileUrls: [], textSubmission: '' } }, assignmentRevisionRef: { current: 0 },
             pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
             autoSubmittedRef: { current: false }, autoRetryTimerRef: { current: null }, autoRetryCountRef: { current: 0 }, offlineRecoveryRef: { current: false },
+            pendingSecurityEventsRef: { current: new Map() }, submissionSucceededRef: { current: false },
             freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
+            readSecurityEvents: async () => [], retryExamEvidence: async () => {},
             setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; },
             setSubmissionIssue: value => { state.issue = value; },
             setAccessDenied: value => { state.denied = value; }, setAccessError: value => { state.error = value; },
@@ -466,6 +471,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
                 await api.removeExamSnapshot(id);
             },
             removeExamSubmissionRegistration: async () => {}, removeExamRecoverySession: async () => {}, removeExamOfflineShell: async () => {},
+            localStorage: { removeItem: () => {} },
             setIsCompleted: value => { state.completed = value; }, router: { push: () => {} },
             toast: { success: () => {}, error: () => {}, warning: () => {} }, scheduleAutoRetry: () => { state.retries++; },
         };

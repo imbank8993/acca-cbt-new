@@ -213,6 +213,7 @@ export class StudentsController {
             dto.deviceId,
             dto.answerRevisions,
             dto.frozenSubmission,
+            dto.securityEvents,
         );
     }
 }
