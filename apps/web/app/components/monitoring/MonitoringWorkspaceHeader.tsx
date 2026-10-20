@@ -52,6 +52,9 @@ export function MonitoringWorkspaceHeader({
         { label: 'Selesai', value: selectedAttempts.filter(attempt => ['submitted', 'auto_submitted'].includes(attempt.status)).length },
         { label: 'Perlu perhatian', value: activeMonitoringRows(selectedAttempts, 'attention', elapsed).length, attention: true },
     ];
+    const resettableCount = selectedAttempts.filter(attempt =>
+        attempt.canReset === true && ['submitted', 'auto_submitted'].includes(attempt.status)
+    ).length;
 
     return (
         <div className="monitoring-workspace">
@@ -80,11 +83,17 @@ export function MonitoringWorkspaceHeader({
                 {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
             </header>
             {value && <>
-                <dl className="monitoring-summary" aria-label="Ringkasan peserta ujian">
-                    {stats.map(stat => <div key={stat.label} className={stat.attention && stat.value > 0 ? 'monitoring-summary__attention' : undefined}>
-                        <dt>{stat.label}</dt><dd>{stat.value}</dd>
-                    </div>)}
-                </dl>
+                {activeTab === 'reset' ? (
+                    <div className="monitoring-reset-summary" aria-label={`${resettableCount} siswa dapat direset`}>
+                        <strong>{resettableCount}</strong><span>Dapat direset</span>
+                    </div>
+                ) : (
+                    <dl className="monitoring-summary" aria-label="Ringkasan peserta ujian">
+                        {stats.map(stat => <div key={stat.label} className={stat.attention && stat.value > 0 ? 'monitoring-summary__attention' : undefined}>
+                            <dt>{stat.label}</dt><dd>{stat.value}</dd>
+                        </div>)}
+                    </dl>
+                )}
                 <nav className="monitoring-workspace__tabs" aria-label="Bagian monitoring">
                     {tabs.map(tab => <button type="button" key={tab.id}
                         aria-pressed={activeTab === tab.id} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}

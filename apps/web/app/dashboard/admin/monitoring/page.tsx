@@ -94,6 +94,7 @@ function MonitoringContent() {
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [resetStatus, setResetStatus] = useState('all');
     const [onlyAttention, setOnlyAttention] = useState(false);
     const [analysisPage, setAnalysisPage] = useState(1);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -358,7 +359,7 @@ function MonitoringContent() {
             return filterKelas.some((k: string) => studentClasses.includes(k));
         })
         .filter((a) => {
-            if (activeTab === 'live' || filterStatus === 'all') return true;
+            if (activeTab === 'live' || activeTab === 'reset' || filterStatus === 'all') return true;
             if (filterStatus === 'in_progress') return a.status === 'in_progress';
             if (filterStatus === 'submitted') return a.status === 'submitted';
             if (filterStatus === 'auto_submitted') return a.status === 'auto_submitted';
@@ -436,8 +437,10 @@ function MonitoringContent() {
                 {['live', 'results', 'reset'].includes(activeTab) && <MonitoringParticipantFilters
                     search={searchName} onSearchChange={setSearchName}
                     classOptions={kelasOptions} selectedClasses={filterKelas} onClassesChange={setFilterKelas}
-                    status={filterStatus} onStatusChange={activeTab !== 'live' ? setFilterStatus : undefined}
+                    status={activeTab === 'reset' ? resetStatus : filterStatus}
+                    onStatusChange={activeTab === 'reset' ? setResetStatus : activeTab === 'results' ? setFilterStatus : undefined}
                     includeActiveStatus={false}
+                    resetOnly={activeTab === 'reset'}
                     attentionOnly={onlyAttention} onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
                     actions={activeTab === 'results' ? <>
                         {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
@@ -450,7 +453,7 @@ function MonitoringContent() {
             {selectedExamId && activeTab === 'reset' && <>
                 {canResetParticipants ? <BulkResetPanel
                     key={selectedExamId}
-                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId && (resetStatus === 'all' || attempt.status === resetStatus))}
                     examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
                     onRefresh={handleRefresh}
                 /> : <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">Reset memerlukan akses admin atau pembuat ujian.</p>}

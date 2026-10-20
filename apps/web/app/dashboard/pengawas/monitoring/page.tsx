@@ -50,6 +50,7 @@ function MonitoringContent() {
     const [attentionOnly, setAttentionOnly] = useState(false);
     const [resettingId] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState('all');
+    const [resetStatus, setResetStatus] = useState('all');
 
     const loadData = useCallback(async (isSilent = false) => {
         if (!isSilent) setIsRefreshing(true);
@@ -181,8 +182,9 @@ function MonitoringContent() {
                         classOptions={availableClasses}
                         selectedClasses={filterKelas}
                         onClassesChange={setFilterKelas}
-                        status={activeTab === 'results' ? statusFilter : undefined}
-                        onStatusChange={activeTab === 'results' ? setStatusFilter : undefined}
+                        status={activeTab === 'reset' ? resetStatus : activeTab === 'results' ? statusFilter : undefined}
+                        onStatusChange={activeTab === 'reset' ? setResetStatus : activeTab === 'results' ? setStatusFilter : undefined}
+                        resetOnly={activeTab === 'reset'}
                         attentionOnly={activeTab === 'live' ? attentionOnly : undefined}
                         onAttentionChange={activeTab === 'live' ? setAttentionOnly : undefined}
                     />
@@ -345,7 +347,7 @@ function MonitoringContent() {
             {activeTab === 'reset' && <div className="space-y-4">
                 {selectedExamId && canResetParticipants && (
                     <BulkResetPanel key={selectedExamId}
-                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId && (resetStatus === 'all' || attempt.status === resetStatus))}
                         examDuration={exams.find(exam => exam.id === selectedExamId)?.duration_minutes}
                         onRefresh={() => void loadData(false)}
                     />

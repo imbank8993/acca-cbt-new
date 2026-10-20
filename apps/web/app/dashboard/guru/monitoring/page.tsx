@@ -75,6 +75,7 @@ function MonitoringContent() {
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
     const [filterStatus, setFilterStatus] = useState('all');
+    const [resetStatus, setResetStatus] = useState('all');
     const [onlyAttention, setOnlyAttention] = useState(false);
     const [analysisPage, setAnalysisPage] = useState(1);
 
@@ -342,9 +343,10 @@ function MonitoringContent() {
                         classOptions={kelasOptions}
                         selectedClasses={filterKelas}
                         onClassesChange={setFilterKelas}
-                        status={activeTab === 'results' ? filterStatus : undefined}
+                        status={activeTab === 'reset' ? resetStatus : activeTab === 'results' ? filterStatus : undefined}
                         includeActiveStatus={false}
-                        onStatusChange={activeTab === 'results' ? setFilterStatus : undefined}
+                        resetOnly={activeTab === 'reset'}
+                        onStatusChange={activeTab === 'reset' ? setResetStatus : activeTab === 'results' ? setFilterStatus : undefined}
                         attentionOnly={activeTab === 'live' ? onlyAttention : undefined}
                         onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
                         actions={activeTab === 'results' ? <>
@@ -395,7 +397,7 @@ function MonitoringContent() {
                             <motion.div key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                 {canResetParticipants && (
                                     <BulkResetPanel key={selectedExamId}
-                                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                                        attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId && (resetStatus === 'all' || attempt.status === resetStatus))}
                                         examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
                                         onRefresh={handleRefresh}
                                     />

@@ -14,6 +14,7 @@ interface MonitoringParticipantFiltersProps {
     status?: string;
     onStatusChange?: (value: string) => void;
     includeActiveStatus?: boolean;
+    resetOnly?: boolean;
     attentionOnly?: boolean;
     onAttentionChange?: (value: boolean) => void;
     actions?: ReactNode;
@@ -21,7 +22,7 @@ interface MonitoringParticipantFiltersProps {
 
 export function MonitoringParticipantFilters({
     search, onSearchChange, classOptions, selectedClasses, onClassesChange,
-    status = 'all', onStatusChange, includeActiveStatus = true, attentionOnly = false, onAttentionChange, actions,
+    status = 'all', onStatusChange, includeActiveStatus = true, resetOnly = false, attentionOnly = false, onAttentionChange, actions,
 }: MonitoringParticipantFiltersProps) {
     const searchId = useId();
     return (
@@ -43,10 +44,10 @@ export function MonitoringParticipantFilters({
                 aria-label="Filter status peserta" className="monitoring-participant-filters__status"
                 options={[
                     { value: 'all', label: 'Semua status' },
-                    ...(includeActiveStatus ? [{ value: 'in_progress', label: 'Mengerjakan' }] : []),
+                    ...(includeActiveStatus && !resetOnly ? [{ value: 'in_progress', label: 'Mengerjakan' }] : []),
                     { value: 'submitted', label: 'Selesai' },
                     { value: 'auto_submitted', label: 'Ditutup otomatis' },
-                    { value: 'belum', label: 'Belum mulai' },
+                    ...(!resetOnly ? [{ value: 'belum', label: 'Belum mulai' }] : []),
                 ]}
             />}
             {onAttentionChange && <button type="button" className="monitoring-attention-filter"
