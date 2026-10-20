@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
-import { monitoringExamDetails } from '@/lib/monitoring-exams';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -47,7 +46,6 @@ export function MonitoringWorkspaceHeader({
         selected?.start_time && !error ? formatSchoolDateTime(selected.start_time, timeZone) : '',
         typeof duration === 'number' && duration > 0 ? `${duration} menit` : '',
     ].filter(Boolean).join(' · ');
-    const details = selected ? monitoringExamDetails(selected) : '';
     const stats = [
         { label: 'Total peserta', value: selectedAttempts.length },
         { label: 'Mengerjakan', value: selectedAttempts.filter(attempt => attempt.status === 'in_progress').length },
@@ -58,10 +56,6 @@ export function MonitoringWorkspaceHeader({
     return (
         <div className="monitoring-workspace">
             <header className="monitoring-workspace__heading">
-                <div className="monitoring-workspace__title">
-                    <h1>Monitoring Ujian</h1>
-                    {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
-                </div>
                 <div className="monitoring-workspace__picker">
                     <MonitoringExamPicker
                         exams={exams}
@@ -82,8 +76,8 @@ export function MonitoringWorkspaceHeader({
                             </button>
                         }
                     />
-                    {details && <p className="monitoring-workspace__exam-details" title={details}>{details}</p>}
                 </div>
+                {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
             </header>
             {value && <>
                 <dl className="monitoring-summary" aria-label="Ringkasan peserta ujian">

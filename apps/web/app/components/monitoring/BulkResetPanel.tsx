@@ -22,12 +22,12 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
   const allSelected = eligible.length > 0 && chosen.length === eligible.length;
 
   return (
-    <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+    <section aria-label="Reset massal" className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+      {eligible.length === 0 ? (
+        <p className="text-sm text-slate-500">Belum ada siswa yang dapat direset pada filter ini.</p>
+      ) : <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800">Reset massal</h2>
-          <p className="text-xs text-slate-500">Siswa ditutup otomatis diprioritaskan di atas. Daftar mengikuti filter monitoring.</p>
-        </div>
+        <h2 className="text-sm font-bold text-slate-800">Pilih siswa untuk direset</h2>
         <Button disabled={!chosen.length} onClick={() => {
           completed.current.clear();
           setResult('');
@@ -36,8 +36,7 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
         }}>Reset {chosen.length} siswa terpilih</Button>
       </div>
       <details className="mt-3" open>
-        <summary className="cursor-pointer text-sm font-semibold text-blue-700">Pilih siswa ({eligible.length} tersedia, {chosen.length} terpilih)</summary>
-        {eligible.length > 0 ? <>
+        <summary className="cursor-pointer text-sm font-semibold text-blue-700">{eligible.length} tersedia · {chosen.length} terpilih</summary>
           <label className="my-3 flex items-center gap-2 text-sm">
             <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : eligible.map(a => a.id))} />
             Pilih semua siswa dalam filter
@@ -49,8 +48,8 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
               <span className={a.status === 'auto_submitted' ? 'text-xs font-semibold text-red-700' : 'text-xs text-slate-500'}>{a.status === 'auto_submitted' ? 'Ditutup otomatis · prioritas reset' : 'Selesai'}</span>
             </label>)}
           </div>
-        </> : <p className="mt-3 text-sm text-slate-500">Tidak ada siswa yang dapat direset dalam filter ini.</p>}
       </details>
+      </>}
       {result && <p role="status" className="mt-3 text-sm text-slate-700">{result}</p>}
       <ResetExamModal
         open={batch.length > 0}
