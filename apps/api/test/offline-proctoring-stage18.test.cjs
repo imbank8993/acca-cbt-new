@@ -12,6 +12,7 @@ require('ts-node').register({
 const { fixtureDb } = require('./fixture-db.cjs');
 const { ProctoringService } = require('../src/proctoring/proctoring.service.ts');
 const securityStorage = require('../../web/lib/exam-durable-storage.ts');
+const { activeMonitoringFacts } = require('../../web/lib/active-monitoring.ts');
 
 const user = { id: 'student-1', isPlatformAdmin: false };
 
@@ -111,13 +112,26 @@ test('ANS-07: halaman menunggu konfirmasi server sebelum membersihkan sesi', () 
 });
 
 test('ANS-07: monitoring semua peran menampilkan status koneksi terputus', () => {
-    for (const role of ['admin', 'guru', 'proktor', 'pengawas']) {
+    for (const role of ['admin', 'guru', 'proktor']) {
         const source = fs.readFileSync(
             path.resolve(__dirname, `../../web/app/dashboard/${role}/monitoring/page.tsx`), 'utf8',
         );
-        assert.match(source, /connection_status/);
-        assert.match(source, /Koneksi terputus/i);
+        assert.match(source, /<ActiveParticipantsPanel\b/);
     }
+    const activePanel = fs.readFileSync(
+        path.resolve(__dirname, '../../web/app/components/ActiveParticipantsPanel.tsx'), 'utf8',
+    );
+    assert.match(activePanel, /facts\.connection === 'offline' \? 'Tanpa kontak'/);
+    assert.equal(activeMonitoringFacts({
+        status: 'in_progress', server_now: '2026-10-14T06:00:00Z',
+        last_seen_at: '2026-10-14T05:58:00Z',
+    }).connection, 'offline');
+
+    const pengawasSource = fs.readFileSync(
+        path.resolve(__dirname, '../../web/app/dashboard/pengawas/monitoring/page.tsx'), 'utf8',
+    );
+    assert.match(pengawasSource, /connection_status/);
+    assert.match(pengawasSource, /Koneksi terputus/i);
 
     const migration = fs.readFileSync(
         path.resolve(__dirname, '../../../database/migrations/20260926_02_offline_proctoring.sql'), 'utf8',
