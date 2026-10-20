@@ -1,5 +1,6 @@
 "use client";
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
@@ -92,6 +93,9 @@ function MonitoringContent() {
     useAutoRefresh(() => loadData(true), REFRESH_INTERVAL.monitoring);
 
     const handleExamChange = async (examId: string) => {
+        if (activeTab === 'admin' && !hasMonitoringAdministration(exams.find(exam => exam.id === examId))) {
+            setActiveTab('live');
+        }
         setSelectedExamId(examId);
         setSearchName('');
         setFilterKelas([]);
@@ -166,10 +170,11 @@ function MonitoringContent() {
                     { id: 'answers', label: 'Jawaban' },
                     { id: 'results', label: 'Daftar peserta' },
                     { id: 'incidents', label: 'Insiden' },
-                    { id: 'admin', label: 'Administrasi' },
+                    { id: 'reset', label: 'Reset massal' },
+                    ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'admin', label: 'Administrasi' }] : []),
                 ]}
             >
-                {(activeTab === 'live' || activeTab === 'results' || (activeTab === 'admin' && canResetParticipants)) && (
+                {(activeTab === 'live' || activeTab === 'results' || (activeTab === 'reset' && canResetParticipants)) && (
                     <MonitoringParticipantFilters
                         search={searchName}
                         onSearchChange={setSearchName}
@@ -337,7 +342,7 @@ function MonitoringContent() {
                 </section>
             )}
 
-            {activeTab === 'admin' && <div className="space-y-4">
+            {activeTab === 'reset' && <div className="space-y-4">
                 {selectedExamId && canResetParticipants && (
                     <BulkResetPanel key={selectedExamId}
                         attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
@@ -346,10 +351,11 @@ function MonitoringContent() {
                     />
                 )}
                 {selectedExamId && !canResetParticipants && <p className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">Mode lihat saja: reset hanya tersedia untuk pembuat ujian.</p>}
-                {selectedExam?.metadata?.is_pas_exam === true && (
-                    <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
-                )}
             </div>}
+
+            {activeTab === 'admin' && selectedExam && hasMonitoringAdministration(selectedExam) && (
+                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
+            )}
 
             <ResetExamModal
                 open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}

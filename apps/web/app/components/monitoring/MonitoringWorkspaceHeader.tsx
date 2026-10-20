@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { monitoringExamDetails } from '@/lib/monitoring-exams';
+import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import MonitoringExamPicker from './MonitoringExamPicker';
@@ -66,7 +67,13 @@ export function MonitoringWorkspaceHeader({
                         exams={exams}
                         now={now}
                         value={value}
-                        onChange={id => onExamChange(String(id || ''))}
+                        onChange={id => {
+                            const nextId = String(id || '');
+                            if (['admin', 'administration'].includes(activeTab) && !hasMonitoringAdministration(exams.find(exam => exam.id === nextId))) {
+                                onTabChange('live');
+                            }
+                            onExamChange(nextId);
+                        }}
                         hideContext
                         action={
                             <button type="button" className="monitoring-refresh" onClick={onRefresh}

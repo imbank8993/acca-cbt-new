@@ -878,10 +878,10 @@ export default function ProctorPASDetailPage() {
             {/* ─── ADD SCHEDULE MODAL ─── */}
             <AnimatePresence>
                 {isAddScheduleOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pas-add-schedule-title">
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsAddScheduleOpen(false)} />
                         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative z-10 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
-                            <button onClick={() => setIsAddScheduleOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
+                            <button type="button" aria-label="Tutup penjadwalan" onClick={() => setIsAddScheduleOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors">
                                 <X size={20} />
                             </button>
                             <div className="flex items-center gap-3 mb-1">
@@ -889,7 +889,7 @@ export default function ProctorPASDetailPage() {
                                     <FolderOpen size={20} />
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-slate-800">Jadwalkan Bank Soal ke Folder</h3>
+                                    <h3 id="pas-add-schedule-title" className="text-base font-bold text-slate-800">Jadwalkan Bank Soal ke Folder</h3>
                                     <p className="text-xs text-slate-400">
                                         Folder: <span className="font-semibold text-slate-600">{period.name}</span>
                                     </p>

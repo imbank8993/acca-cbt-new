@@ -13,6 +13,7 @@ import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
+import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
@@ -88,7 +89,7 @@ function MonitoringContent() {
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
-    const [activeTab, setActiveTab] = useState<'live' | 'answers' | 'results' | 'analysis' | 'admin'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'answers' | 'results' | 'analysis' | 'reset' | 'admin'>('live');
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
@@ -428,10 +429,11 @@ function MonitoringContent() {
                     { id: 'answers', label: 'Jawaban' },
                     { id: 'results', label: 'Hasil' },
                     { id: 'analysis', label: 'Analisis' },
-                    { id: 'admin', label: 'Administrasi' },
+                    { id: 'reset', label: 'Reset massal' },
+                    ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'admin', label: 'Administrasi' }] : []),
                 ]}
             >
-                {['live', 'results', 'admin'].includes(activeTab) && <MonitoringParticipantFilters
+                {['live', 'results', 'reset'].includes(activeTab) && <MonitoringParticipantFilters
                     search={searchName} onSearchChange={setSearchName}
                     classOptions={kelasOptions} selectedClasses={filterKelas} onClassesChange={setFilterKelas}
                     status={filterStatus} onStatusChange={activeTab !== 'live' ? setFilterStatus : undefined}
@@ -445,24 +447,25 @@ function MonitoringContent() {
                 />}
             </MonitoringWorkspaceHeader>
 
-            {selectedExamId && activeTab === 'admin' && <>
+            {selectedExamId && activeTab === 'reset' && <>
                 {canResetParticipants ? <BulkResetPanel
                     key={selectedExamId}
                     attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     examDuration={selectedExam?.duration_minutes ?? selectedExam?.duration}
                     onRefresh={handleRefresh}
                 /> : <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">Reset memerlukan akses admin atau pembuat ujian.</p>}
-                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
-                {selectedExam?.metadata?.is_pas_exam === true && <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="admin" />}
             </>}
 
+            {selectedExam && activeTab === 'admin' && hasMonitoringAdministration(selectedExam) && <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="admin" />}
+
             {selectedExamId && activeTab === 'answers' && (
-                <MonitoringHealthPanel key={selectedExamId}
+                <><MonitoringHealthPanel key={selectedExamId}
                     attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
                     onRecover={canResetParticipants ? handleResetAttempt : undefined}
                     onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}
                     defaultExpanded
                 />
+                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}</>
             )}
 
             {selectedExamId && loadError && (

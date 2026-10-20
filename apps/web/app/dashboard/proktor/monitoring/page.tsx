@@ -2,6 +2,7 @@
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
@@ -66,7 +67,7 @@ function MonitoringContent() {
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
-    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'answers' | 'analysis' | 'administration'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration'>('live');
     const [loadError, setLoadError] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
@@ -314,7 +315,10 @@ function MonitoringContent() {
                 exams={exams}
                 now={monitoringNow}
                 value={selectedExamId}
-                onExamChange={setSelectedExamId}
+                onExamChange={id => {
+                    setSelectedExamId(id);
+                    if (activeTab === 'administration' && !hasMonitoringAdministration(exams.find(exam => exam.id === id))) setActiveTab('live');
+                }}
                 onRefresh={handleRefresh}
                 refreshing={isRefreshing}
                 attempts={attempts}
@@ -325,10 +329,11 @@ function MonitoringContent() {
                     { id: 'answers', label: 'Jawaban' },
                     { id: 'results', label: 'Hasil' },
                     { id: 'analysis', label: 'Analisis' },
-                    { id: 'administration', label: 'Administrasi' },
+                    { id: 'reset', label: 'Reset massal' },
+                    ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'administration', label: 'Administrasi' }] : []),
                 ]}
             >
-                {selectedExamId && (activeTab === 'live' || activeTab === 'results' || activeTab === 'administration') && (
+                {selectedExamId && (activeTab === 'live' || activeTab === 'results' || activeTab === 'reset') && (
                     <MonitoringParticipantFilters
                         search={searchName}
                         onSearchChange={setSearchName}
@@ -379,13 +384,14 @@ function MonitoringContent() {
                         {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} />}
 
                         {activeTab === 'answers' && (
-                            <motion.div key="answers" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                            <motion.div key="answers" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                                 <MonitoringHealthPanel key={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onRecover={canResetParticipants ? handleResetAttempt : undefined} defaultExpanded />
+                                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
                             </motion.div>
                         )}
 
-                        {activeTab === 'administration' && (
-                            <motion.div key="administration" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                        {activeTab === 'reset' && (
+                            <motion.div key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                 {canResetParticipants && (
                                     <BulkResetPanel key={selectedExamId}
                                         attempts={filteredAttempts.filter(attempt => attempt.exam_id === selectedExamId)}
@@ -393,13 +399,15 @@ function MonitoringContent() {
                                         onRefresh={handleRefresh}
                                     />
                                 )}
-                                {selectedExam && selectedExam.metadata?.is_pas_exam === true && (
-                                    <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="proktor" />
+                                {!canResetParticipants && (
+                                    <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">Mode lihat saja. Reset peserta hanya tersedia untuk pembuat ujian.</div>
                                 )}
-                                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}
-                                {!canResetParticipants && selectedExam?.metadata?.is_pas_exam !== true && !(selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true) && (
-                                    <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">Tidak ada tindakan administrasi yang tersedia untuk ujian ini.</div>
-                                )}
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'administration' && hasMonitoringAdministration(selectedExam) && selectedExam && (
+                            <motion.div key="administration" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="proktor" />
                             </motion.div>
                         )}
 
