@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, ClipboardCheck, Loader2 } from 'lucide-react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import {
@@ -44,16 +44,16 @@ export function MonitoringPASAdministrationPanel({ exam, attempts, userRole }: M
 
     useEffect(() => {
         let active = true;
-        setLoading(true);
-        setError('');
-        setData(null);
-        if (!periodId) {
-            setError('Periode PAS/AM untuk ujian ini tidak ditemukan.');
-            setLoading(false);
-            return () => { active = false; };
-        }
-
         const load = async () => {
+            setLoading(true);
+            setError('');
+            setData(null);
+            if (!periodId) {
+                setError('Periode PAS/AM untuk ujian ini tidak ditemukan.');
+                setLoading(false);
+                return;
+            }
+
             try {
                 let period: PASPeriod | PASAssignmentSlotSummary['period'];
                 let rooms: EditorData['rooms'];
@@ -118,11 +118,14 @@ export function MonitoringPASAdministrationPanel({ exam, attempts, userRole }: M
             }
         };
 
-        void load();
-        return () => { active = false; };
+        const timer = window.setTimeout(() => void load(), 0);
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+        };
     }, [periodId, scheduleId, userRole, preferredRoomId, preferredRoomSessionId]);
 
-    const title = useMemo(() => exam.exam_type?.toLowerCase() === 'am' ? 'Administrasi Asesmen Madrasah' : 'Administrasi PAS', [exam.exam_type]);
+    const title = exam.exam_type?.toLowerCase() === 'am' ? 'Administrasi AM' : 'Administrasi ASAS';
 
     return (
         <section className="mb-5 rounded-xl border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
@@ -130,7 +133,6 @@ export function MonitoringPASAdministrationPanel({ exam, attempts, userRole }: M
                 <ClipboardCheck size={18} className="text-blue-600" />
                 <div>
                     <h2 className="text-sm font-bold text-slate-800">{title}: Absensi & Berita Acara</h2>
-                    <p className="text-xs text-slate-500">Isi administrasi ujian tanpa meninggalkan halaman monitoring.</p>
                 </div>
             </div>
             {loading ? (
