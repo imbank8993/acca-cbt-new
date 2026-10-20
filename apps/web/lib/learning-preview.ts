@@ -7,7 +7,14 @@ const ICON_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/
 const ICON_FONTS = ['fa-solid-900.woff2', 'fa-regular-400.woff2', 'fa-brands-400.woff2']
     .map(name => `https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/${name}`).join(' ');
 
-const MATH_REGEX = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}[\s\S]*?\\end\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}|\\\(.*?\\\)|\[%.*?%\]|\$(?:[^$\n\\]|\\.)+\$)/g;
+const MATH_REGEX = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}[\s\S]*?\\end\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}|\\\(.*?\\\)|\[%.*?%\]|\$(?:[^$\\]|\\.)+\$)/g;
+const MATH_BOUNDARIES = new Set([
+    'BODY', 'A', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'BUTTON', 'DIV', 'FIGCAPTION', 'FIGURE',
+    'FOOTER', 'FORM', 'HEADER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR',
+    'IMG', 'LABEL', 'LI', 'MAIN', 'OL', 'P', 'SECTION', 'SUMMARY', 'TABLE',
+    'TBODY', 'TD', 'TFOOT', 'TH', 'THEAD', 'TR', 'UL', 'BR',
+]);
+const MATH_EXCLUDED = new Set(['SCRIPT', 'STYLE', 'PRE', 'CODE', 'TEXTAREA', 'NOSCRIPT', 'MATH', 'SVG']);
 
 function getKatexRenderer(): ((text: string, options?: unknown) => string) | null {
     if (typeof (katexModule as Record<string, unknown>)?.renderToString === 'function') {
@@ -24,29 +31,19 @@ function renderLearningMath(doc: Document): void {
     const render = getKatexRenderer();
     if (!render || !doc.body) return;
 
-    const walk = doc.createTreeWalker(doc.body, 4 /* NodeFilter.SHOW_TEXT */);
-    const textNodes: Node[] = [];
-    let n: Node | null;
-    while ((n = walk.nextNode())) {
-        const pn = n.parentNode;
-        if (!pn) continue;
-        const tag = pn.nodeName.toUpperCase();
-        if (['SCRIPT', 'STYLE', 'PRE', 'CODE', 'TEXTAREA'].includes(tag)) continue;
-        textNodes.push(n);
-    }
+    let run: Text[] = [];
+    const flush = () => {
+        if (!run.length) return;
+        const spans = run.map(node => ({ node, value: node.nodeValue || '', start: 0 }));
+        let text = '';
+        for (const span of spans) { span.start = text.length; text += span.value; }
+        run = [];
+        if (!text.includes('$') && !text.includes('\\') && !text.includes('[%')) return;
 
-    textNodes.forEach(node => {
-        const text = node.nodeValue || '';
-        if (!text.trim() || !MATH_REGEX.test(text)) return;
         MATH_REGEX.lastIndex = 0;
-
-        const fragment = doc.createDocumentFragment();
-        let last = 0;
-        let match: RegExpExecArray | null;
-        while ((match = MATH_REGEX.exec(text)) !== null) {
-            if (match.index > last) {
-                fragment.appendChild(doc.createTextNode(text.slice(last, match.index)));
-            }
+        const matches = Array.from(text.matchAll(MATH_REGEX));
+        // Replace from the end so earlier offsets still point to the original text nodes.
+        for (const match of matches.reverse()) {
             const raw = match[0];
             const isBlock = raw.startsWith('$$') || raw.startsWith('\\[') || raw.startsWith('\\begin{');
             let expr = raw;
@@ -63,23 +60,47 @@ function renderLearningMath(doc: Document): void {
                     throwOnError: false,
                     strict: 'ignore',
                 });
+                const start = match.index ?? 0;
+                const end = start + raw.length;
+                const first = spans.find(span => start < span.start + span.value.length);
+                const last = spans.find(span => end <= span.start + span.value.length && end > span.start);
+                if (!first || !last || !first.node.parentNode) continue;
                 const temp = doc.createElement('div');
                 temp.innerHTML = rendered;
-                while (temp.firstChild) {
-                    fragment.appendChild(temp.firstChild);
+                const fragment = doc.createDocumentFragment();
+                while (temp.firstChild) fragment.appendChild(temp.firstChild);
+                const prefix = first.node.nodeValue?.slice(0, start - first.start) || '';
+                const suffix = last.node.nodeValue?.slice(end - last.start) || '';
+                const parent = first.node.parentNode;
+                if (first === last) {
+                    first.node.nodeValue = prefix;
+                    const after = doc.createTextNode(suffix);
+                    parent.insertBefore(after, first.node.nextSibling);
+                    parent.insertBefore(fragment, after);
+                } else {
+                    first.node.nodeValue = prefix;
+                    for (const span of spans.slice(spans.indexOf(first) + 1, spans.indexOf(last))) span.node.nodeValue = '';
+                    last.node.nodeValue = suffix;
+                    parent.insertBefore(fragment, first.node.nextSibling);
                 }
-            } catch {
-                fragment.appendChild(doc.createTextNode(raw));
-            }
-            last = MATH_REGEX.lastIndex;
+            } catch { /* Keep the original expression when it cannot be rendered. */ }
         }
-        if (last < text.length) {
-            fragment.appendChild(doc.createTextNode(text.slice(last)));
-        }
-        if (node.parentNode) {
-            node.parentNode.replaceChild(fragment, node);
-        }
-    });
+    };
+
+    const visit = (node: Node) => {
+        if (node.nodeType === 3) { run.push(node as Text); return; }
+        if (node.nodeType !== 1) return;
+        const tag = node.nodeName.toUpperCase();
+        if (MATH_EXCLUDED.has(tag)) { flush(); return; }
+        const boundary = MATH_BOUNDARIES.has(tag);
+        if (boundary) flush();
+        // Keep inline formatting within a single math run, while block elements
+        // and code form separate runs. Word conversion often splits $...$ into spans.
+        for (const child of Array.from(node.childNodes)) visit(child);
+        if (boundary) flush();
+    };
+    visit(doc.body);
+    flush();
 }
 
 /** Author scripts execute only in an opaque-origin sandbox, never in the app. */
