@@ -13,6 +13,7 @@ import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
+import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -26,7 +27,7 @@ import type {
     ItemAnalysis,
 } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
-import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
@@ -397,11 +398,6 @@ function MonitoringContent() {
         </div>
     );
 
-    const has1PL = attempts.some(a => a.detailed_scores?.irt_1pl !== undefined);
-    const has2PL = attempts.some(a => a.detailed_scores?.irt_2pl !== undefined);
-    const has3PL = attempts.some(a => a.detailed_scores?.irt_3pl !== undefined);
-    // Jumlah kolom tabel Rekap dinamis (7 kolom dasar + kolom IRT yang tampil)
-    const rekapColCount = 8 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
 
     // Tombol Kalkulasi IRT hanya relevan jika sistem penilaian ujian memuat
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
@@ -517,144 +513,7 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                             >
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
-                                        <thead>
-                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="w-12 p-4 text-left font-bold text-slate-600">No.</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Peserta</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Status</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Pelanggaran</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-slate-600">Mulai / Selesai</th>
-                                                <th className="p-4 text-right font-bold text-slate-600">Skor Klasik</th>
-                                                {has1PL && <th className="p-4 text-right font-bold text-slate-600">IRT 1PL</th>}
-                                                {has2PL && <th className="p-4 text-right font-bold text-slate-600">IRT 2PL</th>}
-                                                {has3PL && <th className="p-4 text-right font-bold text-slate-600">IRT 3PL</th>}
-                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-slate-600">Skor IRT</th>}
-                                                <th className="p-4 text-center font-bold text-slate-600">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {finishedAttempts.length === 0 ? (
-                                                <tr><td colSpan={rekapColCount} className="p-12 text-center text-slate-400 font-medium">
-                                                    {attempts.length > 0 ? 'Belum ada peserta yang selesai (atau tidak cocok dengan filter)' : 'Belum ada data'}
-                                                </td></tr>
-                                            ) : (
-                                                finishedAttempts.map((att, index) => {
-                                                    // Kolom Pelanggaran = warning_count (semua jenis), konsisten
-                                                    // dengan kartu Live; sebelumnya menampilkan pindah-tab saja.
-                                                    const violationCount = att.warning_count ?? 0;
-                                                    const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                    let duration = '-';
-                                                    if (att.started_at) {
-                                                        const start = new Date(att.started_at);
-                                                        const end = att.finished_at ? new Date(att.finished_at) : new Date();
-                                                        const diffMs = end.getTime() - start.getTime();
-                                                        const diffMins = Math.floor(diffMs / 60000);
-                                                        const hours = Math.floor(diffMins / 60);
-                                                        const mins = diffMins % 60;
-                                                        duration = hours > 0 ? `${hours}j ${mins}m` : `${mins}m`;
-                                                    }
-                                                    const isTerminated = att.status === 'auto_submitted';
-                                                    const isBelum = att.status === 'belum';
-                                                    const statusLabel = isTerminated ? 'Terminated' : att.status === 'submitted' ? 'Selesai' : isBelum ? 'Belum Mengerjakan' : att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan';
-
-                                                    return (
-                                                        <tr key={att.id}
-                                                            onClick={() => {
-                                                                if (isBelum) return;
-                                                                router.push(`/dashboard/admin/monitoring/${att.id}`);
-                                                            }}
-                                                            className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${isBelum ? '' : 'cursor-pointer'}`}
-                                                        >
-                                                            <td className="p-4 text-xs text-slate-500 tabular-nums">{index + 1}</td>
-                                                            <td className="p-4">
-                                                                <div className="text-xs font-medium text-slate-800 leading-tight">
-                                                                    {formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}
-                                                                </div>
-                                                                <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                                                                    {att.kelas_name || '-'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
-                                                                    isTerminated
-                                                                        ? 'bg-pink-100 text-pink-700 border-pink-300'
-                                                                        : att.status === 'submitted'
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                        : isBelum
-                                                                        ? 'bg-slate-50 text-slate-500 border-slate-200'
-                                                                        : 'bg-slate-100 text-slate-600 border-slate-200'
-                                                                }`}>
-                                                                    {statusLabel}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <span className={`font-bold ${violationCount > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                    {violationCount}x
-                                                                </span>
-                                                                <span className="block text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">
-                                                                    Tab {bd.pindah_tab} · Close {bd.close_tab} · Lain {bd.lainnya}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 text-[10px] font-semibold text-slate-600">{duration}</td>
-                                                            <td className="p-4 whitespace-nowrap">
-                                                                <div className="text-[10px] font-mono text-slate-600">
-                                                                    {att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}
-                                                                </div>
-                                                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                                                                    {att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 text-right">
-                                                                <span className={`font-bold text-xs ${getScoreColorClass(isBelum ? null : (att.detailed_scores?.classical ?? att.total_score ?? 0))}`}>{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
-                                                            </td>
-                                                            {has1PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_1pl)}`}>{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {has2PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_2pl)}`}>{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {has3PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_3pl)}`}>{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {!has1PL && !has2PL && !has3PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.score_irt)}`}>{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            <td className="p-4">
-                                                                <div className="flex items-center justify-center gap-1.5">
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            if (isBelum) return;
-                                                                            e.stopPropagation();
-                                                                            router.push(`/dashboard/admin/monitoring/${att.id}`);
-                                                                        }}
-                                                                        disabled={isBelum}
-                                                                        type="button"
-                                                                        aria-label={`Detail ${formatStudentName(att.profiles?.full_name, 'peserta')}`}
-                                                                        title="Lihat detail"
-                                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                                                    >
-                                                                        <Eye size={14} />
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/admin/monitoring/${id}`)} />
                             </motion.div>
                         )}
 
@@ -665,6 +524,10 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
+                                    <span className="font-semibold text-slate-700">Diurutkan dari persentase salah tertinggi</span>
+                                    {analysis.some(item => item.incorrectPercentage > 50) && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-800">{analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau</span>}
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[700px]">
                                         <thead>
@@ -695,19 +558,20 @@ function MonitoringContent() {
                                                             : 'bg-amber-50 text-amber-700 border-amber-200';
 
                                                     return (
-                                                        <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
+                                                        <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-amber-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
                                                             <td className="p-4 text-center font-bold text-[#3083FF] text-[11px]">{anl.number}</td>
                                                             <td className="p-4">
                                                                 <div className="min-w-0">
-                                                                    <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
+                                                                    <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                                         <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                                     </div>
+                                                                    {isCritical && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Mayoritas salah</span>}
                                                                     <button
                                                                         onClick={() => {
                                                                             setViewQuestion(anl);
                                                                             setModalActiveTab('soal');
                                                                         }}
-                                                                        className="mt-2 text-[11px] font-semibold text-[#3083FF] hover:text-[#2563EB] transition-colors"
+                                                                        className="mt-2 block text-left text-[11px] font-semibold text-[#3083FF] transition-colors hover:text-[#2563EB]"
                                                                     >
                                                                         Detail Jawaban
                                                                     </button>

@@ -6,13 +6,13 @@ import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
-import { ParticipantRoomInfo } from '@/app/components/monitoring/ParticipantRoomInfo';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
+import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -20,7 +20,7 @@ import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganiz
 import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam } from '@/lib/api/proctor';
 import type { QuestionOptionRecord } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
-import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
+import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZone } from '@/lib/school-time';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -29,7 +29,6 @@ import {
 AlertTriangle,
 Calculator,
 CheckCircle2,
-Eye,
 Loader2,
 ShieldAlert,
 X
@@ -291,11 +290,6 @@ function MonitoringContent() {
         </div>
     );
 
-    const has1PL = attempts.some(a => a.detailed_scores?.irt_1pl !== undefined);
-    const has2PL = attempts.some(a => a.detailed_scores?.irt_2pl !== undefined);
-    const has3PL = attempts.some(a => a.detailed_scores?.irt_3pl !== undefined);
-    // Jumlah kolom tabel Rekap dinamis (7 kolom dasar + kolom IRT yang tampil)
-    const rekapColCount = 8 + (has1PL ? 1 : 0) + (has2PL ? 1 : 0) + (has3PL ? 1 : 0) + (!has1PL && !has2PL && !has3PL ? 1 : 0);
 
     // Tombol Kalkulasi IRT hanya relevan jika sistem penilaian ujian memuat
     // model IRT — kalau tidak, calculateExamIRT memang menolak ("Tidak ada
@@ -421,136 +415,7 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
-                                        <thead>
-                                            <tr className="bg-[#3083FF]/5 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
-                                                <th className="w-12 p-4 text-left font-bold text-[#3083FF]">No.</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Peserta</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Status</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Pelanggaran</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Durasi</th>
-                                                <th className="p-4 text-left font-bold text-[#3083FF]">Mulai / Selesai</th>
-                                                <th className="p-4 text-right font-bold text-[#3083FF]">Skor Klasik</th>
-                                                {has1PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 1PL</th>}
-                                                {has2PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 2PL</th>}
-                                                {has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">IRT 3PL</th>}
-                                                {!has1PL && !has2PL && !has3PL && <th className="p-4 text-right font-bold text-[#3083FF]">Skor IRT</th>}
-                                                <th className="p-4 text-center font-bold text-[#3083FF]">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {finishedAttempts.length === 0 ? (
-                                                <tr><td colSpan={rekapColCount} className="p-12 text-center text-slate-400 font-medium">
-                                                    {attempts.length > 0 ? 'Belum ada peserta yang selesai (atau tidak cocok dengan filter)' : 'Belum ada data'}
-                                                </td></tr>
-                                            ) : (
-                                                finishedAttempts.map((att, index) => {
-                                                    const violationCount = att.warning_count ?? 0;
-                                                    const bd = att.violation_breakdown || { pindah_tab: att.tab_switch_count ?? 0, close_tab: 0, lainnya: 0 };
-                                                    let duration = '-';
-                                                    if (att.started_at) {
-                                                        const start = new Date(att.started_at);
-                                                        const end = att.finished_at ? new Date(att.finished_at) : new Date();
-                                                        const diffMs = end.getTime() - start.getTime();
-                                                        const diffMins = Math.floor(diffMs / 60000);
-                                                        const hours = Math.floor(diffMins / 60);
-                                                        const mins = diffMins % 60;
-                                                        duration = hours > 0 ? `${hours}j ${mins}m` : `${mins}m`;
-                                                    }
-                                                    const isTerminated = att.status === 'auto_submitted';
-                                                    const isBelum = att.status === 'belum';
-                                                    const statusLabel = isTerminated ? 'Terminated' : att.status === 'submitted' ? 'Selesai' : isBelum ? 'Belum Mengerjakan' : att.connection_status === 'offline' ? 'Koneksi terputus' : 'Mengerjakan';
-
-                                                    return (
-                                                        <tr key={att.id}
-                                                            className="border-b border-[#3083FF]/10 last:border-0 hover:bg-[#3083FF]/5 transition-colors"
-                                                        >
-                                                            <td className="p-4 text-xs text-slate-500 tabular-nums">{index + 1}</td>
-                                                            <td className="p-4">
-                                                                <div className="text-xs font-medium text-[#3083FF] leading-tight">
-                                                                    {formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}
-                                                                </div>
-                                                                <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                                                                    {att.kelas_name || '-'}
-                                                                </div>
-                                                                <ParticipantRoomInfo attempt={att} />
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <span className={`px-3 py-1 rounded-lg text-[9px] font-semibold uppercase tracking-wider border ${
-                                                                    isTerminated
-                                                                        ? 'bg-pink-100 text-pink-700 border-pink-300'
-                                                                        : att.status === 'submitted'
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                        : isBelum
-                                                                        ? 'bg-slate-50 text-slate-500 border-slate-200'
-                                                                        : 'bg-[#3083FF]/10 text-[#3083FF] border-[#3083FF]/30'
-                                                                }`}>
-                                                                    {statusLabel}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <span className={`font-bold ${violationCount > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                    {violationCount}x
-                                                                </span>
-                                                                <span className="block text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">
-                                                                    Tab {bd.pindah_tab} · Close {bd.close_tab} · Lain {bd.lainnya}
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 text-[10px] font-semibold text-[#3083FF]">{duration}</td>
-                                                            <td className="p-4 whitespace-nowrap">
-                                                                <div className="text-[10px] font-mono text-slate-600">
-                                                                    {att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '-'}
-                                                                </div>
-                                                                <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                                                                    {att.finished_at ? new Date(att.finished_at).toLocaleString('id-ID') : '-'}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4 text-right">
-                                                                <span className={`font-bold text-xs ${getScoreColorClass(isBelum ? null : (att.detailed_scores?.classical ?? att.total_score ?? 0))}`}>{isBelum ? '-' : Number(att.detailed_scores?.classical ?? att.total_score ?? 0).toFixed(2)}</span>
-                                                            </td>
-                                                            {has1PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_1pl)}`}>{att.detailed_scores?.irt_1pl != null ? Number(att.detailed_scores.irt_1pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {has2PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_2pl)}`}>{att.detailed_scores?.irt_2pl != null ? Number(att.detailed_scores.irt_2pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {has3PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.detailed_scores?.irt_3pl)}`}>{att.detailed_scores?.irt_3pl != null ? Number(att.detailed_scores.irt_3pl).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            {!has1PL && !has2PL && !has3PL && (
-                                                                <td className="p-4 text-right">
-                                                                    <span className={`font-bold text-xs ${getScoreColorClass(att.score_irt)}`}>{att.score_irt != null ? Number(att.score_irt).toFixed(2) : '-'}</span>
-                                                                </td>
-                                                            )}
-                                                            <td className="p-4">
-                                                                <div className="flex items-center justify-center gap-1.5">
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            if (isBelum) return;
-                                                                            e.stopPropagation();
-                                                                            router.push(`/dashboard/guru/monitoring/${att.id}`);
-                                                                        }}
-                                                                        disabled={isBelum}
-                                                                        className="flex items-center gap-1 px-2.5 py-1.5 bg-[#3083FF] hover:bg-[#3083FF]/80 text-white rounded text-[10px] font-semibold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                    >
-                                                                        <Eye size={11} /> Detail
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/guru/monitoring/${id}`)} showRoomInfo />
                             </motion.div>
                         )}
 
@@ -561,6 +426,10 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
+                                    <span className="font-semibold text-slate-700">Diurutkan dari persentase salah tertinggi</span>
+                                    {analysis.some(item => item.incorrectPercentage > 50) && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-800">{analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau</span>}
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[600px]">
                                         <thead>
@@ -581,16 +450,17 @@ function MonitoringContent() {
                                                 pagedAnalysis.map((anl) => {
                                                     const isCritical = anl.incorrectPercentage > 50;
                                                     return (
-                                                        <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-red-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
+                                                        <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-amber-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
                                                             <td className="p-4 text-center font-bold text-[#3083FF] text-[11px]">{anl.number}</td>
                                                             <td className="p-4">
                                                                 <div className="min-w-0">
-                                                                    <div className={`relative overflow-hidden max-h-[3.5rem] [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)] ${isCritical ? 'font-bold text-red-700' : 'font-medium text-slate-600'}`}>
+                                                                    <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                                         <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                                     </div>
+                                                                    {isCritical && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Mayoritas salah</span>}
                                                                     <button
                                                                         onClick={() => { setViewQuestion(anl); setViewQuestionFilter('salah'); }}
-                                                                        className="mt-2 text-[11px] font-semibold text-[#3083FF] hover:text-[#2563EB] transition-colors"
+                                                                        className="mt-2 block text-left text-[11px] font-semibold text-[#3083FF] transition-colors hover:text-[#2563EB]"
                                                                     >
                                                                         Detail Jawaban
                                                                     </button>

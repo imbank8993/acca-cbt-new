@@ -70,6 +70,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
         })
         );
     const hasActiveFilter = onlyAttention || statusFilter !== 'all' || Boolean(classFilter) || Boolean(normalizedSearch) || onlyIncomplete;
+    const advancedFilterCount = Number(onlyIncomplete) + Number(statusFilter !== 'all') + Number(Boolean(classFilter));
     const pageCount = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pageCount);
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
@@ -98,85 +99,57 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
         {expanded && <div className="border-t border-slate-100 p-4">
-        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-                <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
-                    <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={event => {
-                            setSearchQuery(event.target.value);
-                            setPage(1);
-                        }}
-                        placeholder="Cari nama peserta, NIS, atau kelas..."
-                        aria-label="Cari peserta"
-                        className="h-[38px] w-full rounded-lg border border-slate-200 bg-white pl-9 pr-8 text-[13px] text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSearchQuery('');
-                                setPage(1);
-                            }}
-                            aria-label="Hapus pencarian"
-                            title="Hapus pencarian"
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        >
-                            <X size={14} />
-                        </button>
-                    )}
-                </div>
+        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="search" value={searchQuery}
+                    onChange={event => { setSearchQuery(event.target.value); setPage(1); }}
+                    placeholder="Cari nama, NIS, atau kelas..." aria-label="Cari peserta"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                {searchQuery && <button type="button" onClick={() => { setSearchQuery(''); setPage(1); }}
+                    aria-label="Hapus pencarian" className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={14} /></button>}
+            </div>
+            <button type="button" aria-pressed={onlyAttention}
+                onClick={() => { setOnlyAttention(value => !value); setPage(1); }}
+                className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${onlyAttention ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                <ShieldAlert size={16} /> Perlu perhatian{needingAttention.length > 0 ? ` (${needingAttention.length})` : ''}
+            </button>
+        </div>
+        <details className="mt-2 text-sm group">
+            <summary className="flex w-fit cursor-pointer items-center gap-1.5 rounded-lg px-1 py-1.5 font-medium text-slate-600 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <ChevronDown size={15} className="transition-transform group-open:rotate-180" />
+                Filter lanjutan{advancedFilterCount > 0 ? ` · ${advancedFilterCount} aktif` : ''}
+            </summary>
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                 <button type="button" role="switch" aria-checked={onlyIncomplete}
                     onClick={() => { setOnlyIncomplete(value => !value); setPage(1); }}
                     title="Tampilkan peserta yang belum menjawab semua soal, dari soal belum dijawab terbanyak."
-                    className={`flex h-[38px] shrink-0 items-center gap-2 rounded-lg px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${onlyIncomplete ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    className={`flex h-[38px] shrink-0 items-center gap-2 rounded-lg px-3 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${onlyIncomplete ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-white'}`}>
                     <span aria-hidden="true" className={`relative h-5 w-9 rounded-full transition-colors ${onlyIncomplete ? 'bg-blue-500' : 'bg-slate-300'}`}>
                         <span className={`absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${onlyIncomplete ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
                     </span>
                     Belum terjawab
                 </button>
                 <div className="w-full sm:w-[200px]">
-                    <InlineSelect
-                        value={statusFilter}
-                        onChange={val => {
-                            setStatusFilter(val as MonitoringStatusFilter);
-                            setPage(1);
-                        }}
-                        title="Filter status peserta"
-                        minWidth="100%"
-                        height="38px"
+                    <InlineSelect value={statusFilter} onChange={val => { setStatusFilter(val as MonitoringStatusFilter); setPage(1); }}
+                        title="Filter status peserta" minWidth="100%" height="38px"
                         className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
                         options={[
-                            { value: 'all', label: 'Semua' },
+                            { value: 'all', label: 'Semua status' },
                             { value: 'submitted', label: 'Selesai' },
                             { value: 'in_progress', label: 'Mengerjakan' },
                             { value: 'auto_submitted', label: 'Ditutup otomatis' },
                             { value: 'belum', label: 'Belum mulai' },
-                        ]}
-                    />
+                        ]} />
                 </div>
                 <div className="w-full sm:w-[180px]">
-                    <InlineSelect
-                        value={classFilter}
-                        onChange={val => {
-                            setClassFilter(val);
-                            setPage(1);
-                        }}
-                        title="Filter kelas peserta"
-                        minWidth="100%"
-                        height="38px"
+                    <InlineSelect value={classFilter} onChange={val => { setClassFilter(val); setPage(1); }}
+                        title="Filter kelas peserta" minWidth="100%" height="38px"
                         className="w-full [&_.uisel-input]:!text-[13px] [&_.uisel-input]:!font-normal"
-                        options={[
-                            { value: '', label: 'Semua kelas' },
-                            ...classOptions.map(name => ({ value: name, label: name })),
-                        ]}
-                    />
+                        options={[{ value: '', label: 'Semua kelas' }, ...classOptions.map(name => ({ value: name, label: name }))]} />
                 </div>
             </div>
-            <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={onlyAttention} onChange={event => { setOnlyAttention(event.target.checked); setPage(1); }} /><ShieldAlert size={16} className="text-amber-500" />Peringatan</label>
-        </div>
+        </details>
         <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[720px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="p-3 font-semibold">Status</th><th className="p-3 font-semibold">Peringatan</th><th className="p-3 font-semibold">Aksi</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
