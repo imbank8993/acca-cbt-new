@@ -7,11 +7,15 @@ const ts = require('typescript');
 const jsdom = require('jsdom');
 const katex = require('katex');
 
-test('LMS preview renders KaTeX/LaTeX delimiters in HTML documents', () => {
+test('LMS preview renders KaTeX/LaTeX delimiters in HTML documents and dynamic quizzes', async () => {
     const window = jsdom.JSDOM ? new jsdom.JSDOM('').window : jsdom.jsdom('').defaultView;
     window.Element.prototype.prepend ||= function(node) { this.insertBefore(node, this.firstChild); };
     window.Element.prototype.after ||= function(node) { this.parentNode.insertBefore(node, this.nextSibling); };
     window.Element.prototype.append ||= function(node) { this.appendChild(node); };
+    window.Element.prototype.closest ||= function(selector) {
+        for (let element = this; element; element = element.parentElement) if (element.matches(selector)) return element;
+        return null;
+    };
 
     const purify = require('dompurify')(window);
     const exports = {};
@@ -25,6 +29,8 @@ test('LMS preview renders KaTeX/LaTeX delimiters in HTML documents', () => {
             return purify;
         },
         DOMParser: window.DOMParser,
+        URL,
+        location: { protocol: 'https:', origin: 'https://school.example' },
         crypto: require('node:crypto').webcrypto,
     });
 
@@ -49,6 +55,7 @@ test('LMS preview renders KaTeX/LaTeX delimiters in HTML documents', () => {
     // 1. Test interactive mode (HTML file upload default)
     const interactiveResult = exports.learningPreviewDocument(testHtml, true);
     const docInteractive = new window.DOMParser().parseFromString(interactiveResult, 'text/html');
+    assert.equal(docInteractive.querySelector('script[src]').getAttribute('src'), 'https://school.example/learning/katex.min.js');
 
     // Ensure MathML elements are created
     const mathElements = docInteractive.querySelectorAll('math');
@@ -70,6 +77,40 @@ test('LMS preview renders KaTeX/LaTeX delimiters in HTML documents', () => {
 
     const preEl = docInteractive.querySelector('pre');
     assert.equal(preEl.textContent, 'for $i=0; $i<10');
+
+    // The activity creates question and option nodes after the preview is parsed.
+    // The trusted runtime must render them without replacing their parent controls.
+    let notifyMutation;
+    class TestObserver { constructor(callback) { notifyMutation = callback; } observe() {} }
+    window.katex = katex;
+    const runtime = [...docInteractive.querySelectorAll('script')].find(script => script.textContent.includes('const regex ='));
+    assert.ok(runtime, 'Renderer dinamis harus disisipkan pada HTML interaktif');
+    new Function('window', 'document', 'NodeFilter', 'MutationObserver', 'setTimeout', runtime.textContent)(
+        window, docInteractive, window.NodeFilter, TestObserver, setTimeout,
+    );
+    const question = docInteractive.createElement('p');
+    question.textContent = String.raw`Deret $(3x-1)+(3x-1)^2+\dots$ konvergen jika $x$ berada pada interval...`;
+    const option = docInteractive.createElement('button');
+    option.textContent = String.raw`$0 < x < \frac{2}{3}$`;
+    let clicked = false;
+    option.addEventListener('click', () => { clicked = true; });
+    docInteractive.body.appendChild(question);
+    docInteractive.body.appendChild(option);
+    notifyMutation();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(question.querySelectorAll('math').length, 2);
+    assert.equal(option.querySelectorAll('math').length, 1);
+    assert.equal(option.querySelectorAll('mfrac').length, 1);
+    assert.equal(option.textContent.includes('$'), false);
+    option.click();
+    assert.equal(clicked, true, 'Tombol kuis tetap dapat digunakan sesudah rumus dirender');
+    option.textContent = String.raw`$-\frac{2}{3} < x < 0$`;
+    notifyMutation();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(option.querySelectorAll('math').length, 1, 'Pergantian soal ikut diproses');
+    assert.equal(option.querySelectorAll('mfrac').length, 1);
+    option.click();
+    assert.equal(clicked, true);
 
     // 2. Test non-interactive mode (DOMPurify path)
     const sanitizedResult = exports.learningPreviewDocument(testHtml, false);

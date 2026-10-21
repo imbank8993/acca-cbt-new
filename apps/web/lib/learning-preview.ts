@@ -6,6 +6,7 @@ const TAILWIND = 'https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js
 const ICON_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
 const ICON_FONTS = ['fa-solid-900.woff2', 'fa-regular-400.woff2', 'fa-brands-400.woff2']
     .map(name => `https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/${name}`).join(' ');
+const KATEX_ASSET = '/learning/katex.min.js';
 
 const MATH_REGEX = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}[\s\S]*?\\end\{(?:equation|aligned|array|pmatrix|bmatrix|cases)\}|\\\(.*?\\\)|\[%.*?%\]|\$(?:[^$\\]|\\.)+\$)/g;
 const MATH_BOUNDARIES = new Set([
@@ -103,11 +104,72 @@ function renderLearningMath(doc: Document): void {
     flush();
 }
 
+// Interactive materials often insert quiz questions after the initial HTML has
+// been parsed. Keep the renderer inside the opaque iframe and touch only text
+// nodes, so event handlers and answer state owned by the activity survive.
+const INTERACTIVE_MATH_SCRIPT = String.raw`(() => {
+    const regex = ${MATH_REGEX.toString()};
+    const excluded = 'script,style,pre,code,textarea,noscript,math,svg';
+    const renderNode = node => {
+        const original = node.nodeValue || '';
+        if (!original.includes('$') && !original.includes('\\') && !original.includes('[%')) return;
+        regex.lastIndex = 0;
+        const matches = Array.from(original.matchAll(regex));
+        if (!matches.length || !node.parentNode) return;
+        const fragment = document.createDocumentFragment();
+        let cursor = 0;
+        for (const match of matches) {
+            const raw = match[0], start = match.index;
+            fragment.appendChild(document.createTextNode(original.slice(cursor, start)));
+            let expression = raw;
+            if (raw.startsWith('$$')) expression = raw.slice(2, -2);
+            else if (raw.startsWith('\\[') || raw.startsWith('\\(') || raw.startsWith('[%')) expression = raw.slice(2, -2);
+            else if (raw.startsWith('$')) expression = raw.slice(1, -1);
+            try {
+                const html = window.katex.renderToString(expression.trim(), {
+                    displayMode: raw.startsWith('$$') || raw.startsWith('\\[') || raw.startsWith('\\begin{'),
+                    output: 'mathml', throwOnError: false, trust: false, strict: 'ignore',
+                });
+                const holder = document.createElement('span');
+                holder.innerHTML = html;
+                while (holder.firstChild) fragment.appendChild(holder.firstChild);
+            } catch { fragment.appendChild(document.createTextNode(raw)); }
+            cursor = start + raw.length;
+        }
+        fragment.appendChild(document.createTextNode(original.slice(cursor)));
+        node.parentNode.replaceChild(fragment, node);
+    };
+    const scan = () => {
+        if (!window.katex || !document.body) return;
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        let node;
+        while ((node = walker.nextNode())) {
+            if (!node.parentElement || node.parentElement.closest(excluded)) continue;
+            nodes.push(node);
+        }
+        for (const text of nodes) renderNode(text);
+    };
+    const start = () => {
+        scan();
+        let timer = null;
+        const observer = new MutationObserver(() => {
+            if (timer !== null) return;
+            timer = setTimeout(() => { timer = null; scan(); }, 0);
+        });
+        observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+    else start();
+})();`;
+
 /** Author scripts execute only in an opaque-origin sandbox, never in the app. */
 export function learningPreviewDocument(html: string, interactive = false, bridge?: string): string {
     const source = interactive ? html : DOMPurify.sanitize(html, { WHOLE_DOCUMENT: true, USE_PROFILES: { html: true, mathMl: true, svg: true } });
     const document = new DOMParser().parseFromString(source, 'text/html');
     renderLearningMath(document);
+    const mathAssetUrl = interactive && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)
+        ? new URL(KATEX_ASSET, location.origin).href : null;
     document.querySelectorAll('base, meta[http-equiv], iframe, frame, frameset, object, embed').forEach(node => node.remove());
     if (interactive) {
         document.querySelectorAll('script').forEach(node => {
@@ -138,7 +200,7 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     }
     const csp = document.createElement('meta'); csp.httpEquiv = 'Content-Security-Policy';
     csp.content = interactive
-        ? `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND}; style-src 'unsafe-inline' ${ICON_CSS}; font-src data: ${ICON_FONTS}; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
+        ? `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND}${mathAssetUrl ? ` ${mathAssetUrl}` : ''}; style-src 'unsafe-inline' ${ICON_CSS}; font-src data: ${ICON_FONTS}; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
         : "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' https:; font-src data: https:; img-src data: blob: https: http:; media-src data: blob: https: http:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';";
     document.head.prepend(csp);
 
@@ -164,6 +226,12 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     if (interactive && bridge) {
         const script = document.createElement('script'); script.textContent = bridge;
         csp.after(script);
+    }
+    if (mathAssetUrl) {
+        const library = document.createElement('script'); library.src = mathAssetUrl;
+        const runtime = document.createElement('script'); runtime.textContent = INTERACTIVE_MATH_SCRIPT;
+        csp.after(library);
+        library.after(runtime);
     }
     return '<!doctype html>' + document.documentElement.outerHTML;
 }
