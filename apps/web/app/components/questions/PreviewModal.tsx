@@ -1,6 +1,7 @@
 "use client";
 import { useSearchParams } from 'next/navigation';
-import React,{ Suspense,useEffect } from 'react';
+import React,{ Suspense,useEffect,useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import type { AnswerValue,Question } from '@/app/types';
 import type { QuestionBank,QuestionRecord } from '@/lib/api/questions';
 import { ExamViewer } from './ExamViewer';
@@ -30,9 +31,12 @@ interface PreviewModalProps {
 
 
 
+const noopSubscribe = () => () => {};
+
 function PreviewModalInner(props: PreviewModalProps) {
     // ══ ALL HOOKS AT THE TOP — Rules of Hooks ══
     const searchParams = useSearchParams();
+    const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
 
     const {
         isOpen, onClose, bankInfo, viewingQuestion, setViewingQuestion,
@@ -153,9 +157,11 @@ function PreviewModalInner(props: PreviewModalProps) {
     };
 
     // ══ Render ══
-    if (!isOpen) return null;
+    if (!isOpen || !isClient) return null;
 
-    return (
+    // Rendered into <body> so no transformed dashboard ancestor can offset
+    // the fixed full-screen viewer (which pushed its header down).
+    return createPortal(
         <ExamViewer
             mode="preview"
             questions={effectiveQuestions.map(({ options: legacyOptions, ...question }): Question => {
@@ -186,7 +192,8 @@ function PreviewModalInner(props: PreviewModalProps) {
             onNavigate={handleNavigate}
             onPreviewClose={onClose}
             onPreviewFinish={handleFinish}
-        />
+        />,
+        document.body,
     );
 }
 
