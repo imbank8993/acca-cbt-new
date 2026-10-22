@@ -1221,7 +1221,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             Setelah semua sesi selesai dan nilai dibuka.
                         </p>
                         {formData.scoringTypes.some((t) => t.startsWith('irt_')) && (
-                            <p className="pl-6 text-[11px] text-slate-500">Nilai IRT muncul setelah perhitungan tersedia.</p>
+                            <p className="pl-6 text-[11px] text-slate-500">Nilai IRT dan pembahasan muncul setelah IRT seluruh peserta dihitung.</p>
                         )}
                             </fieldset>
                         </div>
