@@ -472,7 +472,7 @@ export class ExamAdminService {
 
             const { data: exam, error: examError } = await db
                 .from('cbt_exams')
-                .select('id, organization_id, status')
+                .select('id, organization_id, status, metadata')
                 .eq('id', examId)
                 .maybeSingle();
             if (examError) throw new BadRequestException(examError.message);
@@ -587,6 +587,12 @@ export class ExamAdminService {
                 );
             }
 
+            await this.assertActiveParticipantsKept(db, examId, exam as { metadata?: Record<string, any> | null }, {
+                regularClassIds: uniqueClassIds.filter((id) => regularIds.has(id)),
+                additionalClassIds: uniqueClassIds.filter((id) => additionalIds.has(id)),
+                participantIds: uniqueUserIds,
+            });
+
             const deleteTargets = await db.from('cbt_exam_targets').delete().eq('exam_id', examId);
             if (deleteTargets.error) throw new BadRequestException(deleteTargets.error.message);
             const deleteParticipants = await db
@@ -678,6 +684,55 @@ export class ExamAdminService {
     }
 
     // ── Pembantu ─────────────────────────────────────────────────────────────
+
+    /**
+     * Tolak penugasan baru yang mengeluarkan siswa yang SEDANG mengerjakan.
+     *
+     * Akses siswa diperiksa ulang pada setiap simpan jawaban dan pengumpulan,
+     * jadi menghapus kelas atau peserta di tengah ujian membuat siswa itu
+     * terputus dan jawabannya tidak bisa dikumpulkan. Ujian publik dikecualikan:
+     * aksesnya tidak bergantung pada penugasan.
+     */
+    private async assertActiveParticipantsKept(
+        db: Pick<DbService, 'from'>,
+        examId: string,
+        exam: { metadata?: Record<string, any> | null },
+        next: { regularClassIds: string[]; additionalClassIds: string[]; participantIds: string[] },
+    ): Promise<void> {
+        if (exam.metadata?.is_public === true) return;
+
+        const { data: active, error } = await db.from('cbt_exam_attempts')
+            .select('user_id').eq('exam_id', examId).eq('status', 'in_progress');
+        if (error) throw new BadRequestException('Status pengerjaan peserta belum dapat diperiksa.');
+
+        const kept = new Set(next.participantIds);
+        let remaining = [...new Set(((active as Array<{ user_id: string }> | null) || []).map((row) => row.user_id))]
+            .filter((id) => !kept.has(id));
+        if (!remaining.length) return;
+
+        for (const [table, classIds] of [
+            ['cbt_class_members', next.regularClassIds],
+            ['cbt_additional_class_members', next.additionalClassIds],
+        ] as const) {
+            if (!remaining.length || !classIds.length) continue;
+            const { data, error: memberError } = await db.from(table)
+                .select('user_id').in('class_id', classIds).in('user_id', remaining);
+            if (memberError) throw new BadRequestException('Keanggotaan kelas peserta belum dapat diperiksa.');
+            const covered = new Set(((data as Array<{ user_id: string }> | null) || []).map((row) => row.user_id));
+            remaining = remaining.filter((id) => !covered.has(id));
+        }
+        if (!remaining.length) return;
+
+        const { data: profiles } = await db.from('cbt_profiles')
+            .select('id, full_name').in('id', remaining.slice(0, 5));
+        const names = ((profiles as Array<{ full_name: string | null }> | null) || [])
+            .map((profile) => profile.full_name).filter(Boolean);
+        const sample = names.length ? `: ${names.join(', ')}${remaining.length > names.length ? ', dan lainnya' : ''}` : '';
+        throw new ConflictException(
+            `${remaining.length} siswa sedang mengerjakan ujian ini dan akan terputus jika penugasan diubah${sample}. ` +
+            'Tunggu sampai mereka selesai, atau sertakan kembali kelas/siswa tersebut.',
+        );
+    }
 
     private async isElevated(user: AuthUser, organizationId: string): Promise<boolean> {
         if (user.isPlatformAdmin || user.resolved?.superadmin === true) return true;

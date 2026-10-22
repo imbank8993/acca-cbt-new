@@ -107,3 +107,48 @@ test('DTO rejects out-of-range duration, unknown scoring types and oversized tit
     for (const scoringType of ['irt_9pl', 'classical,,irt_2pl', 'classical;drop']) assert.deepEqual(await fields({ scoringType }), ['scoringType']);
     assert.deepEqual(await fields({ title: 'x'.repeat(201) }), ['title']);
 });
+
+function assignFixture(extra = {}) {
+    return service({
+        cbt_exams: [{ id: EXAM, organization_id: ORG, status: 'active', metadata: {} }],
+        cbt_classes: [{ id: 'kelas-a', organization_id: ORG, school_year: '2026/2027' }, { id: 'kelas-b', organization_id: ORG, school_year: '2026/2027' }],
+        cbt_additional_classes: [{ id: 'tambahan', organization_id: ORG }],
+        master_tahun_ajaran: [{ tahun_ajaran: '2026/2027', is_active: true }],
+        cbt_organization_members: [{ organization_id: ORG, user_id: 'siswa-a', is_active: true }, { organization_id: ORG, user_id: 'siswa-b', is_active: true }],
+        cbt_class_members: [{ class_id: 'kelas-a', user_id: 'siswa-a' }, { class_id: 'kelas-b', user_id: 'siswa-b' }],
+        cbt_additional_class_members: [{ class_id: 'tambahan', user_id: 'siswa-a' }],
+        cbt_exam_targets: [{ exam_id: EXAM, class_id: 'kelas-a' }, { exam_id: EXAM, class_id: 'kelas-b' }],
+        cbt_exam_participants: [],
+        cbt_exam_attempts: [{ exam_id: EXAM, user_id: 'siswa-a', status: 'in_progress' }, { exam_id: EXAM, user_id: 'siswa-b', status: 'submitted' }],
+        cbt_profiles: [{ id: 'siswa-a', full_name: 'Siswa A' }],
+        ...extra,
+    });
+}
+
+test('removing the class of a student who is still working is refused and changes nothing', async () => {
+    const { s, db } = assignFixture();
+    await assert.rejects(s.assign({ id: 'staff' }, EXAM, ['kelas-b'], [], false), /1 siswa sedang mengerjakan.*Siswa A/);
+    assert.equal(db.tables.cbt_exam_targets.length, 2);
+});
+
+test('removing a class whose students have all finished is allowed', async () => {
+    const { s, db } = assignFixture();
+    await s.assign({ id: 'staff' }, EXAM, ['kelas-a'], [], false);
+    assert.deepEqual(db.tables.cbt_exam_targets.map(t => t.class_id), ['kelas-a']);
+});
+
+test('a working student stays covered by an individual selection or another class', async () => {
+    for (const [classIds, participants] of [
+        [[], [{ userId: 'siswa-a', classId: 'kelas-a' }]],
+        [['tambahan'], []],
+    ]) {
+        const { s } = assignFixture();
+        await s.assign({ id: 'staff' }, EXAM, classIds, participants, false);
+    }
+});
+
+test('public exams may drop their class targets while students are working', async () => {
+    const { s, db } = assignFixture({ cbt_exams: [{ id: EXAM, organization_id: ORG, status: 'active', metadata: { is_public: true } }] });
+    await s.assign({ id: 'staff' }, EXAM, [], [], false);
+    assert.equal(db.tables.cbt_exam_targets.length, 0);
+});
