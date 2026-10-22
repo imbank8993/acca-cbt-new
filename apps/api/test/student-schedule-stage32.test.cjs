@@ -77,6 +77,31 @@ test('Schedule countdown uses unambiguous day/hour units and rejects invalid dat
     assert.equal(scheduleState({ is_published: true, status: 'archived' }, now), 'closed');
 });
 
+test('Student dashboard prioritizes open exams and excludes expired or completed ones', () => {
+    const page = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/siswa/page.tsx'), 'utf8');
+    const { dashboardExams } = require('../../web/lib/student-schedule.ts');
+    const now = Date.parse('2026-10-22T08:30:00Z');
+    const exam = (id, start, end, overrides = {}) => ({
+        id, start_time: start, end_time: end, is_published: true,
+        status: 'active', isCompleted: false, ...overrides,
+    });
+    const exams = [
+        exam('old-active', '2026-09-26T03:30:00Z', '2026-09-27T14:30:00Z'),
+        exam('later', '2026-10-25T08:00:00Z', '2026-10-25T09:30:00Z'),
+        exam('current', '2026-10-22T08:00:00Z', '2026-10-22T09:30:00Z'),
+        exam('soon', '2026-10-23T08:00:00Z', '2026-10-23T09:30:00Z'),
+        exam('completed', '2026-10-22T08:00:00Z', '2026-10-22T09:30:00Z', { isCompleted: true }),
+        exam('hidden', '2026-10-22T08:00:00Z', '2026-10-22T09:30:00Z', { is_published: false }),
+        exam('invalid', 'bad-date', '2026-10-22T09:30:00Z'),
+    ];
+    assert.deepEqual(dashboardExams(exams, now).map(row => row.id), ['current', 'soon', 'later']);
+    assert.deepEqual(exams.map(row => row.id)[0], 'old-active', 'input must not be mutated');
+    assert.match(page, /dashboardExams\(exams, now\)/);
+    assert.match(page, /scheduleState\(exam, currentTime\) === 'open'/);
+    assert.match(page, /getStudentExamsResult\(\)/);
+    assert.match(page, /response\.userId !== user\.id/);
+});
+
 test('Schedule retains expired exams and fails explicitly for unavailable data', async () => {
     const { StudentsService } = require('../src/students/students.service.ts');
     const { fixtureDb } = require('./fixture-db.cjs');

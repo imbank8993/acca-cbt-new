@@ -8,6 +8,21 @@ export function scheduleState(exam: StudentScheduledExam, now: number): 'open' |
     if (now > end) return 'closed';
     return now < start ? 'upcoming' : 'open';
 }
+
+/** Dashboard hanya menampilkan ujian yang masih bisa dikerjakan atau akan datang. */
+export function dashboardExams(exams: StudentScheduledExam[], now: number): StudentScheduledExam[] {
+    return exams.filter(exam => {
+        const state = scheduleState(exam, now);
+        return state === 'open' || state === 'upcoming';
+    }).sort((a, b) => {
+        const aOpen = scheduleState(a, now) === 'open';
+        const bOpen = scheduleState(b, now) === 'open';
+        if (aOpen !== bOpen) return aOpen ? -1 : 1;
+        const aStart = a.start_time ? Date.parse(a.start_time) : Infinity;
+        const bStart = b.start_time ? Date.parse(b.start_time) : Infinity;
+        return aStart - bStart;
+    });
+}
 export function scheduleCountdown(date: string, now: number): string {
     const diff = Date.parse(date) - now;
     if (!Number.isFinite(diff) || diff <= 0) return '';

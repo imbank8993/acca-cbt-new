@@ -3,17 +3,17 @@ import { Spinner } from '@/app/components/ui/Spinner';
 import { dashboardAverageScore, dashboardResultScore } from '@/lib/student-dashboard-score';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import {
-    getStudentExams,
+    getStudentExamsResult,
     getStudentResultsAction,
     type StudentResult,
     type StudentScheduledExam,
 } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
+import { dashboardExams, scheduleState } from '@/lib/student-schedule';
 import { formatSchoolDate, formatSchoolTimeRange, getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
-import { useMemoryState } from '@/lib/useMemoryState';
 import {
 AlertCircle,
 ArrowRight,
@@ -29,41 +29,68 @@ TrendingUp,
 Zap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback,useEffect } from 'react';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 export default function SiswaDashboard() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
-    const [exams, setExams] = useMemoryState<StudentScheduledExam[]>('siswa_exams', []);
-    const [results, setResults] = useMemoryState<StudentResult[]>('siswa_results', []);
-    const [loading, setLoading] = useMemoryState('siswa_loading', true);
-    const [announcements, setAnnouncements] = useMemoryState<Announcement[]>('siswa_announcements', []);
+    const [exams, setExams] = useState<StudentScheduledExam[]>([]);
+    const [results, setResults] = useState<StudentResult[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
+    const [now, setNow] = useState(NaN);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const router = useRouter();
+    const inFlight = useRef(false);
+    const clock = useRef<{ time: number; tick: number } | null>(null);
 
     const loadData = useCallback(async () => {
-        setLoading(true);
-        const user = await getSessionUser();
-        if (!user) {
-            router.replace('/');
-            return;
-        }
-        const [ex, res, announcementConfig] = await Promise.all([
-            getStudentExams(),
-            getStudentResultsAction(),
-            getSetting<Announcement | Announcement[]>('announcement_config'),
-        ]);
+        if (inFlight.current) return;
+        inFlight.current = true;
+        try {
+            const user = await getSessionUser({ refresh: true });
+            if (!user) {
+                router.replace('/');
+                return;
+            }
+            const response = await getStudentExamsResult();
+            if (!response.success) throw new Error(response.error || 'Daftar ujian belum dapat dimuat.');
+            if (response.userId !== user.id) throw new Error('Sesi akun berubah. Muat ulang halaman.');
+            const serverTime = Date.parse(response.serverTime);
+            if (!Number.isFinite(serverTime)) throw new Error('Waktu server belum dapat diverifikasi. Coba lagi.');
+            clock.current = { time: serverTime, tick: performance.now() };
+            setNow(serverTime);
+            setExams(response.exams);
+            setLoadError('');
 
-        setExams(ex);
-        setResults(res);
-        setAnnouncements(pickAnnouncements(announcementConfig, 'show_siswa'));
-        setLoading(false);
-    }, [router, setAnnouncements, setExams, setLoading, setResults]);
+            const [resultResponse, announcementResponse] = await Promise.allSettled([
+                getStudentResultsAction(),
+                getSetting<Announcement | Announcement[]>('announcement_config'),
+            ]);
+            if (resultResponse.status === 'fulfilled') setResults(resultResponse.value);
+            if (announcementResponse.status === 'fulfilled') {
+                setAnnouncements(pickAnnouncements(announcementResponse.value, 'show_siswa'));
+            }
+        } catch (error) {
+            clock.current = null;
+            setNow(NaN);
+            setExams([]);
+            setLoadError(error instanceof Error ? error.message : 'Daftar ujian belum dapat dimuat.');
+        } finally {
+            inFlight.current = false;
+            setLoading(false);
+        }
+    }, [router]);
 
     useEffect(() => {
         const refresh = () => { void loadData(); };
         const timer = window.setTimeout(refresh, 0);
+        const ticker = window.setInterval(() => {
+            if (clock.current) setNow(clock.current.time + performance.now() - clock.current.tick);
+        }, 1000);
         window.addEventListener('exam-submission-synced', refresh);
         return () => {
             window.clearTimeout(timer);
+            window.clearInterval(ticker);
             window.removeEventListener('exam-submission-synced', refresh);
         };
     }, [loadData]);
@@ -95,17 +122,17 @@ export default function SiswaDashboard() {
     const averageScore = dashboardAverageScore(results);
 
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
+    const visibleExams = dashboardExams(exams, now);
 
 
     const renderExamCard = (exam: StudentScheduledExam, i: number) => {
-        const isReady = exam.status === 'active' || exam.status === 'draft' || exam.status === 'scheduled';
-        const isCompleted = exam.isCompleted;
+        const isReady = scheduleState(exam, now) === 'open';
         return (
             <div
                 key={exam.id || i}
                 className="p-4 bg-white border border-slate-100 hover:border-indigo-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 relative overflow-hidden group shadow-sm hover:shadow-md"
             >
-                <div className={`absolute left-0 top-0 h-full w-1 ${isCompleted ? 'bg-slate-300' : isReady ? 'bg-[#3083FF]' : 'bg-blue-400'}`} />
+                <div className={`absolute left-0 top-0 h-full w-1 ${isReady ? 'bg-[#3083FF]' : 'bg-blue-400'}`} />
                 
                 <div className="flex items-center gap-3.5 flex-1 pl-1 min-w-0 text-left">
                     {/* Date Badge */}
@@ -122,18 +149,14 @@ export default function SiswaDashboard() {
 
                     <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                            {isCompleted ? (
-                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200 leading-none">
-                                    Selesai
-                                </span>
-                            ) : isReady ? (
+                            {isReady ? (
                                 <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100 flex items-center gap-1 leading-none">
                                     <span className="w-1 h-1 rounded-full bg-[#3083FF] animate-pulse"></span>
                                     Aktif
                                 </span>
                             ) : (
                                 <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 leading-none">
-                                    {exam.status}
+                                    Terjadwal
                                 </span>
                             )}
                             <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100/30 flex items-center gap-1 leading-none">
@@ -152,22 +175,19 @@ export default function SiswaDashboard() {
                 </div>
 
                 <div className="shrink-0 mt-2 sm:mt-0 z-10 pl-1">
-                    {isCompleted ? (
+                    {isReady ? (
                         <button
-                            onClick={() => router.push('/dashboard/siswa/results')}
-                            className="w-full sm:w-auto bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 text-[10px] font-bold px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                        >
-                            Hasil <CheckCircle2 size={12} className="text-[#3083FF]" />
-                        </button>
-                    ) : isReady ? (
-                        <button
-                            onClick={() => router.push(`/dashboard/siswa/exam/${exam.id}`)}
+                            onClick={() => {
+                                const currentTime = clock.current ? clock.current.time + performance.now() - clock.current.tick : NaN;
+                                if (scheduleState(exam, currentTime) === 'open') router.push(`/dashboard/siswa/exam/${exam.id}`);
+                                else void loadData();
+                            }}
                             className="w-full sm:w-auto bg-[#3083FF] hover:bg-[#2563EB] text-white text-[10px] font-bold px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm active:scale-95"
                         >
-                            Mulai <ArrowRight size={12} />
+                            {exam.isInProgress ? 'Lanjutkan' : 'Mulai'} <ArrowRight size={12} />
                         </button>
                     ) : (
-                        <div className="text-[9px] font-bold text-slate-400 uppercase px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">{exam.status}</div>
+                        <div className="text-[9px] font-bold text-slate-500 uppercase px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">Belum mulai</div>
                     )}
                 </div>
             </div>
@@ -256,14 +276,21 @@ export default function SiswaDashboard() {
                                     <Spinner variant="buble" size={32} />
                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Memuat daftar ujian...</p>
                                 </div>
-                            ) : exams.length === 0 ? (
+                            ) : loadError ? (
+                                <div role="alert" className="py-10 px-4 text-center border border-rose-200 bg-rose-50 rounded-2xl">
+                                    <AlertCircle size={24} className="text-rose-500 mx-auto mb-3" />
+                                    <p className="text-sm font-bold text-slate-700">Daftar ujian belum dapat dimuat</p>
+                                    <p className="text-xs text-slate-500 mt-1">{loadError}</p>
+                                    <button type="button" onClick={() => void loadData()} className="mt-4 text-xs font-bold text-blue-600 hover:underline">Coba lagi</button>
+                                </div>
+                            ) : visibleExams.length === 0 ? (
                                 <div className="py-12 text-center border border-dashed border-slate-200 rounded-2xl">
                                     <Ghost size={28} className="text-slate-300 mx-auto mb-3" />
-                                    <p className="text-sm font-bold text-slate-700">Belum Ada Ujian</p>
-                                    <p className="text-xs text-slate-400 mt-1">Tidak ada ujian terjadwal saat ini.</p>
+                                    <p className="text-sm font-bold text-slate-700">Belum Ada Ujian Aktif</p>
+                                    <p className="text-xs text-slate-400 mt-1">Tidak ada ujian yang berlangsung atau akan datang.</p>
                                 </div>
                             ) : (
-                                exams.map((exam, i) => renderExamCard(exam, i))
+                                visibleExams.map((exam, i) => renderExamCard(exam, i))
                             )}
                         </div>
                     </div>
