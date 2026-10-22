@@ -16,6 +16,7 @@ import { SettingsService } from '../settings/settings.service';
 import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
 import { isSemesterAssessmentExam } from '../common/exam-types';
 import { resolveExamBankIds } from '../common/exam-question-sources';
+import { assertNoActiveAttempts } from '../common/exam-active-attempts';
 import { ALLOWED_EXTENSIONS } from '../storage/storage.service';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
@@ -364,13 +365,17 @@ export class ExamAdminService {
         await this.authz.assertExamStaff(user, examId);
 
         if (!publish) {
-            const { error } = await this.db
-                .from('cbt_exams')
-                .update({ is_published: false, status: 'draft' })
-                .eq('id', examId);
+            return this.db.transaction(async db => {
+                await db.raw('SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE', examId);
+                await assertNoActiveAttempts(db, examId, 'menarik ujian');
+                const { error } = await db
+                    .from('cbt_exams')
+                    .update({ is_published: false, status: 'draft' })
+                    .eq('id', examId);
 
-            if (error) throw new BadRequestException(error.message);
-            return { id: examId, is_published: false };
+                if (error) throw new BadRequestException(error.message);
+                return { id: examId, is_published: false };
+            });
         }
 
         const { data } = await this.db

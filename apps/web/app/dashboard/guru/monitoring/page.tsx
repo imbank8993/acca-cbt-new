@@ -16,7 +16,7 @@ import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringRe
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
-import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
+import { finishAttemptAction,getExamAnswersForAnalysisAction,getExamAttemptsAction,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
 import type { DetailedItemAnalysisResponse,ExamAttemptRecord,OrganizationExam } from '@/lib/api/proctor';
 import type { QuestionOptionRecord } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
@@ -202,6 +202,13 @@ function MonitoringContent() {
 
     const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
 
+    const handleFinishAttempt = async (attempt: ExamAttemptRecord, reason: string): Promise<string | null> => {
+        const result = await finishAttemptAction(attempt.id, reason);
+        if (!result.success) return result.error || 'Pengerjaan belum berhasil diselesaikan.';
+        void loadExamData(attempt.exam_id, true);
+        return null;
+    };
+
     const handleResetAttempt = (attempt: ExamAttemptRecord) => {
         if (!canResetParticipants || attempt.canReset !== true || attempt.exam_id !== selectedExamId) return;
         if (!canManage || attempt.exam_id !== selectedExamId) return;
@@ -379,7 +386,7 @@ function MonitoringContent() {
                 <div className="space-y-4">
 
                     <AnimatePresence mode="wait">
-                        {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/guru/monitoring/' + id)} />}
+                        {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/guru/monitoring/' + id)} onFinish={selectedExam?.canManage === true ? handleFinishAttempt : undefined} />}
 
                         {activeTab === 'answers' && (
                             <motion.div key="answers" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

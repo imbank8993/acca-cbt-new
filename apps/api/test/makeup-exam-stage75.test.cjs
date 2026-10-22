@@ -159,6 +159,14 @@ test('Sesi aktif dapat dimulai ulang dengan generasi baru dan jawaban server dik
     assert.notEqual(attempt.started_at, oldStart);
 });
 
+test('Ujian susulan membersihkan penanda penyelesaian lama oleh staf', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.metadata.closed_by_staff = { by: 'staff', at: fixedNow, reason: 'Uji coba' };
+    await service.startMakeupAttempt(staff, attempt.id, 'Siswa diberi kesempatan ulang.', 30);
+    assert.equal(attempt.metadata.closed_by_staff, undefined);
+});
+
 test('Reset sesi aktif ditolak saat pengumpulan jawaban sedang diproses', async () => {
     const { db, service } = makeService();
     const attempt = db.tables.cbt_exam_attempts[0];

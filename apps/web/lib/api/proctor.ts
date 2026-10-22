@@ -593,6 +593,14 @@ export async function getExamAttemptsAction(examId: string): Promise<ExamAttempt
     return res.attempts;
 }
 
+/** Staf menyelesaikan pengerjaan siswa yang sedang berlangsung; jawaban tersimpan di server dinilai. */
+export function finishAttemptAction(attemptId: string, reason: string) {
+    return apiSend<{ attemptId: string; status: string; finishedAt: string; graded: boolean }>(
+        `/api/proctor/attempts/${encodeURIComponent(attemptId)}/finish`,
+        { reason },
+    );
+}
+
 export function setExamScreenShareExceptionAction(examId: string, studentId: string, enabled: boolean, reason?: string) {
     return apiSend<{ examId: string; studentId: string; enabled: boolean; reason?: string }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/screen-share-exceptions/${encodeURIComponent(studentId)}`,

@@ -358,6 +358,7 @@ export class ProctoringService {
             delete metadataWithoutOldScore.sync_health;
             delete metadataWithoutOldScore.submit_intent_at;
             delete metadataWithoutOldScore.submit_intent_digest;
+            delete metadataWithoutOldScore.closed_by_staff;
             updates.personal_end_time = recoveryUntil;
             updates.metadata = active ? {
                 ...metadataWithoutOldScore,
@@ -524,6 +525,7 @@ export class ProctoringService {
             delete previousMetadata.recovery_submit_only;
             delete previousMetadata.recovery_source_deadline;
             delete previousMetadata.closed_by_expiry;
+            delete previousMetadata.closed_by_staff;
             delete previousMetadata.frozen_submission_received_at;
 
             const { count: deletedAnswerCount, error: countError } = await db

@@ -17,7 +17,7 @@ import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringRe
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
-import { getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
+import { finishAttemptAction,getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
 import type {
     ExamAttemptRecord,
     OrganizationExam,
@@ -298,6 +298,13 @@ function MonitoringContent() {
 
     const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
 
+    const handleFinishAttempt = async (attempt: ExamAttemptRecord, reason: string): Promise<string | null> => {
+        const result = await finishAttemptAction(attempt.id, reason);
+        if (!result.success) return result.error || 'Pengerjaan belum berhasil diselesaikan.';
+        void loadExamData(attempt.exam_id, true);
+        return null;
+    };
+
     const handleResetAttempt = (attempt: ExamAttemptRecord) => {
         if (!canResetParticipants || attempt.canReset !== true || attempt.exam_id !== selectedExamId) return;
         setSelectedResetAttempt(attempt);
@@ -499,7 +506,7 @@ function MonitoringContent() {
                 </div>
             )}
 
-            {selectedExamId && activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/admin/monitoring/' + id)} />}
+            {selectedExamId && activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/admin/monitoring/' + id)} onFinish={selectedExam?.canManage === true ? handleFinishAttempt : undefined} />}
 
 
             {selectedExamId && (

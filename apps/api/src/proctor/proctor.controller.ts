@@ -31,6 +31,7 @@ import {
     CreateExamDto,
     CreateSchoolYearDto,
     ExamIdsDto,
+    FinishAttemptDto,
     GradeAssignmentDto,
     ImportClassesDto,
     PublishExamDto,
@@ -403,6 +404,17 @@ export class ProctorController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
     ) {
         return this.monitoring.getAttemptDetails(user, attemptId);
+    }
+
+    @Post('attempts/:attemptId/finish')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Selesaikan secara manual pengerjaan siswa yang sedang berlangsung' })
+    finishAttempt(
+        @CurrentUser() user: AuthUser,
+        @Param('attemptId', ParseUUIDPipe) attemptId: string,
+        @Body() dto: FinishAttemptDto,
+    ) {
+        return this.monitoring.finishAttempt(user, attemptId, dto.reason);
     }
 
     @Post('attempts/:attemptId/grade')

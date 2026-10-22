@@ -5,6 +5,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { assertNoActiveAttempts } from '../common/exam-active-attempts';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import {
@@ -347,6 +348,7 @@ export class PasSchedulesService {
             const { data: schedule, error } = await db.from('cbt_pas_class_schedules').select('exam_id').eq('id', scheduleId).maybeSingle();
             if (error || !schedule) throw new BadRequestException('Jadwal belum dapat dibaca.');
             if (schedule.exam_id) {
+                await assertNoActiveAttempts(db, schedule.exam_id, 'menonaktifkan jadwal');
                 const { error: updateError } = await db.from('cbt_exams').update({ is_published: false }).eq('id', schedule.exam_id);
                 if (updateError) throw new BadRequestException('Ujian belum berhasil dinonaktifkan.');
             }

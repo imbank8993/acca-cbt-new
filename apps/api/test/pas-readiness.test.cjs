@@ -135,11 +135,12 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: acti
  const examId = f.db.tables.cbt_pas_class_schedules[0].exam_id;
  assert.equal(f.db.tables.cbt_exams[0].exam_type, assessmentType);
  assert.ok(examId); assert.equal(f.db.tables.cbt_exams[0].is_published, true);
- f.db.tables.cbt_exam_attempts = [{ id: 'a', exam_id: examId, user_id: 'u1', status: 'in_progress' }];
+ // Deactivation is refused while someone is still working (staff-finish-stage93); a finished attempt and its answers must survive.
+ f.db.tables.cbt_exam_attempts = [{ id: 'a', exam_id: examId, user_id: 'u1', status: 'submitted' }];
  f.db.tables.cbt_answers = [{ attempt_id: 'a', question_id: 'q', selected_option_id: 'o' }];
  await service.setActivation({ id: 'admin' }, 'sc', false);
  assert.equal(f.db.tables.cbt_exams[0].is_published, false);
- assert.equal(f.db.tables.cbt_exam_attempts[0].status, 'in_progress');
+ assert.equal(f.db.tables.cbt_exam_attempts[0].status, 'submitted');
  assert.equal(f.db.tables.cbt_answers[0].selected_option_id, 'o');
  await service.setActivation({ id: 'admin' }, 'sc', true);
  assert.equal(f.db.tables.cbt_exams.length, 1); assert.equal(f.db.tables.cbt_exams[0].id, examId);

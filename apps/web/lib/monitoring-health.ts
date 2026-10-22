@@ -19,11 +19,12 @@ export const storageLabels: Record<string, string> = {
 export function gradingLabel(attempt: ExamAttemptRecord) {
     if (!['submitted', 'auto_submitted'].includes(attempt.status)) return 'Belum dikumpulkan';
     const autoSubmitted = attempt.status === 'auto_submitted';
-    if (attempt.total_score == null) return autoSubmitted ? 'Ditutup otomatis · menunggu penilaian' : 'Menunggu penilaian';
+    const closed = attempt.metadata?.closed_by_staff ? 'Diselesaikan staf' : 'Ditutup otomatis';
+    if (attempt.total_score == null) return autoSubmitted ? `${closed} · menunggu penilaian` : 'Menunggu penilaian';
     if (attempt.needs_manual_grading) {
-        return autoSubmitted ? 'Ditutup otomatis · perlu penilaian manual' : 'Menunggu penilaian manual';
+        return autoSubmitted ? `${closed} · perlu penilaian manual` : 'Menunggu penilaian manual';
     }
-    return autoSubmitted ? 'Ditutup otomatis · sudah dinilai' : 'Selesai dinilai';
+    return autoSubmitted ? `${closed} · sudah dinilai` : 'Selesai dinilai';
 }
 export function monitoringAttention(attempt: ExamAttemptRecord, elapsedSeconds = 0) {
     const reasons = [...(attempt.attention_reasons || [])];

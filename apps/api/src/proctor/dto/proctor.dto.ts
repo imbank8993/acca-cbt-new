@@ -241,6 +241,14 @@ export class ClassIdsDto {
     classIds!: string[];
 }
 
+export class FinishAttemptDto {
+    @ApiProperty({ maxLength: 240, description: 'Alasan staf menyelesaikan pengerjaan; dicatat pada pengerjaan.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Tuliskan alasan menyelesaikan pengerjaan.' })
+    @MaxLength(240, { message: 'Alasan maksimal 240 karakter.' })
+    reason!: string;
+}
+
 export class GradeAssignmentDto {
     @IsString()
     @IsNotEmpty()

@@ -31,9 +31,50 @@ const compactReason = (reason: string) => {
     return reason.replace(' peringatan tercatat', ' peringatan');
 };
 
-export function ActiveParticipantsPanel({ attempts, onViewDetails, attentionOnly = false }: {
+/**
+ * Konfirmasi menyelesaikan pengerjaan, di dalam panel detail. SweetAlert tidak
+ * dipakai karena `<dialog>` modal berada di top layer dan akan menutupinya.
+ */
+function FinishAttemptForm({ attempt, onFinish, onDone }: {
+    attempt: ExamAttemptRecord;
+    onFinish: (attempt: ExamAttemptRecord, reason: string) => Promise<string | null>;
+    onDone: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const pending = attempt.sync_health?.pendingAnswerCount ?? 0;
+    if (!open) {
+        return <button type="button" onClick={() => setOpen(true)} className="mt-3 rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">Selesaikan pengerjaan</button>;
+    }
+    const submit = async () => {
+        if (!reason.trim() || busy) return;
+        setBusy(true);
+        setError(null);
+        const failure = await onFinish(attempt, reason.trim());
+        setBusy(false);
+        if (failure) setError(failure);
+        else onDone();
+    };
+    return <div className="mt-4 rounded-lg border border-red-200 bg-red-50/60 p-4 dark:border-red-500/30 dark:bg-red-500/10">
+        <h4 className="text-sm font-semibold text-red-800 dark:text-red-300">Selesaikan pengerjaan siswa ini?</h4>
+        <p className="mt-1 text-xs leading-5 text-red-800 dark:text-red-300">Ujian siswa langsung berakhir dan jawaban yang sudah tersimpan di server ({attempt.saved_answer_count ?? 0} jawaban) dinilai. Siswa tidak dapat melanjutkan.{pending > 0 ? ` Perangkat siswa melaporkan ${pending} jawaban belum tersinkron — jawaban itu tidak ikut dinilai.` : ''}</p>
+        <label className="mt-3 block text-xs font-medium text-foreground" htmlFor={`finish-reason-${attempt.id}`}>Alasan (wajib, tercatat)</label>
+        <textarea id={`finish-reason-${attempt.id}`} value={reason} onChange={event => setReason(event.target.value)} maxLength={240} rows={2} placeholder="Contoh: siswa meminta selesai, perangkat rusak, waktu ujian sesi berakhir" className="mt-1 w-full rounded-md border border-border bg-[var(--card)] px-3 py-2 text-xs text-foreground focus-visible:outline-2 focus-visible:outline-blue-500" />
+        {error && <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">{error}</p>}
+        <div className="mt-3 flex gap-2">
+            <button type="button" disabled={!reason.trim() || busy} onClick={submit} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Menyelesaikan…' : 'Ya, selesaikan'}</button>
+            <button type="button" disabled={busy} onClick={() => { setOpen(false); setError(null); }} className="rounded-lg px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted">Batal</button>
+        </div>
+    </div>;
+}
+
+export function ActiveParticipantsPanel({ attempts, onViewDetails, onFinish, attentionOnly = false }: {
     attempts: ExamAttemptRecord[];
     onViewDetails?: (id: string) => void;
+    /** Hanya diisi untuk pengelola ujian. Mengembalikan pesan galat, atau null bila berhasil. */
+    onFinish?: (attempt: ExamAttemptRecord, reason: string) => Promise<string | null>;
     attentionOnly?: boolean;
 }) {
     const [page, setPage] = useState(1);
@@ -107,6 +148,7 @@ export function ActiveParticipantsPanel({ attempts, onViewDetails, attentionOnly
                     <ol className="space-y-3">{[...(selected.monitoring_history || [])].sort((a,b) => Date.parse(b.at) - Date.parse(a.at)).map((event,index) => <li key={`${event.at}-${index}`} className="border-l-2 border-border pl-3"><div className="text-[11px] text-muted-foreground">{date(event.at)}</div><div className="mt-1 text-xs">{monitoringEventLabels[event.type] || securityViolationLabel(event.type)}</div>{event.reason && <p className="mt-1 text-xs text-muted-foreground">{event.reason}</p>}</li>)}</ol>
                     {!selected.monitoring_history?.length && <p className="text-xs text-muted-foreground">Belum ada riwayat.</p>}
                     {onViewDetails && <button type="button" onClick={() => { onViewDetails(selected.id); setSelectedId(null); }} className="mt-6 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">Buka rincian jawaban</button>}
+                    {onFinish && selected.status === 'in_progress' && <div className="border-t border-border pt-3 mt-6"><FinishAttemptForm key={selected.id} attempt={selected} onFinish={onFinish} onDone={() => setSelectedId(null)} /></div>}
                 </div> : <p className="p-5 text-sm text-muted-foreground">Peserta tidak lagi ada dalam daftar ini. Tutup panel untuk melihat data terbaru.</p>}
             </div>
         </dialog>

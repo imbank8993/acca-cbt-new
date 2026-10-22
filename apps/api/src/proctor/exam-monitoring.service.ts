@@ -2,7 +2,7 @@ import { attemptHealth } from '../common/attempt-health';
 import { MONITORING_EVENTS } from '../common/exam-monitoring';
 import { readExamQuestionVersion, hasExamQuestionSnapshots, loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -166,7 +166,8 @@ export class ExamMonitoringService {
                 remaining_at_reconnect_seconds: log.metadata?.remaining_at_reconnect_seconds ?? null,
             }));
             if (attempt.started_at) history.push({ type: 'ATTEMPT_STARTED', at: attempt.started_at } as any);
-            if (attempt.finished_at) history.push({ type: attempt.status === 'submitted' ? 'SUBMITTED' : 'AUTO_SUBMITTED', at: attempt.finished_at } as any);
+            // Penyelesaian oleh staf sudah tercatat sebagai FORCE_TERMINATED beserta alasannya.
+            if (attempt.finished_at && !attempt.metadata?.closed_by_staff) history.push({ type: attempt.status === 'submitted' ? 'SUBMITTED' : 'AUTO_SUBMITTED', at: attempt.finished_at } as any);
             history.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
             return { ...attempt,
                 canReset: canReset(attempt.user_id),
@@ -387,6 +388,82 @@ export class ExamMonitoringService {
         // tetap berjalan walau tidak ada attempt aktif, sehingga kegagalan Python
         // pada polling sebelumnya dapat pulih saat layanan kembali sehat.
         await this.grading.retryPendingAutoSubmissions(examId);
+    }
+
+    /**
+     * Staf menyelesaikan pengerjaan seorang siswa yang sedang berlangsung.
+     *
+     * Hanya pengelola ujian (pembuat ujian, Proktor/Admin sesuai aturan
+     * `canManageExam`) — bukan pengawas ruang. Diperlakukan seperti waktu habis
+     * saat itu juga: jawaban yang sudah tersimpan di server dinilai. Berbeda dari
+     * penutupan karena waktu, siswa TIDAK boleh mengirim salinan lokal susulan
+     * (`closed_by_expiry` tidak diset), sehingga layar siswa menerima "Sesi
+     * ditutup oleh pengawas" pada simpan/kumpul berikutnya.
+     */
+    async finishAttempt(user: AuthUser, attemptId: string, reason: string) {
+        const normalizedReason = String(reason || '').trim();
+        if (!normalizedReason) throw new BadRequestException('Tuliskan alasan menyelesaikan pengerjaan.');
+
+        const { data: found, error: findError } = await this.db.from('cbt_exam_attempts')
+            .select('id, exam_id').eq('id', attemptId).maybeSingle();
+        if (findError) throw new BadRequestException('Pengerjaan belum dapat dibaca.');
+        if (!found) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+        const { data: exam, error: examError } = await this.db.from('cbt_exams')
+            .select('id, organization_id, created_by, exam_type, is_published')
+            .eq('id', (found as { exam_id: string }).exam_id).maybeSingle();
+        if (examError) throw new BadRequestException('Ujian belum dapat dibaca.');
+        if (!exam || !(await this.authz.canManageExam(user, exam as any))) {
+            throw new ForbiddenException('Hanya pengelola ujian yang dapat menyelesaikan pengerjaan siswa.');
+        }
+
+        const closedAt = await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+            const { data: current, error } = await db.from('cbt_exam_attempts')
+                .select('id, status, metadata').eq('id', attemptId).maybeSingle();
+            if (error) throw new BadRequestException('Pengerjaan belum dapat dibaca.');
+            if (!current) throw new NotFoundException('Pengerjaan tidak ditemukan.');
+            if (current.status !== 'in_progress') {
+                throw new ConflictException('Pengerjaan ini sudah selesai.');
+            }
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const now = new Date(clock.now);
+            if (hasActiveSubmitIntent(current.metadata, now)) {
+                throw new ConflictException('Siswa sedang mengumpulkan jawabannya. Tunggu sebentar lalu muat ulang data.');
+            }
+            const { data: updated, error: updateError } = await db.from('cbt_exam_attempts')
+                .update({
+                    status: 'auto_submitted', total_score: null, finished_at: now.toISOString(),
+                    metadata: { ...(current.metadata || {}), closed_by_staff: {
+                        by: user.id, at: now.toISOString(), reason: normalizedReason,
+                    } },
+                })
+                .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
+            if (updateError) throw new BadRequestException('Pengerjaan belum berhasil diselesaikan.');
+            if (!updated) throw new ConflictException('Pengerjaan ini sudah selesai.');
+            // Jejak yang sama dengan penghentian oleh proktor, supaya muncul di
+            // riwayat aktivitas monitoring beserta pelaku dan alasannya.
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: attemptId,
+                event_type: 'FORCE_TERMINATED',
+                metadata: { reason: normalizedReason, terminated_at: now.toISOString(), actor_user_id: user.id, closed_by_staff: true },
+            });
+            if (logError) throw new BadRequestException('Jejak penyelesaian gagal disimpan.');
+            return now.toISOString();
+        });
+
+        // Penilaian di luar transaksi: kegagalan layanan nilai tidak membatalkan
+        // penutupan, dan status auto_submitted + nilai null dicoba ulang otomatis.
+        let graded = false;
+        try {
+            const result = await this.grading.gradeAttemptFromSavedAnswers(attemptId);
+            if (result) {
+                graded = true;
+                await this.grading.applyRelativeQuizScoringIfQuiz(result.examId);
+            }
+        } catch (err) {
+            this.logger.error(`Penilaian pengerjaan ${attemptId} yang diselesaikan staf tertunda: ${(err as Error).message}`);
+        }
+        return { attemptId, status: 'auto_submitted', finishedAt: closedAt, graded };
     }
 
     /**
