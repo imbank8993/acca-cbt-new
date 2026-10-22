@@ -5,6 +5,29 @@
     overflow-wrap: anywhere;
     line-height: 1.5;
 }
+/*
+ * Layar lebar: tampilkan 8–10 ujian sekaligus. Tiap baris dipadatkan menjadi
+ * satu baris judul + satu baris keterangan (dipotong "…"; teks lengkap ada di
+ * tooltip), dan daftar dibuat lebih tinggi tanpa melewati 65% tinggi layar.
+ * Di ponsel teks tetap dibungkus agar terbaca utuh.
+ */
+@media (min-width: 640px) {
+    .monitoring-exam-picker .ss__list {
+        max-height: min(480px, 65vh);
+    }
+    .monitoring-exam-picker .ss__item {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+    .monitoring-exam-picker .ss__itemMain,
+    .monitoring-exam-picker .ss__itemSub {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        overflow-wrap: normal;
+        line-height: 1.35;
+    }
+}
 .monitoring-exam-picker__context {
     margin-top: 8px;
     font-size: 12px;

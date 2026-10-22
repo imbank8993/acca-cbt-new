@@ -466,7 +466,8 @@ function QuestionReviewCard({
                     <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}>
                         {question.status === 'correct' ? 'Benar' :
                          question.status === 'incorrect' ? 'Salah' :
-                         question.status === 'partial' ? 'Parsial' : 'Kosong'}
+                         question.status === 'partial' ? 'Parsial' :
+                         question.status === 'voided' ? 'Dibatalkan · tidak dinilai' : 'Kosong'}
                     </span>
                     <span className="text-xs text-slate-400 font-medium px-2 py-1 bg-slate-100 rounded-lg">
                         {getQuestionTypeLabel(question.questionType)}

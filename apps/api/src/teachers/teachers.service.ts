@@ -12,6 +12,7 @@ import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { isSemesterAssessmentExam } from '../common/exam-types';
+import { isScoreExcluded } from '../common/score-exclusion';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { GradingService } from '../grading/grading.service';
 
@@ -290,7 +291,8 @@ export class TeachersService {
                 throw new BadRequestException('Nilai harus berada antara nol dan skor maksimum soal.');
             }
         }
-        const academicQuestions = ((questions as any[]) || []).filter(q => !PERSONALITY_TYPES.includes(q.type));
+        // Soal dibatalkan tidak ikut skor maksimum, skor diperoleh, maupun status tertunda.
+        const academicQuestions = ((questions as any[]) || []).filter(q => !PERSONALITY_TYPES.includes(q.type) && !isScoreExcluded(q));
         const maxScore = academicQuestions.reduce(
             (sum, q) => sum + (q.score_default ?? 1),
             0,

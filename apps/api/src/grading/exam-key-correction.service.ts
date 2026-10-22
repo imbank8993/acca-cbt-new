@@ -7,6 +7,10 @@ import { readExamQuestionVersion, hasExamQuestionSnapshots } from '../common/exa
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { GradingService } from './grading.service';
 import { ExamKeyCorrectionDto } from './exam-key-correction.dto';
+import type { VoidedQuestion } from '../common/score-exclusion';
+
+/** Tipe psikometri tidak pernah dinilai benar/salah; sama dengan daftar di layanan scoring. */
+const PERSONALITY_TYPES = ['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
 
 @Injectable()
 export class ExamKeyCorrectionService {
@@ -39,6 +43,7 @@ export class ExamKeyCorrectionService {
         return { questions: await readExamQuestionVersion(this.db, examId),
             revision: exam.metadata?.key_correction?.revision || 0,
             correction: exam.metadata?.key_correction || null,
+            voided: exam.metadata?.voided_questions || {},
             history: exam.metadata?.key_correction_history || [] };
     }
     async save(user: AuthUser, examId: string, dto: ExamKeyCorrectionDto) {
@@ -58,8 +63,26 @@ export class ExamKeyCorrectionService {
             const questions = await readExamQuestionVersion(db, examId);
             const changes: Array<{ questionId: string; before: string; after: string }> = [];
             const overrides = { ...(exam.metadata?.answer_key_overrides || {}) };
-            if (new Set(dto.changes.map(change => change.questionId)).size !== dto.changes.length) throw new BadRequestException('Soal koreksi tidak boleh duplikat.');
-            for (const change of dto.changes) {
+            const dtoChanges = dto.changes || [];
+            const dtoVoids = dto.voids || [];
+            if (new Set(dtoChanges.map(change => change.questionId)).size !== dtoChanges.length) throw new BadRequestException('Soal koreksi tidak boleh duplikat.');
+            if (new Set(dtoVoids.map(change => change.questionId)).size !== dtoVoids.length) throw new BadRequestException('Soal yang dibatalkan tidak boleh duplikat.');
+            // Soal dibatalkan: dikeluarkan dari skor diperoleh DAN skor maksimum
+            // seluruh peserta. Berlaku untuk tipe apa pun yang dinilai, termasuk esai.
+            const voided: Record<string, VoidedQuestion> = { ...(exam.metadata?.voided_questions || {}) };
+            const voidChanges: Array<{ questionId: string; excluded: boolean }> = [];
+            for (const change of dtoVoids) {
+                const question = questions.find(q => q.id === change.questionId);
+                if (!question) throw new BadRequestException('Soal bukan bagian ujian ini.');
+                if (PERSONALITY_TYPES.includes(String(question.type).toLowerCase())) {
+                    throw new BadRequestException('Soal kepribadian memang tidak dinilai, sehingga tidak perlu dibatalkan.');
+                }
+                if (Boolean(voided[change.questionId]) === change.excluded) continue;
+                if (change.excluded) voided[change.questionId] = { at: new Date(clock.now).toISOString(), actorId: user.id, reason: dto.reason.trim() };
+                else delete voided[change.questionId];
+                voidChanges.push(change);
+            }
+            for (const change of dtoChanges) {
                 const question = questions.find(q => q.id === change.questionId) as KeyQuestion | undefined;
                 if (!question) throw new BadRequestException('Soal bukan bagian ujian ini.');
                 let revised: KeyQuestion;
@@ -69,14 +92,20 @@ export class ExamKeyCorrectionService {
                 changes.push({ questionId: change.questionId, before, after });
                 overrides[change.questionId] = after;
             }
-            if (!changes.length) throw new BadRequestException('Tidak ada perubahan kunci.');
+            if (!changes.length && !voidChanges.length) throw new BadRequestException('Tidak ada perubahan kunci atau pembatalan soal.');
+            const academicCount = questions.filter(q => !PERSONALITY_TYPES.includes(String(q.type).toLowerCase())).length;
+            if (academicCount > 0 && questions.filter(q => !PERSONALITY_TYPES.includes(String(q.type).toLowerCase()) && voided[q.id]).length >= academicCount) {
+                throw new BadRequestException('Tidak semua soal boleh dibatalkan; minimal satu soal harus tetap dinilai.');
+            }
             const history = exam.metadata?.key_correction_history || [];
             if (history.length >= 100) throw new BadRequestException('Batas riwayat koreksi ujian tercapai.');
             const revision = dto.revision + 1;
             const attemptIds = (attempts || []).filter((a: any) => ['submitted', 'auto_submitted'].includes(a.status)).map((a: any) => a.id).sort();
             await this.write(db, examId, { show_results: false, metadata: { ...exam.metadata,
                 answer_key_overrides: overrides,
-                key_correction_history: [...history, { revision, actorId: user.id, at: new Date(clock.now).toISOString(), reason: dto.reason.trim(), changes }],
+                voided_questions: voided,
+                key_correction_history: [...history, { revision, actorId: user.id, at: new Date(clock.now).toISOString(), reason: dto.reason.trim(), changes,
+                    ...(voidChanges.length ? { voids: voidChanges } : {}) }],
                 key_correction: { revision, state: 'pending', attemptIds, completed: 0, total: attemptIds.length },
             } });
             const cleared = await db.from('cbt_exam_attempts').update({ total_score: null, score_irt: null, irt_theta: null, detailed_scores: null })

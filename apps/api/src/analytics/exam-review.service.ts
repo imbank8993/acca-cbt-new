@@ -3,6 +3,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { loadFrozenExamQuestions } from '../common/exam-question-snapshots';
+import { isScoreExcluded } from '../common/score-exclusion';
 import { examUsesQuestionGroups, orderQuestionsForStudent } from '../common/question-order';
 import { DbService } from '../prisma/prisma-db-adapter';
 
@@ -159,7 +160,10 @@ export class ExamReviewService {
             }
 
             const qtype = String(question.type).toLowerCase();
-            const academic = !['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(qtype);
+            // Soal dibatalkan tetap ditampilkan, tetapi tidak masuk skor maupun skor maksimum.
+            const excluded = isScoreExcluded(question);
+            if (excluded) status = 'voided';
+            const academic = !excluded && !['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(qtype);
             const maximum = Math.max(Number(question.score_default ?? 1), 0);
             if (academic) {
                 scoreObtained = awarded ?? (answer?.is_correct === true ? maximum : 0);
@@ -209,9 +213,10 @@ export class ExamReviewService {
                 questionNumber: index + 1,
                 questionText: question.question_text,
                 questionType: qType,
-                scoreDefault: question.score_default ?? 1,
+                scoreDefault: excluded ? 0 : question.score_default ?? 1,
                 scoreObtained,
                 status,
+                scoreExcluded: excluded,
                 selectedOptionId: answer?.selected_option_id,
                 selectedOptionText,
                 essayAnswer: answer?.essay_answer,

@@ -7,7 +7,8 @@ import type { Question,QuestionType } from './question';
 
 // ─── Review Types ─────────────────────────────────────────────────────────────
 
-export type QuestionStatus = 'correct' | 'incorrect' | 'unanswered' | 'partial';
+/** 'voided': soal dibatalkan guru, tidak dihitung dalam nilai. */
+export type QuestionStatus = 'correct' | 'incorrect' | 'unanswered' | 'partial' | 'voided';
 
 export type ReviewFilter = 'all' | 'correct' | 'incorrect' | 'unanswered' | 'partial' | 'doubtful';
 
@@ -21,6 +22,8 @@ export interface QuestionReview {
     questionType: QuestionType;
     scoreDefault: number;
     scoreObtained: number;
+    /** Soal dibatalkan: tidak menambah skor maupun skor maksimum. */
+    scoreExcluded?: boolean;
     status: QuestionStatus;
 
     // Student's answer
@@ -148,6 +151,8 @@ export function getStatusColor(status: QuestionStatus): { bg: string; text: stri
             return { bg: 'bg-amber-100', text: 'text-amber-700', icon: '±' };
         case 'unanswered':
             return { bg: 'bg-slate-100', text: 'text-slate-500', icon: '○' };
+        case 'voided':
+            return { bg: 'bg-violet-100', text: 'text-violet-700', icon: '⊘' };
     }
 }
 

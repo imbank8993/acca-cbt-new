@@ -15,6 +15,7 @@ class IrtOption(BaseModel):
 class IrtQuestion(BaseModel):
     type: str = "mcq"
     score_default: float = 1
+    metadata: dict[str, Any] = Field(default_factory=dict)
     bank_question_options: list[IrtOption] = Field(default_factory=list)
 
 

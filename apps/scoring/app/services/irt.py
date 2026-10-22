@@ -118,6 +118,10 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
             qtype = (question.type or "mcq").lower()
             weight = max(float(question.score_default), 0.0)
 
+            if (question.metadata or {}).get("score_excluded") is True:
+                # Soal dibatalkan: dikeluarkan dari bobot, kalibrasi, dan skor.
+                continue
+
             if qtype in PERSONALITY_TYPES or weight == 0:
                 # Diabaikan sepenuhnya: tipe psikometri tidak mengukur kemampuan.
                 continue

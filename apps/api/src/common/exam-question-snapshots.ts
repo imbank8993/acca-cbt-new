@@ -3,6 +3,7 @@ import { applyExamQuestionKey, type KeyQuestion } from '@acca-cbt/shared';
 import type { DbService, DbSession } from '../prisma/prisma-db-adapter';
 import { loadExamQuestions } from './exam-question-sources';
 import { advisoryTransactionLock } from './transaction-lock';
+import { markScoreExcluded } from './score-exclusion';
 
 /** Seluruh data yang dapat memengaruhi tampilan, urutan, dan nilai. */
 export const EXAM_QUESTION_SNAPSHOT_SELECT = `
@@ -39,8 +40,13 @@ async function applyCorrections(db: DbSession, examId: string, questions: Frozen
   const { data, error } = await db.from('cbt_exams').select('metadata').eq('id', examId).maybeSingle();
   if (error) throw new BadRequestException('Revisi kunci ujian belum dapat dibaca.');
   const keys = data?.metadata?.answer_key_overrides || {};
-  return questions.map(question => typeof keys[question.id] === 'string'
-    ? applyExamQuestionKey(question as KeyQuestion, keys[question.id]) as FrozenExamQuestion : question);
+  const voided = data?.metadata?.voided_questions || {};
+  return questions.map(question => {
+    const keyed = typeof keys[question.id] === 'string'
+      ? applyExamQuestionKey(question as KeyQuestion, keys[question.id]) as FrozenExamQuestion : question;
+    // Soal dibatalkan: tetap ada dalam ujian, tetapi tidak dinilai.
+    return voided[question.id] ? markScoreExcluded(keyed) : keyed;
+  });
 }
 
 async function readSnapshots(db: DbSession, examId: string): Promise<SnapshotRow[]> {

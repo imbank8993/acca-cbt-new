@@ -1,4 +1,5 @@
 import { ExamSubmissionSync } from '@/app/components/ExamSubmissionSync';
+import { SingleLogoutListener } from '@/app/components/SingleLogoutListener';
 import { ExamPwaRegistration } from "@/app/components/ExamPwaRegistration";
 import MaintenanceProvider from "@/app/components/MaintenanceProvider";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
@@ -100,6 +101,7 @@ export default async function RootLayout({
         className={`${openSans.variable} ${poppins.variable} antialiased`}
       >
         <div className="acca-ambient-bg" aria-hidden="true" />
+        <SingleLogoutListener />
         <ExamPwaRegistration />
         <ErrorBoundary>
           <ToastProvider>

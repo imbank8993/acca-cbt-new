@@ -283,6 +283,17 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
     )
 
 
+def is_score_excluded(question) -> bool:
+    """Soal dibatalkan (cacat) untuk ujian ini.
+
+    Ditandai NestJS lewat ``metadata.score_excluded`` dari koreksi kunci. Soal
+    ini dikeluarkan dari skor diperoleh MAUPUN skor maksimum, jadi nilai dihitung
+    seolah soal itu tidak pernah ada.
+    """
+    metadata = getattr(question, "metadata", None) or {}
+    return isinstance(metadata, dict) and metadata.get("score_excluded") is True
+
+
 def is_academic_type(qtype: str) -> bool:
     """Apakah tipe soal ini ikut menentukan nilai akademik 0–100."""
     return (qtype or "").lower() not in PERSONALITY_TYPES

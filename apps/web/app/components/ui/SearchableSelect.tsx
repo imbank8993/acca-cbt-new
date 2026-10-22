@@ -394,6 +394,8 @@ export function SearchableSelect({
                     type="button"
                     key={opt.value}
                     className={`ss__item ${active ? 'is-active' : ''} ${isHighlighted ? 'is-highlighted' : ''}`}
+                    // Teks lengkap untuk baris yang dipotong dengan "…".
+                    title={[opt.label, opt.subLabel].filter(Boolean).join('\n')}
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     onClick={(e) => {
                       e.stopPropagation();

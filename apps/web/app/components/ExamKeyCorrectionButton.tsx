@@ -16,12 +16,18 @@ interface CorrectionData {
     questions: Array<Question & KeyQuestion>;
     revision: number;
     correction: { state: string; completed: number; total: number; error?: string } | null;
-    history: Array<{ revision: number; at: string; reason: string; actorId: string; changes: unknown[] }>;
+    /** Soal yang dibatalkan: tidak dihitung dalam skor diperoleh maupun skor maksimum. */
+    voided?: Record<string, { at: string; reason: string }>;
+    history: Array<{ revision: number; at: string; reason: string; actorId: string; changes: unknown[]; voids?: Array<{ questionId: string; excluded: boolean }> }>;
 }
+/** Tipe psikometri memang tidak dinilai, jadi tidak perlu (dan tidak bisa) dibatalkan. */
+const PERSONALITY_TYPES = ['likert', 'sjt', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
+const isGraded = (question: { type: string }) => !PERSONALITY_TYPES.includes(question.type);
 export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string; onComplete: () => void }) {
     const [open, setOpen] = useState(false);
     const [data, setData] = useState<CorrectionData | null>(null);
     const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const [voidDrafts, setVoidDrafts] = useState<Record<string, boolean>>({});
     const [selectedId, setSelectedId] = useState('');
     const [reason, setReason] = useState('');
     const [busy, setBusy] = useState(false);
@@ -35,7 +41,8 @@ export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string
         setData(response);
         if (!preserveDrafts || response.revision !== data?.revision || (response.correction && response.correction.state !== 'ready')) {
             setDrafts(Object.fromEntries(response.questions.filter(q => CORRECTABLE_QUESTION_TYPES.includes(q.type)).map(q => [q.id, examQuestionKey(q)])));
-            setSelectedId(response.questions.find(q => CORRECTABLE_QUESTION_TYPES.includes(q.type))?.id || '');
+            setVoidDrafts(Object.fromEntries(Object.keys(response.voided || {}).map(id => [id, true])));
+            setSelectedId(response.questions.find(isGraded)?.id || '');
         }
         return response;
     };
@@ -59,11 +66,14 @@ export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string
         setBusy(true); setError('');
         try {
             if (!data.correction || data.correction.state === 'ready') {
-                const changes = data.questions.filter(q => CORRECTABLE_QUESTION_TYPES.includes(q.type) && drafts[q.id] !== examQuestionKey(q)).map(q => ({ questionId: q.id,
+                // Kunci soal yang dibatalkan tidak dikirim: nilainya tidak dihitung lagi.
+                const changes = data.questions.filter(q => CORRECTABLE_QUESTION_TYPES.includes(q.type) && !voidDrafts[q.id] && drafts[q.id] !== examQuestionKey(q)).map(q => ({ questionId: q.id,
                     key: examQuestionKey(applyExamQuestionKey(q, drafts[q.id])) })).filter(change =>
                     change.key !== examQuestionKey(data.questions.find(q => q.id === change.questionId)!));
-                if (!changes.length) throw Error('Belum ada perubahan kunci.');
-                const response = await apiSend(path, { revision: data.revision, reason, changes });
+                const voids = data.questions.filter(q => isGraded(q) && Boolean(voidDrafts[q.id]) !== Boolean(data.voided?.[q.id]))
+                    .map(q => ({ questionId: q.id, excluded: Boolean(voidDrafts[q.id]) }));
+                if (!changes.length && !voids.length) throw Error('Belum ada perubahan kunci atau soal yang dibatalkan.');
+                const response = await apiSend(path, { revision: data.revision, reason, changes, voids });
                 if (!response.success) throw Error(response.error);
             }
             await recalculate();
@@ -73,10 +83,10 @@ export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string
     const pending = data?.correction && data.correction.state !== 'ready';
     const selected = data?.questions.find(q => q.id === selectedId);
     return <>
-        <Button variant="outline" onClick={() => void show()}>Koreksi Kunci</Button>
-        {open && <Modal title="Koreksi Kunci Ujian" size="xl" onClose={() => { if (!busy) setOpen(false); }} closeOnOverlayClick={!busy}>
+        <Button variant="outline" onClick={() => void show()}>Koreksi Kunci / Batalkan Soal</Button>
+        {open && <Modal title="Koreksi Kunci & Pembatalan Soal" size="xl" onClose={() => { if (!busy) setOpen(false); }} closeOnOverlayClick={!busy}>
             <ModalBody className="exam-key-correction__body">
-                <p className="text-sm text-slate-500">Koreksi berlaku untuk ujian ini. Nilai akan ditutup sementara, kemudian seluruh peserta dinilai ulang termasuk IRT.</p>
+                <p className="text-sm text-slate-500">Koreksi kunci dan pembatalan soal berlaku untuk ujian ini. Nilai akan ditutup sementara, kemudian seluruh peserta dinilai ulang termasuk IRT.</p>
                 {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
                 {progress && <p role="status" className="mb-4 text-sm text-[#3083FF]">{progress}</p>}
                 {!data && <p className="text-sm text-slate-500">{busy ? 'Memuat kunci ujian…' : 'Kunci ujian belum tersedia.'}</p>}
@@ -89,29 +99,42 @@ export function ExamKeyCorrectionButton({ examId, onComplete }: { examId: string
                                 onChange={value => setSelectedId(String(value))}
                                 disabled={busy}
                                 keepHighlightedVisible
-                                placeholder="Pilih soal yang akan dikoreksi"
+                                placeholder="Pilih soal yang akan dikoreksi atau dibatalkan"
                                 searchPlaceholder="Ketik nomor atau teks soal…"
-                                options={data.questions.flatMap((question, index) => CORRECTABLE_QUESTION_TYPES.includes(question.type)
-                                    ? [{ value: question.id, label: `Soal ${index + 1}`, subLabel: stripHtml(question.question_text || '') }]
+                                options={data.questions.flatMap((question, index) => isGraded(question)
+                                    ? [{ value: question.id, label: `Soal ${index + 1}${voidDrafts[question.id] ? ' · Dibatalkan' : ''}`, subLabel: stripHtml(question.question_text || '') }]
                                     : [])}
                             />
                         </div>
                         {selected && <fieldset disabled={busy} className={`exam-key-correction__question ${busy ? 'pointer-events-none opacity-60' : ''}`}>
-                            <p className="mb-3 text-sm font-semibold text-[#3083FF]">Pilih atau isi jawaban yang benar</p>
-                            <QuestionRenderer key={`${data.revision}:${selected.id}`} question={selected} answer={drafts[selected.id]} onAnswerChange={answer => {
-                                setDrafts(current => ({ ...current, [selected.id]: typeof answer === 'string' ? answer : JSON.stringify(answer) }));
-                            }} />
+                            <label className={`mb-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${voidDrafts[selected.id] ? 'border-amber-300 bg-amber-50' : 'border-slate-200'}`}>
+                                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={Boolean(voidDrafts[selected.id])}
+                                    onChange={event => setVoidDrafts(current => ({ ...current, [selected.id]: event.target.checked }))} />
+                                <span>
+                                    <span className="font-semibold text-slate-800">Batalkan soal ini (soal cacat, tidak dinilai)</span>
+                                    <span className="mt-0.5 block text-xs text-slate-500">Soal dikeluarkan dari nilai seluruh peserta: tidak menambah skor dan tidak menambah skor maksimum, apa pun jawabannya. Bisa dipulihkan kembali.</span>
+                                </span>
+                            </label>
+                            {voidDrafts[selected.id]
+                                ? <p className="text-sm text-amber-800">Soal ini tidak akan dihitung. Kunci jawabannya tidak perlu diubah.</p>
+                                : CORRECTABLE_QUESTION_TYPES.includes(selected.type) ? <>
+                                    <p className="mb-3 text-sm font-semibold text-[#3083FF]">Pilih atau isi jawaban yang benar</p>
+                                    <QuestionRenderer key={`${data.revision}:${selected.id}`} question={selected} answer={drafts[selected.id]} onAnswerChange={answer => {
+                                        setDrafts(current => ({ ...current, [selected.id]: typeof answer === 'string' ? answer : JSON.stringify(answer) }));
+                                    }} />
+                                </> : <p className="text-sm text-slate-500">Soal esai dinilai manual sehingga tidak memiliki kunci, tetapi tetap dapat dibatalkan.</p>}
                         </fieldset>}
                         <div className="exam-key-correction__notes">
                             <label className="text-sm font-semibold text-slate-600" htmlFor="correction-reason">Catatan koreksi</label>
-                            <textarea id="correction-reason" value={reason} onChange={event => setReason(event.target.value)} disabled={busy} maxLength={1000} rows={5} className="w-full border border-slate-200 rounded-lg p-3 text-sm" placeholder="Jelaskan kunci yang diperbaiki dan alasan perubahannya…" />
-                            <p className="text-xs text-slate-400">Esai tetap dikoreksi manual. Soal kepribadian tidak menggunakan kunci benar/salah.</p>
+                            <textarea id="correction-reason" value={reason} onChange={event => setReason(event.target.value)} disabled={busy} maxLength={1000} rows={5} className="w-full border border-slate-200 rounded-lg p-3 text-sm" placeholder="Jelaskan kunci yang diperbaiki atau alasan soal dibatalkan…" />
+                            <p className="text-xs text-slate-400">Esai tetap dikoreksi manual. Soal kepribadian tidak menggunakan kunci benar/salah dan tidak dinilai.</p>
                         </div>
                     </>}
                     {data.history.length > 0 && <details className="mt-5 border-t border-slate-100 pt-3 text-sm text-slate-600">
                         <summary className="cursor-pointer font-semibold">Riwayat koreksi ({data.history.length})</summary>
                         {[...data.history].reverse().map(entry => <div key={entry.revision} className="mt-3 border-b border-slate-100 pb-2">
-                            <p className="font-semibold">Revisi {entry.revision} · {entry.changes.length} soal</p>
+                            <p className="font-semibold">Revisi {entry.revision} · {entry.changes.length} kunci{entry.voids?.length
+                                ? ` · ${entry.voids.filter(item => item.excluded).length} dibatalkan · ${entry.voids.filter(item => !item.excluded).length} dipulihkan` : ''}</p>
                             <p>{entry.reason}</p><p className="text-xs text-slate-400">{formatSchoolDateTime(entry.at, timeZone)}</p>
                         </div>)}
                     </details>}

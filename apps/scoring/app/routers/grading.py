@@ -15,6 +15,7 @@ from ..services.grading import (
     apply_relative_scoring,
     calculate_single_answer_score,
     is_academic_type,
+    is_score_excluded,
     scale_to_hundred,
 )
 
@@ -44,6 +45,14 @@ def grade_attempt(request: GradeBatchRequest) -> GradeBatchResponse:
         question = entry.question
         qtype = (question.type or "").lower()
         default_score = max(question.score_default, 0)
+
+        if is_score_excluded(question):
+            # Soal dibatalkan: tidak menambah skor maupun skor maksimum, dan tidak
+            # menunggu koreksi manual. Barisnya tetap dikirim agar skor jawaban
+            # lama (yang mungkin sudah benar/salah) ikut dinolkan.
+            items.append(GradedItem(answer_id=entry.answer_id, question_id=question.id,
+                                    score=0, is_correct=None, dimension_scores={}))
+            continue
 
         # Tipe psikometri dikecualikan dari nilai akademik, sehingga ujian
         # campuran tidak pernah melewati 100.

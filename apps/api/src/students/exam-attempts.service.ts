@@ -11,6 +11,7 @@ import { studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { normalizeAssignmentSubmission } from '../common/assignment-submission';
+import { isScoreExcluded } from '../common/score-exclusion';
 import { hasBoundSubmitIntent, hasCommittedSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
 import { persistSubmissionSecurityEvents, validateSubmissionSecurityEvents,
     type SubmissionSecurityEvent } from '../common/student-security-events';
@@ -1213,7 +1214,7 @@ export class ExamAttemptsService {
                 }
                 const { error } = await db.from('cbt_exam_attempts').update({
                     status: 'submitted', total_score: null, finished_at: finishedAt, metadata,
-                    needs_manual_grading: exam.exam_type === 'assignment' || questions.some(q => isEssayType(q.type)),
+                    needs_manual_grading: exam.exam_type === 'assignment' || questions.some(q => isEssayType(q.type) && !isScoreExcluded(q)),
                 }).eq('id', attempt.id).eq('status', current.status);
                 if (error) throw new BadRequestException('Pengumpulan belum tersimpan. Silakan coba lagi.');
                 return { score: null, alreadySubmitted: false, savedAnswersOnly: false,

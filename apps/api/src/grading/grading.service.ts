@@ -14,6 +14,7 @@ import {
 } from '../common/exam-question-snapshots';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { isEssayType } from '../common/answer-storage';
+import { isScoreExcluded } from '../common/score-exclusion';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
 
@@ -29,11 +30,13 @@ interface AnswerRow {
     is_correct?: boolean | null;
 }
 
-function manualGradeSummary(questions: Array<{ id: string; type: string }>, answers: Map<string, AnswerRow>) {
+function manualGradeSummary(questions: Array<{ id: string; type: string; metadata?: unknown }>, answers: Map<string, AnswerRow>) {
     let score = 0;
     let pending = false;
     for (const question of questions) {
         if (!['essay', 'esay', 'uraian'].includes(question.type.toLowerCase())) continue;
+        // Esai yang dibatalkan tidak dinilai dan tidak menahan nilai akhir.
+        if (isScoreExcluded(question)) continue;
         const answer = answers.get(question.id);
         if (typeof answer?.score === 'number' && Number.isFinite(answer.score) &&
             typeof answer.is_correct === 'boolean') score += answer.score;
