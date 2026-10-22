@@ -48,6 +48,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [validations, setValidations] = useState<ValidationSession[]>([]);
     const [banks, setBanks] = useState<QuestionBank[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -87,6 +88,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
 
     const loadData = useCallback(async () => {
         setLoading(true);
+        setLoadError(null);
         try {
             const [valList, bankList, sessionUser, myTasks] = await Promise.all([
                 listValidations(),
@@ -102,6 +104,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
             setMyTasksCount(myTasks.length);
         } catch (e) {
             console.error('Failed to load validations', e);
+            setLoadError(e instanceof Error ? e.message : 'Daftar validasi belum dapat dimuat.');
         } finally {
             setLoading(false);
         }
@@ -220,6 +223,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     </Button>
                 </FilterActions>
             </FilterToolbar>
+
+            {loadError && !loading && (
+                <div role="alert" className="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300">
+                    {loadError}
+                </div>
+            )}
 
             {/* List Data / Desktop Table */}
             {loading ? (

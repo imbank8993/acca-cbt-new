@@ -5,16 +5,20 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { compareQuestions } from '../common/bank-question-order';
+import { dedupeOptions } from '../common/question-options';
 import {
     CreateValidationDto,
     SaveValidationNoteDto,
     SubmitValidationDto,
 } from './dto/validations.dto';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class ValidationsService {
@@ -24,6 +28,21 @@ export class ValidationsService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
     ) {}
+
+    /**
+     * Validator tidak boleh mengubah catatan/rekomendasi setelah batas waktu
+     * yang ditetapkan Admin/Proktor terlewati.
+     */
+    private assertWithinDeadline(session: { deadline?: string | null }) {
+        if (!session.deadline) return;
+        let deadline = new Date(session.deadline).getTime();
+        // Sesi lama menyimpan tanggal saja sebagai 00:00 UTC (= 08:00 WITA).
+        // Perlakukan sebagai batas akhir hari agar validator tidak terkunci pagi hari.
+        if (deadline % DAY_MS === 0) deadline += DAY_MS - 1;
+        if (Number.isFinite(deadline) && deadline < Date.now()) {
+            throw new ForbiddenException('Batas waktu validasi telah berakhir. Hubungi Admin/Proktor bila perlu diperpanjang.');
+        }
+    }
 
     private async notifyOwner(tx: Pick<DbService, 'from'>, validationId: string, organizationId: string, bankId: string, onlyIfMissing = false) {
         const { data: bank, error } = await tx.from('cbt_question_banks').select('created_by, title').eq('id', bankId).eq('organization_id', organizationId).single();
@@ -54,7 +73,7 @@ export class ValidationsService {
     async create(user: AuthUser, dto: CreateValidationDto) {
         const { data: bank, error: bankErr } = await this.db
             .from('cbt_question_banks')
-            .select('id, organization_id, title')
+            .select('id, organization_id, title, created_by')
             .eq('id', dto.bankId)
             .maybeSingle();
 
@@ -66,8 +85,35 @@ export class ValidationsService {
         await this.authz.assertProktor(user, organizationId);
         await this.authz.assertBankAccess(user, dto.bankId, 'read');
 
-        if (!dto.validatorIds || dto.validatorIds.length === 0) {
+        const validatorIds = Array.from(new Set(dto.validatorIds || []));
+        if (validatorIds.length === 0) {
             throw new BadRequestException('Pilih minimal 1 orang guru sebagai validator.');
+        }
+
+        const bankOwner = (bank as { created_by: string | null }).created_by;
+        if (bankOwner && validatorIds.includes(bankOwner)) {
+            throw new BadRequestException('Pembuat bank soal tidak dapat ditunjuk sebagai validator bank soalnya sendiri.');
+        }
+
+        // Validator harus staf aktif (Guru/Proktor/Admin) di sekolah yang sama.
+        // Tanpa pemeriksaan ini siswa atau akun sekolah lain dapat ditunjuk dan
+        // melihat ringkasan tugas di daftar "tugas saya".
+        for (const validatorId of validatorIds) {
+            if (!await this.authz.hasOrgStaffRole(validatorId, organizationId)) {
+                throw new BadRequestException('Validator harus guru atau staf aktif di sekolah ini.');
+            }
+        }
+
+        let deadline: string | null = null;
+        if (dto.deadline) {
+            const parsed = new Date(dto.deadline);
+            if (Number.isNaN(parsed.getTime())) {
+                throw new BadRequestException('Format batas waktu tidak valid.');
+            }
+            if (parsed.getTime() <= Date.now()) {
+                throw new BadRequestException('Batas waktu validasi harus di masa depan.');
+            }
+            deadline = parsed.toISOString();
         }
 
         const title = dto.title?.trim() || `Validasi: ${(bank as { title: string }).title}`;
@@ -81,7 +127,7 @@ export class ValidationsService {
                     created_by: user.id,
                     title,
                     instructions: dto.instructions?.trim() || '',
-                    deadline: dto.deadline ? new Date(dto.deadline).toISOString() : null,
+                    deadline,
                     approval_rule: dto.approvalRule || 'unanimous',
                     status: 'pending',
                     allow_edit_during_exam: dto.allowEditDuringExam ?? true,
@@ -90,12 +136,13 @@ export class ValidationsService {
                 .single();
 
             if (valErr || !valRow) {
-                throw new BadRequestException(`Gagal membuat sesi validasi: ${valErr?.message}`);
+                this.logger.error(`Gagal membuat sesi validasi: ${valErr?.message}`);
+                throw new BadRequestException('Gagal membuat sesi validasi. Silakan coba lagi.');
             }
 
             const validationId = (valRow as { id: string }).id;
 
-            const validatorRows = dto.validatorIds.map((vId) => ({
+            const validatorRows = validatorIds.map((vId) => ({
                 validation_id: validationId,
                 validator_id: vId,
                 status: 'assigned',
@@ -106,9 +153,8 @@ export class ValidationsService {
                 .insert(validatorRows);
 
             if (vInsertErr) {
-                throw new BadRequestException(
-                    `Gagal menugaskan validator: ${vInsertErr.message}`,
-                );
+                this.logger.error(`Gagal menugaskan validator: ${vInsertErr.message}`);
+                throw new BadRequestException('Gagal menugaskan validator. Silakan coba lagi.');
             }
 
             return { id: validationId };
@@ -122,6 +168,9 @@ export class ValidationsService {
      */
     async list(user: AuthUser, bankId?: string) {
         await this.authz.assertProktor(user, user.organizationId);
+        if (bankId && !isUUID(bankId)) {
+            throw new BadRequestException('ID bank soal tidak valid.');
+        }
 
         let query = this.db
             .from('cbt_question_bank_validations')
@@ -141,7 +190,7 @@ export class ValidationsService {
         const { data, error } = await query;
         if (error) {
             this.logger.error(`Gagal membaca daftar validasi: ${error.message}`);
-            return [];
+            throw new BadRequestException('Daftar validasi belum dapat dimuat. Silakan coba lagi.');
         }
 
         const rows = (data as any[]) || [];
@@ -197,7 +246,7 @@ export class ValidationsService {
             .select(
                 `id, status, general_recommendation, general_comment, submitted_at, created_at,
                  validation:cbt_question_bank_validations(
-                    id, title, instructions, deadline, approval_rule, status, created_at,
+                    id, organization_id, title, instructions, deadline, approval_rule, status, created_at,
                     bank:cbt_question_banks(id, title, subject, class_level, created_by, is_published, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name)),
                     assigned_by:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name)
                  )`,
@@ -207,10 +256,12 @@ export class ValidationsService {
 
         if (error) {
             this.logger.error(`Gagal membaca tugas validasi guru: ${error.message}`);
-            return [];
+            throw new BadRequestException('Tugas validasi belum dapat dimuat. Silakan coba lagi.');
         }
 
-        const rows = (data as any[]) || [];
+        // Hanya tugas dari sekolah user sendiri; penugasan lintas sekolah tidak ditampilkan.
+        const rows = ((data as any[]) || [])
+            .filter(row => user.isPlatformAdmin || row.validation?.organization_id === user.organizationId);
         if (!await this.authz.isRestrictedProctor(user, user.organizationId!)) return rows;
         return rows.filter(row => row.validation?.bank?.created_by === user.id || row.validation?.bank?.is_published === true);
     }
@@ -245,7 +296,8 @@ export class ValidationsService {
             .order('created_at', { ascending: true });
 
         if (qErr) {
-            throw new BadRequestException(`Gagal memuat soal: ${qErr.message}`);
+            this.logger.error(`Gagal memuat soal validasi ${validationId}: ${qErr.message}`);
+            throw new BadRequestException('Soal belum dapat dimuat. Silakan coba lagi.');
         }
 
         // Ambil catatan-catatan yang sudah dibuat
@@ -262,7 +314,15 @@ export class ValidationsService {
         return {
             validation,
             myValidatorStatus: vAssignment,
-            questions: ((questions as any[]) || []).filter(q => !q.metadata?._deleted).sort(compareQuestions),
+            questions: ((questions as any[]) || [])
+                .filter(q => !q.metadata?._deleted)
+                .map(q => ({
+                    ...q,
+                    // Urutan opsi harus sama dengan editor & ujian agar huruf A/B/C
+                    // yang dirujuk validator cocok dengan yang dilihat siswa.
+                    bank_question_options: dedupeOptions(q.bank_question_options || []),
+                }))
+                .sort(compareQuestions),
             notes: (notes as any[]) || [],
         };
     }
@@ -286,10 +346,11 @@ export class ValidationsService {
         const note = await this.db.transaction(async (tx) => {
             await advisoryTransactionLock(tx, `validation:${validationId}`);
             const { data: session, error: sessionError } = await tx
-                .from('cbt_question_bank_validations').select('bank_id, organization_id')
+                .from('cbt_question_bank_validations').select('bank_id, organization_id, deadline')
                 .eq('id', validationId).single();
             if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
             await this.authz.assertOrgStaff(user, session.organization_id);
+            this.assertWithinDeadline(session);
             const { data: question, error: questionError } = await tx
                 .from('cbt_bank_questions').select('id, metadata')
                 .eq('id', dto.questionId).eq('bank_id', session.bank_id).maybeSingle();
@@ -341,7 +402,8 @@ export class ValidationsService {
                 .single();
 
             if (error) {
-                throw new BadRequestException(`Gagal menyimpan catatan: ${error.message}`);
+                this.logger.error(`Gagal menyimpan catatan validasi: ${error.message}`);
+                throw new BadRequestException('Gagal menyimpan catatan. Silakan coba lagi.');
             }
 
             return newNote;
@@ -354,16 +416,38 @@ export class ValidationsService {
      * Hapus catatan yang dibuat oleh validator tersebut.
      */
     async deleteNote(user: AuthUser, validationId: string, noteId: string) {
-        const { error } = await this.db
-            .from('cbt_question_validation_notes')
-            .delete()
-            .eq('id', noteId)
-            .eq('validation_id', validationId)
-            .eq('validator_id', user.id);
+        await this.db.transaction(async (tx) => {
+            await advisoryTransactionLock(tx, `validation:${validationId}`);
+            const { data: session, error: sessionError } = await tx
+                .from('cbt_question_bank_validations').select('organization_id, deadline')
+                .eq('id', validationId).maybeSingle();
+            if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
+            await this.authz.assertOrgStaff(user, session.organization_id);
 
-        if (error) {
-            throw new BadRequestException(`Gagal menghapus catatan: ${error.message}`);
-        }
+            const { data: note, error: noteError } = await tx
+                .from('cbt_question_validation_notes').select('id, validator_id, is_resolved')
+                .eq('id', noteId).eq('validation_id', validationId).maybeSingle();
+            if (noteError) throw new BadRequestException('Catatan validasi tidak dapat dibaca.');
+            if (!note) throw new NotFoundException('Catatan validasi tidak ditemukan.');
+            if (note.validator_id !== user.id) {
+                throw new ForbiddenException('Anda hanya dapat menghapus catatan milik sendiri.');
+            }
+            if (note.is_resolved) {
+                throw new BadRequestException('Catatan yang sudah ditandai diperbaiki oleh pembuat soal tidak dapat dihapus.');
+            }
+            this.assertWithinDeadline(session);
+
+            const { error } = await tx
+                .from('cbt_question_validation_notes')
+                .delete()
+                .eq('id', noteId)
+                .eq('validation_id', validationId)
+                .eq('validator_id', user.id);
+            if (error) {
+                this.logger.error(`Gagal menghapus catatan validasi ${noteId}: ${error.message}`);
+                throw new BadRequestException('Gagal menghapus catatan. Silakan coba lagi.');
+            }
+        });
 
         return { id: noteId, deleted: true };
     }
@@ -386,10 +470,11 @@ export class ValidationsService {
         await this.db.transaction(async (tx) => {
             await advisoryTransactionLock(tx, `validation:${validationId}`);
             const { data: session, error: sessionError } = await tx
-                .from('cbt_question_bank_validations').select('approval_rule, organization_id, status, bank_id')
+                .from('cbt_question_bank_validations').select('approval_rule, organization_id, status, bank_id, deadline')
                 .eq('id', validationId).single();
             if (sessionError || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
             await this.authz.assertOrgStaff(user, session.organization_id);
+            this.assertWithinDeadline(session);
             const { data: previous, error: previousError } = await tx.from('cbt_question_bank_validators').select('status, general_recommendation, general_comment').eq('id', (vAssignment as any).id).single();
             if (previousError || !previous) throw new BadRequestException('Rekomendasi sebelumnya tidak dapat dibaca.');
             const changed = previous.status !== 'submitted' || previous.general_recommendation !== dto.generalRecommendation || (previous.general_comment || '') !== (dto.generalComment?.trim() || '');
@@ -414,8 +499,13 @@ export class ValidationsService {
                 if (hasApproved) status = 'approved';
                 else if (allSubmitted) status = hasRevision ? 'revision_needed' : 'rejected';
             } else if (session.approval_rule === 'unanimous') {
-                if (hasRevision) status = 'revision_needed';
-                else if (allSubmitted) status = validators.every((v: any) => v.general_recommendation === 'approved') ? 'approved' : 'rejected';
+                // Tunggu SELURUH validator; satu rekomendasi awal (revisi maupun
+                // tolak) tidak boleh langsung menentukan hasil sesi.
+                if (allSubmitted) {
+                    if (validators.every((v: any) => v.general_recommendation === 'approved')) status = 'approved';
+                    else if (hasRevision) status = 'revision_needed';
+                    else status = 'rejected';
+                }
             } else {
                 // Rekomendasi guru tidak menimpa keputusan Admin/Proktor.
                 status = session.status === 'pending' ? 'in_progress' : session.status;
@@ -437,6 +527,11 @@ export class ValidationsService {
                 .select('organization_id, approval_rule, status, bank_id').eq('id', validationId).single();
             if (error || !session) throw new NotFoundException('Sesi validasi tidak ditemukan.');
             await this.authz.assertProktor(user, session.organization_id);
+            // Proktor terbatas hanya boleh memutuskan bank yang boleh ia baca
+            // (miliknya atau yang sudah dipublikasikan), sama seperti getDetail.
+            if (await this.authz.isRestrictedProctor(user, session.organization_id)) {
+                await this.authz.assertBankAccess(user, session.bank_id, 'read', tx);
+            }
             if (session.approval_rule !== 'admin_decides') {
                 throw new BadRequestException('Sesi ini menggunakan keputusan otomatis dari rekomendasi validator.');
             }
@@ -469,11 +564,11 @@ export class ValidationsService {
         }
 
         const bankId = (note as any).validation?.bank_id;
-        if (bankId) {
-            await this.authz.assertBankAccess(user, bankId);
-        } else {
-            await this.authz.assertOrgStaff(user, user.organizationId);
+        if (!bankId) {
+            // Tolak bila bank tidak dapat dipastikan; jangan jatuh ke izin staf umum.
+            throw new NotFoundException('Catatan validasi tidak ditemukan.');
         }
+        await this.authz.assertBankAccess(user, bankId);
 
         const now = resolved ? new Date().toISOString() : null;
 
@@ -490,7 +585,8 @@ export class ValidationsService {
             .single();
 
         if (error) {
-            throw new BadRequestException(`Gagal memperbarui status perbaikan: ${error.message}`);
+            this.logger.error(`Gagal memperbarui status perbaikan catatan ${noteId}: ${error.message}`);
+            throw new BadRequestException('Gagal memperbarui status perbaikan. Silakan coba lagi.');
         }
 
         return updated;

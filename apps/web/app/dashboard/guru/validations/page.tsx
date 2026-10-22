@@ -33,6 +33,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 export default function GuruValidationTasksPage() {
     const [tasks, setTasks] = useState<ValidationTask[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -40,6 +41,7 @@ export default function GuruValidationTasksPage() {
 
     const loadTasks = useCallback(async () => {
         setLoading(true);
+        setLoadError(null);
         try {
             const [list, sessionUser] = await Promise.all([
                 listMyValidationTasks(),
@@ -51,6 +53,7 @@ export default function GuruValidationTasksPage() {
             }
         } catch (e) {
             console.error('Failed to load my validation tasks', e);
+            setLoadError(e instanceof Error ? e.message : 'Tugas validasi belum dapat dimuat.');
         } finally {
             setLoading(false);
         }
@@ -207,6 +210,12 @@ export default function GuruValidationTasksPage() {
                     </Button>
                 </FilterActions>
             </FilterToolbar>
+
+            {loadError && !loading && (
+                <div role="alert" className="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-700 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300">
+                    {loadError}
+                </div>
+            )}
 
             {/* Content Area */}
             {loading ? (

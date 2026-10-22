@@ -38,6 +38,25 @@ import {
 import type { QuestionRecord } from '@/lib/api/questions';
 import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
 
+type NoteScope = 'question_text' | 'stimulus' | 'option' | 'general';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Sama dengan aturan server: tanggal lama 00:00 UTC berlaku sampai akhir hari. */
+function isDeadlinePassed(deadline?: string | null): boolean {
+    if (!deadline) return false;
+    let time = new Date(deadline).getTime();
+    if (!Number.isFinite(time)) return false;
+    if (time % DAY_MS === 0) time += DAY_MS - 1;
+    return time < Date.now();
+}
+
+/** Cari wadah ber-`data-validation-scope` terdekat dari node seleksi. */
+function scopeElement(node: Node | null | undefined): HTMLElement | null {
+    if (!node) return null;
+    const element = node.nodeType === 1 ? node as Element : node.parentElement;
+    return element?.closest<HTMLElement>('[data-validation-scope]') || null;
+}
+
 export default function ValidatorReviewPage() {
     const params = useParams();
     const router = useRouter();
@@ -84,6 +103,7 @@ export default function ValidatorReviewPage() {
     const [generalRec, setGeneralRec] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
     const [generalComment, setGeneralComment] = useState('');
     const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const [accessError, setAccessError] = useState<string | null>(null);
 
     const loadData = useCallback(async () => {
@@ -106,9 +126,9 @@ export default function ValidatorReviewPage() {
             } else {
                 setAccessError('Data validasi tidak ditemukan atau Anda tidak memiliki akses.');
             }
-        } catch (e: any) {
+        } catch (e) {
             console.error('Failed to load validation review data', e);
-            setAccessError('Akses ditolak: Anda tidak ditugaskan sebagai validator untuk bank soal ini.');
+            setAccessError(e instanceof Error && e.message ? e.message : 'Data validasi belum dapat dimuat. Silakan coba lagi.');
         } finally {
             setLoading(false);
         }
@@ -126,17 +146,40 @@ export default function ValidatorReviewPage() {
         return notes.filter(n => n.question_id === currentQuestion.id);
     }, [notes, currentQuestion]);
 
-    // Handle text selection on question / stimulus
+    // Hanya validator yang ditugaskan dan masih dalam batas waktu yang boleh menulis.
+    const myUserId = validatorStatus?.validator_id || null;
+    const alreadySubmitted = validatorStatus?.status === 'submitted';
+    const readOnlyReason = !validatorStatus
+        ? 'Mode lihat saja: hanya validator yang ditugaskan yang dapat menambah catatan dan mengirim rekomendasi.'
+        : isDeadlinePassed(validation?.deadline)
+            ? 'Batas waktu validasi telah berakhir. Catatan dan rekomendasi tidak dapat diubah lagi.'
+            : null;
+    const canEdit = !readOnlyReason;
+
+    // Handle text selection on question / stimulus / option: bagian yang diberi
+    // catatan mengikuti lokasi teks yang diblok.
     const handleMouseUp = () => {
+        if (!canEdit) return;
         const selection = window.getSelection();
         const text = selection?.toString()?.trim();
-        if (text && text.length > 0 && text.length < 300) {
-            setSelectedText(text);
+        if (!text || text.length >= 300) return;
+        const anchor = scopeElement(selection?.anchorNode);
+        const focus = scopeElement(selection?.focusNode);
+        setSelectedText(text);
+        if (!anchor || anchor !== focus) {
+            // Seleksi melintasi beberapa bagian atau di luar naskah soal.
+            setTargetScope('general');
+            setSelectedOptionId(undefined);
+            return;
         }
+        const scope = (anchor.dataset.validationScope || 'general') as NoteScope;
+        const optionId = scope === 'option' ? anchor.dataset.optionId : undefined;
+        setTargetScope(scope === 'option' && !optionId ? 'general' : scope);
+        setSelectedOptionId(optionId);
     };
 
     const handleSaveNote = async () => {
-        if (!currentQuestion || !commentText.trim()) return;
+        if (!canEdit || !currentQuestion || !commentText.trim()) return;
         setIsSavingNote(true);
         setActionError(null);
         try {
@@ -168,30 +211,33 @@ export default function ValidatorReviewPage() {
 
     const handleDeleteNote = async (noteId: string) => {
         if (!await confirmDialog({ title: 'Hapus Catatan Validasi?', text: 'Catatan ini akan dihapus dari hasil pemeriksaan soal.', confirmText: 'Ya', cancelText: 'Tidak', variant: 'danger' })) return;
+        setActionError(null);
         try {
             const res = await deleteValidationNote(validationId, noteId);
-            if (res.success) {
-                setNotes(prev => prev.filter(n => n.id !== noteId));
-            }
+            if (!res.success) throw new Error(res.error || 'Gagal menghapus catatan.');
+            setNotes(prev => prev.filter(n => n.id !== noteId));
         } catch (e) {
             console.error('Failed to delete note', e);
+            setActionError(e instanceof Error ? e.message : 'Gagal menghapus catatan.');
         }
     };
 
     const handleFinalSubmit = async () => {
+        if (!canEdit) return;
         setIsSubmittingFinal(true);
+        setSubmitError(null);
         try {
             const res = await submitValidationReview(validationId, {
                 generalRecommendation: generalRec,
                 generalComment: generalComment.trim(),
             });
 
-            if (res.success) {
-                setIsSubmitModalOpen(false);
-                router.push('/dashboard/guru/validations');
-            }
+            if (!res.success) throw new Error(res.error || 'Gagal mengirim hasil validasi.');
+            setIsSubmitModalOpen(false);
+            router.push('/dashboard/guru/validations');
         } catch (e) {
             console.error('Failed to submit validation review', e);
+            setSubmitError(e instanceof Error ? e.message : 'Gagal mengirim hasil validasi.');
         } finally {
             setIsSubmittingFinal(false);
         }
@@ -245,12 +291,19 @@ export default function ValidatorReviewPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Button
-                        onClick={() => setIsSubmitModalOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
-                    >
-                        <CheckCircle2 size={15} /> Selesaikan Validasi
-                    </Button>
+                    {alreadySubmitted && (
+                        <span className="hidden sm:inline-flex px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                            Rekomendasi sudah dikirim
+                        </span>
+                    )}
+                    {canEdit && (
+                        <Button
+                            onClick={() => { setSubmitError(null); setIsSubmitModalOpen(true); }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                        >
+                            <CheckCircle2 size={15} /> {alreadySubmitted ? 'Perbarui Hasil Validasi' : 'Selesaikan Validasi'}
+                        </Button>
+                    )}
                 </div>
             </header>
 
@@ -280,7 +333,7 @@ export default function ValidatorReviewPage() {
 
                             {/* Stimulus jika ada */}
                             {currentQuestion.stimulus?.content && (
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/60 dark:border-slate-800 space-y-2">
+                                <div data-validation-scope="stimulus" className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/60 dark:border-slate-800 space-y-2">
                                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
                                         <FileText size={14} /> Stimulus / Teks Bacaan
                                     </div>
@@ -291,7 +344,7 @@ export default function ValidatorReviewPage() {
                             )}
 
                             {/* Kalimat Soal */}
-                            <div className="space-y-2">
+                            <div className="space-y-2" data-validation-scope="question_text">
                                 <div className="text-sm font-medium text-slate-800 dark:text-slate-100 leading-relaxed prose dark:prose-invert max-w-none select-text">
                                     <QuestionContent content={currentQuestion.question_text || ''} />
                                 </div>
@@ -311,8 +364,10 @@ export default function ValidatorReviewPage() {
                                             return (
                                                 <div
                                                     key={opt.id || oIdx}
+                                                    data-validation-scope="option"
+                                                    data-option-id={opt.id || undefined}
                                                     onClick={() => {
-                                                        if (opt.id) {
+                                                        if (canEdit && opt.id) {
                                                             setSelectedOptionId(opt.id);
                                                             setTargetScope('option');
                                                         }
@@ -348,12 +403,14 @@ export default function ValidatorReviewPage() {
                             )}
 
                             {/* Petunjuk Seleksi Teks */}
+                            {canEdit && (
                             <div className="p-3 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
                                 <Highlighter size={16} className="text-amber-600 shrink-0" />
                                 <span>
                                     <strong>Tips Validator:</strong> Anda dapat mem-blok teks di stimulus, soal, atau opsi untuk otomatis menjadikannya kutipan catatan di panel samping.
                                 </span>
                             </div>
+                            )}
                         </div>
                     )}
                 </main>
@@ -374,7 +431,13 @@ export default function ValidatorReviewPage() {
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                         {actionError && <p role="alert" className="text-xs text-red-600">{actionError}</p>}
+                        {readOnlyReason && (
+                            <p role="status" className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 text-xs text-amber-800 dark:text-amber-300">
+                                {readOnlyReason}
+                            </p>
+                        )}
                         {/* Form Input Catatan Baru */}
+                        {canEdit && (
                         <div className="p-4 bg-slate-50 dark:bg-[#111728] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -452,6 +515,7 @@ export default function ValidatorReviewPage() {
                                 Simpan Catatan
                             </Button>
                         </div>
+                        )}
 
                         {/* Daftar Catatan yang Sudah Dibuat pada Nomor Ini */}
                         <div className="space-y-2">
@@ -472,13 +536,16 @@ export default function ValidatorReviewPage() {
                                             <span className="font-bold text-primary flex items-center gap-1 text-[11px]">
                                                 <Tag size={11} /> {n.category.replace('_', ' ').toUpperCase()}
                                             </span>
-                                            <button
-                                                onClick={() => handleDeleteNote(n.id)}
-                                                className="text-slate-400 hover:text-red-500 p-0.5 rounded"
-                                                title="Hapus Catatan"
-                                            >
-                                                <Trash2 size={13} />
-                                            </button>
+                                            {/* Hanya catatan milik sendiri yang belum diperbaiki pembuat soal. */}
+                                            {canEdit && myUserId && n.validator_id === myUserId && !n.is_resolved && (
+                                                <button
+                                                    onClick={() => handleDeleteNote(n.id)}
+                                                    className="text-slate-400 hover:text-red-500 p-0.5 rounded"
+                                                    title="Hapus Catatan"
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            )}
                                         </div>
 
                                         {n.selected_text && (
@@ -608,6 +675,10 @@ export default function ValidatorReviewPage() {
                                 className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-primary/20 resize-none"
                             />
                         </div>
+
+                        {submitError && (
+                            <p role="alert" className="text-xs text-red-600">{submitError}</p>
+                        )}
 
                         <div className="flex items-center justify-end gap-2.5 pt-2">
                             <Button

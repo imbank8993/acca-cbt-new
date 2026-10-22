@@ -63,6 +63,14 @@ export class AuthorizationService {
         );
     }
 
+    /**
+     * Apakah user LAIN (bukan pemanggil) berperan staf aktif (Guru/Proktor/Admin)
+     * di sekolah ini. Dipakai saat menunjuk orang, mis. validator bank soal.
+     */
+    hasOrgStaffRole(userId: string, organizationId: string): Promise<boolean> {
+        return this.roles.hasOrgRole(userId, organizationId, ['Proktor', 'Admin', 'Guru']);
+    }
+
     /** Operasi pemantauan staf sekolah: Proktor, Admin, Guru, dan Pengawas. */
     assertOrgMonitoring(user: AuthUser, organizationId: string | null | undefined): Promise<void> {
         return this.assertOrgRole(

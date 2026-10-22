@@ -17,6 +17,8 @@ import { listTeachersAndInvigilators, type PASStaffMember } from '@/lib/api/pas'
 import { listValidations, createValidation, type ApprovalRule } from '@/lib/api/validations';
 import type { QuestionBank } from '@/lib/api/questions';
 
+const VALIDATOR_ROLES = ['Guru', 'Proktor', 'Admin'];
+
 interface AssignValidationModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -77,9 +79,16 @@ export function AssignValidationModal({
         );
     };
 
+    // Validator harus Guru/Proktor/Admin (Pengawas tidak dapat membuka layar
+    // validasi) dan bukan pembuat bank soal itu sendiri.
+    const bankOwnerId = banks.find(b => b.id === targetBankId)?.created_by || null;
+    const isEligibleValidator = (staff: PASStaffMember) =>
+        staff.id !== bankOwnerId &&
+        (staff.roles || []).some(role => VALIDATOR_ROLES.includes(role));
+
     const filteredStaff = staffList.filter(staff => {
         const query = teacherSearch.toLowerCase();
-        return staff.name.toLowerCase().includes(query);
+        return isEligibleValidator(staff) && staff.name.toLowerCase().includes(query);
     });
 
     const filteredBanks = banks.filter(b => {
@@ -95,6 +104,7 @@ export function AssignValidationModal({
 
     const handleSelectBank = (bank: QuestionBank) => {
         setTargetBankId(bank.id);
+        setSelectedValidatorIds(prev => prev.filter(id => id !== bank.created_by));
         setIsBankDropdownOpen(false);
         setBankSearchQuery('');
         if (!title || title.startsWith('Validasi Soal:')) {
@@ -114,8 +124,16 @@ export function AssignValidationModal({
             setErrorMessage('Judul tugas validasi wajib diisi.');
             return;
         }
-        if (selectedValidatorIds.length === 0) {
+        const validatorIds = selectedValidatorIds.filter(id => id !== bankOwnerId);
+        if (validatorIds.length === 0) {
             setErrorMessage('Pilih minimal satu orang guru sebagai validator.');
+            return;
+        }
+        // DatePicker memberi tanggal saja; batas waktu = akhir hari itu (waktu lokal),
+        // bukan 00:00 UTC yang di WITA berarti pukul 08:00 pagi.
+        const deadlineIso = deadline ? new Date(`${deadline}T23:59:59.999`).toISOString() : undefined;
+        if (deadlineIso && new Date(deadlineIso).getTime() <= Date.now()) {
+            setErrorMessage('Batas waktu validasi harus di masa depan.');
             return;
         }
 
@@ -123,10 +141,10 @@ export function AssignValidationModal({
         try {
             const res = await createValidation({
                 bankId: targetBankId,
-                validatorIds: selectedValidatorIds,
+                validatorIds,
                 title: title.trim(),
                 instructions: instructions.trim(),
-                deadline: deadline ? new Date(deadline).toISOString() : undefined,
+                deadline: deadlineIso,
                 approvalRule,
             });
 

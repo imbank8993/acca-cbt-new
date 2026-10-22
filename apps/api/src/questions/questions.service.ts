@@ -6,6 +6,7 @@ import { insertIdempotentlyWithStatus } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { syncLiveExamQuestion } from '../common/live-exam-question-updates';
 import { compareQuestions } from '../common/bank-question-order';
+import { dedupeOptions } from '../common/question-options';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import type { SaveQuestionDto } from './dto/questions.dto';
 
@@ -602,22 +603,4 @@ export class QuestionsService {
             .eq('id', bankId);
         if (error) throw new BadRequestException(error.message);
     }
-}
-
-/**
- * Remove duplicate join rows by ID, never by text or answer value.
- *
- */
-function dedupeOptions(options: any[]): any[] {
-    const seen = new Set<string>();
-
-    return options
-        .filter((option) => {
-            if (!option.id) return true;
-            const key = option.id;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        })
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
 }

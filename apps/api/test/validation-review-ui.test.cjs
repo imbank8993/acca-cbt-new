@@ -123,3 +123,91 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     fail = false; await nodes(tree).find(n => n.type === 'button' && text(n).includes('Tandai')).props.onClick();
     tree = render(); assert.match(text(tree), /Batalkan tanda/); assert.deepEqual(calls[1], ['old-note', true]);
 });
+
+function loadReviewPage(reviewData, apiOverrides = {}) {
+    const state = []; let cursor = 0; let firstRender = true; const effects = [];
+    const React = {
+        createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+        useState(initial) { const index = cursor++; if (!(index in state)) state[index] = initial; return [state[index], value => { state[index] = typeof value === 'function' ? value(state[index]) : value; }]; },
+        useRef(initial) { const index = cursor++; if (!(index in state)) state[index] = { current: initial }; return state[index]; },
+        useEffect(fn) { if (firstRender) effects.push(fn); },
+        useMemo: fn => fn(), useCallback: fn => fn,
+    };
+    const api = { getValidationReviewData: async () => reviewData, ...apiOverrides };
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/dashboard/guru/validations/[id]/review/page.tsx'), 'utf8');
+    const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+    const module = { exports: {} };
+    new Function('require', 'module', 'exports', 'window', code)(name => {
+        if (name === 'react') return React;
+        if (name === 'next/navigation') return { useParams: () => ({ id: 's' }), useRouter: () => ({ push() {} }) };
+        if (name === '@/lib/api/validations') return api;
+        if (name === '@/lib/confirm-dialog') return { confirmDialog: async () => true };
+        return new Proxy({}, { get: (_, key) => key });
+    }, module, module.exports, { getSelection: () => ({ removeAllRanges() {} }) });
+    const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
+    const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
+    const render = () => { cursor = 0; const tree = module.exports.default(); firstRender = false; return tree; };
+    const start = async () => { render(); effects.forEach(effect => effect()); await new Promise(resolve => setImmediate(resolve)); return render(); };
+    return { render, start, nodes, text };
+}
+const reviewQuestions = [{ id: 'q1', question_text: 'First', bank_question_options: [{ id: 'o1', option_text: 'Option' }] }];
+const reviewNotes = [
+    { id: 'mine', question_id: 'q1', validator_id: 'v', category: 'typo', comment: 'Catatan saya', is_resolved: false },
+    { id: 'theirs', question_id: 'q1', validator_id: 'other', category: 'typo', comment: 'Catatan validator lain', is_resolved: false },
+    { id: 'fixed', question_id: 'q1', validator_id: 'v', category: 'typo', comment: 'Sudah diperbaiki', is_resolved: true },
+];
+const deleteButtons = (page, tree) => page.nodes(tree).filter(n => n.type === 'button' && n.props.title === 'Hapus Catatan');
+
+test('Review page is read-only for non-validators and after the deadline', async () => {
+    for (const data of [
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: null, notes: reviewNotes, questions: reviewQuestions },
+        { validation: { id: 's', title: 'Test', deadline: '2020-01-01T00:00:00Z' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress' }, notes: reviewNotes, questions: reviewQuestions },
+    ]) {
+        const page = loadReviewPage(data);
+        const tree = await page.start();
+        assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
+        assert.equal(page.nodes(tree).some(n => n.type === 'Button' && /Selesaikan|Perbarui/.test(page.text(n))), false);
+        assert.equal(deleteButtons(page, tree).length, 0);
+        assert.match(page.text(tree), /lihat saja|Batas waktu/);
+    }
+});
+
+test('Validators can delete only their own unresolved notes and see delete failures', async () => {
+    let fail = true; const deleted = [];
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'submitted' }, notes: reviewNotes, questions: reviewQuestions },
+        { deleteValidationNote: async (_, id) => { deleted.push(id); return fail ? { success: false, error: 'Catatan tidak dapat dihapus' } : { success: true, id, deleted: true }; } },
+    );
+    let tree = await page.start();
+    assert.match(page.text(tree), /Perbarui Hasil Validasi/);
+    assert.equal(deleteButtons(page, tree).length, 1);
+    await deleteButtons(page, tree)[0].props.onClick();
+    tree = page.render();
+    assert.match(page.text(tree), /Catatan tidak dapat dihapus/);
+    assert.match(page.text(tree), /Catatan saya/);
+    fail = false;
+    await deleteButtons(page, tree)[0].props.onClick();
+    tree = page.render();
+    assert.doesNotMatch(page.text(tree), /Catatan saya/);
+    assert.deepEqual(deleted, ['mine', 'mine']);
+});
+
+test('Final submission failure stays in the modal with the server message', async () => {
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress' }, notes: [], questions: reviewQuestions },
+        { submitValidationReview: async () => ({ success: false, error: 'Batas waktu validasi telah berakhir.' }) },
+    );
+    let tree = await page.start();
+    page.nodes(tree).find(n => n.type === 'Button' && /Selesaikan Validasi/.test(page.text(n))).props.onClick();
+    tree = page.render();
+    await page.nodes(tree).find(n => n.type === 'Button' && /Kirim Hasil Validasi/.test(page.text(n))).props.onClick();
+    tree = page.render();
+    assert.match(page.text(tree), /Batas waktu validasi telah berakhir/);
+    assert.ok(page.nodes(tree).some(n => n.type === 'Button' && /Kirim Hasil Validasi/.test(page.text(n))));
+});
+
+test('Load failures show the server reason instead of a generic access denial', async () => {
+    const page = loadReviewPage(null, { getValidationReviewData: async () => { throw new Error('Tidak dapat menghubungi server.'); } });
+    const tree = await page.start();
+    assert.match(page.text(tree), /Tidak dapat menghubungi server/);
+});

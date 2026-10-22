@@ -114,7 +114,8 @@ export interface SubmitValidationReviewInput {
 export async function listValidations(bankId?: string): Promise<ValidationSession[]> {
     const query = bankId ? `?bankId=${encodeURIComponent(bankId)}` : '';
     const res = await apiGet<{ data?: ValidationSession[] } | ValidationSession[]>(`/api/validations${query}`);
-    if (!res.success) return [];
+    // Jangan samarkan kegagalan server sebagai "belum ada data".
+    if (!res.success) throw new Error(res.error || 'Daftar validasi belum dapat dimuat.');
     if (Array.isArray(res)) return res;
     return (res as any).data || [];
 }
@@ -130,7 +131,7 @@ export function createValidation(input: CreateValidationInput) {
 
 export async function listMyValidationTasks(): Promise<ValidationTask[]> {
     const res = await apiGet<{ data?: ValidationTask[] } | ValidationTask[]>('/api/validations/my-tasks');
-    if (!res.success) return [];
+    if (!res.success) throw new Error(res.error || 'Tugas validasi belum dapat dimuat.');
     if (Array.isArray(res)) return res;
     return (res as any).data || [];
 }
@@ -148,7 +149,10 @@ export async function getValidationReviewData(validationId: string): Promise<{
         notes: ValidationNote[];
     }>(`/api/validations/${encodeURIComponent(validationId)}/review`);
 
-    return res.success ? res : null;
+    // Teruskan pesan server (akses ditolak, tidak ditemukan, gangguan jaringan)
+    // agar halaman tidak menebak penyebabnya.
+    if (!res.success) throw new Error(res.error || 'Data validasi belum dapat dimuat.');
+    return res;
 }
 
 export function saveValidationNote(validationId: string, input: SaveValidationNoteInput) {

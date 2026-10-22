@@ -186,3 +186,93 @@ test('Feedback read failure is not reported as empty history', async () => {
     await assert.rejects(service.getBankFeedback(user('owner'), 'bank'), /belum dapat dimuat/);
     service.db = original;
 });
+
+// ── Audit validasi: penunjukan, batas waktu, hapus catatan, aturan & otorisasi ──
+const { BadRequestException, NotFoundException } = require('@nestjs/common');
+const withRoles = (authz, override) => {
+    const original = authz.roles.hasOrgRole.bind(authz.roles);
+    authz.roles.hasOrgRole = async (id, org, roles) => {
+        const result = override(id, org, roles);
+        return result === undefined ? original(id, org, roles) : result;
+    };
+};
+const createDto = extra => ({ bankId: 'bank', validatorIds: ['a', 'b'], ...extra });
+
+test('Create rejects non-staff validators, the bank owner and past deadlines without writes', async () => {
+    const { db, authz, service } = setup();
+    withRoles(authz, id => (id === 'student' ? false : undefined));
+    await assert.rejects(service.create(user('admin'), createDto({ validatorIds: ['a', 'student'] })), /staf aktif/);
+    await assert.rejects(service.create(user('admin'), createDto({ validatorIds: ['owner'] })), /Pembuat bank soal/);
+    await assert.rejects(service.create(user('admin'), createDto({ deadline: '2020-01-01T00:00:00Z' })), /masa depan/);
+    assert.equal(db.tables.cbt_question_bank_validations.length, 1);
+    assert.equal(db.tables.cbt_question_bank_validators.length, 2);
+    const created = await service.create(user('admin'), createDto({ validatorIds: ['a', 'a', 'b'], deadline: '2999-01-01T00:00:00Z' }));
+    assert.equal(db.tables.cbt_question_bank_validators.filter(v => v.validation_id === created.id).length, 2);
+});
+
+test('Expired deadline blocks notes, deletions and recommendations', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_question_validation_notes.push({ id: 'mine', validation_id: 'session', question_id: 'q1', validator_id: 'a', is_resolved: false });
+    db.tables.cbt_question_bank_validations[0].deadline = '2020-01-01T00:00:00Z';
+    await assert.rejects(service.saveNote(user('a'), 'session', note()), /Batas waktu/);
+    await assert.rejects(service.deleteNote(user('a'), 'session', 'mine'), /Batas waktu/);
+    await assert.rejects(service.submitReview(user('a'), 'session', recommendation('approved')), /Batas waktu/);
+    assert.equal(db.tables.cbt_question_validation_notes.length, 1);
+    assert.equal(db.tables.cbt_question_bank_validators[0].status, 'assigned');
+});
+
+test('Validators delete only their own unresolved notes and missing notes are reported', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_question_validation_notes.push(
+        { id: 'mine', validation_id: 'session', question_id: 'q1', validator_id: 'a', is_resolved: false },
+        { id: 'theirs', validation_id: 'session', question_id: 'q1', validator_id: 'b', is_resolved: false },
+        { id: 'fixed', validation_id: 'session', question_id: 'q1', validator_id: 'a', is_resolved: true },
+    );
+    await assert.rejects(service.deleteNote(user('a'), 'session', 'theirs'), ForbiddenException);
+    await assert.rejects(service.deleteNote(user('a'), 'session', 'fixed'), BadRequestException);
+    await assert.rejects(service.deleteNote(user('a'), 'session', 'missing'), NotFoundException);
+    assert.deepEqual(await service.deleteNote(user('a'), 'session', 'mine'), { id: 'mine', deleted: true });
+    assert.deepEqual(db.tables.cbt_question_validation_notes.map(n => n.id), ['theirs', 'fixed']);
+});
+
+test('Unanimous rule does not settle on an early rejection or revision', async () => {
+    const { db, service } = setup('unanimous');
+    await service.submitReview(user('a'), 'session', recommendation('rejected'));
+    assert.equal(db.tables.cbt_question_bank_validations[0].status, 'in_progress');
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    assert.equal(db.tables.cbt_question_bank_validations[0].status, 'in_progress');
+    await service.submitReview(user('b'), 'session', recommendation('rejected'));
+    assert.equal(db.tables.cbt_question_bank_validations[0].status, 'revision_needed');
+});
+
+test('Restricted proctor cannot decide on an unpublished bank owned by someone else', async () => {
+    const { db, authz, service } = setup('admin_decides');
+    withRoles(authz, (id, org, roles) => (id === 'proktor' ? org === 'school' && roles.includes('Proktor') : undefined));
+    db.tables.cbt_question_bank_validators.forEach(row => { row.status = 'submitted'; });
+    const proktor = { id: 'proktor', organizationId: 'school', roles: ['PROKTOR'], isPlatformAdmin: false };
+    await assert.rejects(service.decide(proktor, 'session', 'approved'), ForbiddenException);
+    db.tables.cbt_question_banks[0].is_published = true;
+    await service.decide(proktor, 'session', 'approved');
+    assert.equal(db.tables.cbt_question_bank_validations[0].status, 'approved');
+});
+
+test('Resolve fails closed when the note bank cannot be determined', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_question_validation_notes.push({ id: 'orphan', validation_id: 'session', question_id: 'q1', validator_id: 'a', is_resolved: false });
+    await assert.rejects(service.resolveNote(user('owner'), 'orphan', true), NotFoundException);
+    assert.equal(db.tables.cbt_question_validation_notes[0].is_resolved, false);
+});
+
+test('Review options follow the stored order so letters match the exam', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_bank_questions.find(q => q.id === 'q1').bank_question_options = [
+        { id: 'c', order: 2 }, { id: 'a', order: 0 }, { id: 'b', order: 1 }, { id: 'a', order: 0 },
+    ];
+    const review = await service.getReviewData(user('a'), 'session');
+    assert.deepEqual(review.questions.find(q => q.id === 'q1').bank_question_options.map(o => o.id), ['a', 'b', 'c']);
+});
+
+test('List rejects malformed bank filters instead of returning an empty list', async () => {
+    const { service } = setup();
+    await assert.rejects(service.list(user('admin'), 'not-a-uuid'), /tidak valid/);
+});

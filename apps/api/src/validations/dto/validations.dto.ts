@@ -1,14 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+    ArrayMaxSize,
     ArrayMinSize,
+    ArrayUnique,
     IsArray,
     IsBoolean,
     IsIn,
+    IsISO8601,
     IsNotEmpty,
     IsOptional,
     IsString,
     IsUUID,
+    MaxLength,
 } from 'class-validator';
+
+/** Batas panjang teks bebas agar payload tidak membengkak dan sesuai kolom DB. */
+export const VALIDATION_TEXT_LIMITS = {
+    title: 255,
+    instructions: 5000,
+    selectedText: 2000,
+    comment: 5000,
+    generalComment: 10000,
+    validators: 50,
+} as const;
 
 export class CreateValidationDto {
     @ApiProperty({ description: 'ID bank soal yang divalidasi' })
@@ -19,22 +33,26 @@ export class CreateValidationDto {
     @ApiProperty({ description: 'Daftar ID validator (guru/user yang ditunjuk)', type: [String] })
     @IsArray()
     @ArrayMinSize(1)
+    @ArrayMaxSize(VALIDATION_TEXT_LIMITS.validators)
+    @ArrayUnique()
     @IsUUID('4', { each: true })
     validatorIds: string[];
 
     @ApiPropertyOptional({ description: 'Judul tugas validasi' })
     @IsOptional()
     @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.title)
     title?: string;
 
     @ApiPropertyOptional({ description: 'Instruksi atau catatan khusus untuk validator' })
     @IsOptional()
     @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.instructions)
     instructions?: string;
 
     @ApiPropertyOptional({ description: 'Batas waktu validasi (ISO datetime)' })
     @IsOptional()
-    @IsString()
+    @IsISO8601({ strict: true })
     deadline?: string;
 
     @ApiPropertyOptional({
@@ -73,11 +91,13 @@ export class SaveValidationNoteDto {
     @ApiPropertyOptional({ description: 'Potongan teks yang diblok / disorot' })
     @IsOptional()
     @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.selectedText)
     selectedText?: string;
 
     @ApiProperty({ description: 'Isi catatan atau perbaikan dari validator' })
     @IsString()
     @IsNotEmpty()
+    @MaxLength(VALIDATION_TEXT_LIMITS.comment)
     comment: string;
 
     @ApiPropertyOptional({
@@ -108,6 +128,7 @@ export class SubmitValidationDto {
     @ApiPropertyOptional({ description: 'Kesimpulan akhir / catatan umum validator untuk seluruh bank soal' })
     @IsOptional()
     @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.generalComment)
     generalComment?: string;
 }
 
