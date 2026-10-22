@@ -85,7 +85,8 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
     });
     await test('Save retains identical texts with different weights; [] removes all options',async()=>{
         const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});
-        const dto={bankId:'bank',questionText:'Question',type:'mcq',difficulty:'medium',scoreDefault:1,options:[{text:'Same',isCorrect:false,weight:2},{text:'Same',isCorrect:false,weight:3}]};
+        // Opsi berbobot tanpa kunci benar = soal situasional (sjt); pilihan ganda tanpa kunci kini ditolak.
+        const dto={bankId:'bank',questionText:'Question',type:'sjt',difficulty:'medium',scoreDefault:1,options:[{text:'Same',isCorrect:false,weight:2},{text:'Same',isCorrect:false,weight:3}]};
         const saved=await svc.save(user,dto);
         assert.equal(db.state.cbt_bank_question_options.length,2);
         assert.equal((await svc.listByBank(user,'bank'))[0].bank_question_options.length,2);

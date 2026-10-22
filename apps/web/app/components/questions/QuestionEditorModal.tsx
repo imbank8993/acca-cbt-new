@@ -5,6 +5,7 @@ import InlineSelect from '@/components/ui/InlineSelect';
 import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionMetadata,QuestionOptionDraft,QuestionRecord } from '@/lib/api/questions';
 import type { ProctorOrganization } from '@/lib/api/proctor';
 import { uploadToHosting } from '@/lib/uploader';
+import { confirmDialog } from '@/lib/confirm-dialog';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -326,32 +327,23 @@ export default function QuestionEditorModal({
         doSave('close');
     };
 
-    const doSave = async (afterSave: 'close' | 'prev' | 'next' = 'close') => {
-        if (!validateQuestion()) return;
-        if (!org) {
-            alert('Sekolah belum dikonfigurasi');
-            return;
-        }
-        setIsSubmitting(true);
-
-        console.log('[QuestionEditorModal] Saving:', {
-            bankId, orgId: org.id, type: selectedType,
-            questionTextLength: questionText?.length,
-            optionsCount: options?.length,
-            firstOptionText: options?.[0]?.text?.slice(0, 50)
-        });
-
-        const result = await saveQuestionAction({
+    /** Isi soal persis seperti yang akan dikirim ke server. */
+    const buildPayload = () => ({
             id: editingQuestion?.id,
             expectedRevision: editingQuestion?.revision,
             bankId: bankId,
             type: selectedType,
             questionText,
-            difficulty: 'medium',
+            // Editor tidak punya pilihan tingkat kesulitan: pertahankan nilai asli
+            // (mis. dari impor), jangan ditimpa "sedang" setiap kali disunting.
+            difficulty: editingQuestion?.difficulty || 'medium',
             scoreDefault: scoreDefault,
             stimulusId: stimulusId || null,
             instructionId: instructionId || null,
             dimensionId: dimensionId || null,
+            // Dulu tidak dikirim, sehingga pilihan kisi-kisi di editor tidak pernah
+            // tersimpan dan tautan kisi-kisi hasil impor terhapus saat disunting.
+            kisi_kisi_id: kisiKisiId || null,
             metadata: {
                 ...metadata,
                 categories: selectedType === 'categorization' ? categories : [],
@@ -371,15 +363,67 @@ export default function QuestionEditorModal({
                 isCorrect: opt.isCorrect,
                 order: i,
                 weight: ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'].includes(selectedType) ? (opt.weight ?? 0) : 1,
+                // Pertahankan metadata opsi lain (mis. dari impor/transfer bank);
+                // hanya tiga kunci yang dikelola editor ini yang ditulis ulang.
                 metadata: {
+                    ...(opt.metadata || {}),
                     match_texts: opt.match_texts || [],
                     category_names: opt.category_names || [],
                     dimension_id: opt.dimension_id || null
                 }
             }))
-        });
+    });
 
-        console.log('[QuestionEditorModal] Save result:', result);
+    // Isi awal soal yang sedang dibuka. Dipakai untuk melewati penyimpanan
+    // tanpa perubahan dan untuk memperingatkan perubahan yang belum disimpan.
+    // Dikunci per soal + revisi: saat berpindah soal, render pertama belum
+    // punya catatan soal baru dan tidak boleh dianggap "berubah".
+    const editorKey = `${editingQuestion?.id ?? 'new'}:${editingQuestion?.revision ?? ''}`;
+    const serializedPayload = JSON.stringify(buildPayload());
+    const [initialPayload, setInitialPayload] = useState(() => ({ key: editorKey, payload: serializedPayload }));
+    if (initialPayload.key !== editorKey) {
+        // Pola resmi React untuk menyesuaikan state saat prop berubah.
+        setInitialPayload({ key: editorKey, payload: serializedPayload });
+    }
+    const isDirty = initialPayload.key === editorKey && serializedPayload !== initialPayload.payload;
+
+    useEffect(() => {
+        if (!isDirty) return;
+        const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [isDirty]);
+
+    const handleClose = async () => {
+        if (isSubmitting) return;
+        if (isDirty && !await confirmDialog({
+            title: 'Tutup tanpa menyimpan?',
+            text: 'Perubahan pada soal ini belum disimpan dan akan hilang.',
+            confirmText: 'Tutup tanpa menyimpan',
+            cancelText: 'Kembali mengedit',
+            variant: 'warning',
+        })) return;
+        onClose();
+    };
+
+    const doSave = async (afterSave: 'close' | 'prev' | 'next' = 'close') => {
+        // Soal lama yang tidak diubah tidak dikirim ulang. Dulu tombol
+        // Sebelumnya/Berikutnya selalu menyimpan: revisi naik, ujian yang sedang
+        // berjalan menerima "soal diperbarui oleh guru" walau isinya sama, dan
+        // soal yang belum valid menghalangi guru sekadar menelusuri bank.
+        if (editingQuestion?.id && !isDirty) {
+            if ((afterSave === 'prev' || afterSave === 'next') && onNavigate) onNavigate(afterSave);
+            else onClose();
+            return;
+        }
+        if (!validateQuestion()) return;
+        if (!org) {
+            alert('Sekolah belum dikonfigurasi');
+            return;
+        }
+        setIsSubmitting(true);
+
+        const result = await saveQuestionAction(buildPayload());
 
         if (result.success) {
             if (result.updatedExams > 0) {
@@ -440,7 +484,7 @@ export default function QuestionEditorModal({
                         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                             {/* Close Button */}
                             <button
-                                onClick={onClose}
+                                onClick={() => void handleClose()}
                                 className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all shrink-0"
                                 title="Tutup / Batal"
                             >

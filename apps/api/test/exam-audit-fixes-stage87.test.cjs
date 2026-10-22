@@ -51,7 +51,9 @@ test('an unselected option in a frozen exam cannot be deleted by a bank edit', a
     db.tables.cbt_bank_question_options = [{ id: 'o', question_id: 'q', option_text: 'Original' }];
     const before = structuredClone(db.tables);
     await assert.rejects(new QuestionsService(db, { assertBankAccess: async () => 'school' }, {}).save({ id: 'teacher' }, {
-        id: 'q', bankId: 'bank', expectedRevision: 1, type: 'mcq', questionText: 'Changed', scoreDefault: 1, options: [],
+        id: 'q', bankId: 'bank', expectedRevision: 1, type: 'mcq', questionText: 'Changed', scoreDefault: 1,
+        // Opsi lama 'o' diganti opsi baru yang valid; perlindungan snapshot harus menolak.
+        options: [{ text: 'Baru A', isCorrect: true, order: 0 }, { text: 'Baru B', isCorrect: false, order: 1 }],
     }), /snapshot ujian/);
     assert.deepEqual(db.tables, before);
 });

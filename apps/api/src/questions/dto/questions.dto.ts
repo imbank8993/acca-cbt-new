@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+    ArrayMaxSize,
     ArrayNotEmpty,
+    Max,
+    MaxLength,
     IsArray,
     IsBoolean,
     IsHexColor,
@@ -45,6 +48,7 @@ export class QuestionOptionDto {
 
     @ApiProperty()
     @IsString()
+    @MaxLength(100_000, { message: 'Teks opsi terlalu panjang.' })
     text!: string;
 
     @ApiProperty()
@@ -58,6 +62,7 @@ export class QuestionOptionDto {
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()
     @IsNumber()
+    @Min(-1000) @Max(1000)
     weight?: number;
 
     @ApiPropertyOptional()
@@ -94,14 +99,19 @@ export class SaveQuestionDto {
     @ApiProperty()
     @IsString()
     @IsNotEmpty({ message: 'Teks soal wajib diisi.' })
+    @MaxLength(500_000, { message: 'Teks soal terlalu panjang. Unggah gambar sebagai berkas, bukan disisipkan langsung.' })
     questionText!: string;
 
     @ApiProperty({ enum: DIFFICULTIES })
+    // Opsional: bila tidak dikirim saat menyunting, nilai lama dipertahankan.
+    @IsOptional()
     @IsIn(DIFFICULTIES, { message: 'Tingkat kesulitan harus easy, medium, atau hard' })
-    difficulty!: (typeof DIFFICULTIES)[number];
+    difficulty?: (typeof DIFFICULTIES)[number];
 
     @ApiProperty({ default: 1 })
     @IsNumber()
+    @Min(0, { message: 'Poin soal tidak boleh negatif.' })
+    @Max(1000, { message: 'Poin soal maksimal 1000.' })
     scoreDefault!: number;
 
     @ApiPropertyOptional()
@@ -134,6 +144,7 @@ export class SaveQuestionDto {
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => QuestionOptionDto)
+    @ArrayMaxSize(100, { message: 'Maksimal 100 opsi per soal.' })
     options?: QuestionOptionDto[];
 }
 

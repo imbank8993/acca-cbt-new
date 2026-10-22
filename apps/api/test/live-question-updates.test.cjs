@@ -113,7 +113,9 @@ test('a changed key queues every finished participant including skipped answers,
 
 test('audit and grade invalidation are atomic with the bank edit', async () => {
     const { db, service, dto } = fixture({ failMutation: { table: 'cbt_exam_attempts', mutation: 'update' } });
+    // Pindahkan kunci (soal tanpa kunci benar kini ditolak validasi struktur).
     dto.options[0].isCorrect = false;
+    dto.options[1].isCorrect = true;
     const before = structuredClone(db.tables);
     await assert.rejects(service.save(teacher, dto), /Antrean penilaian ulang/);
     assert.deepEqual(db.tables, before);

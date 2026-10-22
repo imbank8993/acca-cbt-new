@@ -215,7 +215,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
             const loadedOptions = uniqueOptions.map((opt, index) => ({
                 ...opt, text: opt.option_text || opt.text || '',
-                isCorrect: opt.is_correct || opt.isCorrect || false,
+                // Benar/Salah: "belum ditentukan" (null) harus tetap null agar
+                // validasi editor menegur, bukan diam-diam dianggap "Salah".
+                isCorrect: (q.type === 'true_false'
+                    ? (opt.is_correct ?? opt.isCorrect ?? null)
+                    : (opt.is_correct ?? opt.isCorrect ?? false)) as boolean,
                 order: opt.order ?? index,
                 weight: opt.weight ?? 0,
                 match_texts: opt.metadata?.match_texts || opt.match_texts || [],

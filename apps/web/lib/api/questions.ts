@@ -156,6 +156,7 @@ export interface QuestionRecord {
     type: QuestionType;
     question_text: string;
     score_default: number;
+    difficulty?: 'easy' | 'medium' | 'hard';
     bank_question_options?: QuestionOptionRecord[];
     options?: QuestionOptionRecord[];
     metadata?: QuestionMetadata;

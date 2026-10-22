@@ -5,6 +5,15 @@ import { advisoryTransactionLock } from './transaction-lock';
 
 type Question = Record<string, any>;
 
+/** Riwayat revisi per ujian menyimpan salinan soal lama; jangan biarkan tumbuh tanpa batas. */
+export const LIVE_QUESTION_HISTORY_LIMIT = 50;
+
+/** Isi soal tanpa penanda versi: dua salinan yang sama tidak perlu disinkronkan. */
+function contentFingerprint(question: Question): string {
+    const { revision, updated_at, ...content } = question;
+    return canonical(content);
+}
+
 function canonical(value: any): string {
     const normalize = (item: any): any => Array.isArray(item) ? item.map(normalize)
         : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, normalize(item[key])])) : item;
@@ -66,6 +75,11 @@ export async function syncLiveExamQuestion(
                 const option = options.find(option => option.id === old.id)!;
                 return { ...option, order: ['ordering', 'ranking'].includes(question.type) ? option.order : old.order };
             }) };
+        // Simpan ulang tanpa perubahan isi tidak boleh menaikkan revisi soal di
+        // ujian: siswa yang sedang mengerjakan akan melihat "soal diperbarui oleh
+        // guru" untuk soal yang sebenarnya sama.
+        if (contentFingerprint(previous) === contentFingerprint(next) &&
+            typeof metadata.answer_key_overrides?.[questionId] !== 'string') continue;
         const scoringChanged = questionScoringFingerprint(previous) !== questionScoringFingerprint(next) ||
             typeof metadata.answer_key_overrides?.[questionId] === 'string';
         const at = new Date(clock.now).toISOString();
@@ -73,7 +87,7 @@ export async function syncLiveExamQuestion(
         metadata.live_question_update_history = [...(metadata.live_question_update_history || []), {
             questionId, actorId, at, revision: next.revision, scoringChanged, previous,
             previousKeyOverride: metadata.answer_key_overrides?.[questionId] || null,
-        }];
+        }].slice(-LIVE_QUESTION_HISTORY_LIMIT);
         if (metadata.answer_key_overrides?.[questionId]) {
             metadata.answer_key_overrides = { ...metadata.answer_key_overrides };
             delete metadata.answer_key_overrides[questionId];

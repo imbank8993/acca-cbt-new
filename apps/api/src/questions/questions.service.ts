@@ -12,6 +12,44 @@ import type { SaveQuestionDto } from './dto/questions.dto';
 
 /** Saves and deletes question content atomically. Media is retained because HTML
  * cannot prove ownership or exclusive use of an attachment. */
+/**
+ * Pemeriksaan struktur minimum per tipe soal, sama dengan yang dicek editor.
+ * Klien lain (atau editor lama) tidak boleh menyimpan soal yang tidak mungkin
+ * dinilai, misalnya pilihan ganda tanpa kunci benar.
+ */
+export function assertQuestionStructure(dto: Pick<SaveQuestionDto, 'type' | 'options' | 'metadata'>): void {
+    const options = dto.options;
+    if (options === undefined) return; // opsi lama dipertahankan
+    const fail = (message: string): never => { throw new BadRequestException(message); };
+    switch (dto.type) {
+        case 'mcq':
+        case 'mcq_complex':
+            if (options.length < 2) fail('Soal pilihan ganda membutuhkan minimal 2 opsi.');
+            if (!options.some(option => option.isCorrect)) fail('Pilih minimal satu jawaban yang benar.');
+            break;
+        case 'true_false':
+            if (!options.length) fail('Soal benar/salah membutuhkan minimal satu pernyataan.');
+            break;
+        case 'matching':
+            if (!options.length) fail('Soal menjodohkan membutuhkan minimal satu pasangan.');
+            if (options.some(option => !Array.isArray(option.metadata?.match_texts) || !option.metadata!.match_texts.some((text: unknown) => typeof text === 'string' && text.trim()))) {
+                fail('Setiap item kiri harus dipasangkan dengan jawaban.');
+            }
+            break;
+        case 'categorization':
+            if (!options.length) fail('Soal pengelompokan membutuhkan minimal satu item.');
+            if (options.some(option => !Array.isArray(option.metadata?.category_names) || !option.metadata!.category_names.some((name: unknown) => typeof name === 'string' && name.trim()))) {
+                fail('Pilih kategori untuk setiap item.');
+            }
+            break;
+        case 'ordering':
+            if (options.length < 2) fail('Soal mengurutkan membutuhkan minimal 2 item.');
+            break;
+        default:
+            break;
+    }
+}
+
 @Injectable()
 export class QuestionsService {
     private readonly logger = new Logger(QuestionsService.name);
@@ -64,6 +102,7 @@ export class QuestionsService {
      */
     async save(user: AuthUser, dto: SaveQuestionDto) {
         const organizationId = await this.authz.assertBankAccess(user, dto.bankId);
+        assertQuestionStructure(dto);
 
         // Menambah soal baru pada bank yang sudah memiliki attempt tidak diizinkan
         // karena akan mengubah jumlah butir dan urutan ujian yang sedang berjalan.
@@ -114,14 +153,18 @@ export class QuestionsService {
                 organization_id: organizationId,
                 type: dto.type,
                 question_text: dto.questionText,
-                difficulty: dto.difficulty,
                 score_default: dto.scoreDefault,
                 metadata: dto.metadata || {},
                 stimulus_id: dto.stimulusId || null,
                 instruction_id: dto.instructionId || null,
                 dimension_id: dto.dimensionId || null,
-                kisi_kisi_id: dto.kisi_kisi_id || null,
-            };
+            } as Record<string, unknown>;
+        // Kolom yang tidak dikirim klien tidak boleh ditimpa saat menyunting.
+        // Editor lama selalu mengirim difficulty "medium" dan tidak pernah
+        // mengirim kisi_kisi_id, sehingga setiap suntingan mereset tingkat
+        // kesulitan dan memutus tautan kisi-kisi hasil impor.
+        if (dto.difficulty !== undefined || !dto.id) payload.difficulty = dto.difficulty ?? 'medium';
+        if (dto.kisi_kisi_id !== undefined || !dto.id) payload.kisi_kisi_id = dto.kisi_kisi_id || null;
         const saved = await this.db.transaction(async db => {
             let questionId: string;
 
@@ -223,6 +266,9 @@ export class QuestionsService {
                 );
             }
 
+            // Disengaja berbeda dari simpan penuh: endpoint ini dipakai untuk
+            // metadata urutan/pengelompokan (order_index, group_key) yang
+            // menentukan urutan review historis, sehingga dikunci setelah dipakai.
             if (await this.questionHasHistoricalUse(questionId, row.bank_id, db)) {
                 throw new ConflictException(
                     'Metadata soal sudah dipakai dalam pengerjaan ujian dan tidak dapat diubah.',
