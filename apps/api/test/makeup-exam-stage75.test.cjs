@@ -17,6 +17,7 @@ const fixedNow = '2026-09-30T02:00:00.000Z';
 
 function makeService() {
     const db = fixtureDb({
+        cbt_exams: [{ id: 'exam-75', show_results: false, end_time: fixedNow, metadata: {} }],
         cbt_exam_attempts: [{
             id: 'attempt-75',
             exam_id: 'exam-75',
@@ -112,6 +113,74 @@ test('SUSULAN-75: susulan penuh menghapus jawaban lama dan memulai waktu khusus 
     assert.equal(db.tables.cbt_answers.length, 1);
     assert.equal(db.tables.cbt_answers[0].id, 'new-answer');
     assert.equal(db.tables.cbt_attempt_security_logs.length, 1);
+});
+
+test('Sesi aktif dapat dipulihkan tanpa menghapus jawaban dan tetap mengizinkan pengeditan', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.status = 'in_progress';
+    attempt.finished_at = null;
+    attempt.personal_end_time = '2026-09-30T02:15:00.000Z';
+
+    const result = await service.resetAttempt(staff, attempt.id, 'Gangguan saat mengerjakan.', 30);
+    assert.equal(result.previousStatus, 'in_progress');
+    assert.equal(attempt.status, 'in_progress');
+    assert.equal(attempt.personal_end_time, '2026-09-30T02:30:00.000Z');
+    assert.equal(attempt.metadata.recovery_submit_only, false);
+    assert.equal(attempt.device_fingerprint, 'old-device');
+    assert.equal(db.tables.cbt_answers.length, 2);
+    assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.previous_status, 'in_progress');
+});
+
+test('Memperpanjang sesi pemulihan yang sedang berjalan tidak membuka izin mengubah jawaban', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.status = 'in_progress';
+    attempt.metadata.recovery_submit_only = true;
+    await service.resetAttempt(staff, attempt.id, 'Perpanjang pengiriman jawaban.', 15);
+    assert.equal(attempt.metadata.recovery_submit_only, true);
+    assert.equal(db.tables.cbt_answers.length, 2);
+});
+
+test('Sesi aktif dapat dimulai ulang dengan generasi baru dan jawaban server dikosongkan', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.status = 'in_progress';
+    attempt.finished_at = null;
+    const oldStart = attempt.started_at;
+
+    const result = await service.startMakeupAttempt(staff, attempt.id, 'Pengujian ulang oleh pengawas.', 60,
+        '00000000-0000-4000-8000-000000000076');
+    assert.equal(result.previousStatus, 'in_progress');
+    assert.equal(attempt.started_at, fixedNow);
+    assert.equal(attempt.metadata.active_restart_at, fixedNow);
+    assert.deepEqual(db.tables.cbt_answers, []);
+    assert.equal(attempt.device_fingerprint, null);
+    assert.notEqual(attempt.started_at, oldStart);
+});
+
+test('Reset sesi aktif ditolak saat pengumpulan jawaban sedang diproses', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.status = 'in_progress';
+    attempt.metadata.submit_intent_at = fixedNow;
+    attempt.metadata.submit_intent_digest = 'a'.repeat(64);
+    await assert.rejects(service.resetAttempt(staff, attempt.id, 'Coba pulihkan saat submit.', 30), /sedang diproses/);
+    await assert.rejects(service.startMakeupAttempt(staff, attempt.id, 'Coba ulang saat submit.', 30), /sedang diproses/);
+    assert.equal(attempt.status, 'in_progress');
+    assert.equal(db.tables.cbt_answers.length, 2);
+});
+
+test('Heartbeat sesi lama meminta siswa memuat ulang setelah mulai ulang', async () => {
+    const { db, service } = makeService();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    attempt.status = 'in_progress';
+    attempt.started_at = fixedNow;
+    attempt.metadata.active_restart_at = fixedNow;
+    const result = await service.heartbeat({ id: 'student-75' }, attempt.id, 'old-device',
+        undefined, undefined, undefined, '2026-09-29T01:00:00.000Z');
+    assert.equal(result.restartRequired, true);
+    assert.equal(result.startedAt, fixedNow);
 });
 
 test('SUSULAN-75: pemulihan biasa mempertahankan jawaban lama', async () => {

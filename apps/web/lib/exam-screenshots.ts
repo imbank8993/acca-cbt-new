@@ -24,10 +24,23 @@ type FrameSource = { source: CanvasImageSource; width: number; height: number; r
 export async function latestScreenFrame(video: HTMLVideoElement, track?: MediaStreamTrack | null): Promise<FrameSource> {
     const ImageCaptureCtor = (globalThis as unknown as { ImageCapture?: new (track: MediaStreamTrack) => { grabFrame(): Promise<ImageBitmap> } }).ImageCapture;
     if (track && track.readyState === 'live' && ImageCaptureCtor) {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
-            const bitmap = await new ImageCaptureCtor(track).grabFrame();
+            // Track yang sedang di-mute bisa membuat grabFrame menunggu tanpa batas.
+            let timedOut = false;
+            const pending = new ImageCaptureCtor(track).grabFrame().then(bitmap => {
+                if (timedOut) bitmap.close();
+                return bitmap;
+            });
+            const bitmap = await Promise.race([
+                pending,
+                new Promise<never>((_, reject) => {
+                    timeout = setTimeout(() => { timedOut = true; reject(new Error('grabFrame timeout')); }, 1500);
+                }),
+            ]);
             return { source: bitmap, width: bitmap.width, height: bitmap.height, release: () => bitmap.close() };
         } catch { /* fallback ke elemen video */ }
+        finally { if (timeout) clearTimeout(timeout); }
     }
     return { source: video, width: video.videoWidth, height: video.videoHeight };
 }

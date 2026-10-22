@@ -41,10 +41,12 @@ export interface ClientSyncHealth {
     storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
 }
 
-export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth, screenSharing?: boolean) {
-    return apiSend<{ lastSeenAt: string; submissionOnly?: boolean }>(
+export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth, screenSharing?: boolean, sessionStartedAt?: string) {
+    return apiSend<{ lastSeenAt: string; submissionOnly?: boolean; startedAt?: string;
+        personalEndTime?: string; restartRequired?: boolean }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/heartbeat`,
-        { deviceId: getDeviceId(), syncHealth, ...(screenSharing === undefined ? {} : { screenSharing }) },
+        { deviceId: getDeviceId(), syncHealth, sessionStartedAt,
+            ...(screenSharing === undefined ? {} : { screenSharing, screenSharingObservedAt: new Date().toISOString() }) },
         'POST',
         { timeoutMs: 15_000 },
     );

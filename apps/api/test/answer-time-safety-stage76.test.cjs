@@ -38,6 +38,22 @@ test('delayed bulk retry, unversioned clients and equal-version conflicts cannot
     assert.equal(db.tables.cbt_answers[0].metadata.answer_revision, 3);
 });
 
+test('active restart rejects autosaves from the previous session generation', async () => {
+    const db = fixture();
+    const attempt = db.tables.cbt_exam_attempts[0];
+    const oldStart = attempt.started_at;
+    attempt.started_at = '2026-10-22T09:00:00Z';
+    attempt.personal_end_time = '2099-10-22T10:00:00Z';
+    attempt.metadata = { active_restart_at: attempt.started_at, proctor_recovery_until: attempt.personal_end_time };
+    db.tables.cbt_exams[0].end_time = attempt.personal_end_time;
+    const attempts = service(db);
+    await assert.rejects(attempts.saveAnswer(user, 'attempt', row(1, 'old'), device, oldStart), /dimulai ulang/);
+    await assert.rejects(attempts.syncAnswers(user, 'attempt', [row(1, 'old')], device), /dimulai ulang/);
+    assert.equal(db.tables.cbt_answers.length, 0);
+    await attempts.saveAnswer(user, 'attempt', row(1, 'new'), device, attempt.started_at);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'new');
+});
+
 test('autosave validates against the frozen type and options', async () => {
     const db = fixture();
     db.tables.cbt_bank_questions[0].type = 'mcq';

@@ -367,7 +367,7 @@ export default function ExamPage() {
             revisionsRef.current[qId] ?? 0,
         ));
         try {
-            const res = await syncAnswersBulkAction(att.id, rows);
+            const res = await syncAnswersBulkAction(att.id, rows, att.started_at);
             if (res?.success) {
                 ids.forEach(id => {
                     if (revisionsRef.current[id] === sentRevisions[id]) failedSyncRef.current.delete(id);
@@ -391,7 +391,7 @@ export default function ExamPage() {
         if (rows.length === 0) return;
         try {
             const blob = new Blob(
-                [JSON.stringify({ attemptId: att.id, answers: rows, deviceId: getDeviceId() })],
+                [JSON.stringify({ attemptId: att.id, answers: rows, deviceId: getDeviceId(), sessionStartedAt: att.started_at })],
                 { type: 'application/json' }
             );
             navigator.sendBeacon?.('/api/exam/answers/flush', blob);
@@ -662,6 +662,10 @@ export default function ExamPage() {
                     const previousSession = await readExamRecoverySession(examId);
                     if (previousSession?.attempt.metadata?.makeup_activated_at !== makeupActivatedAt) {
                         await removeExamSnapshot(result.attempt.id);
+                        if (previousSession?.attempt.started_at && previousSession.attempt.personal_end_time) {
+                            await removeExamSubmissionRegistration(result.attempt.id,
+                                previousSession.attempt.started_at, previousSession.attempt.personal_end_time);
+                        }
                         for (const event of await readSecurityEvents(result.attempt.id)) {
                             await removeSecurityEvent(result.attempt.id, event.id);
                         }
@@ -802,7 +806,7 @@ export default function ExamPage() {
                         revisionsRef.current[qId] ?? 0,
                     ));
                     try {
-                        const sync = await syncAnswersBulkAction(result.attempt.id, rows);
+                        const sync = await syncAnswersBulkAction(result.attempt.id, rows, result.attempt.started_at);
                         if (sync?.success) {
                             localAnswerIds.forEach(id => failedSyncRef.current.delete(id));
                             setRecoverySummary(current => current ? {
@@ -1056,7 +1060,7 @@ export default function ExamPage() {
                     ));
 
                 if (answersArray.length > 0) {
-                    const res = await syncAnswersBulkAction(att.id, answersArray);
+                    const res = await syncAnswersBulkAction(att.id, answersArray, att.started_at);
                     if (res.success) {
                         // Seluruh snapshot durable baru saja dikirim ulang.
                         answersArray.forEach(row => {
@@ -1542,7 +1546,7 @@ export default function ExamPage() {
         if (!attempt?.id || isCompleted || submissionOnly || exam?.metadata?.screenshot_enabled !== true) return;
         const attemptId = attempt.id;
         const sharing = screenshots.sharing;
-        void heartbeatExamAttempt(attemptId, undefined, sharing).then(result => {
+        void heartbeatExamAttempt(attemptId, undefined, sharing, attemptRef.current?.started_at).then(result => {
             if (sharing && result?.success && attemptRef.current?.id === attemptId) void retryFailedAnswers();
         }).catch(() => undefined);
     }, [attempt?.id, isCompleted, submissionOnly, exam?.metadata?.screenshot_enabled, screenshots.sharing, retryFailedAnswers]);
@@ -1606,8 +1610,14 @@ export default function ExamPage() {
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
                 storageState: storageStateRef.current,
                 ...(report ? { interruption: report } : {}),
-            }, exam?.metadata?.screenshot_enabled === true ? screenSharingRef.current : undefined).catch(() => undefined);
+            }, exam?.metadata?.screenshot_enabled === true ? screenSharingRef.current : undefined,
+            attempt.started_at).catch(() => undefined);
             if (cancelled) return;
+            if (heartbeat?.success && (heartbeat.restartRequired ||
+                (heartbeat.personalEndTime && heartbeat.personalEndTime !== attempt.personal_end_time))) {
+                window.location.reload();
+                return;
+            }
             if (heartbeat?.success) {
                 networkSampleRef.current = sampleExamNetwork(networkSampleRef.current, performance.now() - heartbeatStarted);
                 setIsNetworkWeak(networkSampleRef.current.weak);
@@ -1670,7 +1680,22 @@ export default function ExamPage() {
         if (autoSubmittedRef.current) return;
         autoSubmittedRef.current = true;
 
-        void handleSubmitExam(undefined, { isAuto: true });
+        void (async () => {
+            // Proktor mungkin baru mengatur ulang waktu. Periksa jam server
+            // sebelum membekukan jawaban pada tenggat lama di browser.
+            const status = await getExamSubmissionStatus(attempt.id).catch(() => null);
+            if (status?.success) {
+                if (status.startedAt && status.startedAt !== attempt.started_at) {
+                    window.location.reload();
+                    return;
+                }
+                if (status.remainingSeconds > 0) {
+                    window.location.reload();
+                    return;
+                }
+            }
+            await handleSubmitExam(undefined, { isAuto: true });
+        })();
     }, [timeLeft, isOffline, submitting, isCompleted, user, attempt, loading, accessDenied, handleSubmitExam]);
 
 
@@ -1721,7 +1746,7 @@ export default function ExamPage() {
         await saveQueueRef.current.enqueue(questionId, async () => {
             if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
-                const res = await saveAnswerAction(att.id, questionId, payload);
+                const res = await saveAnswerAction(att.id, questionId, payload, att.started_at);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);
@@ -1773,7 +1798,7 @@ export default function ExamPage() {
         await saveQueueRef.current.enqueue(questionId, async () => {
             if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
-                const res = await saveAnswerAction(att.id, questionId, payload);
+                const res = await saveAnswerAction(att.id, questionId, payload, att.started_at);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);

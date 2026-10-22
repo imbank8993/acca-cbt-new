@@ -10,7 +10,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -53,6 +53,14 @@ class SyncHealthDto {
 }
 
 class HeartbeatDto {
+    @ApiProperty({ required: false })
+    @IsOptional() @IsDateString()
+    sessionStartedAt?: string;
+
+    @ApiProperty({ required: false })
+    @IsOptional() @IsDateString()
+    screenSharingObservedAt?: string;
+
     @IsOptional() @ValidateNested() @Type(() => SyncHealthDto)
     syncHealth?: SyncHealthDto;
 
@@ -149,12 +157,12 @@ export class ProctoringController {
         @Body() dto: HeartbeatDto,
         @Req() request: Request,
     ) {
-        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth, examClientContext(request), dto.screenSharing);
+        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth, examClientContext(request), dto.screenSharing, dto.sessionStartedAt, dto.screenSharingObservedAt);
     }
 
     @Post('attempts/:attemptId/reset')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Pulihkan pengerjaan tertutup dengan durasi yang ditentukan pengawas' })
+    @ApiOperation({ summary: 'Atur ulang waktu pengerjaan dengan jawaban tetap tersimpan' })
     async reset(
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
@@ -165,7 +173,7 @@ export class ProctoringController {
 
     @Post('attempts/:attemptId/makeup')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Buka ujian susulan dari awal untuk satu siswa' })
+    @ApiOperation({ summary: 'Mulai ulang ujian seorang siswa dan hapus jawaban lama' })
     async makeup(
         @CurrentUser() user: AuthUser,
         @Param('attemptId', ParseUUIDPipe) attemptId: string,

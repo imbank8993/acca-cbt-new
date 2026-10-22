@@ -11,6 +11,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const mounted = useRef(true);
     const requestGeneration = useRef(0);
     const lastCapture = useRef(0);
+    const muted = useRef(false);
     const count = useRef(0);
     const [sharing, setSharing] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -19,6 +20,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
 
     const releaseStream = useCallback(() => {
         sharingRef.current = false;
+        muted.current = false;
         for (const track of stream.current?.getTracks() || []) {
             track.onended = null; track.onmute = null; track.onunmute = null;
             track.stop();
@@ -89,21 +91,22 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             if (!isCurrentRequest()) return;
             if (track.readyState !== 'live') throw new Error('Berbagi layar tidak menghasilkan gambar. Coba lagi dan pilih layar yang ingin dibagikan.');
             adopted = true;
-            sharingRef.current = !track.muted; setSharing(!track.muted);
+            // Status berbagi layar mengikuti apakah track masih HIDUP, bukan `muted`.
+            // Chrome mem-mute track layar penuh untuk hal di luar kendali siswa
+            // (monitor hemat daya, layar terkunci, prompt UAC, frame statis), dan
+            // dulu itu mengunci ujian seolah siswa berhenti berbagi layar.
+            sharingRef.current = true; setSharing(true);
             track.onended = () => {
                 if (stream.current !== next) return;
                 stop();
                 if (mounted.current) setError('Berbagi layar terhenti. Bagikan kembali seluruh layar untuk melanjutkan.');
             };
-            track.onmute = () => {
-                if (stream.current !== next || !mounted.current) return;
-                sharingRef.current = false; setSharing(false);
-                setError('Gambar layar sementara tidak tersedia. Pulihkan berbagi layar untuk melanjutkan.');
-            };
-            track.onunmute = () => {
-                if (stream.current !== next || !mounted.current || track.readyState !== 'live') return;
-                sharingRef.current = true; setSharing(true); setError('');
-            };
+            // Hanya `ended` (siswa menekan "Stop sharing", atau layar dicabut) yang
+            // menghentikan berbagi layar. `mute` dicatat untuk pengambilan
+            // screenshot saja: frame mungkin belum tersedia, tetapi siswa tidak
+            // melakukan apa pun yang patut dikunci atau dihitung pelanggaran.
+            track.onmute = () => { if (stream.current === next) muted.current = true; };
+            track.onunmute = () => { if (stream.current === next) muted.current = false; };
         } catch (error) {
             if (isCurrentRequest()) {
                 const message = error instanceof Error ? error.message : '';
@@ -129,7 +132,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
         try {
             await new Promise(resolve => setTimeout(resolve, SCREENSHOT_CAPTURE_DELAY_MS));
             // Berbagi layar bisa terhenti selama jeda; jangan simpan frame dari stream mati.
-            if (!sharingRef.current || !video.current) return null;
+            if (!sharingRef.current || !video.current || muted.current) return null;
             return await encodeScreenFrame(await latestScreenFrame(video.current, stream.current?.getVideoTracks()[0]));
         }
         catch { if (mounted.current) setError('Screenshot kejadian ini belum berhasil diambil. Catatan kejadian tetap disimpan.'); return null; }

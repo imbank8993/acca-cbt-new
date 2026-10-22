@@ -57,6 +57,7 @@ function ResetExamForm({
   const [duration, setDuration] = useState<number>(15);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [confirmedClear, setConfirmedClear] = useState(false);
 
   const resolvedExamDuration = Number(
     examDuration ??
@@ -86,6 +87,7 @@ function ResetExamForm({
   const nis = attempt.profiles?.identity_number || '—';
   const savedAnswers = attempt.saved_answer_count ?? 0;
   const totalQuestions = attempt.total_questions ?? 0;
+  const isActive = attempt.status === 'in_progress';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +104,10 @@ function ResetExamForm({
     }
     if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
       setErrorMessage('Durasi harus berupa angka antara 1 dan 1440 menit.');
+      return;
+    }
+    if (mode === 'SUSULAN' && !confirmedClear) {
+      setErrorMessage('Konfirmasi penghapusan jawaban sebelum memulai ulang.');
       return;
     }
 
@@ -140,7 +146,7 @@ function ResetExamForm({
     >
       <ModalHeader
         id="reset-exam-modal-title"
-        title="Tindakan Pemulihan / Susulan Ujian"
+        title={isActive ? 'Reset Sesi Pengerjaan' : 'Tindakan Pemulihan / Susulan Ujian'}
         icon={<RotateCcw className="text-[#3083FF]" size={20} />}
         onClose={isSubmitting ? undefined : onClose}
       />
@@ -207,7 +213,11 @@ function ResetExamForm({
                     )}
                   </div>
                   <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                    Buka kembali sesi. Jawaban tersimpan tetap aman.
+                    {isActive
+                      ? attempt.metadata?.recovery_submit_only === true
+                        ? 'Perpanjang waktu pengiriman. Jawaban tetap aman dan tidak dapat diubah.'
+                        : 'Atur ulang waktu. Jawaban tersimpan tetap aman.'
+                      : 'Buka kembali sesi. Jawaban tersimpan tetap aman.'}
                   </p>
                 </div>
               </button>
@@ -226,7 +236,7 @@ function ResetExamForm({
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <Flame size={16} className={mode === 'SUSULAN' ? 'text-amber-500' : 'text-slate-400'} />
-                      <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">SUSULAN</span>
+                      <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">{isActive ? 'MULAI ULANG' : 'SUSULAN'}</span>
                     </div>
                     {mode === 'SUSULAN' && (
                       <CheckCircle2 size={15} className="text-amber-500" />
@@ -323,8 +333,12 @@ function ResetExamForm({
               <div>
                 <p className="font-bold">Perhatian Penting:</p>
                 <p className="mt-0.5 text-amber-800">
-                  Semua jawaban dan nilai lama milik <strong>{participantSummary || studentName}</strong> akan dihapus permanen. Hasil ujian baru akan dimasukkan ke dalam rekap ujian.
+                  Semua jawaban dan nilai lama milik <strong>{participantSummary || studentName}</strong> akan dihapus permanen. Siswa perlu memuat ulang halaman ujian untuk memulai sesi baru.
                 </p>
+                <label className="mt-2 flex items-center gap-2 font-semibold">
+                  <input type="checkbox" checked={confirmedClear} onChange={event => setConfirmedClear(event.target.checked)} />
+                  Saya memahami jawaban lama akan dihapus.
+                </label>
               </div>
             </div>
           )}
@@ -356,8 +370,8 @@ function ResetExamForm({
             {isSubmitting
               ? 'Memproses...'
               : mode === 'SUSULAN'
-                ? `Aktifkan Ujian Susulan (${duration} Min)`
-                : `Konfirmasi Pulihkan Ujian (${duration} Min)`}
+                ? `${isActive ? 'Mulai Ulang' : 'Aktifkan Ujian Susulan'} (${duration} Min)`
+                : `${isActive ? 'Atur Ulang Waktu' : 'Konfirmasi Pulihkan Ujian'} (${duration} Min)`}
           </Button>
         </ModalFooter>
       </form>

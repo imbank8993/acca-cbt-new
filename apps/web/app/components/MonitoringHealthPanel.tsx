@@ -105,7 +105,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 <input type="search" value={searchQuery}
                     onChange={event => { setSearchQuery(event.target.value); setPage(1); }}
                     placeholder="Cari nama, NIS, atau kelas..." aria-label="Cari peserta"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15" />
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 [&::-webkit-search-cancel-button]:appearance-none" />
                 {searchQuery && <button type="button" onClick={() => { setSearchQuery(''); setPage(1); }}
                     aria-label="Hapus pencarian" className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={14} /></button>}
             </div>
@@ -183,8 +183,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3">
                         <div className="flex flex-wrap gap-2">
                             <button type="button" className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedAttemptId(attempt.id)}>Detail</button>
-                            {onRecover && attempt.canReset === true && ['submitted', 'auto_submitted'].includes(attempt.status) && (
-                                <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>Susulan / Pulihkan</button>
+                            {onRecover && attempt.canReset === true && ['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status) && (
+                                <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>{active ? 'Reset sesi' : 'Susulan / Pulihkan'}</button>
                             )}
                         </div>
                     </td>

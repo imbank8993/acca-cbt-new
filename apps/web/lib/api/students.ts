@@ -300,21 +300,22 @@ export function saveAnswerAction(
     attemptId: string,
     questionId: string,
     data: { selected_option_id?: string; essay_answer?: string; is_doubtful?: boolean; revision?: number },
+    sessionStartedAt?: string,
 ) {
     return apiSend<{ attemptId: string }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers/${encodeURIComponent(questionId)}`,
-        { ...data, deviceId: getDeviceId() },
+        { ...data, deviceId: getDeviceId(), sessionStartedAt },
         'PUT',
         { timeoutMs: 15_000 },
     );
 }
 
-export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPayload[]) {
+export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPayload[], sessionStartedAt?: string) {
     if (answers.length === 0) return { success: true as const };
 
     return apiSend<{ attemptId: string; saved: number }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers`,
-        { answers, deviceId: getDeviceId() },
+        { answers, deviceId: getDeviceId(), sessionStartedAt },
         'PUT',
         { timeoutMs: 30_000 },
     );

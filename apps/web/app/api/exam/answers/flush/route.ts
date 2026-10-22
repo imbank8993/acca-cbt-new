@@ -16,7 +16,7 @@ import { NextRequest,NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
     const originError = rejectCrossOriginMutation(request, 'POST');
     if (originError) return originError;
-    let payload: { attemptId?: string; answers?: unknown[]; deviceId?: string };
+    let payload: { attemptId?: string; answers?: unknown[]; deviceId?: string; sessionStartedAt?: string };
     try {
         payload = await request.json();
     } catch {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const { attemptId, answers, deviceId } = payload || {};
+    const { attemptId, answers, deviceId, sessionStartedAt } = payload || {};
     if (!attemptId || !Array.isArray(answers) || answers.length === 0) {
         return NextResponse.json(
             { success: false, error: 'Payload tidak valid.' },
@@ -36,6 +36,6 @@ export async function POST(request: NextRequest) {
 
     return proxy(request, `/students/attempts/${encodeURIComponent(attemptId)}/answers`, {
         method: 'PUT',
-        body: JSON.stringify({ answers, deviceId }),
+        body: JSON.stringify({ answers, deviceId, sessionStartedAt }),
     });
 }

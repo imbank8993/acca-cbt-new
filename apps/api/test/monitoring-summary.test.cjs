@@ -78,13 +78,15 @@ test('detail keeps synchronization, timing, warning breakdown and answer navigat
     assert.equal(viewed, 'a'); assert.equal(closed, true);
 });
 
-test('active sessions show remaining time and pending sends without recovery controls', () => {
+test('active sessions show remaining time, pending sends, and authorized reset', () => {
     const row = attempt(); row.status = 'in_progress'; row.sync_health.pendingAnswerCount = 2;
     row.deadline_at = '2026-10-15T06:05:00Z';
-    const tree = mount('MonitoringHealthPanel.tsx', 'MonitoringHealthPanel', { attempts: [row], defaultExpanded: true, onRecover() {} })();
+    let resetId;
+    const tree = mount('MonitoringHealthPanel.tsx', 'MonitoringHealthPanel', { attempts: [row], defaultExpanded: true, onRecover(attempt) { resetId = attempt.id; } })();
     assert.match(text(tree), /Sisa 5:00/);
     assert.match(text(tree), /2 jawaban menunggu dikirim/);
-    assert.equal(nodes(tree).some(n => n.type === 'button' && text(n) === 'Susulan / Pulihkan'), false);
+    nodes(tree).find(n => n.type === 'button' && text(n) === 'Reset sesi').props.onClick();
+    assert.equal(resetId, row.id);
 });
 
 test('summary shows recovery only for students explicitly authorized by the server', () => {

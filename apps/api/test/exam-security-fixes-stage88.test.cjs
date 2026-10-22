@@ -273,17 +273,27 @@ test('#1 a lasting screen-share loss is a counted violation, unlike the informat
     assert.equal(result.warningCount, 1);
 });
 
-test('#1 server locks answer changes while the browser reports no screen share; submission stays open', async () => {
+test('#1 stopped screen sharing blocks answer changes until sharing resumes', async () => {
     const { db, service } = examFixture({ metadata: { is_public: true, screenshot_enabled: true } });
     db.tables.cbt_exam_attempts[0].metadata.screen_share_confirmed = false;
     await assert.rejects(service.saveAnswer(student, 'attempt', { questionId: 'q', essay_answer: 'x', revision: 1 }, device),
         e => e.getStatus() === 403 && e.getResponse().code === 'SCREEN_SHARE_REQUIRED');
-    db.tables.cbt_exam_screen_share_exceptions = [{ exam_id: 'exam', user_id: student.id }];
+    db.tables.cbt_exam_attempts[0].metadata.screen_share_confirmed = true;
     await service.saveAnswer(student, 'attempt', { questionId: 'q', essay_answer: 'x', revision: 1 }, device);
-    db.tables.cbt_exam_screen_share_exceptions = [];
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'x');
     const result = await service.submit(student, 'exam', { q: 'x' }, undefined, 'attempt', device, { q: 1 });
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
     assert.equal(result.alreadySubmitted, false);
+});
+
+test('#1 browser hook: only an ended track stops sharing; mute is not treated as stopping', () => {
+    const fs = require('node:fs');
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/hooks/useExamScreenshots.ts'), 'utf8');
+    const onmute = source.slice(source.indexOf('track.onmute'), source.indexOf('track.onunmute'));
+    assert.doesNotMatch(onmute, /setSharing\(false\)|sharingRef\.current = false/);
+    assert.doesNotMatch(source, /setSharing\(!track\.muted\)/);
+    const endedHandler = source.slice(source.indexOf('track.onended = () =>'), source.indexOf('track.onmute = () =>'));
+    assert.match(endedHandler, /stop\(\)/);
 });
 
 test('#1 heartbeat restores the lock state as soon as sharing resumes', async () => {
@@ -292,8 +302,10 @@ test('#1 heartbeat restores the lock state as soon as sharing resumes', async ()
         cbt_exam_attempts: [{ id: 'a', exam_id: 'e', user_id: 's', status: 'in_progress', device_fingerprint: device, metadata: {} }],
     });
     const service = new ProctoringService(db, {}, {});
-    await service.heartbeat({ id: 's' }, 'a', device, undefined, undefined, false);
+    await service.heartbeat({ id: 's' }, 'a', device, undefined, undefined, false, undefined, '2026-10-22T09:00:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.screen_share_confirmed, false);
-    await service.heartbeat({ id: 's' }, 'a', device, undefined, undefined, true);
+    await service.heartbeat({ id: 's' }, 'a', device, undefined, undefined, true, undefined, '2026-10-22T09:00:02.000Z');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.screen_share_confirmed, true);
+    await service.heartbeat({ id: 's' }, 'a', device, undefined, undefined, false, undefined, '2026-10-22T09:00:01.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.screen_share_confirmed, true);
 });

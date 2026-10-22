@@ -434,7 +434,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
         const timerStart = source.indexOf('    // Auto-submit when timer hits 0.');
         const timerEnd = source.indexOf('    const handleAnswerSelect', timerStart);
         assert.ok(handlerStart >= 0 && handlerEnd > handlerStart && timerStart >= 0 && timerEnd > timerStart);
-        const deliveryCall = 'void handleSubmitExam(undefined, { isAuto: true });';
+        const deliveryCall = 'void (async () => {';
         const timerCode = source.slice(timerStart, timerEnd);
         assert.ok(timerCode.includes(deliveryCall));
         const state = { sent: [], denied: false, completed: false, waiting: false, cleaned: 0, retries: 0 };
@@ -474,8 +474,10 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
             localStorage: { removeItem: () => {} },
             setIsCompleted: value => { state.completed = value; }, router: { push: () => {} },
             toast: { success: () => {}, error: () => {}, warning: () => {} }, scheduleAutoRetry: () => { state.retries++; },
+            getExamSubmissionStatus: async () => ({ success: true, startedAt: attempt.started_at, remainingSeconds: 0 }),
+            window: { location: { reload: () => { throw new Error('Timer lama tidak boleh memuat ulang saat waktu server habis.'); } } },
         };
-        const code = source.slice(handlerStart, handlerEnd) + '\n' + timerCode.replace(deliveryCall, 'globalThis.autoDelivery = handleSubmitExam(undefined, { isAuto: true });') + '\nglobalThis.retry = handleSubmitExam;';
+        const code = source.slice(handlerStart, handlerEnd) + '\n' + timerCode.replace(deliveryCall, 'globalThis.autoDelivery = (async () => {') + '\nglobalThis.retry = handleSubmitExam;';
         vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
         await sandbox.autoDelivery;
         assert.equal(state.denied, false);

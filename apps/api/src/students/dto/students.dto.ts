@@ -74,6 +74,11 @@ export class AnswerDto {
 export class SaveAnswerDto {
     @ApiPropertyOptional()
     @IsOptional()
+    @IsDateString()
+    sessionStartedAt?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
     @IsInt()
     @Min(0)
     @Max(Number.MAX_SAFE_INTEGER)
@@ -104,6 +109,11 @@ export class SaveAnswerDto {
 }
 
 export class SyncAnswersDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    sessionStartedAt?: string;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()

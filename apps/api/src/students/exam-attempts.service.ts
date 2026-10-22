@@ -563,26 +563,26 @@ export class ExamAttemptsService {
 
     // ── Menyimpan jawaban ────────────────────────────────────────────────────
 
-    async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput, deviceId?: string) {
+    async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput, deviceId?: string, sessionStartedAt?: string) {
         const device = this.requireDeviceId(deviceId);
         this.assertAnswerInputSizes([answer]);
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device);
+            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device, false, undefined, sessionStartedAt);
             await this.assertAnswersBelongToExam(owned.examId, [answer], db);
             await this.upsertAnswers(attemptId, [answer], db);
         });
         return { attemptId };
     }
 
-    async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[], deviceId?: string) {
+    async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[], deviceId?: string, sessionStartedAt?: string) {
         if (answers.length === 0) return { attemptId, saved: 0 };
         const device = this.requireDeviceId(deviceId);
         this.assertAnswerInputSizes(answers);
 
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
-            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device);
+            const owned = await this.assertOwnedAndRunning(user, attemptId, db, device, false, undefined, sessionStartedAt);
             await this.assertAnswersBelongToExam(owned.examId, answers, db);
             await this.upsertAnswers(attemptId, answers, db);
         });
@@ -673,7 +673,8 @@ export class ExamAttemptsService {
                 return { attemptId, startedAt: null, savedAnswersOnly: true,
                     ...(submission?.securityEvents ? { acceptedSecurityEventIds } : {}) };
             }
-            await this.assertOwnedAndRunning(user, attemptId, db, device, true);
+            await this.assertOwnedAndRunning(user, attemptId, db, device, true, undefined,
+                submission?.frozenSubmission?.startedAt);
             const acceptedSecurityEventIds = await persistSubmissionSecurityEvents(db, attemptId, user.id,
                 attempt, securityEvents, now, deadline);
             const startedAt = now.toISOString();
@@ -793,6 +794,7 @@ export class ExamAttemptsService {
         deviceId?: string,
         allowRecordedSubmitIntent = false,
         digest?: string,
+        sessionStartedAt?: string,
     ): Promise<{ examId: string }> {
         const { data, error } = await db
             .from('cbt_exam_attempts')
@@ -808,6 +810,10 @@ export class ExamAttemptsService {
         }
         if (attempt.status !== 'in_progress') {
             throw new ForbiddenException('Ujian tidak sedang berlangsung.');
+        }
+        if (attempt.metadata?.active_restart_at &&
+            (!sessionStartedAt || Date.parse(sessionStartedAt) !== Date.parse(attempt.started_at || ''))) {
+            throw new ForbiddenException('Sesi ujian telah dimulai ulang oleh pengawas. Muat ulang halaman ujian.');
         }
         if (attempt.metadata?.recovery_submit_only === true && !allowRecordedSubmitIntent) {
             throw new ForbiddenException('Pemulihan hanya mengizinkan pengumpulan jawaban, bukan perubahan jawaban.');
@@ -832,10 +838,9 @@ export class ExamAttemptsService {
             if (correction && correction.state !== 'ready') {
                 throw new ConflictException('Ujian sedang dalam proses koreksi kunci. Coba lagi beberapa saat.');
             }
-            // Ujian dengan berbagi layar: selama browser melaporkan layar tidak
-            // dibagikan, pengerjaan dikunci (waktu tetap berjalan). Jawaban yang
-            // tertolak tetap tersimpan di perangkat dan dikirim ulang setelah
-            // berbagi layar pulih. Pengumpulan tidak pernah diblokir.
+            // Heartbeat yang lebih lama tidak boleh membatalkan laporan berbagi
+            // layar yang lebih baru. Jika siswa benar-benar berhenti berbagi,
+            // jawaban tetap tersimpan lokal hingga berbagi layar dipulihkan.
             if ((exam.metadata as { screenshot_enabled?: boolean } | null)?.screenshot_enabled === true &&
                 attempt.metadata?.screen_share_confirmed === false) {
                 const { data: exception, error: exceptionError } = await db.from('cbt_exam_screen_share_exceptions')

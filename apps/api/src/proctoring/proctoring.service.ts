@@ -163,7 +163,8 @@ export class ProctoringService {
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
     async heartbeat(user: AuthUser, attemptId: string, deviceId: string, syncHealth?: ClientSyncHealth,
-        clientContext?: { browser: string | null; os: string | null; ip_address: string | null }, screenSharing?: boolean) {
+        clientContext?: { browser: string | null; os: string | null; ip_address: string | null }, screenSharing?: boolean,
+        sessionStartedAt?: string, screenSharingObservedAt?: string) {
         let health: ClientSyncHealth | undefined;
         try { health = validateSyncHealth(syncHealth); }
         catch { throw new BadRequestException('Laporan penyimpanan tidak valid.'); }
@@ -177,6 +178,11 @@ export class ProctoringService {
             if (attempt.status !== 'in_progress') throw new BadRequestException('Ujian tidak sedang berlangsung.');
             if (!deviceId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId)) {
                 throw new ForbiddenException('Perangkat tidak cocok dengan sesi ujian.');
+            }
+            if (attempt.metadata?.active_restart_at &&
+                Date.parse(sessionStartedAt || '') !== Date.parse(attempt.started_at || '')) {
+                return { restartRequired: true, startedAt: attempt.started_at,
+                    personalEndTime: attempt.personal_end_time, lastSeenAt: attempt.last_seen_at };
             }
             const now = await this.databaseNow(db);
             const metadata = { ...(attempt.metadata || {}) };
@@ -210,7 +216,11 @@ export class ProctoringService {
                         ? 'Hanya IP yang berubah; wajar pada jaringan seluler atau pindah Wi-Fi.'
                         : 'Browser/OS berubah dalam satu sesi: periksa kemungkinan perangkat lain memakai sesi ini.' });
             }
-            if (typeof screenSharing === 'boolean') {
+            const observedAt = Date.parse(screenSharingObservedAt || '');
+            const previousObservedAt = Date.parse(metadata.screen_share_observed_at || '');
+            const staleScreenReport = Number.isFinite(observedAt) && Number.isFinite(previousObservedAt) &&
+                observedAt < previousObservedAt;
+            if (typeof screenSharing === 'boolean' && !staleScreenReport) {
                 const { data: examRow, error: examRowError } = await db.from('cbt_exams')
                     .select('metadata').eq('id', attempt.exam_id).maybeSingle();
                 if (examRowError) throw new BadRequestException('Pengaturan ujian belum dapat dibaca.');
@@ -221,7 +231,10 @@ export class ProctoringService {
                         .select('user_id').eq('exam_id', attempt.exam_id).eq('user_id', user.id).maybeSingle();
                     if (!exception) await log('SCREEN_SHARE_UNCONFIRMED', { evidence: 'client_report', reported_at: now.toISOString() });
                 }
-                if (required) metadata.screen_share_confirmed = screenSharing;
+                if (required) {
+                    metadata.screen_share_confirmed = screenSharing;
+                    if (Number.isFinite(observedAt)) metadata.screen_share_observed_at = screenSharingObservedAt;
+                }
             }
             if (health?.interruption && metadata.last_connection_report_at !== health.interruption.at) {
                 await log('CONNECTION_INTERRUPTION_REPORTED', {
@@ -240,16 +253,17 @@ export class ProctoringService {
             const { error } = await db.from('cbt_exam_attempts')
                 .update({ last_seen_at: now.toISOString(), metadata }).eq('id', attemptId).eq('status', 'in_progress');
             if (error) throw new BadRequestException('Status koneksi belum dapat diperbarui.');
-            return { lastSeenAt: now.toISOString(), submissionOnly: metadata.recovery_submit_only === true };
+            return { lastSeenAt: now.toISOString(), submissionOnly: metadata.recovery_submit_only === true,
+                startedAt: attempt.started_at, personalEndTime: attempt.personal_end_time };
         });
     }
 
     /**
-     * Kembalikan attempt yang sudah tertutup ke `in_progress` dengan jawaban utuh.
+     * Pulihkan pengerjaan dengan jawaban utuh. Untuk sesi yang masih berjalan,
+     * atur ulang tenggat tanpa mengunci siswa ke mode pengumpulan saja.
      *
      * Berlaku untuk attempt yang DITUTUP SISTEM maupun yang SUDAH DISUBMIT siswa
-     * Pengumpulan hanya menerima salinan jawaban lama; untuk mengerjakan ulang gunakan susulan. Attempt yang masih
-     * berjalan tidak perlu — dan tidak boleh — di-reset.
+     * Pengerjaan tertutup hanya menerima salinan jawaban lama; untuk mengerjakan ulang gunakan susulan.
      */
     async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number) {
         const normalizedReason = reason.trim();
@@ -292,9 +306,10 @@ export class ProctoringService {
                 metadata: Record<string, unknown> | null;
             };
 
-            if (!RESETTABLE_STATUSES.includes(row.status)) {
+            const active = row.status === 'in_progress';
+            if (!active && !RESETTABLE_STATUSES.includes(row.status)) {
                 throw new BadRequestException(
-                    'Hanya ujian yang sudah selesai (submit / ditutup sistem) yang bisa di-reset.',
+                    'Hanya ujian yang sedang dikerjakan atau sudah selesai yang bisa di-reset.',
                 );
             }
 
@@ -306,6 +321,9 @@ export class ProctoringService {
             const previousMetadata = { ...(row.metadata || {}) };
 
             const now = await this.databaseNow(db);
+            if (active && hasCommittedSubmitIntent(row.metadata, now)) {
+                throw new BadRequestException('Pengumpulan jawaban sedang diproses. Tunggu statusnya sebelum reset.');
+            }
             const { count: serverAnswerCount, error: countError } = await db
                 .from('cbt_answers')
                 .select('id', { count: 'exact', head: true })
@@ -339,8 +357,14 @@ export class ProctoringService {
             delete metadataWithoutOldScore.dimension_scores;
             delete metadataWithoutOldScore.sync_health;
             delete metadataWithoutOldScore.submit_intent_at;
+            delete metadataWithoutOldScore.submit_intent_digest;
             updates.personal_end_time = recoveryUntil;
-            updates.metadata = {
+            updates.metadata = active ? {
+                ...metadataWithoutOldScore,
+                proctor_recovery_until: recoveryUntil,
+                recovery_submit_only: previousMetadata.recovery_submit_only === true,
+                active_reset_at: now.toISOString(),
+            } : {
                 ...metadataWithoutOldScore,
                 proctor_recovery_until: recoveryUntil,
                 recovery_submit_only: true,
@@ -464,13 +488,17 @@ export class ProctoringService {
                     };
                 }
             }
-            if (!RESETTABLE_STATUSES.includes(row.status)) {
+            const active = row.status === 'in_progress';
+            if (!active && !RESETTABLE_STATUSES.includes(row.status)) {
                 throw new BadRequestException(
-                    'Ujian susulan hanya dapat dibuat dari pengerjaan yang sudah selesai.',
+                    'Mulai ulang hanya dapat dibuat dari pengerjaan yang sedang berlangsung atau sudah selesai.',
                 );
             }
 
             const now = await this.databaseNow(db);
+            if (active && hasCommittedSubmitIntent(row.metadata, now)) {
+                throw new BadRequestException('Pengumpulan jawaban sedang diproses. Tunggu statusnya sebelum mulai ulang.');
+            }
             const recoveryUntil = new Date(
                 now.getTime() + durationMinutes * 60 * 1000,
             ).toISOString();
@@ -490,7 +518,9 @@ export class ProctoringService {
             delete previousMetadata.grading_retry_error;
             delete previousMetadata.grading_recovered_at;
             delete previousMetadata.sync_health;
+            delete previousMetadata.screen_share_observed_at;
             delete previousMetadata.submit_intent_at;
+            delete previousMetadata.submit_intent_digest;
             delete previousMetadata.recovery_submit_only;
             delete previousMetadata.recovery_source_deadline;
             delete previousMetadata.closed_by_expiry;
@@ -532,6 +562,8 @@ export class ProctoringService {
                         makeup_exam: true,
                         makeup_duration_minutes: durationMinutes,
                         makeup_activated_at: now.toISOString(),
+                        ...(exam.metadata?.screenshot_enabled === true ? { screen_share_confirmed: false } : {}),
+                        ...(active ? { active_restart_at: now.toISOString() } : {}),
                     },
                 })
                 .eq('id', attemptId)

@@ -151,7 +151,7 @@ export class StudentsController {
         @Param('questionId', ParseUUIDPipe) questionId: string,
         @Body() dto: SaveAnswerDto,
     ) {
-        return this.attempts.saveAnswer(user, attemptId, { questionId, ...dto }, dto.deviceId);
+        return this.attempts.saveAnswer(user, attemptId, { questionId, ...dto }, dto.deviceId, dto.sessionStartedAt);
     }
 
     @RateLimit({ name: 'student-answers', limit: 300, windowMs: 60_000 })
@@ -162,7 +162,7 @@ export class StudentsController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: SyncAnswersDto,
     ) {
-        return this.attempts.syncAnswers(user, attemptId, dto.answers, dto.deviceId);
+        return this.attempts.syncAnswers(user, attemptId, dto.answers, dto.deviceId, dto.sessionStartedAt);
     }
 
     @RateLimit({ name: 'student-submit', limit: 60, windowMs: 60_000 })
