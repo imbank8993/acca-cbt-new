@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+    ArrayMaxSize,
     ArrayNotEmpty,
     IsArray,
     IsBoolean,
@@ -12,6 +13,7 @@ import {
     IsString,
     IsUUID,
     Max,
+    Matches,
     MaxLength,
     Min,
     ValidateIf,
@@ -30,11 +32,13 @@ class ExamFieldsDto {
     @ApiProperty()
     @IsString()
     @IsNotEmpty({ message: 'Judul ujian wajib diisi.' })
+    @MaxLength(200, { message: 'Judul ujian maksimal 200 karakter.' })
     title!: string;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(5000, { message: 'Deskripsi ujian maksimal 5000 karakter.' })
     description?: string;
 
     @ApiPropertyOptional({ enum: EXAM_TYPES })
@@ -43,7 +47,9 @@ class ExamFieldsDto {
     examType?: (typeof EXAM_TYPES)[number];
 
     @ApiProperty({ description: 'Dalam menit. Diabaikan untuk ujian bertipe assignment.' })
-    @IsNumber()
+    @IsInt({ message: 'Durasi ujian harus berupa bilangan bulat menit.' })
+    @Min(0, { message: 'Durasi ujian tidak boleh negatif.' })
+    @Max(1440, { message: 'Durasi ujian maksimal 1440 menit (24 jam).' })
     duration!: number;
 
     @ApiPropertyOptional({
@@ -104,9 +110,12 @@ class ExamFieldsDto {
     @Max(100, { message: 'Batas pelanggaran maksimal 100.' })
     maxViolations?: number | null;
 
-    @ApiPropertyOptional({ default: 'classical' })
+    @ApiPropertyOptional({ default: 'classical', example: 'classical,irt_2pl' })
     @IsOptional()
     @IsString()
+    @Matches(/^$|^(classical|irt_1pl|irt_2pl|irt_3pl)(,(classical|irt_1pl|irt_2pl|irt_3pl))*$/, {
+        message: 'Sistem penilaian tidak dikenal.',
+    })
     scoringType?: string;
 
     @ApiPropertyOptional({ default: false })
@@ -117,16 +126,19 @@ class ExamFieldsDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(2048, { message: 'Tautan dokumen terlalu panjang.' })
     documentUrl?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(2048, { message: 'Tautan video terlalu panjang.' })
     videoUrl?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(50000, { message: 'Deskripsi tugas terlalu panjang.' })
     assignmentDescription?: string;
 
     @ApiPropertyOptional()
@@ -137,7 +149,9 @@ class ExamFieldsDto {
     @ApiPropertyOptional({ type: [String], default: ['pdf'] })
     @IsOptional()
     @IsArray()
+    @ArrayMaxSize(20)
     @IsString({ each: true })
+    @MaxLength(10, { each: true })
     allowedFileTypes?: string[];
 
     @ApiPropertyOptional({ default: true })

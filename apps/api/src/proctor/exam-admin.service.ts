@@ -15,6 +15,8 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
 import { isSemesterAssessmentExam } from '../common/exam-types';
+import { resolveExamBankIds } from '../common/exam-question-sources';
+import { ALLOWED_EXTENSIONS } from '../storage/storage.service';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
 /** Jenis ujian yang hanya boleh dibuat dan diubah Proktor/Admin. */
@@ -157,19 +159,27 @@ export class ExamAdminService {
         if (dto.timeZone && dto.timeZone !== timeZone) {
             throw new BadRequestException('Zona waktu sekolah berubah. Buka ulang formulir sebelum menyimpan jadwal.');
         }
+        const title = this.normalizeExamInput(dto);
         const startTime = localDateTimeToUtc(dto.startTime, timeZone);
         const endTime = localDateTimeToUtc(dto.endTime, timeZone);
         if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
             throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
         }
+        this.assertValidWindow(startTime, endTime);
 
         if (dto.questionBankId) {
-            const { data: bank } = await this.db
+            const { data: bank, error: bankError } = await this.db
                 .from('cbt_question_banks')
-                .select('is_published')
+                .select('is_published, organization_id')
                 .eq('id', dto.questionBankId)
                 .maybeSingle();
+            if (bankError) throw new BadRequestException('Bank soal belum dapat diperiksa.');
 
+            // Bank sekolah lain tidak boleh dipakai: soal dan kuncinya akan
+            // terbuka bagi staf dan siswa sekolah ini lewat ujian tersebut.
+            if (bank && (bank as { organization_id?: string }).organization_id !== organizationId) {
+                throw new BadRequestException('Bank soal tidak ditemukan di sekolah ini.');
+            }
             if (!(bank as { is_published?: boolean } | null)?.is_published) {
                 throw new BadRequestException(
                     'Bank soal harus diterbitkan sebelum bisa dipakai untuk ujian.',
@@ -186,7 +196,7 @@ export class ExamAdminService {
             payload: {
                 organization_id: organizationId,
                 question_bank_id: dto.questionBankId || null,
-                title: dto.title.trim(),
+                title,
                 description: dto.description?.trim() || null,
                 exam_type: examType,
                 duration_minutes: dto.duration,
@@ -245,6 +255,7 @@ export class ExamAdminService {
                 await this.assertMayUseExamType(user, existing.organization_id, examType);
             }
 
+            const title = this.normalizeExamInput(dto);
             this.assertValidDuration(examType, dto.duration);
             const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
             if (dto.timeZone && dto.timeZone !== timeZone) {
@@ -255,12 +266,15 @@ export class ExamAdminService {
             if ((dto.startTime && !startTime) || (dto.endTime && !endTime)) {
                 throw new BadRequestException('Tanggal atau waktu ujian tidak valid.');
             }
+            this.assertValidWindow(startTime, endTime);
 
             const { error } = await db
                 .from('cbt_exams')
                 .update({
-                    title: dto.title,
-                    description: dto.description,
+                    title,
+                    // Formulir tidak mengirim deskripsi yang dikosongkan; tanpa
+                    // `null` di sini deskripsi lama tidak pernah bisa dihapus.
+                    description: dto.description?.trim() || null,
                     exam_type: examType,
                     duration_minutes: dto.duration,
                     randomize_questions: dto.randomizeQuestions ?? true,
@@ -361,11 +375,14 @@ export class ExamAdminService {
 
         const { data } = await this.db
             .from('cbt_exams')
-            .select('metadata, status')
+            .select('metadata, status, exam_type, question_bank_id')
             .eq('id', examId)
             .maybeSingle();
 
         if (!data) throw new NotFoundException('Ujian tidak ditemukan.');
+        await this.assertHasQuestions(examId, data as {
+            metadata?: Record<string, any> | null; exam_type?: string | null; question_bank_id?: string | null;
+        });
         if ((data as { metadata?: Record<string, any> }).metadata?.is_pas_exam === true) {
             throw new ConflictException('Aktifkan ujian PAS melalui jadwal folder agar kelengkapan ruang dan pengawas diperiksa.');
         }
@@ -692,6 +709,58 @@ export class ExamAdminService {
         if (!Number.isFinite(Number(duration)) || Number(duration) < 1) {
             throw new BadRequestException('Durasi ujian minimal 1 menit.');
         }
+    }
+
+    /**
+     * Rapikan masukan formulir dan kembalikan judul yang sudah dipangkas.
+     * `@IsNotEmpty` meloloskan judul berisi spasi saja, yang lalu tersimpan
+     * sebagai judul kosong.
+     */
+    private normalizeExamInput(dto: CreateExamDto | UpdateExamDto): string {
+        const title = dto.title.trim();
+        if (!title) throw new BadRequestException('Judul ujian wajib diisi.');
+
+        // "classical,irt_2pl,irt_2pl" → "classical,irt_2pl"; kosong → classical.
+        const scoring = [...new Set((dto.scoringType || '').split(',').map(type => type.trim()).filter(Boolean))];
+        dto.scoringType = scoring.length ? scoring.join(',') : 'classical';
+
+        if (dto.allowedFileTypes) {
+            const types = [...new Set(dto.allowedFileTypes.map(type => type.trim().toLowerCase().replace(/^\./, '')).filter(Boolean))];
+            // SVG dapat memuat skrip; unggahan siswa tidak boleh memakainya.
+            const unknown = types.filter(type => type === 'svg' || !Object.prototype.hasOwnProperty.call(ALLOWED_EXTENSIONS, type));
+            if (unknown.length) {
+                throw new BadRequestException(`Jenis file tidak didukung: ${unknown.map(type => '.' + type).join(', ')}`);
+            }
+            if (!types.length) throw new BadRequestException('Pilih minimal satu jenis file yang diizinkan.');
+            dto.allowedFileTypes = types;
+        }
+        return title;
+    }
+
+    /** Jadwal yang selesai sebelum (atau tepat saat) dimulai tidak bisa dikerjakan siapa pun. */
+    private assertValidWindow(startTime: string | null, endTime: string | null): void {
+        if (startTime && endTime && new Date(endTime).getTime() <= new Date(startTime).getTime()) {
+            throw new BadRequestException('Waktu selesai harus lebih lambat dari waktu mulai.');
+        }
+    }
+
+    /**
+     * Ujian tanpa soal yang diterbitkan membuat siswa membuka lembar kosong dan
+     * langsung tercatat selesai dengan nilai 0. Tugas tanpa bank soal dikecualikan.
+     */
+    private async assertHasQuestions(
+        examId: string,
+        exam: { metadata?: Record<string, any> | null; exam_type?: string | null; question_bank_id?: string | null },
+    ): Promise<void> {
+        if (exam.exam_type === 'assignment' && exam.metadata?.require_bank === false) return;
+        const bankIds = await resolveExamBankIds(this.db, examId, exam.question_bank_id ?? null);
+        if (bankIds.length) {
+            const { data, error } = await this.db.from('cbt_bank_questions')
+                .select('id').in('bank_id', bankIds).limit(1);
+            if (error) throw new BadRequestException('Soal ujian belum dapat diperiksa.');
+            if ((data as unknown[] | null)?.length) return;
+        }
+        throw new BadRequestException('Ujian belum memiliki soal. Pilih bank soal yang berisi soal sebelum menerbitkan.');
     }
 
     /**

@@ -38,6 +38,7 @@ import type {
 } from '@/lib/api/proctor';
 import type { QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
+import { alertDialog } from '@/lib/confirm-dialog';
 import { DEFAULT_SCHOOL_TIME_ZONE, getSchoolTimeZone, getSchoolTimeZoneLabel, schoolTodayDate, utcToSchoolLocalDateTime, addMinutesToLocalDateTime } from '@/lib/school-time';
 
 export type ExamType = 'daily' | 'am' | 'asas_asat' | 'tryout' | 'assignment' | 'lainnya';
@@ -558,11 +559,14 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 targetExamId = result.id;
             }
 
-            // Atur penugasan kelas dan peserta jika targetExamId ada
+            // Atur penugasan kelas dan peserta jika targetExamId ada.
+            // Hasilnya WAJIB diperiksa: sebelumnya kegagalan penugasan diabaikan,
+            // modal tertutup seolah berhasil, dan ujian tersimpan tanpa kelas.
+            let assignResult: { success: boolean; error?: string } | null = null;
             if (targetExamId) {
                 if (payload.isPublic) {
                     // Ujian publik: bersihkan sasaran kelas spesifik
-                    await assignExamAction(targetExamId, [], [], false);
+                    assignResult = await assignExamAction(targetExamId, [], [], false);
                 } else if (formData.selectedClassIds.length > 0 || isEdit) {
                     const targetClassIds: string[] = [];
                     const participantAssignments: { userId: string; classId: string }[] = [];
@@ -581,13 +585,33 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                         }
                     }
 
-                    await assignExamAction(
+                    assignResult = await assignExamAction(
                         targetExamId,
                         targetClassIds,
                         participantAssignments,
                         false
                     );
                 }
+            }
+
+            if (assignResult && !assignResult.success) {
+                if (isEdit) {
+                    // Detail ujian sudah tersimpan; formulir tetap terbuka agar
+                    // penugasan bisa dicoba lagi tanpa kehilangan isian.
+                    setError(`Detail ujian tersimpan, tetapi penugasan kelas gagal: ${assignResult.error || 'kesalahan tidak diketahui'}. Coba simpan lagi.`);
+                    await onSuccess();
+                    return;
+                }
+                // Ujian baru sudah dibuat. Menyimpan ulang dari formulir ini akan
+                // membuat ujian ganda, jadi tutup dan arahkan ke menu Edit.
+                onClose();
+                await onSuccess();
+                await alertDialog({
+                    title: 'Ujian tersimpan tanpa kelas',
+                    text: `Ujian "${payload.title}" sudah dibuat sebagai draf, tetapi penugasan kelas gagal: ${assignResult.error || 'kesalahan tidak diketahui'}. Buka Edit pada ujian tersebut untuk memilih kelas lagi.`,
+                    variant: 'warning',
+                });
+                return;
             }
 
             onClose();
@@ -754,6 +778,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 required
                                 type="text"
                                 placeholder={formData.examType === 'assignment' ? 'Contoh: Tugas Matematika' : 'Contoh: UTS Matematika'}
+                                maxLength={200}
                                 value={formData.title}
                                 onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
                             />
