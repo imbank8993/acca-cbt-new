@@ -25,6 +25,24 @@ export class StorageAccessService {
         return !!value && typeof value === 'object' && Object.values(value).some(item => this.references(item, key));
     }
 
+    /**
+     * Lampiran `assignments/<examId>/<userId>` hanya boleh dibuat oleh peserta
+     * yang sedang mengerjakan ujian itu, atau oleh staf ujian tersebut. Tanpa
+     * ini siswa dapat menitipkan berkas ke folder ujian mana pun, dan berkasnya
+     * otomatis terbaca oleh staf ujian tersebut.
+     */
+    async assertAssignmentUpload(user: AuthUser, examId: string): Promise<void> {
+        if (!user) throw new ForbiddenException('Sesi tidak valid.');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(examId || '')) {
+            throw new ForbiddenException('Folder tugas tidak valid.');
+        }
+        const { data: attempts, error } = await this.db.from('cbt_exam_attempts').select('id')
+            .eq('exam_id', examId).eq('user_id', user.id).eq('status', 'in_progress').limit(1);
+        if (error) throw new ForbiddenException('Izin unggah belum dapat diperiksa.');
+        if ((attempts || []).length) return;
+        await this.authz.assertExamStaff(user, examId);
+    }
+
     async assertRead(user: AuthUser, key: string): Promise<void> {
         if (!user) throw new ForbiddenException('Sesi tidak valid.');
         if (key.startsWith('exam-evidence/')) throw new ForbiddenException('Gunakan akses bukti ujian yang terotorisasi.');

@@ -15,6 +15,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import {
     JoinClassDto,
@@ -40,7 +41,7 @@ import { StudentsService } from './students.service';
 @ApiTags('students')
 @ApiBearerAuth()
 @Controller('students')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RateLimitGuard)
 export class StudentsController {
     constructor(
         private readonly students: StudentsService,
@@ -55,6 +56,7 @@ export class StudentsController {
         return { classes: await this.students.listClasses(user) };
     }
 
+    @RateLimit({ name: 'student-join-class', limit: 10, windowMs: 15 * 60_000 })
     @Post('classes/join')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Gabung ke kelas tambahan dengan kode undangan' })
@@ -105,6 +107,7 @@ export class StudentsController {
         return this.students.getExamForAttempt(user, examId);
     }
 
+    @RateLimit({ name: 'student-questions', limit: 30, windowMs: 60_000 })
     @Get('exams/:examId/questions')
     @ApiOperation({
         summary: 'Soal dan opsi untuk dikerjakan',
@@ -115,6 +118,7 @@ export class StudentsController {
         return this.attempts.getQuestions(user, examId, deviceId);
     }
 
+    @RateLimit({ name: 'student-question-updates', limit: 12, windowMs: 60_000 })
     @Post('exams/:examId/questions/check-updates')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Periksa pembaruan butir soal saat ujian sedang berlangsung' })
@@ -126,6 +130,7 @@ export class StudentsController {
         return this.attempts.checkQuestionUpdates(user, examId, body?.revisions || {}, body?.deviceId);
     }
 
+    @RateLimit({ name: 'student-start', limit: 30, windowMs: 60_000 })
     @Post('exams/:examId/attempts')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Mulai atau lanjutkan pengerjaan' })
@@ -137,6 +142,7 @@ export class StudentsController {
         return this.attempts.start(user, examId, dto.deviceId, dto.screenCaptureReady);
     }
 
+    @RateLimit({ name: 'student-answers', limit: 300, windowMs: 60_000 })
     @Put('attempts/:attemptId/answers/:questionId')
     @ApiOperation({ summary: 'Simpan satu jawaban (autosave)' })
     saveAnswer(
@@ -148,6 +154,7 @@ export class StudentsController {
         return this.attempts.saveAnswer(user, attemptId, { questionId, ...dto }, dto.deviceId);
     }
 
+    @RateLimit({ name: 'student-answers', limit: 300, windowMs: 60_000 })
     @Put('attempts/:attemptId/answers')
     @ApiOperation({ summary: 'Simpan banyak jawaban sekaligus' })
     syncAnswers(
@@ -158,6 +165,7 @@ export class StudentsController {
         return this.attempts.syncAnswers(user, attemptId, dto.answers, dto.deviceId);
     }
 
+    @RateLimit({ name: 'student-submit', limit: 60, windowMs: 60_000 })
     @Post('attempts/:attemptId/submission-status')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Periksa status pengiriman tanpa membuka sesi ujian' })
@@ -169,6 +177,7 @@ export class StudentsController {
         return this.attempts.submissionStatus(user, attemptId, dto.deviceId);
     }
 
+    @RateLimit({ name: 'student-submit', limit: 60, windowMs: 60_000 })
     @Post('attempts/:attemptId/submit-intent')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Catat waktu mulai pengumpulan ujian' })
@@ -180,6 +189,7 @@ export class StudentsController {
         return this.attempts.beginSubmit(user, attemptId, dto.deviceId, dto.submission);
     }
 
+    @RateLimit({ name: 'student-submit', limit: 60, windowMs: 60_000 })
     @Post('attempts/:attemptId/late-answers')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
@@ -196,6 +206,7 @@ export class StudentsController {
         return this.attempts.syncLateAnswers(user, attemptId, dto.answers, dto.deviceId);
     }
 
+    @RateLimit({ name: 'student-submit', limit: 60, windowMs: 60_000 })
     @Post('exams/:examId/submit')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Kumpulkan ujian dan hitung nilainya' })

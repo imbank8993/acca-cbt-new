@@ -7,6 +7,9 @@ export const monitoringEventLabels: Record<string, string> = {
     FORCE_TERMINATED: 'Dihentikan pengawas', SYNC_HEALTH_CHANGED: 'Laporan penyimpanan berubah',
     CONNECTION_INTERRUPTION_REPORTED: 'Perangkat melaporkan gangguan koneksi',
     CONNECTION_GAP_DETECTED: 'Perangkat kembali terhubung setelah jeda',
+    CLIENT_CONTEXT_CHANGED: 'Jaringan/browser peserta berganti di tengah sesi',
+    SCREEN_SHARE_UNCONFIRMED: 'Berbagi layar tidak terkonfirmasi browser',
+    screen_share_lost: 'Berbagi layar terputus lebih dari 30 detik (pelanggaran)',
     tab_switch: 'Berpindah tab', window_blur: 'Jendela kehilangan fokus', tab_close: 'Halaman dibuka kembali',
     focus_interruption: 'Gangguan fokus perangkat (tidak menambah pelanggaran)',
 };

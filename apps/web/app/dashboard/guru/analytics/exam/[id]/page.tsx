@@ -166,8 +166,11 @@ export default function ExamResultsDetailPage() {
 
         // Tautan tugas if any
         if (attempt.metadata?.assignment_submission) {
-          row['Tautan Dokumen'] = attempt.metadata.assignment_submission.documentUrl || '-';
-          row['Tautan Video'] = attempt.metadata.assignment_submission.videoUrl || '-';
+          // Ditulis siswa: cegah teks seperti "=HYPERLINK(...)" dieksekusi sebagai rumus Excel.
+          const cell = (value: unknown) => typeof value === 'string' && value
+            ? (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value) : '-';
+          row['Tautan Dokumen'] = cell(attempt.metadata.assignment_submission.documentUrl);
+          row['Tautan Video'] = cell(attempt.metadata.assignment_submission.videoUrl);
         }
 
         return row;

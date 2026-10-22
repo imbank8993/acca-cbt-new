@@ -41,10 +41,10 @@ export interface ClientSyncHealth {
     storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
 }
 
-export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth) {
+export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth, screenSharing?: boolean) {
     return apiSend<{ lastSeenAt: string; submissionOnly?: boolean }>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/heartbeat`,
-        { deviceId: getDeviceId(), syncHealth },
+        { deviceId: getDeviceId(), syncHealth, ...(screenSharing === undefined ? {} : { screenSharing }) },
         'POST',
         { timeoutMs: 15_000 },
     );

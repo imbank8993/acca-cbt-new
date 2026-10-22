@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { encodeScreenFrame, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
+import { encodeScreenFrame, latestScreenFrame, SCREENSHOT_CAPTURE_DELAY_MS, SCREENSHOT_COOLDOWN_MS, SCREENSHOT_MAX_COUNT, screenshotBase64, sendScreenshotWithRetry } from '@/lib/exam-screenshots';
 import { apiSend } from '@/lib/api/client';
 
 export function useExamScreenshots(examId: string, completed: boolean) {
@@ -126,7 +126,12 @@ export function useExamScreenshots(examId: string, completed: boolean) {
     const capture = useCallback(async (): Promise<Blob | null> => {
         if (!sharingRef.current || !video.current || count.current >= SCREENSHOT_MAX_COUNT || Date.now() - lastCapture.current < SCREENSHOT_COOLDOWN_MS) return null;
         lastCapture.current = Date.now();
-        try { return await encodeScreenFrame(video.current); }
+        try {
+            await new Promise(resolve => setTimeout(resolve, SCREENSHOT_CAPTURE_DELAY_MS));
+            // Berbagi layar bisa terhenti selama jeda; jangan simpan frame dari stream mati.
+            if (!sharingRef.current || !video.current) return null;
+            return await encodeScreenFrame(await latestScreenFrame(video.current, stream.current?.getVideoTracks()[0]));
+        }
         catch { if (mounted.current) setError('Screenshot kejadian ini belum berhasil diambil. Catatan kejadian tetap disimpan.'); return null; }
     }, []);
     const upload = useCallback(async (attemptId: string, eventId: string, deviceId: string, blobOrBase64: Blob | string | null): Promise<boolean> => {
@@ -140,6 +145,7 @@ export function useExamScreenshots(examId: string, completed: boolean) {
             if (result.success) {
                 if (result.saved) count.current++;
                 else if (result.reason === 'limit') count.current = SCREENSHOT_MAX_COUNT;
+                // 'minor_limit': jatah kejadian ringan habis; kejadian lain tetap boleh mengambil gambar.
                 if (mounted.current) setError('');
                 return true;
             }

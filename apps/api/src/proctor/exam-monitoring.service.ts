@@ -865,8 +865,10 @@ export class ExamMonitoringService {
                 score: attempt?.total_score ?? null,
                 submittedAt: attempt?.finished_at || null,
                 needsGrading: attempt?.needs_manual_grading ?? false,
-                fileUrls: submission?.fileUrls || [],
-                textSubmission: submission?.textSubmission || '',
+                // Data lama dapat berbentuk apa saja; halaman penilaian hanya menerima larik teks.
+                fileUrls: Array.isArray(submission?.fileUrls)
+                    ? submission.fileUrls.filter((url: unknown): url is string => typeof url === 'string').slice(0, 50) : [],
+                textSubmission: typeof submission?.textSubmission === 'string' ? submission.textSubmission : '',
                 teacherFeedback: attempt?.metadata?.teacher_feedback || '',
                 teacherScore: attempt?.metadata?.teacher_score ?? null,
             };

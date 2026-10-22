@@ -6,6 +6,10 @@ export const TAB_SWITCH_EVENTS = ['tab_switch', 'window_blur', 'blur'];
 export const STUDENT_SECURITY_EVENTS = [
     'SCREEN_SHARE_STOPPED', ...TAB_SWITCH_EVENTS, 'exit_fullscreen', 'restricted_shortcut',
     'copy_paste_attempt', 'right_click_attempt', 'tab_close', 'focus_interruption',
+    // Berbagi layar tidak dipulihkan dalam masa toleransi. Berbeda dari
+    // SCREEN_SHARE_STOPPED (catatan saja), ini DIHITUNG sebagai pelanggaran:
+    // tanpa itu, menghentikan berbagi layar menjadi jeda bebas tanpa pengawasan.
+    'screen_share_lost',
 ];
 // tab_close/focus_interruption are silent recovery signals; counting them would
 // terminate students for events that never displayed a violation warning.

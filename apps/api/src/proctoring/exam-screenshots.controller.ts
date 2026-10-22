@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ExamScreenshotsService } from './exam-screenshots.service';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit';
 
 export class UploadScreenshotDto {
     @IsUUID() clientEventId!: string;
@@ -13,9 +14,10 @@ export class UploadScreenshotDto {
 }
 
 @Controller('proctoring')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RateLimitGuard)
 export class ExamScreenshotsController {
     constructor(private readonly screenshots: ExamScreenshotsService) {}
+    @RateLimit({ name: 'proctoring-screenshots', limit: 30, windowMs: 60_000 })
     @Post('attempts/:attemptId/screenshots')
     upload(@CurrentUser() user: AuthUser, @Param('attemptId', ParseUUIDPipe) attemptId: string, @Body() dto: UploadScreenshotDto) {
         return this.screenshots.upload(user, attemptId, dto.clientEventId, dto.deviceId, dto.imageBase64);

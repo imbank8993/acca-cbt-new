@@ -13,6 +13,13 @@ export const SCREENSHOT_INTERVAL_MS = 30_000;
 export const SCREENSHOT_MAX_EVENT_AGE_MS = 6 * 60 * 60 * 1000;
 export const SCREENSHOT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const SCREENSHOT_EVENTS = ['tab_switch', 'window_blur', 'blur', 'exit_fullscreen', 'restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
+/**
+ * Kejadian ringan (klik kanan, salin-tempel, tombol pintas) boleh memakai
+ * paling banyak sebagian kuota, supaya bukti pindah tab/keluar fokus di akhir
+ * ujian tidak kehabisan jatah.
+ */
+export const MINOR_SCREENSHOT_EVENTS = ['restricted_shortcut', 'copy_paste_attempt', 'right_click_attempt'];
+export const MINOR_SCREENSHOT_LIMIT = 3;
 
 /** Images remain encrypted even if the shared R2 bucket has a public endpoint. */
 export function screenshotKey(secret: string): Buffer {
@@ -50,82 +57,126 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
     constructor(private readonly db: DbService, private readonly authz: AuthorizationService,
         private readonly storage: StorageService, private readonly config: ConfigService) {}
 
-    private key() { return screenshotKey(this.config.get<string>('SCREENSHOT_ENCRYPTION_KEY') || this.config.get<string>('JWT_SECRET') || ''); }
+    /**
+     * Kunci enkripsi bukti.
+     *
+     * JWT_SECRET dipakai bersama aplikasi acca-new, jadi tidak boleh menjadi
+     * kunci bukti di produksi: siapa pun yang memegangnya dapat membuka
+     * screenshot, dan merotasinya membuat bukti 7 hari terakhir tak terbaca.
+     * Di luar produksi turunan JWT_SECRET tetap dipakai agar pengembangan lokal
+     * tidak memerlukan konfigurasi tambahan.
+     */
+    private key() {
+        const dedicated = this.config.get<string>('SCREENSHOT_ENCRYPTION_KEY');
+        if (dedicated) return screenshotKey(dedicated);
+        if (process.env.NODE_ENV === 'production') {
+            throw new ServiceUnavailableException('SCREENSHOT_ENCRYPTION_KEY belum dikonfigurasi di server. Hubungi admin.');
+        }
+        return screenshotKey(this.config.get<string>('JWT_SECRET') || '');
+    }
+
+    /** Bukti lama mungkin dienkripsi dengan turunan JWT_SECRET; tetap dapat dibaca setelah migrasi kunci. */
+    private readKeys(): Buffer[] {
+        const keys: Buffer[] = [];
+        for (const secret of [this.config.get<string>('SCREENSHOT_ENCRYPTION_KEY'), this.config.get<string>('JWT_SECRET')]) {
+            if (secret && secret.length >= 16) keys.push(screenshotKey(secret));
+        }
+        if (!keys.length) throw new ServiceUnavailableException('Kunci penyimpanan bukti belum dikonfigurasi.');
+        return keys;
+    }
 
     async upload(user: AuthUser, attemptId: string, clientEventId: string, deviceId: string, encoded: string) {
         const { image, contentType } = decodeScreenshot(encoded);
         const key = this.key();
-        let uploadedKey: string | undefined;
-        try {
-            return await this.db.transaction(async db => {
-                await advisoryTransactionLock(db, `exam-screenshots:${attemptId}`);
-                const { data: attempt, error } = await db.from('cbt_exam_attempts')
-                    .select('user_id, exam_id, device_fingerprint, status').eq('id', attemptId).maybeSingle();
-                if (error) throw new ServiceUnavailableException('Sesi belum dapat diperiksa.');
-                if (!attempt || attempt.user_id !== user.id || !deviceId || attempt.device_fingerprint !== deviceId) throw new ForbiddenException('Sesi screenshot tidak sesuai.');
-                const { data: exam } = await db.from('cbt_exams').select('metadata').eq('id', attempt.exam_id).maybeSingle();
-                if (exam?.metadata?.screenshot_enabled !== true) throw new ForbiddenException('Screenshot tidak diaktifkan pada ujian ini.');
-                const { data: event, error: eventError } = await db.from('cbt_attempt_security_logs')
-                    .select('id, event_type, created_at, metadata').eq('attempt_id', attemptId)
-                    .contains('metadata', { client_event_id: clientEventId, source: 'student' }).maybeSingle();
-                if (eventError) throw new ServiceUnavailableException('Catatan kejadian belum dapat diperiksa.');
-                const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
-                const now = new Date(clock.now);
-                if (!event || !SCREENSHOT_EVENTS.includes(event.event_type)) throw new BadRequestException('Kejadian screenshot tidak valid.');
-                const hash = createHash('sha256').update(image).digest('hex');
-                const { data: previous, error: previousError } = await db.from('cbt_exam_screenshots').select('id, content_hash')
-                    .eq('event_id', event.id).maybeSingle();
-                if (previousError) throw new ServiceUnavailableException('Penyimpanan screenshot belum siap.');
-                if (previous) {
-                    if (previous.content_hash !== hash) throw new BadRequestException('Bukti untuk kejadian ini sudah tersimpan.');
-                    return { saved: true, id: previous.id };
-                }
-                // A proctor reset or makeup reuses the attempt row. Evidence from
-                // the previous run stays available for audit but must not use the
-                // new run's quota, nor be uploaded as a new screenshot afterwards.
-                const { data: lastReset, error: resetError } = await db.from('cbt_attempt_security_logs')
-                    .select('created_at').eq('attempt_id', attemptId)
-                    .in('event_type', ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'])
-                    .order('created_at', { ascending: false }).limit(1).maybeSingle();
-                if (resetError) throw new ServiceUnavailableException('Riwayat sesi belum dapat diperiksa.');
-                const generationStart = lastReset?.created_at as string | undefined;
-                if (generationStart) {
-                    const { data: currentEvent, error: generationError } = await db.from('cbt_attempt_security_logs')
-                        .select('id').eq('id', event.id).gt('created_at', generationStart).maybeSingle();
-                    if (generationError) throw new ServiceUnavailableException('Sesi kejadian belum dapat diperiksa.');
-                    if (!currentEvent) throw new BadRequestException('Bukti berasal dari sesi ujian sebelumnya.');
-                }
-                const age = now.getTime() - Date.parse(event.created_at);
-                if (age < -5000 || age > SCREENSHOT_MAX_EVENT_AGE_MS || !['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status)) throw new BadRequestException('Waktu pengiriman screenshot sudah lewat.');
-                const rawClientTime = typeof event.metadata?.timestamp === 'string' ? Date.parse(event.metadata.timestamp) : NaN;
-                const captureTime = Number.isFinite(rawClientTime) && rawClientTime <= now.getTime() + 5000 && now.getTime() - rawClientTime <= SCREENSHOT_MAX_EVENT_AGE_MS
-                    ? Math.min(rawClientTime, now.getTime()) : now.getTime();
-                // Date.parse truncates database microseconds. Advancing one
-                // millisecond keeps current-run evidence on this side of the
-                // reset boundary even when the browser clock was behind.
-                const capturedAt = new Date(generationStart
-                    ? Math.max(captureTime, Date.parse(generationStart) + 1) : captureTime);
-                let quota = db.from('cbt_exam_screenshots').select('created_at').eq('attempt_id', attemptId);
-                if (generationStart) quota = quota.gt('created_at', generationStart);
-                const { data: rows, error: rowsError } = await quota;
-                if (rowsError) throw new ServiceUnavailableException('Kuota screenshot belum dapat diperiksa.');
-                if ((rows || []).length >= SCREENSHOT_LIMIT) return { saved: false, reason: 'limit' };
-                if ((rows || []).some((row: { created_at: string }) => Math.abs(capturedAt.getTime() - Date.parse(row.created_at)) < SCREENSHOT_INTERVAL_MS)) return { saved: false, reason: 'cooldown' };
-                const id = randomUUID();
-                const objectKey = `exam-evidence/${now.toISOString().slice(0, 10)}/${id}.bin`;
-                const stored = await this.storage.putObject(objectKey, encryptScreenshot(image, key), 'application/octet-stream');
-                if (!stored.success) throw new ServiceUnavailableException('Screenshot belum berhasil disimpan.');
-                uploadedKey = objectKey;
-                const { error: insertError } = await db.from('cbt_exam_screenshots').insert({ id, attempt_id: attemptId, event_id: event.id,
-                    event_type: event.event_type, object_key: objectKey, content_type: contentType, byte_size: image.length, content_hash: hash,
-                    created_at: capturedAt.toISOString(), expires_at: new Date(capturedAt.getTime() + SCREENSHOT_RETENTION_MS).toISOString() });
-                if (insertError) throw new ServiceUnavailableException('Catatan screenshot belum berhasil disimpan.');
-                return { saved: true, id };
-            });
-        } catch (error) {
-            if (uploadedKey) await this.storage.deleteObject(uploadedKey);
-            throw error;
+        const hash = createHash('sha256').update(image).digest('hex');
+        // Tahap 1 (transaksi singkat): validasi, kuota, dan reservasi baris.
+        // Unggahan ke R2 SENGAJA di luar transaksi: memegang koneksi database
+        // dan advisory lock selama upload jaringan menghabiskan pool ketika
+        // banyak siswa memicu pelanggaran bersamaan.
+        const reservation = await this.db.transaction(async db => {
+            await advisoryTransactionLock(db, `exam-screenshots:${attemptId}`);
+            const { data: attempt, error } = await db.from('cbt_exam_attempts')
+                .select('user_id, exam_id, device_fingerprint, status').eq('id', attemptId).maybeSingle();
+            if (error) throw new ServiceUnavailableException('Sesi belum dapat diperiksa.');
+            if (!attempt || attempt.user_id !== user.id || !deviceId || attempt.device_fingerprint !== deviceId) throw new ForbiddenException('Sesi screenshot tidak sesuai.');
+            const { data: exam } = await db.from('cbt_exams').select('metadata').eq('id', attempt.exam_id).maybeSingle();
+            if (exam?.metadata?.screenshot_enabled !== true) throw new ForbiddenException('Screenshot tidak diaktifkan pada ujian ini.');
+            const { data: event, error: eventError } = await db.from('cbt_attempt_security_logs')
+                .select('id, event_type, created_at, metadata').eq('attempt_id', attemptId)
+                .contains('metadata', { client_event_id: clientEventId, source: 'student' }).maybeSingle();
+            if (eventError) throw new ServiceUnavailableException('Catatan kejadian belum dapat diperiksa.');
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const now = new Date(clock.now);
+            if (!event || !SCREENSHOT_EVENTS.includes(event.event_type)) throw new BadRequestException('Kejadian screenshot tidak valid.');
+            const { data: previous, error: previousError } = await db.from('cbt_exam_screenshots').select('id, content_hash, object_key, deleted_at')
+                .eq('event_id', event.id).maybeSingle();
+            if (previousError) throw new ServiceUnavailableException('Penyimpanan screenshot belum siap.');
+            if (previous) {
+                if (previous.content_hash !== hash) throw new BadRequestException('Bukti untuk kejadian ini sudah tersimpan.');
+                // Pengiriman ulang dengan isi sama: tulis ulang objeknya (idempoten),
+                // menutup kemungkinan proses terhenti di antara reservasi dan upload.
+                return previous.object_key && !previous.deleted_at
+                    ? { id: previous.id as string, objectKey: previous.object_key as string, fresh: false }
+                    : { done: { saved: true, id: previous.id as string } };
+            }
+            // A proctor reset or makeup reuses the attempt row. Evidence from
+            // the previous run stays available for audit but must not use the
+            // new run's quota, nor be uploaded as a new screenshot afterwards.
+            const { data: lastReset, error: resetError } = await db.from('cbt_attempt_security_logs')
+                .select('created_at').eq('attempt_id', attemptId)
+                .in('event_type', ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'])
+                .order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (resetError) throw new ServiceUnavailableException('Riwayat sesi belum dapat diperiksa.');
+            const generationStart = lastReset?.created_at as string | undefined;
+            if (generationStart) {
+                const { data: currentEvent, error: generationError } = await db.from('cbt_attempt_security_logs')
+                    .select('id').eq('id', event.id).gt('created_at', generationStart).maybeSingle();
+                if (generationError) throw new ServiceUnavailableException('Sesi kejadian belum dapat diperiksa.');
+                if (!currentEvent) throw new BadRequestException('Bukti berasal dari sesi ujian sebelumnya.');
+            }
+            const age = now.getTime() - Date.parse(event.created_at);
+            if (age < -5000 || age > SCREENSHOT_MAX_EVENT_AGE_MS || !['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status)) throw new BadRequestException('Waktu pengiriman screenshot sudah lewat.');
+            const rawClientTime = typeof event.metadata?.timestamp === 'string' ? Date.parse(event.metadata.timestamp) : NaN;
+            const captureTime = Number.isFinite(rawClientTime) && rawClientTime <= now.getTime() + 5000 && now.getTime() - rawClientTime <= SCREENSHOT_MAX_EVENT_AGE_MS
+                ? Math.min(rawClientTime, now.getTime()) : now.getTime();
+            // Date.parse truncates database microseconds. Advancing one
+            // millisecond keeps current-run evidence on this side of the
+            // reset boundary even when the browser clock was behind.
+            const capturedAt = new Date(generationStart
+                ? Math.max(captureTime, Date.parse(generationStart) + 1) : captureTime);
+            let quota = db.from('cbt_exam_screenshots').select('created_at, event_type').eq('attempt_id', attemptId);
+            if (generationStart) quota = quota.gt('created_at', generationStart);
+            const { data: rows, error: rowsError } = await quota;
+            if (rowsError) throw new ServiceUnavailableException('Kuota screenshot belum dapat diperiksa.');
+            if ((rows || []).length >= SCREENSHOT_LIMIT) return { done: { saved: false, reason: 'limit' } };
+            if (MINOR_SCREENSHOT_EVENTS.includes(event.event_type) && (rows || []).filter((row: { event_type?: string }) =>
+                MINOR_SCREENSHOT_EVENTS.includes(row.event_type || '')).length >= MINOR_SCREENSHOT_LIMIT) {
+                return { done: { saved: false, reason: 'minor_limit' } };
+            }
+            if ((rows || []).some((row: { created_at: string }) => Math.abs(capturedAt.getTime() - Date.parse(row.created_at)) < SCREENSHOT_INTERVAL_MS)) return { done: { saved: false, reason: 'cooldown' } };
+            const id = randomUUID();
+            const objectKey = `exam-evidence/${now.toISOString().slice(0, 10)}/${id}.bin`;
+            const { error: insertError } = await db.from('cbt_exam_screenshots').insert({ id, attempt_id: attemptId, event_id: event.id,
+                event_type: event.event_type, object_key: objectKey, content_type: contentType, byte_size: image.length, content_hash: hash,
+                created_at: capturedAt.toISOString(), expires_at: new Date(capturedAt.getTime() + SCREENSHOT_RETENTION_MS).toISOString() });
+            if (insertError) throw new ServiceUnavailableException('Catatan screenshot belum berhasil disimpan.');
+            return { id, objectKey, fresh: true };
+        });
+        if ('done' in reservation && reservation.done) return reservation.done;
+        const { id, objectKey, fresh } = reservation as { id: string; objectKey: string; fresh: boolean };
+        // Tahap 2: unggah di luar transaksi.
+        const stored = await this.storage.putObject(objectKey, encryptScreenshot(image, key), 'application/octet-stream')
+            .catch(() => ({ success: false }));
+        if (!stored.success) {
+            // Reservasi baru dilepas supaya kuota tidak terbuang dan retry dengan
+            // event yang sama dapat mencoba lagi dari awal.
+            if (fresh) {
+                await this.db.from('cbt_exam_screenshots').delete().eq('id', id).eq('content_hash', hash);
+                await this.storage.deleteObject(objectKey).catch(() => undefined);
+            }
+            throw new ServiceUnavailableException('Screenshot belum berhasil disimpan.');
         }
+        return { saved: true, id };
     }
 
     private async assertViewer(user: AuthUser, attemptId: string) {
@@ -154,10 +205,20 @@ export class ExamScreenshotsService implements OnModuleInit, OnModuleDestroy {
             if (bytes > SCREENSHOT_BYTES + 28) throw new ServiceUnavailableException('Ukuran bukti tidak valid.');
             chunks.push(Buffer.from(chunk));
         }
-        return { body: decryptScreenshot(Buffer.concat(chunks), this.key()), contentType: row.content_type };
+        const cipher = Buffer.concat(chunks);
+        for (const key of this.readKeys()) {
+            try { return { body: decryptScreenshot(cipher, key), contentType: row.content_type }; }
+            catch { /* coba kunci berikutnya (bukti lama) */ }
+        }
+        throw new ServiceUnavailableException('Bukti tidak dapat dibuka dengan kunci server saat ini.');
     }
 
-    onModuleInit() { this.timer = setInterval(() => void this.cleanup(), 60 * 60 * 1000); this.timer.unref(); void this.cleanup(); }
+    onModuleInit() {
+        if (process.env.NODE_ENV === 'production' && !this.config.get<string>('SCREENSHOT_ENCRYPTION_KEY')) {
+            this.logger.error('SCREENSHOT_ENCRYPTION_KEY kosong: screenshot ujian akan DITOLAK sampai kunci khusus dikonfigurasi.');
+        }
+        this.timer = setInterval(() => void this.cleanup(), 60 * 60 * 1000); this.timer.unref(); void this.cleanup();
+    }
     onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
     async cleanup() {
         if (this.running || !this.storage.status().configured) return;

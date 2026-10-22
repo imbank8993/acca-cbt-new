@@ -8,6 +8,8 @@ const LABELS: Record<string, string> = {
     copy_paste_attempt: 'Mencoba menyalin atau menempel',
     right_click_attempt: 'Mencoba membuka menu klik kanan',
     tab_close: 'Menutup atau meninggalkan tab ujian',
+    screen_share_lost: 'Berbagi layar terputus lebih dari 30 detik',
+    SCREEN_SHARE_STOPPED: 'Berbagi layar dihentikan',
     RESET_BY_PROCTOR: 'Pelanggaran direset oleh pengawas',
     MAKEUP_EXAM_STARTED: 'Ujian susulan dimulai dari awal',
     FORCE_TERMINATED: 'Ujian diselesaikan otomatis',

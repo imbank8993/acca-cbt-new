@@ -10,7 +10,8 @@ import {
 import { studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
-import { hasBoundSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
+import { normalizeAssignmentSubmission } from '../common/assignment-submission';
+import { hasBoundSubmitIntent, hasCommittedSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
 import { persistSubmissionSecurityEvents, validateSubmissionSecurityEvents,
     type SubmissionSecurityEvent } from '../common/student-security-events';
 import {
@@ -34,6 +35,11 @@ import { studentQuestion } from './student-question';
 
 /** Durasi bawaan bila ujian tidak menyimpannya. */
 const DEFAULT_DURATION_MINUTES = 60;
+
+/** Batas satu jawaban mentah (esai/JSON). Jauh di atas kebutuhan wajar, jauh di bawah batas body. */
+export const MAX_ANSWER_LENGTH = 100_000;
+/** Batas jumlah jawaban per pengiriman; sama dengan batas DTO sinkronisasi. */
+export const MAX_ANSWERS_PER_REQUEST = 1000;
 
 export interface AnswerInput {
     questionId: string;
@@ -68,6 +74,13 @@ export interface AnswerInput {
 @Injectable()
 export class ExamAttemptsService {
     private readonly logger = new Logger(ExamAttemptsService.name);
+    /**
+     * Soal beku per ujian untuk polling pembaruan. Ratusan siswa memanggil
+     * check-updates tiap 15 detik; tanpa cache setiap panggilan memuat ulang
+     * seluruh snapshot. Pemeriksaan akses tetap dijalankan per siswa.
+     */
+    private readonly questionCache = new Map<string, { expiresAt: number; questions: Promise<Awaited<ReturnType<typeof loadFrozenExamQuestions>>> }>();
+    private static readonly QUESTION_CACHE_MS = 10_000;
 
     constructor(
         private readonly db: DbService,
@@ -85,7 +98,7 @@ export class ExamAttemptsService {
      * sampai ke browser siswa, dan satu-satunya cara memastikannya adalah tidak
      * mengambilnya sama sekali dari basis data.
      */
-    async getQuestions(user: AuthUser, examId: string, deviceId?: string) {
+    async getQuestions(user: AuthUser, examId: string, deviceId?: string, options: { cached?: boolean } = {}) {
         const device = this.requireDeviceId(deviceId);
         const { data: exam } = await this.db
             .from('cbt_exams')
@@ -121,11 +134,9 @@ export class ExamAttemptsService {
         if (!row.is_published) {
             throw new ForbiddenException('Ujian belum dipublikasikan oleh proktor.');
         }
-        const questions = await loadFrozenExamQuestions(
-            this.db,
-            examId,
-            row.question_bank_id,
-        );
+        const questions = options.cached
+            ? await this.cachedFrozenQuestions(examId, row.question_bank_id)
+            : await loadFrozenExamQuestions(this.db, examId, row.question_bank_id);
 
         // Urutan soal diambil dari `common/question-order`, bukan disalin ulang:
         // layar review hasil memakai fungsi yang sama, dan begitu keduanya
@@ -156,7 +167,7 @@ export class ExamAttemptsService {
         knownRevisions: Record<string, number> = {},
         deviceId?: string,
     ) {
-        const full = await this.getQuestions(user, examId, deviceId);
+        const full = await this.getQuestions(user, examId, deviceId, { cached: true });
         const updatedQuestions = full.questions.filter((q) => {
             const clientRev = knownRevisions[q.id] ?? 1;
             const currentRev = (q as any).revision ?? 1;
@@ -221,7 +232,8 @@ export class ExamAttemptsService {
             .maybeSingle();
         const recoveryUntil = this.proctorRecoveryUntil(existing as any);
         const recoveryActive = recoveryUntil !== null && now < recoveryUntil;
-        const submitPending = hasActiveSubmitIntent((existing as any)?.metadata, now);
+        // Hanya intent yang terikat ke isi kiriman (digest) yang boleh menunda penutupan.
+        const submitPending = hasCommittedSubmitIntent((existing as any)?.metadata, now);
 
         if (!row.is_published) {
             return this.refuse('Ujian belum dipublikasikan oleh proktor.');
@@ -384,7 +396,7 @@ export class ExamAttemptsService {
 
         const personalEnd = this.resolvePersonalEnd(attempt, exam, now);
 
-        if (now >= personalEnd && !hasActiveSubmitIntent((attempt as any).metadata, now)) {
+        if (now >= personalEnd && !hasCommittedSubmitIntent((attempt as any).metadata, now)) {
             await this.autoFinish(attempt.id, now);
             // `expiredAttemptId` dikembalikan supaya klien masih bisa menyusulkan
             // jawaban yang hanya sempat tersimpan di localStorage — tanpa itu,
@@ -517,7 +529,7 @@ export class ExamAttemptsService {
             const { data: current, error: readError } = await db.from('cbt_exam_attempts')
                 .select('status, metadata, user_id, device_fingerprint, started_at, personal_end_time, exam_id').eq('id', attemptId).maybeSingle();
             if (readError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
-            if (!current || current.status !== 'in_progress' || hasActiveSubmitIntent(current.metadata, now)) return false;
+            if (!current || current.status !== 'in_progress' || hasCommittedSubmitIntent(current.metadata, now)) return false;
             if (evidence?.events.length && current.user_id === evidence.user.id &&
                 (!current.device_fingerprint || current.device_fingerprint === evidence.device)) {
                 const { data: exam, error: examError } = await db.from('cbt_exams')
@@ -553,6 +565,7 @@ export class ExamAttemptsService {
 
     async saveAnswer(user: AuthUser, attemptId: string, answer: AnswerInput, deviceId?: string) {
         const device = this.requireDeviceId(deviceId);
+        this.assertAnswerInputSizes([answer]);
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const owned = await this.assertOwnedAndRunning(user, attemptId, db, device);
@@ -565,6 +578,7 @@ export class ExamAttemptsService {
     async syncAnswers(user: AuthUser, attemptId: string, answers: AnswerInput[], deviceId?: string) {
         if (answers.length === 0) return { attemptId, saved: 0 };
         const device = this.requireDeviceId(deviceId);
+        this.assertAnswerInputSizes(answers);
 
         await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
@@ -606,7 +620,7 @@ export class ExamAttemptsService {
     async beginSubmit(user: AuthUser, attemptId: string, deviceId?: string, submission?: SubmissionPayload) {
         const device = this.requireDeviceId(deviceId);
         const securityEvents = validateSubmissionSecurityEvents(submission?.securityEvents);
-        const digest = submission ? submissionDigest(submission) : undefined;
+        if (submission) this.assertAnswerSizes(submission.answers);
         return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt, error } = await db.from('cbt_exam_attempts')
@@ -617,6 +631,10 @@ export class ExamAttemptsService {
             if (attempt.device_fingerprint && attempt.device_fingerprint !== device) {
                 throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
             }
+            // Dinormalisasi persis seperti di submit(), supaya digest keduanya sama.
+            const digest = submission ? submissionDigest({ ...submission,
+                assignmentData: normalizeAssignmentSubmission(submission.assignmentData,
+                    { examId: attempt.exam_id, userId: user.id }) as Record<string, unknown> | undefined }) : undefined;
             if (['submitted', 'auto_submitted'].includes(attempt.status)) {
                 const acceptedSecurityEventIds = await persistSubmissionSecurityEvents(db, attemptId, user.id,
                     attempt, securityEvents, new Date(), new Date(NaN));
@@ -639,6 +657,11 @@ export class ExamAttemptsService {
                 }
                 if (attempt.metadata?.submit_intent_digest) {
                     throw new ConflictException('Isi pengumpulan berbeda dari kiriman yang sudah dikunci. Hubungi proktor.');
+                }
+                // Intent tanpa isi tidak boleh diperbarui berulang: setiap pembaruan
+                // dulu memperpanjang penguncian dan menunda penutupan otomatis.
+                if (!digest) {
+                    return { attemptId, startedAt: attempt.metadata?.submit_intent_at ?? null };
                 }
                 // A legacy timestamp may be upgraded only while the exam is still open.
             }
@@ -794,9 +817,35 @@ export class ExamAttemptsService {
             throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
         }
         const { data: exam, error: examError } = await db.from('cbt_exams')
-            .select('end_time, start_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+            .select('end_time, start_time, duration_minutes, is_published, metadata').eq('id', attempt.exam_id).maybeSingle();
         if (examError || !exam || (!attempt.personal_end_time && !attempt.started_at)) {
             throw new BadRequestException('Batas waktu pengerjaan belum dapat diperiksa. Hubungi proktor.');
+        }
+        // Perubahan jawaban mengikuti status ujian saat ini, bukan saat dimulai.
+        // Pengumpulan (allowRecordedSubmitIntent) tetap diterima supaya jawaban
+        // yang sudah tersimpan tidak tertahan ketika proktor menarik ujian.
+        if (!allowRecordedSubmitIntent) {
+            if (exam.is_published === false) {
+                throw new ForbiddenException('Ujian ditarik oleh proktor. Jawaban baru tidak dapat disimpan.');
+            }
+            const correction = (exam.metadata as { key_correction?: { state?: string } } | null)?.key_correction;
+            if (correction && correction.state !== 'ready') {
+                throw new ConflictException('Ujian sedang dalam proses koreksi kunci. Coba lagi beberapa saat.');
+            }
+            // Ujian dengan berbagi layar: selama browser melaporkan layar tidak
+            // dibagikan, pengerjaan dikunci (waktu tetap berjalan). Jawaban yang
+            // tertolak tetap tersimpan di perangkat dan dikirim ulang setelah
+            // berbagi layar pulih. Pengumpulan tidak pernah diblokir.
+            if ((exam.metadata as { screenshot_enabled?: boolean } | null)?.screenshot_enabled === true &&
+                attempt.metadata?.screen_share_confirmed === false) {
+                const { data: exception, error: exceptionError } = await db.from('cbt_exam_screen_share_exceptions')
+                    .select('user_id').eq('exam_id', attempt.exam_id).eq('user_id', user.id).maybeSingle();
+                if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                if (!exception) {
+                    throw new ForbiddenException({ code: 'SCREEN_SHARE_REQUIRED',
+                        message: 'Bagikan kembali seluruh layar untuk melanjutkan. Waktu ujian tetap berjalan.' });
+                }
+            }
         }
         const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = new Date(clock.now);
@@ -915,6 +964,9 @@ export class ExamAttemptsService {
         securityEvents?: SubmissionSecurityEvent[],
     ) {
         const manifest = validateSubmissionSecurityEvents(securityEvents);
+        this.assertAnswerSizes(studentAnswers);
+        assignmentData = normalizeAssignmentSubmission(assignmentData, { examId, userId: user.id }) as
+            Record<string, unknown> | undefined;
         let result: Awaited<ReturnType<ExamAttemptsService['submitInternal']>>;
         try {
             result = await this.submitInternal(user, examId, studentAnswers, assignmentData,
@@ -1372,6 +1424,39 @@ export class ExamAttemptsService {
             this.logger.error(`Gagal membaca waktu server: ${(err as Error).message}`);
         }
         return new Date();
+    }
+
+    private cachedFrozenQuestions(examId: string, bankId: string | null) {
+        const now = Date.now();
+        const hit = this.questionCache.get(examId);
+        if (hit && hit.expiresAt > now) return hit.questions;
+        if (this.questionCache.size > 500) {
+            for (const [key, entry] of this.questionCache) if (entry.expiresAt <= now) this.questionCache.delete(key);
+        }
+        const questions = loadFrozenExamQuestions(this.db, examId, bankId);
+        this.questionCache.set(examId, { expiresAt: now + ExamAttemptsService.QUESTION_CACHE_MS, questions });
+        questions.catch(() => { if (this.questionCache.get(examId)?.questions === questions) this.questionCache.delete(examId); });
+        return questions;
+    }
+
+    /** Peta jawaban pengumpulan: jumlah dan panjang tiap nilai dibatasi. */
+    private assertAnswerSizes(answers: unknown): void {
+        if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+            throw new BadRequestException('Jawaban pengumpulan tidak valid.');
+        }
+        const entries = Object.values(answers as Record<string, unknown>);
+        if (entries.length > MAX_ANSWERS_PER_REQUEST) throw new BadRequestException('Jumlah jawaban melebihi batas.');
+        if (entries.some(value => typeof value === 'string' && value.length > MAX_ANSWER_LENGTH)) {
+            throw new BadRequestException('Jawaban terlalu panjang. Maksimal 100.000 karakter per soal.');
+        }
+    }
+
+    private assertAnswerInputSizes(answers: AnswerInput[]): void {
+        if (answers.length > MAX_ANSWERS_PER_REQUEST) throw new BadRequestException('Jumlah jawaban melebihi batas.');
+        if (answers.some(answer => (answer.essay_answer?.length || 0) > MAX_ANSWER_LENGTH ||
+            (answer.selected_option_id?.length || 0) > 64)) {
+            throw new BadRequestException('Jawaban terlalu panjang. Maksimal 100.000 karakter per soal.');
+        }
     }
 
     private requireDeviceId(deviceId?: string): string {

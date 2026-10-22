@@ -29,7 +29,7 @@ export function retryExamEvidence(attemptId: string): Promise<void> {
                     payload, 'POST', { timeoutMs: 20_000 },
                 ));
                 const acknowledged = uploaded.success
-                    ? uploaded.saved || uploaded.reason === 'limit' || uploaded.reason === 'cooldown'
+                    ? uploaded.saved || uploaded.reason === 'limit' || uploaded.reason === 'minor_limit' || uploaded.reason === 'cooldown'
                     : uploaded.retryable === false;
                 if (!acknowledged) break;
                 await removeSecurityEvent(attemptId, event.id, event);

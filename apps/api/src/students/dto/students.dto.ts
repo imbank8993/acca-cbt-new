@@ -11,6 +11,7 @@ import {
     IsString,
     Length,
     IsUUID,
+    MaxLength,
     IsInt,
     IsIn,
     Min,
@@ -55,11 +56,13 @@ export class AnswerDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(64)
     selected_option_id?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(100_000, { message: 'Jawaban terlalu panjang. Maksimal 100.000 karakter per soal.' })
     essay_answer?: string;
 
     @ApiPropertyOptional({ default: false })
@@ -85,11 +88,13 @@ export class SaveAnswerDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(64)
     selected_option_id?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
+    @MaxLength(100_000, { message: 'Jawaban terlalu panjang. Maksimal 100.000 karakter per soal.' })
     essay_answer?: string;
 
     @ApiPropertyOptional({ default: false })
@@ -107,6 +112,7 @@ export class SyncAnswersDto {
 
     @ApiProperty({ type: [AnswerDto] })
     @IsArray()
+    @ArrayMaxSize(1000)
     @ValidateNested({ each: true })
     @Type(() => AnswerDto)
     answers!: AnswerDto[];

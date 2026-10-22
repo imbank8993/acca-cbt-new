@@ -120,7 +120,7 @@ test('reset and makeup start a fresh screenshot quota while rejecting delayed ev
  }
 });
 
-test('a database failure after object upload removes the encrypted orphan and rolls back records', async () => {
+test('a database failure never leaves an encrypted orphan: the row is reserved before any upload', async () => {
  const f = fixture(['cbt_exam_screenshots']);
  await assert.rejects(upload(f)); assert.equal(f.images.size, 0);
  const g = fixture(); const original = g.db.from.bind(g.db);
@@ -133,7 +133,26 @@ test('a database failure after object upload removes the encrypted orphan and ro
   } });
  };
  await assert.rejects(upload(g), /Catatan screenshot/);
- assert.equal(g.images.size, 0); assert.equal(g.deleted.length, 1);
+ assert.equal(g.images.size, 0); assert.equal(g.deleted.length, 0);
+});
+
+test('a failed R2 upload releases the reservation so quota is not wasted and a retry succeeds', async () => {
+ const f = fixture(); const put = f.storage.putObject;
+ f.storage.putObject = async () => ({ success: false, error: 'r2 down' });
+ await assert.rejects(upload(f), /belum berhasil disimpan/);
+ assert.equal((f.db.tables.cbt_exam_screenshots || []).length, 0);
+ f.storage.putObject = put;
+ assert.equal((await upload(f)).saved, true);
+ assert.equal(f.images.size, 1);
+});
+
+test('the R2 upload happens outside the database transaction', async () => {
+ const f = fixture(); let inTransaction = false; const original = f.db.transaction.bind(f.db);
+ f.db.transaction = async work => { inTransaction = true; try { return await original(work); } finally { inTransaction = false; } };
+ const put = f.storage.putObject; let uploadedInside;
+ f.storage.putObject = async (...args) => { uploadedInside = inTransaction; return put(...args); };
+ await upload(f);
+ assert.equal(uploadedInside, false);
 });
 
 test('only authorized monitoring staff can read decrypted evidence; students, other rooms and expired links are denied', async () => {

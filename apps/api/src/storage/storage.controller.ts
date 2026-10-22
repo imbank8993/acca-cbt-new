@@ -25,8 +25,9 @@ import type { AuthUser } from '@acca-cbt/shared';
 import type { Request, Response } from 'express';
 import { AllowInternalKey } from '../auth/allow-internal-key.decorator';
 import { StorageAuthGuard } from './storage-auth.guard';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit';
 import { StorageAccessService } from './storage-access.service';
-import { fileKey, isPublicFile } from './storage-file-policy';
+import { canUploadSvg, fileKey, fileServingHeaders, isPublicFile } from './storage-file-policy';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
 
@@ -60,7 +61,7 @@ function sanitizeFolder(raw: string, callerId: string): string {
 @ApiTags('storage')
 @ApiBearerAuth()
 @Controller('storage')
-@UseGuards(StorageAuthGuard)
+@UseGuards(StorageAuthGuard, RateLimitGuard)
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
@@ -101,7 +102,7 @@ export class StorageController {
     }
     res.setHeader('Cache-Control', isPublicFile(key) ? 'public, max-age=3600' : 'private, no-store');
     res.setHeader('Vary', 'Cookie, Authorization');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
+    for (const [name, value] of Object.entries(fileServingHeaders(obj.contentType))) res.setHeader(name, value);
 
     obj.stream.pipe(res);
   }
@@ -122,6 +123,7 @@ export class StorageController {
    * @AllowInternalKey() membolehkan Next.js (math-equations.ts) mengupload SVG
    * hasil render MathML tanpa token pengguna, menggunakan shared secret.
    */
+  @RateLimit({ name: 'storage-upload', limit: 60, windowMs: 60_000 })
   @Post('upload')
   @AllowInternalKey()
   @HttpCode(HttpStatus.OK)
@@ -163,11 +165,17 @@ export class StorageController {
       const ext = (file.originalname || '').split('.').pop() || '?';
       throw new BadRequestException(`Jenis file .${ext} tidak diizinkan.`);
     }
+    if (contentType === 'image/svg+xml' && !canUploadSvg(user)) {
+      throw new BadRequestException('Berkas SVG tidak dapat diunggah. Gunakan PNG atau JPG.');
+    }
 
     // Panggilan antar-service (math-equations, backup) tidak punya user.
     // Untuk upload user biasa, folder `assignments/` dikunci ke userId.
     const callerId = user?.id ?? 'internal';
     const folder = sanitizeFolder(rawFolder || 'misc', callerId);
+    if (user && folder.startsWith('assignments/')) {
+      await this.access.assertAssignmentUpload(user, folder.split('/')[1]);
+    }
     const fileName = !user && /^banks\/[0-9a-f-]+\/equations$/i.test(folder) && contentType === 'image/svg+xml'
       ? `eq_${createHash('sha256').update(file.buffer).digest('hex')}.svg`
       : this.storage.generateFileName(file.originalname);

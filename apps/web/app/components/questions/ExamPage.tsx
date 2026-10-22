@@ -47,7 +47,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { ExamViewer } from './ExamViewer';
 import { ExamStartPreparation } from './ExamStartPreparation';
 import { useExamScreenshots } from '@/hooks/useExamScreenshots';
-import { screenshotBase64 } from '@/lib/exam-screenshots';
+import { SCREEN_SHARE_GRACE_MS,SCREEN_SHARE_LOST_EVENT,SCREEN_SHARE_RACE_MS,screenshotBase64 } from '@/lib/exam-screenshots';
 import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 
 function resolveMaxViolations(exam: StudentExam | null): number | null {
@@ -102,6 +102,10 @@ export default function ExamPage() {
     const screenshots = useExamScreenshots(examId, isCompleted);
     const { sharingRef: screenSharingRef, requesting: screenRequestingRef, capture: captureScreenshot, upload: uploadScreenshot } = screenshots;
     const wasScreenSharing = useRef(false);
+    /** Kapan berbagi layar terakhir terputus (0 = sedang aktif). */
+    const shareLostAtRef = useRef(0);
+    /** Sisa detik toleransi sebelum terputusnya berbagi layar dihitung pelanggaran. */
+    const [shareGraceLeft, setShareGraceLeft] = useState<number | null>(null);
     const [questions, setQuestions] = useState<StudentExamQuestion[]>([]);
     const [currentQIndex, setCurrentQIndex] = useState(0);
     const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -1333,8 +1337,15 @@ export default function ExamPage() {
         if (exam?.metadata?.is_safe_mode === false && exam?.metadata?.screenshot_enabled !== true) return;
 
         const handleSecurityViolation = async (type: string) => {
-            if (submitInFlightRef.current || frozenSnapshotRef.current || terminationReasonRef.current || screenRequestingRef.current) return;
-            if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current) return;
+            const shareLost = type === 'screen_share_lost';
+            if (submitInFlightRef.current || frozenSnapshotRef.current || terminationReasonRef.current ||
+                (screenRequestingRef.current && !shareLost)) return;
+            // Selama berbagi layar terputus, pelanggaran TETAP dihitung (tanpa
+            // screenshot). Dulu event diabaikan, sehingga "Stop sharing" menjadi
+            // jeda bebas untuk mencari jawaban. Tiga detik pertama diabaikan:
+            // mengunci layar memutus berbagi layar dan fokus hampir bersamaan.
+            if (exam?.metadata?.screenshot_enabled === true && !screenSharingRef.current && !shareLost &&
+                Date.now() - shareLostAtRef.current < SCREEN_SHARE_RACE_MS) return;
             const focusOnly = type === 'focus_interruption';
             // Cooldown GLOBAL lintas-jenis, bukan per-jenis: satu aksi pengguna
             // memicu beberapa event sekaligus (alt-tab = blur + visibilitychange,
@@ -1455,6 +1466,7 @@ export default function ExamPage() {
             }
         };
         const onContextMenu = (e: MouseEvent) => e.preventDefault();
+        const onShareLost = () => { void handleSecurityViolation('screen_share_lost'); };
         const onKeyDown = (e: KeyboardEvent) => {
             if (
                 e.key === 'PrintScreen' ||
@@ -1472,8 +1484,10 @@ export default function ExamPage() {
         const unsubscribeFullscreen = subscribeExamFullscreen(onFullscreenChange);
         document.addEventListener('contextmenu', onContextMenu);
         window.addEventListener('keydown', onKeyDown);
+        window.addEventListener(SCREEN_SHARE_LOST_EVENT, onShareLost);
 
         return () => {
+            window.removeEventListener(SCREEN_SHARE_LOST_EVENT, onShareLost);
             document.removeEventListener('visibilitychange', onVisibilityChange);
             window.removeEventListener('blur', onBlur);
             window.removeEventListener('focus', onFocus);
@@ -1486,9 +1500,10 @@ export default function ExamPage() {
 
     useEffect(() => {
         if (!attempt || isCompleted || submissionOnly || exam?.metadata?.screenshot_enabled !== true) return;
-        if (screenshots.sharing) { wasScreenSharing.current = true; return; }
+        if (screenshots.sharing) { wasScreenSharing.current = true; shareLostAtRef.current = 0; return; }
         if (!wasScreenSharing.current) return;
         wasScreenSharing.current = false;
+        shareLostAtRef.current = Date.now();
         const event: QueuedSecurityEvent = { id: createSecurityEventId(), attemptId: attempt.id, eventType: 'SCREEN_SHARE_STOPPED',
             metadata: { reason: 'Berbagi layar terhenti atau gambar layar tidak tersedia' }, createdAt: new Date().toISOString() };
         pendingSecurityEventsRef.current.set(event.id, event);
@@ -1496,6 +1511,41 @@ export default function ExamPage() {
             .catch(() => setStorageWarning('Catatan berbagi layar belum berhasil disimpan. Hubungi proktor.'))
             .finally(() => pendingSecurityEventsRef.current.delete(event.id));
     }, [attempt, isCompleted, submissionOnly, exam, screenshots.sharing, flushSecurityEvents]);
+
+    // Pengerjaan dikunci selama berbagi layar terputus (waktu tetap berjalan).
+    // Bila tidak dipulihkan dalam masa toleransi, satu pelanggaran dicatat per
+    // kejadian putus; hitung mundurnya ditampilkan di layar penghalang.
+    useEffect(() => {
+        const active = Boolean(attempt) && !isCompleted && !submissionOnly && exam?.metadata?.screenshot_enabled === true;
+        if (!active || screenshots.sharing || !shareLostAtRef.current) {
+            setShareGraceLeft(null);
+            return;
+        }
+        let reported = false;
+        const tick = () => {
+            const left = Math.max(0, Math.ceil((shareLostAtRef.current + SCREEN_SHARE_GRACE_MS - Date.now()) / 1000));
+            setShareGraceLeft(left);
+            if (left === 0 && !reported && !screenSharingRef.current) {
+                reported = true;
+                window.dispatchEvent(new Event(SCREEN_SHARE_LOST_EVENT));
+            }
+        };
+        tick();
+        const timer = setInterval(tick, 1000);
+        return () => clearInterval(timer);
+    }, [attempt, isCompleted, submissionOnly, exam, screenshots.sharing, screenSharingRef]);
+
+    // Laporkan perubahan status berbagi layar ke server SEKARANG, bukan menunggu
+    // heartbeat 15 detik: server menolak jawaban baru selama layar tidak dibagikan,
+    // dan jawaban yang sempat tertolak dikirim ulang begitu pulih.
+    useEffect(() => {
+        if (!attempt?.id || isCompleted || submissionOnly || exam?.metadata?.screenshot_enabled !== true) return;
+        const attemptId = attempt.id;
+        const sharing = screenshots.sharing;
+        void heartbeatExamAttempt(attemptId, undefined, sharing).then(result => {
+            if (sharing && result?.success && attemptRef.current?.id === attemptId) void retryFailedAnswers();
+        }).catch(() => undefined);
+    }, [attempt?.id, isCompleted, submissionOnly, exam?.metadata?.screenshot_enabled, screenshots.sharing, retryFailedAnswers]);
 
     // Retry berkala untuk autosave dan bukti keamanan yang masih mengantre.
     // `navigator.onLine` dapat tetap true ketika server sempat tidak terjangkau,
@@ -1556,7 +1606,7 @@ export default function ExamPage() {
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
                 storageState: storageStateRef.current,
                 ...(report ? { interruption: report } : {}),
-            }).catch(() => undefined);
+            }, exam?.metadata?.screenshot_enabled === true ? screenSharingRef.current : undefined).catch(() => undefined);
             if (cancelled) return;
             if (heartbeat?.success) {
                 networkSampleRef.current = sampleExamNetwork(networkSampleRef.current, performance.now() - heartbeatStarted);
@@ -1580,7 +1630,8 @@ export default function ExamPage() {
         void pulse();
         const iv = setInterval(() => { void pulse(); }, 15000);
         return () => { cancelled = true; clearInterval(iv); };
-    }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination, recordConnectionInterruption]);
+    }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination, recordConnectionInterruption,
+        exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     // ── Timer ─────────────────────────────────────────────────
     useEffect(() => {
@@ -1912,7 +1963,14 @@ export default function ExamPage() {
                 <div role="dialog" aria-modal="true" aria-label="Bagikan kembali layar" className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 p-5">
                     <div className="max-w-md rounded-2xl bg-white p-6 text-center text-slate-900">
                         <h2 className="text-lg font-bold">Bagikan kembali seluruh layar</h2>
-                        <p className="mt-2 text-sm">Berbagi layar wajib aktif sampai ujian selesai. Pengerjaan dikunci sementara; jawaban tetap tersimpan dan waktu ujian tetap berjalan.</p>
+                        <p className="mt-2 text-sm">Berbagi layar wajib aktif sampai ujian selesai. Pengerjaan dikunci sementara; jawaban tetap tersimpan dan <strong>waktu ujian tetap berjalan</strong>.</p>
+                        {shareGraceLeft !== null && (
+                            <p role="alert" className={`mt-3 rounded-lg px-3 py-2 text-sm font-semibold ${shareGraceLeft > 0 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'}`}>
+                                {shareGraceLeft > 0
+                                    ? `Bagikan kembali dalam ${shareGraceLeft} detik, atau kejadian ini dicatat sebagai pelanggaran.`
+                                    : 'Berbagi layar terlalu lama terputus dan telah dicatat sebagai pelanggaran. Pindah tab atau aplikasi selama layar terkunci juga tetap dihitung.'}
+                            </p>
+                        )}
                         {screenshots.supported === false && <p className="mt-2 text-sm font-medium text-amber-700">Browser/perangkat ini tidak menyediakan berbagi layar. Gunakan komputer dengan browser desktop atau hubungi pengawas. Waktu ujian tetap berjalan.</p>}
                         {screenshots.error && <p role="alert" className="mt-2 text-sm text-red-600">{screenshots.error}</p>}
                         <button type="button" disabled={screenshots.busy || screenshots.supported === false} onClick={() => void screenshots.requestShare()} className="mt-4 rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white disabled:opacity-50">Bagikan Layar</button>

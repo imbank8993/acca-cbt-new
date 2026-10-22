@@ -267,6 +267,40 @@ export async function removeExamRecoverySession(examId: string): Promise<void> {
     });
 }
 
+/**
+ * Buang isi soal dari paket offline yang tidak lagi boleh dibaca di perangkat ini.
+ *
+ * Logout tidak selalu terjadi: di lab komputer siswa sering menutup browser
+ * begitu ujian ditutup otomatis, lalu siswa sesi berikutnya duduk di kursi
+ * yang sama. Paket milik akun lain, atau yang batas waktunya sudah lewat,
+ * dikosongkan soalnya. Metadata attempt dipertahankan supaya antrean
+ * pengiriman jawaban yang tertunda tetap dapat diselesaikan.
+ *
+ * `currentUserId` null berarti pengguna belum diketahui (mis. sedang offline):
+ * hanya aturan kedaluwarsa yang berlaku, supaya ujian offline tidak terhapus.
+ */
+export async function pruneExamRecoverySessions(currentUserId: string | null, now = Date.now()): Promise<number> {
+    return recoveryStoreRequest<number>('readwrite', (store, resolve, reject) => {
+        let pruned = 0;
+        const cursorRequest = store.openCursor();
+        cursorRequest.onerror = () => reject(cursorRequest.error);
+        cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) { resolve(pruned); return; }
+            const session = normalizeRecoverySession(cursor.value);
+            if (!session) {
+                cursor.delete();
+                pruned += 1;
+            } else if (((currentUserId !== null && session.userId !== currentUserId) || session.deadlineAt <= now) &&
+                session.questions.length) {
+                cursor.update({ ...cursor.value, questions: [] });
+                pruned += 1;
+            }
+            cursor.continue();
+        };
+    });
+}
+
 /** Hapus paket soal offline saat pengguna memilih logout pada perangkat bersama. */
 export async function clearExamRecoverySessions(): Promise<void> {
     await recoveryStoreRequest<void>('readwrite', (store, resolve, reject) => {
@@ -377,6 +411,57 @@ async function idbDeleteSecurityEvent(id: string, expected?: Pick<QueuedSecurity
         transaction.onabort = () => reject(transaction.error || new Error('Antrean keamanan gagal dihapus'));
         transaction.onerror = () => reject(transaction.error || new Error('Antrean keamanan gagal dihapus'));
     });
+}
+
+/** Server menolak bukti yang lebih tua dari ini (SCREENSHOT_MAX_EVENT_AGE_MS). */
+export const SECURITY_EVENT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Buang antrean pengawasan yang sudah tidak mungkin diterima server.
+ *
+ * Antrean memuat screenshot SELURUH layar siswa. Di komputer bersama, gambar
+ * yang tak pernah terkirim dulu tertinggal tanpa batas dan dapat dibuka siswa
+ * berikutnya. Antrean yang masih berlaku sengaja TIDAK dihapus saat logout:
+ * logout tidak boleh menjadi cara menghapus bukti pelanggaran yang belum terkirim.
+ */
+export async function pruneExpiredSecurityEvents(now = Date.now()): Promise<number> {
+    const cutoff = now - SECURITY_EVENT_MAX_AGE_MS;
+    const expired = (event: { createdAt?: unknown }) => {
+        const at = typeof event?.createdAt === 'string' ? Date.parse(event.createdAt) : NaN;
+        return !Number.isFinite(at) || at < cutoff;
+    };
+    let removed = 0;
+    try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (!key?.startsWith('exam_security_events_')) continue;
+            let events: unknown;
+            try { events = JSON.parse(localStorage.getItem(key) || '[]'); } catch { events = null; }
+            if (!Array.isArray(events)) { localStorage.removeItem(key); continue; }
+            const kept = events.filter(event => !expired(event));
+            removed += events.length - kept.length;
+            if (!kept.length) localStorage.removeItem(key);
+            else if (kept.length !== events.length) localStorage.setItem(key, JSON.stringify(kept));
+        }
+    } catch { /* localStorage tidak tersedia */ }
+    try {
+        const db = await openDatabase();
+        removed += await new Promise<number>((resolve, reject) => {
+            let count = 0;
+            const transaction = db.transaction(SECURITY_EVENT_STORE, 'readwrite');
+            const request = transaction.objectStore(SECURITY_EVENT_STORE).openCursor();
+            request.onsuccess = () => {
+                const cursor = request.result;
+                if (!cursor) return;
+                if (expired(cursor.value as QueuedSecurityEvent)) { cursor.delete(); count++; }
+                cursor.continue();
+            };
+            transaction.oncomplete = () => resolve(count);
+            transaction.onabort = () => reject(transaction.error);
+            transaction.onerror = () => reject(transaction.error);
+        });
+    } catch { /* IndexedDB tidak tersedia */ }
+    return removed;
 }
 
 /** UUID v4 dipakai server sebagai kunci idempoten saat event dicoba ulang. */

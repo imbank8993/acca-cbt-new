@@ -10,10 +10,11 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ProctoringService, STUDENT_SECURITY_EVENTS } from './proctoring.service';
 import type { Request } from 'express';
@@ -58,7 +59,12 @@ class HeartbeatDto {
     @ApiProperty()
     @IsString()
     @IsNotEmpty()
+    @Length(8, 200)
     deviceId!: string;
+
+    @ApiProperty({ required: false, description: 'Status berbagi layar menurut browser (ujian dengan screenshot).' })
+    @IsOptional() @IsBoolean()
+    screenSharing?: boolean;
 }
 
 class TerminateDto {
@@ -112,10 +118,11 @@ class MakeupAttemptDto extends ResetAttemptDto {
 @ApiTags('proctoring')
 @ApiBearerAuth()
 @Controller('proctoring')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RateLimitGuard)
 export class ProctoringController {
     constructor(private readonly proctoring: ProctoringService) {}
 
+    @RateLimit({ name: 'proctoring-violations', limit: 120, windowMs: 60_000 })
     @Post('attempts/:attemptId/violations')
     @ApiOperation({ summary: 'Catat pelanggaran keamanan selama ujian' })
     logViolation(
@@ -132,6 +139,7 @@ export class ProctoringController {
         );
     }
 
+    @RateLimit({ name: 'proctoring-heartbeat', limit: 20, windowMs: 60_000 })
     @Post('attempts/:attemptId/heartbeat')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Perbarui status koneksi peserta selama ujian' })
@@ -141,7 +149,7 @@ export class ProctoringController {
         @Body() dto: HeartbeatDto,
         @Req() request: Request,
     ) {
-        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth, examClientContext(request));
+        return this.proctoring.heartbeat(user, attemptId, dto.deviceId, dto.syncHealth, examClientContext(request), dto.screenSharing);
     }
 
     @Post('attempts/:attemptId/reset')

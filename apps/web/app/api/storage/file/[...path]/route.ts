@@ -47,6 +47,15 @@ export async function GET(
     headers.set('Cache-Control', cacheControl);
     headers.set('Vary', 'Cookie, Authorization');
     headers.set('X-Content-Type-Options', 'nosniff');
+    // Header pengaman dari NestJS wajib ikut: berkas disajikan dari origin
+    // aplikasi, dan tanpa sandbox SVG yang dibuka di tab dapat menjalankan skrip.
+    for (const name of ['content-security-policy', 'content-disposition', 'cross-origin-resource-policy']) {
+      const value = res.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+    if (!headers.has('content-security-policy') && !/^application\/pdf\b/i.test(contentType || '')) {
+      headers.set('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
+    }
     if (etag) headers.set('ETag', etag);
 
     return new NextResponse(res.body, {

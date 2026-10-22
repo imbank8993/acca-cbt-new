@@ -90,7 +90,8 @@ export type ViolationType =
   | 'exit_fullscreen'
   | 'restricted_shortcut'
   | 'copy_paste_attempt'
-  | 'right_click_attempt';
+  | 'right_click_attempt'
+  | 'screen_share_lost';
 
 export interface SecurityViolation {
   id: string;

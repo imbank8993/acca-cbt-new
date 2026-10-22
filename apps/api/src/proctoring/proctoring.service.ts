@@ -1,4 +1,4 @@
-import { validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
+import { clientContextChange, validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
 import { examDeadline } from '../common/exam-deadline';
 import { hasCommittedSubmitIntent } from '../common/submission-commitment';
 import { STUDENT_SECURITY_EVENTS, securityEventCounters, validateStudentSecurityMetadata } from '../common/student-security-events';
@@ -163,7 +163,7 @@ export class ProctoringService {
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
     async heartbeat(user: AuthUser, attemptId: string, deviceId: string, syncHealth?: ClientSyncHealth,
-        clientContext?: { browser: string | null; os: string | null; ip_address: string | null }) {
+        clientContext?: { browser: string | null; os: string | null; ip_address: string | null }, screenSharing?: boolean) {
         let health: ClientSyncHealth | undefined;
         try { health = validateSyncHealth(syncHealth); }
         catch { throw new BadRequestException('Laporan penyimpanan tidak valid.'); }
@@ -180,6 +180,7 @@ export class ProctoringService {
             }
             const now = await this.databaseNow(db);
             const metadata = { ...(attempt.metadata || {}) };
+            const previousContext = metadata.client_context;
             if (clientContext) metadata.client_context = { ...clientContext, observed_at: now.toISOString() };
             const previous = metadata.sync_health;
             const lastSeen = Date.parse(attempt.last_seen_at || '');
@@ -201,6 +202,26 @@ export class ProctoringService {
                     remaining_at_last_seen_seconds: Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - lastSeen) / 1000)) : null,
                     remaining_at_reconnect_seconds: Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - now.getTime()) / 1000)) : null,
                 });
+            }
+            const contextChange = clientContext ? clientContextChange(previousContext, clientContext) : null;
+            if (contextChange) {
+                await log('CLIENT_CONTEXT_CHANGED', { ...contextChange, evidence: 'server_observation',
+                    note: contextChange.fields.length === 1 && contextChange.fields[0] === 'ip_address'
+                        ? 'Hanya IP yang berubah; wajar pada jaringan seluler atau pindah Wi-Fi.'
+                        : 'Browser/OS berubah dalam satu sesi: periksa kemungkinan perangkat lain memakai sesi ini.' });
+            }
+            if (typeof screenSharing === 'boolean') {
+                const { data: examRow, error: examRowError } = await db.from('cbt_exams')
+                    .select('metadata').eq('id', attempt.exam_id).maybeSingle();
+                if (examRowError) throw new BadRequestException('Pengaturan ujian belum dapat dibaca.');
+                const required = examRow?.metadata?.screenshot_enabled === true;
+                // Dicatat sekali per perubahan, bukan setiap 15 detik.
+                if (required && !screenSharing && metadata.screen_share_confirmed !== false) {
+                    const { data: exception } = await db.from('cbt_exam_screen_share_exceptions')
+                        .select('user_id').eq('exam_id', attempt.exam_id).eq('user_id', user.id).maybeSingle();
+                    if (!exception) await log('SCREEN_SHARE_UNCONFIRMED', { evidence: 'client_report', reported_at: now.toISOString() });
+                }
+                if (required) metadata.screen_share_confirmed = screenSharing;
             }
             if (health?.interruption && metadata.last_connection_report_at !== health.interruption.at) {
                 await log('CONNECTION_INTERRUPTION_REPORTED', {
@@ -397,6 +418,18 @@ export class ProctoringService {
                 'SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE',
                 attemptId,
             );
+            // Susulan mengulang dari awal. Bila kunci jawaban sudah pernah dapat
+            // dibuka siswa, mengulang berarti mengerjakan dengan kunci di tangan.
+            const { data: exam, error: examError } = await db.from('cbt_exams')
+                .select('show_results, end_time, metadata').eq('id', (attempt as { exam_id: string }).exam_id).maybeSingle();
+            if (examError || !exam) throw new BadRequestException('Pengaturan ujian belum dapat diperiksa.');
+            const [releaseClock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const endMs = Date.parse(exam.end_time || '');
+            if (exam.show_results === true && exam.metadata?.show_answer_keys === true &&
+                Number.isFinite(endMs) && new Date(releaseClock.now).getTime() >= endMs) {
+                throw new BadRequestException('Kunci jawaban ujian ini sudah dibuka untuk siswa. Tutup kunci jawaban ' +
+                    'terlebih dahulu, atau gunakan ujian/paket soal lain untuk susulan.');
+            }
             const { data: locked } = await db
                 .from('cbt_exam_attempts')
                 .select('id, status, personal_end_time, metadata')

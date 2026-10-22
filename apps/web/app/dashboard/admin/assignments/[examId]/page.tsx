@@ -2,6 +2,7 @@
 import { getAssignmentSubmissionsAction,gradeAssignmentAction } from '@/lib/api/proctor';
 import type { AssignmentSubmission as Submission,OrganizationExam } from '@/lib/api/proctor';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { attachmentLabel,safeExternalUrl } from '@/lib/safe-url';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -334,11 +335,14 @@ export default function AssignmentReviewPage() {
                                                                             <p className="text-xs font-medium text-slate-500 mb-2">File yang Dikumpulkan:</p>
                                                                             <div className="flex flex-col gap-2">
                                                                                 {s.fileUrls.map((url, i) => {
-                                                                                    const filename = decodeURIComponent(url.split('/').pop() || `File ${i + 1}`);
+                                                                                    // Isi lampiran ditulis siswa: jangan percaya skema URL-nya,
+                                                                                    // dan jangan biarkan nama berkas aneh merontokkan halaman.
+                                                                                    const filename = attachmentLabel(url, i);
+                                                                                    const href = safeExternalUrl(url);
                                                                                     return (
                                                                                         <a
                                                                                             key={i}
-                                                                                            href={url}
+                                                                                            href={href || undefined}
                                                                                             target="_blank"
                                                                                             rel="noopener noreferrer"
                                                                                             className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"

@@ -8,7 +8,7 @@ import { getExamSubmissionStatus, submitExamAction } from '@/lib/api/students';
 import {
     EXAM_SUBMISSION_QUEUE_CHANGED, listExamSubmissionRegistrations, readExamSnapshot,
     freezeExamSnapshot, resolveDurableDeviceId, removeConfirmedExamSnapshot,
-    removeExamSubmissionRegistration, readExamRecoverySession, removeExamRecoverySession,
+    removeExamSubmissionRegistration, readExamRecoverySession, removeExamRecoverySession, pruneExamRecoverySessions, pruneExpiredSecurityEvents,
 } from '@/lib/exam-durable-storage';
 import { removeExamOfflineShell } from '@/lib/exam-pwa';
 import { createExamSubmissionWorker } from '@/lib/exam-submission-worker';
@@ -74,7 +74,16 @@ export function ExamSubmissionSync() {
                 }
             },
         });
-        const run = () => { void worker.run(); };
+        let lastPrune = 0;
+        const prune = async () => {
+            // Paling sering sekali per menit; perlu user sesi untuk tahu pemiliknya.
+            if (Date.now() - lastPrune < 60_000) return;
+            lastPrune = Date.now();
+            const user = await fetchSessionUser().catch(() => null);
+            await pruneExamRecoverySessions(user?.id ?? null).catch(() => undefined);
+            await pruneExpiredSecurityEvents().catch(() => undefined);
+        };
+        const run = () => { void worker.run(); void prune(); };
         const onVisible = () => { if (!document.hidden) run(); };
         runRef.current = run;
         run();
