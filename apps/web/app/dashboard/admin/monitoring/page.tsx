@@ -15,6 +15,7 @@ import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/Monitorin
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
+import { PASRoomMonitoringLink } from '@/app/components/monitoring/PASRoomMonitoringLink';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { finishAttemptAction,getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
@@ -452,6 +453,8 @@ function MonitoringContent() {
                     </> : undefined}
                 />}
             </MonitoringWorkspaceHeader>
+
+            <PASRoomMonitoringLink exam={selectedExam} role="admin" />
 
             {selectedExamId && activeTab === 'reset' && <>
                 {canResetParticipants ? <BulkResetPanel

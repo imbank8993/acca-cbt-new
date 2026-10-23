@@ -45,6 +45,7 @@ import {
     Zap
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
+import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
 import React,{ useCallback,useEffect,useState } from 'react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
@@ -52,7 +53,7 @@ import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/compo
 import BulkScheduleGrid from './BulkScheduleGrid';
 import { isSemesterAssessmentType } from '@/lib/exam-types';
 
-type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'administration' | 'bulk';
+type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'monitoring' | 'administration' | 'bulk';
 type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
 
 export default function ProctorPASDetailPage() {
@@ -69,6 +70,10 @@ export default function ProctorPASDetailPage() {
     const [rooms, setRooms] = useState<PASRoom[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
+    // ?tab=monitoring membuka langsung tab Pelaksanaan (mis. dari halaman monitoring ujian).
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get('tab') === 'monitoring') setActiveTab('monitoring');
+    }, []);
     const [logisticsSubTab, setLogisticsSubTab] = useState<LogisticsSubTab>('rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAddScheduleOpen, setIsAddScheduleOpen] = useState(false);
@@ -517,6 +522,15 @@ export default function ProctorPASDetailPage() {
                     view={logisticsSubTab}
                     onViewChange={setLogisticsSubTab}
                     onChange={() => void loadData()}
+                />
+            )}
+
+            {activeTab === 'monitoring' && isCompactPeriod && (
+                <PASSlotMonitoring
+                    periodId={period.id}
+                    userRole="proktor"
+                    monitoringBasePath="/dashboard/proktor/monitoring"
+                    attemptBasePath="/dashboard/proktor/monitoring"
                 />
             )}
 

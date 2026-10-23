@@ -541,6 +541,37 @@ export interface PASAssignmentSlotSummary {
     }>;
 }
 
+/** Satu slot monitoring ASAS/ASAT/AM: ruang × sesi × tanggal. */
+export interface PASMonitoringSlot {
+    key: string;
+    date: string;
+    period: { id: string; name: string; type: string };
+    room: { id: string; name: string; capacity: number | null };
+    session: { id: string; name: string; start_time: string; end_time: string };
+    invigilators: Array<{ user_id: string; full_name: string }>;
+    is_mine: boolean;
+    exams: Array<{ exam_id: string; schedule_id: string; bank_title: string; class_name: string; student_count: number }>;
+    student_ids: string[];
+    counts: { total: number; in_progress: number; finished: number; not_started: number };
+}
+
+export interface PASMonitoringSlotList {
+    date: string;
+    is_manager: boolean;
+    available_dates: string[];
+    slots: PASMonitoringSlot[];
+}
+
+/** Slot monitoring pada satu tanggal. Pengawas hanya menerima slot tugasnya. */
+export async function listPASMonitoringSlots(params: { date?: string; periodId?: string }): Promise<PASMonitoringSlotList> {
+    const query = new URLSearchParams();
+    if (params.date) query.set('date', params.date);
+    if (params.periodId) query.set('periodId', params.periodId);
+    const res = await apiGet<PASMonitoringSlotList>(`/api/pas/monitoring/slots${query.toString() ? `?${query.toString()}` : ''}`);
+    if (!res.success) throw new Error(res.error || 'Monitoring ruang belum dapat dimuat.');
+    return { date: res.date, is_manager: res.is_manager, available_dates: res.available_dates || [], slots: res.slots || [] };
+}
+
 export async function listMyPASAssignments(): Promise<PASAssignmentSlotSummary[]> {
     const res = await apiGet<{ assignments: PASAssignmentSlotSummary[] }>('/api/pas/my-assignments');
     if (!res.success) throw new Error(res.error || 'Penugasan ruang dan sesi belum dapat dimuat.');

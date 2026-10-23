@@ -38,6 +38,7 @@ import {
     UpdatePASPeriodDto,
 } from './dto/pas.dto';
 import { PasAdministrationService } from './pas-administration.service';
+import { PasMonitoringService } from './pas-monitoring.service';
 import { PasRoomsService } from './pas-rooms.service';
 import { PasSchedulesService } from './pas-schedules.service';
 import { PasService } from './pas.service';
@@ -59,6 +60,7 @@ export class PasController {
         private readonly schedules: PasSchedulesService,
         private readonly rooms: PasRoomsService,
         private readonly administration: PasAdministrationService,
+        private readonly monitoring: PasMonitoringService,
     ) {}
 
     // ── Periode ──────────────────────────────────────────────────────────────
@@ -301,6 +303,17 @@ export class PasController {
     }
 
     // ── Administrasi (Berita Acara & Daftar Hadir) ──────────────────────────
+
+    @Get('monitoring/slots')
+    @ApiOperation({ summary: 'Slot monitoring ASAS/ASAT/AM (ruang × sesi × tanggal); pengawas hanya slot tugasnya' })
+    async listMonitoringSlots(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+        @Query('date') date?: string,
+        @Query('periodId', new ParseUUIDPipe({ optional: true })) periodId?: string,
+    ) {
+        return this.monitoring.listSlots(user, organizationId, date, periodId);
+    }
 
     @Get('my-assignments')
     @ApiOperation({ summary: 'Daftar penugasan ruang & sesi untuk pengawas/proktor' })

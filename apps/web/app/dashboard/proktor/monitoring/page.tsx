@@ -3,6 +3,7 @@ import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
+import { PASRoomMonitoringLink } from '@/app/components/monitoring/PASRoomMonitoringLink';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
@@ -361,6 +362,8 @@ function MonitoringContent() {
                     />
                 )}
             </MonitoringWorkspaceHeader>
+
+            <PASRoomMonitoringLink exam={selectedExam} role="proktor" />
 
             {selectedExamId && loadError && (
                 <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

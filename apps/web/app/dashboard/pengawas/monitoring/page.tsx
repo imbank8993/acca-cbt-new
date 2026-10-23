@@ -5,6 +5,7 @@ import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
+import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
@@ -376,6 +377,29 @@ function MonitoringContent() {
     );
 }
 
+/**
+ * Pengawas memantau per RUANG: semua siswa di ruangnya tampil dalam satu daftar,
+ * apa pun kelas dan bank soalnya. Tampilan per ujian tetap ada untuk jawaban,
+ * insiden, dan reset; tautan `?exam=` langsung membuka tampilan itu.
+ */
+function PengawasMonitoringShell() {
+    const searchParams = useSearchParams();
+    const [view, setView] = useState<'room' | 'exam'>(searchParams.get('exam') ? 'exam' : 'room');
+    return (
+        <div className="space-y-4">
+            <nav className="inline-flex gap-1 rounded-lg bg-slate-100 p-1 text-xs font-semibold" aria-label="Cara memantau">
+                {([['room', 'Ruang saya'], ['exam', 'Per ujian']] as const).map(([id, label]) => (
+                    <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)}
+                        className={`rounded-md px-4 py-2 ${view === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
+                ))}
+            </nav>
+            {view === 'room'
+                ? <PASSlotMonitoring userRole="pengawas" monitoringBasePath="/dashboard/pengawas/monitoring" />
+                : <MonitoringContent />}
+        </div>
+    );
+}
+
 export default function PengawasMonitoringPage() {
     return (
         <Suspense
@@ -383,7 +407,7 @@ export default function PengawasMonitoringPage() {
                 <div className="p-8 flex flex-col items-center justify-center gap-2"><Spinner variant="buble" size={32} /><p className="text-xs font-bold text-slate-400">Menyiapkan layar monitoring pengawas...</p></div>
             }
         >
-            <MonitoringContent />
+            <PengawasMonitoringShell />
         </Suspense>
     );
 }
