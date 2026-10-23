@@ -14,7 +14,7 @@ const { SettingsService } = require('../src/settings/settings.service.ts');
 const { SettingsController } = require('../src/settings/settings.controller.ts');
 const { PasController } = require('../src/pas/pas.controller.ts');
 const { PasService } = require('../src/pas/pas.service.ts');
-const { drawAdministrationSigners } = require('../../web/lib/pas/administration-signers.ts');
+const { drawAdministrationSigners, resolveAdministrationInvigilators } = require('../../web/lib/pas/administration-signers.ts');
 const { jsPDF } = require('jspdf');
 const {
     PasAdministrationService,
@@ -313,6 +313,31 @@ test('ADMIN-13: PDF footer wraps long names and moves all three signers together
     const printed = calls.map(call => Array.isArray(call[0]) ? call[0].join(' ') : call[0]).join('\n');
     for (const label of ['Pengawas Ruang', 'Proktor', 'Mengetahui, Ketua Panitia']) assert.ok(printed.includes(label));
     assert.ok(calls.some(call => Array.isArray(call[0]) && call[0].length > 1 && call[1] === 58));
+});
+
+test('ADMIN-13b: dua pengawas dicetak bernomor dengan NIP masing-masing', () => {
+    const people = resolveAdministrationInvigilators([
+        { full_name: 'Imran, S.Si.', identity_number: '19930908' },
+        { full_name: 'Nurmadinah, S.Pd.', identity_number: '19940222' },
+    ], { invigilator_name: 'Imran, S.Si., Nurmadinah, S.Pd.' });
+    assert.deepEqual(people, [
+        { name: 'Imran, S.Si.', nip: '19930908' },
+        { name: 'Nurmadinah, S.Pd.', nip: '19940222' },
+    ]);
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const calls = []; const originalText = pdf.text.bind(pdf);
+    pdf.text = (...args) => { calls.push(args); return originalText(...args); };
+    drawAdministrationSigners(pdf, {
+        y: 190, marginLeft: 20, pageWidth: 210, marginRight: 15, signedAt: '23 Oktober 2026',
+        invigilator: { name: 'Imran, S.Si., Nurmadinah, S.Pd.' }, invigilators: people,
+        proctor: { name: 'Proktor' }, committeeChair: { name: 'Ketua Panitia' },
+    });
+    const printed = calls.map(call => Array.isArray(call[0]) ? call[0].join(' ') : call[0]).join('\n');
+    assert.match(printed, /1\. Imran, S\.Si\./);
+    assert.match(printed, /NIP\. 19930908/);
+    assert.match(printed, /2\. Nurmadinah, S\.Pd\./);
+    assert.match(printed, /NIP\. 19940222/);
+    assert.equal(pdf.getNumberOfPages(), 1);
 });
 
 test('ADMIN-14: period-level committee chair can be configured and updated directly on the exam folder', async () => {

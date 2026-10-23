@@ -26,7 +26,7 @@ import {
 import { Button } from '@/app/components/ui/button';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
-import { drawAdministrationSigners } from '@/lib/pas/administration-signers';
+import { drawAdministrationSigners, resolveAdministrationInvigilators } from '@/lib/pas/administration-signers';
 import type { PASClassSchedule } from '@/app/types/pas';
 import {
     approvePASAdministrationSlotAction,
@@ -272,6 +272,13 @@ export default function PASAdministrationPanel({
     const [showIncidentDetails, setShowIncidentDetails] = useState(false);
     const invigilatorName = slot?.invigilators.map(inv => inv.full_name).filter(Boolean).join(', ')
         || slot?.report.invigilator_name || '';
+    const previewInvigilators = slot ? resolveAdministrationInvigilators(slot.invigilators, slot.report) : [];
+    const previewInvigilatorList = previewInvigilators.map((person, index) => (
+        <div key={`${person.name}-${index}`} className={index ? 'mt-1' : undefined}>
+            {previewInvigilators.length > 1 ? `${index + 1}. ` : ''}{person.name}
+            {person.nip && <div className="text-[#555]" style={{ fontSize: '8.5pt' }}>NIP. {person.nip}</div>}
+        </div>
+    ));
     const proctorName = slot?.proctor_creator.full_name || '';
     const [attendanceMap, setAttendanceMap] = useState<Record<string, StudentAttendanceDraft>>({});
 
@@ -471,6 +478,7 @@ export default function PASAdministrationPanel({
         return list.filter(
             (st) =>
                 st.full_name.toLowerCase().includes(q) ||
+                st.identity_number.toLowerCase().includes(q) ||
                 st.nis.toLowerCase().includes(q) ||
                 st.class_name.toLowerCase().includes(q),
         );
@@ -744,7 +752,12 @@ export default function PASAdministrationPanel({
         const dateLong = formatIndonesianLongDate(currentSlot.exam_date);
         const sessionTime = `${currentSlot.session.start_time.substring(0, 5)} - ${currentSlot.session.end_time.substring(0, 5)}`;
         const effectiveInvName = currentSlot.report.invigilator_name || '-';
-        const effectiveInvNip = currentSlot.report.invigilator_nip || '';
+        const documentInvigilators = resolveAdministrationInvigilators(currentSlot.invigilators, currentSlot.report);
+        const invigilatorListHtml = documentInvigilators.map((person, index) => `
+            <div${index ? ' style="margin-top:4px;"' : ''}>
+              ${documentInvigilators.length > 1 ? `${index + 1}. ` : ''}${escapeHtml(person.name)}
+              ${person.nip ? `<br/><span class="ttd-nip">NIP. ${escapeHtml(person.nip)}</span>` : ''}
+            </div>`).join('');
         const effectiveProcName = currentSlot.report.proctor_name || '-';
         const effectiveChairName = currentSlot.report.committee_chair_name || '-';
         const effectiveChairNip = currentSlot.report.committee_chair_nip || '';
@@ -761,18 +774,16 @@ export default function PASAdministrationPanel({
             .map((st, idx) => {
                 const draft = attendanceMap[st.user_id];
                 const stStatus = draft?.status || st.attendance_status || 'hadir';
-                const stRemark = draft?.remark ?? st.remark ?? '';
                 const startClock = formatClockTime(st.started_at, timeZone);
                 const endClock = formatClockTime(st.finished_at, timeZone);
                 return `
                     <tr>
                         <td style="text-align:center;width:5%;">${idx + 1}</td>
-                        <td style="width:14%;white-space:nowrap;">${escapeHtml(st.nis)}</td>
-                        <td style="width:28%;">${escapeHtml(st.full_name)}</td>
-                        <td style="width:12%;text-align:center;white-space:nowrap;">${escapeHtml(st.class_name)}</td>
-                        <td style="width:16%;text-align:center;white-space:nowrap;">${escapeHtml(startClock)} - ${escapeHtml(endClock)}</td>
+                        <td style="width:17%;white-space:nowrap;">${escapeHtml(st.identity_number || '-')}</td>
+                        <td style="width:31%;">${escapeHtml(st.full_name)}</td>
+                        <td style="width:18%;text-align:left;">${escapeHtml(st.class_name)}</td>
+                        <td style="width:19%;text-align:center;white-space:nowrap;">${escapeHtml(startClock)} - ${escapeHtml(endClock)}</td>
                         <td style="width:10%;text-align:center;font-weight:bold;">${escapeHtml(statusLabel(stStatus))}</td>
-                        <td>${escapeHtml(stRemark || '-')}</td>
                     </tr>
                 `;
             })
@@ -786,9 +797,9 @@ export default function PASAdministrationPanel({
                           (st, idx) => `
                     <tr>
                         <td style="text-align:center;width:6%;">${idx + 1}</td>
-                        <td style="width:16%;white-space:nowrap;">${escapeHtml(st.nis)}</td>
+                        <td style="width:16%;white-space:nowrap;">${escapeHtml(st.identity_number || '-')}</td>
                         <td style="width:34%;">${escapeHtml(st.full_name)}</td>
-                        <td style="width:14%;text-align:center;white-space:nowrap;">${escapeHtml(st.class_name)}</td>
+                        <td style="width:14%;text-align:left;">${escapeHtml(st.class_name)}</td>
                         <td><strong>${escapeHtml(statusLabel(st.effectiveStatus))}</strong>${st.effectiveRemark ? ` — ${escapeHtml(st.effectiveRemark)}` : ''}</td>
                     </tr>
                 `,
@@ -844,9 +855,9 @@ export default function PASAdministrationPanel({
                     <thead>
                         <tr>
                             <th style="width:6%;">No</th>
-                            <th style="width:16%;">NIS</th>
+                            <th style="width:16%;">NISN</th>
                             <th style="width:34%;">Nama Peserta</th>
-                            <th style="width:14%;">Kelas</th>
+                            <th style="width:14%;text-align:left;">Kelas</th>
                             <th>Status &amp; Keterangan</th>
                         </tr>
                     </thead>
@@ -877,18 +888,17 @@ export default function PASAdministrationPanel({
                     <thead>
                         <tr>
                             <th style="width:5%;">No</th>
-                            <th style="width:14%;">NIS</th>
-                            <th style="width:28%;">Nama Peserta</th>
-                            <th style="width:12%;">Kelas</th>
-                            <th style="width:16%;">Mulai - Selesai</th>
+                            <th style="width:17%;">NISN</th>
+                            <th style="width:31%;">Nama Peserta</th>
+                            <th style="width:18%;text-align:left;">Kelas</th>
+                            <th style="width:19%;">Mulai - Selesai</th>
                             <th style="width:10%;">Status</th>
-                            <th>Keterangan</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${
                             rowsHtml ||
-                            `<tr><td colspan="7" style="text-align:center;padding:10px;">Tidak ada data peserta di ruang ini</td></tr>`
+                            `<tr><td colspan="6" style="text-align:center;padding:10px;">Tidak ada data peserta di ruang ini</td></tr>`
                         }
                     </tbody>
                 </table>
@@ -916,8 +926,7 @@ ${KOP_AND_A4_CSS}
             <td>Pengawas Ruang</td>
             <td>:</td>
             <td>
-              ${escapeHtml(effectiveInvName)}
-              ${effectiveInvNip && effectiveInvNip !== '-' ? `<br/><span class="ttd-nip">NIP. ${escapeHtml(effectiveInvNip)}</span>` : ''}
+              ${invigilatorListHtml}
             </td>
           </tr>
           <tr>
@@ -1000,6 +1009,7 @@ ${KOP_AND_A4_CSS}
         const signedAtText = formatSignedTimestamp(currentSlot.report.signed_at || new Date().toISOString(), timeZone);
         const effectiveInvName = currentSlot.report.invigilator_name || '-';
         const effectiveInvNip = currentSlot.report.invigilator_nip || '';
+        const documentInvigilators = resolveAdministrationInvigilators(currentSlot.invigilators, currentSlot.report);
         const effectiveProcName = currentSlot.report.proctor_name || '-';
         const effectiveChairName = currentSlot.report.committee_chair_name || '-';
         const effectiveChairNip = currentSlot.report.committee_chair_nip || '';
@@ -1150,18 +1160,23 @@ ${KOP_AND_A4_CSS}
             pdf.text('II. DAFTAR PESERTA TIDAK HADIR (SAKIT / IZIN / ALPHA)', marginLeft, y);
             y += 2.5;
 
-            const absWidths = [10, 26, 62, 24, 53];
-            const absHeaders = ['No', 'NIS', 'Nama Peserta', 'Kelas', 'Status & Keterangan'];
+            const absWidths = [10, 27, 51, 40, 47];
+            const absHeaders = ['No', 'NISN', 'Nama Peserta', 'Kelas', 'Status & Keterangan'];
             let cx = marginLeft;
-            pdf.setFillColor(241, 245, 249);
-            pdf.setFont('times', 'normal');
-            pdf.setFontSize(9);
-            for (let i = 0; i < absHeaders.length; i++) {
-                pdf.rect(cx, y, absWidths[i], 6.2, 'FD');
-                pdf.text(absHeaders[i], cx + absWidths[i] / 2, y + 4.2, { align: 'center' });
-                cx += absWidths[i];
-            }
-            y += 6.2;
+            const drawAbsentHeader = () => {
+                cx = marginLeft;
+                pdf.setFont('times', 'normal'); pdf.setFontSize(9);
+                for (let i = 0; i < absHeaders.length; i++) {
+                    pdf.setFillColor(241, 245, 249);
+                    pdf.rect(cx, y, absWidths[i], 6.2, 'F');
+                    pdf.rect(cx, y, absWidths[i], 6.2, 'S');
+                    pdf.text(absHeaders[i], i === 3 ? cx + 2 : cx + absWidths[i] / 2, y + 4.2,
+                        { align: i === 3 ? 'left' : 'center' });
+                    cx += absWidths[i];
+                }
+                y += 6.2;
+            };
+            drawAbsentHeader();
 
             if (absentStudents.length === 0) {
                 pdf.rect(marginLeft, y, contentW, 6.8);
@@ -1175,20 +1190,24 @@ ${KOP_AND_A4_CSS}
                     cx = marginLeft;
                     const rowCells = [
                         String(idx + 1),
-                        st.nis || '-',
-                        st.full_name.substring(0, 34),
+                        st.identity_number || '-',
+                        st.full_name,
                         st.class_name || '-',
-                        `${statusLabel(st.effectiveStatus)}${st.effectiveRemark ? ` — ${st.effectiveRemark}` : ''}`.substring(
-                            0,
-                            30,
-                        ),
+                        `${statusLabel(st.effectiveStatus)}${st.effectiveRemark ? ` — ${st.effectiveRemark}` : ''}`,
                     ];
-                    for (let i = 0; i < rowCells.length; i++) {
-                        pdf.rect(cx, y, absWidths[i], 6);
-                        pdf.text(rowCells[i], cx + 2, y + 4.1);
+                    const lines = rowCells.map((cell, column) => pdf.splitTextToSize(cell, absWidths[column] - 4) as string[]);
+                    const rowHeight = Math.max(6, ...lines.map(item => item.length * 3.7 + 2));
+                    if (y + rowHeight > 242) {
+                        pdf.addPage(); y = 16;
+                        drawAbsentHeader();
+                    }
+                    cx = marginLeft;
+                    for (let i = 0; i < lines.length; i++) {
+                        pdf.rect(cx, y, absWidths[i], rowHeight);
+                        pdf.text(lines[i], cx + 2, y + 4.1, { lineHeightFactor: 1.16 });
                         cx += absWidths[i];
                     }
-                    y += 6;
+                    y += rowHeight;
                 }
                 y += 3.5;
             }
@@ -1207,47 +1226,55 @@ ${KOP_AND_A4_CSS}
             y += 23;
         } else {
             // Daftar Hadir Table
-            const colWidths = [9, 24, 54, 21, 27, 18, 22];
-            const headers = ['No', 'NIS', 'Nama Peserta', 'Kelas', 'Mulai-Selesai', 'Status', 'Ket.'];
+            const colWidths = [9, 27, 50, 38, 34, 17];
+            const headers = ['No', 'NISN', 'Nama Peserta', 'Kelas', 'Mulai-Selesai', 'Status'];
             let cx = marginLeft;
-            pdf.setFillColor(241, 245, 249);
-            pdf.setFont('times', 'normal');
-            pdf.setFontSize(8.8);
-            for (let i = 0; i < headers.length; i++) {
-                pdf.rect(cx, y, colWidths[i], 6.2, 'FD');
-                pdf.text(headers[i], cx + colWidths[i] / 2, y + 4.2, { align: 'center' });
-                cx += colWidths[i];
-            }
-            y += 6.2;
+            const drawAttendanceHeader = () => {
+                cx = marginLeft;
+                pdf.setFont('times', 'normal'); pdf.setFontSize(8.8);
+                pdf.setTextColor(0, 0, 0);
+                for (let i = 0; i < headers.length; i++) {
+                    pdf.setFillColor(241, 245, 249);
+                    pdf.rect(cx, y, colWidths[i], 6.2, 'F');
+                    pdf.rect(cx, y, colWidths[i], 6.2, 'S');
+                    pdf.text(headers[i], i === 3 ? cx + 1.5 : cx + colWidths[i] / 2, y + 4.2,
+                        { align: i === 3 ? 'left' : 'center' });
+                    cx += colWidths[i];
+                }
+                y += 6.2;
+            };
+            drawAttendanceHeader();
 
             pdf.setFont('times', 'normal');
             pdf.setFontSize(8.5);
             for (let idx = 0; idx < currentSlot.students.length; idx++) {
-                if (y > 238) {
-                    pdf.addPage();
-                    y = 16;
-                }
                 const st = currentSlot.students[idx];
                 const draft = attendanceMap[st.user_id];
                 const stStatus = draft?.status || st.attendance_status || 'hadir';
-                const stRemark = draft?.remark ?? st.remark ?? '';
                 const timeRange = `${formatClockTime(st.started_at, timeZone)} - ${formatClockTime(st.finished_at, timeZone)}`;
                 const cells = [
                     String(idx + 1),
-                    (st.nis || '-').substring(0, 14),
-                    st.full_name.substring(0, 29),
-                    (st.class_name || '-').substring(0, 12),
+                    st.identity_number || '-',
+                    st.full_name,
+                    st.class_name || '-',
                     timeRange,
                     statusLabel(stStatus),
-                    (stRemark || '-').substring(0, 12),
                 ];
+                const lines = cells.map((cell, column) => pdf.splitTextToSize(cell, colWidths[column] - 3) as string[]);
+                const rowHeight = Math.max(5.8, ...lines.map(item => item.length * 3.5 + 2));
+                if (y + rowHeight > 242) {
+                    pdf.addPage();
+                    y = 16;
+                    drawAttendanceHeader();
+                    pdf.setFont('times', 'normal'); pdf.setFontSize(8.5);
+                }
                 cx = marginLeft;
-                for (let i = 0; i < cells.length; i++) {
-                    pdf.rect(cx, y, colWidths[i], 5.8);
-                    pdf.text(cells[i], cx + 1.5, y + 4);
+                for (let i = 0; i < lines.length; i++) {
+                    pdf.rect(cx, y, colWidths[i], rowHeight);
+                    pdf.text(lines[i], cx + 1.5, y + 3.8, { lineHeightFactor: 1.16 });
                     cx += colWidths[i];
                 }
-                y += 5.8;
+                y += rowHeight;
             }
             y += 4;
             pdf.setFont('times', 'normal');
@@ -1263,6 +1290,7 @@ ${KOP_AND_A4_CSS}
         const { topY: footerTopY } = drawAdministrationSigners(pdf, {
             y, marginLeft, pageWidth: pageW, marginRight, signedAt: signedAtText,
             invigilator: { name: effectiveInvName, nip: effectiveInvNip },
+            invigilators: documentInvigilators,
             proctor: { name: effectiveProcName, nip: effectiveProcNip },
             committeeChair: { name: effectiveChairName, nip: effectiveChairNip },
         });
@@ -1813,7 +1841,7 @@ ${KOP_AND_A4_CSS}
                                     type="text"
                                     value={studentSearch}
                                     onChange={(e) => setStudentSearch(e.target.value)}
-                                    placeholder="Cari nama, NIS, kelas..."
+                                    placeholder="Cari nama, NISN, kelas..."
                                     className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#3083FF]"
                                 />
                             </div>}
@@ -1862,7 +1890,7 @@ ${KOP_AND_A4_CSS}
                                                     <td className="py-2.5 px-3">
                                                         <div className="font-bold text-slate-800">{st.full_name}</div>
                                                         <div className="text-[11px] text-slate-500">
-                                                            NIS: {st.nis} · <span className="font-medium text-slate-700">{st.class_name}</span>
+                                                            NISN: {st.identity_number || '-'} · <span className="font-medium text-slate-700">{st.class_name}</span>
                                                         </div>
                                                     </td>
                                                     <td className="py-2.5 px-3">
@@ -2347,12 +2375,12 @@ ${KOP_AND_A4_CSS}
                                                     No
                                                 </th>
                                                 <th className="border border-[#333] py-[5px] px-[6px] w-[16%] text-center font-normal">
-                                                    NIS
+                                                    NISN
                                                 </th>
                                                 <th className="border border-[#333] py-[5px] px-[6px] w-[34%] text-center font-normal">
                                                     Nama Peserta
                                                 </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] w-[14%] text-center font-normal">
+                                                <th className="border border-[#333] py-[5px] px-[6px] w-[14%] text-left font-normal">
                                                     Kelas
                                                 </th>
                                                 <th className="border border-[#333] py-[5px] px-[6px] text-center font-normal">
@@ -2377,12 +2405,12 @@ ${KOP_AND_A4_CSS}
                                                             {idx + 1}
                                                         </td>
                                                         <td className="border border-[#333] py-[5px] px-[6px]">
-                                                            {st.nis}
+                                                            {st.identity_number || '-'}
                                                         </td>
                                                         <td className="border border-[#333] py-[5px] px-[6px]">
                                                             {st.full_name}
                                                         </td>
-                                                        <td className="border border-[#333] py-[5px] px-[6px] text-center">
+                                                        <td className="border border-[#333] py-[5px] px-[6px] text-left">
                                                             {st.class_name}
                                                         </td>
                                                         <td className="border border-[#333] py-[5px] px-[6px]">
@@ -2484,23 +2512,20 @@ ${KOP_AND_A4_CSS}
                                                 <th className="border border-[#333] py-[5px] px-[6px] w-[5%] text-center font-normal">
                                                     No
                                                 </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] w-[14%] text-center font-normal">
-                                                    NIS
+                                                <th className="border border-[#333] py-[5px] px-[6px] w-[17%] text-center font-normal">
+                                                    NISN
                                                 </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] w-[28%] text-center font-normal">
+                                                <th className="border border-[#333] py-[5px] px-[6px] w-[31%] text-center font-normal">
                                                     Nama Peserta
                                                 </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] w-[12%] text-center font-normal">
+                                                <th className="border border-[#333] py-[5px] px-[6px] w-[18%] text-left font-normal">
                                                     Kelas
                                                 </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] w-[16%] text-center font-normal">
+                                                <th className="border border-[#333] py-[5px] px-[6px] w-[19%] text-center font-normal">
                                                     Mulai - Selesai
                                                 </th>
                                                 <th className="border border-[#333] py-[5px] px-[6px] w-[10%] text-center font-normal">
                                                     Status
-                                                </th>
-                                                <th className="border border-[#333] py-[5px] px-[6px] text-center font-normal">
-                                                    Keterangan
                                                 </th>
                                             </tr>
                                         </thead>
@@ -2508,7 +2533,7 @@ ${KOP_AND_A4_CSS}
                                             {slot.students.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={7}
+                                                        colSpan={6}
                                                         className="border border-[#333] py-[10px] px-[6px] text-center text-[#555]"
                                                     >
                                                         Tidak ada data peserta di ruang ini
@@ -2520,20 +2545,18 @@ ${KOP_AND_A4_CSS}
                                                         attendanceMap[st.user_id]?.status ||
                                                         st.attendance_status ||
                                                         'hadir';
-                                                    const stRemark =
-                                                        attendanceMap[st.user_id]?.remark ?? st.remark ?? '';
                                                     return (
                                                         <tr key={st.user_id}>
                                                             <td className="border border-[#333] py-[5px] px-[6px] text-center">
                                                                 {idx + 1}
                                                             </td>
                                                             <td className="border border-[#333] py-[5px] px-[6px] whitespace-nowrap">
-                                                                {st.nis}
+                                                                {st.identity_number || '-'}
                                                             </td>
                                                             <td className="border border-[#333] py-[5px] px-[6px]">
                                                                 {st.full_name}
                                                             </td>
-                                                            <td className="border border-[#333] py-[5px] px-[6px] text-center whitespace-nowrap">
+                                                            <td className="border border-[#333] py-[5px] px-[6px] text-left">
                                                                 {st.class_name}
                                                             </td>
                                                             <td className="border border-[#333] py-[5px] px-[6px] text-center whitespace-nowrap">
@@ -2542,9 +2565,6 @@ ${KOP_AND_A4_CSS}
                                                             </td>
                                                             <td className="border border-[#333] py-[5px] px-[6px] text-center font-bold">
                                                                 {statusLabel(stStatus)}
-                                                            </td>
-                                                            <td className="border border-[#333] py-[5px] px-[6px]">
-                                                                {stRemark || '-'}
                                                             </td>
                                                         </tr>
                                                     );
@@ -2570,15 +2590,7 @@ ${KOP_AND_A4_CSS}
                                             <td className="py-[4px] align-top">Pengawas Ruang</td>
                                             <td className="py-[4px] align-top">:</td>
                                             <td className="py-[4px] align-top">
-                                                {invigilatorName || slot.report.invigilator_name || '-'}
-                                                {slot.report.invigilator_nip && slot.report.invigilator_nip !== '-' && (
-                                                    <>
-                                                        <br />
-                                                        <span className="text-[#555]" style={{ fontSize: '8.5pt' }}>
-                                                            NIP. {slot.report.invigilator_nip}
-                                                        </span>
-                                                    </>
-                                                )}
+                                                {previewInvigilatorList}
                                             </td>
                                         </tr>
                                         <tr>

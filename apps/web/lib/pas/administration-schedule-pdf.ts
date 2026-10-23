@@ -29,6 +29,24 @@ export interface AdministrationScheduleRow {
     status: string;
 }
 
+export interface ScheduleMergeRun { start: number; length: number }
+
+/** Merge hanya baris berurutan di halaman yang sama; sesi tidak melintasi hari. */
+export function getAdministrationScheduleMergeRuns(rows: AdministrationScheduleRow[]) {
+    const runsFor = (key: (row: AdministrationScheduleRow) => string): ScheduleMergeRun[] => {
+        const runs: ScheduleMergeRun[] = [];
+        rows.forEach((row, index) => {
+            if (index && key(rows[index - 1]) === key(row)) runs[runs.length - 1].length++;
+            else runs.push({ start: index, length: 1 });
+        });
+        return runs;
+    };
+    return {
+        dates: runsFor(row => row.date),
+        sessions: runsFor(row => `${row.date}\u0000${row.session}\u0000${row.time}`),
+    };
+}
+
 const statusLabels: Record<string, string> = {
     scheduled: 'Terjadwal', active: 'Aktif', finished: 'Selesai', cancelled: 'Dibatalkan',
 };
@@ -136,29 +154,64 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
         pdf.text('JADWAL PELAKSANAAN UJIAN', center, y, { align: 'center' }); y += 5;
         pdf.setFont('times', 'normal'); pdf.setFontSize(9);
         pdf.text(`${period.name} · Tahun Pelajaran ${period.school_year || '-'} · Semester ${period.semester || '-'}`, center, y, { align: 'center' }); y += 6;
-        pdf.setFillColor(241, 245, 249);
         pdf.setFont('times', 'bold'); pdf.setFontSize(8);
         headers.forEach((header, index) => {
-            pdf.rect(xs[index], y, widths[index], 8, 'FD');
+            pdf.setFillColor(241, 245, 249);
+            pdf.rect(xs[index], y, widths[index], 8, 'F');
+            pdf.setDrawColor(71, 85, 105);
+            pdf.rect(xs[index], y, widths[index], 8, 'S');
+            pdf.setTextColor(15, 23, 42);
             pdf.text(header, xs[index] + widths[index] / 2, y + 5, { align: 'center' });
         });
         y += 8;
     };
 
     drawPageHeader();
-    rows.forEach((row, index) => {
+    type PreparedRow = { row: AdministrationScheduleRow; lines: string[][]; height: number };
+    const prepared = rows.map((row, index): PreparedRow => {
         const values = [String(index + 1), dateLabel(row.date), `${row.session}\n${row.time}`,
             row.exam, row.className, row.room, row.invigilators, row.status];
         pdf.setFont('times', 'normal'); pdf.setFontSize(8);
         const lines = values.map((value, column) => pdf.splitTextToSize(value, widths[column] - 3) as string[]);
         const height = Math.max(8, ...lines.map(item => item.length * 3.6 + 3));
-        if (y + height > 189) { pdf.addPage(); drawPageHeader(); }
-        lines.forEach((item, column) => {
-            pdf.rect(xs[column], y, widths[column], height);
-            pdf.text(item, xs[column] + 1.5, y + 3.8, { lineHeightFactor: 1.16 });
-        });
-        y += height;
+        return { row, lines, height };
     });
+
+    const drawCell = (item: PreparedRow, column: number, cellY: number, height: number) => {
+        pdf.rect(xs[column], cellY, widths[column], height);
+        pdf.text(item.lines[column], xs[column] + 1.5, cellY + 3.8, { lineHeightFactor: 1.16 });
+    };
+    const drawPageRows = (pageRows: PreparedRow[], startY: number) => {
+        pdf.setFont('times', 'normal'); pdf.setFontSize(8); pdf.setTextColor(15, 23, 42);
+        pdf.setDrawColor(71, 85, 105);
+        const positions: number[] = [];
+        let rowY = startY;
+        pageRows.forEach(item => {
+            positions.push(rowY);
+            [0, 3, 4, 5, 6, 7].forEach(column => drawCell(item, column, rowY, item.height));
+            rowY += item.height;
+        });
+        const groups = getAdministrationScheduleMergeRuns(pageRows.map(item => item.row));
+        for (const [column, runs] of [[1, groups.dates], [2, groups.sessions]] as const) {
+            runs.forEach(run => {
+                const height = pageRows.slice(run.start, run.start + run.length).reduce((sum, item) => sum + item.height, 0);
+                drawCell(pageRows[run.start], column, positions[run.start], height);
+            });
+        }
+    };
+    let pageRows: PreparedRow[] = [];
+    let pageStartY = y;
+    prepared.forEach(item => {
+        if (pageRows.length && y + item.height > 189) {
+            drawPageRows(pageRows, pageStartY);
+            pdf.addPage(); drawPageHeader();
+            pageRows = [];
+            pageStartY = y;
+        }
+        pageRows.push(item);
+        y += item.height;
+    });
+    drawPageRows(pageRows, pageStartY);
 
     const pages = pdf.getNumberOfPages();
     for (let page = 1; page <= pages; page++) {

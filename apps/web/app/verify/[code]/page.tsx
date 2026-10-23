@@ -48,23 +48,20 @@ function formatDateTime(iso: string | null | undefined): string {
 
 export default function VerifyPASDocumentPage() {
     const params = useParams();
-    const router = useRouter();
     const rawCode = decodeURIComponent(String(params.code || '')).trim().toUpperCase();
+    return <VerifyPASDocumentContent key={rawCode} rawCode={rawCode} />;
+}
 
+function VerifyPASDocumentContent({ rawCode }: { rawCode: string }) {
+    const router = useRouter();
     const [inputCode, setInputCode] = useState(rawCode);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(Boolean(rawCode));
     const [result, setResult] = useState<PASVerificationResult | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        setInputCode(rawCode);
-        if (!rawCode) {
-            setIsLoading(false);
-            return;
-        }
+        if (!rawCode) return;
         let cancelled = false;
-        setIsLoading(true);
-        setErrorMessage(null);
 
         fetch(`/api/pas/verify/${encodeURIComponent(rawCode)}`, { cache: 'no-store' })
             .then(async (res) => {
@@ -101,36 +98,38 @@ export default function VerifyPASDocumentPage() {
     const isVerified = Boolean(result?.verified && result?.integrity_valid);
 
     return (
-        <div className="min-h-screen bg-slate-50 py-10 px-4">
-            <div className="max-w-2xl mx-auto space-y-5">
+        <div className="relative z-10 isolate min-h-dvh overflow-x-hidden bg-slate-50 px-3 py-4 sm:px-4 sm:py-10">
+            <div className="mx-auto w-full max-w-2xl min-w-0 space-y-4 sm:space-y-5">
                 {/* Search / Switch Verification Code Bar */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-[#3083FF] flex items-center justify-center shrink-0">
                             <ShieldCheck size={18} />
                         </div>
-                        <div>
-                            <h1 className="text-sm font-bold text-slate-900">Portal Verifikasi Keaslian Dokumen PAS</h1>
-                            <p className="text-[11px] text-slate-500">
+                        <div className="min-w-0">
+                            <h1 className="text-sm font-bold text-slate-900">Verifikasi Dokumen Ujian</h1>
+                            <p className="text-[11px] text-slate-500 break-words">
                                 Verifikasi Berita Acara (<code className="font-semibold">BA-PAS-...</code>) & Daftar Hadir (<code className="font-semibold">DH-PAS-...</code>)
                             </p>
                         </div>
                     </div>
 
-                    <form onSubmit={handleSearch} className="flex items-center gap-2">
-                        <div className="relative flex-1 sm:w-52">
+                    <form onSubmit={handleSearch} className="flex min-w-0 w-full items-center gap-2 sm:w-auto">
+                        <div className="relative min-w-0 flex-1 sm:w-52">
                             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
+                                autoCapitalize="characters"
+                                autoComplete="off"
                                 value={inputCode}
                                 onChange={(e) => setInputCode(e.target.value)}
                                 placeholder="BA-PAS-... / DH-PAS-..."
-                                className="w-full h-9 pl-8 pr-3 text-xs font-mono uppercase bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF]"
+                                className="w-full min-w-0 h-10 pl-8 pr-3 text-xs font-mono uppercase bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF]"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="h-9 px-3.5 rounded-xl bg-[#3083FF] hover:bg-blue-600 text-white text-xs font-bold transition-colors shrink-0"
+                            className="h-10 px-3.5 rounded-xl bg-[#3083FF] hover:bg-blue-600 text-white text-xs font-bold transition-colors shrink-0"
                         >
                             Cek
                         </button>
@@ -138,10 +137,10 @@ export default function VerifyPASDocumentPage() {
                 </div>
 
                 {isLoading ? (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center space-y-3">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-16 text-center space-y-3">
                         <Loader2 size={32} className="animate-spin text-[#3083FF] mx-auto" />
                         <p className="text-xs font-medium text-slate-500">
-                            Memeriksa tanda tangan digital & integritas dokumen <strong className="font-mono">{rawCode}</strong>...
+                            Memeriksa tanda tangan digital & integritas dokumen <strong className="font-mono break-all">{rawCode}</strong>...
                         </p>
                     </div>
                 ) : !result || errorMessage ? (
@@ -152,10 +151,10 @@ export default function VerifyPASDocumentPage() {
                         <h2 className="text-base font-bold text-slate-900">Dokumen Tidak Ditemukan / Belum Ditandatangani</h2>
                         <p className="text-xs text-slate-600 max-w-md mx-auto">
                             {errorMessage ||
-                                `Kode verifikasi "${rawCode}" tidak terdaftar dalam basis data administrasi ujian PAS atau belum disimpan oleh Pengawas/Proktor.`}
+                                `Kode verifikasi "${rawCode}" tidak terdaftar dalam administrasi ujian atau belum disimpan oleh Pengawas/Proktor.`}
                         </p>
                         <div className="pt-2">
-                            <span className="inline-block px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono text-xs font-bold">
+                            <span className="inline-block max-w-full break-all px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono text-xs font-bold">
                                 {rawCode || '-'}
                             </span>
                         </div>
@@ -164,7 +163,7 @@ export default function VerifyPASDocumentPage() {
                     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
                         {/* Status Banner */}
                         <div
-                            className={`p-5 border-b flex items-start gap-3.5 ${
+                            className={`p-4 sm:p-5 border-b flex items-start gap-3 ${
                                 isVerified
                                     ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
                                     : 'bg-amber-50 border-amber-200 text-amber-950'
@@ -190,7 +189,7 @@ export default function VerifyPASDocumentPage() {
                                     >
                                         {isVerified ? 'DOKUMEN ASLI & VALID' : 'PERINGATAN INTEGRITAS'}
                                     </span>
-                                    <span className="text-xs font-mono font-bold text-slate-700">
+                                    <span className="max-w-full break-all text-xs font-mono font-bold text-slate-700">
                                         {result.verification_code}
                                     </span>
                                 </div>
@@ -206,7 +205,7 @@ export default function VerifyPASDocumentPage() {
                         </div>
 
                         {/* Document Details */}
-                        <div className="p-5 space-y-5 text-xs">
+                        <div className="p-4 sm:p-5 space-y-5 text-xs">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
                                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
@@ -227,8 +226,8 @@ export default function VerifyPASDocumentPage() {
                                     <div className="font-bold text-slate-900 text-sm">
                                         {result.room?.name} — {result.session?.name}
                                     </div>
-                                    <div className="text-slate-600 flex items-center gap-1.5">
-                                        <Clock size={11} className="text-slate-400" />
+                                    <div className="text-slate-600 flex items-start gap-1.5">
+                                        <Clock size={11} className="mt-0.5 shrink-0 text-slate-400" />
                                         {result.session?.start_time?.substring(0, 5)} -{' '}
                                         {result.session?.end_time?.substring(0, 5)} · {formatLongDate(result.exam_date)}
                                     </div>
@@ -241,8 +240,8 @@ export default function VerifyPASDocumentPage() {
                                     <Users size={13} className="text-[#3083FF]" />
                                     Rekapitulasi Kehadiran Peserta Tercatat
                                 </div>
-                                <div className="grid grid-cols-5 gap-2 text-center">
-                                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                                <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
+                                    <div className="col-span-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 sm:col-span-1">
                                         <div className="text-[10px] font-semibold text-slate-500">Terdaftar</div>
                                         <div className="text-base font-bold text-slate-900 mt-0.5">
                                             {result.counts?.total ?? 0}
@@ -282,12 +281,12 @@ export default function VerifyPASDocumentPage() {
                                     Pejabat Penandatangan Dokumen
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-start justify-between gap-2">
-                                        <div>
+                                    <div className="min-w-0 p-3.5 rounded-xl border border-slate-200 bg-white flex flex-wrap items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
                                             <div className="text-[10px] font-bold uppercase text-slate-400">
                                                 Pengawas Ruang Ujian
                                             </div>
-                                            <div className="font-bold text-slate-900 text-sm mt-0.5">
+                                            <div className="font-bold text-slate-900 text-sm mt-0.5 break-words">
                                                 {result.invigilator_name || '-'}
                                             </div>
                                             <div className="text-[11px] text-slate-500">
@@ -299,8 +298,8 @@ export default function VerifyPASDocumentPage() {
                                         </span>
                                     </div>
 
-                                    <div className="p-3.5 rounded-xl border border-slate-200 bg-white flex items-start justify-between gap-2">
-                                        <div>
+                                    <div className="min-w-0 p-3.5 rounded-xl border border-slate-200 bg-white flex flex-wrap items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
                                             <div className="text-[10px] font-bold uppercase text-slate-400">
                                                 Proktor
                                             </div>
@@ -342,7 +341,7 @@ export default function VerifyPASDocumentPage() {
                                 {result.paired_codes && (
                                     <div className="pt-1 flex items-center justify-between text-[11px] text-slate-300 flex-wrap gap-2">
                                         <span>Dokumen Pasangan pada Ruang & Sesi ini:</span>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex min-w-0 w-full flex-col gap-2 sm:w-auto sm:flex-row">
                                             <button
                                                 type="button"
                                                 onClick={() =>
@@ -350,7 +349,7 @@ export default function VerifyPASDocumentPage() {
                                                         `/verify/${encodeURIComponent(result.paired_codes!.berita_acara)}`,
                                                     )
                                                 }
-                                                className={`px-2.5 py-1 rounded-md font-mono text-[11px] transition-colors ${
+                                                className={`max-w-full break-all px-2.5 py-1 rounded-md font-mono text-[11px] transition-colors ${
                                                     result.verification_code === result.paired_codes.berita_acara
                                                         ? 'bg-blue-600 text-white font-bold'
                                                         : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -365,7 +364,7 @@ export default function VerifyPASDocumentPage() {
                                                         `/verify/${encodeURIComponent(result.paired_codes!.daftar_hadir)}`,
                                                     )
                                                 }
-                                                className={`px-2.5 py-1 rounded-md font-mono text-[11px] transition-colors ${
+                                                className={`max-w-full break-all px-2.5 py-1 rounded-md font-mono text-[11px] transition-colors ${
                                                     result.verification_code === result.paired_codes.daftar_hadir
                                                         ? 'bg-blue-600 text-white font-bold'
                                                         : 'bg-slate-800 text-slate-300 hover:bg-slate-700'

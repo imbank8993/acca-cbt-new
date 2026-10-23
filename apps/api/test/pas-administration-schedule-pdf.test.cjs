@@ -5,7 +5,7 @@ const path = require('node:path');
 require('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' } });
 require('tsconfig-paths').register({ baseUrl: path.resolve(__dirname, '../../web'), paths: { '@/*': ['./*'] } });
 
-const { buildAdministrationScheduleRows } = require('../../web/lib/pas/administration-schedule-pdf.ts');
+const { buildAdministrationScheduleRows, getAdministrationScheduleMergeRuns } = require('../../web/lib/pas/administration-schedule-pdf.ts');
 
 test('jadwal PDF memuat setiap ruang dan semua pengawas sesuai tanggal, termasuk jadwal yang belum ditempatkan', () => {
     const rooms = [
@@ -31,4 +31,17 @@ test('jadwal PDF memuat setiap ruang dan semua pengawas sesuai tanggal, termasuk
     assert.doesNotMatch(rows[1].invigilators, /Hari Lain/);
     assert.match(rows[1].exam, /Biologi\nPaket 1/);
     assert.equal(rows[2].invigilators, 'Belum ditugaskan');
+});
+
+test('jadwal menggabungkan tanggal dan sesi berulang tanpa mencampur sesi atau tanggal lain', () => {
+    const rows = [
+        { date: '2026-10-06', session: 'Sesi 1', time: '07:30–09:30' },
+        { date: '2026-10-06', session: 'Sesi 1', time: '07:30–09:30' },
+        { date: '2026-10-06', session: 'Sesi 2', time: '10:00–12:00' },
+        { date: '2026-10-07', session: 'Sesi 1', time: '07:30–09:30' },
+    ];
+    assert.deepEqual(getAdministrationScheduleMergeRuns(rows), {
+        dates: [{ start: 0, length: 3 }, { start: 3, length: 1 }],
+        sessions: [{ start: 0, length: 2 }, { start: 2, length: 1 }, { start: 3, length: 1 }],
+    });
 });
