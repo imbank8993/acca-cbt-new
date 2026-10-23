@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from './chunk';
 import { isPasMonitoringExam } from './pas-monitoring-access';
+import { pasDate } from './pas-period-policy';
 
 export interface PasParticipantLocation {
     status: 'assigned' | 'unassigned' | 'unavailable';
@@ -39,10 +40,12 @@ export async function loadPasParticipantLocations(db: DbService, exam: {
     // A failed placement read must not hide the monitoring roster or imply that no room was assigned.
     try {
         const schedules = await read(db.from('cbt_pas_class_schedules')
-            .select('pas_period_id, session_id').eq('exam_id', exam.id));
-        const contexts = [...new Map(schedules.map(row => [`${row.pas_period_id}:${row.session_id}`, row])).values()];
-        if (contexts.length !== 1 || !contexts[0].pas_period_id || !contexts[0].session_id || !exam.organization_id) return locations;
+            .select('pas_period_id, session_id, scheduled_date').eq('exam_id', exam.id));
+        const contexts = [...new Map(schedules.map(row => [`${row.pas_period_id}:${row.session_id}:${row.scheduled_date}`, row])).values()];
+        if (contexts.length !== 1 || !contexts[0].pas_period_id || !contexts[0].session_id || !contexts[0].scheduled_date || !exam.organization_id) return locations;
         const { pas_period_id: periodId, session_id: sessionId } = contexts[0];
+        // Pengawas bergilir per hari: ambil yang bertugas pada tanggal ujian ini.
+        const examDate = pasDate(contexts[0].scheduled_date);
         const periods = await read(db.from('cbt_pas_periods').select('id').eq('id', periodId).eq('organization_id', exam.organization_id));
         if (!periods.length) return locations;
         const [sessions, rooms, allocations] = await Promise.all([
@@ -55,7 +58,7 @@ export async function loadPasParticipantLocations(db: DbService, exam: {
         const relevantRooms = [...new Set<string>(allocations.map(row => row.pas_room_id).filter(id => roomById.has(id)))];
         const assignments: any[] = [];
         for (const batch of chunk(relevantRooms, 300)) assignments.push(...await read(db.from('cbt_pas_room_invigilators')
-            .select('pas_room_id, user_id').in('pas_room_id', batch).eq('session_id', sessionId)));
+            .select('pas_room_id, user_id').in('pas_room_id', batch).eq('session_id', sessionId).eq('exam_date', examDate)));
         const profiles = await readIds('cbt_profiles', 'id, full_name', 'id', assignments.map(row => row.user_id));
         const names = new Map(profiles.map(profile => [profile.id, profile.full_name || null]));
         const allocationByStudent = new Map<string, any[]>();

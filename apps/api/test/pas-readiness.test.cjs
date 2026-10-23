@@ -17,7 +17,7 @@ function fixture(failed = []) {
   cbt_pas_sessions: [{ id: 's', pas_period_id: 'p', start_time: '07:30', end_time: '09:30' }],
   cbt_pas_rooms: [{ id: 'r1', pas_period_id: 'p', name: 'Lab', capacity: 2 }, { id: 'r2', pas_period_id: 'p', name: 'Ruang 2', capacity: 2 }],
   cbt_pas_room_students: [{ user_id: 'u1', pas_period_id: 'p', pas_room_id: 'r1' }, { user_id: 'u2', pas_period_id: 'p', pas_room_id: 'r2' }],
-  cbt_pas_room_invigilators: [{ user_id: 'g1', pas_room_id: 'r1', session_id: 's' }, { user_id: 'g2', pas_room_id: 'r2', session_id: 's' }],
+  cbt_pas_room_invigilators: [{ user_id: 'g1', pas_room_id: 'r1', session_id: 's', exam_date: '2026-10-11' }, { user_id: 'g2', pas_room_id: 'r2', session_id: 's', exam_date: '2026-10-11' }],
   cbt_exams: [{ id: 'e', organization_id: 'school', question_bank_id: 'b', is_published: true, status: 'scheduled' }],
   cbt_exam_targets: [{ exam_id: 'e', class_id: 'c' }],
  }, failed);
@@ -31,11 +31,11 @@ test('PAS readiness requires complete assignments in every actual room, not just
  f.db.tables.cbt_pas_room_invigilators = [];
  let result = await f.read();
  assert.equal(result.ready, false);
- assert.deepEqual(result.issues, ['Pengawas Lab belum diatur pada sesi ini', 'Pengawas Ruang 2 belum diatur pada sesi ini']);
- f.db.tables.cbt_pas_room_invigilators = [{ user_id: 'g', pas_room_id: 'r1', session_id: 'other' }];
+ assert.deepEqual(result.issues, ['Pengawas Lab belum diatur pada tanggal dan sesi ini', 'Pengawas Ruang 2 belum diatur pada tanggal dan sesi ini']);
+ f.db.tables.cbt_pas_room_invigilators = [{ user_id: 'g', pas_room_id: 'r1', session_id: 'other', exam_date: '2026-10-11' }];
  assert.equal((await f.read()).ready, false);
- f.db.tables.cbt_pas_room_invigilators = [{ user_id: 'g', pas_room_id: 'r1', session_id: 's' }];
- result = await f.read(); assert.deepEqual(result.issues, ['Pengawas Ruang 2 belum diatur pada sesi ini']);
+ f.db.tables.cbt_pas_room_invigilators = [{ user_id: 'g', pas_room_id: 'r1', session_id: 's', exam_date: '2026-10-11' }];
+ result = await f.read(); assert.deepEqual(result.issues, ['Pengawas Ruang 2 belum diatur pada tanggal dan sesi ini']);
 });
 
 for (const [name, change, pattern] of [
@@ -87,7 +87,7 @@ test('PAS period returns computed readiness; frontend uses it consistently for r
   assert.match(page, /schedules\.filter\(isPASScheduleReady\)/);
   assert.match(page, /statusFilter === 'ready' && !isPASScheduleReady\(sc\)/);
   assert.match(page, /<PASScheduleStatus schedule=\{sc\}/);
-  const modal = fs.readFileSync(path.resolve(__dirname, `../../web/app/dashboard/${role}/pas/RoomManagementModal.tsx`), 'utf8');
+  const modal = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
   assert.match(modal, /<PASScheduleStatus schedule=\{sc\}/);
  }
 });
@@ -250,4 +250,14 @@ test('schedule room column shows actual rooms and session supervisors instead of
   assert.doesNotMatch(page, /<th[^>]*>Kelas<\/th>/);
   assert.match(page, /<PASScheduleRooms schedule=\{sc\}/);
  }
+});
+
+test('pengawas bergilir: kesiapan memeriksa pengawas pada tanggal jadwal, bukan hari lain', async () => {
+ const f = fixture();
+ for (const row of f.db.tables.cbt_pas_room_invigilators) row.exam_date = '2026-10-10';
+ const result = await f.read();
+ assert.equal(result.ready, false);
+ assert.deepEqual(result.issues, ['Pengawas Lab belum diatur pada tanggal dan sesi ini', 'Pengawas Ruang 2 belum diatur pada tanggal dan sesi ini']);
+ for (const row of f.db.tables.cbt_pas_room_invigilators) row.exam_date = new Date('2026-10-11T00:00:00Z');
+ assert.equal((await f.read()).ready, true);
 });

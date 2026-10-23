@@ -11,7 +11,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { insertIdempotently } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
-import { writablePasPeriod } from '../common/pas-period-policy';
+import { pasDate, writablePasPeriod } from '../common/pas-period-policy';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
@@ -50,7 +50,7 @@ export class PasRoomsService {
             .from('cbt_pas_rooms')
             .select(
                 `id, name, capacity,
-                 pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, profiles:cbt_profiles!user_id(full_name)),
+                 pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, exam_date, profiles:cbt_profiles!user_id(full_name)),
                  pas_room_students:cbt_pas_room_students!cbt_pas_room_students_pas_room_id_fkey(user_id, profiles:cbt_profiles!user_id(full_name))`,
             )
             .eq('pas_period_id', periodId)
@@ -104,15 +104,18 @@ export class PasRoomsService {
     }
 
     /**
-     * Ganti seluruh daftar pengawas satu ruang.
+     * Ganti seluruh daftar pengawas satu ruang pada satu sesi dan TANGGAL.
      *
-     * Bersifat mengganti, bukan menambah: layar penugasan mengirim keadaan akhir
-     * yang diinginkan, jadi daftar lama dikosongkan lebih dulu. Daftar kosong
-     * berarti ruang itu memang tidak punya pengawas.
+     * Pengawas bergilir setiap hari, jadi penugasan disimpan per ruang × sesi ×
+     * tanggal (sama dengan berita acara). Bersifat mengganti: layar penugasan
+     * mengirim keadaan akhir yang diinginkan. Daftar kosong berarti ruang itu
+     * memang tidak punya pengawas pada slot tersebut. Satu orang tidak boleh
+     * bertugas di dua ruang pada tanggal & sesi yang sama.
      */
-    async assignInvigilators(user: AuthUser, roomId: string, userIds: string[], sessionId: string) {
+    async assignInvigilators(user: AuthUser, roomId: string, userIds: string[], sessionId: string, examDate: string) {
         await this.assertRoomAccess(user, roomId);
         if (!sessionId) throw new BadRequestException('Pilih sesi ujian terlebih dahulu.');
+        const date = pasDate(examDate);
         const uniqueUserIds = [...new Set(userIds)];
 
         return this.db.transaction(async (db) => {
@@ -122,46 +125,138 @@ export class PasRoomsService {
                 .eq('id', roomId)
                 .maybeSingle();
             if (!room) throw new NotFoundException('Ruang ujian tidak ditemukan.');
-            await writablePasPeriod(db, room.pas_period_id);
+            const periodId = (room as { pas_period_id: string }).pas_period_id;
+            const period = await writablePasPeriod(db, periodId);
+            this.assertDateInPeriod(period, date);
+            // Kunci seluruh slot tanggal+sesi agar cek bentrok antar-ruang konsisten;
+            // kunci per ruang tetap dipakai aktivasi jadwal.
+            await advisoryTransactionLock(db, `pas-invigilator-slot:${periodId}:${sessionId}:${date}`);
             await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${sessionId}`);
 
             const { data: session, error: sessionError } = await db.from('cbt_pas_sessions')
-                .select('id').eq('id', sessionId).eq('pas_period_id', room.pas_period_id).maybeSingle();
+                .select('id').eq('id', sessionId).eq('pas_period_id', periodId).maybeSingle();
             if (sessionError) throw new BadRequestException('Sesi ujian belum dapat diperiksa.');
             if (!session) throw new BadRequestException('Sesi ujian harus berasal dari periode ruang yang sama.');
 
-            const { data: period } = await db
-                .from('cbt_pas_periods')
-                .select('organization_id')
-                .eq('id', (room as { pas_period_id: string }).pas_period_id)
-                .maybeSingle();
-            if (!period) throw new NotFoundException('Periode ujian tidak ditemukan.');
-
             await this.assertOrganizationUsers(
                 db,
-                (period as { organization_id: string }).organization_id,
+                period.organization_id as string,
                 uniqueUserIds,
                 ['Guru', 'Pengawas', 'Proktor', 'Admin'],
                 'Pengawas',
             );
+            await this.assertNoInvigilatorClash(db, periodId, roomId, sessionId, date, uniqueUserIds);
 
             const { error: deleteError } = await db
                 .from('cbt_pas_room_invigilators')
                 .delete()
-                .eq('pas_room_id', roomId).eq('session_id', sessionId);
+                .eq('pas_room_id', roomId).eq('session_id', sessionId).eq('exam_date', date);
             if (deleteError) {
-                throw new BadRequestException(`Gagal mengganti pengawas: ${deleteError.message}`);
+                this.logger.error(`Gagal mengganti pengawas ruang ${roomId}: ${deleteError.message}`);
+                throw new BadRequestException('Gagal mengganti pengawas. Silakan coba lagi.');
             }
 
             if (uniqueUserIds.length > 0) {
                 const { error } = await db.from('cbt_pas_room_invigilators').insert(
-                    uniqueUserIds.map((userId) => ({ pas_room_id: roomId, session_id: sessionId, user_id: userId })),
+                    uniqueUserIds.map((userId) => ({ pas_room_id: roomId, session_id: sessionId, exam_date: date, user_id: userId })),
                 );
-                if (error) throw new BadRequestException(`Gagal menyimpan pengawas: ${error.message}`);
+                if (error) {
+                    this.logger.error(`Gagal menyimpan pengawas ruang ${roomId}: ${error.message}`);
+                    throw new BadRequestException('Gagal menyimpan pengawas. Silakan coba lagi.');
+                }
             }
 
-            return { roomId, sessionId, assigned: uniqueUserIds.length };
+            return { roomId, sessionId, examDate: date, assigned: uniqueUserIds.length };
         });
+    }
+
+    /**
+     * Salin seluruh penugasan pengawas (semua ruang & sesi) dari satu tanggal ke
+     * tanggal lain dalam folder yang sama. Penugasan tanggal tujuan diganti
+     * seluruhnya; setelah itu proktor tinggal menukar orang yang bergilir.
+     */
+    async copyInvigilators(user: AuthUser, periodId: string, fromDate: string, toDate: string) {
+        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        const source = pasDate(fromDate);
+        const target = pasDate(toDate);
+        if (source === target) throw new BadRequestException('Tanggal sumber dan tujuan tidak boleh sama.');
+
+        return this.db.transaction(async (db) => {
+            const period = await writablePasPeriod(db, periodId);
+            this.assertDateInPeriod(period, source);
+            this.assertDateInPeriod(period, target);
+
+            const { data: rooms, error: roomError } = await db.from('cbt_pas_rooms').select('id').eq('pas_period_id', periodId);
+            if (roomError) throw new BadRequestException('Daftar ruang belum dapat diperiksa.');
+            const roomIds = ((rooms as Array<{ id: string }>) || []).map(room => room.id).sort();
+            if (!roomIds.length) return { fromDate: source, toDate: target, copied: 0 };
+
+            const { data: sessions, error: sessionError } = await db.from('cbt_pas_sessions').select('id').eq('pas_period_id', periodId);
+            if (sessionError) throw new BadRequestException('Daftar sesi belum dapat diperiksa.');
+            for (const sessionId of ((sessions as Array<{ id: string }>) || []).map(row => row.id).sort()) {
+                await advisoryTransactionLock(db, `pas-invigilator-slot:${periodId}:${sessionId}:${target}`);
+            }
+            for (const roomId of roomIds) {
+                for (const sessionId of ((sessions as Array<{ id: string }>) || []).map(row => row.id).sort()) {
+                    await advisoryTransactionLock(db, `pas-room-invigilators:${roomId}:${sessionId}`);
+                }
+            }
+
+            const { data: sourceRows, error: readError } = await db.from('cbt_pas_room_invigilators')
+                .select('pas_room_id, session_id, user_id').in('pas_room_id', roomIds).eq('exam_date', source);
+            if (readError) throw new BadRequestException('Pengawas tanggal sumber belum dapat dibaca.');
+            const rows = ((sourceRows as Array<{ pas_room_id: string; session_id: string | null; user_id: string }>) || [])
+                .filter(row => row.session_id);
+
+            const { error: deleteError } = await db.from('cbt_pas_room_invigilators')
+                .delete().in('pas_room_id', roomIds).eq('exam_date', target);
+            if (deleteError) {
+                this.logger.error(`Gagal mengosongkan pengawas ${target}: ${deleteError.message}`);
+                throw new BadRequestException('Gagal menyalin pengawas. Silakan coba lagi.');
+            }
+            if (rows.length) {
+                const { error } = await db.from('cbt_pas_room_invigilators').insert(
+                    rows.map(row => ({ pas_room_id: row.pas_room_id, session_id: row.session_id, exam_date: target, user_id: row.user_id })),
+                );
+                if (error) {
+                    this.logger.error(`Gagal menyalin pengawas ke ${target}: ${error.message}`);
+                    throw new BadRequestException('Gagal menyalin pengawas. Silakan coba lagi.');
+                }
+            }
+            return { fromDate: source, toDate: target, copied: rows.length };
+        });
+    }
+
+    /** Tanggal tugas harus berada di dalam rentang folder (bila rentangnya diisi). */
+    private assertDateInPeriod(period: Record<string, any>, date: string) {
+        if (!period.start_date || !period.end_date) return;
+        const start = pasDate(period.start_date), end = pasDate(period.end_date);
+        if (date < start || date > end) {
+            throw new BadRequestException(`Tanggal bertugas harus di antara ${start} dan ${end}.`);
+        }
+    }
+
+    /** Satu orang hanya boleh mengawasi satu ruang pada tanggal & sesi yang sama. */
+    private async assertNoInvigilatorClash(
+        db: DbSession, periodId: string, roomId: string, sessionId: string, date: string, userIds: string[],
+    ) {
+        if (!userIds.length) return;
+        const { data: rooms, error: roomError } = await db.from('cbt_pas_rooms').select('id, name').eq('pas_period_id', periodId);
+        if (roomError) throw new BadRequestException('Daftar ruang belum dapat diperiksa.');
+        const otherRooms = ((rooms as Array<{ id: string; name: string }>) || []).filter(room => room.id !== roomId);
+        if (!otherRooms.length) return;
+        const { data: clashes, error } = await db.from('cbt_pas_room_invigilators')
+            .select('pas_room_id, user_id')
+            .in('pas_room_id', otherRooms.map(room => room.id))
+            .eq('session_id', sessionId).eq('exam_date', date)
+            .in('user_id', userIds);
+        if (error) throw new BadRequestException('Jadwal pengawas belum dapat diperiksa.');
+        const clash = ((clashes as Array<{ pas_room_id: string; user_id: string }>) || [])[0];
+        if (!clash) return;
+        const { data: profile } = await db.from('cbt_profiles').select('full_name').eq('id', clash.user_id).maybeSingle();
+        const roomName = otherRooms.find(room => room.id === clash.pas_room_id)?.name || 'ruang lain';
+        const name = (profile as { full_name?: string } | null)?.full_name || 'Pengawas yang dipilih';
+        throw new ConflictException(`${name} sudah bertugas di ${roomName} pada tanggal dan sesi yang sama.`);
     }
 
     /**

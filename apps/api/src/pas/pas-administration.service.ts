@@ -119,6 +119,7 @@ export class PasAdministrationService {
         periodId: string,
         roomId: string,
         sessionId: string,
+        examDate?: string,
     ) {
         const [{ data: period }, { data: room }, { data: session }] = await Promise.all([
             this.db.from('cbt_pas_periods').select('*').eq('id', periodId).maybeSingle(),
@@ -138,18 +139,25 @@ export class PasAdministrationService {
         await this.authz.assertOrgMonitoring(user, organizationId);
 
         const isManager = await this.isProktorOrAdmin(user, organizationId);
+        // Pengawas bergilir per hari: pengawas hanya boleh membuka slot pada
+        // tanggal ia bertugas. Proktor/Admin melihat semua tanggal (null).
+        let assignedDates: string[] | null = null;
         if (!isManager) {
-            const { data: assignment } = await this.db
+            const { data: assignments, error: assignmentError } = await this.db
                 .from('cbt_pas_room_invigilators')
-                .select('id')
+                .select('exam_date')
                 .eq('pas_room_id', roomId)
                 .eq('session_id', sessionId)
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (!assignment) {
+                .eq('user_id', user.id);
+            if (assignmentError) throw new BadRequestException('Penugasan pengawas belum dapat diperiksa.');
+            assignedDates = [...new Set(((assignments as Array<{ exam_date?: unknown }>) || [])
+                .map((row) => cleanDateString(row.exam_date)).filter(Boolean))].sort();
+            const requested = examDate ? cleanDateString(examDate) : '';
+            if (!assignedDates.length || (requested && !assignedDates.includes(requested))) {
                 throw new ForbiddenException(
-                    'Anda tidak ditugaskan sebagai pengawas pada ruang dan sesi ujian ini.',
+                    requested
+                        ? 'Anda tidak ditugaskan sebagai pengawas pada ruang, sesi, dan tanggal ujian ini.'
+                        : 'Anda tidak ditugaskan sebagai pengawas pada ruang dan sesi ujian ini.',
                 );
             }
         }
@@ -164,6 +172,7 @@ export class PasAdministrationService {
             } as Record<string, any>,
             organizationId,
             isManager,
+            assignedDates,
         };
     }
 
@@ -191,7 +200,7 @@ export class PasAdministrationService {
                 .from('cbt_pas_rooms')
                 .select(
                     `id, pas_period_id, name, capacity,
-                     pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, profiles:cbt_profiles!user_id(full_name)),
+                     pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, exam_date, profiles:cbt_profiles!user_id(full_name)),
                      pas_room_students:cbt_pas_room_students!cbt_pas_room_students_pas_room_id_fkey(user_id)`,
                 )
                 .in('pas_period_id', periodIds)
@@ -229,9 +238,13 @@ export class PasAdministrationService {
             for (const room of pRooms) {
                 for (const session of pSessions) {
                     const invigilators = ((room.pas_room_invigilators as any[]) || []).filter(
-                        (inv) => inv.session_id === session.id,
+                        (inv) => inv.session_id === session.id && cleanDateString(inv.exam_date),
                     );
-                    const isAssignedToMe = invigilators.some((inv) => inv.user_id === user.id);
+                    // Pengawas bergilir per hari: tanggal tugas milik user ini.
+                    const myDates = [...new Set(invigilators
+                        .filter((inv) => inv.user_id === user.id)
+                        .map((inv) => cleanDateString(inv.exam_date)))].sort();
+                    const isAssignedToMe = myDates.length > 0;
 
                     if (!isManager && !isAssignedToMe) continue;
 
@@ -244,7 +257,19 @@ export class PasAdministrationService {
                                 .map((sc) => cleanDateString(sc.scheduled_date))
                                 .filter(Boolean),
                         ),
-                    ].sort();
+                    ].sort()
+                        // Pengawas hanya melihat hari tugasnya; proktor/admin semua hari.
+                        .filter((date) => isManager || myDates.includes(date));
+                    if (!isManager && !scheduledDates.length) continue;
+
+                    const invigilatorsByDate: Record<string, Array<{ user_id: string; full_name: string }>> = {};
+                    for (const inv of invigilators) {
+                        const date = cleanDateString(inv.exam_date);
+                        (invigilatorsByDate[date] ||= []).push({
+                            user_id: inv.user_id,
+                            full_name: inv.profiles?.full_name || 'Pengawas',
+                        });
+                    }
 
                     const slotReports = reportList.filter(
                         (rep) =>
@@ -278,10 +303,14 @@ export class PasAdministrationService {
                             start_time: session.start_time,
                             end_time: session.end_time,
                         },
-                        invigilators: invigilators.map((inv) => ({
+                        // Gabungan pengawas seluruh hari (kompatibilitas); gunakan
+                        // invigilators_by_date untuk pengawas pada tanggal tertentu.
+                        invigilators: [...new Map(invigilators.map((inv) => [inv.user_id, {
                             user_id: inv.user_id,
                             full_name: inv.profiles?.full_name || 'Pengawas',
-                        })),
+                        }])).values()],
+                        invigilators_by_date: invigilatorsByDate,
+                        my_dates: myDates,
                         is_assigned_to_me: isAssignedToMe,
                         scheduled_dates: scheduledDates,
                         saved_reports: slotReports.map((r) => ({
@@ -309,11 +338,12 @@ export class PasAdministrationService {
         params: { periodId: string; roomId: string; sessionId: string; examDate?: string },
         live = false,
     ) {
-        const { period, room, session, organizationId } = await this.assertSlotAccess(
+        const { period, room, session, organizationId, assignedDates } = await this.assertSlotAccess(
             user,
             params.periodId,
             params.roomId,
             params.sessionId,
+            params.examDate,
         );
 
         const [
@@ -346,7 +376,7 @@ export class PasAdministrationService {
                 : Promise.resolve({ data: null }),
             this.db
                 .from('cbt_pas_room_invigilators')
-                .select('user_id, session_id, profiles:cbt_profiles!user_id(id, full_name, identity_number)')
+                .select('user_id, session_id, exam_date, profiles:cbt_profiles!user_id(id, full_name, identity_number)')
                 .eq('pas_room_id', room.id)
                 .eq('session_id', session.id),
             this.db
@@ -443,13 +473,16 @@ export class PasAdministrationService {
         const relevantSessionSchedules =
             roomScopedSchedules.length > 0 ? roomScopedSchedules : allSessionSchedules;
 
-        const availableDates = [
+        const scheduleDates = [
             ...new Set(
                 relevantSessionSchedules
                     .map((sc) => cleanDateString(sc.scheduled_date))
                     .filter(Boolean),
             ),
         ].sort();
+        // Pengawas hanya bisa memilih hari tugasnya sendiri.
+        const myScheduleDates = assignedDates ? scheduleDates.filter((date) => assignedDates.includes(date)) : scheduleDates;
+        const availableDates = assignedDates && !myScheduleDates.length ? assignedDates : myScheduleDates;
 
         const effectiveDate = cleanDateString(
             params.examDate || availableDates[0] || period.start_date || new Date().toISOString().slice(0, 10),
@@ -562,7 +595,10 @@ export class PasAdministrationService {
             alpha: students.filter((s) => s.status === 'alpha').length,
         };
 
-        const invigilators = ((invigilatorRows as any[]) || []).map((inv) => {
+        // Pengawas bergilir per hari: hanya yang bertugas pada tanggal slot ini.
+        const invigilators = ((invigilatorRows as any[]) || [])
+            .filter((inv) => cleanDateString(inv.exam_date) === effectiveDate)
+            .map((inv) => {
             const prof = inv.profiles || profileById.get(inv.user_id as string) || {};
             return {
                 user_id: inv.user_id as string,
@@ -743,6 +779,7 @@ export class PasAdministrationService {
             dto.pas_period_id,
             dto.pas_room_id,
             dto.session_id,
+            examDate,
         );
 
         const liveSlot = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate }, true);
@@ -1033,6 +1070,7 @@ export class PasAdministrationService {
             dto.pas_period_id,
             dto.pas_room_id,
             dto.session_id,
+            examDate,
         );
 
         await this.authz.assertProktor(user, organizationId);
@@ -1074,7 +1112,7 @@ export class PasAdministrationService {
 
     async rejectAdministrationSlot(user: AuthUser, dto: RejectPASAdministrationDto) {
         const examDate = pasDate(dto.exam_date);
-        const { period, room, session, organizationId } = await this.assertSlotAccess(user, dto.pas_period_id, dto.pas_room_id, dto.session_id);
+        const { period, room, session, organizationId } = await this.assertSlotAccess(user, dto.pas_period_id, dto.pas_room_id, dto.session_id, examDate);
         await this.authz.assertProktor(user, organizationId);
         await this.db.transaction(async db => {
             await writablePasPeriod(db, period.id);
@@ -1115,7 +1153,7 @@ export class PasAdministrationService {
                 .from('cbt_pas_rooms')
                 .select(
                     `id, name, capacity,
-                     pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, profiles:cbt_profiles!user_id(full_name)),
+                     pas_room_invigilators:cbt_pas_room_invigilators!pas_room_id(user_id, session_id, exam_date, profiles:cbt_profiles!user_id(full_name)),
                      pas_room_students:cbt_pas_room_students!cbt_pas_room_students_pas_room_id_fkey(user_id)`,
                 )
                 .eq('pas_period_id', periodId)
@@ -1171,7 +1209,7 @@ export class PasAdministrationService {
 
                 for (const room of roomList) {
                     const invigilators = ((room.pas_room_invigilators as any[]) || [])
-                        .filter((inv) => inv.session_id === session.id)
+                        .filter((inv) => inv.session_id === session.id && cleanDateString(inv.exam_date) === date)
                         .map((inv) => inv.profiles?.full_name || 'Pengawas')
                         .filter(Boolean);
 

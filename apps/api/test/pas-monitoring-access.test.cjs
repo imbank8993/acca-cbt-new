@@ -12,10 +12,10 @@ const { ProctoringService } = require('../src/proctoring/proctoring.service.ts')
 const { sortMonitoringExams, isMonitoringExamActive, monitoringExamLabel } = require('../../web/lib/monitoring-exams.ts');
 function fixture() {
  return fixtureDb({
-  cbt_pas_room_invigilators: [{user_id:'teacher',pas_room_id:'r1',session_id:'s1'}, {user_id:'teacher',pas_room_id:'r2',session_id:'s2'}],
+  cbt_pas_room_invigilators: [{user_id:'teacher',pas_room_id:'r1',session_id:'s1', exam_date: '2026-10-20' }, {user_id:'teacher',pas_room_id:'r2',session_id:'s2', exam_date: '2026-10-20' }],
   cbt_pas_rooms:[{id:'r1',name:'Ruang A',pas_period_id:'p1'},{id:'r2',name:'Ruang B',pas_period_id:'p2'}],
   cbt_pas_periods:[{id:'p1',organization_id:'school'},{id:'p2',organization_id:'other'}],
-  cbt_pas_class_schedules:[{pas_period_id:'p1',session_id:'s1',room:'Ruang A',exam_id:'e1'},{pas_period_id:'p2',session_id:'s2',room:'Ruang B',exam_id:'e2'}, {pas_period_id:'p1',session_id:'s2',room:'Ruang A',exam_id:'wrong-session'}, {pas_period_id:'p1',session_id:'s1',room:'Ruang B',exam_id:'wrong-room'}],
+  cbt_pas_class_schedules:[{pas_period_id:'p1',session_id:'s1',room:'Ruang A',exam_id:'e1', scheduled_date: '2026-10-20' },{pas_period_id:'p2',session_id:'s2',room:'Ruang B',exam_id:'e2', scheduled_date: '2026-10-20' }, {pas_period_id:'p1',session_id:'s2',room:'Ruang A',exam_id:'wrong-session', scheduled_date: '2026-10-20' }, {pas_period_id:'p1',session_id:'s1',room:'Ruang B',exam_id:'wrong-room', scheduled_date: '2026-10-20' }],
   cbt_exams:[{id:'e1',organization_id:'school',created_by:'admin',exam_type:'pas'}, {id:'e3',organization_id:'school',created_by:'admin',exam_type:'pas'}],
  });
 }
@@ -35,7 +35,7 @@ test('assigned PAS exams are school scoped and assignment removal revokes access
 test('monitoring permission requires the assigned room and session; legacy unscoped assignments grant nothing', async () => {
  const db = fixture();
  assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), ['e1']);
- db.tables.cbt_pas_room_invigilators.push({ user_id: 'teacher', pas_room_id: 'r1', session_id: 's2' });
+ db.tables.cbt_pas_room_invigilators.push({ user_id: 'teacher', pas_room_id: 'r1', session_id: 's2', exam_date: '2026-10-20' });
  assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), ['e1', 'wrong-session']);
  db.tables.cbt_pas_room_invigilators = [{ user_id: 'teacher', pas_room_id: 'r1', session_id: null }];
  assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), []);
@@ -70,10 +70,10 @@ function roomFixture(failedTables = []) {
   cbt_question_banks: [{ id: 'bank', organization_id: 'school', created_by: 'author' }],
   cbt_pas_periods: [{ id: 'p1', organization_id: 'school' }],
   cbt_pas_rooms: [{ id: 'r1', name: 'Ruang 1', pas_period_id: 'p1' }, { id: 'r2', name: 'Ruang 2', pas_period_id: 'p1' }],
-  cbt_pas_room_invigilators: [{ user_id: 'guard', pas_room_id: 'r1', session_id: 's1' }],
+  cbt_pas_room_invigilators: [{ user_id: 'guard', pas_room_id: 'r1', session_id: 's1', exam_date: '2026-10-20' }],
   cbt_pas_room_students: ['u1', 'u2', 'u3', 'u4', 'u5'].map(id => ({ user_id: id, pas_period_id: 'p1', pas_room_id: ['u2', 'u4'].includes(id) ? 'r2' : 'r1' })),
   // Room 1 contains students from X A and X B. X A itself spans two rooms.
-  cbt_pas_class_schedules: exams.map((exam, index) => ({ exam_id: exam.id, pas_period_id: 'p1', room: 'Ruang 2', session_id: index === 2 ? 's2' : 's1' })),
+  cbt_pas_class_schedules: exams.map((exam, index) => ({ exam_id: exam.id, pas_period_id: 'p1', room: 'Ruang 2', session_id: index === 2 ? 's2' : 's1', scheduled_date: '2026-10-20' })),
   cbt_exam_targets: [{ exam_id: 'e1', class_id: 'xa' }, { exam_id: 'e2', class_id: 'xb' }, { exam_id: 'e3', class_id: 'xa' }],
   cbt_class_members: ['u1', 'u2', 'u3', 'u4', 'u5'].map(id => ({ user_id: id, class_id: ['u3', 'u4'].includes(id) ? 'xb' : 'xa',
    profiles: { full_name: id }, classes: { name: ['u3', 'u4'].includes(id) ? 'X B' : 'X A' } })),
@@ -148,7 +148,7 @@ test('violations, analysis/export and direct attempt details cannot expose other
 
 test('bank authors monitor complete target classes across rooms, even with an invigilator role', async () => {
  const { db, auth, service } = roomFixture();
- db.tables.cbt_pas_room_invigilators.push({ user_id: 'author', pas_room_id: 'r1', session_id: 's1' });
+ db.tables.cbt_pas_room_invigilators.push({ user_id: 'author', pas_room_id: 'r1', session_id: 's1', exam_date: '2026-10-20' });
  assert.equal(await auth.assertExamMonitoring({ id: 'author' }, 'e1'), undefined);
  assert.deepEqual((await service.listAttempts({ id: 'author' }, 'e1')).map(row => row.user_id), ['u1', 'u2', 'u5']);
  assert.deepEqual((await service.listAttempts({ id: 'author' }, 'e2')).map(row => row.user_id), ['u3', 'u4']);
@@ -253,7 +253,7 @@ test('a bank author who also supervises PAS retains view access without reset ri
  const { db, auth, roles, service } = roomFixture();
  const exams = new ExamAdminService(db, auth, roles);
  assert.equal((await exams.list({ id: 'author' }, 'school'))[0].canResetParticipants, false);
- db.tables.cbt_pas_room_invigilators.push({ user_id: 'author', pas_room_id: 'r1', session_id: 's1' });
+ db.tables.cbt_pas_room_invigilators.push({ user_id: 'author', pas_room_id: 'r1', session_id: 's1', exam_date: '2026-10-20' });
  assert.equal((await exams.list({ id: 'author' }, 'school'))[0].canResetParticipants, false);
  const rows = await service.listAttempts({ id: 'author' }, 'e1');
  assert.deepEqual(rows.map(row => [row.user_id, row.canReset]), [['u1', false], ['u2', false], ['u5', false]]);
@@ -266,9 +266,9 @@ test('PAS author monitoring shows actual room and all session invigilators for s
  const { db, service } = roomFixture();
  db.tables.cbt_pas_sessions = [{ id: 's1', pas_period_id: 'p1', name: 'Sesi Pagi' }, { id: 's2', pas_period_id: 'p1', name: 'Sesi Siang' }];
  db.tables.cbt_pas_room_invigilators.push(
-  { user_id: 'guard2', pas_room_id: 'r2', session_id: 's1' },
-  { user_id: 'guard3', pas_room_id: 'r2', session_id: 's1' },
-  { user_id: 'afternoon', pas_room_id: 'r1', session_id: 's2' });
+  { user_id: 'guard2', pas_room_id: 'r2', session_id: 's1', exam_date: '2026-10-20' },
+  { user_id: 'guard3', pas_room_id: 'r2', session_id: 's1', exam_date: '2026-10-20' },
+  { user_id: 'afternoon', pas_room_id: 'r1', session_id: 's2', exam_date: '2026-10-20' });
  db.tables.cbt_profiles = [{ id: 'guard', full_name: 'Pengawas Pagi' }, { id: 'guard2', full_name: 'Pengawas Dua' },
   { id: 'guard3', full_name: 'Pengawas Tiga' }, { id: 'afternoon', full_name: 'Pengawas Siang' }];
  const rows = await service.listAttempts({ id: 'author' }, 'e1');
@@ -295,7 +295,7 @@ test('PAS room information never substitutes the schedule label or another perio
  assert.deepEqual(locations.get('u1').invigilators, []);
  assert.equal(locations.get('u2').status, 'unassigned');
  db.tables.cbt_pas_room_students = [{ user_id: 'u1', pas_room_id: 'r1', pas_period_id: 'p1' }];
- db.tables.cbt_pas_room_invigilators = [{ user_id: 'guard', pas_room_id: 'r1', session_id: 's2' }];
+ db.tables.cbt_pas_room_invigilators = [{ user_id: 'guard', pas_room_id: 'r1', session_id: 's2', exam_date: '2026-10-20' }];
  assert.deepEqual((await loadPasParticipantLocations(db, db.tables.cbt_exams[0], ['u1'])).get('u1').invigilators, []);
 });
 
@@ -317,11 +317,11 @@ test('missing or failed PAS context reads are explicit and do not make the monit
 
 test('large PAS placement reads are batched and normal exams require no placement queries', async () => {
  const ids = Array.from({ length: 620 }, (_, index) => `u${index}`);
- const db = fixtureDb({ cbt_pas_class_schedules: [{ exam_id: 'pas', pas_period_id: 'p', session_id: 's' }],
+ const db = fixtureDb({ cbt_pas_class_schedules: [{ exam_id: 'pas', pas_period_id: 'p', session_id: 's', scheduled_date: '2026-10-20' }],
   cbt_pas_periods: [{ id: 'p', organization_id: 'school' }], cbt_pas_sessions: [{ id: 's', pas_period_id: 'p', name: 'Pagi' }],
   cbt_pas_rooms: [{ id: 'room', name: 'Lab', pas_period_id: 'p' }],
   cbt_pas_room_students: ids.map(user_id => ({ user_id, pas_room_id: 'room', pas_period_id: 'p' })),
-  cbt_pas_room_invigilators: [{ pas_room_id: 'room', session_id: 's', user_id: 'guard' }],
+  cbt_pas_room_invigilators: [{ pas_room_id: 'room', session_id: 's', user_id: 'guard', exam_date: '2026-10-20' }],
   cbt_profiles: [{ id: 'guard', full_name: 'Pengawas' }] });
  const locations = await loadPasParticipantLocations(db, { id: 'pas', organization_id: 'school', exam_type: 'pas' }, ids);
  assert.equal(locations.size, 620);
@@ -331,4 +331,27 @@ test('large PAS placement reads are batched and normal exams require no placemen
  const before = db.queries.length;
  assert.equal((await loadPasParticipantLocations(db, { id: 'quiz', exam_type: 'quiz' }, ids)).size, 0);
  assert.equal(db.queries.length, before);
+});
+
+test('pengawas bergilir: penugasan hanya membuka ujian pada tanggal tugasnya', async () => {
+ const db = fixture();
+ assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), ['e1']);
+ db.tables.cbt_pas_room_invigilators[0].exam_date = '2026-10-21';
+ assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), []);
+ db.tables.cbt_pas_room_invigilators[0].exam_date = new Date('2026-10-20T00:00:00Z');
+ assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), ['e1']);
+ db.tables.cbt_pas_room_invigilators[0].exam_date = null;
+ assert.deepEqual(await assignedPasExamIds(db, 'teacher', 'school'), []);
+});
+
+test('lokasi peserta menampilkan pengawas yang bertugas pada tanggal ujian, bukan hari lain', async () => {
+ const db = fixtureDb({ cbt_pas_class_schedules: [{ exam_id: 'pas', pas_period_id: 'p', session_id: 's', scheduled_date: '2026-10-20' }],
+  cbt_pas_periods: [{ id: 'p', organization_id: 'school' }], cbt_pas_sessions: [{ id: 's', pas_period_id: 'p', name: 'Pagi' }],
+  cbt_pas_rooms: [{ id: 'room', name: 'Lab', pas_period_id: 'p' }],
+  cbt_pas_room_students: [{ user_id: 'u1', pas_room_id: 'room', pas_period_id: 'p' }],
+  cbt_pas_room_invigilators: [{ pas_room_id: 'room', session_id: 's', user_id: 'today', exam_date: '2026-10-20' },
+   { pas_room_id: 'room', session_id: 's', user_id: 'tomorrow', exam_date: '2026-10-21' }],
+  cbt_profiles: [{ id: 'today', full_name: 'Bu Hari Ini' }, { id: 'tomorrow', full_name: 'Pak Besok' }] });
+ const locations = await loadPasParticipantLocations(db, { id: 'pas', organization_id: 'school', exam_type: 'pas' }, ['u1']);
+ assert.deepEqual(locations.get('u1').invigilators.map(person => person.full_name), ['Bu Hari Ini']);
 });

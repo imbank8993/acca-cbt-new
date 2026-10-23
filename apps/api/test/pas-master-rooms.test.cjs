@@ -82,7 +82,7 @@ test('single room field offers master suggestions, copies capacity and still acc
     input.props.onChange({ target: { value: 'Ruang khusus' } });
     assert.equal(name, 'Ruang khusus'); assert.equal(capacity, 24);
     for (const role of ['admin', 'proktor']) {
-        const modal = fs.readFileSync(path.resolve(__dirname, `../../web/app/dashboard/${role}/pas/RoomManagementModal.tsx`), 'utf8');
+        const modal = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
         assert.match(modal, /title="Tambah Ruang"[\s\S]*?size="md"[\s\S]*?<div className="pas-room-create space-y-4">[\s\S]*?<ModalFooter>/);
     }
 });

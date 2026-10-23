@@ -37,8 +37,7 @@ test('SCHOOL-ROLE-04: komponen operasional tidak lagi menerima orgId yang tak di
         'apps/web/app/components/questions/InstructionManager.tsx',
         'apps/web/app/components/questions/KisiKisiTab.tsx',
         'apps/web/app/components/questions/StimulusManager.tsx',
-        'apps/web/app/dashboard/admin/pas/RoomManagementModal.tsx',
-        'apps/web/app/dashboard/proktor/pas/RoomManagementModal.tsx',
+        'apps/web/app/components/pas/RoomManagementPanel.tsx',
     ]) {
         assert.doesNotMatch(read(relative), /\borgId\b/, relative);
     }

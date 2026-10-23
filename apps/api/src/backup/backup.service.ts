@@ -7,6 +7,19 @@ import { SingleSchoolService } from '../auth/single-school.service';
 import { chunk } from '../common/chunk';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 
+/** Tanggal untuk penugasan pengawas arsip lama yang belum bertanggal. */
+function legacyInvigilatorDates(period: any, schedules: any[]): string[] {
+    const day = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
+    const valid = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
+    const dates = new Set<string>(schedules.map(schedule => day(schedule.scheduled_date)).filter(valid));
+    const start = day(period?.start_date), end = day(period?.end_date);
+    if (valid(start) && valid(end) && start <= end) {
+        for (let cursor = new Date(`${start}T00:00:00Z`); cursor.toISOString().slice(0, 10) <= end && dates.size < 400;
+            cursor = new Date(cursor.getTime() + 86_400_000)) dates.add(cursor.toISOString().slice(0, 10));
+    }
+    return [...dates].sort();
+}
+
 /** Sisipan dipecah agar satu pernyataan tidak menjadi raksasa. */
 const INSERT_BATCH = 500;
 
@@ -275,6 +288,16 @@ export class BackupService {
                     const sessions = (data.pas_sessions || []).filter(session => session.pas_period_id === room?.pas_period_id);
                     return sessions.length ? sessions.map((session, index) => ({ ...row,
                         id: index === 0 ? row.id : randomUUID(), session_id: session.id })) : [row];
+                }).flatMap(row => {
+                    // Arsip lama belum mengenal tanggal tugas: salin ke setiap tanggal
+                    // folder + tanggal jadwal sesi itu, sama seperti migrasi database.
+                    if (!row.session_id || row.exam_date) return [row];
+                    const room = (data.pas_rooms || []).find(room => room.id === row.pas_room_id);
+                    const period = (data.pas_periods || []).find(period => period.id === room?.pas_period_id);
+                    const dates = legacyInvigilatorDates(period, (data.pas_class_schedules || [])
+                        .filter(schedule => schedule.pas_period_id === room?.pas_period_id && schedule.session_id === row.session_id));
+                    return dates.length ? dates.map((examDate, index) => ({ ...row,
+                        id: index === 0 ? row.id : randomUUID(), exam_date: examDate })) : [row];
                 });
                 await this.insert('cbt_pas_room_invigilators', invigilators, db);
                 await this.insert('cbt_pas_room_students', withUser(data.pas_room_students), db);

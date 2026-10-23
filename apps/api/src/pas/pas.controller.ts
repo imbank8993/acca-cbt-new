@@ -24,6 +24,7 @@ import {
     ApprovePASAdministrationDto,
     AssignRoomStudentsDto,
     AssignRoomInvigilatorsDto,
+    CopyRoomInvigilatorsDto,
     CreatePASPeriodDto,
     CreatePASRoomDto,
     CreatePASScheduleDto,
@@ -265,7 +266,18 @@ export class PasController {
         @Param('roomId', ParseUUIDPipe) roomId: string,
         @Body() dto: AssignRoomInvigilatorsDto,
     ) {
-        return this.rooms.assignInvigilators(user, roomId, dto.userIds, dto.sessionId);
+        return this.rooms.assignInvigilators(user, roomId, dto.userIds, dto.sessionId, dto.examDate);
+    }
+
+    @Post('periods/:periodId/invigilators/copy')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Salin seluruh penugasan pengawas (semua ruang & sesi) dari satu tanggal ke tanggal lain' })
+    copyInvigilators(
+        @CurrentUser() user: AuthUser,
+        @Param('periodId', ParseUUIDPipe) periodId: string,
+        @Body() dto: CopyRoomInvigilatorsDto,
+    ) {
+        return this.rooms.copyInvigilators(user, periodId, dto.fromDate, dto.toDate);
     }
 
     @Put('periods/:periodId/room-students')

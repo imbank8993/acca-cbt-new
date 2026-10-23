@@ -17,6 +17,8 @@ export interface PASStaffMember {
 export interface PASRoomMember {
     user_id: string;
     session_id?: string | null;
+    /** Tanggal tugas pengawas (YYYY-MM-DD); pengawas bergilir setiap hari. */
+    exam_date?: string | null;
     profiles?: {
         full_name?: string | null;
     } | null;
@@ -31,8 +33,21 @@ export interface PASRoom {
     pas_room_students?: PASRoomMember[];
 }
 
-export function getRoomSessionInvigilators(room: Pick<PASRoom, 'pas_room_invigilators'> | null | undefined, sessionId?: string | null): PASRoomMember[] {
-    return sessionId ? (room?.pas_room_invigilators || []).filter(member => member.session_id === sessionId) : [];
+/** Normalisasi tanggal dari API (YYYY-MM-DD atau ISO) ke YYYY-MM-DD. */
+export function pasDay(value?: string | null): string {
+    return String(value || '').slice(0, 10);
+}
+
+/** Pengawas sebuah ruang pada satu sesi dan tanggal (pengawas bergilir per hari). */
+export function getRoomSessionInvigilators(
+    room: Pick<PASRoom, 'pas_room_invigilators'> | null | undefined,
+    sessionId?: string | null,
+    examDate?: string | null,
+): PASRoomMember[] {
+    const date = pasDay(examDate);
+    if (!sessionId || !date) return [];
+    return (room?.pas_room_invigilators || [])
+        .filter(member => member.session_id === sessionId && pasDay(member.exam_date) === date);
 }
 
 export interface MasterRoom {
@@ -274,11 +289,20 @@ export function deletePASRoomAction(roomId: string) {
     );
 }
 
-export function assignProctorsToRoomAction(roomId: string, userIds: string[], sessionId: string) {
-    return apiSend<{ roomId: string; sessionId: string; assigned: number }>(
+export function assignProctorsToRoomAction(roomId: string, userIds: string[], sessionId: string, examDate: string) {
+    return apiSend<{ roomId: string; sessionId: string; examDate: string; assigned: number }>(
         `/api/pas/rooms/${encodeURIComponent(roomId)}/invigilators`,
-        { userIds, sessionId },
+        { userIds, sessionId, examDate },
         'PUT',
+    );
+}
+
+/** Salin seluruh penugasan pengawas (semua ruang & sesi) dari satu tanggal ke tanggal lain. */
+export function copyInvigilatorsAction(periodId: string, fromDate: string, toDate: string) {
+    return apiSend<{ fromDate: string; toDate: string; copied: number }>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}/invigilators/copy`,
+        { fromDate, toDate },
+        'POST',
     );
 }
 
@@ -497,10 +521,15 @@ export interface PASAssignmentSlotSummary {
         start_time: string;
         end_time: string;
     };
+    /** Gabungan pengawas seluruh hari. */
     invigilators: Array<{
         user_id: string;
         full_name: string;
     }>;
+    /** Pengawas per tanggal (YYYY-MM-DD). */
+    invigilators_by_date?: Record<string, Array<{ user_id: string; full_name: string }>>;
+    /** Tanggal tugas user ini pada ruang & sesi tersebut. */
+    my_dates?: string[];
     is_assigned_to_me: boolean;
     scheduled_dates: string[];
     saved_reports: Array<{

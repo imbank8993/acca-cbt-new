@@ -35,7 +35,7 @@ const { createFixtures, createAuthzMock, signingInput } = require('./pas-adminis
 test('ADMIN-01: RoomManagementModal memisahkan Pengawas dari modal detail ruang ke view tersendiri', () => {
     for (const roleDir of ['admin', 'proktor']) {
         const modalSource = fs.readFileSync(
-            path.resolve(__dirname, `../../web/app/dashboard/${roleDir}/pas/RoomManagementModal.tsx`),
+            path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'),
             'utf8',
         );
         assert.match(modalSource, /view\??:\s*'rooms'\s*\|\s*'sessions'\s*\|\s*'invigilators'/);
@@ -321,4 +321,27 @@ test('ADMIN-14: period-level committee chair can be configured and updated direc
     assert.equal(db.tables.cbt_pas_periods[0].committee_chair_name, 'Dra. Ketua Diperbarui, M.Si.');
 });
 
+test('ADMIN-12: pengawas bergilir per hari — akses dan nama di berita acara mengikuti tanggal slot', async () => {
+    const db = fixtureDb(createFixtures());
+    db.tables.cbt_profiles.push({ id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' });
+    db.tables.cbt_pas_room_invigilators.push({ id: 'inv-map-2', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-18', user_id: 'pengawas-2' });
+    db.tables.cbt_pas_class_schedules.push({ ...db.tables.cbt_pas_class_schedules[0], id: 'sched-2', exam_id: 'exam-math-2', scheduled_date: '2026-10-18' });
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const params = { periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1' };
 
+    // Pengawas hari pertama tidak boleh membuka slot hari kedua, dan sebaliknya.
+    await assert.rejects(service.getAdministrationSlot({ id: 'pengawas-1' }, { ...params, examDate: '2026-10-18' }), /tanggal ujian ini/);
+    await assert.rejects(service.getAdministrationSlot({ id: 'pengawas-2' }, { ...params, examDate: '2026-10-17' }), /tanggal ujian ini/);
+    await assert.rejects(service.saveAdministrationSlot({ id: 'pengawas-1' }, { ...signingInput(), exam_date: '2026-10-18', action: 'save_draft' }), /tanggal ujian ini/);
+
+    // Tanpa tanggal, pengawas diarahkan ke hari tugasnya sendiri.
+    const ownDay = await service.getAdministrationSlot({ id: 'pengawas-2' }, params);
+    assert.equal(ownDay.report.invigilator_name, 'Ahmad Rifai, S.Pd.');
+
+    // Proktor melihat pengawas yang bertugas pada tanggal masing-masing.
+    const proktor = { id: 'proctor-creator-1', isPlatformAdmin: false };
+    const day1 = await service.getAdministrationSlot(proktor, { ...params, examDate: '2026-10-17' });
+    const day2 = await service.getAdministrationSlot(proktor, { ...params, examDate: '2026-10-18' });
+    assert.equal(day1.report.invigilator_name, 'Dra. Siti Aminah, M.Pd.');
+    assert.equal(day2.report.invigilator_name, 'Ahmad Rifai, S.Pd.');
+});

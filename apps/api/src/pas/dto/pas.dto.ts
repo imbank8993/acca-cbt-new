@@ -234,6 +234,23 @@ export class AssignRoomInvigilatorsDto extends AssignUsersDto {
     @ApiProperty({ description: 'Sesi tempat pengawas bertugas di ruang ini.' })
     @IsUUID('4', { message: 'Pilih sesi ujian yang valid.' })
     sessionId!: string;
+
+    @ApiProperty({ example: DATE_EXAMPLE, description: 'Tanggal bertugas; pengawas bergilir setiap hari.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Pilih tanggal bertugas pengawas.' })
+    examDate!: string;
+}
+
+export class CopyRoomInvigilatorsDto {
+    @ApiProperty({ example: DATE_EXAMPLE, description: 'Tanggal sumber yang disalin.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Pilih tanggal sumber.' })
+    fromDate!: string;
+
+    @ApiProperty({ example: DATE_EXAMPLE, description: 'Tanggal tujuan; penugasannya diganti seluruhnya.' })
+    @IsString()
+    @IsNotEmpty({ message: 'Pilih tanggal tujuan.' })
+    toDate!: string;
 }
 
 export class PASStudentAttendanceItemDto {

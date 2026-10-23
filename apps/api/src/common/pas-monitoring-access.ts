@@ -20,8 +20,9 @@ export async function assignedPasExamStudents(db: DbService, userId: string, org
         return rows;
     };
     const access = new Map<string, string[]>();
-    const assignments = (await read(db.from('cbt_pas_room_invigilators').select('pas_room_id, session_id').eq('user_id', userId)))
-        .filter(row => row.session_id);
+    // Pengawas bergilir per hari: penugasan hanya berlaku untuk tanggalnya sendiri.
+    const assignments = (await read(db.from('cbt_pas_room_invigilators').select('pas_room_id, session_id, exam_date').eq('user_id', userId)))
+        .filter(row => row.session_id && row.exam_date);
     if (!assignments.length) return access;
     const rooms = await readIds('cbt_pas_rooms', 'id, name, pas_period_id', 'id', assignments.map(row => row.pas_room_id));
     if (!rooms.length) return access;
@@ -30,7 +31,7 @@ export async function assignedPasExamStudents(db: DbService, userId: string, org
     if (!periods.length) return access;
     const periodIds = new Set(periods.map(row => row.id));
     const schoolRooms = rooms.filter(room => periodIds.has(room.pas_period_id));
-    const schedules = (await readIds('cbt_pas_class_schedules', 'exam_id, pas_period_id, session_id, room', 'pas_period_id', [...periodIds]))
+    const schedules = (await readIds('cbt_pas_class_schedules', 'exam_id, pas_period_id, session_id, scheduled_date, room', 'pas_period_id', [...periodIds]))
         .filter(row => row.exam_id);
     if (!schedules.length) return access;
     const [allocations, targets, individuals] = await Promise.all([
@@ -50,10 +51,12 @@ export async function assignedPasExamStudents(db: DbService, userId: string, org
         for (const member of additionalMembers) if (target.additional_class_id && member.class_id === target.additional_class_id) students?.add(member.user_id);
     }
     const name = (value: unknown) => String(value || '').trim().toLocaleLowerCase('id-ID');
+    const day = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
     for (const schedule of schedules) {
         for (const assignment of assignments) {
             const room = schoolRooms.find(room => room.id === assignment.pas_room_id);
-            if (!room || room.pas_period_id !== schedule.pas_period_id || assignment.session_id !== schedule.session_id) continue;
+            if (!room || room.pas_period_id !== schedule.pas_period_id || assignment.session_id !== schedule.session_id ||
+                day(assignment.exam_date) !== day(schedule.scheduled_date)) continue;
             const occupants = allocations.filter(row => row.pas_room_id === room.id && row.pas_period_id === room.pas_period_id).map(row => row.user_id);
             const participants = studentsByExam.get(schedule.exam_id)!;
             // A class may span several rooms. Discover its exam via actual occupants,

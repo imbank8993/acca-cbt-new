@@ -200,7 +200,7 @@ test('SESSION-07: database mewajibkan sesi satu periode dan menolak delete', () 
 test('SESSION-08: UI Admin dan Proktor menyembunyikan mutasi saat terkunci', () => {
     for (const role of ['admin', 'proktor']) {
         const source = fs.readFileSync(
-            path.resolve(__dirname, `../../web/app/dashboard/${role}/pas/RoomManagementModal.tsx`),
+            path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'),
             'utf8',
         );
         assert.match(source, /if \(period\.is_locked\) return/);

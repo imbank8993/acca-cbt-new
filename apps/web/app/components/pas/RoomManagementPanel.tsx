@@ -2,11 +2,13 @@
 import '@/app/components/pas-room-management.css';
 import { PASScheduleStatus } from '@/app/components/PASScheduleStatus';
 
-import { deleteConfirmDialog } from '@/lib/confirm-dialog';
+import { confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import {
     assignProctorsToRoomAction,
+    copyInvigilatorsAction,
     getRoomSessionInvigilators,
+    pasDay,
     assignStudentsToRoomAction,
     createPASRoomAction,
     createPASSessionAction,
@@ -30,7 +32,7 @@ import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { Button } from '@/app/components/ui/button';
 import { formatStudentName } from '@/lib/monitoring-health';
-import { getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { getSchoolTimeZoneLabel, schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import {
     Check,
@@ -47,6 +49,16 @@ import {
     Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const isPasDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+/** Label tanggal tugas pengawas, mis. "Sen, 19 Okt 2026". */
+function formatProctorDate(date: string): string {
+    if (!isPasDay(date)) return date;
+    return new Date(`${date}T00:00:00Z`).toLocaleDateString('id-ID', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+    });
+}
 
 interface RoomManagementPanelProps {
     period: PASPeriod;
@@ -94,7 +106,10 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     const [isClassLoading, setIsClassLoading] = useState(false);
     const classRequest = useRef(0);
 
-    // State for invigilator mapping tab (by session & room)
+    // State for invigilator mapping tab (by date, session & room).
+    // Pengawas bergilir setiap hari, jadi penugasan selalu untuk satu tanggal.
+    const [selectedProctorDate, setSelectedProctorDate] = useState('');
+    const [isCopyingProctors, setIsCopyingProctors] = useState(false);
     const [selectedProctorSessionId, setSelectedProctorSessionId] = useState('');
     const selectedProctorSession = sessions.find(session => session.id === selectedProctorSessionId);
     const [savingProctorRoomId, setSavingProctorRoomId] = useState<string | null>(null);
@@ -150,18 +165,40 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         setIsClassLoading(false);
     };
 
-    // Map which teacher is assigned to which other rooms
+    // Tanggal tugas: tanggal jadwal ujian di folder ini; bila belum ada jadwal,
+    // seluruh tanggal dalam rentang folder.
+    const proctorDates = useMemo(() => {
+        const dates = new Set((period.pas_class_schedules || [])
+            .map(schedule => pasDay(schedule.scheduled_date)).filter(isPasDay));
+        const start = pasDay(period.start_date), end = pasDay(period.end_date);
+        if (!dates.size && isPasDay(start) && isPasDay(end) && start <= end) {
+            for (let cursor = new Date(`${start}T00:00:00Z`);
+                cursor.toISOString().slice(0, 10) <= end && dates.size < 62;
+                cursor = new Date(cursor.getTime() + 86_400_000)) dates.add(cursor.toISOString().slice(0, 10));
+        }
+        return [...dates].sort();
+    }, [period.pas_class_schedules, period.start_date, period.end_date]);
+
+    useEffect(() => {
+        if (proctorDates.includes(selectedProctorDate)) return;
+        const today = schoolTodayDate(timeZone);
+        setSelectedProctorDate(proctorDates.find(date => date >= today) || proctorDates[0] || '');
+    }, [proctorDates, selectedProctorDate, timeZone]);
+
+    const previousProctorDate = proctorDates[proctorDates.indexOf(selectedProctorDate) - 1] || '';
+
+    // Map which teacher is assigned to which other rooms on the selected date & session
     const teacherAssignmentMap = useMemo(() => {
         const map = new Map<string, string[]>();
         for (const r of rooms) {
-            const invigilators = getRoomSessionInvigilators(r, selectedProctorSessionId);
+            const invigilators = getRoomSessionInvigilators(r, selectedProctorSessionId, selectedProctorDate);
             for (const inv of invigilators) {
                 const current = map.get(inv.user_id) || [];
                 map.set(inv.user_id, [...current, r.name]);
             }
         }
         return map;
-    }, [rooms, selectedProctorSessionId]);
+    }, [rooms, selectedProctorSessionId, selectedProctorDate]);
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -212,6 +249,38 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         if (isSaving) return;
         setSelectedProctorSessionId(value);
         setSavedProctorRoomId(null);
+    };
+
+    const handleProctorDateChange = (value: string) => {
+        if (isSaving || !value) return;
+        setSelectedProctorDate(value);
+        setSavedProctorRoomId(null);
+    };
+
+    /** Salin seluruh pengawas (semua ruang & sesi) dari tanggal sebelumnya ke tanggal terpilih. */
+    const handleCopyPreviousProctors = async () => {
+        if (!previousProctorDate || !selectedProctorDate || isSaving || period.is_locked) return;
+        const targetHasAssignments = rooms.some(room => (room.pas_room_invigilators || [])
+            .some(member => pasDay(member.exam_date) === selectedProctorDate));
+        if (targetHasAssignments && !await confirmDialog({
+            title: 'Ganti Pengawas Tanggal Ini?',
+            text: `Pengawas ${formatProctorDate(selectedProctorDate)} untuk semua ruang dan sesi akan diganti dengan susunan ${formatProctorDate(previousProctorDate)}.`,
+            confirmText: 'Ya, salin',
+            cancelText: 'Batal',
+        })) return;
+        setIsSaving(true);
+        setIsCopyingProctors(true);
+        setRoomError('');
+        try {
+            const result = await copyInvigilatorsAction(period.id, previousProctorDate, selectedProctorDate);
+            if (!result.success) throw new Error(result.error || 'Pengawas belum berhasil disalin.');
+            await refreshRooms();
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Pengawas belum berhasil disalin.');
+        } finally {
+            setIsSaving(false);
+            setIsCopyingProctors(false);
+        }
     };
 
     const handleCreateRoom = async () => {
@@ -274,12 +343,12 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     };
 
     const handleSaveRoomProctors = async (roomId: string, targetIds: string[]) => {
-        if (!selectedProctorSessionId || isSaving) return;
+        if (!selectedProctorSessionId || !selectedProctorDate || isSaving) return;
         setIsSaving(true);
         setSavingProctorRoomId(roomId);
         setRoomError('');
         try {
-            const result = await assignProctorsToRoomAction(roomId, targetIds, selectedProctorSessionId);
+            const result = await assignProctorsToRoomAction(roomId, targetIds, selectedProctorSessionId, selectedProctorDate);
             if (!result.success) throw new Error(result.error || 'Penugasan pengawas belum tersimpan.');
             await refreshRooms();
             setSavedProctorRoomId(roomId);
@@ -295,16 +364,16 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     };
 
     const handleAddRoomProctor = (room: PASRoom, teacherId: string) => {
-        if (!teacherId || !selectedProctorSessionId || isSaving) return;
-        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId).map((inv) => inv.user_id);
+        if (!teacherId || !selectedProctorSessionId || !selectedProctorDate || isSaving) return;
+        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId, selectedProctorDate).map((inv) => inv.user_id);
         if (!currentIds.includes(teacherId)) {
             void handleSaveRoomProctors(room.id, [...currentIds, teacherId]);
         }
     };
 
     const handleRemoveRoomProctor = (room: PASRoom, proctorId: string) => {
-        if (!selectedProctorSessionId || isSaving) return;
-        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId).map((inv) => inv.user_id);
+        if (!selectedProctorSessionId || !selectedProctorDate || isSaving) return;
+        const currentIds = getRoomSessionInvigilators(room, selectedProctorSessionId, selectedProctorDate).map((inv) => inv.user_id);
         void handleSaveRoomProctors(
             room.id,
             currentIds.filter((id) => id !== proctorId),
@@ -879,7 +948,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     Pemetaan Pengawas Ruang & Sesi
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    Pilih sesi ujian lalu tetapkan pengawas untuk setiap ruangan ujian.
+                                    Pilih tanggal dan sesi, lalu tetapkan pengawas untuk setiap ruang. Pengawas bergilir setiap hari.
                                 </p>
                             </div>
                             {period.is_locked && (
@@ -894,13 +963,53 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 <AlertTriangle size={16} className="shrink-0 text-amber-600" />
                                 <span>Belum ada sesi ujian. Tambahkan sesi terlebih dahulu pada tab <strong>Sesi Ujian</strong>.</span>
                             </div>
+                        ) : proctorDates.length === 0 ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-800 flex items-center gap-2.5">
+                                <AlertTriangle size={16} className="shrink-0 text-amber-600" />
+                                <span>Isi tanggal mulai dan selesai folder atau tambahkan jadwal ujian agar tanggal tugas pengawas tersedia.</span>
+                            </div>
                         ) : (
+                            <>
+                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+                                <span className="text-xs font-semibold text-slate-600 mr-1">Pilih Tanggal:</span>
+                                <InlineSelect
+                                    value={selectedProctorDate}
+                                    onChange={(value) => handleProctorDateChange(String(value))}
+                                    disabled={isSaving}
+                                    minWidth="260px"
+                                    height="34px"
+                                    title="Tanggal tugas pengawas"
+                                    options={proctorDates.map((date) => {
+                                        const filled = sessions.reduce((total, session) => total + rooms.filter(
+                                            (r) => getRoomSessionInvigilators(r, session.id, date).length > 0,
+                                        ).length, 0);
+                                        return {
+                                            value: date,
+                                            label: `${formatProctorDate(date)} · ${filled}/${rooms.length * sessions.length} slot terisi`,
+                                        };
+                                    })}
+                                />
+                                {!period.is_locked && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!previousProctorDate || isSaving}
+                                        onClick={() => void handleCopyPreviousProctors()}
+                                        title={previousProctorDate
+                                            ? `Salin seluruh pengawas ${formatProctorDate(previousProctorDate)} ke ${formatProctorDate(selectedProctorDate)}`
+                                            : 'Tidak ada tanggal sebelumnya'}
+                                    >
+                                        {isCopyingProctors ? 'Menyalin…' : 'Salin dari hari sebelumnya'}
+                                    </Button>
+                                )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
                                 <span className="text-xs font-semibold text-slate-600 mr-1">Pilih Sesi:</span>
                                 {sessions.map((session) => {
                                     const active = selectedProctorSessionId === session.id;
                                     const filledRoomsCount = rooms.filter(
-                                        (r) => getRoomSessionInvigilators(r, session.id).length > 0,
+                                        (r) => getRoomSessionInvigilators(r, session.id, selectedProctorDate).length > 0,
                                     ).length;
                                     return (
                                         <button
@@ -933,6 +1042,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     );
                                 })}
                             </div>
+                            </>
                         )}
                     </div>
 
@@ -948,7 +1058,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 Buat ruang ujian terlebih dahulu pada tab <strong>Ruang</strong> sebelum memetakan pengawas.
                             </p>
                         </div>
-                    ) : sessions.length > 0 && (
+                    ) : sessions.length > 0 && selectedProctorDate && (
                         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
@@ -963,9 +1073,11 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-xs">
                                         {rooms.map((room, idx) => {
-                                            const assignedInvigilators = getRoomSessionInvigilators(room, selectedProctorSessionId);
+                                            const assignedInvigilators = getRoomSessionInvigilators(room, selectedProctorSessionId, selectedProctorDate);
                                             const assignedIds = assignedInvigilators.map((i) => i.user_id);
-                                            const availableTeachers = teachers.filter((t) => !assignedIds.includes(t.id));
+                                            // Satu orang hanya boleh di satu ruang pada tanggal & sesi yang sama.
+                                            const availableTeachers = teachers.filter((t) => !assignedIds.includes(t.id) &&
+                                                !(teacherAssignmentMap.get(t.id) || []).some((rName) => rName.toLowerCase() !== room.name.toLowerCase()));
                                             const isRoomSaving = savingProctorRoomId === room.id;
                                             const isRoomSaved = savedProctorRoomId === room.id;
 

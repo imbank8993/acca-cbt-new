@@ -5,7 +5,7 @@ import { PASScheduleActions } from '@/app/components/PASScheduleActions';
 import { PASScheduleRooms } from '@/app/components/PASScheduleRooms';
 import { PASRoomInput } from "@/app/components/PASRoomInput";
 import { PASScheduleStatus, isPASScheduleReady } from '@/app/components/PASScheduleStatus';
-import RoomManagementPanel from '@/app/dashboard/proktor/pas/RoomManagementModal';
+import RoomManagementPanel from '@/app/components/pas/RoomManagementPanel';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { SearchableSelect } from '@/app/components/ui/SearchableSelect';
 import type { PASClassSchedule,PASPeriod,PASSession } from '@/app/types/pas';

@@ -54,7 +54,7 @@ function createFixtures() {
             { id: 'rs-3', pas_room_id: 'room-1', user_id: 'student-3' },
         ],
         cbt_pas_room_invigilators: [
-            { id: 'inv-map-1', pas_room_id: 'room-1', session_id: 'session-1', user_id: 'pengawas-1' },
+            { id: 'inv-map-1', pas_room_id: 'room-1', session_id: 'session-1', user_id: 'pengawas-1', exam_date: '2026-10-17' },
         ],
         cbt_profiles: [
             { id: 'proctor-creator-1', full_name: 'Budi Santoso, S.Kom.', nis: '19880101', email: 'proktor@icgowa.sch.id' },

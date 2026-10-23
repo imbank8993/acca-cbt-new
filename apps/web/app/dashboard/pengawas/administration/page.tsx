@@ -16,6 +16,17 @@ import {
 } from 'lucide-react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import { listMyPASAssignments, type PASAssignmentSlotSummary } from '@/lib/api/pas';
+import { schoolTodayDate } from '@/lib/school-time';
+
+const shortDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? new Date(`${date}T00:00:00Z`).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+    : date;
+
+/** Pengawas bergilir per hari: tanggal terdekat yang akan/sedang berlangsung. */
+const nextSlotDate = (item: PASAssignmentSlotSummary) => {
+    const today = schoolTodayDate();
+    return item.scheduled_dates.find((date) => date >= today) || item.scheduled_dates[item.scheduled_dates.length - 1] || '';
+};
 
 export default function PengawasAdministrationPage() {
     const [assignments, setAssignments] = useState<PASAssignmentSlotSummary[]>([]);
@@ -187,16 +198,20 @@ export default function PengawasAdministrationPage() {
                                             {item.scheduled_dates.length > 0 && (
                                                 <span className="inline-flex items-center gap-1">
                                                     <Calendar size={12} className="text-slate-400" />
-                                                    {item.scheduled_dates.length} Hari Terjadwal
+                                                    {item.is_assigned_to_me
+                                                        ? `Tugas: ${item.scheduled_dates.map(shortDate).join(', ')}`
+                                                        : `${item.scheduled_dates.length} Hari Terjadwal`}
                                                 </span>
                                             )}
                                         </div>
 
                                         <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                                             <span className="truncate">
-                                                Pengawas:{' '}
+                                                Pengawas{nextSlotDate(item) ? ` ${shortDate(nextSlotDate(item))}` : ''}:{' '}
                                                 <strong className="text-slate-700">
-                                                    {item.invigilators.map((i) => i.full_name).join(', ') || '-'}
+                                                    {(item.invigilators_by_date
+                                                        ? item.invigilators_by_date[nextSlotDate(item)] || []
+                                                        : item.invigilators).map((i) => i.full_name).join(', ') || '-'}
                                                 </strong>
                                             </span>
                                             {item.is_assigned_to_me && (
@@ -220,7 +235,7 @@ export default function PengawasAdministrationPage() {
                             sessions={periodSessions}
                             initialRoomId={selectedAssignment.room.id}
                             initialSessionId={selectedAssignment.session.id}
-                            initialExamDate={selectedAssignment.scheduled_dates[0]}
+                            initialExamDate={nextSlotDate(selectedAssignment) || undefined}
                             onSlotSaved={() => void loadAssignments()}
                         />
                     )}

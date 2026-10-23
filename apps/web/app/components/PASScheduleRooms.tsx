@@ -10,7 +10,7 @@ export function PASScheduleRooms({ schedule, rooms, onManage }: {
         {roomIds.length ? roomIds.map(id => {
             const room = rooms.find(room => room.id === id);
             if (!room) return <p key={id} className="text-slate-500">Data ruang belum dimuat</p>;
-            const supervisors = getRoomSessionInvigilators(room, schedule.session_id);
+            const supervisors = getRoomSessionInvigilators(room, schedule.session_id, schedule.scheduled_date);
             const names = supervisors.map(person => person.profiles?.full_name || 'Nama pengawas belum tersedia');
             return <div key={id}>
                 <p className="font-medium text-slate-800">{room.name}</p>

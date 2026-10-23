@@ -40,7 +40,7 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             readIds('cbt_exams', 'id, question_bank_id, is_published, status', 'id', schedules.map(row => row.exam_id), true),
             readIds('cbt_exam_targets', 'exam_id, class_id', 'exam_id', schedules.map(row => row.exam_id)),
         ]);
-        const assignments = await readIds('cbt_pas_room_invigilators', 'pas_room_id, session_id, user_id', 'pas_room_id', rooms.map(row => row.id));
+        const assignments = await readIds('cbt_pas_room_invigilators', 'pas_room_id, session_id, exam_date, user_id', 'pas_room_id', rooms.map(row => row.id));
         const bankSet = new Set(banks.map(row => row.id));
         const nonemptyBanks = new Set(questions.filter(row => !row.metadata?._deleted).map(row => row.bank_id));
         const classSet = new Set(classes.map(row => row.id));
@@ -57,7 +57,10 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             if (!occupantsByRoom.has(row.pas_room_id)) occupantsByRoom.set(row.pas_room_id, new Set());
             occupantsByRoom.get(row.pas_room_id)!.add(row.user_id);
         }
-        const guarded = new Set(assignments.filter(row => row.session_id && row.user_id).map(row => `${row.pas_room_id}:${row.session_id}`));
+        // Pengawas bergilir per hari: ruang dianggap terjaga bila ada pengawas pada
+        // ruang × sesi × tanggal jadwal tersebut.
+        const guarded = new Set(assignments.filter(row => row.session_id && row.exam_date && row.user_id)
+            .map(row => `${row.pas_room_id}:${row.session_id}:${date(row.exam_date)}`));
         for (const schedule of schedules) {
             const issues: string[] = [];
             if (!bankSet.has(schedule.bank_id)) issues.push('Bank soal belum dipilih atau tidak tersedia');
@@ -83,7 +86,7 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             for (const roomId of relevantRooms) {
                 const room = roomById.get(roomId)!;
                 if (!(Number(room.capacity) > 0) || (occupantsByRoom.get(roomId)?.size || 0) > Number(room.capacity)) issues.push(`Kapasitas ${room.name} tidak mencukupi`);
-                if (!guarded.has(`${roomId}:${schedule.session_id}`)) issues.push(`Pengawas ${room.name} belum diatur pada sesi ini`);
+                if (!guarded.has(`${roomId}:${schedule.session_id}:${scheduled}`)) issues.push(`Pengawas ${room.name} belum diatur pada tanggal dan sesi ini`);
             }
             const exam = exams.find(row => row.id === schedule.exam_id);
             if (schedule.exam_id && !exam) issues.push('Data ujian terhubung tidak tersedia');
