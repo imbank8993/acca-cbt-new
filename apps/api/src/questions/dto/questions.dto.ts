@@ -170,6 +170,7 @@ export class ReorderQuestionsDto {
 // ── Bank soal ────────────────────────────────────────────────────────────────
 
 export class SaveBankDto {
+    @IsOptional() @IsString() expectedUpdatedAt?: string;
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()

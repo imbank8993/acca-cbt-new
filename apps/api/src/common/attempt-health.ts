@@ -1,6 +1,26 @@
+import { hasStoredAnswer } from '@acca-cbt/shared';
 import { examDeadline } from './exam-deadline';
 
-export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date, questionCount: number) {
+/** Jejak masa offline yang perlu dilihat pengawas sebelum memulihkan. */
+export function offlineReview(attempt: any, logs: any[] = []) {
+    const lastReset = logs.filter(log => ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED'].includes(log.event_type))
+        .map(log => log.created_at).sort().pop();
+    const lateEvidence = logs.filter(log => log.event_type === 'LATE_SECURITY_EVIDENCE' &&
+        (!lastReset || log.created_at > lastReset)).length;
+    const lost = attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true
+        ? attempt.metadata?.connection_lost_at_close || null : null;
+    const uncounted = attempt.metadata?.local_answers_not_counted;
+    const uncountedCount = Number.isInteger(uncounted?.count) && uncounted.count > 0 ? uncounted.count : 0;
+    return {
+        connection_lost_at_close: lost && typeof lost === 'object' ? {
+            last_seen_at: lost.last_seen_at ?? null, deadline_at: lost.deadline_at ?? null, gap_seconds: lost.gap_seconds ?? null,
+        } : null,
+        uncounted_local_answers: uncountedCount ? { count: uncountedCount, reported_at: uncounted.reported_at ?? null } : null,
+        late_security_evidence: lateEvidence,
+    };
+}
+
+export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date, questionCount: number, logs: any[] = []) {
     const report = attempt.metadata?.sync_health;
     const reportAt = typeof report?.receivedAt === 'string' ? report.receivedAt : null;
     const age = reportAt ? now.getTime() - Date.parse(reportAt) : Infinity;
@@ -11,10 +31,7 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
     const deadline = examDeadline(attempt, exam);
     const deadlineAt = Number.isFinite(deadline.getTime()) ? deadline.toISOString() : null;
     const remaining = deadlineAt ? Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / 1000)) : null;
-    const saved = answers.filter(answer => {
-        const value = answer.essay_answer ?? answer.selected_option_id;
-        return value != null && !['', '[]', '{}', 'null'].includes(String(value).trim());
-    }).length;
+    const saved = answers.filter(hasStoredAnswer).length;
     const savedDates = answers.map(answer => answer.metadata?.answer_saved_at)
         .filter((value): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))).sort();
     const attention: string[] = [];
@@ -27,6 +44,12 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
     const grading = ['submitted', 'auto_submitted'].includes(attempt.status)
         ? attempt.total_score == null ? 'pending' : attempt.needs_manual_grading ? 'manual' : 'complete' : 'not_submitted';
     if (grading === 'pending') attention.push('Jawaban terkumpul, menunggu penilaian');
+    const review = offlineReview(attempt, logs);
+    if (review.connection_lost_at_close) attention.push('Perangkat tanpa kontak saat waktu habis');
+    if (review.uncounted_local_answers) {
+        attention.push(`${review.uncounted_local_answers.count} jawaban lokal belum masuk — perlu pemulihan`);
+    }
+    if (review.late_security_evidence) attention.push('Ada catatan pengawasan susulan dari masa offline');
     return {
         client_context: attempt.metadata?.client_context || null,
         server_now: now.toISOString(), connection_status: connection, deadline_at: deadlineAt,
@@ -34,6 +57,6 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
         unanswered_count: Math.max(0, questionCount - saved), last_answer_saved_at: savedDates.at(-1) || null,
         sync_health: reportAt ? { localAnswerCount: report.localAnswerCount, pendingAnswerCount: report.pendingAnswerCount,
             storageState: report.storageState, receivedAt: reportAt, fresh } : null,
-        grading_status: grading, attention_reasons: attention,
+        grading_status: grading, attention_reasons: attention, offline_review: review,
     };
 }

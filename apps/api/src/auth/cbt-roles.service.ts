@@ -1,3 +1,4 @@
+import { hasPasInvigilationAssignment } from '../common/pas-monitoring-access';
 import { Injectable, Logger } from '@nestjs/common';
 import {
   emptyResolvedRoles,
@@ -113,7 +114,7 @@ export class CbtRolesService {
         const name = memberRole?.roles?.name;
         // Dinormalkan ke huruf besar agar 'Proktor'/'PROKTOR'/'proktor' di
         // cbt_roles.name terbaca sama.
-        if (name) orgRoleNames.add(String(name).toUpperCase());
+        if (name && String(name).toUpperCase() !== 'PENGAWAS') orgRoleNames.add(String(name).toUpperCase());
       }
     }
 
@@ -127,7 +128,9 @@ export class CbtRolesService {
     if (orgRoleNames.has('PROKTOR')) out.proktor = true;
     if (orgRoleNames.has('ADMIN')) out.admin = true;
     if (orgRoleNames.has('GURU')) out.guru = true;
-    if (orgRoleNames.has('PENGAWAS')) out.pengawas = true;
+    // Pengawas is a duty-derived capability, never an SSO or membership role.
+    out.pengawas = Boolean((memberships as any[])?.length) &&
+      await hasPasInvigilationAssignment(this.db, userId, organizationId);
     if (orgRoleNames.has('SISWA')) out.siswa = true;
 
     // Pernah mengikuti ujian sudah cukup untuk peran Siswa: akun lama bisa
@@ -139,6 +142,7 @@ export class CbtRolesService {
       ...orgRoleNames,
       ...(out.superadmin ? ['SUPERADMIN'] : []),
       ...(out.admin ? ['ADMIN'] : []),
+      ...(out.pengawas ? ['PENGAWAS'] : []),
     ];
 
     return {
@@ -171,8 +175,11 @@ export class CbtRolesService {
     for (const member of (data as any[]) || []) {
       for (const memberRole of member.member_roles || []) {
         const name = memberRole?.roles?.name;
-        if (name && wanted.has(String(name).toUpperCase())) return true;
+        if (name && String(name).toUpperCase() !== 'PENGAWAS' && wanted.has(String(name).toUpperCase())) return true;
       }
+    }
+    if (wanted.has('PENGAWAS') && data?.length) {
+      return hasPasInvigilationAssignment(this.db, userId, schoolId);
     }
     return false;
   }

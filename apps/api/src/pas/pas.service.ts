@@ -14,7 +14,7 @@ import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
 import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASPeriodDto } from './dto/pas.dto';
-import { writablePasPeriod, pasDateRange, pasDate } from '../common/pas-period-policy';
+import { writablePasPeriod, pasDateRange, storedPasDate } from '../common/pas-period-policy';
 import { loadPasReadiness } from './pas-readiness';
 
 /**
@@ -168,13 +168,13 @@ export class PasService {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
         return this.db.transaction(async db => {
             const period = await writablePasPeriod(db, periodId);
-            const range = pasDateRange(dto.start_date ?? period.start_date, dto.end_date ?? period.end_date);
+            const range = pasDateRange(dto.start_date ?? storedPasDate(period.start_date), dto.end_date ?? storedPasDate(period.end_date));
             if (dto.type !== undefined && !['pas', 'pat', 'am', 'pts', 'pkn'].includes(dto.type)) throw new BadRequestException('Jenis ujian tidak valid.');
             if (dto.semester !== undefined && !['ganjil', 'genap'].includes(dto.semester)) throw new BadRequestException('Semester tidak valid.');
             const { data: schedules, error } = await db.from('cbt_pas_class_schedules')
                 .select('exam_id, scheduled_date').eq('pas_period_id', periodId);
             if (error) throw new BadRequestException('Jadwal periode belum dapat diperiksa.');
-            if ((schedules || []).some((row: { scheduled_date: string; exam_id?: string }) => { const date = pasDate(row.scheduled_date); return date < range.start || date > range.end; })) {
+            if ((schedules || []).some((row: { scheduled_date: string; exam_id?: string }) => { const date = storedPasDate(row.scheduled_date); return date < range.start || date > range.end; })) {
                 throw new ConflictException('Rentang tanggal baru tidak mencakup seluruh jadwal ujian. Sesuaikan jadwal terlebih dahulu.');
             }
             const updateData: Record<string, unknown> = {};
@@ -344,7 +344,7 @@ export class PasService {
             .from('cbt_organization_members')
             .select(
                 `user_id,
-                 profiles:cbt_profiles(full_name),
+                 profiles:cbt_profiles(full_name, identity_number),
                  member_roles:cbt_member_roles(roles:cbt_roles(name))`,
             )
             .eq('organization_id', organizationId);
@@ -358,12 +358,13 @@ export class PasService {
             .map((member) => ({
                 id: member.user_id,
                 name: member.profiles?.full_name || 'Tanpa nama',
+                nip: member.profiles?.identity_number || null,
                 roles: (member.member_roles || [])
                     .map((mr: any) => mr.roles?.name)
                     .filter(Boolean) as string[],
             }))
             .filter(
-                (member) => ['Guru', 'Pengawas', 'Proktor', 'Admin']
+                (member) => member.roles.length === 0 || ['Guru', 'Pengawas', 'Proktor', 'Admin']
                     .some((role) => member.roles.includes(role)),
             );
     }

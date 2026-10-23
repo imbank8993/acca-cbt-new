@@ -159,3 +159,19 @@ test('restore rejects room/session assignments across periods before any writes'
     })), /periode yang sama/);
     assert.equal(db.writes.length, 0);
 });
+
+test('collaborator permissions and audit records survive restore with remapped user identities',async()=>{
+ const db=fixtureDb({cbt_roles:[{id:'role-guru',name:'Guru'}]}); const service=new BackupService(db,authz,authUsers,schoolScope);
+ service.prepareUsers=async()=>new Map([['teacher','local-teacher']]);
+ await service.import(user,payload({
+  users_data:[{original_user_id:'teacher',email:'teacher@example.test',role:'Guru'}],
+  question_banks:[{id:'bank'}],exams:[{id:'exam'}],
+  bank_collaborators:[{id:'bc',bank_id:'bank',user_id:'teacher',granted_by:'teacher',permission:'editor'}],
+  exam_collaborators:[{id:'ec',exam_id:'exam',user_id:'teacher',granted_by:'teacher',permission:'editor',can_reset:false,revoked_at:'2026-10-23T00:00:00Z'}],
+  collaboration_events:[{id:'event',resource_type:'bank',resource_id:'bank',actor_id:'teacher',user_id:'teacher',action:'grant'}],
+ }));
+ assert.equal(db.tables.cbt_bank_collaborators[0].user_id,'local-teacher');
+ assert.equal(db.tables.cbt_bank_collaborators[0].granted_by,'local-teacher');
+ assert.equal(db.tables.cbt_exam_collaborators[0].revoked_at,'2026-10-23T00:00:00Z');
+ assert.equal(db.tables.cbt_collaboration_events[0].actor_id,'local-teacher');
+});

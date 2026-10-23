@@ -97,6 +97,7 @@ export class ExamsService {
      * Dipindahkan dari `deleteExamAction` di `apps/web/app/actions/admin.ts`.
      */
     async remove(user: AuthUser, examId: string): Promise<void> {
+        await this.authz.assertResourceOwner(user, 'exam', examId);
         // Proktor/Admin bebas; Guru hanya ujian non-PAS/PAT buatannya sendiri.
         await this.authz.assertExamStaff(user, examId);
 
@@ -127,6 +128,7 @@ export class ExamsService {
      * diketik ulang. Jalur hapus biasa tidak pernah menghapus rekam siswa.
      */
     async purgeTrial(user: AuthUser, examId: string, confirmationTitle: string) {
+        await this.authz.assertResourceOwner(user, 'exam', examId);
         await this.authz.assertProktorByRecord(user, 'cbt_exams', examId);
 
         return this.db.transaction(async (db) => {

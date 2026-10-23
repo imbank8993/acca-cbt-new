@@ -142,7 +142,7 @@ export class PasRoomsService {
                 db,
                 period.organization_id as string,
                 uniqueUserIds,
-                ['Guru', 'Pengawas', 'Proktor', 'Admin'],
+                [], // Penugasan cukup; tidak mensyaratkan role Pengawas.
                 'Pengawas',
             );
             await this.assertNoInvigilatorClash(db, periodId, roomId, sessionId, date, uniqueUserIds);
@@ -381,9 +381,13 @@ export class PasRoomsService {
         const allowed = new Set(allowedRoles.map((role) => role.toLowerCase()));
         const validIds = new Set(
             ((data as Array<{ user_id: string; member_roles?: Array<{ roles?: { name?: string } }> }>) || [])
-                .filter((member) => (member.member_roles || []).some(
-                    (entry) => allowed.has(String(entry.roles?.name || '').toLowerCase()),
-                ))
+                .filter((member) => allowed.size === 0
+                    ? !(member.member_roles || []).length || (member.member_roles || []).some(
+                        entry => ['guru', 'proktor', 'admin', 'pengawas'].includes(String(entry.roles?.name || '').toLowerCase()),
+                    )
+                    : (member.member_roles || []).some(
+                        (entry) => allowed.has(String(entry.roles?.name || '').toLowerCase()),
+                    ))
                 .map((member) => member.user_id),
         );
 

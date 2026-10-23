@@ -103,10 +103,10 @@
 .monitoring-refresh { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; color: var(--monitoring-muted); background: var(--monitoring-surface); border: 1px solid var(--monitoring-line); border-radius: 8px; cursor: pointer; }
 .monitoring-refresh:hover { background: var(--monitoring-control); color: var(--primary, #3083ff); }
 .monitoring-refresh:disabled { cursor: not-allowed; opacity: .45; }
-.monitoring-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 22px; padding: 18px 0; border: 1px solid var(--monitoring-line); border-radius: 12px; background: var(--monitoring-surface); }
-.monitoring-summary > div { padding: 0 22px; border-left: 1px solid var(--monitoring-line); }
+.monitoring-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 22px; padding: 18px 0; border: 1px solid var(--monitoring-line); border-radius: 12px; background: var(--monitoring-surface); }
+.monitoring-summary > div { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 0 22px; border-left: 1px solid var(--monitoring-line); }
 .monitoring-summary > div:first-child { border-left: 0; }
-.monitoring-summary dt { color: var(--monitoring-muted); font-size: 12px; margin-bottom: 5px; }
+.monitoring-summary dt { color: var(--monitoring-muted); font-size: 12px; margin-bottom: 0; }
 .monitoring-summary dd { color: var(--monitoring-text); font-size: 26px; line-height: 1.25; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.6px; margin: 0; }
 .monitoring-summary .monitoring-summary__attention dd { color: var(--monitoring-warning); }
 .monitoring-reset-summary { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 20px; padding: 10px 14px; border: 1px solid var(--monitoring-line); border-radius: 10px; background: var(--monitoring-surface); color: var(--monitoring-muted); font-size: 13px; }
@@ -147,7 +147,8 @@
 
 @media (max-width: 479px) {
   .monitoring-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 0; padding: 16px 0; }
-  .monitoring-summary > div:nth-child(3) { border-left: 0; }
+  .monitoring-summary > div:nth-child(odd) { border-left: 0; }
+  .monitoring-summary > div:last-child { grid-column: 1 / -1; }
   .monitoring-participant-filters__search { flex-basis: 100%; }
   .monitoring-attention-filter { flex: 1 1 100%; }
   .monitoring-participant-filters__actions { width: 100%; }

@@ -14,7 +14,11 @@ ExamSnapshotConflictError,
 type ExamAnswerSnapshot,
 type QueuedSecurityEvent,
 enqueueSecurityEvent,
+forgetExamOfflineOwner,
 inspectExamStorage,
+readExamOfflineOwner,
+rememberExamOfflineOwner,
+removeExamAttemptCaches,
 readExamRecoverySession,
 readExamSnapshot,
 readSecurityEvents,
@@ -209,6 +213,9 @@ export default function ExamPage() {
     // dijangkau. Autosave dan heartbeat menunggu validasi endpoint start.
     // Pengumpulan salinan terkunci diverifikasi langsung oleh endpoint submit.
     const offlineRecoveryRef = useRef(false);
+    // Jam ujian dihitung dari jam perangkat (pemulihan offline), bukan dari sisa
+    // waktu server. Kunci "waktu habis" dari jam ini belum tentu benar.
+    const clockFromDeviceRef = useRef(false);
     const [usingOfflineRecovery, setUsingOfflineRecovery] = useState(false);
     const toast = useToast();
 
@@ -437,10 +444,23 @@ export default function ExamPage() {
                     } catch {
                         return false;
                     }
+                    if (!cached) return false;
+                    // Tanpa server, pemilik paket hanya dapat dicocokkan dengan akun
+                    // terakhir yang diverifikasi di perangkat ini (dihapus saat logout).
+                    const ownerId = knownUserId ?? readExamOfflineOwner();
+                    if (!ownerId) {
+                        setAccessDenied(true);
+                        setAccessError(
+                            'Sesi ujian offline di perangkat ini tidak dapat dibuka karena akun belum terverifikasi. ' +
+                            'Sambungkan internet lalu masuk kembali dengan akun peserta ujian ini.',
+                        );
+                        setLoading(false);
+                        return true;
+                    }
                     const checked = validateExamRecoverySession(cached, {
                         examId,
                         deviceId: durableDeviceId,
-                        userId: knownUserId,
+                        userId: ownerId,
                         allowExpiredForSubmission: true,
                     });
                     if (!checked.valid) {
@@ -460,7 +480,8 @@ export default function ExamPage() {
                     const local = await readExamSnapshot(session.attemptId).catch(() => null);
                     if (cancelled) return false;
                     const restoredAnswers = local?.answers || {};
-                    const locked = session.deadlineAt <= Date.now() || Boolean(local?.frozenSubmission) || session.attempt.metadata?.recovery_submit_only === true;
+                    const deviceDeadlinePassed = session.deadlineAt <= Date.now();
+                    const locked = deviceDeadlinePassed || Boolean(local?.frozenSubmission) || session.attempt.metadata?.recovery_submit_only === true;
                     if (local?.frozenSubmission) frozenSnapshotRef.current = local;
                     setSubmissionOnly(locked);
                     if (locked) setWaitingForSyncAndSubmit(true);
@@ -487,13 +508,15 @@ export default function ExamPage() {
                     setFailedSyncCount(failedSyncRef.current.size);
                     deadlineRef.current = session.deadlineAt;
                     clockRef.current.anchor(remaining);
+                    clockFromDeviceRef.current = true;
                     setTimeLeft(remaining);
                     setCurrentQIndex(Math.min(
                         Math.max(0, session.lastQuestionIndex),
                         Math.max(0, restoredQuestions.length - 1),
                     ));
-                    setStorageWarning(
-                        'Ujian dipulihkan dari perangkat ini. Akses server akan diverifikasi sebelum jawaban dikirim.',
+                    setStorageWarning(deviceDeadlinePassed && !local?.frozenSubmission
+                        ? 'Menurut jam perangkat waktu ujian sudah habis. Sisa waktu sebenarnya diperiksa ke server saat tersambung; bila masih ada, ujian dibuka kembali.'
+                        : 'Ujian dipulihkan dari perangkat ini. Akses server akan diverifikasi sebelum jawaban dikirim.',
                     );
                     setLoading(false);
                     return true;
@@ -510,7 +533,13 @@ export default function ExamPage() {
                     throw error;
                 }
                 if (cancelled) return;
-                if (authUser) setUser(authUser);
+                if (authUser) {
+                    setUser(authUser);
+                    rememberExamOfflineOwner(authUser.id);
+                } else if (navigator.onLine) {
+                    // Server menolak sesi: paket offline tidak boleh dibuka lagi tanpa login ulang.
+                    forgetExamOfflineOwner();
+                }
                 if (!authUser && !navigator.onLine && await restoreOfflineSession(null)) return;
 
                 // Keterangan ujian dan identitas peserta datang bersama dalam
@@ -570,6 +599,7 @@ export default function ExamPage() {
                 const result = await startExamAttemptAction(examId, durableDeviceId, screenSharingRef.current);
                 if (cancelled) return;
                 clockRef.current.anchor(Math.max(0, (result.success ? result.remainingSeconds : 0) - (performance.now() - startRequestedAt) / 1000));
+                clockFromDeviceRef.current = false;
                 if (!result.success) {
                     if (result.retryable && await restoreOfflineSession(authUser.id)) return;
                     const pendingSession = await readExamRecoverySession(examId).catch(() => null);
@@ -924,6 +954,25 @@ export default function ExamPage() {
 
         const activeAttempt = attemptRef.current;
         if (!activeAttempt) return;
+        // Pengumpulan otomatis karena "waktu habis" menurut jam perangkat wajib
+        // dikonfirmasi server dulu. Dulu jam perangkat yang maju membuat ujian
+        // yang masih punya sisa waktu langsung dikunci dan dikumpulkan saat online.
+        if (opts?.isAuto && clockFromDeviceRef.current && !frozenSnapshotRef.current &&
+            activeAttempt.metadata?.recovery_submit_only !== true) {
+            setSubmissionOnly(true);
+            setWaitingForSyncAndSubmit(true);
+            if (!navigator.onLine) return;
+            submitInFlightRef.current = true;
+            const status = await getExamSubmissionStatus(activeAttempt.id).catch(() => null);
+            submitInFlightRef.current = false;
+            if (!status?.success) return;
+            if ((status.startedAt && Date.parse(status.startedAt) !== Date.parse(activeAttempt.started_at || '')) ||
+                (status.status === 'in_progress' && status.remainingSeconds > 0 && !status.submissionOnly)) {
+                window.location.reload();
+                return;
+            }
+            clockFromDeviceRef.current = false;
+        }
         if (!opts?.isAuto) autoRetryCountRef.current = 0;
         setSubmissionIssue(null);
         if (!frozenSnapshotRef.current) {
@@ -987,6 +1036,12 @@ export default function ExamPage() {
                 snapshot.frozenSubmission,
                 securityEvents,
             );
+            const acceptedEvents = new Set(result.acceptedSecurityEventIds || []);
+            for (const event of durableEvents) {
+                if (acceptedEvents.has(event.id) && !event.screenshotBase64) {
+                    await removeSecurityEvent(activeAttempt.id, event.id, event).catch(() => undefined);
+                }
+            }
             if (result.success) {
                 autoRetryCountRef.current = 0;
                 submissionSucceededRef.current = true;
@@ -1002,9 +1057,8 @@ export default function ExamPage() {
                 if (attempt?.id && !result.savedAnswersOnly) {
                     await removeExamSnapshot(attempt.id).catch(() => undefined);
                     await removeExamSubmissionRegistration(attempt.id, activeAttempt.started_at, activeAttempt.personal_end_time).catch(() => undefined);
-                    try {
-                        localStorage.removeItem(`exam_assignment_${attempt.id}`);
-                    } catch { /* Server has confirmed the commit; cache cleanup must not change its outcome. */ }
+                    // Server has confirmed the commit; cache cleanup must not change its outcome.
+                    removeExamAttemptCaches(attempt.id);
                 }
                 await removeExamRecoverySession(examId).catch(() => undefined);
                 await removeExamOfflineShell(examId).catch(() => undefined);
@@ -1120,6 +1174,7 @@ export default function ExamPage() {
 
         const remaining = Math.max(0, (result.remainingSeconds || 0) - (performance.now() - startRequestedAt) / 1000);
         clockRef.current.anchor(remaining);
+        clockFromDeviceRef.current = false;
         const serverDeadline = Date.now() + remaining * 1000;
         deadlineRef.current = serverDeadline;
         setTimeLeft(remaining);
@@ -1209,14 +1264,9 @@ export default function ExamPage() {
                     }
                 }
                 await removeSecurityEvent(att.id, event.id, event);
-                if (result.terminated) {
-                    // Event setelah ambang tidak lagi relevan karena attempt sudah
-                    // ditutup oleh server. Bersihkan agar antrean lokal tidak macet.
-                    await Promise.all(events.slice(index + 1).map((queued) =>
-                        removeSecurityEvent(att.id, queued.id, queued),
-                    ));
-                    break;
-                }
+                // Sisa antrean TIDAK dibuang walau attempt sudah ditutup: server
+                // menyimpannya sebagai bukti susulan dan mengakuinya satu per satu.
+                // Yang ditolak (di luar masa ujian) berhenti di sini dan kedaluwarsa sendiri.
             }
             if (latest && attemptRef.current?.id === att.id && !submissionSucceededRef.current) {
                 violationCountRef.current = latest.warningCount;

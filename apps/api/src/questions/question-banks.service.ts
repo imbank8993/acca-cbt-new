@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { collaborationGrants } from '../common/collaboration-access';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -10,6 +11,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 const UNIQUE_VIOLATION = '23505';
 
 export interface BankInput {
+    expectedUpdatedAt?: string;
     clientRequestId?: string;
     title?: string;
     description?: string;
@@ -72,9 +74,13 @@ export class QuestionBanksService {
         const elevated = await this.isElevated(user, organizationId);
         const restrictedProctor = await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) &&
             !user.isPlatformAdmin && !user.resolved?.superadmin && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
+        const grants = await collaborationGrants(this.db, 'bank', user.id);
+        const sharedIds = [...grants.keys()];
+        const collaboration = await this.authz.collaborationListContext(user, organizationId);
+        const sharedClause = sharedIds.length ? `,id.in.(${sharedIds.join(',')})` : '';
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true${sharedClause}`);
         else if (!elevated) {
-            query = query.eq('created_by', user.id);
+            query = sharedIds.length ? query.or(`created_by.eq.${user.id}${sharedClause}`) : query.eq('created_by', user.id);
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });
@@ -84,7 +90,7 @@ export class QuestionBanksService {
             return [];
         }
 
-        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true);
+        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true || sharedIds.includes(bank.id));
 
         // Nama pembuat ditampilkan pada kartu bank. Profil bisa belum terisi —
         // akun yang datang lewat SSO sering hanya punya email — jadi awalan
@@ -102,9 +108,13 @@ export class QuestionBanksService {
 
             const questionCount = (bank.bank_questions || []).filter((q: any) => !q.metadata?._deleted).length;
 
+            const access = collaboration.access(bank, grants.get(bank.id));
+            const grant = access.grant;
             return {
                 ...bank,
-                canManage: !restrictedProctor || bank.created_by === user.id,
+                canManage: access.owner || access.admin || !!grant && ['editor', 'manager'].includes(grant.permission),
+                isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete,
+                collaborationPermission: grant?.permission || null,
                 question_count: questionCount,
                 total_questions: questionCount,
                 folder_id: bank.folder_id,
@@ -126,8 +136,9 @@ export class QuestionBanksService {
 
         if (!data) throw new NotFoundException('Bank soal tidak ditemukan.');
         const bank = data as any;
-        const admin = user.isPlatformAdmin || user.resolved?.superadmin || await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']);
-        return { ...bank, canManage: admin || bank.created_by === user.id };
+        const access = await this.authz.collaborationPermissions(user, 'bank', bankId);
+        return { ...bank, canManage: access.owner || access.admin || !!access.grant && ['editor', 'manager'].includes(access.grant.permission),
+            isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null };
     }
 
     async create(user: AuthUser, organizationId: string, input: BankInput) {
@@ -176,18 +187,24 @@ export class QuestionBanksService {
 
         if (Object.keys(payload).length === 0) return { id: bankId };
 
-        const { error } = await this.db
-            .from('cbt_question_banks')
-            .update(payload)
-            .eq('id', bankId);
-
-        if (error) throw new BadRequestException(error.message);
+        await this.db.transaction(async db => {
+            await db.raw('SELECT id FROM public.cbt_question_banks WHERE id = $1::uuid FOR UPDATE', bankId);
+            await this.authz.assertBankAccess(user, bankId, 'write', db);
+            const current = await db.from('cbt_question_banks').select('updated_at').eq('id', bankId).maybeSingle();
+            if (current.error) throw new BadRequestException('Versi bank soal belum dapat diperiksa.');
+            if (input.expectedUpdatedAt && (!current.data?.updated_at ||
+                Date.parse(input.expectedUpdatedAt) !== Date.parse(current.data.updated_at))) {
+                throw new ConflictException('Bank soal telah diubah oleh pengguna lain. Muat ulang sebelum menyimpan.');
+            }
+            const result = await db.from('cbt_question_banks').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', bankId);
+            if (result.error) throw new BadRequestException(result.error.message);
+        });
 
         return { id: bankId };
     }
 
     async remove(user: AuthUser, bankId: string) {
-        await this.authz.assertBankAccess(user, bankId);
+        await this.authz.assertBankAccess(user, bankId, 'delete');
 
         const [{ data: direct, error: directError }, { data: sources, error: sourceError }] =
             await Promise.all([
@@ -219,6 +236,11 @@ export class QuestionBanksService {
      */
     async setPublished(user: AuthUser, bankId: string, isPublished: boolean) {
         await this.authz.assertBankAccess(user, bankId);
+        // Menerbitkan membuka bank (beserta kuncinya) untuk dibaca Proktor lain dan
+        // dipakai di ujian siapa pun; menarik dapat mengganggu ujian berjalan.
+        // Keputusan itu milik pembuat, Admin, atau pengelola — bukan editor.
+        const access = await this.authz.collaborationPermissions(user, 'bank', bankId);
+        if (!access.canShare) throw new ForbiddenException('Hanya pembuat, Admin, atau pengelola yang dapat menerbitkan atau menarik bank soal.');
 
         let activeExams: Array<{ id: string; title: string }> = [];
         if (!isPublished) {

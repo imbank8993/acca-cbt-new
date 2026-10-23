@@ -1,4 +1,6 @@
 "use client";
+
+import { CollaborationButton } from '@/app/components/CollaborationButton';
 import '@/components/exams/exams-mobile.css';
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
 import { CreateExamModal } from '@/components/exams/CreateExamModal';
@@ -7,7 +9,7 @@ import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Button } from '@/app/components/ui/button';
-import { deleteExam, purgeTrialExam, setExamArchived } from '@/lib/api/exams';
+import { setExamArchived } from '@/lib/api/exams';
 import type { PASPeriod } from '@/app/types/pas';
 import { deletePASPeriodAction, listPASPeriods, listSubjects } from '@/lib/api/pas';
 import {
@@ -648,10 +650,11 @@ const ExamsPage = () => {
 
                                 {/* Card Actions */}
                                 <div className="exam-card-actions flex flex-wrap gap-2 px-4 pb-4">
+                                    {(exam.canShare || exam.collaborationPermission) && <CollaborationButton type="exam" resourceId={exam.id} onChanged={() => void loadData()} />}
                                     {/* Publish Toggle */}
                                     <button
                                         onClick={() => handlePublishToggle(exam)}
-                                        disabled={isSubmitting || publishingId === exam.id || exam.status === 'archived'}
+                                        disabled={exam.canManage !== true || isSubmitting || publishingId === exam.id || exam.status === 'archived'}
                                         className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait ${
                                             exam.is_published
                                                 ? 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 hover:border-red-500'
@@ -684,7 +687,7 @@ const ExamsPage = () => {
                                     </button>
 
                                     {/* Review Tugas — only for assignment type */}
-                                    {exam.exam_type === 'assignment' && (
+                                    {exam.canManage === true && exam.exam_type === 'assignment' && (
                                         <button
                                             onClick={() => router.push('/dashboard/proktor/assignments/' + exam.id)}
                                             className="exam-review-action flex-1 sm:flex-none px-3 py-2 text-xs bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-all font-medium flex items-center justify-center gap-1.5"
@@ -696,6 +699,7 @@ const ExamsPage = () => {
 
                                     {/* Edit */}
                                     <button
+                                        disabled={exam.canManage !== true}
                                         onClick={() => openEdit(exam)}
                                         className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-[#3083FF]/10 rounded-lg transition-all border border-slate-200 hover:border-[#3083FF]/30"
                                     >
@@ -704,6 +708,7 @@ const ExamsPage = () => {
 
                                     {/* Assign */}
                                     <button
+                                        disabled={exam.canManage !== true}
                                         onClick={() => openAssign(exam)}
                                         className={`p-2 rounded-lg transition-all border ${
                                             isAssigned
@@ -717,6 +722,7 @@ const ExamsPage = () => {
 
                                     {/* Delete */}
                                     <button
+                                        disabled={exam.canManage !== true}
                                         onClick={() => handleArchiveExam(exam)}
                                         className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all border border-slate-200 hover:border-violet-200"
                                         title={exam.status === 'archived' ? 'Pulihkan sebagai draft' : 'Arsipkan tanpa menghapus hasil'}
@@ -726,6 +732,7 @@ const ExamsPage = () => {
 
                                     {/* Delete */}
                                     <button
+                                        disabled={exam.canDelete !== true}
                                         onClick={() => handleDeleteExam(exam)}
                                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200"
                                     >

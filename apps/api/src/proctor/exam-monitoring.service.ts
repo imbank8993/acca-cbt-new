@@ -1,5 +1,6 @@
+import { hasStoredAnswer } from '@acca-cbt/shared';
 import { attemptHealth } from '../common/attempt-health';
-import { MONITORING_EVENTS } from '../common/exam-monitoring';
+import { MONITORING_EVENTS, connectionLostAtClose } from '../common/exam-monitoring';
 import { readExamQuestionVersion, hasExamQuestionSnapshots, loadFrozenExamQuestions } from '../common/exam-question-snapshots';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
@@ -164,6 +165,10 @@ export class ExamMonitoringService {
                 remaining_at_disconnect_seconds: log.metadata?.remaining_at_disconnect_seconds ?? null,
                 remaining_at_last_seen_seconds: log.metadata?.remaining_at_last_seen_seconds ?? null,
                 remaining_at_reconnect_seconds: log.metadata?.remaining_at_reconnect_seconds ?? null,
+                original_event_type: log.metadata?.original_event_type || null,
+                late_reason: log.metadata?.late_reason || null,
+                event_at: log.metadata?.timestamp || null,
+                deadline_at: log.metadata?.deadline_at || null,
             }));
             if (attempt.started_at) history.push({ type: 'ATTEMPT_STARTED', at: attempt.started_at } as any);
             // Penyelesaian oleh staf sudah tercatat sebagai FORCE_TERMINATED beserta alasannya.
@@ -173,7 +178,8 @@ export class ExamMonitoringService {
                 canReset: canReset(attempt.user_id),
                 kelas_name: assigned.classByUser.get(attempt.user_id) || '-',
                 violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
-                ...attemptHealth(attempt, exam || {}, answersByAttempt.get(attempt.id) || [], now, questions.length),
+                ...attemptHealth(attempt, exam || {}, answersByAttempt.get(attempt.id) || [], now, questions.length,
+                    logs.get(attempt.id) || []),
                 monitoring_history: history,
             };
         });
@@ -356,7 +362,7 @@ export class ExamMonitoringService {
                 const closed = await this.db.transaction(async db => {
                     await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
                     const { data: current, error: readError } = await db.from('cbt_exam_attempts')
-                        .select('id, status, started_at, personal_end_time, metadata')
+                        .select('id, status, started_at, personal_end_time, metadata, last_seen_at')
                         .eq('id', attempt.id).maybeSingle();
                     if (readError) throw new Error(readError.message);
                     if (!current || current.status !== 'in_progress') return false;
@@ -365,10 +371,18 @@ export class ExamMonitoringService {
                     if (hasActiveSubmitIntent(current.metadata, now)) return false;
                     const deadline = examDeadline(current, exam).getTime();
                     if (!Number.isFinite(deadline) || deadline + AUTO_FINISH_GRACE_MS > now.getTime()) return false;
+                    const lost = connectionLostAtClose(current.last_seen_at, deadline, now);
                     const { data: updated, error } = await db.from('cbt_exam_attempts')
-                        .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
+                        .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: {
+                            ...(current.metadata || {}), closed_by_expiry: true,
+                            ...(lost ? { connection_lost_at_close: lost } : {}) } })
                         .eq('id', attempt.id).eq('status', 'in_progress').select('id').maybeSingle();
                     if (error) throw new Error(error.message);
+                    if (updated && lost) {
+                        const { error: logError } = await db.from('cbt_attempt_security_logs').insert({ attempt_id: attempt.id,
+                            event_type: 'CONNECTION_LOST_AT_CLOSE', metadata: { ...lost, source: 'server_monitoring' } });
+                        if (logError) throw new Error(logError.message);
+                    }
                     return Boolean(updated);
                 });
                 if (!closed) continue;
@@ -610,10 +624,7 @@ export class ExamMonitoringService {
                 .in('attempt_id', ids);
 
             if (answerError) throw new BadRequestException('Jawaban analisis belum dapat dibaca.');
-            raw.push(...((data as any[]) || []).filter(answer => {
-                const value = answer.essay_answer ?? answer.selected_option_id;
-                return value != null && !['', '[]', '{}', 'null'].includes(String(value).trim());
-            }));
+            raw.push(...((data as any[]) || []).filter(hasStoredAnswer));
         }
 
         const answers = await this.resolveCorrectness(raw, questionById);
@@ -780,7 +791,7 @@ export class ExamMonitoringService {
             throw new ForbiddenException('Peserta tidak berada di ruang dan sesi pengawasan Anda.');
         }
 
-        const [{ data: answerRows }, { data: securityLogs }] = await Promise.all([
+        const [{ data: answerRows, error: answerReadError }, { data: securityLogs }] = await Promise.all([
             this.db
                 .from('cbt_answers')
                 .select(
@@ -796,16 +807,28 @@ export class ExamMonitoringService {
                 .order('created_at', { ascending: true }),
         ]);
 
+        if (answerReadError) throw new BadRequestException('Jawaban peserta belum dapat dibaca. Coba muat ulang.');
+
         const questions = await readExamQuestionVersion(this.db, attempt.exam_id);
         const savedAnswers = new Map(((answerRows as any[]) || []).map(answer => [answer.question_id, answer]));
         const answers = questions.map(question => ({
             id: `unanswered:${attemptId}:${question.id}`, attempt_id: attemptId, question_id: question.id,
-            selected_option_id: null, essay_answer: null, score: 0, is_correct: false,
+            selected_option_id: null, essay_answer: null, score: 0, is_correct: null,
             ...(savedAnswers.get(question.id) || {}), bank_questions: question,
         }));
 
         if (attempt.status === 'in_progress') {
             await this.applyLiveScores(attempt, answers);
+        }
+
+        for (const answer of answers) {
+            const answered = hasStoredAnswer(answer);
+            Object.assign(answer, { is_answered: answered });
+            if (!answered) {
+                answer.is_correct = null;
+                answer.score = 0;
+                Object.assign(answer, { needs_manual_grading: false });
+            }
         }
 
         const account = await this.authUsers.findById(attempt.user_id);

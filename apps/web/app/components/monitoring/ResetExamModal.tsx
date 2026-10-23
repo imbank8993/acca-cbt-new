@@ -88,6 +88,19 @@ function ResetExamForm({
   const savedAnswers = attempt.saved_answer_count ?? 0;
   const totalQuestions = attempt.total_questions ?? 0;
   const isActive = attempt.status === 'in_progress';
+  const offline = attempt.offline_review;
+  const offlineNotes = [
+    offline?.connection_lost_at_close
+      ? `Waktu habis saat perangkat tanpa kontak${offline.connection_lost_at_close.gap_seconds != null
+        ? ` (terakhir terhubung ${Math.max(1, Math.round(offline.connection_lost_at_close.gap_seconds / 60))} menit sebelum batas waktu)` : ''}.`
+      : null,
+    offline?.uncounted_local_answers
+      ? `${offline.uncounted_local_answers.count} jawaban di perangkat siswa belum masuk ke server dan belum dinilai.`
+      : null,
+    offline?.late_security_evidence
+      ? `${offline.late_security_evidence} catatan pengawasan susulan dari masa offline (lihat Riwayat). Tidak dihitung ke batas pelanggaran.`
+      : null,
+  ].filter((note): note is string => Boolean(note));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,6 +197,17 @@ function ResetExamForm({
               </span>
             </div>
           </div>
+          )}
+
+          {!participantSummary && offlineNotes.length > 0 && (
+            <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
+              <p className="mb-1.5 flex items-center gap-1.5 font-bold">
+                <AlertTriangle size={14} className="shrink-0" /> Periksa masa offline sebelum memulihkan
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                {offlineNotes.map(note => <li key={note}>{note}</li>)}
+              </ul>
+            </div>
           )}
 
           {/* Mode Selection Cards */}

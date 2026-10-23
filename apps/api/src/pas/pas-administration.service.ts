@@ -11,6 +11,7 @@ import { writablePasPeriod, pasDate } from '../common/pas-period-policy';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { normalizeSqlTime } from '../common/school-time';
+import { PAS_ADMINISTRATION_GRACE_DAYS, pasDutyAllowed, schoolToday } from '../common/pas-duty-window';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService } from '../prisma/prisma-db-adapter';
 import {
@@ -120,6 +121,7 @@ export class PasAdministrationService {
         roomId: string,
         sessionId: string,
         examDate?: string,
+        mode: 'view' | 'write' = 'view',
     ) {
         const [{ data: period }, { data: room }, { data: session }] = await Promise.all([
             this.db.from('cbt_pas_periods').select('*').eq('id', periodId).maybeSingle(),
@@ -150,15 +152,25 @@ export class PasAdministrationService {
                 .eq('session_id', sessionId)
                 .eq('user_id', user.id);
             if (assignmentError) throw new BadRequestException('Penugasan pengawas belum dapat diperiksa.');
-            assignedDates = [...new Set(((assignments as Array<{ exam_date?: unknown }>) || [])
+            const allDates = [...new Set(((assignments as Array<{ exam_date?: unknown }>) || [])
                 .map((row) => cleanDateString(row.exam_date)).filter(Boolean))].sort();
             const requested = examDate ? cleanDateString(examDate) : '';
-            if (!assignedDates.length || (requested && !assignedDates.includes(requested))) {
+            if (!allDates.length || (requested && !allDates.includes(requested))) {
                 throw new ForbiddenException(
                     requested
                         ? 'Anda tidak ditugaskan sebagai pengawas pada ruang, sesi, dan tanggal ujian ini.'
                         : 'Anda tidak ditugaskan sebagai pengawas pada ruang dan sesi ujian ini.',
                 );
+            }
+            // Penugasan berlaku harian: berita acara/daftar hadir dibuka H-1 untuk
+            // persiapan dan diisi pada hari H sampai beberapa hari sesudahnya.
+            const today = await schoolToday(this.db);
+            const window = mode === 'write' ? 'administration_write' : 'administration_view';
+            assignedDates = allDates.filter(date => pasDutyAllowed(date, today, window));
+            if (!assignedDates.length || (requested && !assignedDates.includes(requested))) {
+                throw new ForbiddenException(mode === 'write'
+                    ? `Berita acara hanya dapat diisi pada hari tugas sampai ${PAS_ADMINISTRATION_GRACE_DAYS} hari sesudahnya.`
+                    : `Administrasi ruang hanya dapat dibuka sehari sebelum hari tugas sampai ${PAS_ADMINISTRATION_GRACE_DAYS} hari sesudahnya.`);
             }
         }
 
@@ -188,6 +200,7 @@ export class PasAdministrationService {
 
         const periodList = ((periods as any[]) || []);
         if (periodList.length === 0) return [];
+        const today = isManager ? '' : await schoolToday(this.db);
 
         const periodIds = periodList.map((p) => p.id);
         const [
@@ -313,6 +326,9 @@ export class PasAdministrationService {
                         my_dates: myDates,
                         is_assigned_to_me: isAssignedToMe,
                         scheduled_dates: scheduledDates,
+                        // Tanggal yang administrasinya dapat dibuka sekarang (H-1 s.d. H+3).
+                        open_dates: isManager ? scheduledDates
+                            : scheduledDates.filter((date) => pasDutyAllowed(date, today, 'administration_view')),
                         saved_reports: slotReports.map((r) => ({
                             id: r.id,
                             exam_date: cleanDateString(r.exam_date),
@@ -781,6 +797,7 @@ export class PasAdministrationService {
             dto.pas_room_id,
             dto.session_id,
             examDate,
+            'write',
         );
 
         const liveSlot = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate }, true);

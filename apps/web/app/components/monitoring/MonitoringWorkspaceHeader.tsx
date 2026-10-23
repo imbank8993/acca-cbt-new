@@ -1,5 +1,7 @@
 'use client';
 
+import { CollaborationButton } from '@/app/components/CollaborationButton';
+
 import { useEffect, useState, type ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
@@ -50,11 +52,9 @@ export function MonitoringWorkspaceHeader({
         { label: 'Total peserta', value: selectedAttempts.length },
         { label: 'Mengerjakan', value: selectedAttempts.filter(attempt => attempt.status === 'in_progress').length },
         { label: 'Selesai', value: selectedAttempts.filter(attempt => ['submitted', 'auto_submitted'].includes(attempt.status)).length },
+        { label: 'Belum mulai', value: selectedAttempts.filter(attempt => attempt.status === 'belum').length },
         { label: 'Perlu perhatian', value: activeMonitoringRows(selectedAttempts, 'attention', elapsed).length, attention: true },
     ];
-    const resettableCount = selectedAttempts.filter(attempt =>
-        attempt.canReset === true && ['submitted', 'auto_submitted'].includes(attempt.status)
-    ).length;
 
     return (
         <div className="monitoring-workspace">
@@ -80,20 +80,15 @@ export function MonitoringWorkspaceHeader({
                         }
                     />
                 </div>
+                {(selected?.canShare || selected?.collaborationPermission) && <CollaborationButton type="exam" resourceId={value} onChanged={onRefresh} />}
                 {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
             </header>
             {value && <>
-                {activeTab === 'reset' ? (
-                    <div className="monitoring-reset-summary" aria-label={`${resettableCount} siswa dapat direset`}>
-                        <strong>{resettableCount}</strong><span>Dapat direset</span>
-                    </div>
-                ) : (
                     <dl className="monitoring-summary" aria-label="Ringkasan peserta ujian">
                         {stats.map(stat => <div key={stat.label} className={stat.attention && stat.value > 0 ? 'monitoring-summary__attention' : undefined}>
                             <dt>{stat.label}</dt><dd>{stat.value}</dd>
                         </div>)}
                     </dl>
-                )}
                 <nav className="monitoring-workspace__tabs" aria-label="Bagian monitoring">
                     {tabs.map(tab => <button type="button" key={tab.id}
                         aria-pressed={activeTab === tab.id} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}

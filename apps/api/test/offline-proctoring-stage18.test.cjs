@@ -121,7 +121,7 @@ test('ANS-07: monitoring semua peran menampilkan status koneksi terputus', () =>
     const activePanel = fs.readFileSync(
         path.resolve(__dirname, '../../web/app/components/ActiveParticipantsPanel.tsx'), 'utf8',
     );
-    assert.match(activePanel, /facts\.connection === 'offline' \? 'Tanpa kontak'/);
+    assert.match(activePanel, /facts\.connection === 'offline' \? 'Terputus'/);
     assert.equal(activeMonitoringFacts({
         status: 'in_progress', server_now: '2026-10-14T06:00:00Z',
         last_seen_at: '2026-10-14T05:58:00Z',

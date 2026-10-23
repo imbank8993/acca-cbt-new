@@ -5,6 +5,7 @@ import { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from '../common/chunk';
 import { pasDate } from '../common/pas-period-policy';
 import { normalizeSqlTime } from '../common/school-time';
+import { pasDutyAllowed, schoolToday } from '../common/pas-duty-window';
 
 const FINISHED = new Set(['submitted', 'auto_submitted', 'finished', 'completed', 'selesai']);
 const ACTIVE = new Set(['in_progress', 'sedang']);
@@ -79,15 +80,20 @@ export class PasMonitoringService {
         const scheduleDates = [...new Set(allSchedules.filter(row => row.exam_id).map(row => day(row.scheduled_date)))].filter(Boolean).sort();
         let myAssignments: any[] = [];
         if (!isManager) {
+            // Pengawas memantau hanya pada hari tugasnya, bukan sebelum atau sesudahnya.
+            const today = await schoolToday(this.db);
             myAssignments = (await read(this.db.from('cbt_pas_room_invigilators')
                 .select('pas_room_id, session_id, exam_date').eq('user_id', user.id)))
-                .filter(row => row.session_id && row.exam_date);
+                .filter(row => row.session_id && row.exam_date && pasDutyAllowed(day(row.exam_date), today, 'monitoring'));
         }
         const availableDates = isManager
             ? scheduleDates
             : [...new Set(myAssignments.map(row => day(row.exam_date)))].filter(date => scheduleDates.includes(date)).sort();
 
         const date = rawDate ? pasDate(rawDate) : '';
+        if (date && !isManager && !availableDates.includes(date)) {
+            return { date, is_manager: isManager, available_dates: availableDates, slots: [] as PasMonitoringSlot[] };
+        }
         if (!date) return { date: '', is_manager: isManager, available_dates: availableDates, slots: [] as PasMonitoringSlot[] };
 
         const schedules = allSchedules.filter(row => row.exam_id && day(row.scheduled_date) === date);

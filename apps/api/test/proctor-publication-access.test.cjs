@@ -67,7 +67,9 @@ test('direct monitoring and management of foreign draft exams are denied for pro
  const f=fixture();
  await assert.rejects(f.auth.assertExamMonitoring(user('proctor'),'draft-exam'),denied);
  await assert.rejects(f.auth.assertExamStaff(user('proctor'),'draft-exam'),denied);
- for(const id of ['own-exam','public-exam']){await f.auth.assertExamMonitoring(user('proctor'),id);await f.auth.assertExamStaff(user('proctor'),id)}
+ for(const id of ['own-exam','public-exam']) await f.auth.assertExamMonitoring(user('proctor'),id);
+ await f.auth.assertExamStaff(user('proctor'),'own-exam');
+ await assert.rejects(f.auth.assertExamStaff(user('proctor'),'public-exam'),denied);
  await f.auth.assertExamMonitoring(user('admin'),'draft-exam');await f.auth.assertExamStaff(user('admin'),'draft-exam');
  await f.auth.assertExamStaff(user('teacher'),'draft-exam');
 });

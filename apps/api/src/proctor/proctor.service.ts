@@ -75,7 +75,7 @@ export class ProctorService {
         organizationId: string,
         opts: { examLimit: number; perExam: number },
     ) {
-        await this.authz.assertOrgMonitoring(user, organizationId);
+        await this.authz.assertOrgStaff(user, organizationId);
         const restrictedProctor = await this.authz.isRestrictedProctor(user, organizationId);
 
         const rows = await this.prisma.$queryRawUnsafe<
@@ -201,7 +201,7 @@ export class ProctorService {
 
     /** Angka ringkas untuk kartu dasbor. */
     async getStats(user: AuthUser, organizationId: string) {
-        await this.authz.assertOrgMonitoring(user, organizationId);
+        await this.authz.assertOrgStaff(user, organizationId);
         const restrictedProctor = await this.authz.isRestrictedProctor(user, organizationId);
         let bankQuery = this.db.from('cbt_question_banks').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId);
         let examQuery = this.db.from('cbt_exams').select('is_published, status, start_time, end_time').eq('organization_id', organizationId);

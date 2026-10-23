@@ -1,7 +1,29 @@
 export const MONITORING_EVENTS = ['SCREEN_SHARE_STOPPED', 'SYNC_HEALTH_CHANGED', 'CONNECTION_GAP_DETECTED', 'CONNECTION_INTERRUPTION_REPORTED',
     // Bukti audit dari pengamatan server, bukan pelanggaran: jaringan seluler
     // wajar berganti IP, jadi keduanya tidak boleh ikut menghentikan siswa.
-    'CLIENT_CONTEXT_CHANGED', 'SCREEN_SHARE_UNCONFIRMED'];
+    'CLIENT_CONTEXT_CHANGED', 'SCREEN_SHARE_UNCONFIRMED',
+    // Jejak masa offline. Bukan pelanggaran baru (tidak menambah penghitung),
+    // tetapi wajib terlihat oleh pengawas sebelum memutuskan pemulihan.
+    'CONNECTION_LOST_AT_CLOSE', 'LATE_SECURITY_EVIDENCE', 'LOCAL_ANSWERS_NOT_COUNTED'];
+
+/** Sama dengan ambang "offline" pada monitoring (attempt-health). */
+export const CONNECTION_LOST_THRESHOLD_MS = 45_000;
+
+/**
+ * Bukti bahwa perangkat sudah tidak menghubungi server sebelum batas waktu.
+ *
+ * Tanpa catatan ini, siswa yang mematikan jaringan sampai waktu habis terlihat
+ * sama dengan siswa yang tertib: pelanggaran selama offline tidak pernah sampai
+ * ke server, dan penutupan otomatis tidak meninggalkan jejak apa pun.
+ */
+export function connectionLostAtClose(lastSeenAt: string | null | undefined, deadlineMs: number, closedAt: Date) {
+    const seen = Date.parse(lastSeenAt || '');
+    if (!Number.isFinite(seen) || !Number.isFinite(deadlineMs)) return null;
+    const gap = Math.min(deadlineMs, closedAt.getTime()) - seen;
+    if (gap <= CONNECTION_LOST_THRESHOLD_MS) return null;
+    return { last_seen_at: new Date(seen).toISOString(), deadline_at: new Date(deadlineMs).toISOString(),
+        closed_at: closedAt.toISOString(), gap_seconds: Math.round(gap / 1000) };
+}
 
 /**
  * Bandingkan identitas klien yang diamati server antar-heartbeat.

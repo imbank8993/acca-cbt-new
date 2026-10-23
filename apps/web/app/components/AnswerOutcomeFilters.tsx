@@ -11,6 +11,7 @@ export function AnswerOutcomeFilters({ value, onChange, stats }: {
         { value: 'all', label: 'Semua', count: stats.total, active: 'bg-[#3083FF] border-[#3083FF] text-white' },
         { value: 'correct', label: 'Benar', count: stats.correct, active: 'bg-emerald-600 border-emerald-600 text-white' },
         { value: 'wrong', label: 'Salah', count: stats.wrong, active: 'bg-red-500 border-red-500 text-white' },
+        { value: 'unanswered', label: 'Tidak dijawab', count: stats.unanswered, active: 'bg-slate-600 border-slate-600 text-white' },
     ] as const;
 
     return (

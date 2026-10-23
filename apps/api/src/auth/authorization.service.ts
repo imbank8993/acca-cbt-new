@@ -1,3 +1,4 @@
+import { collaborationGrant, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
@@ -177,7 +178,7 @@ export class AuthorizationService {
      * pemanggil membutuhkannya untuk baris yang akan ia tulis — dan mengambilnya
      * dari sini berarti tidak ada jalur yang memakai organisasi kiriman klien.
      */
-    async assertBankAccess(user: AuthUser, bankId: string, access: 'read' | 'write' = 'write', db: Pick<DbService, 'from'> = this.db): Promise<string> {
+    async assertBankAccess(user: AuthUser, bankId: string, access: 'read' | 'write' | 'delete' = 'write', db: Pick<DbService, 'from'> = this.db): Promise<string> {
         if (!bankId) throw new NotFoundException('Bank soal tidak ditemukan.');
 
         const { data } = await db
@@ -196,6 +197,11 @@ export class AuthorizationService {
             this.isElevatedGlobally(user) ||
             (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']));
 
+        if (!elevated && bank.created_by !== user.id && access !== 'delete') {
+            const grant = await collaborationGrant(db, 'bank', bankId, user.id);
+            if (grant && (access === 'read' || ['editor', 'manager'].includes(grant.permission))) return bank.organization_id;
+        }
+
         if (!elevated && bank.created_by !== user.id && access === 'read' && bank.is_published === true &&
             await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor'])) return bank.organization_id;
 
@@ -206,6 +212,41 @@ export class AuthorizationService {
         }
 
         return bank.organization_id;
+    }
+
+    async collaborationPermissions(user: AuthUser, type: CollaborativeResource, resourceId: string) {
+        const { data: resource, error } = await this.db.from(type === 'bank' ? 'cbt_question_banks' : 'cbt_exams')
+            .select('id, organization_id, created_by').eq('id', resourceId).maybeSingle();
+        if (error || !resource) throw new NotFoundException('Data kolaborasi tidak ditemukan.');
+        if (type === 'exam') await this.assertOrgMonitoring(user, resource.organization_id);
+        else await this.assertOrgStaff(user, resource.organization_id);
+        const staff = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, ['Guru', 'Proktor', 'Admin']);
+        const admin = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, ['Admin']);
+        const owner = staff && resource.created_by === user.id;
+        const grant = staff && !admin && !owner ? await collaborationGrant(this.db, type, resourceId, user.id) : null;
+        return { resource, owner, admin, grant, canShare: admin || owner || grant?.permission === 'manager', canDelete: admin || owner };
+    }
+
+    /**
+     * Daftar bank/ujian: hasil sama dengan collaborationPermissions, tetapi peran
+     * dan grant dihitung sekali per halaman, bukan beberapa kueri per baris.
+     */
+    async collaborationListContext(user: AuthUser, organizationId: string) {
+        const admin = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
+        const staff = admin || await this.roles.hasOrgRole(user.id, organizationId, ['Guru', 'Proktor', 'Admin']);
+        return {
+            admin, staff,
+            access: (resource: { created_by?: string | null }, grant: CollaborationGrant | null | undefined) => {
+                const owner = staff && resource.created_by === user.id;
+                const effective = staff && !admin && !owner ? grant || null : null;
+                return { owner, admin, grant: effective, canShare: admin || owner || effective?.permission === 'manager', canDelete: admin || owner };
+            },
+        };
+    }
+
+    async assertResourceOwner(user: AuthUser, type: CollaborativeResource, resourceId: string) {
+        const permissions = await this.collaborationPermissions(user, type, resourceId);
+        if (!permissions.canDelete) throw new ForbiddenException('Hanya pembuat atau Admin yang dapat menghapus data ini.');
     }
 
     /**
@@ -244,7 +285,8 @@ export class AuthorizationService {
 
         if (!exam) throw new NotFoundException('Data tidak ditemukan.');
 
-        const record = exam as {
+        const record = { ...exam, id: examId } as {
+            id: string;
             exam_type: string | null;
             created_by: string | null;
             organization_id: string | null;
@@ -264,12 +306,18 @@ export class AuthorizationService {
     /** Ownership of a bank grants monitoring only, never recovery rights. */
     async getExamResetScope(user: AuthUser, record: {
         id?: string; organization_id: string | null; created_by: string | null; exam_type: string | null;
-    }, _assignedStudents?: Map<string, string[]>): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
+    }, _assignedStudents?: Map<string, string[]>, knownGrant?: CollaborationGrant | null): Promise<{ allParticipants: boolean; studentIds: string[] } | null> {
         const organizationId = await this.schoolScope.assertSchoolId(record.organization_id);
         const full = { allParticipants: true, studentIds: [] };
         if (this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin'])) return full;
-        if (record.created_by !== user.id) return null;
-        if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru', 'Pengawas'])) return full;
+        if (record.created_by !== user.id) {
+            if (record.id && knownGrant !== null && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) {
+                const grant = knownGrant !== undefined ? knownGrant : await collaborationGrant(this.db, 'exam', record.id, user.id);
+                if (grant?.can_reset && ['editor', 'manager'].includes(grant.permission)) return full;
+            }
+            return null;
+        }
+        if (await this.roles.hasOrgRole(user.id, organizationId, ['Proktor', 'Guru'])) return full;
         return null;
     }
 
@@ -280,13 +328,20 @@ export class AuthorizationService {
         created_by: string | null;
         exam_type: string | null;
         is_published?: boolean;
-    }, operation: 'manage' | 'reset' = 'manage', assignedStudents?: Map<string, string[]>): Promise<boolean> {
-        if (operation === 'reset') return Boolean(await this.getExamResetScope(user, record, assignedStudents));
+    }, operation: 'manage' | 'reset' = 'manage', assignedStudents?: Map<string, string[]>,
+        knownGrant?: CollaborationGrant | null): Promise<boolean> {
+        if (operation === 'reset') return Boolean(await this.getExamResetScope(user, record, assignedStudents, knownGrant));
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return true;
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Admin'])) return true;
+        // knownGrant: grant yang sudah dimuat sekaligus untuk satu halaman daftar (null = tidak ada).
+        if (record.id && record.created_by !== user.id && knownGrant !== null &&
+            await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor', 'Guru'])) {
+            const grant = knownGrant !== undefined ? knownGrant : await collaborationGrant(this.db, 'exam', record.id, user.id);
+            if (grant && ['editor', 'manager'].includes(grant.permission)) return true;
+        }
         if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Proktor'])) {
-            return record.created_by === user.id || record.is_published === true;
+            return record.created_by === user.id;
         }
         if (isSemesterAssessmentExam(record)) return false;
         return record.created_by === user.id &&
@@ -320,6 +375,10 @@ export class AuthorizationService {
         await this.schoolScope.assertSchoolId(record.organization_id);
         if (this.isElevatedGlobally(user)) return;
 
+        if (await this.roles.hasOrgRole(user.id, record.organization_id, ['Guru', 'Proktor'])) {
+            if (await collaborationGrant(this.db, 'exam', examId, user.id)) return;
+        }
+
         if (await this.isRestrictedProctor(user, record.organization_id!) && record.created_by !== user.id && record.is_published !== true && !isPasMonitoringExam(record)) {
             throw new ForbiddenException('Ujian milik guru lain belum dipublikasikan.');
         }
@@ -346,9 +405,8 @@ export class AuthorizationService {
             if ((bank as { created_by?: string } | null)?.created_by === user.id) return;
         }
 
-        const isInvigilator = await this.roles.hasOrgRole(user.id, record.organization_id, ['Pengawas']);
-        if (isInvigilator && !isPasMonitoringExam(record)) return;
-        if ((isTeacher || isInvigilator) && record.organization_id) {
+        const hasDuty = await this.roles.hasOrgRole(user.id, record.organization_id, ['Pengawas']);
+        if ((isTeacher || hasDuty) && record.organization_id && isPasMonitoringExam(record)) {
             const assigned = await assignedPasExamStudents(this.db, user.id, record.organization_id);
             if (assigned.has(examId)) return assigned.get(examId)!;
         }

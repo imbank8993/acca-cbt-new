@@ -25,7 +25,9 @@ const shortDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date)
 /** Pengawas bergilir per hari: tanggal terdekat yang akan/sedang berlangsung. */
 const nextSlotDate = (item: PASAssignmentSlotSummary) => {
     const today = schoolTodayDate();
-    return item.scheduled_dates.find((date) => date >= today) || item.scheduled_dates[item.scheduled_dates.length - 1] || '';
+    // Pengawas hanya dapat membuka administrasi H-1 sampai H+3 hari tugasnya.
+    const dates = item.open_dates?.length ? item.open_dates : item.scheduled_dates;
+    return dates.find((date) => date >= today) || dates[dates.length - 1] || '';
 };
 
 export default function PengawasAdministrationPage() {
@@ -214,6 +216,9 @@ export default function PengawasAdministrationPage() {
                                                         : item.invigilators).map((i) => i.full_name).join(', ') || '-'}
                                                 </strong>
                                             </span>
+                                            {item.is_assigned_to_me && item.open_dates && !item.open_dates.length && (
+                                                <span className="shrink-0 ml-2 text-amber-700">Dibuka H-1 s.d. H+3</span>
+                                            )}
                                             {item.is_assigned_to_me && (
                                                 <span className="text-[#3083FF] font-bold shrink-0 ml-2 flex items-center gap-0.5">
                                                     <ShieldCheck size={12} /> Tugas Saya

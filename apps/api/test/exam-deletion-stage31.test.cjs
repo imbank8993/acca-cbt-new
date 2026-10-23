@@ -14,6 +14,7 @@ const { ExamConfigsService } = require('../src/exam-configs/exam-configs.service
 
 const user = { id: 'proctor-1', isPlatformAdmin: false };
 const authz = {
+    assertResourceOwner: async () => {},
     assertExamStaff: async () => {},
     assertProktorByRecord: async () => {},
     assertProktorByParent: async () => {},

@@ -211,3 +211,20 @@ test('SESSION-08: UI Admin dan Proktor menyembunyikan mutasi saat terkunci', () 
     }
 });
 
+
+
+test('folder edits accept stored SQL dates serialized at UTC midnight', async () => {
+    const db = fixtureDb(tables());
+    db.tables.cbt_pas_periods[0].start_date = '2026-09-01T00:00:00.000Z';
+    db.tables.cbt_pas_periods[0].end_date = '2026-09-30T00:00:00.000Z';
+    db.tables.cbt_pas_class_schedules[0].scheduled_date = '2026-09-16T00:00:00.000Z';
+    db.tables.cbt_pas_administration_reports = [];
+    const service = new PasService(db, authz);
+    await service.updatePeriod(user, 'period-1', { start_date: '2026-09-01', end_date: '2026-09-30' });
+    assert.equal(db.tables.cbt_pas_periods[0].start_date, '2026-09-01');
+    await service.updatePeriod(user, 'period-1', { committee_chair_name: 'Ketua' });
+    assert.equal(db.tables.cbt_pas_periods[0].committee_chair_name, 'Ketua');
+    await assert.rejects(service.updatePeriod(user, 'period-1', { start_date: '2026-02-30' }), /tanggal kalender/);
+    await assert.rejects(service.updatePeriod(user, 'period-1', { start_date: '2026-09-01T00:00:00.000Z' }), /tanggal kalender/);
+    await assert.rejects(service.updatePeriod(user, 'period-1', { end_date: '2026-09-15' }), /tidak mencakup/);
+});

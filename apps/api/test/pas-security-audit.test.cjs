@@ -11,7 +11,7 @@ const { PasService } = require('../src/pas/pas.service.ts');
 const { PasRoomsService } = require('../src/pas/pas-rooms.service.ts');
 
 function fixture(type = 'pas') {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_pas_periods[0].type = type;
     db.tables.cbt_profiles.push({ id: 'other-proctor', full_name: 'Proktor Pemberi ACC', nis: '2345' });
     const roleByUser = { 'proctor-creator-1': 'Proktor', 'other-proctor': 'Proktor', 'pengawas-1': 'Pengawas', 'unassigned-guard': 'Pengawas', student: 'Siswa' };

@@ -9,6 +9,7 @@ export interface PASSubjectSummary {
 }
 
 export interface PASStaffMember {
+    nip?: string | null;
     id: string;
     name: string;
     roles: string[];
@@ -532,6 +533,8 @@ export interface PASAssignmentSlotSummary {
     my_dates?: string[];
     is_assigned_to_me: boolean;
     scheduled_dates: string[];
+    /** Tanggal yang administrasinya dapat dibuka sekarang; pengawas: H-1 s.d. H+3 hari tugas. */
+    open_dates?: string[];
     saved_reports: Array<{
         id: string;
         exam_date: string;

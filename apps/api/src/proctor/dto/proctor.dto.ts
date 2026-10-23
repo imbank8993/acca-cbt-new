@@ -176,7 +176,9 @@ export class CreateExamDto extends ExamFieldsDto {
     questionBankId?: string;
 }
 
-export class UpdateExamDto extends ExamFieldsDto {}
+export class UpdateExamDto extends ExamFieldsDto {
+    @IsOptional() @IsString() expectedUpdatedAt?: string;
+}
 
 export class PublishExamDto {
     @ApiProperty()

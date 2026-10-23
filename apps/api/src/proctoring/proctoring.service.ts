@@ -1,7 +1,8 @@
 import { clientContextChange, validateSyncHealth, type ClientSyncHealth } from '../common/exam-monitoring';
 import { examDeadline } from '../common/exam-deadline';
 import { hasCommittedSubmitIntent } from '../common/submission-commitment';
-import { STUDENT_SECURITY_EVENTS, securityEventCounters, validateStudentSecurityMetadata } from '../common/student-security-events';
+import { STUDENT_SECURITY_EVENTS, persistSubmissionSecurityEvents, securityEventCounters, validateStudentSecurityMetadata,
+    validateSubmissionSecurityEvents } from '../common/student-security-events';
 export { STUDENT_SECURITY_EVENTS } from '../common/student-security-events';
 import {
     BadRequestException,
@@ -51,7 +52,7 @@ export class ProctoringService {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt } = await db
                 .from('cbt_exam_attempts')
-                .select('user_id, status, exam_id, warning_count, metadata')
+                .select('user_id, status, exam_id, warning_count, metadata, started_at, finished_at, personal_end_time')
                 .eq('id', attemptId)
                 .maybeSingle();
 
@@ -62,6 +63,9 @@ export class ProctoringService {
                 exam_id: string;
                 warning_count: number | null;
                 metadata?: Record<string, unknown> | null;
+                started_at?: string | null;
+                finished_at?: string | null;
+                personal_end_time?: string | null;
             };
 
             if (row.user_id !== user.id) {
@@ -75,14 +79,16 @@ export class ProctoringService {
                     .eq('attempt_id', attemptId)
                     .contains('metadata', { client_event_id: clientEventId })
                     .maybeSingle();
-                if (existing && (existing.event_type !== eventType || existing.metadata?.source !== 'student' ||
+                const existingType = existing?.event_type === 'LATE_SECURITY_EVIDENCE'
+                    ? existing.metadata?.original_event_type : existing?.event_type;
+                if (existing && (existingType !== eventType || existing.metadata?.source !== 'student' ||
                     existing.metadata?.actor_id !== user.id)) throw new BadRequestException('ID catatan pengawasan tidak cocok.');
                 duplicate = Boolean(existing);
             }
 
             const { data: exam } = await db
                 .from('cbt_exams')
-                .select('metadata')
+                .select('metadata, end_time, duration_minutes')
                 .eq('id', row.exam_id)
                 .maybeSingle();
             const examMetadata = (exam as { metadata?: Record<string, unknown> } | null)?.metadata || {};
@@ -106,6 +112,15 @@ export class ProctoringService {
                         terminated: row.status === 'auto_submitted',
                         shouldTerminate: false,
                     };
+                }
+                // Antrean perangkat yang baru tersambung setelah ujian ditutup
+                // otomatis: simpan sebagai bukti susulan, jangan dibuang.
+                const lateAccepted = row.status === 'auto_submitted' && clientEventId && exam
+                    ? await this.persistLateViolation(db, attemptId, user.id, row, exam, eventType, metadata, clientEventId)
+                    : false;
+                if (lateAccepted) {
+                    return { warningCount: row.warning_count || 0, duplicate: false, maxViolations,
+                        terminated: true, shouldTerminate: false, lateEvidence: true };
                 }
                 throw new BadRequestException('Ujian tidak sedang berlangsung.');
             }
@@ -159,6 +174,24 @@ export class ProctoringService {
                 `Batas ${result.maxViolations} pelanggaran tercapai (${result.warningCount}); event terakhir: ${eventType}.`, true);
         }
         return response;
+    }
+
+    private async persistLateViolation(db: DbSession, attemptId: string, actorId: string,
+        attempt: { status: string; started_at?: string | null; finished_at?: string | null; personal_end_time?: string | null;
+            metadata?: Record<string, unknown> | null },
+        exam: { end_time?: string | null; duration_minutes?: number | null },
+        eventType: string, metadata: Record<string, unknown>, clientEventId: string): Promise<boolean> {
+        let events;
+        try {
+            events = validateSubmissionSecurityEvents([{ id: clientEventId, eventType, metadata,
+                createdAt: String(metadata.timestamp ?? '') }]);
+        } catch {
+            return false;
+        }
+        const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const accepted = await persistSubmissionSecurityEvents(db, attemptId, actorId, attempt, events,
+            new Date(clock.now), examDeadline(attempt, exam));
+        return accepted.includes(clientEventId);
     }
 
     /** Heartbeat terautentikasi untuk membedakan peserta online dan offline. */
@@ -527,6 +560,9 @@ export class ProctoringService {
             delete previousMetadata.closed_by_expiry;
             delete previousMetadata.closed_by_staff;
             delete previousMetadata.frozen_submission_received_at;
+            // Generasi baru tanpa jawaban lama: tanda masa offline lama tidak berlaku lagi.
+            delete previousMetadata.connection_lost_at_close;
+            delete previousMetadata.local_answers_not_counted;
 
             const { count: deletedAnswerCount, error: countError } = await db
                 .from('cbt_answers')

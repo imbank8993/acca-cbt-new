@@ -540,7 +540,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
             let targetExamId = exam?.id;
 
             if (isEdit && exam) {
-                const result = await editExamAction(exam.id, payload);
+                const result = await editExamAction(exam.id, { ...payload, expectedUpdatedAt: exam.updated_at });
                 if (!result.success) {
                     setError(result.error || 'Gagal mengubah detail ujian.');
                     setIsSubmitting(false);

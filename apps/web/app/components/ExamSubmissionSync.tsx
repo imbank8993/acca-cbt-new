@@ -9,7 +9,9 @@ import {
     EXAM_SUBMISSION_QUEUE_CHANGED, listExamSubmissionRegistrations, readExamSnapshot,
     freezeExamSnapshot, resolveDurableDeviceId, removeConfirmedExamSnapshot,
     removeExamSubmissionRegistration, readExamRecoverySession, removeExamRecoverySession, pruneExamRecoverySessions, pruneExpiredSecurityEvents,
+    readSecurityEvents, removeSecurityEvent, discardExamLocalCopy, pruneStaleExamCopies, removeExamAttemptCaches,
 } from '@/lib/exam-durable-storage';
+import { retryExamEvidence } from '@/lib/exam-evidence-outbox';
 import { removeExamOfflineShell } from '@/lib/exam-pwa';
 import { createExamSubmissionWorker } from '@/lib/exam-submission-worker';
 import { useToast } from './ui/Toast';
@@ -48,8 +50,24 @@ export function ExamSubmissionSync() {
                 } catch { return undefined; }
             },
             freeze: freezeExamSnapshot,
-            send: (entry, snapshot) => submitExamAction(entry.examId, snapshot.answers, snapshot.assignmentData,
-                entry.attemptId, snapshot.revisions, snapshot.frozenSubmission),
+            send: async (entry, snapshot) => {
+                // Peringatan yang tertahan selama offline ikut dikirim. Tanpa ini,
+                // menutup tab lalu membiarkan antrean global yang mengumpulkan
+                // membuat seluruh jejak pelanggaran masa offline tidak pernah sampai.
+                const queued = await readSecurityEvents(entry.attemptId).catch(() => []);
+                const manifest = queued.slice(-100).map(({ id, eventType, metadata, createdAt }) => ({ id, eventType, metadata, createdAt }));
+                const result = await submitExamAction(entry.examId, snapshot.answers, snapshot.assignmentData,
+                    entry.attemptId, snapshot.revisions, snapshot.frozenSubmission, manifest.length ? manifest : undefined);
+                const accepted = new Set(result.acceptedSecurityEventIds || []);
+                for (const event of queued) {
+                    if (accepted.has(event.id) && !event.screenshotBase64) {
+                        await removeSecurityEvent(entry.attemptId, event.id, event).catch(() => undefined);
+                    }
+                }
+                if (queued.some(event => event.screenshotBase64)) void retryExamEvidence(entry.attemptId).catch(() => undefined);
+                return result;
+            },
+            discard: discardExamLocalCopy,
             confirm: async (entry, snapshot) => {
                 const current = (await listExamSubmissionRegistrations()).find(item => item.attemptId === entry.attemptId);
                 if (current && (current.startedAt !== entry.startedAt || current.personalEndTime !== entry.personalEndTime)) return;
@@ -60,8 +78,8 @@ export function ExamSubmissionSync() {
                     cached.attempt.personal_end_time === entry.personalEndTime) {
                     await removeExamRecoverySession(entry.examId).catch(() => undefined);
                     await removeExamOfflineShell(entry.examId).catch(() => undefined);
-                    try { localStorage.removeItem(`exam_assignment_${entry.attemptId}`); } catch { /* optional cache */ }
                 }
+                removeExamAttemptCaches(entry.attemptId);
             },
             notify: (_entry, result) => {
                 if (result.success) {
@@ -82,6 +100,7 @@ export function ExamSubmissionSync() {
             const user = await fetchSessionUser().catch(() => null);
             await pruneExamRecoverySessions(user?.id ?? null).catch(() => undefined);
             await pruneExpiredSecurityEvents().catch(() => undefined);
+            await pruneStaleExamCopies().catch(() => undefined);
         };
         const run = () => { void worker.run(); void prune(); };
         const onVisible = () => { if (!document.hidden) run(); };

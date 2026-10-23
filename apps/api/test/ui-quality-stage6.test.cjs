@@ -20,12 +20,12 @@ const { formatStudentAnswer } = require('../../web/lib/answer-display.ts');
 
 test('UX-05: esai yang sudah dinilai tidak dihitung sebagai jawaban objektif benar', () => {
     const summary = summarizeAnswerOutcomes([
-        { is_correct: true, bank_questions: { type: 'mcq' } },
-        { is_correct: false, bank_questions: { type: 'true_false' } },
-        { is_correct: true, bank_questions: { type: 'essay' } },
-        { is_correct: null, bank_questions: { type: 'uraian' } },
+        { is_correct: true, selected_option_id: 'option', bank_questions: { type: 'mcq' } },
+        { is_correct: false, essay_answer: 'false', bank_questions: { type: 'true_false' } },
+        { is_correct: true, essay_answer: 'Jawaban esai', bank_questions: { type: 'essay' } },
+        { is_correct: null, essay_answer: 'Uraian siswa', bank_questions: { type: 'uraian' } },
     ]);
-    assert.deepEqual(summary, { total: 4, correct: 1, wrong: 1, essays: 2 });
+    assert.deepEqual(summary, { total: 4, correct: 1, wrong: 1, essays: 2, answered: 4, unanswered: 0, ungraded: 0 });
 });
 
 test('UX-06: waktu sekolah konsisten dalam WIB di sekitar pergantian hari', () => {

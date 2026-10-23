@@ -1,3 +1,5 @@
+import { CollaborationService } from './collaboration.service';
+import { CollaborationController } from './collaboration.controller';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -24,9 +26,10 @@ import { LoginHistoryService } from './login-history.service';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, CollaborationController],
   providers: [
     AuthService,
+    CollaborationService,
     AuthUsersRepository,
     AuthorizationService,
     CbtRolesService,

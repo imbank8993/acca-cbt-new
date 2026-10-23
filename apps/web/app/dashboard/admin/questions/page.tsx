@@ -1,4 +1,6 @@
 "use client";
+
+import { CollaborationButton } from '@/app/components/CollaborationButton';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
 import { ActionButton } from '@/app/components/ui/actionbutton';
@@ -42,6 +44,10 @@ export default function ProktorQuestionBankPage() {
     const [isDualRole, setIsDualRole] = useState(false);
     const [, setCurrentUserId] = useState<string | null>(null);
 
+    const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
+    const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
+    const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
+    const [accessFilter, setAccessFilter] = useState('all');
     // Register Mobile Center FAB on BottomNav
     useEffect(() => {
         const token = {};
@@ -59,9 +65,6 @@ export default function ProktorQuestionBankPage() {
         };
     }, []);
 
-    const [activeTab] = useState<'all' | 'draft' | 'published'>('all');
-    const [editingBank, setEditingBank] = useState<QuestionBank | null>(null);
-    const [targetFolderId, setTargetFolderId] = useState<string | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
     const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(null);
@@ -94,7 +97,7 @@ export default function ProktorQuestionBankPage() {
     ];
 
     const handleSelectAll = () => {
-        const allFilteredIds = filteredBanks.map(b => b.id);
+        const allFilteredIds = filteredBanks.filter(bank => bank.canManage === true).map(b => b.id);
         setSelectedBankIds(new Set(allFilteredIds));
     };
 
@@ -367,6 +370,7 @@ export default function ProktorQuestionBankPage() {
     const creators = Array.from(new Set(banks.map(bank => bank.creator_name).filter((creator): creator is string => Boolean(creator)))).sort();
 
     const filteredBanks = banks
+        .filter(bank => accessFilter === 'all' || (accessFilter === 'mine' ? bank.isOwner : !!bank.collaborationPermission))
         .filter(bank => {
             const matchesTab = activeTab === 'all' || (activeTab === 'published' ? bank.is_published : !bank.is_published);
             const matchesSearch = bank.title.toLowerCase().includes(searchQuery.toLowerCase()) || (bank.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -420,6 +424,7 @@ export default function ProktorQuestionBankPage() {
                 <input
                     type="checkbox"
                     checked={selectedBankIds.has(bank.id)}
+                    disabled={bank.canManage !== true}
                     onChange={() => toggleSelectBank(bank.id)}
                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
@@ -453,10 +458,12 @@ export default function ProktorQuestionBankPage() {
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} onChanged={() => void loadData()} />}
                 <Button
                     size="sm"
                     variant={bank.is_published ? "warning" : "primary"}
+                    disabled={bank.canManage !== true}
                     onClick={() => handleTogglePublish(bank)}
                 >
                     {bank.is_published ? 'Unpublish' : 'Publish'}
@@ -470,18 +477,21 @@ export default function ProktorQuestionBankPage() {
                     action="move"
                     iconOnly
                     tooltip="Pindah ke folder"
+                    disabled={bank.canManage !== true}
                     onClick={() => handleOpenMoveBank(bank)}
                 />
                 <ActionButton
                     action="edit"
                     iconOnly
                     tooltip="Edit"
+                    disabled={bank.canManage !== true}
                     onClick={() => handleOpenEdit(bank)}
                 />
                 <ActionButton
                     action="delete"
                     iconOnly
                     tooltip="Hapus"
+                    disabled={bank.canDelete !== true}
                     onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }}
                 />
             </div>
@@ -511,6 +521,8 @@ export default function ProktorQuestionBankPage() {
             {/* Search, Filters, and Actions Toolbar */}
             <div className="mb-6">
                 <FilterToolbar actionsInline>
+                    <FilterSelect label="Akses" value={accessFilter} onChange={value => { setAccessFilter(value || 'all'); setCurrentPage(1); }}
+                        options={[{ value: 'all', label: 'Semua akses' }, { value: 'mine', label: 'Buatan saya' }, { value: 'shared', label: 'Dibagikan kepada saya' }]} />
                     <FilterSearch
                         value={searchQuery}
                         onChange={setSearchQuery}
@@ -623,7 +635,8 @@ export default function ProktorQuestionBankPage() {
                                 <input
                                     type="checkbox"
                                     checked={selectedBankIds.has(bank.id)}
-                                    onChange={() => toggleSelectBank(bank.id)}
+                                    disabled={bank.canManage !== true}
+                    onChange={() => toggleSelectBank(bank.id)}
                                     className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
@@ -653,18 +666,22 @@ export default function ProktorQuestionBankPage() {
                                 <Button
                                     size="sm"
                                     variant={bank.is_published ? "warning" : "primary"}
-                                    onClick={() => handleTogglePublish(bank)}
+                                    disabled={bank.canManage !== true}
+                    onClick={() => handleTogglePublish(bank)}
                                     className="flex-1"
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
                                 </Button>
+                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} onChanged={() => void loadData()} />}
                                 <Link href={`/dashboard/admin/questions/${bank.id}`} className="flex-1">
                                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
                                         Lihat
                                     </Button>
                                 </Link>
-                                <ActionButton action="edit" iconOnly tooltip="Edit" onClick={() => handleOpenEdit(bank)} />
-                                <ActionButton action="delete" iconOnly tooltip="Hapus" onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />
+                                <ActionButton action="edit" iconOnly tooltip="Edit" disabled={bank.canManage !== true}
+                    onClick={() => handleOpenEdit(bank)} />
+                                <ActionButton action="delete" iconOnly tooltip="Hapus" disabled={bank.canDelete !== true}
+                    onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />
                             </div>
                         </div>
                     ))

@@ -450,6 +450,7 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
             assignmentRef: { current: { fileUrls: [], textSubmission: '' } }, assignmentRevisionRef: { current: 0 },
             pendingAssignmentRef: { current: undefined }, storageStateRef: { current: 'healthy' },
             autoSubmittedRef: { current: false }, autoRetryTimerRef: { current: null }, autoRetryCountRef: { current: 0 }, offlineRecoveryRef: { current: false },
+            clockFromDeviceRef: { current: false }, removeExamAttemptCaches: () => {}, removeSecurityEvent: async () => {},
             pendingSecurityEventsRef: { current: new Map() }, submissionSucceededRef: { current: false },
             freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
             readSecurityEvents: async () => [], retryExamEvidence: async () => {},
@@ -504,3 +505,52 @@ for (const scenario of ['online', 'offline', 'lost-response', 'recovery-required
         assert.equal(local.has('exam_answers_' + attempt.id), scenario === 'cleanup-failed');
     });
 }
+
+test('an offline device-clock expiry neither freezes nor submits until the server confirms the deadline', async () => {
+    const vm = require('node:vm'), ts = require('typescript');
+    const { api } = storageFixture();
+    const answer = draft(3, 'still has server time');
+    await api.writeExamSnapshot('clock-attempt', answer);
+    const source = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/questions/ExamPage.tsx'), 'utf8');
+    const handlerStart = source.indexOf('    const handleSubmitExam = useCallback(');
+    const handlerEnd = source.indexOf('    // Simpan referensi terbaru', handlerStart);
+    const attempt = { id: 'clock-attempt', started_at: '2026-10-10T00:00:00Z', personal_end_time: '2026-10-10T01:00:00Z', metadata: {} };
+    const state = { sent: 0, reloads: 0, waiting: false, statusCalls: 0 };
+    let serverRemaining = 120;
+    const sandbox = {
+        useCallback: fn => fn, user: { id: 'student' }, examId: 'exam', exam: { exam_type: 'daily' }, attempt,
+        screenSharingRef: { current: true }, submissionOnly: false,
+        ownsEditorLockRef: { current: true }, submitInFlightRef: { current: false }, terminationReasonRef: { current: null },
+        frozenSnapshotRef: { current: null }, attemptRef: { current: attempt }, clockFromDeviceRef: { current: true },
+        answersRef: { current: answer.answers }, revisionsRef: { current: answer.revisions }, doubtfulRef: { current: new Set() },
+        assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 }, pendingAssignmentRef: { current: undefined },
+        storageStateRef: { current: 'healthy' }, autoRetryTimerRef: { current: null }, autoRetryCountRef: { current: 0 },
+        offlineRecoveryRef: { current: true }, pendingSecurityEventsRef: { current: new Map() }, submissionSucceededRef: { current: false },
+        freezeExamSnapshot: api.freezeExamSnapshot, ExamSnapshotConflictError: api.ExamSnapshotConflictError,
+        readSecurityEvents: async () => [], retryExamEvidence: async () => {}, removeSecurityEvent: async () => {},
+        setSubmissionOnly: () => {}, setWaitingForSyncAndSubmit: value => { state.waiting = value; }, setSubmissionIssue: () => {},
+        setAccessDenied: () => {}, setAccessError: () => {}, setStorageWarning: () => {}, setSubmitting: () => {},
+        getErrorMessage: error => error.message, navigator: { onLine: false },
+        submitExamAction: async () => { state.sent++; return { success: true, submissionVerified: true }; },
+        removeExamSnapshot: async () => {}, removeExamSubmissionRegistration: async () => {}, removeExamRecoverySession: async () => {},
+        removeExamOfflineShell: async () => {}, removeExamAttemptCaches: () => {}, setIsCompleted: () => {}, router: { push: () => {} },
+        toast: { success: () => {}, error: () => {}, warning: () => {} }, scheduleAutoRetry: () => {},
+        getExamSubmissionStatus: async () => { state.statusCalls++;
+            return { success: true, status: 'in_progress', startedAt: attempt.started_at, remainingSeconds: serverRemaining, submissionOnly: false }; },
+        window: { location: { reload: () => { state.reloads++; } } },
+    };
+    vm.runInNewContext(ts.transpileModule(source.slice(handlerStart, handlerEnd) + '\nglobalThis.submit = handleSubmitExam;',
+        { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
+    await sandbox.submit(undefined, { isAuto: true });
+    assert.deepEqual([state.sent, state.statusCalls, state.waiting], [0, 0, true]);
+    assert.equal((await api.readExamSnapshot(attempt.id)).frozenSubmission, undefined, 'nothing is frozen on a device-clock guess');
+
+    sandbox.navigator.onLine = true;
+    await sandbox.submit(undefined, { isAuto: true });
+    assert.deepEqual([state.sent, state.reloads], [0, 1], 'server time remains: reopen instead of submitting');
+
+    serverRemaining = 0;
+    await sandbox.submit(undefined, { isAuto: true });
+    assert.equal(state.sent, 1, 'a server-confirmed deadline is submitted as before');
+    assert.equal(sandbox.clockFromDeviceRef.current, false);
+});

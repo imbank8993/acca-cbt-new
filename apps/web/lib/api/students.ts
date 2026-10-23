@@ -336,7 +336,8 @@ export async function beginSubmitAction(attemptId: string, submission?: {
     assignmentData?: Record<string, unknown>; frozenSubmission?: { startedAt: string; personalEndTime: string };
     securityEvents?: SubmissionSecurityEvent[];
 }) {
-    return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean }>(
+    return apiSend<{ attemptId: string; startedAt: string | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean;
+        acceptedSecurityEventIds?: string[] }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/submit-intent`,
         { deviceId: getDeviceId(), submission },
         'POST',
@@ -381,9 +382,13 @@ export async function submitExamAction(
     const payload = JSON.parse(JSON.stringify({ answers: finalAnswers, answerRevisions: finalRevisions,
         assignmentData, attemptId, deviceId: getDeviceId(), frozenSubmission, securityEvents }));
     return withExamSubmissionLock(attemptId || examId, async () => {
+        // Catatan pengawasan yang diakui server boleh dihapus dari antrean
+        // perangkat, termasuk yang disimpan sebagai bukti susulan.
+        let acceptedSecurityEventIds: string[] = [];
         if (attemptId) {
             const intent = await beginSubmitAction(attemptId, payload);
-            if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable };
+            if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable, acceptedSecurityEventIds };
+            acceptedSecurityEventIds = Array.isArray(intent.acceptedSecurityEventIds) ? intent.acceptedSecurityEventIds : [];
         }
 
         const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean;
@@ -395,7 +400,7 @@ export async function submitExamAction(
         );
 
         if (res.success && (res.savedAnswersOnly || res.submissionVerified !== true || !attemptId || res.verifiedAttemptId !== attemptId)) {
-            return { success: false as const, retryable: false,
+            return { success: false as const, retryable: false, acceptedSecurityEventIds,
                 error: 'Pengumpulan belum terverifikasi lengkap. Jawaban atau lampiran di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
         }
         return res.success
@@ -406,7 +411,8 @@ export async function submitExamAction(
                   alreadySubmitted: res.alreadySubmitted ?? false,
                   savedAnswersOnly: res.savedAnswersOnly ?? false,
                   gradingPending: res.gradingPending ?? false,
+                  acceptedSecurityEventIds,
               }
-            : { success: false as const, error: res.error, retryable: res.retryable };
+            : { success: false as const, error: res.error, retryable: res.retryable, acceptedSecurityEventIds };
     }, JSON.stringify(payload));
 }

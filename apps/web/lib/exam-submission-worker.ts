@@ -21,6 +21,18 @@ export interface SubmissionWorkerDependencies {
     send(entry: ExamSubmissionRegistration, snapshot: ExamAnswerSnapshot): Promise<SubmissionResult>;
     confirm(entry: ExamSubmissionRegistration, snapshot: ExamAnswerSnapshot): Promise<void>;
     notify?(entry: ExamSubmissionRegistration, result: SubmissionResult): void;
+    /** Buang salinan generasi lama setelah server memulai ujian susulan. */
+    discard?(entry: ExamSubmissionRegistration): Promise<void>;
+}
+
+/**
+ * Kegagalan jaringan dicoba cepat; penolakan yang hanya dapat dibuka proktor
+ * (waktu habis, sesi dihentikan) cukup diperiksa berkala. Dulu keduanya diulang
+ * tiap menit tanpa henti selama tab terbuka.
+ */
+export function submissionRetryDelay(count: number, retryable: boolean | undefined): number {
+    if (retryable === false) return [120_000, 300_000, 600_000][Math.min(count - 1, 2)];
+    return Math.min(15_000 * 2 ** Math.min(count - 1, 2), 60_000);
 }
 
 /** Independent of React routes; deliberately never opens an exam or creates an attempt. */
@@ -32,7 +44,7 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
         const previous = failures.get(entry.attemptId);
         const count = (previous?.count || 0) + 1;
         failures.set(entry.attemptId, { count, error: result.error,
-            nextAt: deps.now() + Math.min(15_000 * 2 ** Math.min(count - 1, 2), 60_000) });
+            nextAt: deps.now() + submissionRetryDelay(count, result.retryable) });
         if (result.retryable === false && previous?.error !== result.error) deps.notify?.(entry, result);
     };
     const work = async () => {
@@ -52,6 +64,14 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 if (!snapshot) continue;
                 const status = await deps.status(entry.attemptId);
                 if (!status.success) { defer(entry, status); continue; }
+                // Ujian susulan memulai generasi baru (started_at baru) dan sudah
+                // menghapus jawaban lama di server; salinan lama tidak berguna lagi.
+                if (deps.discard && status.examId === entry.examId &&
+                    Date.parse(status.startedAt || '') > Date.parse(entry.startedAt)) {
+                    await deps.discard(entry);
+                    failures.delete(entry.attemptId);
+                    continue;
+                }
                 if (status.examId !== entry.examId || Date.parse(status.startedAt || '') !== Date.parse(entry.startedAt) || !status.canRecover) {
                     defer(entry, { success: false, retryable: false, error: 'Sesi ujian sudah berubah atau dihentikan. Salinan jawaban tetap disimpan.' });
                     continue;

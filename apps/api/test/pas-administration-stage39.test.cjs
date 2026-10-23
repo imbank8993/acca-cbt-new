@@ -57,7 +57,7 @@ test('ADMIN-02: Halaman detail periode PAS Admin & Proktor menampilkan tab Penga
 });
 
 for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-03 ${assessmentType}: administration loads participants, times and invigilators`, async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_pas_periods[0].type = assessmentType;
     const service = new PasAdministrationService(db, createAuthzMock());
     const pengawasUser = { id: 'pengawas-1', isPlatformAdmin: false };
@@ -86,7 +86,7 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-03 ${assessmentTy
 });
 
 test('ADMIN-04: Pengawas ditolak mengakses ruang dan sesi yang tidak ditugaskan kepadanya', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     const service = new PasAdministrationService(db, createAuthzMock());
     const pengawasUser = { id: 'pengawas-1', isPlatformAdmin: false };
 
@@ -103,7 +103,7 @@ test('ADMIN-04: Pengawas ditolak mengakses ruang dan sesi yang tidak ditugaskan 
 });
 
 for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-05 ${assessmentType}: attendance and signed reports support public verification`, async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_pas_periods[0].type = assessmentType;
     const service = new PasAdministrationService(db, createAuthzMock());
     const pengawasUser = { id: 'pengawas-1', isPlatformAdmin: false };
@@ -157,7 +157,7 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-05 ${assessmentTy
 });
 
 test('ADMIN: dokumen menyimpan semua pengawas pada tanggal slot meskipun klien memilih satu nama', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_profiles.push(
         { id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' },
         { id: 'pengawas-3', full_name: 'Pengawas Hari Lain', nis: '19860101' },
@@ -186,7 +186,7 @@ test('ADMIN-06: QR Code SVG generator menghasilkan matriks dan data URL SVG yang
 });
 
 test('ADMIN-07: KOP profil_sekolah identik dengan KOP Laporan Guru Asuh acca-new & jadwal difilter sesuai ruang', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     const service = new PasAdministrationService(db, createAuthzMock());
     const pengawasUser = { id: 'pengawas-1', isPlatformAdmin: false };
 
@@ -219,7 +219,7 @@ test('ADMIN-07: KOP profil_sekolah identik dengan KOP Laporan Guru Asuh acca-new
 });
 
 for (const type of ['pas', 'pat', 'am']) test(`ADMIN-08 ${type}: signer identity comes from creator and configured chair, not API overrides`, async () => {
-    const db = fixtureDb(createFixtures()); db.tables.cbt_pas_periods[0].type = type;
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' }); db.tables.cbt_pas_periods[0].type = type;
     const service = new PasAdministrationService(db, createAuthzMock());
     const saved = await service.saveAdministrationSlot({ id: 'pengawas-1' }, {
         ...signingInput(), proctor_id: 'pengawas-1', proctor_name: 'Proktor Palsu', committee_chair_name: 'Ketua Palsu',
@@ -237,7 +237,7 @@ test('ADMIN-09: missing chair or creator blocks signing without changing attenda
         db => { db.tables.acca_settings = []; },
         db => { db.tables.cbt_profiles = db.tables.cbt_profiles.filter(p => p.id !== 'proctor-creator-1'); },
     ]) {
-        const db = fixtureDb(createFixtures()); mutate(db);
+        const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' }); mutate(db);
         const service = new PasAdministrationService(db, createAuthzMock());
         await assert.rejects(service.saveAdministrationSlot({ id: 'pengawas-1' }, signingInput()), /Ketua Panitia|Profil pembuat/);
         assert.equal(db.writes.length, 0);
@@ -245,7 +245,7 @@ test('ADMIN-09: missing chair or creator blocks signing without changing attenda
 });
 
 test('ADMIN-10: settings changes leave signed snapshots valid; tampered chair data fails verification', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     const service = new PasAdministrationService(db, createAuthzMock());
     const saved = await service.saveAdministrationSlot({ id: 'pengawas-1' }, signingInput());
     await service.approveAdministrationSlot({ id: 'proctor-creator-1' }, signingInput());
@@ -268,7 +268,7 @@ test('ADMIN-10: settings changes leave signed snapshots valid; tampered chair da
 });
 
 test('ADMIN-11: legacy signatures require explicit reapproval for full-content verification', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     const service = new PasAdministrationService(db, createAuthzMock());
     const saved = await service.saveAdministrationSlot({ id: 'pengawas-1' }, signingInput());
     const row = db.tables.cbt_pas_administration_reports[0];
@@ -341,7 +341,7 @@ test('ADMIN-13b: dua pengawas dicetak bernomor dengan NIP masing-masing', () => 
 });
 
 test('ADMIN-14: period-level committee chair can be configured and updated directly on the exam folder', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     // Give period-1 a specific committee chair
     db.tables.cbt_pas_periods[0].committee_chair_name = 'Drs. Panitia Folder, M.Pd.';
     db.tables.cbt_pas_periods[0].committee_chair_nip = '198001012005011001';
@@ -366,7 +366,7 @@ test('ADMIN-14: period-level committee chair can be configured and updated direc
 });
 
 test('ADMIN-12: pengawas bergilir per hari — akses dan nama di berita acara mengikuti tanggal slot', async () => {
-    const db = fixtureDb(createFixtures());
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_profiles.push({ id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' });
     db.tables.cbt_pas_room_invigilators.push({ id: 'inv-map-2', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-18', user_id: 'pengawas-2' });
     db.tables.cbt_pas_class_schedules.push({ ...db.tables.cbt_pas_class_schedules[0], id: 'sched-2', exam_id: 'exam-math-2', scheduled_date: '2026-10-18' });

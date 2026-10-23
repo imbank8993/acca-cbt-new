@@ -1,4 +1,5 @@
 "use client";
+import { AnswerOutcomeIndicator } from '@/app/components/AnswerOutcomeIndicator';
 import { AnswerOutcomeFilters } from '@/app/components/AnswerOutcomeFilters';
 import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
 import { matchesQuestionSearch } from '@/lib/question-search';
@@ -6,7 +7,7 @@ import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { AttemptAnalyticsHeader } from '@/app/components/AttemptAnalyticsHeader';
 import { AttemptScoreCard } from '@/app/components/AttemptScoreCard';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
-import { matchesAnswerOutcome, summarizeAnswerOutcomes, type AnswerOutcomeFilter } from '@/lib/answer-stats';
+import { isAnswerUnanswered, matchesAnswerOutcome, summarizeAnswerOutcomes, type AnswerOutcomeFilter } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
 import { submitEssayGrades } from '@/lib/api/teachers';
 import { useMemoryState } from '@/lib/useMemoryState';
@@ -20,12 +21,10 @@ BarChart3,
 CheckCircle,
 CheckCircle2,
 Clock,
-HelpCircle,
 Loader2,
 MousePointerClick,
 Save,
 Shield,
-XCircle
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useEffect,useMemo,useState } from 'react';
@@ -53,7 +52,7 @@ export default function AttemptAnalyticsPage() {
                 setData(res);
                 const initialGrades: Record<string, number> = {};
                 res.answers.forEach((a) => {
-                    if (a.bank_questions?.type && ['essay', 'esay', 'uraian'].includes(a.bank_questions.type)) {
+                    if (!isAnswerUnanswered(a) && a.bank_questions?.type && ['essay', 'esay', 'uraian'].includes(a.bank_questions.type)) {
                         initialGrades[a.id] = a.score || 0;
                     }
                 });
@@ -133,7 +132,7 @@ export default function AttemptAnalyticsPage() {
                 studentName={studentName}
                 avatarUrl={attempt.profiles?.avatar_url}
             >
-                {(attempt.needs_manual_grading || (Object.keys(grades).length > 0)) && (
+                {(Object.keys(grades).length > 0) && (
                     <div className="mt-4 flex flex-wrap items-center justify-end gap-2.5">
                         {attempt.needs_manual_grading && (
                             <div className="px-3.5 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold flex items-center gap-1.5">
@@ -222,8 +221,16 @@ export default function AttemptAnalyticsPage() {
                             <p className="text-[10px] text-slate-400 uppercase font-bold">Salah</p>
                         </div>
                         <div>
+                            <p className="text-lg font-bold text-slate-500 leading-none mb-0.5">{stats?.unanswered}</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-bold">Tidak dijawab</p>
+                        </div>
+                        <div>
+                            <p className="text-lg font-bold text-[#3083FF] leading-none mb-0.5">{stats?.answered}</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-bold">Terjawab</p>
+                        </div>
+                        <div>
                             <p className="text-lg font-bold text-[#3083FF] leading-none mb-0.5">{stats?.essays}</p>
-                            <p className="text-[10px] text-slate-400 uppercase font-bold">Esai</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-bold">Esai terjawab</p>
                         </div>
                         <div>
                             <p className="text-lg font-bold text-[#3083FF] leading-none mb-0.5">{stats?.total}</p>
@@ -270,6 +277,8 @@ export default function AttemptAnalyticsPage() {
                                     const q = answer.bank_questions;
                                     if (!q) return null;
                                     const isEssay = ['essay', 'esay', 'uraian'].includes(q.type);
+                                    const unanswered = isAnswerUnanswered(answer);
+                                    const pending = !unanswered && !isEssay && answer.is_correct == null;
 
                                     return (
                                         <div key={answer.id} className="relative flex gap-4 md:gap-6">
@@ -279,16 +288,7 @@ export default function AttemptAnalyticsPage() {
 
                                             {/* Status Marker */}
                                             <div className="relative z-10 flex flex-col items-center shrink-0">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 border-white shadow-sm transition-all
-                                                    ${isEssay
-                                                        ? (answer.needs_manual_grading ? 'bg-[#3083FF] text-white' : 'bg-[#3083FF] text-white')
-                                                        : (answer.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white')
-                                                    }`}>
-                                                    {isEssay
-                                                        ? (answer.needs_manual_grading ? <HelpCircle size={16} /> : <CheckCircle size={16} />)
-                                                        : (answer.is_correct ? <CheckCircle size={16} /> : <XCircle size={16} />)
-                                                    }
-                                                </div>
+                                                <AnswerOutcomeIndicator answer={answer} />
                                                 <span className="mt-2 text-[10px] font-bold text-slate-400">#{index + 1}</span>
                                             </div>
 
@@ -305,12 +305,13 @@ export default function AttemptAnalyticsPage() {
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-xs font-semibold text-slate-500">Points:</span>
-                                                        <span className={`text-lg font-bold ${answer.is_correct ? 'text-emerald-600' : isEssay ? 'text-[#3083FF]' : 'text-red-500'}`}>
-                                                            {isEssay ? (Number(grades[answer.id]) || answer.score || 0) : (answer.is_correct ? q.score_default : 0)}
+                                                        <span className={`text-lg font-bold ${unanswered ? 'text-slate-400' : pending ? 'text-[#3083FF]' : answer.is_correct ? 'text-emerald-600' : isEssay ? 'text-[#3083FF]' : 'text-red-500'}`}>
+                                                            {unanswered ? '—' : pending ? 'Menunggu nilai' : isEssay ? (Number(grades[answer.id]) || answer.score || 0) : (answer.is_correct ? q.score_default : 0)}
                                                         </span>
                                                     </div>
                                                 </div>
 
+                                                {unanswered && <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">Tidak dijawab — tidak ada jawaban tersimpan untuk soal ini.</p>}
                                                 <div className="bg-white p-3 sm:p-3.5 rounded-lg border border-slate-200 shadow-sm text-sm">
                                                     <QuestionRenderer
                                                         question={q}
@@ -321,7 +322,7 @@ export default function AttemptAnalyticsPage() {
                                                 </div>
 
                                                 {/* Essay Grading UI */}
-                                                {isEssay && (
+                                                {isEssay && !unanswered && (
                                                     <div className="bg-white border-2 border-dashed border-[#3083FF]/40 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                                         <div className="flex items-start sm:items-center gap-3 text-[#3083FF]">
                                                             <div className="w-8 h-8 bg-[#3083FF]/10 rounded flex items-center justify-center shrink-0">

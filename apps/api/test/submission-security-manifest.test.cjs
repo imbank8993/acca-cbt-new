@@ -168,7 +168,10 @@ test('expiry atomically saves eligible event metadata while retaining the origin
     assert.equal(result.savedAnswersOnly, true);
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'auto_submitted');
     assert.equal(db.tables.cbt_answers.length, 0);
-    assert.equal(db.tables.cbt_attempt_security_logs.length, 1);
+    assert.deepEqual(db.tables.cbt_attempt_security_logs.map(log => log.event_type), ['tab_switch', 'LOCAL_ANSWERS_NOT_COUNTED']);
+    // The rejected local answer is reported (count only, never its contents) for the proctor.
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.local_answers_not_counted.count, 1);
+    assert.equal(JSON.stringify(db.tables.cbt_attempt_security_logs[1]).includes('final answer'), false);
 });
 
 test('wrong actor, wrong device and a stale frozen attempt cannot write manifest evidence', async () => {
@@ -199,7 +202,7 @@ test('stale, post-deadline or skewed client timestamps cannot block valid answer
 });
 
 for (const resetType of ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED']) {
-    test(`${resetType} rejects new manifest IDs at or before the latest reset without recounting acknowledged history`, async () => {
+    test(`${resetType} keeps manifest IDs at or before the latest reset as uncounted late evidence`, async () => {
         const { db, service } = fixture();
         const resetAt = '2026-09-20T00:20:00.000Z';
         const original = { id: 'original-log', attempt_id: 'attempt', event_type: 'tab_switch',
@@ -221,16 +224,19 @@ for (const resetType of ['RESET_BY_PROCTOR', 'MAKEUP_EXAM_STARTED']) {
         const before = structuredClone(db.tables.cbt_attempt_security_logs);
 
         const replay = await service.beginSubmit(user, 'attempt', device, payload([existing, stale, equal]));
-        assert.deepEqual(replay.acceptedSecurityEventIds, [id]);
-        assert.deepEqual(db.tables.cbt_attempt_security_logs, before);
+        assert.deepEqual(replay.acceptedSecurityEventIds, [id, id2, equalId]);
+        assert.deepEqual(db.tables.cbt_attempt_security_logs.slice(0, before.length), before);
+        const late = db.tables.cbt_attempt_security_logs.slice(before.length);
+        assert.deepEqual(late.map(log => [log.event_type, log.metadata.original_event_type, log.metadata.late_reason]), [
+            ['LATE_SECURITY_EVIDENCE', 'tab_switch', 'before_reset'], ['LATE_SECURITY_EVIDENCE', 'tab_switch', 'before_reset']]);
         assert.equal(db.tables.cbt_exam_attempts[0].warning_count, 0);
         assert.equal(db.tables.cbt_exam_attempts[0].tab_switch_count, 0);
 
         const fresh = descriptor({ id: freshId, createdAt: '2026-09-20T00:20:00.001Z' });
         const next = await service.beginSubmit(user, 'attempt', device, payload([existing, stale, equal, fresh]));
-        assert.deepEqual(next.acceptedSecurityEventIds, [id, freshId]);
+        assert.deepEqual(next.acceptedSecurityEventIds, [id, id2, equalId, freshId]);
         assert.deepEqual(db.tables.cbt_attempt_security_logs.slice(0, before.length), before);
-        assert.equal(db.tables.cbt_attempt_security_logs.length, before.length + 1);
+        assert.equal(db.tables.cbt_attempt_security_logs.length, before.length + 3);
         assert.equal(db.tables.cbt_exam_attempts[0].warning_count, 1);
         assert.equal(db.tables.cbt_exam_attempts[0].tab_switch_count, 1);
     });

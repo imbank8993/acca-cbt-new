@@ -286,7 +286,7 @@ export default function PASSlotMonitoring({ periodId, userRole, monitoringBasePa
             : !slots.length ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
                 <Users size={28} className="mx-auto text-slate-300" />
                 <p className="mt-2 text-sm font-semibold text-slate-700">{invigilatorView ? 'Tidak ada ruang yang Anda awasi pada tanggal ini' : 'Belum ada ruang terjadwal pada tanggal ini'}</p>
-                <p className="mt-1 text-xs text-slate-500">{invigilatorView ? 'Hubungi Proktor bila jadwal pengawasan Anda belum muncul.' : 'Pastikan jadwal sudah diaktifkan dan siswa sudah ditempatkan di ruang.'}</p>
+                <p className="mt-1 text-xs text-slate-500">{invigilatorView ? 'Monitoring ruang hanya terbuka pada hari tugas Anda. Hubungi Proktor bila jadwal hari ini belum muncul.' : 'Pastikan jadwal sudah diaktifkan dan siswa sudah ditempatkan di ruang.'}</p>
             </div>
             : <div className="space-y-5">{sessions.map(group => <section key={group.label} aria-label={group.label}>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{group.label}</h3>

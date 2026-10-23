@@ -9,7 +9,7 @@ const { fixtureDb } = require('./fixture-db.cjs');
 const { PasMonitoringService } = require('../src/pas/pas-monitoring.service.ts');
 
 const DAY = '2026-10-20', NEXT = '2026-10-21';
-function fixture() {
+function fixture(now = `${DAY}T01:00:00Z`) {
     const db = fixtureDb({
         cbt_pas_periods: [{ id: 'p1', organization_id: 'school', name: 'ASAS Ganjil', type: 'pas' }, { id: 'other', organization_id: 'elsewhere', name: 'X', type: 'pas' }],
         cbt_pas_sessions: [{ id: 's1', pas_period_id: 'p1', name: 'Sesi 1', start_time: '07:30:00', end_time: '09:30:00' },
@@ -41,7 +41,7 @@ function fixture() {
             { exam_id: 'e-fis', user_id: 'b1', status: 'submitted' },
             { exam_id: 'e-fis', user_id: 'b2', status: 'in_progress' },
         ],
-    });
+    }, [], { now });
     const authz = {
         assertOrgMonitoring: async (_user, org) => { if (org !== 'school') throw new Error('izin'); },
         assertProktor: async user => { if (user.id !== 'proktor') throw new Error('Forbidden'); },
@@ -77,10 +77,16 @@ test('pengawas hanya melihat slot tugasnya pada tanggal itu', async () => {
     const { service } = fixture();
     const today = await service.listSlots(guard, 'school', DAY);
     assert.equal(today.is_manager, false);
-    assert.deepEqual(today.available_dates, [DAY, NEXT]);
+    assert.deepEqual(today.available_dates, [DAY], 'pengawas hanya dapat memilih hari tugas yang sedang berjalan');
     assert.deepEqual(today.slots.map(slot => [slot.room.name, slot.is_mine]), [['Ruang 1', true]]);
-    const tomorrow = await service.listSlots(guard, 'school', NEXT);
-    assert.deepEqual(tomorrow.slots.map(slot => slot.room.name), ['Ruang 2']);
+    // Tugas besok belum dapat dipantau hari ini.
+    const early = await service.listSlots(guard, 'school', NEXT);
+    assert.deepEqual(early.slots, []);
+    // Pada harinya, tugas besok terbuka dan tugas kemarin tertutup.
+    const nextDay = fixture(`${NEXT}T01:00:00Z`).service;
+    assert.deepEqual((await nextDay.listSlots(guard, 'school', NEXT)).slots.map(slot => slot.room.name), ['Ruang 2']);
+    assert.deepEqual((await nextDay.listSlots(guard, 'school', DAY)).slots, []);
+    assert.deepEqual((await nextDay.listSlots(guard, 'school', undefined)).available_dates, [NEXT]);
     const stranger = await service.listSlots({ id: 'nobody' }, 'school', DAY);
     assert.deepEqual(stranger, { date: DAY, is_manager: false, available_dates: [], slots: [] });
 });

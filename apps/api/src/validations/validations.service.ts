@@ -10,6 +10,7 @@ import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { advisoryTransactionLock } from '../common/transaction-lock';
+import { activeCollaboration, type CollaborationGrant } from '../common/collaboration-access';
 import { compareQuestions } from '../common/bank-question-order';
 import { dedupeOptions } from '../common/question-options';
 import {
@@ -93,6 +94,14 @@ export class ValidationsService {
         const bankOwner = (bank as { created_by: string | null }).created_by;
         if (bankOwner && validatorIds.includes(bankOwner)) {
             throw new BadRequestException('Pembuat bank soal tidak dapat ditunjuk sebagai validator bank soalnya sendiri.');
+        }
+        // Penyunting bersama ikut menyusun soal; validasinya tidak lagi independen.
+        const { data: coAuthors, error: coAuthorError } = await this.db.from('cbt_bank_collaborators')
+            .select('*').eq('bank_id', dto.bankId);
+        if (coAuthorError) throw new BadRequestException('Kolaborator bank soal belum dapat diperiksa.');
+        if (((coAuthors || []) as CollaborationGrant[]).some(grant => activeCollaboration(grant) &&
+            grant.permission !== 'viewer' && validatorIds.includes(grant.user_id))) {
+            throw new BadRequestException('Editor atau pengelola bank soal ini tidak dapat ditunjuk sebagai validatornya.');
         }
 
         // Validator harus staf aktif (Guru/Proktor/Admin) di sekolah yang sama.

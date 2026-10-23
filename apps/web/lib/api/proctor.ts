@@ -113,6 +113,10 @@ export interface ClassStudent {
 
 export interface OrganizationExam {
     canManage?: boolean;
+    isOwner?: boolean;
+    canShare?: boolean;
+    canDelete?: boolean;
+    collaborationPermission?: 'viewer' | 'editor' | 'manager' | null;
     canCorrectKeys?: boolean;
     canResetParticipants?: boolean;
     id: string;
@@ -135,6 +139,7 @@ export interface OrganizationExam {
     randomize_options?: boolean;
     show_results?: boolean;
     scoring_type?: string | null;
+    updated_at?: string;
     creatorName?: string | null;
     metadata?: {
         show_answer_keys?: boolean;
@@ -174,6 +179,12 @@ export interface ExamAttemptRecord {
     last_answer_saved_at?: string | null;
     grading_status?: 'pending' | 'manual' | 'complete' | 'not_submitted';
     attention_reasons?: string[];
+    /** Jejak masa offline: dibaca pengawas sebelum memutuskan pemulihan. */
+    offline_review?: {
+        connection_lost_at_close: { last_seen_at: string | null; deadline_at: string | null; gap_seconds: number | null } | null;
+        uncounted_local_answers: { count: number; reported_at: string | null } | null;
+        late_security_evidence: number;
+    } | null;
     sync_health?: {
         localAnswerCount: number;
         pendingAnswerCount: number;
@@ -233,6 +244,10 @@ export interface MonitoringHistoryEvent {
     storage_state?: string | null;
     gap_seconds?: number | null;
     last_seen_at?: string | null;
+    original_event_type?: string | null;
+    late_reason?: 'after_close' | 'before_reset' | string | null;
+    event_at?: string | null;
+    deadline_at?: string | null;
 }
 
 export interface ExamAnswerRecord {
@@ -261,6 +276,7 @@ export interface AttemptDetailAnswer {
     essay_answer: AnswerValue;
     score: number | null;
     is_correct: boolean | null;
+    is_answered?: boolean;
     needs_manual_grading?: boolean;
     bank_questions: Question | null;
 }
@@ -511,6 +527,7 @@ export async function listOrganizationExams(): Promise<OrganizationExam[]> {
 }
 
 export interface ExamInput {
+    expectedUpdatedAt?: string;
     title: string;
     description?: string;
     duration: number;

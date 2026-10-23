@@ -10,6 +10,7 @@ import {
 import { studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
+import { connectionLostAtClose } from '../common/exam-monitoring';
 import { normalizeAssignmentSubmission } from '../common/assignment-submission';
 import { isScoreExcluded } from '../common/score-exclusion';
 import { hasBoundSubmitIntent, hasCommittedSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
@@ -528,22 +529,31 @@ export class ExamAttemptsService {
         const closed = await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: current, error: readError } = await db.from('cbt_exam_attempts')
-                .select('status, metadata, user_id, device_fingerprint, started_at, personal_end_time, exam_id').eq('id', attemptId).maybeSingle();
+                .select('status, metadata, user_id, device_fingerprint, started_at, personal_end_time, exam_id, last_seen_at').eq('id', attemptId).maybeSingle();
             if (readError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
             if (!current || current.status !== 'in_progress' || hasCommittedSubmitIntent(current.metadata, now)) return false;
+            const { data: exam, error: examError } = await db.from('cbt_exams')
+                .select('end_time, duration_minutes').eq('id', current.exam_id).maybeSingle();
+            if (examError || !exam) throw new BadRequestException('Batas waktu pengawasan belum dapat diperiksa.');
+            const deadline = examDeadline(current, exam);
             if (evidence?.events.length && current.user_id === evidence.user.id &&
                 (!current.device_fingerprint || current.device_fingerprint === evidence.device)) {
-                const { data: exam, error: examError } = await db.from('cbt_exams')
-                    .select('end_time, duration_minutes').eq('id', current.exam_id).maybeSingle();
-                if (examError || !exam) throw new BadRequestException('Batas waktu pengawasan belum dapat diperiksa.');
                 await persistSubmissionSecurityEvents(db, attemptId, evidence.user.id, current,
-                    evidence.events, now, examDeadline(current, exam));
+                    evidence.events, now, deadline);
             }
+            const lost = connectionLostAtClose(current.last_seen_at, deadline.getTime(), now);
             const { data: updated, error } = await db
                 .from('cbt_exam_attempts')
-                .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: { ...(current.metadata || {}), closed_by_expiry: true } })
+                .update({ status: 'auto_submitted', total_score: null, finished_at: now.toISOString(), metadata: {
+                    ...(current.metadata || {}), closed_by_expiry: true,
+                    ...(lost ? { connection_lost_at_close: lost } : {}) } })
                 .eq('id', attemptId).eq('status', 'in_progress').select('id').maybeSingle();
             if (error) throw new BadRequestException('Status pengerjaan belum dapat disimpan.');
+            if (updated && lost) {
+                const { error: logError } = await db.from('cbt_attempt_security_logs').insert({ attempt_id: attemptId,
+                    event_type: 'CONNECTION_LOST_AT_CLOSE', metadata: { ...lost, source: 'server_monitoring' } });
+                if (logError) throw new BadRequestException('Jejak koneksi saat penutupan belum dapat disimpan.');
+            }
             return Boolean(updated);
         });
         if (!closed) return;
@@ -625,7 +635,7 @@ export class ExamAttemptsService {
         return this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const { data: attempt, error } = await db.from('cbt_exam_attempts')
-                .select('user_id, status, device_fingerprint, metadata, personal_end_time, started_at, exam_id')
+                .select('user_id, status, device_fingerprint, metadata, personal_end_time, started_at, finished_at, exam_id')
                 .eq('id', attemptId).maybeSingle();
             if (error || !attempt) throw new ForbiddenException('Sesi pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
@@ -637,8 +647,17 @@ export class ExamAttemptsService {
                 assignmentData: normalizeAssignmentSubmission(submission.assignmentData,
                     { examId: attempt.exam_id, userId: user.id }) as Record<string, unknown> | undefined }) : undefined;
             if (['submitted', 'auto_submitted'].includes(attempt.status)) {
+                // Attempt yang ditutup saat perangkat offline tetap menerima bukti
+                // dari masa offline itu, sebagai catatan susulan yang tidak dihitung.
+                let closedDeadline = new Date(NaN);
+                if (attempt.status === 'auto_submitted' && securityEvents.length) {
+                    const { data: exam } = await db.from('cbt_exams')
+                        .select('end_time, duration_minutes').eq('id', attempt.exam_id).maybeSingle();
+                    if (exam) closedDeadline = examDeadline(attempt, exam);
+                }
+                const [closedClock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
                 const acceptedSecurityEventIds = await persistSubmissionSecurityEvents(db, attemptId, user.id,
-                    attempt, securityEvents, new Date(), new Date(NaN));
+                    attempt, securityEvents, new Date(closedClock.now), closedDeadline);
                 return { attemptId, startedAt: null, alreadySubmitted: true,
                     ...(submission?.securityEvents ? { acceptedSecurityEventIds } : {}) };
             }
@@ -982,12 +1001,18 @@ export class ExamAttemptsService {
             // answers already persisted exactly; never accept new late edits.
             const expired = error instanceof ForbiddenException &&
                 (error.getResponse() as { code?: string }).code === 'RECOVERY_REQUIRED';
-            if (!expired || !clientAttemptId || !frozenSubmission ||
-                !await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
-                    answerRevisions, assignmentData, frozenSubmission, true)) throw error;
+            if (!expired || !clientAttemptId || !frozenSubmission) throw error;
+            if (!await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
+                answerRevisions, assignmentData, frozenSubmission, true)) {
+                await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
+                throw error;
+            }
             await this.autoFinish(clientAttemptId, await this.serverNow(), { user, device: deviceId!, events: manifest });
             if (!await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
-                answerRevisions, assignmentData, frozenSubmission, true, true)) throw error;
+                answerRevisions, assignmentData, frozenSubmission, true, true)) {
+                await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
+                throw error;
+            }
             const { data: final } = await this.db.from('cbt_exam_attempts').select('total_score').eq('id', clientAttemptId).maybeSingle();
             result = { score: final?.total_score ?? null, alreadySubmitted: true, savedAnswersOnly: false,
                 ...(final?.total_score == null ? { gradingPending: true } : {}) };
@@ -997,10 +1022,78 @@ export class ExamAttemptsService {
         const submissionVerified = !result.savedAnswersOnly && Boolean(clientAttemptId) &&
             await this.verifyStoredSubmission(user, examId, clientAttemptId!, deviceId!, studentAnswers,
                 answerRevisions, assignmentData, frozenSubmission, true, true);
+        if (clientAttemptId) {
+            if (submissionVerified) await this.clearUncountedLocalAnswers(clientAttemptId);
+            else await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
+        }
         const { data: visibility, error } = await this.db.from('cbt_exams')
             .select('show_results, scoring_type, metadata').eq('id', examId).maybeSingle();
         return { ...result, submissionVerified, verifiedAttemptId: submissionVerified ? clientAttemptId : undefined,
             score: !error && visibility?.show_results === true && studentScoreType(visibility) === 'classical' ? result.score : null };
+    }
+
+    /**
+     * Catat berapa jawaban di perangkat yang TIDAK ikut dinilai.
+     *
+     * Jawaban yang dibuat saat offline lalu baru terkirim setelah batas waktu
+     * ditolak (benar: server tidak dapat membuktikan kapan ditulis). Tetapi
+     * dulu penolakan itu tidak terlihat oleh siapa pun: siswa mengira jawabannya
+     * masuk, proktor tidak tahu ada yang perlu dipulihkan. Isi jawaban tidak
+     * disimpan di sini, hanya jumlahnya, sebagai tanda untuk pengawas.
+     */
+    private async noteUncountedLocalAnswers(user: AuthUser, attemptId: string, deviceId: string,
+        answers: Record<string, string>, frozen?: { startedAt: string; personalEndTime: string }): Promise<void> {
+        try {
+            await this.db.transaction(async db => {
+                await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+                const { data: attempt, error } = await db.from('cbt_exam_attempts')
+                    .select('user_id, device_fingerprint, started_at, metadata').eq('id', attemptId).maybeSingle();
+                if (error || !attempt || attempt.user_id !== user.id ||
+                    (attempt.device_fingerprint && attempt.device_fingerprint !== String(deviceId || '').trim()) ||
+                    (frozen && Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt))) return;
+                const { data: saved, error: readError } = await db.from('cbt_answers')
+                    .select('question_id, selected_option_id, essay_answer').eq('attempt_id', attemptId);
+                if (readError) return;
+                const stored = new Map<string, string>(((saved || []) as Array<{ question_id: string;
+                    selected_option_id: string | null; essay_answer: string | null }>)
+                    .map(row => [row.question_id, row.essay_answer ?? row.selected_option_id ?? '']));
+                const count = Object.entries(answers || {}).filter(([id, value]) =>
+                    typeof value === 'string' && value !== '' && stored.get(id) !== value).length;
+                const metadata = { ...(attempt.metadata || {}) } as Record<string, unknown>;
+                const previous = metadata.local_answers_not_counted as { count?: number } | undefined;
+                if (!count && !previous) return;
+                const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+                if (count) metadata.local_answers_not_counted = { count, reported_at: new Date(clock.now).toISOString(),
+                    attempt_started_at: attempt.started_at };
+                else delete metadata.local_answers_not_counted;
+                const { error: updateError } = await db.from('cbt_exam_attempts').update({ metadata }).eq('id', attemptId);
+                if (updateError) throw new Error(updateError.message);
+                if (count && previous?.count !== count) {
+                    await db.from('cbt_attempt_security_logs').insert({ attempt_id: attemptId,
+                        event_type: 'LOCAL_ANSWERS_NOT_COUNTED',
+                        metadata: { pendingAnswerCount: count, source: 'server_monitoring' } });
+                }
+            });
+        } catch (err) {
+            this.logger.warn(`Laporan jawaban lokal ${attemptId} belum tercatat: ${(err as Error).message}`);
+        }
+    }
+
+    private async clearUncountedLocalAnswers(attemptId: string): Promise<void> {
+        try {
+            const { data: flagged } = await this.db.from('cbt_exam_attempts').select('metadata').eq('id', attemptId).maybeSingle();
+            if (!flagged?.metadata?.local_answers_not_counted) return;
+            await this.db.transaction(async db => {
+                await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
+                const { data: attempt } = await db.from('cbt_exam_attempts').select('metadata').eq('id', attemptId).maybeSingle();
+                if (!attempt?.metadata?.local_answers_not_counted) return;
+                const metadata = { ...attempt.metadata };
+                delete metadata.local_answers_not_counted;
+                await db.from('cbt_exam_attempts').update({ metadata }).eq('id', attemptId);
+            });
+        } catch (err) {
+            this.logger.warn(`Tanda jawaban lokal ${attemptId} belum dibersihkan: ${(err as Error).message}`);
+        }
     }
 
     private async verifyStoredSubmission(

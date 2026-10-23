@@ -1,3 +1,4 @@
+import { collaborationGrants } from '../common/collaboration-access';
 import {
     BadRequestException,
     ConflictException,
@@ -57,11 +58,15 @@ export class ExamAdminService {
 
         const elevated = await this.isElevated(user, organizationId);
         const isInvigilator = await this.roles.hasOrgRole(user.id, organizationId, ['Pengawas']);
-        const canSeeAll = elevated || isInvigilator;
+        const canSeeAll = elevated;
         let assignedStudents: Map<string, string[]> | undefined;
+        const grants = await collaborationGrants(this.db, 'exam', user.id);
+        const sharedIds = [...grants.keys()];
+        const collaboration = await this.authz.collaborationListContext(user, organizationId);
+        const sharedClause = sharedIds.length ? `,id.in.(${sharedIds.join(',')})` : '';
         const restrictedProctor = !user.isPlatformAdmin && !user.resolved?.superadmin &&
             await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']) && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true,exam_type.in.(pas,pat,pts,pkn,am)`);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true,exam_type.in.(pas,pat,pts,pkn,am)${sharedClause}`);
         else if (!canSeeAll) {
             // Cari bank soal milik guru ini
             const { data: ownedBanks } = await this.db
@@ -74,6 +79,7 @@ export class ExamAdminService {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
             const assignedIds = [...assignedStudents.keys()];
             const conditions = [`created_by.eq.${user.id}`];
+            if (sharedIds.length) conditions.push(`id.in.(${sharedIds.join(',')})`);
             if (bankIds.length) conditions.push(`question_bank_id.in.(${bankIds.join(',')})`);
             if (assignedIds.length) conditions.push(`id.in.(${assignedIds.join(',')})`);
             query = query.or(conditions.join(','));
@@ -86,7 +92,7 @@ export class ExamAdminService {
             return [];
         }
 
-        let exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true || isPasMonitoringExam(exam));
+        let exams = ((data as any[]) || []).filter(exam => !restrictedProctor || exam.created_by === user.id || exam.is_published === true || isPasMonitoringExam(exam) || sharedIds.includes(exam.id));
         if (isInvigilator && !elevated) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
             const assignedIds = new Set(assignedStudents.keys());
@@ -96,7 +102,7 @@ export class ExamAdminService {
                 : { data: [], error: null };
             if (bankError) throw new BadRequestException('Kepemilikan bank soal belum dapat diperiksa.');
             const ownedIds = new Set((banks || []).map((bank: { id: string }) => bank.id));
-            exams = exams.filter(exam => !isPasMonitoringExam(exam) || assignedIds.has(exam.id) ||
+            exams = exams.filter(exam => sharedIds.includes(exam.id) || assignedIds.has(exam.id) ||
                 (teacher && (exam.created_by === user.id || ownedIds.has(exam.question_bank_id))));
         }
         const ownedBankIds = new Set<string>();
@@ -133,16 +139,20 @@ export class ExamAdminService {
         if (!elevated && !assignedStudents && exams.some(exam => isSemesterAssessmentExam(exam))) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
         }
-        return Promise.all(exams.map(async (exam) => ({
+        return Promise.all(exams.map(async (exam) => {
+            const grant = grants.get(exam.id) ?? null;
+            const access = collaboration.access(exam, grant);
+            return ({
             ...exam,
+            isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
             creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
-            canManage: await this.authz.canManageExam(user, exam),
-            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents),
+            canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
+            canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),
             canCorrectKeys: !restrictedProctor || (() => {
                 const ids = [...(exam.question_bank_id ? [exam.question_bank_id] : []), ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id)];
                 return ids.length > 0 && ids.every(id => ownedBankIds.has(id));
             })(),
-        })));
+        }); }));
     }
 
     async create(user: AuthUser, sessionOrganizationId: string, dto: CreateExamDto) {
@@ -225,7 +235,7 @@ export class ExamAdminService {
             await db.raw('SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE', examId);
             const { data } = await db
                 .from('cbt_exams')
-                .select('metadata, exam_type, organization_id, status')
+                .select('metadata, exam_type, organization_id, status, updated_at')
                 .eq('id', examId)
                 .maybeSingle();
 
@@ -236,7 +246,11 @@ export class ExamAdminService {
                 exam_type: string | null;
                 organization_id: string;
                 status: string;
+                updated_at?: string;
             };
+            if (dto.expectedUpdatedAt && (!existing.updated_at || Date.parse(dto.expectedUpdatedAt) !== Date.parse(existing.updated_at))) {
+                throw new ConflictException('Ujian telah diubah oleh pengguna lain. Muat ulang sebelum menyimpan.');
+            }
             if (existing.status === 'archived') {
                 throw new ConflictException('Pulihkan ujian dari arsip sebelum mengubahnya.');
             }
@@ -272,6 +286,7 @@ export class ExamAdminService {
             const { error } = await db
                 .from('cbt_exams')
                 .update({
+                    updated_at: new Date().toISOString(),
                     title,
                     // Formulir tidak mengirim deskripsi yang dikosongkan; tanpa
                     // `null` di sini deskripsi lama tidak pernah bisa dihapus.
@@ -657,7 +672,8 @@ export class ExamAdminService {
         if (examIds.length === 0) return { targets: [], participants: [] };
 
         for (const examId of examIds) {
-            await this.authz.assertExamStaff(user, examId);
+            const access = await this.authz.collaborationPermissions(user, 'exam', examId);
+            if (!access.grant) await this.authz.assertExamStaff(user, examId);
         }
 
         const [targets, participants] = await Promise.all([

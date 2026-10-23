@@ -1,4 +1,8 @@
 "use client";
+
+import { DatePicker } from '@/components/ui/DatePicker';
+
+import { CommitteeChairNameInput } from '@/app/components/pas/CommitteeChairNameInput';
 import { alertDialog, confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
     createPASPeriodAction,
@@ -430,22 +434,13 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
 
                             <div className="grid grid-cols-2 gap-2">
                                 <ModalField label="Tanggal Mulai" required>
-                                    <input
-                                        required
-                                        type="date"
-                                        value={periodForm.start_date}
-                                        onChange={e => setPeriodForm({ ...periodForm, start_date: e.target.value })}
-                                    />
+                                    <DatePicker required value={periodForm.start_date} max={periodForm.end_date || undefined}
+                                        onChange={value => setPeriodForm({ ...periodForm, start_date: value })} title="Tanggal mulai" />
                                 </ModalField>
 
                                 <ModalField label="Tanggal Selesai" required>
-                                    <input
-                                        required
-                                        type="date"
-                                        min={periodForm.start_date || undefined}
-                                        value={periodForm.end_date}
-                                        onChange={e => setPeriodForm({ ...periodForm, end_date: e.target.value })}
-                                    />
+                                    <DatePicker required min={periodForm.start_date || undefined} value={periodForm.end_date}
+                                        onChange={value => setPeriodForm({ ...periodForm, end_date: value })} title="Tanggal selesai" />
                                 </ModalField>
                             </div>
                         </div>
@@ -457,12 +452,8 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <ModalField label="Nama Lengkap & Gelar Ketua Panitia" hint="Dicantumkan pada Berita Acara dan Daftar Hadir">
-                                    <input
-                                        type="text"
-                                        placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
-                                        value={periodForm.committee_chair_name}
-                                        onChange={e => setPeriodForm({ ...periodForm, committee_chair_name: e.target.value })}
-                                    />
+                                    <CommitteeChairNameInput value={periodForm.committee_chair_name} nip={periodForm.committee_chair_nip}
+                                        onChange={(name, nip) => setPeriodForm({ ...periodForm, committee_chair_name: name, committee_chair_nip: nip })} />
                                 </ModalField>
 
                                 <ModalField label="NIP Ketua Panitia (Opsional)">

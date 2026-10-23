@@ -2,6 +2,8 @@
 import { useEffect } from 'react';
 import { clearSessionCache } from '@/lib/session';
 import { clearActiveRoleInStorage } from '@/lib/rbac';
+import { clearExamRecoverySessions, forgetExamOfflineOwner } from '@/lib/exam-durable-storage';
+import { clearExamOfflineShells } from '@/lib/exam-pwa';
 
 /** A public cookie is only an event signal; never a credential or a permission. */
 export function SingleLogoutListener() {
@@ -18,6 +20,12 @@ export function SingleLogoutListener() {
                 if (!response.ok) throw new Error('Logout failed');
                 clearSessionCache();
                 try { clearActiveRoleInStorage(); } catch { /* Browser storage may be blocked. */ }
+                // Sama seperti tombol keluar: paket soal offline dan penanda pemilik
+                // tidak boleh tertinggal untuk pengguna berikutnya di perangkat bersama.
+                // Antrean pengiriman jawaban sengaja dipertahankan.
+                forgetExamOfflineOwner();
+                await clearExamRecoverySessions().catch(() => undefined);
+                await clearExamOfflineShells().catch(() => undefined);
                 window.location.replace(new URL('/login?logged_out=1', process.env.NEXT_PUBLIC_ACCA_URL || 'https://acca.icgowa.sch.id').toString());
             } catch { closing = false; }
         };

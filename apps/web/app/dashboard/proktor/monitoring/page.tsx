@@ -1,4 +1,6 @@
 "use client";
+
+import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
@@ -62,21 +64,21 @@ function MonitoringContent() {
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_monitoring_exams', []);
-    const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId);
+    const [selectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
-    const [activeTab, setActiveTab] = useState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration'>('live');
+    const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration'>('activeTab', 'live');
     const [loadError, setLoadError] = useState<string | null>(null);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
-    const [searchName, setSearchName] = useState('');
-    const [filterKelas, setFilterKelas] = useState<string[]>([]);
-    const [filterStatus, setFilterStatus] = useState('all');
-    const [resetStatus, setResetStatus] = useState('all');
-    const [onlyAttention, setOnlyAttention] = useState(false);
+    const [searchName, setSearchName] = useMonitoringFilterState('searchName', '');
+    const [filterKelas, setFilterKelas] = useMonitoringFilterState<string[]>('filterKelas', []);
+    const [filterStatus, setFilterStatus] = useMonitoringFilterState('filterStatus', 'all');
+    const [resetStatus, setResetStatus] = useMonitoringFilterState('resetStatus', 'all');
+    const [onlyAttention, setOnlyAttention] = useMonitoringFilterState('onlyAttention', false);
     const [analysisPage, setAnalysisPage] = useState(1);
     const examRequestGenerationRef = useRef(0);
 
@@ -91,11 +93,11 @@ function MonitoringContent() {
                 const examList = sortMonitoringExams(await listOrganizationExams());
                 console.log('[Monitoring] Exams:', examList);
                 setExams(examList);
-                if (!initialExamId && examList.length > 0) setSelectedExamId(examList[0].id);
+                if (!initialExamId && examList.length > 0) setSelectedExamId(current => examList.some(exam => exam.id === current) ? current : examList[0].id);
             }
         }
         setIsLoading(false);
-    }, [initialExamId, setExams, setIsLoading]);
+    }, [initialExamId, setExams, setIsLoading, setSelectedExamId]);
 
     const loadingExamIdsRef = useRef(new Map<string, number>());
     const lastRequestedExamIdRef = useRef('');
@@ -106,7 +108,6 @@ function MonitoringContent() {
         if (lastRequestedExamIdRef.current !== examId) {
             lastRequestedExamIdRef.current = examId;
             setAttempts([]); setAnalysis([]); setLoadError(null);
-            setSearchName(''); setFilterKelas([]); setFilterStatus('all'); setOnlyAttention(false);
         }
         if (!silent) setIsRefreshing(true);
         try {

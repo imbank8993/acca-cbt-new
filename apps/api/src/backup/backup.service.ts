@@ -156,6 +156,13 @@ export class BackupService {
         // dipulihkan, karena UUID pengguna tidak dipertahankan antar lingkungan.
         const emails = await this.authUsers.emailMap(memberUserIds);
 
+        const [bankCollaborators, examCollaborators, collaborationEvents] = await Promise.all([
+            this.byIds('cbt_bank_collaborators', 'bank_id', bankIds),
+            this.byIds('cbt_exam_collaborators', 'exam_id', examIds),
+            this.byIds('cbt_collaboration_events', 'resource_id', [...bankIds, ...examIds]),
+        ]);
+        const knownMembers = new Set(memberUserIds);
+
         return {
             version: '3.0',
             timestamp: new Date().toISOString(),
@@ -207,6 +214,9 @@ export class BackupService {
                 pas_room_invigilators: roomInvigilators,
                 pas_room_students: roomStudents,
                 organization_labels: organizationLabels,
+                bank_collaborators: bankCollaborators.filter(row => knownMembers.has(row.user_id)),
+                exam_collaborators: examCollaborators.filter(row => knownMembers.has(row.user_id)),
+                collaboration_events: collaborationEvents,
             },
         };
     }
@@ -273,6 +283,11 @@ export class BackupService {
                 await this.insert('cbt_bank_questions', withOrg(data.bank_questions), db);
                 await this.insert('cbt_bank_question_options', plain(data.bank_question_options), db);
                 await this.insert('cbt_exams', withOrg(data.exams), db);
+                // Akun yang tidak ada di lingkungan tujuan dilewati (seperti anggota kelas),
+                // bukan membatalkan seluruh pemulihan karena foreign key profil.
+                await this.insert('cbt_bank_collaborators', withUser(data.bank_collaborators), db);
+                await this.insert('cbt_exam_collaborators', withUser(data.exam_collaborators), db);
+                await this.insert('cbt_collaboration_events', plain(data.collaboration_events), db);
                 await this.insert('exam_classes', plain(data.exam_classes), db);
                 await this.insert('cbt_exam_targets', plain(data.exam_targets), db);
                 await this.insert('cbt_exam_participants', withUser(data.exam_participants), db);
@@ -393,6 +408,8 @@ export class BackupService {
             ['exam_participants', 'exam_id', examIds], ['exam_participants', 'user_id', userIds],
             ['exam_question_sources', 'exam_id', examIds],
             ['exam_question_sources', 'bank_id', bankIds],
+            ['bank_collaborators', 'bank_id', bankIds], ['bank_collaborators', 'user_id', userIds],
+            ['exam_collaborators', 'exam_id', examIds], ['exam_collaborators', 'user_id', userIds],
             ['exam_question_snapshots', 'exam_id', examIds],
             ['exam_question_snapshots', 'question_id', questionIds, true],
             ['exam_attempts', 'exam_id', examIds], ['exam_attempts', 'user_id', userIds],
@@ -419,6 +436,16 @@ export class BackupService {
                 }
             }
         }
+        for (const table of ['bank_collaborators', 'exam_collaborators']) {
+            for (const row of rows(table)) {
+                if (!['viewer', 'editor', 'manager'].includes(row.permission) ||
+                    row.expires_at && !Number.isFinite(Date.parse(row.expires_at)) ||
+                    row.revoked_at && !Number.isFinite(Date.parse(row.revoked_at)) ||
+                    table === 'exam_collaborators' && (typeof row.can_reset !== 'boolean' || row.permission === 'viewer' && row.can_reset)) {
+                    throw new BadRequestException('Izin kolaborator dalam backup tidak valid.');
+                }
+            }
+        }
         for (const assignment of rows('pas_room_invigilators')) {
             if (!assignment.session_id) continue;
             const room = rows('pas_rooms').find(row => row.id === assignment.pas_room_id);
@@ -441,7 +468,7 @@ export class BackupService {
         mapping: Map<string, string>,
         fallbackUserId: string,
     ): Record<string, any> {
-        for (const field of ['user_id', 'created_by', 'updated_by', 'teacher_id', 'proctor_id']) {
+        for (const field of ['user_id', 'created_by', 'updated_by', 'teacher_id', 'proctor_id', 'granted_by', 'actor_id']) {
             if (!row[field]) continue;
             if (mapping.has(row[field])) row[field] = mapping.get(row[field]);
             else if (field !== 'user_id') row[field] = fallbackUserId;
@@ -499,6 +526,8 @@ export class BackupService {
         // Urutannya mengikuti arah foreign key: anak lebih dulu. Sebagian memang
         // ikut terhapus lewat CASCADE, tetapi menyebutkannya eksplisit membuat
         // urutan ini tidak bergantung pada definisi relasi yang bisa berubah.
+        const auditDelete = await db.from('cbt_collaboration_events').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if (auditDelete.error) throw new BadRequestException('Riwayat kolaborasi belum dapat dipulihkan.');
         for (const table of [
             'cbt_exam_attempts',
             'cbt_pas_periods',

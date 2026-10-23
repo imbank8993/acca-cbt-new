@@ -1,5 +1,7 @@
 "use client";
 
+import { CommitteeChairNameInput } from '@/app/components/pas/CommitteeChairNameInput';
+
 import Image from 'next/image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -2737,14 +2739,9 @@ ${KOP_AND_A4_CSS}
                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                                     Nama Lengkap & Gelar Ketua Panitia <span className="text-red-500">*</span>
                                 </label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
-                                    value={chairName}
-                                    onChange={(e) => setChairName(e.target.value)}
-                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
+                                <CommitteeChairNameInput required value={chairName} nip={chairNip}
+                                    onChange={(name, nip) => { setChairName(name); setChairNip(nip); }}
+                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20" />
                             </div>
 
                             <div>

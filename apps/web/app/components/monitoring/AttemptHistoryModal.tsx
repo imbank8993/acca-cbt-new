@@ -237,6 +237,14 @@ export function AttemptHistoryModal({
                             <span className="font-semibold text-slate-800">{event.actor_name || event.actor_id}</span>
                           </div>
                         )}
+                        {event.type === 'LATE_SECURITY_EVIDENCE' && event.original_event_type && (
+                          <div className="sm:col-span-2">
+                            <span className="text-slate-400 font-medium">Peringatan:</span>{' '}
+                            <span className="font-semibold text-slate-800">{monitoringEventLabels[event.original_event_type] || event.original_event_type}</span>
+                            {event.event_at && <> · terjadi {formatDate(event.event_at)}</>}
+                            {' · '}{event.late_reason === 'before_reset' ? 'sebelum pemulihan dibuka' : 'baru diterima setelah ujian ditutup'}
+                          </div>
+                        )}
                         {reasonText && (
                           <div className="sm:col-span-2">
                             <span className="text-slate-400 font-medium">Alasan:</span>{' '}

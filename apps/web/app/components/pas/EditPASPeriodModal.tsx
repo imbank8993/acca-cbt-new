@@ -1,5 +1,9 @@
 "use client";
 
+import { DatePicker } from '@/components/ui/DatePicker';
+
+import { CommitteeChairNameInput } from '@/app/components/pas/CommitteeChairNameInput';
+
 import React, { useState, useEffect } from 'react';
 import { FolderEdit, AlertCircle, UserCheck } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/components/ui/modal';
@@ -71,7 +75,7 @@ export default function EditPASPeriodModal({
                 start_date: startDate,
                 end_date: endDate,
                 committee_chair_name: committeeChairName.trim() || undefined,
-                committee_chair_nip: committeeChairNip.trim() || undefined,
+                committee_chair_nip: committeeChairNip.trim(),
             });
 
             if (!res.success) {
@@ -163,22 +167,11 @@ export default function EditPASPeriodModal({
 
                         <div className="grid grid-cols-2 gap-2">
                             <ModalField label="Tanggal Mulai" required>
-                                <input
-                                    type="date"
-                                    required
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                />
+                                <DatePicker required value={startDate} max={endDate || undefined} onChange={setStartDate} title="Tanggal mulai" />
                             </ModalField>
 
                             <ModalField label="Tanggal Selesai" required>
-                                <input
-                                    type="date"
-                                    required
-                                    min={startDate || undefined}
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                />
+                                <DatePicker required min={startDate || undefined} value={endDate} onChange={setEndDate} title="Tanggal selesai" />
                             </ModalField>
                         </div>
                     </div>
@@ -191,12 +184,8 @@ export default function EditPASPeriodModal({
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ModalField label="Nama Lengkap & Gelar Ketua Panitia" hint="Dicantumkan pada Berita Acara dan Daftar Hadir">
-                                <input
-                                    type="text"
-                                    value={committeeChairName}
-                                    onChange={(e) => setCommitteeChairName(e.target.value)}
-                                    placeholder="Contoh: Drs. H. Ahmad Fauzi, M.Pd."
-                                />
+                                <CommitteeChairNameInput value={committeeChairName} nip={committeeChairNip}
+                                    onChange={(name, nip) => { setCommitteeChairName(name); setCommitteeChairNip(nip); }} />
                             </ModalField>
 
                             <ModalField label="NIP Ketua Panitia (Opsional)">

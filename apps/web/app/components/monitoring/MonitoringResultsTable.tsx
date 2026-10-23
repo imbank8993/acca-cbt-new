@@ -5,6 +5,7 @@ import { ChevronDown, Eye } from 'lucide-react';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { monitoringScoreModels } from '@/lib/monitoring-score-models';
+import { savedAnswerCount } from '@/lib/monitoring-answer-count';
 import { ParticipantRoomInfo } from './ParticipantRoomInfo';
 
 export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails, showRoomInfo = false }: {
@@ -16,18 +17,19 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     return <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] text-left text-sm">
+        <table className="w-full min-w-[700px] text-left text-sm">
             <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                     <th scope="col" className="px-4 py-3">Peserta</th>
                     <th scope="col" className="px-4 py-3">Status</th>
+                    <th scope="col" className="px-4 py-3 text-center">Soal</th>
                     <th scope="col" className="px-4 py-3 text-right">Skor</th>
                     <th scope="col" className="px-4 py-3 text-center">Peringatan</th>
                     <th scope="col" className="px-4 py-3 text-right">Aksi</th>
                 </tr>
             </thead>
             <tbody>
-                {attempts.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-500">
+                {attempts.length === 0 ? <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-500">
                     {hasAnyAttempts ? 'Belum ada peserta yang selesai atau cocok dengan filter.' : 'Belum ada data.'}
                 </td></tr> : attempts.map(att => {
                     const isUnstarted = att.status === 'belum';
@@ -37,6 +39,9 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                     const classicalModel = scoreModels.find(model => model.type === 'classical');
                     const score = isUnstarted ? null : classicalModel?.score ?? null;
                     const expanded = expandedId === att.id;
+                    const answered = savedAnswerCount(att);
+                    const total = typeof att.total_questions === 'number' && Number.isSafeInteger(att.total_questions) && att.total_questions >= 0
+                        ? att.total_questions : null;
                     const durationMinutes = att.started_at && att.finished_at
                         ? Math.max(0, Math.floor((new Date(att.finished_at).getTime() - new Date(att.started_at).getTime()) / 60000))
                         : null;
@@ -61,6 +66,9 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                     {isAutoSubmitted ? 'Ditutup otomatis' : att.status === 'submitted' ? 'Selesai' : isUnstarted ? 'Belum mulai' : 'Mengerjakan'}
                                 </span>
                             </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-center font-medium tabular-nums text-slate-700" title="Jumlah soal yang dijawab dan tersimpan di server dibanding total soal">
+                                {answered ?? '—'}<span className="text-slate-400">/{total ?? '—'}</span>
+                            </td>
                             <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getScoreColorClass(score)}`}>{score === null ? isUnstarted ? '—' : classicalModel?.pendingLabel ?? 'Menunggu nilai' : score.toFixed(2)}</td>
                             <td className={`px-4 py-3 text-center font-medium tabular-nums ${warningCount > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{warningCount > 0 ? warningCount : '—'}</td>
                             <td className="px-4 py-3">
@@ -74,7 +82,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                 </div>
                             </td>
                         </tr>
-                        {expanded && <tr id={`result-detail-${att.id}`} className="border-b border-slate-200 bg-slate-50/70"><td colSpan={5} className="px-4 py-4">
+                        {expanded && <tr id={`result-detail-${att.id}`} className="border-b border-slate-200 bg-slate-50/70"><td colSpan={6} className="px-4 py-4">
                             <dl className="grid gap-x-8 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                                 <div><dt className="text-slate-500">Durasi</dt><dd className="mt-1 font-semibold text-slate-800">{durationMinutes === null ? '—' : `${Math.floor(durationMinutes / 60)}j ${durationMinutes % 60}m`}</dd></div>
                                 <div><dt className="text-slate-500">Mulai</dt><dd className="mt-1 font-semibold text-slate-800">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '—'}</dd></div>

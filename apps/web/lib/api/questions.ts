@@ -68,6 +68,10 @@ export interface DimensionInterpretationItem {
 
 export interface QuestionBank {
     canManage?: boolean;
+    isOwner?: boolean;
+    canShare?: boolean;
+    canDelete?: boolean;
+    collaborationPermission?: 'viewer' | 'editor' | 'manager' | null;
     created_by?: string | null;
     id: string;
     title: string;
@@ -205,6 +209,7 @@ export function createQuestionBank(
 export function updateQuestionBankAction(
     bankId: string,
     data: {
+        expectedUpdatedAt?: string;
         title?: string;
         description?: string;
         subject?: string;

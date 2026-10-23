@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter, ModalField, type ModalSize } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
-import { InlineSelect } from '@/components/ui/InlineSelect';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import ImageCropperModal from '@/app/components/ImageCropperModal';
 import {
     createQuestionBank,
@@ -249,6 +249,7 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
             let result: Awaited<ReturnType<typeof createQuestionBank>>;
             if (editingBank) {
                 result = await updateQuestionBankAction(editingBank.id, {
+                    expectedUpdatedAt: editingBank.updated_at,
                     title: formData.title.trim(),
                     description: formData.description.trim(),
                     subject: formData.subject.trim(),
@@ -318,21 +319,27 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                         />
                     </ModalField>
 
-                    {/* Grid 2 Kolom: Mata Pelajaran & Tingkat Kelas (InlineSelect) */}
+                    {/* Grid 2 Kolom: Mata Pelajaran & Tingkat Kelas (pencarian pilihan) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <ModalField label="Mata Pelajaran">
-                            <InlineSelect
+                            <SearchableSelect
                                 value={formData.subject}
-                                onChange={(val) => setFormData((prev) => ({ ...prev, subject: val }))}
+                                onChange={(val) => setFormData((prev) => ({ ...prev, subject: String(val ?? '') }))}
                                 options={subjectOptions}
+                                placeholder="Pilih mata pelajaran"
+                                searchPlaceholder="Cari mata pelajaran..."
+                                className="w-full"
                             />
                         </ModalField>
 
                         <ModalField label="Tingkat Kelas">
-                            <InlineSelect
+                            <SearchableSelect
                                 value={formData.classLevel}
-                                onChange={(val) => setFormData((prev) => ({ ...prev, classLevel: val }))}
+                                onChange={(val) => setFormData((prev) => ({ ...prev, classLevel: String(val ?? '') }))}
                                 options={classLevelOptions}
+                                placeholder="Pilih tingkat kelas"
+                                searchPlaceholder="Cari tingkat kelas..."
+                                className="w-full"
                             />
                         </ModalField>
                     </div>
@@ -341,10 +348,13 @@ export const CreateBankModal: React.FC<CreateBankModalProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
                         <ModalField label="Folder Penyimpanan" className="h-full flex flex-col">
                             <div className="flex flex-col h-full justify-between gap-2.5">
-                                <InlineSelect
+                                <SearchableSelect
                                     value={formData.folderId || ''}
-                                    onChange={(val) => setFormData((prev) => ({ ...prev, folderId: val || undefined }))}
+                                    onChange={(val) => setFormData((prev) => ({ ...prev, folderId: String(val ?? '') || undefined }))}
                                     options={folderOptions}
+                                    placeholder="Tanpa folder (Folder Utama)"
+                                    searchPlaceholder="Cari folder penyimpanan..."
+                                    className="w-full"
                                 />
                                 <div className="flex-1 min-h-[50px] p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-2.5 text-xs text-slate-500">
                                     <div className="w-8 h-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-primary flex-shrink-0 shadow-xs">

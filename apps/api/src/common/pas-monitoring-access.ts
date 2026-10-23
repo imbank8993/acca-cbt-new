@@ -2,13 +2,48 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from './chunk';
 import { isSemesterAssessmentExam } from './exam-types';
+import { pasDutyAllowed, schoolToday, type PasDutyWindow } from './pas-duty-window';
+
+const dutyDay = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10);
 
 export function isPasMonitoringExam(exam: { exam_type?: string | null }): boolean {
     return isSemesterAssessmentExam(exam) || ['pts', 'pkn'].includes(exam.exam_type || '');
 }
 
+/**
+ * A duty grants the invigilation workspace before exams have been generated,
+ * and only while it is upcoming or recent (see pas-duty-window).
+ */
+export async function hasPasInvigilationAssignment(db: DbService, userId: string, organizationId: string,
+    today?: string): Promise<boolean> {
+    const assignments = await db.from('cbt_pas_room_invigilators')
+        .select('pas_room_id, session_id, exam_date').eq('user_id', userId);
+    if (assignments.error) throw new ServiceUnavailableException('Penugasan pengawas belum dapat diperiksa.');
+    let duties = ((assignments.data || []) as Array<{ pas_room_id: string; session_id: string; exam_date: unknown }>).filter(row => row.pas_room_id && row.session_id && row.exam_date);
+    if (!duties.length) return false;
+    const current = today ?? await schoolToday(db);
+    duties = duties.filter(row => pasDutyAllowed(dutyDay(row.exam_date), current, 'workspace'));
+    if (!duties.length) return false;
+    const periods = await db.from('cbt_pas_periods').select('id').eq('organization_id', organizationId);
+    if (periods.error) throw new ServiceUnavailableException('Periode penugasan belum dapat diperiksa.');
+    const periodIds = ((periods.data || []) as Array<{ id: string }>).map(row => row.id);
+    if (!periodIds.length) return false;
+    const [rooms, sessions] = await Promise.all([
+        db.from('cbt_pas_rooms').select('id, pas_period_id').in('pas_period_id', periodIds),
+        db.from('cbt_pas_sessions').select('id, pas_period_id').in('pas_period_id', periodIds),
+    ]);
+    if (rooms.error || sessions.error) throw new ServiceUnavailableException('Ruang penugasan belum dapat diperiksa.');
+    const roomRows = (rooms.data || []) as Array<{ id: string; pas_period_id: string }>;
+    const sessionRows = (sessions.data || []) as Array<{ id: string; pas_period_id: string }>;
+    return duties.some(duty => {
+        const room = roomRows.find(row => row.id === duty.pas_room_id);
+        return room && sessionRows.some(row => row.id === duty.session_id && row.pas_period_id === room.pas_period_id);
+    });
+}
+
 /** Resolve rooms and their actual occupants through school-owned periods and sessions. */
-export async function assignedPasExamStudents(db: DbService, userId: string, organizationId: string): Promise<Map<string, string[]>> {
+export async function assignedPasExamStudents(db: DbService, userId: string, organizationId: string,
+    options: { window?: PasDutyWindow; today?: string } = {}): Promise<Map<string, string[]>> {
     const read = async (query: PromiseLike<any>): Promise<any[]> => {
         const result = await query;
         if (result.error) throw new ServiceUnavailableException('Penugasan pengawas belum dapat diperiksa.');
@@ -21,8 +56,12 @@ export async function assignedPasExamStudents(db: DbService, userId: string, org
     };
     const access = new Map<string, string[]>();
     // Pengawas bergilir per hari: penugasan hanya berlaku untuk tanggalnya sendiri.
-    const assignments = (await read(db.from('cbt_pas_room_invigilators').select('pas_room_id, session_id, exam_date').eq('user_id', userId)))
+    let assignments = (await read(db.from('cbt_pas_room_invigilators').select('pas_room_id, session_id, exam_date').eq('user_id', userId)))
         .filter(row => row.session_id && row.exam_date);
+    if (!assignments.length) return access;
+    // Monitoring hanya berlaku pada tanggal tugas itu sendiri (zona waktu sekolah).
+    const today = options.today ?? await schoolToday(db);
+    assignments = assignments.filter(row => pasDutyAllowed(dutyDay(row.exam_date), today, options.window ?? 'monitoring'));
     if (!assignments.length) return access;
     const rooms = await readIds('cbt_pas_rooms', 'id, name, pas_period_id', 'id', assignments.map(row => row.pas_room_id));
     if (!rooms.length) return access;

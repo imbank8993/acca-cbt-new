@@ -25,3 +25,10 @@ export function pasDateRange(start: unknown, end: unknown) {
     if (first > last) throw new BadRequestException('Tanggal mulai harus sebelum atau sama dengan tanggal selesai.');
     return { start: first, end: last };
 }
+
+/** SQL DATE values are serialized as UTC midnight by the database adapter. */
+export function storedPasDate(value: unknown): string {
+    const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(value)
+        ? value.slice(0, 10) : value;
+    return pasDate(date);
+}

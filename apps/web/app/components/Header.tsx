@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 
-import { clearExamRecoverySessions } from '@/lib/exam-durable-storage';
+import { clearExamRecoverySessions, forgetExamOfflineOwner } from '@/lib/exam-durable-storage';
 import { clearExamOfflineShells } from '@/lib/exam-pwa';
 import { clearSessionCache } from '@/lib/session';
 import { ArrowLeft,LogOut,Menu,Moon,Sun,User as UserIcon } from 'lucide-react';
@@ -89,6 +89,7 @@ export default function Header({
 
     const handleLogout = async () => {
         clearSessionCache();
+        forgetExamOfflineOwner();
         await clearExamRecoverySessions().catch(() => undefined);
         await clearExamOfflineShells().catch(() => undefined);
         window.dispatchEvent(new Event('acca:signout'));

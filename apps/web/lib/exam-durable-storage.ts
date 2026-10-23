@@ -972,3 +972,97 @@ export async function removeConfirmedExamSnapshot(attemptId: string, context: No
         try { localStorage.removeItem(legacyKey(attemptId)); } catch { /* optional mirror */ }
     });
 }
+
+// ── Pemilik sesi offline ─────────────────────────────────────────────────────
+const OFFLINE_OWNER_KEY = 'acca_exam_offline_owner';
+
+/**
+ * Akun terakhir yang DIVERIFIKASI server pada perangkat ini.
+ *
+ * Paket pemulihan offline dibuka tanpa server, jadi tidak ada cara memeriksa
+ * siapa yang duduk di depan layar. Dulu pemeriksaan pemilik dilewati sama
+ * sekali saat offline: di lab komputer, siswa berikutnya dapat membuka paket
+ * milik siswa sebelumnya lalu mengubah jawabannya, yang kemudian ikut terkirim
+ * saat pemiliknya tersambung lagi. Penanda ini dihapus pada setiap logout,
+ * sehingga paket hanya dapat dibuka oleh sesi login yang sama.
+ */
+export function rememberExamOfflineOwner(userId: string): void {
+    try { localStorage.setItem(OFFLINE_OWNER_KEY, JSON.stringify({ userId, at: Date.now() })); } catch { /* storage optional */ }
+}
+
+export function readExamOfflineOwner(): string | null {
+    try {
+        const value: unknown = JSON.parse(localStorage.getItem(OFFLINE_OWNER_KEY) || 'null');
+        const userId = value && typeof value === 'object' ? (value as { userId?: unknown }).userId : null;
+        return typeof userId === 'string' && userId ? userId : null;
+    } catch {
+        return null;
+    }
+}
+
+export function forgetExamOfflineOwner(): void {
+    try { localStorage.removeItem(OFFLINE_OWNER_KEY); } catch { /* storage optional */ }
+}
+
+// ── Masa simpan salinan lokal ────────────────────────────────────────────────
+/**
+ * Salinan jawaban yang tidak pernah terkonfirmasi dulu tersimpan selamanya.
+ * Tujuh hari setelah batas waktu cukup untuk proktor membuka pemulihan; setelah
+ * itu server sudah mencatat jumlah jawaban yang tertahan, dan salinannya dibuang.
+ */
+export const LOCAL_EXAM_COPY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ATTEMPT_CACHE_PREFIXES = ['exam_assignment_', 'exam_connection_', 'exam_lastseen_'];
+
+export function removeExamAttemptCaches(attemptId: string): void {
+    for (const prefix of ATTEMPT_CACHE_PREFIXES) {
+        try { localStorage.removeItem(prefix + attemptId); } catch { /* storage optional */ }
+    }
+}
+
+/** Buang salinan satu generasi attempt: kedaluwarsa atau diganti ujian susulan. */
+export async function discardExamLocalCopy(
+    entry: Pick<ExamSubmissionRegistration, 'attemptId' | 'examId' | 'startedAt' | 'personalEndTime'>,
+): Promise<void> {
+    await removeExamSnapshot(entry.attemptId);
+    await removeExamSubmissionRegistration(entry.attemptId, entry.startedAt, entry.personalEndTime);
+    const cached = await readExamRecoverySession(entry.examId).catch(() => null);
+    if (cached?.attemptId === entry.attemptId && cached.attempt.started_at === entry.startedAt) {
+        await removeExamRecoverySession(entry.examId).catch(() => undefined);
+    }
+    removeExamAttemptCaches(entry.attemptId);
+}
+
+export async function pruneStaleExamCopies(now = Date.now()): Promise<number> {
+    let removed = 0;
+    const entries = await listExamSubmissionRegistrations().catch(() => [] as ExamSubmissionRegistration[]);
+    const known = new Set(entries.map(entry => entry.attemptId));
+    for (const entry of entries) {
+        if (entry.deadlineAt + LOCAL_EXAM_COPY_MAX_AGE_MS > now) continue;
+        known.delete(entry.attemptId);
+        await discardExamLocalCopy(entry).then(() => { removed += 1; }, () => undefined);
+    }
+    // Salinan tanpa antrean (versi lama, atau draf konflik) hanya dapat ditimbang dari waktu tulisnya.
+    try {
+        const db = await openDatabase();
+        const stale = await new Promise<string[]>((resolve, reject) => {
+            const ids: string[] = [];
+            const request = db.transaction(SNAPSHOT_STORE, 'readonly').objectStore(SNAPSHOT_STORE).openCursor();
+            request.onsuccess = () => {
+                const cursor = request.result;
+                if (!cursor) { resolve(ids); return; }
+                const id = String(cursor.key);
+                const updatedAt = Date.parse((cursor.value as Partial<StoredSnapshot>)?.updatedAt || '');
+                const orphan = id.includes(':conflict:') || !known.has(id);
+                if (orphan && Number.isFinite(updatedAt) && updatedAt + LOCAL_EXAM_COPY_MAX_AGE_MS <= now) ids.push(id);
+                cursor.continue();
+            };
+            request.onerror = () => reject(request.error);
+        });
+        for (const id of stale) {
+            if (id.includes(':conflict:')) await idbDelete(id).catch(() => undefined);
+            else await removeExamSnapshot(id).catch(() => undefined);
+            removed += 1;
+        }
+    } catch { /* IndexedDB tidak tersedia */ }
+    return removed;
+}
