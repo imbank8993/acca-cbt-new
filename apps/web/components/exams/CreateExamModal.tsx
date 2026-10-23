@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { InlineSelect } from '@/components/ui/InlineSelect';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { AssignExamModal } from './AssignExamModal';
 import { createPASPeriodAction } from '@/lib/api/pas';
 import {
@@ -742,20 +743,21 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                     />
                                 </ModalField>
                                 <ModalField label="Tanggal Mulai Periode" required>
-                                    <input
+                                    <DatePicker
                                         required
-                                        type="date"
+                                        title="Tanggal mulai periode"
                                         value={formData.pasStartDate}
-                                        onChange={(e) => setFormData((prev) => ({ ...prev, pasStartDate: e.target.value }))}
+                                        max={formData.pasEndDate || undefined}
+                                        onChange={(value) => setFormData((prev) => ({ ...prev, pasStartDate: value }))}
                                     />
                                 </ModalField>
                                 <ModalField label="Tanggal Selesai Periode" required>
-                                    <input
+                                    <DatePicker
                                         required
-                                        type="date"
+                                        title="Tanggal selesai periode"
                                         min={formData.pasStartDate || undefined}
                                         value={formData.pasEndDate}
-                                        onChange={(e) => setFormData((prev) => ({ ...prev, pasEndDate: e.target.value }))}
+                                        onChange={(value) => setFormData((prev) => ({ ...prev, pasEndDate: value }))}
                                     />
                                 </ModalField>
                             </div>

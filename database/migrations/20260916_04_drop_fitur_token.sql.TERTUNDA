@@ -1,6 +1,17 @@
 -- =============================================================================
--- Hapus fitur token & ujian berbayar — TERTUNDA, BUTUH KEPUTUSAN
+-- Hapus fitur token & ujian berbayar — TERTUNDA, MENUNGGU KOMPATIBILITAS ACCA-NEW
 -- =============================================================================
+
+-- Verifikasi 24 Oktober 2026:
+-- Penghapusan ditunda atas permintaan pemilik. Tabel token dan
+-- token_balance sudah tidak ada; is_paid dan token_price masih ada, tanpa nilai
+-- berbayar/harga nonnol. Tidak ada pembacaan eksplisit kedua field di runtime.
+-- NAMUN acca-new/apps/web/app/api/dashboard/cbt-exams/route.ts memakai
+-- prisma.cbt_exams.findMany({ include: ... }) untuk siswa dan staf. Prisma lama
+-- mengambil seluruh scalar field, termasuk kedua kolom dari schema.prisma.
+-- Hapus definisi field dari skema acca-new, regenerate client, lalu build/deploy
+-- acca-new SEBELUM menghapus kolom database. Catatan rujukan di bawah merupakan
+-- hasil pemeriksaan historis, bukan bukti bahwa aplikasi terbaru sudah kompatibel.
 --
 -- Berkas ini sengaja berakhiran `.TERTUNDA` supaya TIDAK ikut terjalankan oleh
 -- tools/validate-migrations.js maupun check-adapter-coverage.js, yang hanya

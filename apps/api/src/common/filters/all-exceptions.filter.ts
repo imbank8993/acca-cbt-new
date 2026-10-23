@@ -52,7 +52,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const safe = isPayloadTooLarge
       ? 'Ukuran data terlalu besar. Batas maksimum request adalah 10 MB.'
       : exception instanceof HttpException
-        ? detail
+        ? sanitizeDatabaseDetail(detail)
         : 'Terjadi kesalahan pada server. Silakan coba lagi.';
 
     response.status(status).json({
@@ -63,4 +63,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
       error: safe,
     });
   }
+}
+
+/**
+ * Banyak service meneruskan `error.message` dari adapter database ke
+ * BadRequestException. Pesan itu memuat cuplikan SQL dan nama kolom
+ * (mis. "Invalid `prisma.$queryRawUnsafe()` invocation ... column ... does not
+ * exist"), jadi tidak boleh sampai ke layar pengguna. Kolom/tabel yang belum
+ * ada berarti migrasi belum diterapkan; pesannya menyebut itu.
+ */
+export function sanitizeDatabaseDetail(detail: unknown): unknown {
+  if (typeof detail !== 'string') return detail;
+  const leaked = /prisma\.|\$queryRaw|\$executeRaw|Raw query failed|Code: `[0-9A-Z]{5}`|violates .* constraint|duplicate key value|syntax error at or near|relation "[^"]+" does not exist|column "[^"]+" (of relation "[^"]+" )?does not exist/i;
+  if (!leaked.test(detail)) return detail;
+  if (/Code: `(42703|42P01)`|(column|relation) "[^"]+" (of relation "[^"]+" )?does not exist/i.test(detail)) {
+    return 'Struktur database belum diperbarui untuk fitur ini. Minta admin menjalankan migrasi database terbaru, lalu coba lagi.';
+  }
+  return 'Permintaan belum dapat diproses oleh database. Periksa isian lalu coba lagi.';
 }

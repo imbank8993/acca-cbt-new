@@ -194,6 +194,15 @@ Menghapus fitur dari kode tidak otomatis membersihkan database.
 
 ### `acca_db` dipakai bersama acca-new
 
+Pembaruan 24 Oktober 2026: objek migrasi `20260916_03` sudah dibersihkan.
+Penghapusan token ditunda atas permintaan pemilik; migrasi 04 masih menunggu
+penyesuaian dan deployment `acca-new`. Query dashboard `cbt_exams.findMany`
+dengan `include` mengambil seluruh scalar field; Prisma client lama tetap
+meminta `is_paid` dan `token_price` meskipun kode tidak membaca nilainya.
+Menghapus dua definisi field di skema, membangun ulang client, dan mendeploy
+`acca-new` harus mendahului penghapusan kolom. Tabel di bawah adalah catatan
+historis dan tidak boleh digunakan sebagai pemeriksaan kompatibilitas terbaru.
+
 Ini yang mengubah rencana. Sebelum menghapus apa pun, daftar hapus diperiksa
 terhadap **kedua** basis kode. Hasilnya:
 

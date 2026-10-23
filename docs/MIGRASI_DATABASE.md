@@ -242,6 +242,21 @@ URL lama: `file_uploads.file_url`, `laporan_piket_detail.dokumentasi_url`,
 
 ## Pembersihan sisa produk asal
 
+Pembaruan verifikasi 24 Oktober 2026: migrasi `20260916_03` sudah diterapkan
+dan seluruh objek sasarannya sudah tidak ada. Penghapusan fitur token pada
+`20260916_04_*.sql.TERTUNDA` ditunda atas permintaan pemilik karena dua kolom
+ujian masih diperlukan secara tidak langsung oleh Prisma client `acca-new` yang lama.
+Dashboard siswa dan staf menggunakan `cbt_exams.findMany({ include: ... })`,
+yang mengambil semua scalar field dari skema client. Definisi `is_paid` dan
+`token_price` perlu dihapus dari skema `acca-new`, kemudian client dibangun
+ulang dan aplikasinya dideploy sebelum kolom database dihapus. Tidak adanya
+rujukan field eksplisit belum cukup untuk membuktikan kompatibilitas.
+
+Migrasi `20261010_01_grading_retry_indexes.sql` sudah diterapkan pada database
+24 Oktober 2026. Kedua indeks antrean penilaian sudah diperiksa aktif dan valid.
+
+Bagian berikut mencatat hasil pemeriksaan historis sebelum pembersihan tersebut.
+
 `20260916_03_drop_fitur_produk_asal.sql` membuang **13 tabel** dan **1 kolom**
 yang fiturnya sudah dihapus dari kode.
 
