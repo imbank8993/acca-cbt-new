@@ -156,6 +156,25 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`ADMIN-05 ${assessmentTy
     assert.equal(tampered.integrity_valid, false);
 });
 
+test('ADMIN: dokumen menyimpan semua pengawas pada tanggal slot meskipun klien memilih satu nama', async () => {
+    const db = fixtureDb(createFixtures());
+    db.tables.cbt_profiles.push(
+        { id: 'pengawas-2', full_name: 'Ahmad Rifai, S.Pd.', nis: '19850203' },
+        { id: 'pengawas-3', full_name: 'Pengawas Hari Lain', nis: '19860101' },
+    );
+    db.tables.cbt_pas_room_invigilators.push(
+        { id: 'inv-map-2', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-17', user_id: 'pengawas-2' },
+        { id: 'inv-map-3', pas_room_id: 'room-1', session_id: 'session-1', exam_date: '2026-10-18', user_id: 'pengawas-3' },
+    );
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const saved = await service.saveAdministrationSlot({ id: 'pengawas-1' }, {
+        ...signingInput(), invigilator_id: 'pengawas-1', invigilator_name: 'Dra. Siti Aminah, M.Pd.',
+    });
+    assert.ok(!saved.report.invigilator_id);
+    assert.equal(saved.report.invigilator_name, 'Ahmad Rifai, S.Pd., Dra. Siti Aminah, M.Pd.');
+    assert.doesNotMatch(saved.report.invigilator_name, /Hari Lain/);
+});
+
 test('ADMIN-06: QR Code SVG generator menghasilkan matriks dan data URL SVG yang valid untuk dokumen A4', () => {
     const codes = buildVerificationCodePair('period-1', 'room-1', 'session-1', '2026-10-17');
     const matrix = generateQrMatrix(`https://cbt.icgowa.sch.id/verify/${codes.beritaAcaraCode}`);

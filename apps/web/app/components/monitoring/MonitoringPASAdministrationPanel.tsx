@@ -25,7 +25,7 @@ interface MonitoringPASAdministrationPanelProps {
 
 type EditorData = {
     period: NonNullable<PASPeriod | PASAssignmentSlotSummary['period']>;
-    rooms: Array<Pick<PASRoom, 'id' | 'name' | 'capacity'>>;
+    rooms: Array<Pick<PASRoom, 'id' | 'name' | 'capacity'> & Partial<Pick<PASRoom, 'pas_room_invigilators'>>>;
     sessions: Array<Pick<PASSession, 'id' | 'name' | 'start_time' | 'end_time'>>;
     initialRoomId?: string;
     initialSessionId?: string;
@@ -97,7 +97,7 @@ export function MonitoringPASAdministrationPanel({ exam, attempts, userRole }: M
                     ]);
                     if (!fullPeriod) throw new Error('Periode PAS/AM tidak ditemukan.');
                     period = fullPeriod;
-                    rooms = periodRooms.map(room => ({ id: room.id, name: room.name, capacity: room.capacity }));
+                    rooms = periodRooms;
                     sessions = periodSessions.map(session => ({
                         id: session.id, name: session.name, start_time: session.start_time, end_time: session.end_time,
                     }));

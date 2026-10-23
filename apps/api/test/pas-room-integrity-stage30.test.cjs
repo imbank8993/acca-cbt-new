@@ -203,7 +203,9 @@ test('ROOM-08: UI admin dan proktor menampilkan serta menegakkan sisa kapasitas'
         assert.match(ui, /remainingCapacity/);
         assert.match(ui, /exceedsCapacity/);
         assert.match(ui, /Pilihan melebihi sisa kapasitas/);
-        assert.match(ui, /disabled=\{selectedStudentIds\.length === 0 \|\| exceedsCapacity \|\| isSaving\}/);
+        assert.match(ui, /Simpan Penempatan/);
+        assert.match(ui, /disabled=\{!selectedStudentIds\.length \|\| exceedsCapacity \|\| isSaving \|\| isClassLoading\}/);
+        assert.match(ui, /studentIds\.every\(id => savedIds\.has\(id\)\)/);
     }
 });
 

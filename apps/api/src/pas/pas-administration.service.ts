@@ -605,7 +605,7 @@ export class PasAdministrationService {
                 full_name: prof.full_name || 'Pengawas Ruang',
                 identity_number: prof.identity_number || prof.nis || null,
             };
-        });
+        }).sort((a, b) => a.full_name.localeCompare(b.full_name, 'id-ID') || a.user_id.localeCompare(b.user_id));
 
         const defaultInvigilatorName =
             invigilators.map((i) => i.full_name).filter(Boolean).join(', ') || 'Pengawas Ruang';
@@ -734,8 +734,9 @@ export class PasAdministrationService {
                 incident_summary:
                     savedReport?.incident_summary ??
                     'Tidak ada kendala atau insiden khusus selama pelaksanaan ujian.',
-                invigilator_id:
-                    savedReport?.invigilator_id || invigilators[0]?.user_id || null,
+                invigilator_id: savedReport
+                    ? savedReport.invigilator_id || null
+                    : invigilators.length === 1 ? invigilators[0].user_id : null,
                 invigilator_name: invigilatorName,
                 invigilator_nip: defaultInvigilatorNip,
                 proctor_id:
@@ -879,33 +880,28 @@ export class PasAdministrationService {
                 counts[st] += 1;
             }
 
-            // Resolve default invigilator and proctor names if not explicitly provided
-            let resolvedInvigilatorName = String(dto.invigilator_name || '').trim();
-            let resolvedInvigilatorId = dto.invigilator_id || null;
-            if (!resolvedInvigilatorName) {
-                const { data: invRows } = await db
-                    .from('cbt_pas_room_invigilators')
-                    .select('user_id')
-                    .eq('pas_room_id', room.id)
-                    .eq('session_id', session.id);
-                const invIds = ((invRows as Array<{ user_id: string }>) || []).map((r) => r.user_id);
-                if (!resolvedInvigilatorId && invIds[0]) {
-                    resolvedInvigilatorId = invIds[0];
-                }
-                if (invIds.length > 0) {
-                    const { data: invProfiles } = await db
-                        .from('cbt_profiles')
-                        .select('id, full_name')
-                        .in('id', invIds);
-                    resolvedInvigilatorName =
-                        ((invProfiles as Array<{ full_name: string }>) || [])
-                            .map((p) => p.full_name)
-                            .filter(Boolean)
-                            .join(', ') || 'Pengawas Ruang';
-                } else {
-                    resolvedInvigilatorName = 'Pengawas Ruang';
-                }
-            }
+            // Dokumen selalu mencantumkan seluruh pengawas yang benar-benar
+            // ditugaskan pada ruang, sesi, dan tanggal ini. Nama dari klien
+            // tidak boleh menghilangkan salah satu pengawas.
+            const { data: invRows, error: invError } = await db
+                .from('cbt_pas_room_invigilators')
+                .select('user_id')
+                .eq('pas_room_id', room.id)
+                .eq('session_id', session.id)
+                .eq('exam_date', examDate);
+            if (invError) throw new BadRequestException('Daftar pengawas belum dapat diperiksa.');
+            const assignedIds = [...new Set(((invRows as Array<{ user_id: string }>) || []).map(inv => inv.user_id))];
+            const { data: invProfiles, error: profileError } = assignedIds.length
+                ? await db.from('cbt_profiles').select('id, full_name').in('id', assignedIds)
+                : { data: [], error: null };
+            if (profileError) throw new BadRequestException('Nama pengawas belum dapat diperiksa.');
+            const nameById = new Map(((invProfiles as Array<{ id: string; full_name: string }>) || [])
+                .map(profile => [profile.id, profile.full_name]));
+            const resolvedInvigilatorId = assignedIds.length === 1 ? assignedIds[0] : null;
+            const resolvedInvigilatorName = assignedIds
+                .map(id => nameById.get(id)?.trim() || 'Pengawas Ruang')
+                .sort((a, b) => a.localeCompare(b, 'id-ID'))
+                .join(', ') || 'Pengawas Ruang';
 
             const { data: existingReport } = await db
                 .from('cbt_pas_administration_reports')

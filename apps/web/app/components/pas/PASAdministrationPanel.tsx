@@ -27,6 +27,7 @@ import { Button } from '@/app/components/ui/button';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { drawAdministrationSigners } from '@/lib/pas/administration-signers';
+import type { PASClassSchedule } from '@/app/types/pas';
 import {
     approvePASAdministrationSlotAction,
     getPASAdministrationSlot,
@@ -37,8 +38,9 @@ import {
     type PASAdministrationOverviewItem,
     type PASAdministrationSlot,
     type PASAttendanceStatus,
+    type PASRoomMember,
 } from '@/lib/api/pas';
-import { formatKopParts, KOP_AND_A4_CSS, renderKopHTML } from '@/lib/pas/print-kop';
+import { formatKopParts, KOP_AND_A4_CSS, renderKopHTML, type ProfilSekolah } from '@/lib/pas/print-kop';
 import { generateQrMatrix, generateQrSvgDataUrl } from '@/lib/pas/qr-svg';
 import { schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -55,11 +57,14 @@ export interface PASAdministrationPanelProps {
         is_locked?: boolean;
         committee_chair_name?: string | null;
         committee_chair_nip?: string | null;
+        profil_sekolah?: ProfilSekolah | null;
+        pas_class_schedules?: PASClassSchedule[];
     };
     rooms: Array<{
         id: string;
         name: string;
         capacity?: number;
+        pas_room_invigilators?: PASRoomMember[];
     }>;
     sessions: Array<{
         id: string;
@@ -245,6 +250,7 @@ export default function PASAdministrationPanel({
     const [slot, setSlot] = useState<PASAdministrationSlot | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isPrintingSchedule, setIsPrintingSchedule] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
     const [isRejecting, setIsRejecting] = useState(false);
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -264,8 +270,8 @@ export default function PASAdministrationPanel({
     const [notes, setNotes] = useState('');
     const [incidentSummary, setIncidentSummary] = useState('');
     const [showIncidentDetails, setShowIncidentDetails] = useState(false);
-    const [invigilatorId, setInvigilatorId] = useState<string>('');
-    const [invigilatorName, setInvigilatorName] = useState('');
+    const invigilatorName = slot?.invigilators.map(inv => inv.full_name).filter(Boolean).join(', ')
+        || slot?.report.invigilator_name || '';
     const proctorName = slot?.proctor_creator.full_name || '';
     const [attendanceMap, setAttendanceMap] = useState<Record<string, StudentAttendanceDraft>>({});
 
@@ -289,9 +295,6 @@ export default function PASAdministrationPanel({
             setShowIncidentDetails(hasNotableIncident(data.report.incident_summary || ''));
             incidentSlotKeyRef.current = incidentSlotKey;
         }
-        setInvigilatorId(data.report.invigilator_id || '');
-        setInvigilatorName(data.report.invigilator_name || '');
-
         const nextMap: Record<string, StudentAttendanceDraft> = {};
         for (const st of data.students) {
             nextMap[st.user_id] = {
@@ -522,8 +525,6 @@ export default function PASAdministrationPanel({
                 exam_date: selectedDate,
                 notes,
                 incident_summary: incidentSummary,
-                invigilator_id: invigilatorId || undefined,
-                invigilator_name: invigilatorName.trim() || undefined,
                 action,
                 attendances,
             });
@@ -656,7 +657,7 @@ export default function PASAdministrationPanel({
     };
 
     const hasDocumentChanges = slot ? notes !== slot.report.notes || incidentSummary !== slot.report.incident_summary ||
-        invigilatorId !== (slot.report.invigilator_id || '') || invigilatorName !== slot.report.invigilator_name ||
+        invigilatorName !== slot.report.invigilator_name ||
         slot.students.some(student => {
             const draft = attendanceMap[student.user_id];
             return (draft?.status || 'hadir') !== student.attendance_status || (draft?.remark || '') !== (student.remark || '');
@@ -1302,6 +1303,24 @@ ${KOP_AND_A4_CSS}
         );
     }
 
+    const handleDownloadSchedule = async () => {
+        setIsPrintingSchedule(true);
+        try {
+            const { downloadAdministrationSchedulePdf } = await import('@/lib/pas/administration-schedule-pdf');
+            await downloadAdministrationSchedulePdf({
+                ...period,
+                profil_sekolah: period.profil_sekolah || slot?.profil_sekolah || {
+                    nama: slot?.period.organization_name || 'MADRASAH',
+                },
+            }, rooms, sessions);
+        } catch (error) {
+            await alertDialog({ title: 'Jadwal Belum Dapat Dicetak',
+                text: error instanceof Error ? error.message : 'Gagal membuat PDF jadwal.', variant: 'danger' });
+        } finally {
+            setIsPrintingSchedule(false);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1321,6 +1340,12 @@ ${KOP_AND_A4_CSS}
                             { value: 'daftar_hadir_a4', label: 'Daftar hadir (A4)' },
                         ]}
                     />
+                    {resolvedRole !== 'pengawas' && <Button variant="outline" size="sm"
+                        disabled={isPrintingSchedule || !period.pas_class_schedules?.length}
+                        isLoading={isPrintingSchedule} onClick={() => void handleDownloadSchedule()}
+                        leftIcon={<Printer size={14} />}>
+                        Unduh Jadwal PDF
+                    </Button>}
                     {resolvedRole !== 'pengawas' && pendingApprovalCount > 0 && (
                         <span className="text-xs text-amber-700">{pendingApprovalCount} menunggu persetujuan</span>
                     )}
@@ -1966,31 +1991,9 @@ ${KOP_AND_A4_CSS}
                                         <label className="block text-xs font-bold text-slate-700 mb-1">
                                             Pengawas Ruang
                                         </label>
-                                        {slot.invigilators.length > 1 && (
-                                            <select
-                                                value={invigilatorId}
-                                                onChange={(e) => {
-                                                    const id = e.target.value;
-                                                    setInvigilatorId(id);
-                                                    const found = slot.invigilators.find((inv) => inv.user_id === id);
-                                                    if (found) setInvigilatorName(found.full_name);
-                                                }}
-                                                className="w-full mb-1.5 h-8 px-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg"
-                                            >
-                                                {slot.invigilators.map((inv) => (
-                                                    <option key={inv.user_id} value={inv.user_id}>
-                                                        Pilih: {inv.full_name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        )}
-                                        <input
-                                            type="text"
-                                            value={invigilatorName}
-                                            onChange={(e) => setInvigilatorName(e.target.value)}
-                                            placeholder="Nama pengawas ruang..."
-                                            className="w-full h-9 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF]"
-                                        />
+                                        <p className="min-h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                                            {slot.invigilators.length ? invigilatorName : 'Belum ada pengawas yang ditugaskan pada tanggal ini.'}
+                                        </p>
                                     </div>
 
                                     <div>

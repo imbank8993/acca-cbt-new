@@ -410,9 +410,16 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         setIsSaving(true);
         setRoomError('');
         try {
-            const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, selectedStudentIds);
+            const studentIds = [...new Set(selectedStudentIds)];
+            const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, studentIds);
             if (!result.success) throw new Error(result.error || 'Peserta belum berhasil ditambahkan.');
-            await refreshRooms();
+            const updatedRooms = await listPASRooms(period.id);
+            const savedIds = new Set(updatedRooms.find(room => room.id === selectedRoom.id)?.pas_room_students?.map(student => student.user_id) || []);
+            if (!studentIds.every(id => savedIds.has(id))) {
+                throw new Error('Penempatan peserta belum terkonfirmasi di daftar ruang. Muat ulang dan coba lagi.');
+            }
+            setRooms(updatedRooms);
+            onChange?.();
             setSelectedStudentIds([]);
             setAddingStudents(false);
             setStudentSearch('');
@@ -825,10 +832,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                         <p className={`text-xs ${exceedsCapacity ? 'text-red-600' : 'text-slate-500'}`} role={exceedsCapacity ? 'alert' : 'status'}>
                                             {exceedsCapacity ? `Pilihan melebihi sisa kapasitas (${remainingCapacity} kursi).` : `${selectedStudentIds.length} dipilih · ${remainingCapacity} kursi tersedia`}
                                         </p>
-                                        <Button variant="primary" size="sm" onClick={() => void handleAddStudentsToRoom()}
-                                            disabled={selectedStudentIds.length === 0 || exceedsCapacity || isSaving} isLoading={isSaving}>
-                                            Tambahkan Peserta{selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ''}
-                                        </Button>
                                     </div>
                                 </> : <div className="pas-room-student-list max-h-96 overflow-y-auto divide-y divide-slate-100">
                                     {visibleRoomStudents.length === 0 && <p className="py-10 text-center text-sm text-slate-500">
@@ -845,7 +848,13 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                             </div>}
                         </ModalBody>
                         <ModalFooter>
-                            <Button variant="outline" disabled={isSaving} onClick={() => setSelectedRoomId(null)}>Selesai</Button>
+                            {addingStudents ? <>
+                                <Button variant="outline" disabled={isSaving} onClick={() => { setAddingStudents(false); setSelectedStudentIds([]); }}>Batal</Button>
+                                <Button variant="primary" disabled={!selectedStudentIds.length || exceedsCapacity || isSaving || isClassLoading}
+                                    isLoading={isSaving} onClick={() => void handleAddStudentsToRoom()}>
+                                    Simpan Penempatan{selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ''}
+                                </Button>
+                            </> : <Button variant="outline" disabled={isSaving} onClick={() => setSelectedRoomId(null)}>Selesai</Button>}
                         </ModalFooter>
                         </Modal>
                     )}

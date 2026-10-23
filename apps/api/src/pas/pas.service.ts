@@ -93,15 +93,28 @@ export class PasService {
 
         if (!period) throw new NotFoundException('Periode tidak ditemukan.');
 
-        const { data: schedules, error: schedulesError } = await this.db
-            .from('cbt_pas_class_schedules')
-            .select('*, classes:cbt_classes(name), question_banks:cbt_question_banks(id, title)')
-            .eq('pas_period_id', periodId);
+        const [{ data: schedules, error: schedulesError }, { data: schoolProfile }, { data: organization }] = await Promise.all([
+            this.db.from('cbt_pas_class_schedules')
+                .select('*, classes:cbt_classes(name), subjects:cbt_subjects(name), question_banks:cbt_question_banks(id, title)')
+                .eq('pas_period_id', periodId),
+            this.db.from('profil_sekolah')
+                .select('nama, jenjang, jenis, alamat, desa_kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos, telepon, email, website, logo_url, kepala_sekolah_nama, kepala_sekolah_nip')
+                .limit(1)
+                .maybeSingle(),
+            this.db.from('cbt_organizations')
+                .select('name, logo_url')
+                .eq('id', (period as any).organization_id)
+                .maybeSingle(),
+        ]);
 
         if (schedulesError) throw new BadRequestException('Daftar jadwal belum dapat dibaca.');
         const readiness = await loadPasReadiness(this.db, period, schedules || []);
 
-        return { ...(period as object), pas_class_schedules: ((schedules as any[]) || []).map(schedule => ({
+        return { ...(period as object), profil_sekolah: {
+            ...(schoolProfile || {}),
+            nama: schoolProfile?.nama || organization?.name || 'MADRASAH',
+            logo_url: schoolProfile?.logo_url || organization?.logo_url || null,
+        }, pas_class_schedules: ((schedules as any[]) || []).map(schedule => ({
             ...schedule,
             readiness: readiness.get(schedule.id),
             is_activated: readiness.get(schedule.id)?.activated ?? null,

@@ -2,6 +2,8 @@
 // PAS/PAT System Types
 // =====================================================
 
+import type { ProfilSekolah } from '@/lib/pas/print-kop';
+
 export type PASPeriodType = 'pas' | 'pat' | 'pts' | 'pkn' | 'am';
 export type Semester = 'ganjil' | 'genap';
 export type ScheduleStatus = 'scheduled' | 'active' | 'finished' | 'cancelled';
@@ -18,6 +20,7 @@ export interface Subject {
 
 export interface PASPeriod {
   screenshot_enabled?: boolean;
+  profil_sekolah?: ProfilSekolah | null;
   id: string;
   organization_id: string;
   name: string;
