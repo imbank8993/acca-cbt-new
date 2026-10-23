@@ -20,6 +20,8 @@ Implementasi 23 Oktober 2026 untuk instalasi satu sekolah.
 
 Pengelola tidak dapat mengganti pembuat, mengangkat pengelola lain, atau memberikan hak reset. Hanya pembuat/Admin dapat memberikan atau mencabut hak pengelola. Menghapus bank/ujian dan menghapus permanen hasil uji coba tetap dibatasi pada pembuat/Admin sesuai aturan ujian yang sudah ada.
 
+Saat pengelola menyunting akses editor, hak reset yang masih aktif dipertahankan dalam batas waktu yang telah diberikan pembuat/Admin. Pengelola tidak dapat memperpanjang atau mengaktifkan kembali hak reset yang kedaluwarsa. Akses editor dapat diperbarui tanpa hak reset tersebut.
+
 Akses bank dan ujian terpisah. Kolaborator bank tidak otomatis menjadi kolaborator ujian, dan kolaborator ujian tidak otomatis mendapat akses bank sumber. Pembaca bank dapat membaca materi soal beserta kuncinya; jangan berikan akses bank kepada peserta ujian. Izin pembaca ujian mencakup monitoring dan data hasil ujian yang dibagikan.
 
 Pencabutan menghentikan izin kolaborasi, bukan izin lain yang masih dimiliki orang tersebut (misalnya Admin, pembuat bank sumber, atau pengawas ruang yang ditugaskan). Materi yang sudah dibaca atau diunduh sebelumnya tidak dapat ditarik kembali.

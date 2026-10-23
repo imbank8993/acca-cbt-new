@@ -53,6 +53,32 @@ test('a manager editing an editor keeps the reset right granted by the owner, bu
     assert.equal(f.db.tables.cbt_exam_collaborators.find(grant => grant.user_id === 'c').can_reset, false);
 });
 
+test('a manager cannot revive an expired reset right when renewing ordinary editor access', async () => {
+    const f = fixture();
+    await f.service.save(user('a'), 'exam', 'exam', 'manager', { permission: 'manager' });
+    await f.service.save(user('a'), 'exam', 'exam', 'c', { permission: 'editor', can_reset: true });
+    const row = f.db.tables.cbt_exam_collaborators.find(grant => grant.user_id === 'c');
+    row.expires_at = future(-1);
+    await assert.rejects(f.service.save(user('manager'), 'exam', 'exam', 'c', { permission: 'editor', can_reset: true }), /Hanya pembuat atau Admin/);
+    await f.service.save(user('manager'), 'exam', 'exam', 'c', { permission: 'editor', expires_at: future(5) });
+    assert.equal(f.db.tables.cbt_exam_collaborators.find(grant => grant.user_id === 'c').can_reset, false);
+    assert.equal(await f.auth.getExamResetScope(user('c'), f.db.tables.cbt_exams[0]), null);
+});
+
+test('only the owner or Admin may extend the lifetime of a reset right', async () => {
+    const f = fixture();
+    await f.service.save(user('a'), 'exam', 'exam', 'manager', { permission: 'manager' });
+    const expiry = future(2);
+    await f.service.save(user('a'), 'exam', 'exam', 'c', { permission: 'editor', can_reset: true, expires_at: expiry });
+    for (const expires_at of [null, future(3)]) {
+        await assert.rejects(f.service.save(user('manager'), 'exam', 'exam', 'c', { permission: 'editor', expires_at }), /Hanya pembuat atau Admin/);
+    }
+    await f.service.save(user('manager'), 'exam', 'exam', 'c', { permission: 'editor', expires_at: expiry });
+    await f.service.save(user('manager'), 'exam', 'exam', 'c', { permission: 'editor', expires_at: future(1) });
+    await f.service.save(user('a'), 'exam', 'exam', 'c', { permission: 'editor', can_reset: true, expires_at: future(3) });
+    assert.equal(f.db.tables.cbt_exam_collaborators.find(grant => grant.user_id === 'c').can_reset, true);
+});
+
 test('readers and editors see only their own access row; sharers see everyone', async () => {
     const f = fixture();
     await f.service.save(user('a'), 'bank', 'bank', 'b', { permission: 'viewer' });

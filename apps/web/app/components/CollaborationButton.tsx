@@ -81,7 +81,7 @@ export function CollaborationButton({ type, resourceId, onChanged }: {
                                     <p className="text-xs text-slate-500">{labels[row.permission]}{row.can_reset ? ' · Reset peserta' : ''}{row.expires_at ? ` · Sampai ${new Date(row.expires_at).toLocaleDateString('id-ID')}` : ' · Tanpa batas waktu'}{expired ? ' · Kedaluwarsa' : ''}</p>
                                 </div>
                                 {data.canShare && (data.canGrantPrivileged || row.permission !== 'manager') && <div className="flex gap-3">
-                                    <button type="button" disabled={busy} className="text-xs font-semibold text-blue-600" onClick={() => { setSelected(row.user_id); setPermission(row.permission); setCanReset(row.can_reset === true); setExpires(row.expires_at ? new Date(row.expires_at).toLocaleDateString('en-CA') : ''); }}>Ubah</button>
+                                    <button type="button" disabled={busy} className="text-xs font-semibold text-blue-600" onClick={() => { setSelected(row.user_id); setPermission(row.permission); setCanReset(row.can_reset === true && (data.canGrantPrivileged || !expired)); setExpires(row.expires_at ? new Date(row.expires_at).toLocaleDateString('en-CA') : ''); }}>Ubah</button>
                                     <button type="button" disabled={busy} className="text-xs font-semibold text-red-600" onClick={() => void mutate(row.user_id, true)}>Cabut akses</button>
                                 </div>}
                             </div>;
@@ -100,7 +100,7 @@ export function CollaborationButton({ type, resourceId, onChanged }: {
                             <ModalField label="Batas akses (opsional)"><DatePicker value={expires} onChange={setExpires} disabled={busy} /></ModalField>
                         </div>
                         <p className="text-xs leading-5 text-slate-500">Pembaca dapat melihat isi. Editor dapat menyunting. Pengelola juga dapat mengatur kolaborator. Menghapus bank/ujian tetap hanya untuk pembuat atau Admin.</p>
-                        {!data.canGrantPrivileged && <p className="text-xs leading-5 text-amber-700">Sebagai pengelola, batas akses yang Anda berikan tidak boleh melewati batas akses Anda sendiri. Hak reset yang sudah diberikan pembuat/Admin tetap dipertahankan.</p>}
+                        {!data.canGrantPrivileged && <p className="text-xs leading-5 text-amber-700">Sebagai pengelola, batas akses yang Anda berikan tidak boleh melewati batas akses Anda sendiri. Hak reset yang masih aktif tetap dipertahankan. Hanya pembuat atau Admin yang dapat memberikan atau memperpanjang hak reset.</p>}
                         {data.canGrantPrivileged && type === 'exam' && permission !== 'viewer' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={canReset} onChange={event => setCanReset(event.target.checked)} disabled={busy} />Izinkan reset, pemulihan, dan ujian susulan peserta</label>}
                         <Button type="button" disabled={!selected || busy} onClick={() => void mutate(selected, false)}>Simpan akses</Button>
                     </div>}

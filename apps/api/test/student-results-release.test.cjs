@@ -10,10 +10,11 @@ function fixture() {
         cbt_exam_attempts: [{ id: 'attempt', user_id: user.id, exam_id: 'exam', status: 'submitted',
             total_score: 80, score_irt: 75, needs_manual_grading: false,
             metadata: { submission_payload: { secret: true } },
-            exams: { id: 'exam', title: 'Exam', show_results: true, question_bank_id: 'bank',
+            exams: { id: 'exam', title: 'Exam', show_results: true, scoring_type: 'classical', question_bank_id: 'bank',
                 end_time: '2026-09-19T00:00:00Z', metadata: {} } }],
-        cbt_answers: [{ id: 'answer', attempt_id: 'attempt', question_id: 'q',
-            bank_questions: { id: 'q', type: 'mcq', metadata: { answer: 'SECRET' },
+        cbt_answers: [{ id: 'answer', attempt_id: 'attempt', question_id: 'q' }],
+        cbt_exam_question_snapshots: [{ exam_id: 'exam', order_number: 1,
+            question_snapshot: { id: 'q', type: 'mcq', metadata: { answer: 'SECRET' },
                 bank_question_options: [{ id: 'correct', is_correct: true }] } }],
     });
 }
@@ -29,7 +30,9 @@ for (const scenario of ['legacy-unset', 'disabled', 'future-end', 'no-end', 'act
             metadata: { proctor_recovery_until: '2026-09-21T00:00:00Z' } });
         const result = await new StudentsService(db).getAttemptDetails(user, 'attempt');
         assert.equal(result.attempt.total_score, 80);
-        assert.equal(result.attempt.score_irt, 75);
+        assert.equal(result.attempt.score_irt, null);
+        assert.equal(result.attempt.display_score, 80);
+        assert.equal(result.attempt.score_type, 'classical');
         assert.equal(result.answerKeysReleased, false);
         assert.ok(result.answerKeysMessage);
         assert.deepEqual(result.answers, []);

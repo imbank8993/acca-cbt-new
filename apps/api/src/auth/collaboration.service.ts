@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, ServiceUnavailable
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { AuthorizationService } from './authorization.service';
-import { collaborationKey, collaborationTable, type CollaborativeResource } from '../common/collaboration-access';
+import { activeCollaboration, collaborationKey, collaborationTable, type CollaborativeResource } from '../common/collaboration-access';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 
 @Injectable()
@@ -67,11 +67,15 @@ export class CollaborationService {
             if (!privileged && previous.data?.permission === 'manager') throw new ForbiddenException('Pengelola tidak dapat mengubah akses pengelola lain.');
             // Hak reset hanya diberikan pembuat/Admin. Saat pengelola mengubah akses lain,
             // hak reset yang sudah ada dipertahankan, bukan terhapus diam-diam.
-            const previousReset = previous.data?.can_reset === true && !previous.data?.revoked_at;
+            const previousReset = previous.data?.can_reset === true && activeCollaboration(previous.data);
             if (!privileged && input.can_reset && !previousReset) {
                 throw new ForbiddenException('Hanya pembuat atau Admin yang dapat memberikan hak pengelola atau reset.');
             }
             const canReset = input.permission !== 'viewer' && (privileged ? input.can_reset === true : previousReset);
+            const resetExpiry = previousReset && previous.data?.expires_at ? Date.parse(String(previous.data.expires_at)) : null;
+            if (!privileged && canReset && resetExpiry !== null && (expires === null || expires > resetExpiry)) {
+                throw new ForbiddenException('Hanya pembuat atau Admin yang dapat memperpanjang batas hak reset.');
+            }
             // Pengelola tidak dapat memberi akses yang bertahan lebih lama dari aksesnya sendiri.
             const ownExpiry = !privileged && context.grant?.expires_at ? Date.parse(String(context.grant.expires_at)) : null;
             if (ownExpiry !== null && (expires === null || expires > ownExpiry)) {

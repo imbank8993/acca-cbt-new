@@ -11,7 +11,7 @@ const { ExamAdminService } = require('../src/proctor/exam-admin.service.ts');
 
 const root = path.resolve(__dirname, '../../..');
 const user = { id: 'proctor-1', isPlatformAdmin: false };
-const authz = { assertExamStaff: async () => {} };
+const authz = { assertExamStaff: async () => {}, collaborationPermissions: async () => ({ grant: null }) };
 
 test('RESTORE-01: kelas asal tersimpan mengalahkan urutan riwayat keanggotaan', async () => {
     const db = fixtureDb({
