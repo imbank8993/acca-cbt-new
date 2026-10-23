@@ -6,7 +6,7 @@ export interface SubmissionStatus {
     examId?: string; status?: string; startedAt?: string; personalEndTime?: string;
     remainingSeconds?: number; submissionOnly?: boolean; canRecover?: boolean;
 }
-export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; savedAnswersOnly?: boolean; submissionVerified?: boolean }
+export interface SubmissionResult { success: boolean; error?: string; retryable?: boolean; savedAnswersOnly?: boolean; submissionVerified?: boolean; alreadySubmitted?: boolean }
 export interface SubmissionWorkerDependencies {
     online(): boolean;
     now(): number;
@@ -76,12 +76,12 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                     defer(entry, { success: false, retryable: false, error: 'Sesi ujian sudah berubah atau dihentikan. Salinan jawaban tetap disimpan.' });
                     continue;
                 }
-                if (status.status === 'submitted' && !snapshot.frozenSubmission) {
-                    defer(entry, { success: false, retryable: false, error: 'Ujian sudah dikumpulkan. Salinan lokal yang belum dikunci tetap disimpan untuk pemeriksaan.' });
-                    continue;
-                }
+                // A closed attempt is checked against the server instead of reported as a
+                // failure: when the server already holds these answers the copy is confirmed
+                // and removed; otherwise the server reports how many answers differ.
                 // The server clock prevents an advanced device clock from closing an active exam.
-                if (!snapshot.frozenSubmission && (status.remainingSeconds ?? Infinity) > 0 && !status.submissionOnly) continue;
+                if (!snapshot.frozenSubmission && status.status === 'in_progress' &&
+                    (status.remainingSeconds ?? Infinity) > 0 && !status.submissionOnly) continue;
                 if (snapshot.frozenSubmission && Date.parse(snapshot.frozenSubmission.startedAt) !== Date.parse(entry.startedAt)) continue;
                 if (stopped || entry.examId === deps.activeExamId()) continue;
                 snapshot = await deps.freeze(entry.attemptId, snapshot.frozenSubmission ? snapshot : {

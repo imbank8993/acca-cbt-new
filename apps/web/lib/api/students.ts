@@ -392,7 +392,7 @@ export async function submitExamAction(
         }
 
         const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean;
-            submissionVerified?: boolean; verifiedAttemptId?: string }>(
+            submissionVerified?: boolean; verifiedAttemptId?: string; localAnswersNotCounted?: number }>(
             `/api/students/exams/${encodeURIComponent(examId)}/submit`,
             payload,
             'POST',
@@ -400,8 +400,11 @@ export async function submitExamAction(
         );
 
         if (res.success && (res.savedAnswersOnly || res.submissionVerified !== true || !attemptId || res.verifiedAttemptId !== attemptId)) {
+            const pending = Number(res.localAnswersNotCounted) || 0;
             return { success: false as const, retryable: false, acceptedSecurityEventIds,
-                error: 'Pengumpulan belum terverifikasi lengkap. Jawaban atau lampiran di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
+                error: pending > 0
+                    ? `Ujian sudah ditutup, tetapi ${pending} jawaban di perangkat ini berbeda dari yang tersimpan di server dan belum dinilai. Jawaban yang sudah tersimpan di server tetap dinilai. Salinan lokal dipertahankan; hubungi proktor untuk membuka pemulihan.`
+                    : 'Pengumpulan belum terverifikasi lengkap. Lampiran atau data di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
         }
         return res.success
             ? {

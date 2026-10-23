@@ -1049,6 +1049,8 @@ export default function ExamPage() {
                 void retryExamEvidence(activeAttempt.id).catch(() => undefined);
                 if (result.savedAnswersOnly) {
                     toast.warning('Waktu ujian berakhir', 'Hanya jawaban yang sudah sampai di server dinilai. Salinan lokal dipertahankan untuk pemulihan dengan persetujuan proktor.');
+                } else if (result.alreadySubmitted) {
+                    toast.success('Jawaban sudah tersimpan', 'Seluruh jawaban di perangkat ini sudah ada di server. Tidak ada yang perlu dikirim ulang.');
                 } else if (result.gradingPending) {
                     toast.success('Jawaban berhasil dikumpulkan', 'Penilaian sedang menunggu layanan tersedia. Jawaban sudah aman di server.');
                 } else {
@@ -1069,9 +1071,10 @@ export default function ExamPage() {
                     setSubmitting(false);
                     submitInFlightRef.current = false;
                     setWaitingForSyncAndSubmit(false);
-                    setSubmissionIssue((result.error || 'Pengumpulan perlu diperiksa.') + (storageStateRef.current === 'unavailable'
+                    const issue = result.error || 'Pengumpulan perlu diperiksa.';
+                    setSubmissionIssue(issue + (storageStateRef.current === 'unavailable'
                         ? ' Cadangan lokal belum berhasil disimpan. Jangan tutup halaman; hubungi proktor.'
-                        : ' Salinan jawaban tetap tersimpan di perangkat ini.'));
+                        : /salinan|cadangan/i.test(issue) ? '' : ' Salinan jawaban tetap tersimpan di perangkat ini.'));
                     return;
                 }
                 setSubmitting(false);

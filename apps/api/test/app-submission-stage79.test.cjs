@@ -201,13 +201,22 @@ test('stopping the root worker during preflight prevents a later background subm
     assert.equal(state.entries.length, 1);
 });
 
-test('a previously submitted session with an unfrozen draft is retained for review', async () => {
+test('a previously submitted session with an unfrozen draft is checked against the server, not reported as failed', async () => {
     const { worker, state } = harness();
     state.status.status = 'submitted';
+    state.status.remainingSeconds = 600;
+    state.result = { success: true, submissionVerified: true, alreadySubmitted: true };
     await worker.run();
-    assert.equal(sends(state).length, 0);
-    assert.equal(state.entries.length, 1);
-    assert.equal(state.notifications.length, 1);
+    assert.equal(sends(state).length, 1);
+    assert.equal(state.entries.length, 0, 'identical copy is confirmed and removed');
+    assert.equal(state.notifications[0].alreadySubmitted, true);
+
+    const differing = harness();
+    differing.state.status.status = 'submitted';
+    differing.state.result = { success: false, retryable: false, error: 'Ujian sudah ditutup, tetapi 1 jawaban di perangkat ini berbeda' };
+    await differing.worker.run();
+    assert.equal(differing.state.entries.length, 1, 'a differing copy is kept');
+    assert.match(differing.state.notifications[0].error, /1 jawaban/);
 });
 
 

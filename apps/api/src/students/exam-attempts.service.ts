@@ -35,6 +35,22 @@ import { ScoringClient } from '../scoring/scoring.client';
 import { assertExamAccess } from './exam-access';
 import { studentQuestion } from './student-question';
 
+/**
+ * Soal yang isinya di perangkat berbeda dari yang tersimpan di server.
+ *
+ * Yang dibandingkan hanya isi jawaban: nomor revisi dan tanda ragu-ragu tidak
+ * memengaruhi nilai. Dulu revisi ikut dibandingkan, sehingga menandai ragu-ragu
+ * setelah jawaban terkirim (revisi naik, isi sama) membuat siswa melihat
+ * "jawaban belum terkirim" padahal seluruh jawabannya sudah di server.
+ * Jawaban kosong sama dengan tidak ada baris. Soal di luar ujian ini diabaikan:
+ * server memang tidak pernah dapat menyimpannya.
+ */
+export function differingLocalAnswers(answers: Record<string, string> | undefined,
+    stored: Map<string, string>, questionIds: Set<string> | null): string[] {
+    return Object.entries(answers || {}).filter(([id, value]) => typeof value === 'string' &&
+        (!questionIds || questionIds.has(id)) && (stored.get(id) ?? '') !== value).map(([id]) => id);
+}
+
 /** Durasi bawaan bila ujian tidak menyimpannya. */
 const DEFAULT_DURATION_MINUTES = 60;
 
@@ -950,7 +966,7 @@ export class ExamAttemptsService {
         if (!matchesDeadline) throw new ForbiddenException('Salinan jawaban berasal dari sesi yang sudah diganti.');
         if (attempt.status !== 'in_progress' &&
             !(attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true && !recovery)) {
-            throw new ForbiddenException('Sesi ditutup oleh pengawas atau pelanggaran; hubungi proktor.');
+            throw new ForbiddenException({ code: 'SESSION_CLOSED', message: 'Sesi ditutup oleh pengawas atau pelanggaran; hubungi proktor.' });
         }
         const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
         const now = new Date(clock.now);
@@ -999,36 +1015,44 @@ export class ExamAttemptsService {
         } catch (error) {
             // Expiry may win the race with the final click. Acknowledge only
             // answers already persisted exactly; never accept new late edits.
-            const expired = error instanceof ForbiddenException &&
-                (error.getResponse() as { code?: string }).code === 'RECOVERY_REQUIRED';
-            if (!expired || !clientAttemptId || !frozenSubmission) throw error;
+            const code = error instanceof ForbiddenException ? (error.getResponse() as { code?: string }).code : undefined;
+            const expired = code === 'RECOVERY_REQUIRED';
+            if (!(expired || code === 'SESSION_CLOSED') || !clientAttemptId || !frozenSubmission) throw error;
+            // The message must describe what actually happened: when the server
+            // already holds exactly these answers, this is a confirmation, not a failure.
+            const refuse = async () => {
+                const count = await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
+                if (!expired || !count) throw error;
+                throw new ForbiddenException({ code: 'RECOVERY_REQUIRED', pendingAnswerCount: count,
+                    message: `Waktu ujian telah berakhir dan ${count} jawaban di perangkat ini belum tersimpan di server, sehingga belum dinilai. ` +
+                        'Jawaban yang sudah tersimpan di server tetap dinilai. Salinan lokal tetap disimpan; hubungi proktor untuk membuka pemulihan.' });
+            };
+            if (expired && !await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
+                answerRevisions, assignmentData, frozenSubmission, true)) await refuse();
+            if (expired) await this.autoFinish(clientAttemptId, await this.serverNow(), { user, device: deviceId!, events: manifest });
             if (!await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
-                answerRevisions, assignmentData, frozenSubmission, true)) {
-                await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
-                throw error;
-            }
-            await this.autoFinish(clientAttemptId, await this.serverNow(), { user, device: deviceId!, events: manifest });
-            if (!await this.verifyStoredSubmission(user, examId, clientAttemptId, deviceId!, studentAnswers,
-                answerRevisions, assignmentData, frozenSubmission, true, true)) {
-                await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
-                throw error;
-            }
+                answerRevisions, assignmentData, frozenSubmission, true, true)) await refuse();
             const { data: final } = await this.db.from('cbt_exam_attempts').select('total_score').eq('id', clientAttemptId).maybeSingle();
             result = { score: final?.total_score ?? null, alreadySubmitted: true, savedAnswersOnly: false,
                 ...(final?.total_score == null ? { gradingPending: true } : {}) };
         }
         // A closed attempt alone is not an acknowledgement of this request's
         // contents. Verify persisted data even on the idempotent/retry branches.
-        const submissionVerified = !result.savedAnswersOnly && Boolean(clientAttemptId) &&
+        // Closed attempts are verified too: "only saved answers were graded" is not
+        // a loss when the saved answers are exactly the device's answers.
+        const submissionVerified = Boolean(clientAttemptId) &&
             await this.verifyStoredSubmission(user, examId, clientAttemptId!, deviceId!, studentAnswers,
                 answerRevisions, assignmentData, frozenSubmission, true, true);
+        let localAnswersNotCounted = 0;
         if (clientAttemptId) {
             if (submissionVerified) await this.clearUncountedLocalAnswers(clientAttemptId);
-            else await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
+            else localAnswersNotCounted = await this.noteUncountedLocalAnswers(user, clientAttemptId, deviceId!, studentAnswers, frozenSubmission);
         }
+        if (submissionVerified) result = { ...result, savedAnswersOnly: false };
         const { data: visibility, error } = await this.db.from('cbt_exams')
             .select('show_results, scoring_type, metadata').eq('id', examId).maybeSingle();
         return { ...result, submissionVerified, verifiedAttemptId: submissionVerified ? clientAttemptId : undefined,
+            ...(submissionVerified ? {} : { localAnswersNotCounted }),
             score: !error && visibility?.show_results === true && studentScoreType(visibility) === 'classical' ? result.score : null };
     }
 
@@ -1042,12 +1066,13 @@ export class ExamAttemptsService {
      * disimpan di sini, hanya jumlahnya, sebagai tanda untuk pengawas.
      */
     private async noteUncountedLocalAnswers(user: AuthUser, attemptId: string, deviceId: string,
-        answers: Record<string, string>, frozen?: { startedAt: string; personalEndTime: string }): Promise<void> {
+        answers: Record<string, string>, frozen?: { startedAt: string; personalEndTime: string }): Promise<number> {
+        let reported = 0;
         try {
             await this.db.transaction(async db => {
                 await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
                 const { data: attempt, error } = await db.from('cbt_exam_attempts')
-                    .select('user_id, device_fingerprint, started_at, metadata').eq('id', attemptId).maybeSingle();
+                    .select('user_id, exam_id, device_fingerprint, started_at, metadata').eq('id', attemptId).maybeSingle();
                 if (error || !attempt || attempt.user_id !== user.id ||
                     (attempt.device_fingerprint && attempt.device_fingerprint !== String(deviceId || '').trim()) ||
                     (frozen && Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt))) return;
@@ -1057,8 +1082,8 @@ export class ExamAttemptsService {
                 const stored = new Map<string, string>(((saved || []) as Array<{ question_id: string;
                     selected_option_id: string | null; essay_answer: string | null }>)
                     .map(row => [row.question_id, row.essay_answer ?? row.selected_option_id ?? '']));
-                const count = Object.entries(answers || {}).filter(([id, value]) =>
-                    typeof value === 'string' && value !== '' && stored.get(id) !== value).length;
+                const count = differingLocalAnswers(answers, stored, await this.examQuestionIds(db, attempt.exam_id)).length;
+                reported = count;
                 const metadata = { ...(attempt.metadata || {}) } as Record<string, unknown>;
                 const previous = metadata.local_answers_not_counted as { count?: number } | undefined;
                 if (!count && !previous) return;
@@ -1076,6 +1101,17 @@ export class ExamAttemptsService {
             });
         } catch (err) {
             this.logger.warn(`Laporan jawaban lokal ${attemptId} belum tercatat: ${(err as Error).message}`);
+        }
+        return reported;
+    }
+
+    /** Soal milik ujian ini; null bila belum dapat dibaca (tanpa penyaringan). */
+    private async examQuestionIds(db: DbSession, examId: string): Promise<Set<string> | null> {
+        try {
+            const questions = await readExamQuestionVersion(db, examId);
+            return questions.length ? new Set(questions.map(question => question.id)) : null;
+        } catch {
+            return null;
         }
     }
 
@@ -1108,8 +1144,10 @@ export class ExamAttemptsService {
                 .select('user_id, exam_id, status, device_fingerprint, started_at, personal_end_time, metadata')
                 .eq('id', attemptId).maybeSingle();
             if (error) throw new ServiceUnavailableException('Pengumpulan belum dapat diverifikasi. Silakan coba lagi.');
+            // closedOnly: compare against any closed attempt, including one closed by staff;
+            // a match only confirms that the server already holds these exact answers.
             const acceptableStatus = attempt?.status === 'submitted' || (allowExpiry &&
-                ((attempt?.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true) ||
+                ((attempt?.status === 'auto_submitted' && (closedOnly || attempt.metadata?.closed_by_expiry === true)) ||
                     (!closedOnly && attempt?.status === 'in_progress' && attempt.metadata?.recovery_submit_only !== true)));
             if (!attempt || !acceptableStatus || attempt.user_id !== user.id ||
                 attempt.exam_id !== examId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId.trim())) return false;
@@ -1121,12 +1159,10 @@ export class ExamAttemptsService {
             if (readError) throw new ServiceUnavailableException('Jawaban tersimpan belum dapat diverifikasi. Silakan coba lagi.');
             type StoredAnswer = { question_id: string; essay_answer: string | null; selected_option_id: string | null;
                 metadata?: { answer_revision?: number } | null };
-            const byId = new Map<string, StoredAnswer>(((saved || []) as StoredAnswer[]).map(row => [row.question_id, row]));
-            for (const [id, value] of Object.entries(answers)) {
-                const row = byId.get(id);
-                if (!row || (row.essay_answer ?? row.selected_option_id ?? '') !== value ||
-                    (revisions?.[id] !== undefined && Number(row.metadata?.answer_revision ?? 0) !== revisions[id])) return false;
-            }
+            const stored = new Map<string, string>(((saved || []) as StoredAnswer[])
+                .map(row => [row.question_id, row.essay_answer ?? row.selected_option_id ?? '']));
+            void revisions;
+            if (differingLocalAnswers(answers, stored, await this.examQuestionIds(db, attempt.exam_id)).length) return false;
             const canonical = (value: unknown): string => {
                 if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
                 if (value && typeof value === 'object') return '{' + Object.entries(value)

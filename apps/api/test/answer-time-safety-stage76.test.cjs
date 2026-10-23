@@ -306,7 +306,7 @@ test('browser submit wrapper reaches finalization at zero and recovers a lost re
                 assert.equal(db.tables.cbt_answers[0].essay_answer, 'final');
             }
             assert.equal(result.success, !expired);
-            if (expired) assert.match(result.error, /belum terverifikasi lengkap/);
+            if (expired) assert.match(result.error, /1 jawaban di perangkat ini berbeda dari yang tersimpan di server/);
             else assert.equal(result.submissionVerified, true);
             assert.equal(calls.filter(url => url.endsWith('/submit')).length, expired ? 1 : 2);
         }

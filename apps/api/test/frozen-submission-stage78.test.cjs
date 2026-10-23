@@ -42,18 +42,37 @@ test('expiry acknowledges an exact autosaved snapshot without accepting late edi
     }
 });
 
-test('expiry cannot acknowledge a missing answer, changed revision or attachment', async () => {
+test('expiry acknowledges identical contents even when only the revision or a non-exam ID differs', async () => {
+    // A doubtful-flag toggle raises the revision without changing the answer; a
+    // question outside the exam can never be stored. Neither is a lost answer.
     for (const patch of [
-        { answers: { q: 'changed' }, revisions: { q: 1 } },
-        { answers: { q: 'stored', extra: 'missing' }, revisions: { q: 1, extra: 1 } },
         { answers: { q: 'stored' }, revisions: { q: 2 } },
-        { answers: { q: 'stored' }, revisions: { q: 1 }, assignment: { fileUrls: ['/unsaved.pdf'] } },
+        { answers: { q: 'stored', extra: 'not in this exam' }, revisions: { q: 1, extra: 1 } },
+    ]) {
+        const { db, service } = fixture('auto_submitted');
+        db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'stored',
+            selected_option_id: null, metadata: { answer_revision: 1 } });
+        const result = await service.submit(user, 'exam', patch.answers, undefined, 'attempt', device, patch.revisions, context);
+        assert.equal(result.submissionVerified, true);
+        assert.equal(result.alreadySubmitted, true);
+        assert.equal(result.savedAnswersOnly, false);
+        assert.deepEqual(db.tables.cbt_answers.map(row => [row.question_id, row.essay_answer, row.metadata.answer_revision]), [['q', 'stored', 1]]);
+    }
+});
+
+test('expiry cannot acknowledge a changed or cleared answer or an unsaved attachment, and says how many differ', async () => {
+    for (const patch of [
+        { answers: { q: 'changed' }, revisions: { q: 1 }, pending: 1 },
+        { answers: { q: '' }, revisions: { q: 2 }, pending: 1 },
+        { answers: { q: 'stored' }, revisions: { q: 1 }, assignment: { fileUrls: ['/unsaved.pdf'] }, pending: 0 },
     ]) {
         const { db, service } = fixture('auto_submitted');
         db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'stored',
             selected_option_id: null, metadata: { answer_revision: 1 } });
         await assert.rejects(service.submit(user, 'exam', patch.answers, patch.assignment,
-            'attempt', device, patch.revisions, context), error => error.getStatus() === 403);
+            'attempt', device, patch.revisions, context), error => error.getStatus() === 403 &&
+            (patch.pending ? error.getResponse().pendingAnswerCount === patch.pending &&
+                /1 jawaban di perangkat ini belum tersimpan/.test(error.message) : true));
         assert.equal(db.tables.cbt_answers[0].essay_answer, 'stored');
         assert.equal(db.tables.cbt_answers[0].metadata.answer_revision, 1);
     }
@@ -230,11 +249,16 @@ function submittedFixture() {
     return result;
 }
 
-test('submitted status never verifies missing answers, different contents or different revisions', async () => {
+test('submitted status verifies identical contents regardless of revision', async () => {
+    const { db, service } = submittedFixture();
+    const result = await service.submit(user, 'exam', { q: 'stored' }, undefined, 'attempt', device, { q: 3 }, context);
+    assert.equal(result.submissionVerified, true);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'stored');
+});
+
+test('submitted status never verifies different or cleared contents', async () => {
     for (const [answers, revisions] of [
-        [{ q: 'stored', extra: 'missing' }, { q: 2, extra: 1 }],
         [{ q: 'changed' }, { q: 2 }],
-        [{ q: 'stored' }, { q: 3 }],
         [{ q: '' }, { q: 2 }],
     ]) {
         const { db, service } = submittedFixture();
@@ -290,7 +314,7 @@ test('browser rejects the reproduced false success and accepts only an exact ver
         const rejected = await submitExamAction('exam', { q: 'new', extra: 'missing' }, { fileUrls: ['/new.pdf'] }, 'attempt', { q: 3, extra: 1 }, context);
         assert.equal(rejected.success, false);
         assert.equal(rejected.retryable, false);
-        assert.match(rejected.error, /belum terverifikasi lengkap/);
+        assert.match(rejected.error, /1 jawaban di perangkat ini berbeda dari yang tersimpan di server/);
         const accepted = await submitExamAction('exam', { q: 'stored' }, undefined, 'attempt', { q: 2 }, context);
         assert.equal(accepted.success, true);
         assert.equal(accepted.submissionVerified, true);
@@ -365,4 +389,22 @@ test('equivalent reordered payload retries retain the original commitment time',
     const retry = await service.beginSubmit(user, 'attempt', device, { frozenSubmission: { personalEndTime: context.personalEndTime, startedAt: context.startedAt },
         answerRevisions: { q: 1 }, assignmentData: { textSubmission: 'same', fileUrls: ['/a.pdf'] }, answers: { q: 'same' } });
     assert.equal(retry.startedAt, initial.startedAt);
+});
+
+test('an attempt closed by staff confirms an identical local copy instead of reporting a failure', async () => {
+    for (const [answers, ok] of [[{ q: 'stored' }, true], [{ q: 'changed' }, false]]) {
+        const { db, service } = fixture('auto_submitted');
+        db.tables.cbt_exam_attempts[0].metadata = { closed_by_staff: true };
+        db.tables.cbt_answers.push({ attempt_id: 'attempt', question_id: 'q', essay_answer: 'stored',
+            selected_option_id: null, metadata: { answer_revision: 1 } });
+        const call = service.submit(user, 'exam', answers, undefined, 'attempt', device, { q: 2 }, context);
+        if (ok) {
+            const result = await call;
+            assert.equal(result.submissionVerified, true);
+            assert.equal(result.alreadySubmitted, true);
+        } else {
+            await assert.rejects(call, error => error.getStatus() === 403 && /ditutup oleh pengawas/.test(error.message));
+        }
+        assert.equal(db.tables.cbt_answers[0].essay_answer, 'stored');
+    }
 });
