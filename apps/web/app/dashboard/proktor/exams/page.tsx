@@ -650,7 +650,7 @@ const ExamsPage = () => {
 
                                 {/* Card Actions */}
                                 <div className="exam-card-actions flex flex-wrap gap-2 px-4 pb-4">
-                                    {(exam.canShare || exam.collaborationPermission) && <CollaborationButton type="exam" resourceId={exam.id} onChanged={() => void loadData()} />}
+                                    {(exam.canShare || exam.collaborationPermission) && <CollaborationButton type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={() => void loadData()} />}
                                     {/* Publish Toggle */}
                                     <button
                                         onClick={() => handlePublishToggle(exam)}

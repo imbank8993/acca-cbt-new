@@ -461,7 +461,7 @@ export default function GuruQuestionBankPage() {
                 </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} onChanged={() => void loadData()} />}
+                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
                 <Button
                     size="sm"
                     variant={bank.is_published ? "warning" : "primary"}
@@ -676,7 +676,7 @@ export default function GuruQuestionBankPage() {
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
                                 </Button>
-                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} onChanged={() => void loadData()} />}
+                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
                                 <Link href={`/dashboard/guru/questions/${bank.id}`} className="flex-1">
                                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
                                         Lihat

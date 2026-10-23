@@ -509,7 +509,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 w-full sm:w-auto shrink-0 sm:flex sm:items-center">
-                            {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton type="bank" resourceId={bankId} onChanged={() => void loadData()} />}
+                            {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
                             {/* Export Dropdown */}
                             <div className="relative w-full sm:w-auto" ref={exportDropdownRef}>
                                 <button onClick={() => setIsExportOpen(!isExportOpen)} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">

@@ -13,11 +13,11 @@ interface Collaborator {
     user_id: string; name: string; permission: 'viewer' | 'editor' | 'manager';
     can_reset?: boolean; expires_at?: string | null; revoked_at?: string | null;
 }
-interface CollaborationData { ownerId: string; ownerName: string; canShare: boolean; canGrantPrivileged: boolean; collaborators: Collaborator[] }
+interface CollaborationData { ownerId: string; ownerName: string; canShare: boolean; canGrantPrivileged: boolean; activeCount: number; collaborators: Collaborator[] }
 const labels = { viewer: 'Pembaca', editor: 'Editor', manager: 'Pengelola' };
 
-export function CollaborationButton({ type, resourceId, onChanged }: {
-    type: 'bank' | 'exam'; resourceId: string; onChanged?: () => void;
+export function CollaborationButton({ type, resourceId, collaboratorCount = 0, onChanged }: {
+    type: 'bank' | 'exam'; resourceId: string; collaboratorCount: number | undefined; onChanged?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const [data, setData] = useState<CollaborationData | null>(null);
@@ -30,6 +30,8 @@ export function CollaborationButton({ type, resourceId, onChanged }: {
     const [busy, setBusy] = useState(false);
     const [observedAt, setObservedAt] = useState(0);
     const base = `/api/collaboration/${type}/${resourceId}`;
+    const count = open && data ? data.activeCount ?? collaboratorCount : collaboratorCount;
+    const countLabel = count > 0 ? `${count} kolaborator aktif` : 'Belum ada kolaborator aktif';
     const load = useCallback(async () => {
         const response = await apiGet<CollaborationData>(base);
         if (!response.success) throw new Error(response.error);
@@ -64,8 +66,10 @@ export function CollaborationButton({ type, resourceId, onChanged }: {
 
     return <>
         <button type="button" onClick={() => { setData(null); setError(''); setSelected(''); setPermission('editor'); setCanReset(false); setExpires(''); setOpen(true); }}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+            aria-label={`Kolaborator: ${countLabel}`} title={countLabel}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${count > 0 ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
             <Users size={14} /> Kolaborator
+            {count > 0 && <span aria-hidden="true" className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-bold leading-none tabular-nums text-white">{count}</span>}
         </button>
         <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Kolaborator ${type === 'bank' ? 'Bank Soal' : 'Ujian'}`} size="lg">
             <ModalBody>

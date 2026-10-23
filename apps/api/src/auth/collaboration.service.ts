@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, ServiceUnavailable
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { AuthorizationService } from './authorization.service';
-import { activeCollaboration, collaborationKey, collaborationTable, type CollaborativeResource } from '../common/collaboration-access';
+import { activeCollaboration, collaborationKey, collaborationTable, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 
 @Injectable()
@@ -21,13 +21,14 @@ export class CollaborationService {
         const { data, error } = await this.db.from(collaborationTable(type)).select('*').eq(collaborationKey(type), id);
         if (error) throw new ServiceUnavailableException('Daftar kolaborator belum dapat dibaca.');
         const rows = data || [];
+        const activeCount = rows.filter((row: CollaborationGrant) => activeCollaboration(row)).length;
         const userIds = [...new Set([context.resource.created_by, ...rows.map((row: { user_id: string }) => row.user_id)].filter(Boolean))];
         const profiles = userIds.length ? await this.db.from('cbt_profiles').select('id, full_name').in('id', userIds) : { data: [], error: null };
         if (profiles.error) throw new ServiceUnavailableException('Nama kolaborator belum dapat dibaca.');
         const names = new Map((profiles.data || []).map((row: { id: string; full_name: string }) => [row.id, row.full_name]));
         // Pembaca/editor hanya melihat aksesnya sendiri; daftar lengkap untuk yang dapat mengatur akses.
         const visible = context.canShare ? rows : rows.filter((row: { user_id: string }) => row.user_id === user.id);
-        return { canShare: context.canShare, canGrantPrivileged: context.owner || context.admin, ownerId: context.resource.created_by,
+        return { canShare: context.canShare, canGrantPrivileged: context.owner || context.admin, activeCount, ownerId: context.resource.created_by,
             ownerName: names.get(context.resource.created_by) || 'Pembuat',
             collaborators: visible.map((row: { user_id: string }) => ({ ...row, name: names.get(row.user_id) || 'Tanpa nama' })) };
     }

@@ -1,4 +1,4 @@
-import { collaborationGrants } from '../common/collaboration-access';
+import { collaborationGrants, collaboratorCounts } from '../common/collaboration-access';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
@@ -91,6 +91,7 @@ export class QuestionBanksService {
         }
 
         const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true || sharedIds.includes(bank.id));
+        const counts = await collaboratorCounts(this.db, 'bank', banks.map(bank => bank.id));
 
         // Nama pembuat ditampilkan pada kartu bank. Profil bisa belum terisi —
         // akun yang datang lewat SSO sering hanya punya email — jadi awalan
@@ -115,6 +116,7 @@ export class QuestionBanksService {
                 canManage: access.owner || access.admin || !!grant && ['editor', 'manager'].includes(grant.permission),
                 isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete,
                 collaborationPermission: grant?.permission || null,
+                collaboratorCount: counts.get(bank.id) || 0,
                 question_count: questionCount,
                 total_questions: questionCount,
                 folder_id: bank.folder_id,
@@ -137,8 +139,10 @@ export class QuestionBanksService {
         if (!data) throw new NotFoundException('Bank soal tidak ditemukan.');
         const bank = data as any;
         const access = await this.authz.collaborationPermissions(user, 'bank', bankId);
+        const counts = await collaboratorCounts(this.db, 'bank', [bankId]);
         return { ...bank, canManage: access.owner || access.admin || !!access.grant && ['editor', 'manager'].includes(access.grant.permission),
-            isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null };
+            isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
+            collaboratorCount: counts.get(bankId) || 0 };
     }
 
     async create(user: AuthUser, organizationId: string, input: BankInput) {

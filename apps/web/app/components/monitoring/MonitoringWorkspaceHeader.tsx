@@ -80,7 +80,7 @@ export function MonitoringWorkspaceHeader({
                         }
                     />
                 </div>
-                {(selected?.canShare || selected?.collaborationPermission) && <CollaborationButton type="exam" resourceId={value} onChanged={onRefresh} />}
+                {(selected?.canShare || selected?.collaborationPermission) && <CollaborationButton type="exam" resourceId={value} collaboratorCount={selected?.collaboratorCount} onChanged={onRefresh} />}
                 {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
             </header>
             {value && <>

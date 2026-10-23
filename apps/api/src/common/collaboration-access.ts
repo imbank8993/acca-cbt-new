@@ -33,3 +33,22 @@ export async function collaborationGrants(db: Pick<DbService, 'from'>, type: Col
 export async function collaborativeIds(db: Pick<DbService, 'from'>, type: CollaborativeResource, userId: string): Promise<string[]> {
     return [...(await collaborationGrants(db, type, userId)).keys()];
 }
+
+/** Counts only; load a whole authorized resource list without exposing collaborator identities. */
+export async function collaboratorCounts(db: Pick<DbService, 'from'>, type: CollaborativeResource, resourceIds: string[]): Promise<Map<string, number>> {
+    const ids = [...new Set(resourceIds)];
+    const counts = new Map<string, number>();
+    const key = collaborationKey(type);
+    const now = Date.now();
+    for (let offset = 0; offset < ids.length; offset += 500) {
+        const { data, error } = await db.from(collaborationTable(type))
+            .select(`${key}, user_id, permission, expires_at, revoked_at`).in(key, ids.slice(offset, offset + 500));
+        if (error) throw new ServiceUnavailableException('Jumlah kolaborator belum dapat diperiksa.');
+        for (const grant of (data || []) as CollaborationGrant[]) {
+            if (!activeCollaboration(grant, now)) continue;
+            const id = String(grant[key]);
+            counts.set(id, (counts.get(id) || 0) + 1);
+        }
+    }
+    return counts;
+}

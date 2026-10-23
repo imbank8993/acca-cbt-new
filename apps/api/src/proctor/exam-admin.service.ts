@@ -1,4 +1,4 @@
-import { collaborationGrants } from '../common/collaboration-access';
+import { collaborationGrants, collaboratorCounts } from '../common/collaboration-access';
 import {
     BadRequestException,
     ConflictException,
@@ -135,6 +135,7 @@ export class ExamAdminService {
             }
         }
 
+        const counts = await collaboratorCounts(this.db, 'exam', exams.map(exam => exam.id));
         // Reuse assignments for every exam instead of reloading room rosters per row.
         if (!elevated && !assignedStudents && exams.some(exam => isSemesterAssessmentExam(exam))) {
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
@@ -145,6 +146,7 @@ export class ExamAdminService {
             return ({
             ...exam,
             isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
+            collaboratorCount: counts.get(exam.id) || 0,
             creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
             canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
             canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),

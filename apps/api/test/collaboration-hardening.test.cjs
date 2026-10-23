@@ -9,6 +9,7 @@ const { CollaborationService } = require('../src/auth/collaboration.service.ts')
 const { QuestionBanksService } = require('../src/questions/question-banks.service.ts');
 const { ExamAdminService } = require('../src/proctor/exam-admin.service.ts');
 const { ValidationsService } = require('../src/validations/validations.service.ts');
+const { collaboratorCounts } = require('../src/common/collaboration-access.ts');
 
 const user = id => ({ id, isPlatformAdmin: false });
 const future = days => new Date(Date.now() + days * 86_400_000).toISOString();
@@ -87,7 +88,7 @@ test('readers and editors see only their own access row; sharers see everyone', 
     assert.deepEqual((await f.service.list(user('a'), 'bank', 'bank')).collaborators.map(row => row.user_id).sort(), ['b', 'c']);
 });
 
-test('lists load roles and grants once per page, not per bank or exam', async () => {
+test('lists batch roles, own grants and collaborator counts, not per bank or exam', async () => {
     const count = async size => {
         const f = fixture({ banks: size, exams: size });
         // Seeded directly: the in-memory fixture's upsert does not model composite conflict keys.
@@ -107,7 +108,48 @@ test('lists load roles and grants once per page, not per bank or exam', async ()
     const exams = await new ExamAdminService(f.db, f.auth, f.roles).list(user('b'), 'school');
     const shared = exams.find(exam => exam.id === 'exam');
     assert.deepEqual([shared.canManage, shared.canResetParticipants, shared.canDelete], [true, true, false]);
-    assert.equal(f.db.queries.filter(query => query.table === 'cbt_exam_collaborators').length - before, 1);
+    assert.equal(f.db.queries.filter(query => query.table === 'cbt_exam_collaborators').length - before, 2);
+});
+
+test('bank and exam lists count active collaborators and refresh after revocation without exposing names', async () => {
+    for (const type of ['bank', 'exam']) {
+        const f = fixture({ banks: 3, exams: 3 });
+        const key = type === 'bank' ? 'bank_id' : 'exam_id';
+        f.db.tables[`cbt_${type}_collaborators`] = [
+            { [key]: type, user_id: 'b', permission: 'viewer' },
+            { [key]: type, user_id: 'c', permission: 'editor', expires_at: future(1) },
+            { [key]: type, user_id: 'manager', permission: 'manager' },
+            { [key]: type, user_id: 'revoked', permission: 'editor', revoked_at: future(-1) },
+            { [key]: type, user_id: 'expired', permission: 'editor', expires_at: future(-1) },
+            { [key]: type, user_id: 'invalid-date', permission: 'editor', expires_at: 'invalid' },
+            { [key]: type, user_id: 'invalid-permission', permission: 'invalid' },
+            { [key]: `${type}-1`, user_id: 'b', permission: 'editor' },
+            { [key]: 'foreign-resource', user_id: 'b', permission: 'editor' },
+        ];
+        const service = type === 'bank'
+            ? new QuestionBanksService(f.db, f.auth, f.roles, { emailMap: async () => new Map() })
+            : new ExamAdminService(f.db, f.auth, f.roles);
+        const listed = await service.list(user('a'), 'school');
+        assert.deepEqual(listed.map(row => [row.id, row.collaboratorCount]), [[type, 3], [`${type}-1`, 1], [`${type}-2`, 0]]);
+        if (type === 'bank') assert.equal((await service.get(user('a'), type)).collaboratorCount, 3);
+        const reader = await f.service.list(user('b'), type, type);
+        assert.equal(reader.activeCount, 3);
+        assert.deepEqual(reader.collaborators.map(row => row.user_id), ['b']);
+        await f.service.revoke(user('a'), type, type, 'c');
+        assert.equal((await f.service.list(user('a'), type, type)).activeCount, 2);
+        assert.equal((await service.list(user('a'), 'school')).find(row => row.id === type).collaboratorCount, 2);
+    }
+});
+
+test('collaborator counts use bounded batches and report database failures instead of claiming zero', async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `bank-${i}`);
+    const db = fixtureDb({ cbt_bank_collaborators: ids.map(bank_id => ({ bank_id, user_id: 'b', permission: 'editor' })) });
+    assert.equal((await collaboratorCounts(db, 'bank', ids)).size, 501);
+    assert.equal(db.queries.length, 2);
+    const empty = fixtureDb();
+    assert.equal((await collaboratorCounts(empty, 'exam', [])).size, 0);
+    assert.equal(empty.queries.length, 0);
+    await assert.rejects(collaboratorCounts(fixtureDb({}, ['cbt_bank_collaborators']), 'bank', ['bank']), /Jumlah kolaborator belum dapat diperiksa/);
 });
 
 test('co-editors of a bank cannot be assigned as its validators', async () => {

@@ -72,6 +72,7 @@ export interface QuestionBank {
     canShare?: boolean;
     canDelete?: boolean;
     collaborationPermission?: 'viewer' | 'editor' | 'manager' | null;
+    collaboratorCount?: number;
     created_by?: string | null;
     id: string;
     title: string;

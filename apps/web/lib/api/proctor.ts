@@ -117,6 +117,7 @@ export interface OrganizationExam {
     canShare?: boolean;
     canDelete?: boolean;
     collaborationPermission?: 'viewer' | 'editor' | 'manager' | null;
+    collaboratorCount?: number;
     canCorrectKeys?: boolean;
     canResetParticipants?: boolean;
     id: string;
