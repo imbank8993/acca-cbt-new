@@ -10,7 +10,7 @@ import {
 } from '@/lib/api/pas';
 import { getActiveSchoolYear,getProctorOrganization,ProctorOrganization } from '@/lib/api/proctor';
 import { InlineSelect } from '@/components/ui/InlineSelect';
-import { matchesExamType } from '@/lib/exam-types';
+import { matchesExamType, semesterAssessmentLabel } from '@/lib/exam-types';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import type { PASPeriod } from '@/app/types/pas';
@@ -160,10 +160,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
         return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
-    const getPeriodTypeLabel = (type: string) => {
-        const labels: Record<string, string> = { pas: 'ASAS / PAS', pat: 'ASAT / PAT', pts: 'PTS / UTS', pkn: 'Asesmen Lainnya', am: 'Asesmen Madrasah' };
-        return labels[type] || type.toUpperCase();
-    };
+    const getPeriodTypeLabel = (type: string) => semesterAssessmentLabel(type);
 
     const filteredPeriods = periods.filter(p => {
         if (!matchesExamType(p.type, typeFilter)) return false;
@@ -412,11 +409,10 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                 <InlineSelect
                                     value={periodForm.type}
                                     onChange={val => setPeriodForm({ ...periodForm, type: val as PeriodType })}
+                                    // ASAS dan ASAT satu pilihan; PTS/lainnya tidak tampil
+                                    // di folder ASAS/AM sehingga tidak ditawarkan lagi.
                                     options={[
-                                        { value: 'pas', label: 'ASAS / PAS (Akhir Semester)' },
-                                        { value: 'pat', label: 'ASAT / PAT (Akhir Tahun)' },
-                                        { value: 'pts', label: 'PTS / UTS' },
-                                        { value: 'pkn', label: 'Asesmen Lainnya' },
+                                        { value: 'pas', label: 'ASAS / ASAT' },
                                         { value: 'am', label: 'Asesmen Madrasah' },
                                     ]}
                                 />

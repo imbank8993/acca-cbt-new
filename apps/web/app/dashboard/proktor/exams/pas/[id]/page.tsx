@@ -50,6 +50,7 @@ import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel'
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/components/pas/CompactExamPeriodWorkspace';
 import BulkScheduleGrid from './BulkScheduleGrid';
+import { isSemesterAssessmentType } from '@/lib/exam-types';
 
 type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'administration' | 'bulk';
 type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
@@ -100,7 +101,7 @@ export default function ProctorPASDetailPage() {
                     listPASRooms(periodId).catch(() => null),
                 ]);
                 setPeriod(periodData);
-                if (periodData?.type === 'pas' || periodData?.type === 'am') {
+                if (isSemesterAssessmentType(periodData?.type)) {
                     setActiveTab(tab => tab === 'live_today' ? 'schedules' : tab);
                 }
                 setQBanks(bankList || []);
@@ -291,7 +292,7 @@ export default function ProctorPASDetailPage() {
     }
 
     const schedules = period.pas_class_schedules || [];
-    const isCompactPeriod = period.type === 'pas' || period.type === 'am';
+    const isCompactPeriod = isSemesterAssessmentType(period.type);
     const openAddSchedule = () => {
         if (period.is_locked) return;
         setScheduleForm(prev => ({

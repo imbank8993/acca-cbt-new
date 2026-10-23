@@ -5,6 +5,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Lock, Search, X } from 'lucide-
 import type { PASClassSchedule, PASPeriod, PASSession } from '@/app/types/pas';
 import type { PASRoom } from '@/lib/api/pas';
 import { formatSchoolDate, getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { semesterAssessmentLabel } from '@/lib/exam-types';
 import { isPASScheduleReady } from '../PASScheduleStatus';
 import { PASScheduleRooms } from '../PASScheduleRooms';
 import { PASScheduleActions } from '../PASScheduleActions';
@@ -43,7 +44,7 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
             <div className="cp-title">
                 <h1>{period.name}</h1>
                 <div className="cp-context">
-                    <span className="cp-type">{period.type === 'am' ? 'AM' : 'ASAS / PAS'}</span>
+                    <span className="cp-type">{semesterAssessmentLabel(period.type, true)}</span>
                     <span>{formatDate(period.start_date)}–{formatDate(period.end_date)}</span>
                     <span>{period.school_year} · {period.semester === 'genap' ? 'Genap' : 'Ganjil'}</span>
                     {period.is_locked && <span className="cp-locked"><Lock size={12} aria-hidden="true" />Terkunci</span>}

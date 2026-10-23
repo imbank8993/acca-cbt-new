@@ -670,18 +670,9 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 }}
                             />
                         </ModalField>
-                        {isPasFolderCreate && formData.examType !== 'am' ? (
-                            <ModalField label="Kategori Asesmen" required>
-                                <InlineSelect
-                                    options={[
-                                        { value: 'pas', label: 'ASAS / PAS (Akhir Semester)' },
-                                        { value: 'pat', label: 'ASAT / PAT (Akhir Tahun)' },
-                                    ]}
-                                    value={formData.pasType}
-                                    onChange={(val) => setFormData((prev) => ({ ...prev, pasType: val as 'pas' | 'pat' }))}
-                                />
-                            </ModalField>
-                        ) : isPasFolderCreate ? null : (
+                        {/* ASAS dan ASAT satu jenis ("ASAS/ASAT"), jadi tidak ada lagi
+                            pilihan kategori terpisah saat membuat folder. */}
+                        {isPasFolderCreate ? null : (
                             <ModalField label="Sistem Penilaian" required>
                                 <MultiSelect
                                     options={SCORING_OPTIONS.map((opt) => ({

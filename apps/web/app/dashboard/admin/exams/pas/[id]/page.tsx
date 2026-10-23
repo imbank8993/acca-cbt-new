@@ -50,6 +50,7 @@ import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel'
 import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/components/pas/CompactExamPeriodWorkspace';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import BulkScheduleGrid from './BulkScheduleGrid';
+import { isSemesterAssessmentType } from '@/lib/exam-types';
 
 type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'administration' | 'bulk';
 type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
@@ -295,7 +296,7 @@ export default function AdminPASDetailPage() {
     }
 
     const schedules = period.pas_class_schedules || [];
-    const isCompactPeriod = period.type === 'pas' || period.type === 'am';
+    const isCompactPeriod = isSemesterAssessmentType(period.type);
     const compactActiveTab = activeTab === 'live_today' ? 'schedules' : activeTab;
     const openAddSchedule = () => {
         if (period.is_locked) return;

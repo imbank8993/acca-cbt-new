@@ -47,3 +47,20 @@ test('AM and ASAS/ASAT share the folder workflow and the same backend assessment
   assert.equal(isFolderExamCategory(type), false);
  }
 });
+
+test('ASAS, ASAT and AM get the same folder, monitoring administration and labels as the backend', () => {
+ const { isSemesterAssessmentType, semesterAssessmentLabel } = require('../../web/lib/exam-types.ts');
+ const { hasMonitoringAdministration } = require('../../web/lib/monitoring-tabs.ts');
+ for (const type of ['pas', 'pat', 'am', 'PAT', ' am ']) {
+  assert.equal(isSemesterAssessmentType(type), true, type);
+  assert.equal(hasMonitoringAdministration({ exam_type: type }), true, type);
+ }
+ for (const type of ['daily', 'tryout', 'assignment', 'lainnya', 'pts', 'pkn', '', null, undefined]) {
+  assert.equal(isSemesterAssessmentType(type), isSemesterAssessmentExam({ exam_type: type }), String(type));
+  assert.equal(hasMonitoringAdministration({ exam_type: type }), false, String(type));
+ }
+ assert.equal(semesterAssessmentLabel('pas'), 'ASAS/ASAT');
+ assert.equal(semesterAssessmentLabel('pat'), 'ASAS/ASAT');
+ assert.equal(semesterAssessmentLabel('am'), 'Asesmen Madrasah');
+ assert.equal(semesterAssessmentLabel('am', true), 'AM');
+});

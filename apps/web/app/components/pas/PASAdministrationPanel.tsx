@@ -1285,7 +1285,7 @@ ${KOP_AND_A4_CSS}
 
         const safeRoom = currentSlot.room.name.replace(/[^a-zA-Z0-9_-]/g, '-');
         const safeSession = currentSlot.session.name.replace(/[^a-zA-Z0-9_-]/g, '-');
-        const assessmentCode = (currentSlot.period.type || 'pas').toUpperCase();
+        const assessmentCode = currentSlot.period.type === 'am' ? 'AM' : 'ASAS-ASAT';
         const prefix = docType === 'berita_acara' ? `Berita-Acara-${assessmentCode}` : `Daftar-Hadir-${assessmentCode}`;
         pdf.save(`${prefix}-${safeRoom}-${safeSession}-${currentSlot.exam_date}.pdf`);
     };

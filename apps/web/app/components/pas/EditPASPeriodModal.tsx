@@ -137,12 +137,14 @@ export default function EditPASPeriodModal({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <ModalField label="Kategori Asesmen" required>
                             <InlineSelect
+                                // ASAS/ASAT satu pilihan. Folder lama bernilai `pat`
+                                // tetap tersimpan apa adanya; PTS/lainnya hanya muncul
+                                // bila folder ini memang sudah memakainya.
                                 options={[
-                                    { value: 'pas', label: 'ASAS / PAS (Akhir Semester)' },
-                                    { value: 'pat', label: 'ASAT / PAT (Akhir Tahun)' },
-                                    { value: 'pts', label: 'PTS / UTS' },
-                                    { value: 'pkn', label: 'Asesmen Lainnya' },
+                                    { value: type === 'pat' ? 'pat' : 'pas', label: 'ASAS / ASAT' },
                                     { value: 'am', label: 'Asesmen Madrasah' },
+                                    ...(period?.type === 'pts' ? [{ value: 'pts', label: 'PTS / UTS' }] : []),
+                                    ...(period?.type === 'pkn' ? [{ value: 'pkn', label: 'Asesmen Lainnya' }] : []),
                                 ]}
                                 value={type}
                                 onChange={(val) => setType(val as PeriodType)}

@@ -55,8 +55,10 @@ function harness() {
     const room = load('app/components/PASScheduleRooms.tsx', {
         '@/lib/api/pas': { getRoomSessionInvigilators: (value, session) => session ? (value?.pas_room_invigilators || []).filter(person => person.session_id === session) : [] },
     });
+    const examTypes = load('lib/exam-types.ts');
     const workspace = load('app/components/pas/CompactExamPeriodWorkspace.tsx', {
         '@/lib/school-time': { formatSchoolDate: value => value.split('T')[0], getSchoolTimeZoneLabel: () => 'WITA' },
+        '@/lib/exam-types': examTypes,
         '../PASScheduleStatus': status,
         '../PASScheduleRooms': room,
         '../PASScheduleActions': { PASScheduleActions: props => React.createElement('schedule-actions', props) },
@@ -219,7 +221,8 @@ test('detail shows actual room and current session supervisors from the latest s
     assert.match(text(find(tree, node => node.type === 'dialog')), /Jadwal tidak lagi tersedia/);
 });
 
-test('both routes enable the compact workspace only for PAS and AM', () => {
+test('both routes enable the compact workspace for ASAS/ASAT (pas, legacy pat) and AM only', () => {
+    const { isSemesterAssessmentType } = require('../../web/lib/exam-types.ts');
     for (const role of ['admin', 'proktor']) {
         const source = fs.readFileSync(path.join(web, `app/dashboard/${role}/exams/pas/[id]/page.tsx`), 'utf8');
         const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -230,8 +233,9 @@ test('both routes enable the compact workspace only for PAS and AM', () => {
         };
         visit(ast);
         assert.ok(initializer, `${role} exposes a type gate`);
-        const isCompact = new Function('period', `return (${initializer.getText(ast)});`);
-        for (const type of ['pas', 'am']) assert.equal(isCompact({ type }), true, `${role}: ${type}`);
-        for (const type of ['pat', 'pts', 'pkn']) assert.equal(isCompact({ type }), false, `${role}: ${type}`);
+        const gate = new Function('period', 'isSemesterAssessmentType', `return (${initializer.getText(ast)});`);
+        const isCompact = period => gate(period, isSemesterAssessmentType);
+        for (const type of ['pas', 'pat', 'am']) assert.equal(isCompact({ type }), true, `${role}: ${type}`);
+        for (const type of ['pts', 'pkn', 'daily']) assert.equal(isCompact({ type }), false, `${role}: ${type}`);
     }
 });

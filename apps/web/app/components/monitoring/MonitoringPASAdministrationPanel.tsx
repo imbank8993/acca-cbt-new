@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, ClipboardCheck, Loader2 } from 'lucide-react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
+import { semesterAssessmentLabel } from '@/lib/exam-types';
 import {
     getPASPeriod,
     listMyPASAssignments,
@@ -125,7 +126,7 @@ export function MonitoringPASAdministrationPanel({ exam, attempts, userRole }: M
         };
     }, [periodId, scheduleId, userRole, preferredRoomId, preferredRoomSessionId]);
 
-    const title = exam.exam_type?.toLowerCase() === 'am' ? 'Administrasi AM' : 'Administrasi ASAS';
+    const title = `Administrasi ${semesterAssessmentLabel(exam.exam_type, true)}`;
 
     return (
         <section className="mb-5 rounded-xl border border-blue-200 bg-white p-4 shadow-sm sm:p-5">

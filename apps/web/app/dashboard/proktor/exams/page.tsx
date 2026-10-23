@@ -7,52 +7,47 @@ import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Button } from '@/app/components/ui/button';
-import { addExamConfigBankAction, addExamConfigExamAction, createExamConfigAction, getExamConfig, listExamConfigs } from '@/lib/api/exam-configs';
 import { deleteExam, purgeTrialExam, setExamArchived } from '@/lib/api/exams';
-import type { ExamConfig, ExamConfigBank, PASPeriod } from '@/app/types/pas';
+import type { PASPeriod } from '@/app/types/pas';
 import { deletePASPeriodAction, listPASPeriods, listSubjects } from '@/lib/api/pas';
 import {
-createSchoolYearAction,
 getProctorOrganization,
 listClassStudents,
 listExamAssignmentsAction,
 listOrganizationClasses,
 listOrganizationExams,
-listSchoolYears,
 publishExamAction
 } from '@/lib/api/proctor';
 import { listOrganizationLabels,listQuestionBanks } from '@/lib/api/questions';
 import type { OrganizationLabel,QuestionBank } from '@/lib/api/questions';
-import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject,SchoolYear } from '@/lib/api/proctor';
+import type { ClassStudent,OrganizationClass,OrganizationExam,ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
 import { getSessionUser } from '@/lib/session';
-import { isFolderExamCategory, matchesExamType } from '@/lib/exam-types';
+import { isFolderExamCategory, matchesExamType, semesterAssessmentLabel } from '@/lib/exam-types';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import { useMemoryState } from '@/lib/useMemoryState';
-import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertCircle,
 Archive,
 BookOpen,
 Calendar,
 CheckCircle2,
-ChevronDown,
 ClipboardCheck,
 Clock,
 Edit3,
-Eye,EyeOff,
+Eye,
+EyeOff,
 FileText,
 FolderOpen,
-Globe,GlobeLock,
+Globe,
+GlobeLock,
 Loader2,
 Lock,
-Plus,Search,
 Settings,
 Trash2,
 Unlock,
 Users,
-X,
 Zap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -68,7 +63,7 @@ const ExamsPage = () => {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_exams_exams', []);
     const [qBanks, setQBanks] = useMemoryState<QuestionBank[]>('proktor_exams_qBanks', []);
-    const [org, setOrg] = useState<ProctorOrganization | null>(null);
+    const [, setOrg] = useState<ProctorOrganization | null>(null);
     const [classes, setClasses] = useMemoryState<OrganizationClass[]>('proktor_exams_classes', []);
     const [isLoading, setIsLoading] = useMemoryState('proktor_exams_isLoading', true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -81,41 +76,10 @@ const ExamsPage = () => {
     const [, setLabels] = useMemoryState<OrganizationLabel[]>('proktor_exams_labels', []);
 
     // Subjects state
-    const [subjects, setSubjects] = useMemoryState<SchoolSubject[]>('proktor_exams_subjects', []);
+    const [, setSubjects] = useMemoryState<SchoolSubject[]>('proktor_exams_subjects', []);
 
     // FOLDER / Exam Config & PAS Period state
-    const [examConfigs, setExamConfigs] = useMemoryState<ExamConfig[]>('proktor_exams_examConfigs', []);
     const [pasPeriods, setPasPeriods] = useMemoryState<PASPeriod[]>('proktor_exams_pasPeriods', []);
-    const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
-    const [selectedConfig, setSelectedConfig] = useState<ExamConfig | null>(null);
-    const [configBanks, setConfigBanks] = useMemoryState<ExamConfigBank[]>('proktor_exams_configBanks', []);
-    const [, setSelectedConfigExamIds] = useMemoryState<string[]>('proktor_exams_selectedConfigExamIds', []);
-    const [, setIsLoadingConfig] = useState(false);
-    const [] = useState(false);
-    const [, setIsConfigDetailOpen] = useState(false);
-
-    // Folder config modal
-    const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-    const [configForm, setConfigForm] = useState({
-        name: '', school_year: '', semester: '',
-        start_date: '', end_date: ''
-    });
-    const [schoolYears, setSchoolYears] = useMemoryState<SchoolYear[]>('proktor_exams_schoolYears', []);
-    const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
-    const [isSubmittingConfig, setIsSubmittingConfig] = useState(false);
-
-    // Add bank modal
-    const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
-    const [addBankForm, setAddBankForm] = useState({
-        bank_id: '', subject_id: '' as string, duration_minutes: 90
-    });
-
-    // Add class modal
-    const [isAddClassModalOpen, setIsAddClassModalOpen] = useState(false);
-    const [addClassForm, setAddClassForm] = useState({
-        bank_id: '', class_ids: [] as string[],
-        scheduled_date: '', scheduled_time: '', window_end_time: ''
-    });
     const [examAssignments, setExamAssignments] = useState<Record<string, { classCount: number, studentCount: number }>>({});
     const [classStudents, setClassStudents] = useState<Record<string, ClassStudent[]>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -138,15 +102,13 @@ const ExamsPage = () => {
                 const organization = await getProctorOrganization();
                 if (organization) {
                     setOrg(organization);
-                    const [examList, bankList, classList, pasPeriodList, realPasPeriods, labelList, subjectList, schoolYearList] = await Promise.all([
+                    const [examList, bankList, classList, realPasPeriods, labelList, subjectList] = await Promise.all([
                         listOrganizationExams(),
                         listQuestionBanks(true),
                         listOrganizationClasses({ activeYearOnly: true }),
-                        listExamConfigs(),
                         listPASPeriods(),
                         listOrganizationLabels(),
                         listSubjects(),
-                        listSchoolYears(),
                     ]);
 
                     // Fetch existing exam assignments via SERVER ACTION — query
@@ -177,12 +139,10 @@ const ExamsPage = () => {
                     setExams(examList || []);
                     setQBanks(bankList || []);
                     setClasses(classList || []);
-                    setExamConfigs(pasPeriodList || []);
                     setPasPeriods(realPasPeriods || []);
                     setClasses(classList || []);
                     setLabels(labelList || []);
                     setSubjects(subjectList || []);
-                    setSchoolYears(schoolYearList || []);
                     setExamAssignments(assignmentMap);
 
                     // Pre-load students for all classes via SERVER ACTION.
@@ -197,7 +157,7 @@ const ExamsPage = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [setClasses, setExamConfigs, setExams, setIsLoading, setLabels, setPasPeriods, setQBanks, setSchoolYears, setSubjects]);
+    }, [setClasses, setExams, setIsLoading, setLabels, setPasPeriods, setQBanks, setSubjects]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => void loadData(), 0);
@@ -367,114 +327,6 @@ const ExamsPage = () => {
     const publishedBanks = useMemo(() => qBanks.filter((b) => b.is_published), [qBanks]);
 
 
-    // ─── Folder / Exam Config helpers ─────────────────────────
-    const openConfigDetail = async (configId: string) => {
-        setSelectedConfigId(configId);
-        setIsLoadingConfig(true);
-        setIsConfigDetailOpen(false);
-        setSelectedConfigExamIds([]);
-        try {
-            const data = await getExamConfig(configId);
-            setSelectedConfig(data);
-            setConfigBanks(data?.exam_config_banks || []);
-            setIsConfigDetailOpen(true);
-        } catch (err) { console.error(err); }
-        setIsLoadingConfig(false);
-    };
-
-    const handleCreateConfig = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const user = await getSessionUser();
-        if (!org || !user) return;
-        if (!configForm.name.trim()) { alert('Isi nama folder.'); return; }
-        setIsSubmittingConfig(true);
-
-        const targetSchoolYear = configForm.school_year.trim();
-        if (targetSchoolYear) {
-            const yearPattern = /^\d{4}\/\d{4}$/;
-            if (!yearPattern.test(targetSchoolYear)) {
-                alert('Format tahun ajaran harus YYYY/YYYY, contoh: 2024/2025');
-                setIsSubmittingConfig(false);
-                return;
-            }
-
-            const exists = schoolYears.some(sy => sy.year.trim() === targetSchoolYear);
-            if (!exists) {
-                const addSyResult = await createSchoolYearAction({ year: targetSchoolYear });
-                if (!addSyResult.success) {
-                    alert('Gagal menambah tahun ajaran baru: ' + (addSyResult.error || 'Unknown error'));
-                    setIsSubmittingConfig(false);
-                    return;
-                }
-            }
-        }
-
-        const result = await createExamConfigAction({
-            name: configForm.name,
-            school_year: targetSchoolYear || undefined,
-            semester: configForm.semester || undefined,
-            start_date: configForm.start_date || undefined,
-            end_date: configForm.end_date || undefined,
-        });
-        setIsSubmittingConfig(false);
-        if (!result.success) {
-            alert('Gagal: ' + result.error);
-            return;
-        }
-        setIsConfigModalOpen(false);
-        setConfigForm({ name: '', school_year: '', semester: '', start_date: '', end_date: '' });
-        const list = await listExamConfigs();
-        setExamConfigs(list);
-        const syList = await listSchoolYears();
-        setSchoolYears(syList || []);
-    };
-
-
-
-    const handleAddBankToConfig = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedConfigId) return;
-        if (!addBankForm.bank_id) { alert('Pilih bank soal.'); return; }
-        const result = await addExamConfigBankAction({
-            exam_config_id: selectedConfigId,
-            bank_id: addBankForm.bank_id,
-            subject_id: addBankForm.subject_id || undefined,
-            duration_minutes: addBankForm.duration_minutes,
-        });
-        if (result.success) {
-            setIsAddBankModalOpen(false);
-            setAddBankForm({ bank_id: '', subject_id: '' as string, duration_minutes: 90 });
-            await openConfigDetail(selectedConfigId);
-        } else if (!result.success) alert('Gagal: ' + result.error);
-    };
-
-
-    const handleAddClassExam = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedConfigId) return;
-        if (!addClassForm.bank_id) { alert('Pilih bank soal.'); return; }
-        if (addClassForm.class_ids.length === 0) { alert('Pilih minimal 1 kelas.'); return; }
-        if (!addClassForm.scheduled_date) { alert('Isi tanggal.'); return; }
-        if (!addClassForm.scheduled_time) { alert('Isi jam mulai.'); return; }
-        if (!addClassForm.window_end_time) { alert('Isi window tutup.'); return; }
-        let added = 0;
-        for (const classId of addClassForm.class_ids) {
-            const result = await addExamConfigExamAction({
-                exam_config_id: selectedConfigId,
-                exam_config_bank_id: addClassForm.bank_id,
-                class_id: classId,
-                scheduled_date: addClassForm.scheduled_date,
-                scheduled_time: addClassForm.scheduled_time,
-                window_end_time: addClassForm.window_end_time,
-            });
-            if (result.success) added++;
-        }
-        if (added > 0) {
-            setIsAddClassModalOpen(false);
-            setAddClassForm({ bank_id: '', class_ids: [], scheduled_date: '', scheduled_time: '', window_end_time: '' });
-            if (selectedConfigId) await openConfigDetail(selectedConfigId);
-        } else { alert('Gagal menyimpan jadwal.'); }
-    };
 
 
 
@@ -579,277 +431,6 @@ const ExamsPage = () => {
                 </div>
             )}
 
-            {/* ─────────────── CREATE FOLDER CONFIG MODAL ─────────────── */}
-            <AnimatePresence>
-                {isConfigModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30"
-                        >
-                            <button onClick={() => setIsConfigModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <FolderOpen size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Folder Ujian Baru</h3>
-                                    <p className="text-xs text-slate-500">Kelompokkan bank soal + jadwal</p>
-                                </div>
-                            </div>
-                            <form onSubmit={handleCreateConfig} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Folder *</label>
-                                    <input
-                                        required type="text" placeholder="Contoh: PAS Genap 2024/2025"
-                                        value={configForm.name}
-                                        onChange={e => setConfigForm(p => ({ ...p, name: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Tahun Ajaran</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Contoh: 2024/2025"
-                                            value={configForm.school_year}
-                                            onChange={e => {
-                                                setConfigForm(p => ({ ...p, school_year: e.target.value }));
-                                                setIsYearDropdownOpen(true);
-                                            }}
-                                            onFocus={() => setIsYearDropdownOpen(true)}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none"
-                                        />
-                                        {isYearDropdownOpen && (
-                                            <>
-                                                <div 
-                                                    className="fixed inset-0 z-10" 
-                                                    onClick={() => setIsYearDropdownOpen(false)}
-                                                />
-                                                <div className="absolute z-20 w-full mt-1 bg-white border border-[#3083FF]/20 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                                                    {schoolYears.length > 0 ? (
-                                                        (() => {
-                                                            const filtered = schoolYears.filter(sy => 
-                                                                sy.year?.toLowerCase().includes(configForm.school_year.toLowerCase())
-                                                            );
-                                                            return filtered.length > 0 ? (
-                                                                filtered.map((sy, i) => (
-                                                                    <button
-                                                                        key={i}
-                                                                        type="button"
-                                                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#3083FF]/5 text-slate-700 transition-colors border-b border-slate-100 last:border-0"
-                                                                        onClick={() => {
-                                                                            setConfigForm(p => ({ ...p, school_year: sy.year }));
-                                                                            setIsYearDropdownOpen(false);
-                                                                        }}
-                                                                    >
-                                                                        {sy.year}
-                                                                    </button>
-                                                                ))
-                                                            ) : (
-                                                                <div className="px-4 py-2.5 text-xs text-slate-500 italic">
-                                                                    Tekan enter/simpan untuk menambah &quot;{configForm.school_year}&quot;
-                                                                </div>
-                                                            );
-                                                        })()
-                                                    ) : (
-                                                        <div className="px-4 py-2.5 text-xs text-slate-500 italic">
-                                                            Belum ada data. Ketik untuk membuat baru.
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Semester</label>
-                                    <select value={configForm.semester}
-                                        onChange={e => setConfigForm(p => ({ ...p, semester: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#3083FF]/20 outline-none">
-                                        <option value="">Pilih Semester (Opsional)</option>
-                                        <option value="semua">Semua</option>
-                                        <option value="ganjil">Ganjil</option>
-                                        <option value="genap">Genap</option>
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Mulai</label>
-                                        <input type="date" value={configForm.start_date}
-                                            onChange={e => setConfigForm(p => ({ ...p, start_date: e.target.value }))}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal Selesai</label>
-                                        <input type="date" value={configForm.end_date}
-                                            onChange={e => setConfigForm(p => ({ ...p, end_date: e.target.value }))}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                    </div>
-                                </div>
-                                <button type="submit" disabled={isSubmittingConfig}
-                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-[#3083FF]/90 transition-colors">
-                                    {isSubmittingConfig ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                                    Buat Folder
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* ─────────────── ADD BANK SOAL MODAL ─────────────── */}
-            <AnimatePresence>
-                {isAddBankModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-md rounded-2xl p-6 relative border border-[#3083FF]/30"
-                        >
-                            <button onClick={() => setIsAddBankModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <BookOpen size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Tambah Bank Soal</h3>
-                                    <p className="text-xs text-slate-500 truncate">{selectedConfig?.name}</p>
-                                </div>
-                            </div>
-                            <form onSubmit={handleAddBankToConfig} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
-                                    <select required value={addBankForm.bank_id}
-                                        onChange={e => setAddBankForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih Bank Soal —</option>
-                                        {qBanks.filter(b => b.is_published).map(bank => (
-                                            <option key={bank.id} value={bank.id}>
-                                                {bank.title} ({bank.question_count ?? bank.total_questions ?? 0} Soal)
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Mata Pelajaran</label>
-                                    <select value={addBankForm.subject_id || ''}
-                                        onChange={e => setAddBankForm(p => ({ ...p, subject_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih (opsional) —</option>
-                                        {subjects.map(sub => (
-                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Durasi (menit)</label>
-                                    <input type="number" min="5" max="300" value={addBankForm.duration_minutes}
-                                        onChange={e => setAddBankForm(p => ({ ...p, duration_minutes: parseInt(e.target.value) || 90 }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                </div>
-                                <button type="submit"
-                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors">
-                                    <Plus size={16} /> Simpan
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* ─────────────── ADD CLASS SCHEDULE MODAL ─────────────── */}
-            <AnimatePresence>
-                {isAddClassModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-2xl p-6 relative border border-[#3083FF]/30"
-                        >
-                            <button onClick={() => setIsAddClassModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#3083FF]/20">
-                                <div className="w-10 h-10 rounded-lg bg-[#3083FF]/10 text-[#3083FF] flex items-center justify-center border border-[#3083FF]/30">
-                                    <Calendar size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-900">Tambah Kelas</h3>
-                                    <p className="text-xs text-slate-500">Jadwal ujian per kelas</p>
-                                </div>
-                            </div>
-                            <form onSubmit={handleAddClassExam} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Bank Soal *</label>
-                                    <select required value={addClassForm.bank_id}
-                                        onChange={e => setAddClassForm(p => ({ ...p, bank_id: e.target.value }))}
-                                        className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm">
-                                        <option value="">— Pilih Bank Soal —</option>
-                                        {configBanks.map(bank => (
-                                            <option key={bank.id} value={bank.id}>{bank.question_banks?.title || 'Bank soal'}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Kelas *</label>
-                                    <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto p-2 bg-slate-50 rounded-xl border border-[#3083FF]/20">
-                                        {classes.length === 0 ? (
-                                            <p className="text-xs text-slate-400 px-2">Belum ada kelas.</p>
-                                        ) : classes.map(cls => (
-                                            <button key={cls.id} type="button"
-                                                onClick={() => {
-                                                    const ids = addClassForm.class_ids.includes(cls.id)
-                                                        ? addClassForm.class_ids.filter(id => id !== cls.id)
-                                                        : [...addClassForm.class_ids, cls.id];
-                                                    setAddClassForm(p => ({ ...p, class_ids: ids }));
-                                                }}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${addClassForm.class_ids.includes(cls.id) ? 'bg-[#3083FF] text-white border border-[#3083FF]' : 'bg-white text-slate-600 border border-[#3083FF]/30 hover:border-[#3083FF]/60'}`}>
-                                                {cls.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Tanggal *</label>
-                                        <input type="date" required value={addClassForm.scheduled_date}
-                                            onChange={e => setAddClassForm(p => ({ ...p, scheduled_date: e.target.value }))}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Jam Mulai *</label>
-                                        <input type="time" required value={addClassForm.scheduled_time}
-                                            onChange={e => setAddClassForm(p => ({ ...p, scheduled_time: e.target.value }))}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Window Tutup *</label>
-                                        <input type="time" required value={addClassForm.window_end_time}
-                                            onChange={e => setAddClassForm(p => ({ ...p, window_end_time: e.target.value }))}
-                                            className="w-full border border-[#3083FF]/30 rounded-xl p-3 text-sm" />
-                                    </div>
-                                </div>
-                                <button type="submit"
-                                    className="w-full py-3 bg-[#3083FF] text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-[#3083FF]/90 transition-colors">
-                                    <Plus size={16} /> Simpan Jadwal
-                                </button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-
             {/* Exam List */}
             {!isFolderExamCategory(typeFilter) && (
                 isLoading ? (
@@ -901,7 +482,7 @@ const ExamsPage = () => {
                                                         ? 'bg-red-50 text-red-600 border border-red-200'
                                                         : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
                                                 }`}>
-                                                    FOLDER UJIAN {period.type === 'am' ? 'Asesmen Madrasah' : period.type === 'pat' ? 'ASAT / PAT' : 'ASAS / PAS'} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
+                                                    FOLDER UJIAN {semesterAssessmentLabel(period.type)} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>
                                                 {isDraft && (
                                                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
