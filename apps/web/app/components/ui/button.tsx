@@ -30,6 +30,8 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
     size?: ButtonSize;
     isLoading?: boolean;
     pill?: boolean;
+    /** Show only the leading icon on narrow screens; supply an accessible label. */
+    mobileIconOnly?: boolean;
     icon?: ButtonIconPreset | (string & {});
     leftIcon?: React.ReactNode;
     rightIcon?: React.ReactNode;
@@ -78,6 +80,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         size = 'md', 
         isLoading = false, 
         pill = false,
+        mobileIconOnly = false,
         icon,
         leftIcon, 
         rightIcon, 
@@ -98,7 +101,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'primary'
         );
         const pillClass = (pill || effectiveVariant === 'ajukan') ? 'ui-btn--pill' : '';
-        const btnClass = `ui-btn ui-btn--${effectiveVariant} ui-btn--${size} ${pillClass} ${className}`.trim();
+        const btnClass = `ui-btn ui-btn--${effectiveVariant} ui-btn--${size} ${pillClass} ${mobileIconOnly ? 'ui-btn--mobile-icon' : ''} ${className}`.trim();
         const effectiveLeftIcon = leftIcon || (icon ? (ICON_PRESETS[icon as ButtonIconPreset] || (typeof icon === 'string' ? <i className={`bi bi-${icon}`} /> : icon)) : undefined);
 
         const content = variant === 'more' && !children && !effectiveLeftIcon 

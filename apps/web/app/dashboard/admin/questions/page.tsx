@@ -16,6 +16,9 @@ import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import {
 ArrowRight,
+CloudUpload,
+CloudOff,
+Eye,
 BookOpen,
 Check,ChevronDown,
 ChevronRight,
@@ -662,29 +665,30 @@ export default function ProktorQuestionBankPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="bank-card-mobile-actions flex items-center gap-1.5">
                                 <Button
+                                    aria-label={bank.is_published ? 'Unpublish' : 'Publish'}
+                                    title={bank.is_published ? 'Unpublish' : 'Publish'}
+                                    leftIcon={bank.is_published ? <CloudOff size={15} /> : <CloudUpload size={15} />}
                                     size="sm"
                                     variant={bank.is_published ? "warning" : "primary"}
                                     disabled={bank.canManage !== true}
                     onClick={() => handleTogglePublish(bank)}
-                                    className="w-full min-w-0"
+                                    className="bank-card-publish shrink-0"
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
                                 </Button>
-                                <Link href={`/dashboard/admin/questions/${bank.id}`} className="min-w-0">
-                                    <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
+                                <Link href={`/dashboard/admin/questions/${bank.id}`} className="shrink-0">
+                                    <Button mobileIconOnly aria-label="Lihat bank soal" title="Lihat bank soal" size="sm" variant="secondary" leftIcon={<Eye size={16} />} className="w-full">
                                         Lihat
                                     </Button>
                                 </Link>
-                                <div className="col-span-2 flex items-center gap-2">
-                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton className="flex-1 min-w-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
+                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton mobileIconOnly className="shrink-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
 
-                                <ActionButton action="edit" iconOnly tooltip="Edit" disabled={bank.canManage !== true}
+                                <Button mobileIconOnly aria-label="Edit bank soal" title="Edit bank soal" variant="outline" size="sm" leftIcon={<Edit3 size={16} />} disabled={bank.canManage !== true}
                     onClick={() => handleOpenEdit(bank)} />
-                                <ActionButton action="delete" iconOnly tooltip="Hapus" disabled={bank.canDelete !== true}
+                                <Button mobileIconOnly aria-label="Hapus bank soal" title="Hapus bank soal" variant="danger" size="sm" leftIcon={<Trash2 size={16} />} disabled={bank.canDelete !== true}
                     onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />
-                                </div>
                             </div>
                         </div>
                     ))

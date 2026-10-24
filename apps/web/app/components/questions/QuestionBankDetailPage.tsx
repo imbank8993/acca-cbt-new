@@ -536,10 +536,10 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
-                            {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
+                            {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton mobileIconOnly type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
                             {/* Export Dropdown */}
                             <div className="relative" ref={exportDropdownRef}>
-                                <Button type="button" variant="outline" size="sm"
+                                <Button mobileIconOnly aria-label="Export" title="Export" type="button" variant="outline" size="sm"
                                     onClick={() => setIsExportOpen(!isExportOpen)}
                                     className="w-full sm:w-auto"
                                     leftIcon={<FileDown size={16} />}
@@ -565,12 +565,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 )}
                             </div>
 
-                            <Button type="button" variant="primary" size="sm" icon="preview"
+                            <Button mobileIconOnly aria-label="Pratinjau" title="Pratinjau" type="button" variant="primary" size="sm" icon="preview"
                                 onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }}
                                 className="w-full sm:w-auto">
                                 Pratinjau
                             </Button>
-                            {canManage && (<Button type="button" size="sm"
+                            {canManage && (<Button mobileIconOnly aria-label={bankInfo?.is_published ? 'Unpublish' : 'Publish'} title={bankInfo?.is_published ? 'Unpublish' : 'Publish'} type="button" size="sm"
                                 variant={bankInfo?.is_published ? 'unpublish' : 'primary'}
                                 leftIcon={bankInfo?.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
                                 onClick={async () => {

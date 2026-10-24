@@ -20,6 +20,11 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
     const page = await browser.newPage();
     const html = `<html class="dark"><body><main style="padding:24px;max-width:1000px;margin:auto;display:grid;gap:20px">
       <h1>Bank soal dan ujian</h1>
+      <div style="display:flex;gap:8px"><button id="mobile-action" aria-label="Pratinjau" class="ui-btn ui-btn--outline ui-btn--sm ui-btn--mobile-icon"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" stroke="currentColor" fill="none" /></svg><span class="ui-btn__label">Pratinjau</span></button></div>
+      <div class="bank-card-mobile-actions">
+        <button class="ui-btn ui-btn--sm bank-card-publish"><svg width="13" height="13"></svg><span class="ui-btn__label">Unpublish</span></button>
+        ${Array.from({length:4},()=>'<button class="ui-btn ui-btn--sm ui-btn--mobile-icon"><svg width="16" height="16"></svg><span class="ui-btn__label">Aksi</span></button>').join('')}
+      </div>
       <section class="ftb-toolbar"><div class="ftb-field ftb-field--search"><div class="ftb-box"><input class="ftb-input" placeholder="Cari soal" value="Matematika"></div></div></section>
       <section class="bg-white border rounded-xl p-5"><h2>Soal dan stimulus</h2>
         <div class="latex-renderer"><p id="rich" style="color:#000000;background-color:#ffffff">Tentukan nilai x. العربية واضحة</p>
@@ -33,10 +38,21 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
         <label class="text-slate-700">Isian singkat <input id="answer" class="bg-white text-slate-700 border rounded-lg p-2" value="Jawaban siswa"></label>
         <button class="ui-btn ui-btn--primary ui-btn--sm">Lanjut</button>
       </section></main></body></html>`;
-    for (const width of [390, 1280]) {
+    for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.setContent(html);
       await page.addStyleTag({ content: css + '\n*,::before,::after { transition: none !important; animation: none !important; }' });
+      const action = await page.locator('#mobile-action').evaluate(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, label: getComputedStyle(el.querySelector('.ui-btn__label')).display }));
+      assert.equal(action.label === 'none', width < 640, 'Only hide action labels on mobile');
+      if (width < 640) { assert.equal(action.width, 44); assert.equal(action.height, 44); }
+      if (width < 640) {
+        const row = await page.locator('.bank-card-mobile-actions').evaluate(el => {
+          const boxes = [...el.children].map(child => child.getBoundingClientRect());
+          const label = el.querySelector('.bank-card-publish .ui-btn__label');
+          return { singleRow: boxes.every(box => box.y === boxes[0].y), overflow: el.scrollWidth > el.clientWidth, labelFits: label.getBoundingClientRect().width + 21 <= boxes[0].width };
+        });
+        assert(row.singleRow && !row.overflow && row.labelFits, `${width}: bank actions must fit in one row with the publish label`);
+      }
       const result = await page.evaluate(() => {
         const rgb = s => (s.match(/[\d.]+/g) || []).map(Number);
         const luminance = c => c.slice(0,3).map(n => { n/=255; return n<=.04045?n/12.92:((n+.055)/1.055)**2.4; }).reduce((v,n,i)=>v+n*[.2126,.7152,.0722][i],0);

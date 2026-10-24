@@ -367,7 +367,9 @@ body.scroll-locked {
   bottom: 0 !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
-  touch-action: none;
+  /* Overflow/position lock the background. Blocking touch on this ancestor
+     would also disable native scrolling inside every dialog on hybrid PCs. */
+  touch-action: auto;
   z-index: 9999;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;

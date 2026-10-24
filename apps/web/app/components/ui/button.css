@@ -563,3 +563,75 @@ body.dark .ui-btn--ajukan:hover:not(:disabled),
     border-radius: 9999px !important;
   }
 }
+
+@media (max-width: 639.98px) {
+  .ui-btn.ui-btn--mobile-icon {
+    width: 44px !important;
+    min-width: 44px;
+    height: 44px !important;
+    flex: 0 0 44px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  .ui-btn--mobile-icon > .ui-btn__label,
+  .ui-btn--mobile-icon > .ui-btn__label + svg { display: none !important; }
+  .ui-btn--mobile-icon > svg { width: 16px; height: 16px; margin: 0; }
+}
+
+@media (max-width: 639.98px) {
+  .ui-btn.bank-card-publish {
+    height: 44px;
+    padding: 0 10px;
+    gap: 6px !important;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .bank-card-mobile-actions {
+    display: grid;
+    grid-template-columns: minmax(88px, 1.8fr) repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .bank-card-mobile-actions > a { min-width: 0; }
+  .bank-card-mobile-actions .ui-btn.ui-btn--mobile-icon,
+  .bank-card-mobile-actions .ui-btn.bank-card-publish {
+    width: 100% !important;
+    min-width: 0;
+    height: 40px !important;
+    padding: 0 !important;
+    font-size: 11px;
+    gap: 4px !important;
+  }
+  .bank-card-mobile-actions .ui-btn.bank-card-publish > svg {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .exam-mobile-action-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .exam-mobile-action-row .ui-btn.ui-btn--mobile-icon {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 36px;
+    height: 40px !important;
+  }
+  .exam-mobile-action-row .ui-btn.exam-mobile-publish {
+    flex: 1.8 0 auto;
+    min-width: 0;
+    height: 40px;
+    padding: 0 8px;
+    gap: 4px !important;
+    font-size: 11px;
+  }
+  .exam-mobile-action-row .exam-mobile-publish > svg {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+  }
+}

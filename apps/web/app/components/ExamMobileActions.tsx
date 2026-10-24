@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { OrganizationExam } from '@/lib/api/proctor';
-import { Archive, Eye, EyeOff, FileText, MoreHorizontal, Settings, Trash2, Unlock, Users } from 'lucide-react';
+import { Archive, CloudUpload, CloudOff, FileText, MoreHorizontal, Settings, Trash2, Unlock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalBody } from '@/components/ui/modal';
 import { CollaborationButton } from './CollaborationButton';
@@ -26,19 +26,17 @@ export function ExamMobileActions({ exam, busy, canPublish, onPublish, onMonitor
     const act = (callback: () => void) => { setOpen(false); callback(); };
     const canShare = exam.canShare || exam.collaborationPermission;
     return <>
-        <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:hidden">
-            <Button type="button" size="sm" variant="primary" icon="preview" onClick={onMonitor}>Monitor</Button>
-            <Button type="button" size="sm" variant={exam.is_published ? 'unpublish' : 'primary'}
+        <div className="exam-mobile-action-row px-4 pb-4 sm:hidden">
+            <Button className="exam-mobile-publish" aria-label={exam.is_published ? 'Unpublish' : 'Publish'} type="button" size="sm" variant={exam.is_published ? 'unpublish' : 'primary'}
                 isLoading={busy}
                 disabled={!exam.canManage || exam.status === 'archived' || (!exam.is_published && !canPublish)}
-                leftIcon={exam.is_published ? <EyeOff size={16} /> : <Eye size={16} />}
+                leftIcon={exam.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
                 title={!exam.is_published && !canPublish ? 'Tugaskan ke kelas terlebih dahulu sebelum mempublish' : undefined}
                 onClick={onPublish}>{exam.is_published ? 'Unpublish' : 'Publish'}</Button>
-            <div className="col-span-2 flex flex-wrap gap-2">
-            {canShare && <CollaborationButton className="flex-1 basis-40 min-w-0" type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={onChanged} />}
-            <Button type="button" size="sm" variant="outline" leftIcon={<MoreHorizontal size={16} />}
-                className="flex-1 basis-24" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Lainnya</Button>
-            </div>
+            <Button mobileIconOnly aria-label="Monitor ujian" title="Monitor ujian" type="button" size="sm" variant="primary" leftIcon={<i className="fa-solid fa-chart-line" aria-hidden="true" />} onClick={onMonitor}>Monitor</Button>
+            {canShare && <CollaborationButton mobileIconOnly className="min-w-0" type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={onChanged} />}
+            <Button mobileIconOnly aria-label="Aksi lainnya" title="Aksi lainnya" type="button" size="sm" variant="outline" leftIcon={<MoreHorizontal size={16} />}
+                className="min-w-0" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Lainnya</Button>
         </div>
         <Modal open={open} onClose={() => setOpen(false)} title="Aksi ujian" size="sm">
             <ModalBody>

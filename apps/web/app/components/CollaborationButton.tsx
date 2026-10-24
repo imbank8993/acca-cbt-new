@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Users } from 'lucide-react';
+import { UserRoundCog } from 'lucide-react';
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { InlineSelect } from '@/components/ui/InlineSelect';
@@ -16,8 +16,8 @@ interface Collaborator {
 interface CollaborationData { ownerId: string; ownerName: string; canShare: boolean; canGrantPrivileged: boolean; activeCount: number; collaborators: Collaborator[] }
 const labels = { viewer: 'Pembaca', editor: 'Editor', manager: 'Pengelola' };
 
-export function CollaborationButton({ type, resourceId, collaboratorCount = 0, onChanged, className }: {
-    type: 'bank' | 'exam'; resourceId: string; collaboratorCount: number | undefined; onChanged?: () => void; className?: string;
+export function CollaborationButton({ type, resourceId, collaboratorCount = 0, onChanged, className, mobileIconOnly = false }: {
+    type: 'bank' | 'exam'; resourceId: string; collaboratorCount: number | undefined; onChanged?: () => void; className?: string; mobileIconOnly?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [data, setData] = useState<CollaborationData | null>(null);
@@ -65,7 +65,7 @@ export function CollaborationButton({ type, resourceId, collaboratorCount = 0, o
     };
 
     return <>
-        <Button variant="outline" size="sm" className={className} leftIcon={<Users size={16} />} type="button" onClick={() => { setData(null); setError(''); setSelected(''); setPermission('editor'); setCanReset(false); setExpires(''); setOpen(true); }}
+        <Button mobileIconOnly={mobileIconOnly} variant="outline" size="sm" className={className} leftIcon={<UserRoundCog size={16} />} type="button" onClick={() => { setData(null); setError(''); setSelected(''); setPermission('editor'); setCanReset(false); setExpires(''); setOpen(true); }}
             aria-label={`Kolaborator: ${countLabel}`} title={countLabel}
             >
             Kolaborator
