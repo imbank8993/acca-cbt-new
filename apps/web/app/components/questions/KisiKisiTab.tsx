@@ -12,9 +12,10 @@ import { useCallback,useEffect,useState } from 'react';
 
 interface KisiKisiTabProps {
     bankId: string;
+    onItemsChange?: (items: KisiKisiItem[]) => void;
 }
 
-export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
+export default function KisiKisiTab({ bankId, onItemsChange }: KisiKisiTabProps) {
     const [kisiKisi, setKisiKisi] = useState<KisiKisiItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -29,8 +30,9 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
     const loadKisiKisi = useCallback(async () => {
         const data = await getKisiKisiByBank(bankId);
         setKisiKisi(data || []);
+        onItemsChange?.(data || []);
         setIsLoading(false);
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     useEffect(() => {
         let active = true;
@@ -38,13 +40,14 @@ export default function KisiKisiTab({ bankId }: KisiKisiTabProps) {
         void getKisiKisiByBank(bankId).then(data => {
             if (!active) return;
             setKisiKisi(data || []);
+            onItemsChange?.(data || []);
             setIsLoading(false);
         });
 
         return () => {
             active = false;
         };
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     const handleOpenEditor = (k: KisiKisiItem | null = null) => {
         if (k) {

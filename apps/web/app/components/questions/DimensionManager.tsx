@@ -17,9 +17,10 @@ import { useCallback,useEffect,useState } from 'react';
 
 interface DimensionManagerProps {
     bankId: string;
+    onItemsChange?: (items: DimensionItem[]) => void;
 }
 
-export default function DimensionManager({ bankId }: DimensionManagerProps) {
+export default function DimensionManager({ bankId, onItemsChange }: DimensionManagerProps) {
     const [dimensions, setDimensions] = useState<DimensionItem[]>([]);
     const [interpretations, setInterpretations] = useState<DimensionInterpretationItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -45,9 +46,10 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
             getDimensionInterpretationsByBank(bankId)
         ]);
         setDimensions(dimData || []);
+        onItemsChange?.(dimData || []);
         setInterpretations(interpData || []);
         setIsLoading(false);
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     useEffect(() => {
         let active = true;
@@ -58,6 +60,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
         ]).then(([dimData, interpData]) => {
             if (!active) return;
             setDimensions(dimData || []);
+            onItemsChange?.(dimData || []);
             setInterpretations(interpData || []);
             setIsLoading(false);
         });
@@ -65,7 +68,7 @@ export default function DimensionManager({ bankId }: DimensionManagerProps) {
         return () => {
             active = false;
         };
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     const handleOpenEditor = (d: DimensionItem | null = null) => {
         if (d) {

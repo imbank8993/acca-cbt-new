@@ -67,7 +67,7 @@
 
 .dark .uisel select.uisel-input {
     background-color: var(--input, #1c2439) !important;
-    border: 1.5px solid rgba(59, 130, 246, 0.45) !important;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
     color: #e2e8f0 !important;
 }
 

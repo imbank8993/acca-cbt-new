@@ -18,9 +18,10 @@ import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 interface InstructionManagerProps {
     bankId: string;
+    onItemsChange?: (items: BankTextItem[]) => void;
 }
 
-export default function InstructionManager({ bankId }: InstructionManagerProps) {
+export default function InstructionManager({ bankId, onItemsChange }: InstructionManagerProps) {
     const [instructions, setInstructions] = useState<BankTextItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -40,8 +41,9 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
     const loadInstructions = useCallback(async () => {
         const data = await getInstructionsByBank(bankId);
         setInstructions(data || []);
+        onItemsChange?.(data || []);
         setIsLoading(false);
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     useEffect(() => {
         let active = true;
@@ -49,13 +51,14 @@ export default function InstructionManager({ bankId }: InstructionManagerProps) 
         void getInstructionsByBank(bankId).then(data => {
             if (!active) return;
             setInstructions(data || []);
+            onItemsChange?.(data || []);
             setIsLoading(false);
         });
 
         return () => {
             active = false;
         };
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     const downloadTemplateDocx = async () => {
         window.open('/template_soal_pengetahuan.docx?v=20261001', '_blank');

@@ -1,5 +1,9 @@
 "use client";
 
+import { getBankValidationFeedback } from '@/lib/api/validations';
+import { FilterToolbar, FilterSearch, FilterActions } from '@/components/ui/filtertoolbar';
+import { Button } from '@/components/ui/button';
+import { InlineSelectIndicator } from '@/components/ui/InlineSelect';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { getErrorMessage } from '@/lib/errors';
@@ -27,6 +31,8 @@ ChevronUp,
 Edit3,
 Eye,
 FileDown,
+CloudUpload,
+CloudOff,
 FileSearch,
 FileText,
 Loader2,
@@ -76,6 +82,27 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
     const canManage = bankInfo?.canManage === true;
+    const [validationNoteCount, setValidationNoteCount] = useState<number | null>(null);
+    useEffect(() => {
+        if (!canManage) return;
+        let active = true;
+        const refresh = async () => {
+            try {
+                const sessions = await getBankValidationFeedback(bankId);
+                if (active) setValidationNoteCount(sessions.reduce((total, session) => total + (session.notes?.length || 0), 0));
+            } catch {
+                if (active) setValidationNoteCount(null);
+            }
+        };
+        void refresh();
+        window.addEventListener('focus', refresh);
+        window.addEventListener('validation-feedback-updated', refresh);
+        return () => {
+            active = false;
+            window.removeEventListener('focus', refresh);
+            window.removeEventListener('validation-feedback-updated', refresh);
+        };
+    }, [bankId, canManage]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
 
@@ -508,15 +535,20 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 <h1 className="text-sm font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-xs">{bankInfo?.title || 'Bank Soal'}</h1>
                             </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 w-full sm:w-auto shrink-0 sm:flex sm:items-center">
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
                             {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
                             {/* Export Dropdown */}
-                            <div className="relative w-full sm:w-auto" ref={exportDropdownRef}>
-                                <button onClick={() => setIsExportOpen(!isExportOpen)} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">
-                                    <FileDown size={14} className="shrink-0 sm:w-[15px] sm:h-[15px]" /> <span className="truncate">Export</span> <ChevronDown size={12} className="shrink-0" />
-                                </button>
+                            <div className="relative" ref={exportDropdownRef}>
+                                <Button type="button" variant="outline" size="sm"
+                                    onClick={() => setIsExportOpen(!isExportOpen)}
+                                    className="w-full sm:w-auto"
+                                    leftIcon={<FileDown size={16} />}
+                                    rightIcon={<InlineSelectIndicator open={isExportOpen} size={12} />}
+                                    aria-expanded={isExportOpen} aria-controls="bank-export-menu">
+                                    Export
+                                </Button>
                                 {isExportOpen && (
-                                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                                    <div id="bank-export-menu" className="absolute left-0 sm:right-0 sm:left-auto top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">
                                         <div className="px-3 py-2 border-b border-slate-100">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Export Dokumen</p>
                                         </div>
@@ -533,10 +565,14 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 )}
                             </div>
 
-                            <button onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }} className="w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-sm font-semibold text-white bg-primary border border-primary hover:bg-primary/90 hover:border-primary/90 rounded-lg flex items-center gap-1 sm:gap-2 h-[34px] sm:h-[38px] transition-all shadow-sm">
-                                <Eye size={14} className="shrink-0 sm:w-[15px] sm:h-[15px]" /> <span className="truncate">Pratinjau</span>
-                            </button>
-                            {canManage && (<button
+                            <Button type="button" variant="primary" size="sm" icon="preview"
+                                onClick={() => { setIsViewModalOpen(true); setViewingQuestion(null); }}
+                                className="w-full sm:w-auto">
+                                Pratinjau
+                            </Button>
+                            {canManage && (<Button type="button" size="sm"
+                                variant={bankInfo?.is_published ? 'unpublish' : 'primary'}
+                                leftIcon={bankInfo?.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
                                 onClick={async () => {
                                     if (!org) return;
                                     if (!await confirmDialog({
@@ -549,10 +585,10 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     const result = await toggleQuestionBankPublishAction(bankId, !bankInfo?.is_published);
                                     if (result.success) await loadData();
                                 }}
-                                className={`w-full justify-center px-1 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold transition-all h-[34px] sm:h-[38px] flex items-center ${bankInfo?.is_published ? 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-500 hover:text-white hover:border-red-500' : 'bg-primary text-white hover:bg-primary/90'}`}
+                                className="w-full sm:w-auto"
                             >
-                                <span className="truncate">{bankInfo?.is_published ? 'Unpublish' : 'Publish'}</span>
-                            </button>)}
+                                {bankInfo?.is_published ? 'Unpublish' : 'Publish'}
+                            </Button>)}
                         </div>
                     </div>
                     {/* Tabs */}
@@ -561,37 +597,37 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             onClick={() => setActiveTab('questions')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'questions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Daftar Soal
+                            Daftar Soal {questions.length > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'questions' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{questions.length}</span>}
                         </button>
                         {canManage && (<button
                             onClick={() => setActiveTab('stimuli')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'stimuli' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Daftar Stimulus
+                            Daftar Stimulus {stimuliList.length > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'stimuli' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{stimuliList.length}</span>}
                         </button>)}
                         {canManage && (<button
                             onClick={() => setActiveTab('instructions')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'instructions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Daftar Petunjuk
+                            Daftar Petunjuk {instructionsList.length > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'instructions' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{instructionsList.length}</span>}
                         </button>)}
                         {canManage && (<button
                             onClick={() => setActiveTab('dimensions')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'dimensions' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Daftar Dimensi
+                            Daftar Dimensi {dimensionsList.length > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'dimensions' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{dimensionsList.length}</span>}
                         </button>)}
                         {canManage && (<button
                             onClick={() => setActiveTab('kisikisi')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'kisikisi' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Kisi-kisi Soal
+                            Kisi-kisi Soal {kisiKisiList.length > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'kisikisi' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{kisiKisiList.length}</span>}
                         </button>)}
                         {canManage && (<button
                             onClick={() => setActiveTab('validations')}
                             className={`pb-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'validations' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                         >
-                            Catatan Validasi
+                            Catatan Validasi {(validationNoteCount ?? 0) > 0 && <span className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${activeTab === 'validations' ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{validationNoteCount}</span>}
                         </button>)}
                     </div>
                 </div>
@@ -613,13 +649,13 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     }}
                 />}
                 {activeTab === 'stimuli' ? (
-                    <StimulusManager bankId={bankId} />
+                    <StimulusManager bankId={bankId} onItemsChange={setStimuliList} />
                 ) : activeTab === 'instructions' ? (
-                    <InstructionManager bankId={bankId} />
+                    <InstructionManager bankId={bankId} onItemsChange={setInstructionsList} />
                 ) : activeTab === 'dimensions' ? (
-                    <DimensionManager bankId={bankId} />
+                    <DimensionManager bankId={bankId} onItemsChange={setDimensionsList} />
                 ) : activeTab === 'kisikisi' ? (
-                    <KisiKisiTab bankId={bankId} />
+                    <KisiKisiTab bankId={bankId} onItemsChange={setKisiKisiList} />
                 ) : activeTab === 'validations' ? (
                     <BankValidationFeedbackTab
                         bankId={bankId}
@@ -668,36 +704,43 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             })()}
                         </div>
 
-                 {/* Search & Actions */}
-                 <div className="flex flex-col sm:flex-row gap-3">
-                     <div className="relative flex-1 w-full sm:w-auto">
-                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                         <input
-                             type="text"
-                             placeholder="Cari soal..."
-                             value={searchQuery}
-                             onChange={(e) => setSearchQuery(e.target.value)}
-                             className="w-full bg-white border border-slate-200 rounded-lg h-[38px] pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/10 focus:border-primary/30 outline-none"
-                         />
-                     </div>
-                     <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-                         {canManage && (filteredQuestions.length > 0) && (<button onClick={toggleSelectAll} aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'} aria-pressed={selectedQuestions.size === filteredQuestions.length} className="flex-none w-10 sm:w-auto justify-center px-2 sm:px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors">
-                                 {selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={15} className="text-blue-600" /> : <Square size={15} />}
-                                 <span className="hidden sm:inline">Semua</span>
-                             </button>)}
-                         {canManage && (selectedQuestions.size > 0) && (<button onClick={requestBulkDelete} disabled={isBulkDeleting} className="flex-none justify-center px-2 sm:px-4 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px] transition-colors disabled:opacity-50">
-                                 {isBulkDeleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} 
-                                 <span className="hidden sm:inline">Hapus ({selectedQuestions.size})</span>
-                                 <span className="sm:hidden">{selectedQuestions.size}</span>
-                             </button>)}
-                         {canManage && (<button onClick={() => setIsImportModalOpen(true)} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm font-medium rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
-                             <Upload size={15} /> Import
-                         </button>)}
-                         {canManage && (<button onClick={() => handleOpenEditor()} className="flex-1 sm:flex-none justify-center px-2 sm:px-4 py-2 bg-primary hover:bg-primary/95 text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center gap-1.5 sm:gap-2 h-[38px]">
-                             <Plus size={16} /> Tambah
-                         </button>)}
-                     </div>
-                 </div>
+                {/* Search & Actions */}
+                <FilterToolbar>
+                    <FilterSearch
+                        label="Cari soal"
+                        placeholder="Cari soal..."
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        icon={<Search size={16} />}
+                        grow={1}
+                    />
+                    {canManage && <FilterActions>
+                        {filteredQuestions.length > 0 && (
+                            <Button type="button" variant="outline" size="sm"
+                                onClick={toggleSelectAll}
+                                aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'}
+                                aria-pressed={selectedQuestions.size === filteredQuestions.length}
+                                leftIcon={selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={16} /> : <Square size={16} />}>
+                                Semua
+                            </Button>
+                        )}
+                        {selectedQuestions.size > 0 && (
+                            <Button type="button" variant="danger" size="sm"
+                                onClick={requestBulkDelete} isLoading={isBulkDeleting}
+                                leftIcon={<Trash2 size={16} />}>
+                                Hapus ({selectedQuestions.size})
+                            </Button>
+                        )}
+                        <Button type="button" variant="outline" size="sm"
+                            onClick={() => setIsImportModalOpen(true)} leftIcon={<Upload size={16} />}>
+                            Import
+                        </Button>
+                        <Button type="button" variant="primary" size="sm"
+                            onClick={() => handleOpenEditor()} leftIcon={<Plus size={16} />}>
+                            Tambah
+                        </Button>
+                    </FilterActions>}
+                </FilterToolbar>
 
                 {/* Question List */}
                 {isLoading ? (

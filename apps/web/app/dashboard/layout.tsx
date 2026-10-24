@@ -413,7 +413,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }
 
                     :global(.dark) .dashboard-layout.sidebar-mobile-open {
-                        background: #0b1329 !important;
+                        background: var(--sidebar-bg, #0d1221) !important;
                     }
 
                     .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper {
@@ -437,6 +437,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         isolation: isolate;
                     }
 
+                    /* Keep the rounded drawer edge visible over dark content and its dimmer. */
+                    :global(.dark) .dashboard-layout.sidebar-mobile-open .dashboard-content-wrapper::after {
+                        content: '';
+                        position: absolute;
+                        inset: 0;
+                        border: 1px solid rgba(255, 255, 255, 0.16);
+                        border-radius: inherit;
+                        box-sizing: border-box;
+                        pointer-events: none;
+                        z-index: 1300;
+                    }
+
                     .sidebar-mobile-backdrop {
                         position: fixed;
                         inset: 0;
@@ -449,10 +461,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         animation: fadeInBackdrop 0.25s forwards;
                         -webkit-tap-highlight-color: transparent;
                         touch-action: none;
-                    }
-
-                    :global(.dark) .sidebar-mobile-backdrop {
-                        background: rgba(0, 0, 0, 0.35);
                     }
 
                     @keyframes fadeInBackdrop {

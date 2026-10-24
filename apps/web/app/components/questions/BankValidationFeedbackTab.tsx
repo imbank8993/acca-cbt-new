@@ -3,15 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     ShieldCheck,
-    CheckCircle2,
-    AlertCircle,
-    Clock,
     User,
-    Tag,
     Edit3,
-    Check,
-    RefreshCw,
-    FileText,
     CheckSquare,
     Square,
     Printer,
@@ -26,6 +19,9 @@ import {
 } from '@/lib/api/validations';
 import type { QuestionRecord } from '@/lib/api/questions';
 import { ValidationReportModal } from '@/app/components/validations/ValidationReportModal';
+
+const statusLabels = { pending: 'Menunggu validasi', in_progress: 'Sedang divalidasi', revision_needed: 'Perlu perbaikan', approved: 'Disetujui', rejected: 'Ditolak' };
+const categoryLabels = { typo: 'Salah ketik', materi: 'Materi', kunci_jawaban: 'Kunci jawaban', konstruksi: 'Konstruksi', bahasa: 'Bahasa', lainnya: 'Lainnya' };
 
 interface BankValidationFeedbackTabProps {
     bankId: string;
@@ -58,10 +54,10 @@ export default function BankValidationFeedbackTab({
     }, [bankId]);
 
     useEffect(() => {
-        void loadData();
+        const initialLoad = window.setTimeout(() => { void loadData(); }, 0);
         const refresh = () => { void loadData(); };
         window.addEventListener('validation-feedback-updated', refresh);
-        return () => window.removeEventListener('validation-feedback-updated', refresh);
+        return () => { window.clearTimeout(initialLoad); window.removeEventListener('validation-feedback-updated', refresh); };
     }, [loadData]);
 
     const handleToggleResolve = async (note: ValidationNote) => {
@@ -150,15 +146,9 @@ export default function BankValidationFeedbackTab({
                                     Status Validasi:
                                 </h3>
                                 <span
-                                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                                        latestValidation.status === 'approved'
-                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                            : latestValidation.status === 'revision_needed'
-                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                            : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                    }`}
+                                    className="text-xs font-semibold text-slate-600 dark:text-slate-300"
                                 >
-                                    {latestValidation.status.replace('_', ' ')}
+                                    {statusLabels[latestValidation.status]}
                                 </span>
                             </div>
                             <p className="text-xs text-slate-500 mt-0.5">
@@ -168,7 +158,7 @@ export default function BankValidationFeedbackTab({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 text-xs">
+                    <div className="flex flex-wrap items-center gap-2.5 text-xs">
                         <Button
                             variant="outline"
                             size="sm"
@@ -177,12 +167,7 @@ export default function BankValidationFeedbackTab({
                         >
                             <Printer size={13} /> Cetak Laporan
                         </Button>
-                        <span className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl font-bold text-amber-700 dark:text-amber-300">
-                            {unresolvedCount} Perlu Perbaikan
-                        </span>
-                        <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl font-bold text-emerald-700 dark:text-emerald-300">
-                            {resolvedCount} Sudah Diperbaiki
-                        </span>
+                        <p className="text-slate-500 dark:text-slate-400">{unresolvedCount} perlu perbaikan · {resolvedCount} sudah diperbaiki</p>
                     </div>
                 </div>
 
@@ -198,20 +183,14 @@ export default function BankValidationFeedbackTab({
                                     <User size={13} className="text-primary" /> {v.profile?.full_name || 'Validator'}
                                 </span>
                                 <span
-                                    className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                                        v.general_recommendation === 'approved'
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : v.general_recommendation === 'revision_needed'
-                                            ? 'bg-amber-100 text-amber-700'
-                                            : 'bg-slate-200 text-slate-600'
-                                    }`}
+                                    className="text-xs font-semibold text-slate-600 dark:text-slate-300"
                                 >
-                                    {v.general_recommendation ? v.general_recommendation.replace('_', ' ') : 'Belum Selesai'}
+                                    {v.general_recommendation ? statusLabels[v.general_recommendation] : 'Belum selesai'}
                                 </span>
                             </div>
                             {v.general_comment && (
                                 <p className="text-[11px] text-slate-600 dark:text-slate-300 italic bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
-                                    "{v.general_comment}"
+                                    &quot;{v.general_comment}&quot;
                                 </p>
                             )}
                         </div>
@@ -247,14 +226,11 @@ export default function BankValidationFeedbackTab({
                                 >
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
                                         <div className="flex items-center gap-2">
-                                            <span className="w-7 h-7 rounded-lg bg-primary text-white font-bold flex items-center justify-center text-xs">
-                                                {qNumber}
-                                            </span>
                                             <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
                                                 Soal Nomor {qNumber}
                                             </span>
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase">
-                                                {note.category.replace('_', ' ')}
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                {categoryLabels[note.category]}
                                             </span>
                                         </div>
 
@@ -294,7 +270,7 @@ export default function BankValidationFeedbackTab({
                                     {/* Teks Kutipan Highlight */}
                                     {note.selected_text && (
                                         <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-200 dark:border-amber-800 text-xs font-mono text-amber-900 dark:text-amber-200 italic">
-                                            "{note.selected_text}"
+                                            &quot;{note.selected_text}&quot;
                                         </div>
                                     )}
 

@@ -10,7 +10,6 @@ import {
     Calendar,
     CheckCircle2,
     Clock,
-    AlertCircle,
     UserCheck,
     ChevronRight,
     RefreshCw,
@@ -147,8 +146,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                 );
             case 'revision_needed':
                 return (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center gap-1.5">
-                        <AlertCircle size={12} /> Perlu Revisi
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                        Perlu Revisi
                     </span>
                 );
             case 'approved':
@@ -271,7 +270,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                 {filtered.map(item => {
                                     const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
                                     const totalValidators = item.validators?.length || 0;
-                                    const creatorName = item.bank?.creator_name || (item.bank as any)?.creator?.full_name || 'Guru Mapel';
+                                    const creatorName = item.bank?.creator_name || (item.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
 
                                     return (
                                         <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
@@ -293,17 +292,11 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                                         <UserCheck size={12} className="text-primary" />
                                                         <span>{submittedCount} / {totalValidators} Selesai</span>
                                                     </div>
-                                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                                    <div className="flex flex-col gap-1 max-w-xs">
                                                         {item.validators?.map(v => (
                                                             <span
                                                                 key={v.id}
-                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${
-                                                                    v.status === 'submitted'
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900'
-                                                                        : v.status === 'in_progress'
-                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900'
-                                                                        : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                                                                }`}
+                                                                className="text-[11px] text-[#3083FF] dark:!text-blue-400"
                                                             >
                                                                 {v.profile?.full_name || 'Validator'}
                                                             </span>
@@ -463,12 +456,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                         {v.general_recommendation && (
                                             <p className="text-[11px] text-slate-600 dark:text-slate-300">
                                                 Rekomendasi:{' '}
-                                                <strong className="uppercase">{v.general_recommendation.replace('_', ' ')}</strong>
+                                                <strong className="uppercase">{{ approved: 'Disetujui', revision_needed: 'Perlu revisi', rejected: 'Ditolak' }[v.general_recommendation]}</strong>
                                             </p>
                                         )}
                                         {v.general_comment && (
                                             <p className="text-[11px] text-slate-500 italic bg-slate-50 dark:bg-slate-800/80 p-2 rounded-lg">
-                                                "{v.general_comment}"
+                                                &quot;{v.general_comment}&quot;
                                             </p>
                                         )}
                                     </div>

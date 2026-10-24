@@ -320,8 +320,22 @@ export class ValidationsService {
             this.logger.error(`Gagal membaca catatan validasi: ${notesErr.message}`);
         }
 
+        // Use the same school profile and organization-logo fallback as PAS reports.
+        const [{ data: schoolProfile }, { data: organization }] = await Promise.all([
+            this.db.from('profil_sekolah')
+                .select('nama, jenjang, jenis, alamat, desa_kelurahan, kecamatan, kabupaten_kota, provinsi, kode_pos, telepon, email, website, logo_url')
+                .limit(1).maybeSingle(),
+            this.db.from('cbt_organizations').select('name, logo_url')
+                .eq('id', validation.organization_id).maybeSingle(),
+        ]);
+
         return {
             validation,
+            profil_sekolah: {
+                ...(schoolProfile || {}),
+                nama: schoolProfile?.nama || organization?.name || 'MADRASAH',
+                logo_url: schoolProfile?.logo_url || organization?.logo_url || null,
+            },
             myValidatorStatus: vAssignment,
             questions: ((questions as any[]) || [])
                 .filter(q => !q.metadata?._deleted)

@@ -29,7 +29,7 @@
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
   --sidebar-hover: rgba(37, 99, 235, 0.12);
-  --sidebar-border: rgba(37, 99, 235, 0.35);
+  --sidebar-border: rgba(255, 255, 255, 0.12);
   --sidebar-shadow: none;
 }
 

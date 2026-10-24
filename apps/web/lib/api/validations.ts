@@ -1,3 +1,4 @@
+import type { ProfilSekolah } from '@/lib/pas/print-kop';
 import { apiCreate, apiGet, apiSend } from './client';
 import type { QuestionBank, QuestionRecord } from './questions';
 
@@ -117,7 +118,7 @@ export async function listValidations(bankId?: string): Promise<ValidationSessio
     // Jangan samarkan kegagalan server sebagai "belum ada data".
     if (!res.success) throw new Error(res.error || 'Daftar validasi belum dapat dimuat.');
     if (Array.isArray(res)) return res;
-    return (res as any).data || [];
+    return res.data || [];
 }
 
 export async function getValidationDetail(validationId: string): Promise<ValidationSession | null> {
@@ -133,16 +134,18 @@ export async function listMyValidationTasks(): Promise<ValidationTask[]> {
     const res = await apiGet<{ data?: ValidationTask[] } | ValidationTask[]>('/api/validations/my-tasks');
     if (!res.success) throw new Error(res.error || 'Tugas validasi belum dapat dimuat.');
     if (Array.isArray(res)) return res;
-    return (res as any).data || [];
+    return res.data || [];
 }
 
 export async function getValidationReviewData(validationId: string): Promise<{
+    profil_sekolah?: ProfilSekolah;
     validation: ValidationSession;
     myValidatorStatus: ValidationValidator | null;
     questions: QuestionRecord[];
     notes: ValidationNote[];
 } | null> {
     const res = await apiGet<{
+        profil_sekolah?: ProfilSekolah;
         validation: ValidationSession;
         myValidatorStatus: ValidationValidator | null;
         questions: QuestionRecord[];
@@ -189,5 +192,5 @@ export async function getBankValidationFeedback(bankId: string): Promise<Validat
     );
     if (!res.success) throw new Error(res.error || 'Catatan validasi gagal dimuat.');
     if (Array.isArray(res)) return res;
-    return (res as any).data || [];
+    return res.data || [];
 }

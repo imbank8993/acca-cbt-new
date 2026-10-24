@@ -276,3 +276,23 @@ test('List rejects malformed bank filters instead of returning an empty list', a
     const { service } = setup();
     await assert.rejects(service.list(user('admin'), 'not-a-uuid'), /tidak valid/);
 });
+test('Validation print data uses the configured school letterhead and logo', async () => {
+    const { db, service } = setup();
+    db.tables.profil_sekolah = [{ nama: 'MAN Insan Cendekia Gowa', jenjang: 'MA', alamat: 'Jl. Pendidikan', logo_url: 'https://school.example/logo.png' }];
+    db.tables.cbt_organizations = [{ id: 'school', name: 'School fallback', logo_url: 'https://school.example/fallback.png' }];
+    const review = await service.getReviewData(user('a'), 'session');
+    assert.equal(review.profil_sekolah.nama, 'MAN Insan Cendekia Gowa');
+    assert.equal(review.profil_sekolah.logo_url, 'https://school.example/logo.png');
+    assert.equal(review.profil_sekolah.alamat, 'Jl. Pendidikan');
+});
+
+test('Validation letterhead falls back to its own organization logo', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_organizations = [
+        { id: 'other-school', name: 'Other', logo_url: 'https://other.example/logo.png' },
+        { id: 'school', name: 'Own school', logo_url: 'https://school.example/logo.png' },
+    ];
+    const review = await service.getReviewData(user('a'), 'session');
+    assert.equal(review.profil_sekolah.nama, 'Own school');
+    assert.equal(review.profil_sekolah.logo_url, 'https://school.example/logo.png');
+});

@@ -1909,28 +1909,10 @@ span[style*="white-space: pre"] {
   background-color: #f9fafb;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .katex {
-    color: #e2e8f0;
-  }
-
-  .katex .mord {
-    color: #e2e8f0;
-  }
-
-  .katex .mbin {
-    color: #94a3b8;
-  }
-
-  .katex .mrel {
-    color: #94a3b8;
-  }
-
-  .katex .mopen,
-  .katex .mclose {
-    color: #94a3b8;
-  }
+/* Math follows the app theme, including when it differs from the OS theme. */
+.katex,
+.katex :where(.mord, .mbin, .mrel, .mopen, .mclose) {
+  color: inherit;
 }
 
 /* Animation for math rendering (fade in) */
@@ -2125,49 +2107,18 @@ html.dark,
   --sidebar-text-active: #e2e8f0;
   --sidebar-accent: #1a73e8;
   --sidebar-hover: rgba(37, 99, 235, 0.12);
-  --sidebar-border: rgba(37, 99, 235, 0.35);
+  --sidebar-border: rgba(255, 255, 255, 0.12);
   --header-bg: var(--card);
-  --header-border: rgba(37, 99, 235, 0.35);
+  --header-border: rgba(255, 255, 255, 0.12);
   --header-text: #e2e8f0;
   --n-bg: #020718;
   --n-card: var(--card);
   --n-surface: var(--card);
-  --n-border: rgba(37, 99, 235, 0.35);
+  --n-border: rgba(255, 255, 255, 0.12);
 
-  /* Redefine Tailwind v4 theme variables in dark mode for seamless integration */
-  --color-slate-55: #0d1221;
-  --color-slate-50: #0d1221;
-  --color-slate-100: #1c2439;
-  --color-slate-200: #243049;
-  --color-slate-300: #2d3748;
-  --color-slate-400: #64748b;
-  --color-slate-500: #94a3b8;
-  --color-slate-600: #cbd5e1;
-  --color-slate-700: #e2e8f0;
-  --color-slate-800: #f1f5f9;
-  --color-slate-900: #f8fafc;
-  --color-slate-950: #ffffff;
-
-  --color-gray-50: #0d1221;
-  --color-gray-100: #1c2439;
-  --color-gray-200: #243049;
-  --color-gray-300: #2d3748;
-  --color-gray-400: #64748b;
-  --color-gray-500: #94a3b8;
-  --color-gray-600: #cbd5e1;
-  --color-gray-700: #e2e8f0;
-  --color-gray-800: #f1f5f9;
-  --color-gray-900: #f8fafc;
-
-  --color-zinc-50: #0d1221;
-  --color-zinc-100: #1c2439;
-  --color-zinc-200: #243049;
-  --color-zinc-300: #2d3748;
-  --color-zinc-400: #64748b;
-  --color-zinc-500: #94a3b8;
-  --color-zinc-600: #cbd5e1;
-  --color-zinc-700: #e2e8f0;
-  --color-zinc-800: #f1f5f9;
+  /* Keep Tailwind's palette stable: the same token is used for both text
+     and surfaces. Remapping slate-100 to a dark color also turns explicit
+     dark:text-slate-100 text dark. Theme surfaces use semantic tokens above. */
 
 }
 
@@ -2184,7 +2135,7 @@ html.dark,
 .dark .bg-card,
 .dark [class*="bg-white"] {
   background-color: var(--card) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .dark .bg-slate-100,
@@ -2863,3 +2814,44 @@ html.dark,
   html.dark { --sidebar-bg: var(--card); --header-bg: var(--card); }
 }
 @media (max-width: 1023.98px) { html.dark .sidebar, html.dark .header { background-color: var(--card) !important; } }
+
+/* Imported question HTML may carry black text or white table-cell fills.
+   Normalize authored text/fills together; math keeps its currentColor ink. */
+.dark .latex-renderer {
+  color: #e2e8f0;
+}
+.dark .latex-renderer :where([style*="color"], font[color]) {
+  color: inherit !important;
+}
+.dark .latex-renderer :where(
+  [style*="background: #fff" i], [style*="background:#fff" i],
+  [style*="background-color: #fff" i], [style*="background-color:#fff" i],
+  [style*="background: white" i], [style*="background:white" i],
+  [style*="background-color: white" i], [style*="background-color:white" i],
+  [style*="background-color: rgb(255, 255, 255)"], [bgcolor="#ffffff" i], [bgcolor="white" i]
+) {
+  background: transparent !important;
+}
+.dark .latex-renderer :where(th, td) {
+  color: #e2e8f0 !important;
+  border-color: var(--border) !important;
+}
+.dark .latex-renderer th {
+  background: #1c2439 !important;
+}
+.dark .latex-renderer mark {
+  background: #713f12 !important;
+  color: #fef3c7 !important;
+}
+.dark .latex-renderer a {
+  color: #93c5fd !important;
+  text-decoration: underline;
+}
+/* Transparent diagrams often use black labels; give image pixels a paper surface. */
+.dark .latex-renderer img {
+  background-color: #fff;
+  border-radius: 4px;
+}
+.dark .latex-renderer :where(.katex, .mathjax-inline, .mathjax-display) {
+  color: inherit;
+}

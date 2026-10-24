@@ -639,7 +639,7 @@
 }
 
 .dark .mdl-field__control .uisel select.uisel-input {
-  border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
   border-radius: 12px !important;
   color: #ffffff !important;
 }
@@ -851,7 +851,7 @@
 .dark .mdl-field__control select,
 .dark .mdl-field__control textarea {
   background: var(--input, #1c2439) !important;
-  border: 1.8px solid rgba(26, 115, 232, 0.75) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
   border-radius: 12px !important;
   color: #ffffff !important;
 }
@@ -870,15 +870,14 @@
 
 .dark .mdl-panel {
   background: var(--card, #0d1221) !important;
-  border: 1.8px solid rgba(26, 115, 232, 0.75);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   border-radius: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
 }
 
-/* Di latar hitam navy #3083ff nyaris tak terlihat, jadi kedua biru dinaikkan
-   terangnya sambil tetap menjaga jarak rona: blue-400 vs sky-400. */
-.dark .mdl-panel--add { border-color: #60a5fa; }
-.dark .mdl-panel--edit { border-color: #38bdf8; }
+/* Dialog frames use the same neutral outline as cards. */
+.dark .mdl-panel--add,
+.dark .mdl-panel--edit { border-color: var(--border); }
 
 .dark .mdl-panel--delete {
   background: var(--card, #0d1221) !important;
@@ -1475,7 +1474,7 @@
 .dark .md__field textarea,
 .dark .sk__pendidikanRow input {
   background: var(--input, #1c2439) !important;
-  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
   color: #ffffff !important;
   border-radius: 12px !important;
 }
@@ -1523,7 +1522,7 @@
 
 .dark .sk__readInput {
   background: var(--input, #1c2439) !important;
-  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
   color: #ffffff !important;
 }
 
@@ -1863,7 +1862,7 @@
 
 .dark .sk__field [class*="-control"] {
   background: var(--input, #1c2439) !important;
-  border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12)) !important;
   color: #ffffff !important;
 }
 

@@ -666,26 +666,29 @@ export default function ProktorQuestionBankPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 {bank.canManage === true && (<Button
                                     size="sm"
                                     variant={bank.is_published ? "warning" : "primary"}
                                     disabled={bank.canManage !== true}
                     onClick={() => handleTogglePublish(bank)}
-                                    className="flex-1"
+                                    className="w-full min-w-0"
                                 >
                                     {bank.is_published ? 'Unpublish' : 'Publish'}
                                 </Button>)}
-                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
-                                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="flex-1">
+                                <Link href={`/dashboard/proktor/questions/${bank.id}`} className="min-w-0">
                                     <Button size="sm" variant="secondary" rightIcon={<ArrowRight size={14} />} className="w-full">
                                         Lihat
                                     </Button>
                                 </Link>
+                                <div className="col-span-2 flex items-center gap-2">
+                                {(bank.canShare || bank.collaborationPermission) && <CollaborationButton className="flex-1 min-w-0" type="bank" resourceId={bank.id} collaboratorCount={bank.collaboratorCount} onChanged={() => void loadData()} />}
+
                                 {bank.canManage === true && (<ActionButton action="edit" iconOnly tooltip="Edit" disabled={bank.canManage !== true}
                     onClick={() => handleOpenEdit(bank)} />)}
                                 {bank.canManage === true && (<ActionButton action="delete" iconOnly tooltip="Hapus" disabled={bank.canDelete !== true}
                     onClick={() => { setBankToDelete(bank); setIsDeleteModalOpen(true); }} />)}
+                                </div>
                             </div>
                         </div>
                     ))

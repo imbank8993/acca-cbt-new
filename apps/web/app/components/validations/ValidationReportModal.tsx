@@ -1,14 +1,11 @@
 "use client";
 
+import { formatKopParts, type ProfilSekolah } from '@/lib/pas/print-kop';
 import React, { useState, useEffect } from 'react';
 import {
     Printer,
     X,
-    ShieldCheck,
-    CheckCircle2,
     AlertCircle,
-    Clock,
-    XCircle,
     FileText,
     Loader2,
 } from 'lucide-react';
@@ -17,7 +14,6 @@ import {
     getValidationReviewData,
     type ValidationSession,
     type ValidationNote,
-    type ValidationValidator,
 } from '@/lib/api/validations';
 import type { QuestionRecord } from '@/lib/api/questions';
 
@@ -32,6 +28,7 @@ export function ValidationReportModal({
     onClose,
     validationId,
 }: ValidationReportModalProps) {
+    const [schoolProfile, setSchoolProfile] = useState<ProfilSekolah | null>(null);
     const [loading, setLoading] = useState(true);
     const [validation, setValidation] = useState<ValidationSession | null>(null);
     const [questions, setQuestions] = useState<QuestionRecord[]>([]);
@@ -40,30 +37,42 @@ export function ValidationReportModal({
 
     useEffect(() => {
         if (!isOpen || !validationId) return;
-        setLoading(true);
-        setError(null);
+        let active = true;
+        const timer = window.setTimeout(() => {
+            setLoading(true);
+            setError(null);
 
-        getValidationReviewData(validationId)
-            .then(res => {
-                if (res) {
-                    setValidation(res.validation);
-                    setQuestions(res.questions || []);
-                    setNotes(res.notes || []);
-                } else {
-                    setError('Gagal memuat data laporan validasi.');
-                }
-            })
-            .catch(err => {
-                setError(err.message || 'Gagal memuat data laporan validasi.');
-            })
-            .finally(() => setLoading(false));
+            getValidationReviewData(validationId)
+                .then(res => {
+                    if (!active) return;
+                    if (res) {
+                        setSchoolProfile(res.profil_sekolah || null);
+                        setValidation(res.validation);
+                        setQuestions(res.questions || []);
+                        setNotes(res.notes || []);
+                    } else {
+                        setError('Gagal memuat data laporan validasi.');
+                    }
+                })
+                .catch(err => {
+                    if (!active) return;
+                    setError(err.message || 'Gagal memuat data laporan validasi.');
+                })
+                .finally(() => { if (active) setLoading(false); });
+        }, 0);
+        return () => { active = false; window.clearTimeout(timer); };
     }, [isOpen, validationId]);
 
     if (!isOpen) return null;
 
-    const handlePrint = () => {
+    const handlePrint = async () => {
+        const images = Array.from(document.querySelectorAll<HTMLImageElement>('#validation-report-print-sheet img'));
+        await Promise.all(images.map(image => image.decode().catch(() => undefined)));
+        await document.fonts.ready;
         window.print();
     };
+    const kop = formatKopParts(schoolProfile);
+
 
     // Helper untuk mencari nomor urut soal berdasarkan question_id
     const getQuestionNumber = (qId: string) => {
@@ -187,16 +196,21 @@ export function ValidationReportModal({
                             style={{ fontFamily: "'Times New Roman', Times, serif" }}
                         >
                             {/* Kop Surat Resmi */}
-                            <div className="border-b-4 border-double border-slate-900 pb-3 mb-6 text-center">
-                                <h1 className="text-base font-bold tracking-wide uppercase font-serif">
-                                    MAN INSAN CENDEKIA GOWA
-                                </h1>
-                                <h2 className="text-sm font-bold tracking-wider uppercase font-serif mt-0.5">
-                                    COMPUTER BASED TEST (ACCA CBT)
-                                </h2>
-                                <p className="text-[11px] text-slate-600 mt-1 italic font-sans">
-                                    Jl. Pendidikan, Desa Belapunranga, Kec. Parangloe, Kab. Gowa, Sulawesi Selatan
-                                </p>
+                            <div className="validation-letterhead">
+                                {kop.logoUrl && (
+                                    // School logos can come from the organization's configured external host.
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={kop.logoUrl} alt={`Logo ${kop.namaMadrasah}`} className="validation-letterhead-logo" />
+                                )}
+                                <div className="validation-letterhead-text">
+                                    {kop.isMadrasah && <>
+                                        <div className="validation-letterhead-ministry">{kop.kemenagLine1}</div>
+                                        <div className="validation-letterhead-ministry">{kop.kemenagLine2}</div>
+                                    </>}
+                                    <h1>{kop.namaMadrasah}</h1>
+                                    {kop.alamatLine && <div className="validation-letterhead-address">{kop.alamatLine}</div>}
+                                    {kop.kontakLine && <div className="validation-letterhead-address">{kop.kontakLine}</div>}
+                                </div>
                             </div>
 
                             {/* Judul Dokumen */}
@@ -232,7 +246,7 @@ export function ValidationReportModal({
                                             <td className="py-1 font-semibold text-slate-700">Guru Penyusun (Author)</td>
                                             <td className="py-1">:</td>
                                             <td className="py-1">
-                                                {validation.bank?.creator_name || (validation.bank as any)?.creator?.full_name || 'Guru Mapel'}
+                                                {validation.bank?.creator_name || (validation.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel'}
                                             </td>
                                         </tr>
                                         <tr>
@@ -336,7 +350,7 @@ export function ValidationReportModal({
                                                     <td className="border border-slate-400 px-2 py-1 space-y-1">
                                                         {note.selected_text && (
                                                             <div className="bg-slate-50 p-1 rounded border border-slate-200 text-slate-600 italic">
-                                                                "{note.selected_text}"
+                                                                &quot;{note.selected_text}&quot;
                                                             </div>
                                                         )}
                                                         <div className="font-medium text-slate-900">
@@ -385,6 +399,34 @@ export function ValidationReportModal({
 
             {/* CSS Print Styles */}
             <style jsx global>{`
+                #validation-report-print-sheet {
+                    background: #fff !important;
+                    color: #000 !important;
+                    color-scheme: light;
+                }
+                #validation-report-print-sheet :is(h1, h2, h3, h4, p, td, th) {
+                    color: #000 !important;
+                }
+                #validation-report-print-sheet [class*="bg-"] { background: #fff !important; }
+                #validation-report-print-sheet th { background: #f1f5f9 !important; }
+                #validation-report-print-sheet td { background: #fff !important; }
+                #validation-report-print-sheet :is(td, th, [class*="border-"]) { border-color: #cbd5e1 !important; }
+                #validation-report-print-sheet .validation-letterhead {
+                    display: grid;
+                    grid-template-columns: 72px minmax(0, 1fr) 72px;
+                    align-items: center;
+                    gap: 12px;
+                    padding-bottom: 12px;
+                    margin-bottom: 24px;
+                    border-bottom: 4px double #000;
+                    break-inside: avoid;
+                }
+                .validation-letterhead-logo { width: 72px; height: 84px; object-fit: contain; }
+                .validation-letterhead-text { grid-column: 2; text-align: center; }
+                .validation-letterhead-ministry { font-size: 12pt; font-weight: bold; line-height: 1.25; }
+                #validation-report-print-sheet .validation-letterhead h1 { font-size: 15pt; font-weight: bold; line-height: 1.25; margin: 0; }
+                .validation-letterhead-address { font-size: 9pt; line-height: 1.3; }
+
                 @media print {
                     @page {
                         size: A4 portrait;

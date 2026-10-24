@@ -1,5 +1,6 @@
 "use client";
 
+import { ExamMobileActions } from '@/app/components/ExamMobileActions';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
 import '@/components/exams/exams-mobile.css';
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
@@ -949,6 +950,16 @@ const ExamsPage = () => {
                                 </div>
 
                                 {/* Card Actions */}
+                                <ExamMobileActions
+                                    exam={exam} busy={isSubmitting || publishingId === exam.id} canPublish={canPublish}
+                                    onPublish={() => void handlePublishToggle(exam)}
+                                    onMonitor={() => router.push('/dashboard/guru/monitoring?exam=' + exam.id)}
+                                    onEdit={() => openEdit(exam)} onAssign={() => openAssign(exam)}
+                                    onArchive={() => void handleArchiveExam(exam)} onDelete={() => void handleDeleteExam(exam)}
+                                    onReview={() => router.push('/dashboard/guru/assignments/' + exam.id)}
+                                    onChanged={() => void loadData()}
+                                />
+                                <div className="hidden sm:block">
                                 <div className="exam-card-actions flex flex-wrap gap-2 px-4 pb-4">
                                     {(exam.canShare || exam.collaborationPermission) && <CollaborationButton type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={() => void loadData()} />}
                                     {/* Publish Toggle */}
@@ -1038,6 +1049,7 @@ const ExamsPage = () => {
                                     >
                                         <Trash2 size={14} />
                                     </button>
+                                </div>
                                 </div>
                             </div>
                         );

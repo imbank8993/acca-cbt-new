@@ -62,16 +62,17 @@ export function InlineSelect({
                 ))}
                 {children}
             </select>
-            <svg
-                className="uisel-icon"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-            >
-                <path fill="currentColor" d="M12 16L6 10H18L12 16Z" />
-            </svg>
+            <InlineSelectIndicator className="uisel-icon" />
         </div>
+    );
+}
+
+export function InlineSelectIndicator({ open = false, className = '', size = 16 }: { open?: boolean; className?: string; size?: number }) {
+    return (
+        <svg className={className} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"
+            style={open ? { transform: 'rotate(180deg)' } : undefined}>
+            <path fill="currentColor" d="M12 16L6 10H18L12 16Z" />
+        </svg>
     );
 }
 

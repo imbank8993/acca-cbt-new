@@ -19,9 +19,10 @@ import React,{ useCallback,useEffect,useRef,useState } from 'react';
 
 interface StimulusManagerProps {
     bankId: string;
+    onItemsChange?: (items: BankTextItem[]) => void;
 }
 
-export default function StimulusManager({ bankId }: StimulusManagerProps) {
+export default function StimulusManager({ bankId, onItemsChange }: StimulusManagerProps) {
     const [stimuli, setStimuli] = useState<BankTextItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -42,8 +43,9 @@ export default function StimulusManager({ bankId }: StimulusManagerProps) {
         setIsLoading(true);
         const data = await getStimuliByBank(bankId);
         setStimuli(data || []);
+        onItemsChange?.(data || []);
         setIsLoading(false);
-    }, [bankId]);
+    }, [bankId, onItemsChange]);
 
     useEffect(() => {
         const initialLoad = window.setTimeout(() => { void loadStimuli(); }, 0);
