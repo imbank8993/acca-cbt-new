@@ -158,6 +158,13 @@ export interface OrganizationExam {
     } | null;
 }
 
+/** Jenis perangkat yang dapat dibaca pengawas (bukan ID perangkat). */
+export interface DeviceInfo {
+    browser: string | null;
+    os: string | null;
+    ip_address: string | null;
+}
+
 export interface ExamAttemptRecord {
     screen_share_exception?: { reason: string; created_at: string; created_by: string | null } | null;
     pas_location?: {
@@ -180,13 +187,15 @@ export interface ExamAttemptRecord {
     last_answer_saved_at?: string | null;
     grading_status?: 'pending' | 'manual' | 'complete' | 'not_submitted';
     attention_reasons?: string[];
+    /** Perangkat yang saat ini memegang ujian. */
+    device_holder?: (DeviceInfo & { since: string | null; last_seen_at: string | null }) | null;
     /** Jejak masa offline: dibaca pengawas sebelum memutuskan pemulihan. */
     offline_review?: {
         connection_lost_at_close: { last_seen_at: string | null; deadline_at: string | null; gap_seconds: number | null } | null;
         uncounted_local_answers: { count: number; reported_at: string | null } | null;
         late_security_evidence: number;
         /** Perangkat lain mencoba membuka ujian ini sejak reset terakhir (selalu ditolak). */
-        other_device_attempts?: { count: number; last_at: string | null } | null;
+        other_device_attempts?: { count: number; last_at: string | null; last_context?: DeviceInfo | null } | null;
     } | null;
     sync_health?: {
         localAnswerCount: number;
@@ -243,6 +252,8 @@ export interface MonitoringHistoryEvent {
     reason?: string | null;
     previous_deadline?: string | null;
     recovery_until?: string | null;
+    /** Perangkat yang ditolak (untuk peristiwa DEVICE_SWITCH_BLOCKED). */
+    device_context?: DeviceInfo | null;
     /** Pemulihan ini melepas kunci perangkat (siswa pindah ke perangkat baru). */
     device_released?: boolean;
     abandoned_local_answers?: number | null;

@@ -11,6 +11,8 @@ import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenSh
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
+import { getQuestionSnippet } from '@/lib/question-snippet';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -38,6 +40,7 @@ import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
+ChevronRight,
 Calculator,
 CheckCircle2,
 Eye,
@@ -541,11 +544,79 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
-                                    <span className="font-semibold text-slate-700">Diurutkan dari persentase salah tertinggi</span>
-                                    {analysis.some(item => item.incorrectPercentage > 50) && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-800">{analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau</span>}
+                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
+                                    <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
+                                    {analysis.some(item => item.incorrectPercentage > 50) && (
+                                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
+                                            {analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="overflow-x-auto">
+                                {/* mobile analysis cards - ringkas, tinggi terkontrol */}
+                                <div className="sm:hidden divide-y divide-slate-100">
+                                    {analysis.length === 0 ? (
+                                        <div className="p-8 text-center text-slate-400 font-medium text-xs">Belum ada data</div>
+                                    ) : (
+                                        pagedAnalysis.map((anl) => {
+                                            const isCritical = anl.incorrectPercentage > 50;
+                                            const diffLabel = anl.difficultyLabel?.toLowerCase() || '';
+
+                                            return (
+                                                <button
+                                                    key={anl.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewQuestion(anl);
+                                                        setModalActiveTab('soal');
+                                                    }}
+                                                    className={`w-full py-3 px-3.5 flex items-center justify-between gap-3 text-left transition-colors active:bg-slate-100 ${
+                                                        isCritical ? 'bg-amber-50/25 hover:bg-amber-50/40' : 'bg-white hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                        <span className={`w-8 h-8 rounded-lg font-bold text-xs shrink-0 flex items-center justify-center ${
+                                                            isCritical ? 'bg-red-100 text-red-700' : 'bg-[#3083FF]/10 text-[#3083FF]'
+                                                        }`}>
+                                                            #{anl.number}
+                                                        </span>
+                                                        <div className="min-w-0 flex-1 text-left">
+                                                            <div className="text-xs font-semibold text-slate-800 line-clamp-1 truncate max-h-5 overflow-hidden text-left">
+                                                                <LatexRenderer text={getQuestionSnippet(anl.qText, 70)} className="!text-xs !leading-tight !text-left line-clamp-1 truncate" />
+                                                            </div>
+                                                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                                                                <span className="font-medium text-slate-600">{formatQuestionType(anl.type)}</span>
+                                                                {anl.difficultyLabel && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span className={`font-semibold ${
+                                                                            diffLabel === 'sukar' ? 'text-red-600' :
+                                                                            diffLabel === 'mudah' ? 'text-emerald-600' : 'text-amber-600'
+                                                                        }`}>
+                                                                            {anl.difficultyLabel}
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                                <span>•</span>
+                                                                <span>{anl.total} siswa</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-2">
+                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                                                            isCritical
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : 'bg-emerald-50 text-emerald-700'
+                                                        }`}>
+                                                            {anl.incorrectPercentage.toFixed(0)}% salah
+                                                        </span>
+                                                        <ChevronRight size={16} className="text-slate-400" />
+                                                    </div>
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                <div className="hidden sm:block overflow-x-auto">
                                     <table className="w-full min-w-[700px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
@@ -684,28 +755,23 @@ function MonitoringContent() {
                 </div>
             )}
             {/* VIEW QUESTION MODAL */}
-            <AnimatePresence>
+            <Modal
+                open={Boolean(viewQuestion)}
+                onClose={() => setViewQuestion(null)}
+                size="xl"
+                variant="default"
+                labelledBy="modal-view-question-title"
+                className="h-[88dvh] max-h-[88dvh] flex flex-col"
+            >
                 {viewQuestion && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
-                        onClick={() => setViewQuestion(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.96, opacity: 0, y: 12 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.96, opacity: 0, y: 12 }}
-                            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[88dvh] max-h-[88dvh] min-h-0 overflow-hidden flex flex-col border border-slate-100"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            {/* Modal Header */}
-                            <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
-                                <div className="flex items-center gap-3">
-                                    <h3 className="font-bold text-slate-800 text-lg">
-                                        Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}
-                                    </h3>
+                    <>
+                        {/* Modal Header */}
+                        <ModalHeader
+                            id="modal-view-question-title"
+                            onClose={() => setViewQuestion(null)}
+                            title={
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span>Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}</span>
                                     <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[11px] font-bold uppercase tracking-wider">
                                         {formatQuestionType(viewQuestion.type)}
                                     </span>
@@ -719,16 +785,11 @@ function MonitoringContent() {
                                         </span>
                                     )}
                                 </div>
-                                <button
-                                    onClick={() => setViewQuestion(null)}
-                                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors"
-                                >
-                                    <X size={18} />
-                                </button>
-                            </div>
+                            }
+                        />
 
-                            {/* Modal Tabs Bar */}
-                            <div className="shrink-0 px-6 pt-2 border-b border-slate-200 bg-white flex items-center gap-2 overflow-x-auto">
+                        {/* Modal Tabs Bar */}
+                        <div className="shrink-0 px-4 sm:px-6 pt-2 border-b border-slate-200 bg-white flex items-center gap-2 overflow-x-auto">
                                 <button
                                     onClick={() => setModalActiveTab('soal')}
                                     className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
@@ -784,7 +845,7 @@ function MonitoringContent() {
                             </div>
 
                             {/* Modal Content */}
-                            <div className="min-h-0 p-6 overflow-y-auto flex-1 bg-slate-50/30">
+                        <ModalBody className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/30">
                                 {modalActiveTab === 'soal' && (
                                     <div className="space-y-5">
                                         <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
@@ -1035,26 +1096,26 @@ function MonitoringContent() {
                                         </div>
                                     </div>
                                 )}
-                            </div>
+                            </ModalBody>
 
-                            {/* Modal Footer */}
-                            <div className="shrink-0 px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                                <div className="text-xs text-slate-500">
-                                    {viewQuestion.discriminationLabel && (
-                                        <span>Daya Beda: <strong className="text-slate-700">{viewQuestion.discriminationLabel}</strong> ({viewQuestion.discriminationIndex?.toFixed(2) ?? '-'})</span>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={() => setViewQuestion(null)}
-                                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm"
-                                >
-                                    Tutup
-                                </button>
+                        {/* Modal Footer */}
+                        <ModalFooter align="between">
+                            <div className="text-xs text-slate-500">
+                                {viewQuestion.discriminationLabel && (
+                                    <span>Daya Beda: <strong className="text-slate-700">{viewQuestion.discriminationLabel}</strong> ({viewQuestion.discriminationIndex?.toFixed(2) ?? '-'})</span>
+                                )}
                             </div>
-                        </motion.div>
-                    </motion.div>
+                            <Button
+                                type="button"
+                                variant="cancel"
+                                onClick={() => setViewQuestion(null)}
+                            >
+                                Tutup
+                            </Button>
+                        </ModalFooter>
+                    </>
                 )}
-            </AnimatePresence>
+            </Modal>
 
             <ResetExamModal
                 open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}

@@ -5,7 +5,7 @@ import { ExamPageSkeleton } from '@/app/components/ui/SkeletonPatterns';
 import { useToast } from '@/app/components/ui/Toast';
 import { apiSend } from '@/lib/api/client';
 import { forceTerminateAttempt,heartbeatExamAttempt,logSecurityViolation } from '@/lib/api/proctoring';
-import { getExamForAttempt,getExamQuestionsAction,getExamSubmissionStatus,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
+import { SESSION_ENDED_MESSAGE,getExamForAttempt,getExamQuestionsAction,getExamSubmissionStatus,refreshExamSessionAction,saveAnswerAction,startExamAttemptAction,submitExamAction,syncAnswersBulkAction,type StudentExam,type StudentExamAttempt,type StudentExamQuestion,type StudentProfile } from '@/lib/api/students';
 import { getDeviceId,setDeviceId } from '@/lib/device-id';
 import {
 createSecurityEventId,
@@ -24,6 +24,9 @@ readExamSnapshot,
 readSecurityEvents,
 removeExamRecoverySession,
 removeExamSnapshot,
+archiveExamSnapshot,
+readExamSnapshotGeneration,
+writeExamSnapshotGeneration,
 removeExamSubmissionRegistration,
 removeSecurityEvent,
 resolveDurableDeviceId,
@@ -296,11 +299,31 @@ export default function ExamPage() {
     }, [examId, isCompleted, accessDenied, loading]);
 
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */
-    const noteSyncResult = useCallback((res: { success: boolean; error?: string; retryable?: boolean } | null | undefined) => {
+    const noteSyncResult = useCallback((res: { success: boolean; error?: string; retryable?: boolean; unauthorized?: boolean } | null | undefined) => {
         if (!res) return;
         if (res.success) setSyncRejection(null);
+        else if (res.unauthorized) setSyncRejection(SESSION_ENDED_MESSAGE);
         else if (res.retryable === false) setSyncRejection(res.error || 'Server menolak jawaban.');
     }, []);
+    // Disalin ke ref supaya heartbeat dapat melaporkannya ke pengawas.
+    const syncRejectionRef = useRef<string | null>(null);
+    useEffect(() => { syncRejectionRef.current = syncRejection; }, [syncRejection]);
+
+    // Sesi login berlaku 12 jam sejak login dan dulu tidak diperpanjang: siswa
+    // yang login jauh sebelum ujian kehilangan sesinya di tengah pengerjaan.
+    // Selama pengerjaan aktif, sesi diperpanjang saat dibuka lalu tiap 30 menit.
+    useEffect(() => {
+        if (!attempt?.id || attempt.status !== 'in_progress' || isCompleted) return;
+        let stopped = false;
+        const refresh = () => {
+            if (stopped || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+            void refreshExamSessionAction().then(res => { if (!stopped && res && !res.success && res.unauthorized) setSyncRejection(SESSION_ENDED_MESSAGE); })
+                .catch(() => undefined);
+        };
+        refresh();
+        const timer = setInterval(refresh, 30 * 60_000);
+        return () => { stopped = true; clearInterval(timer); };
+    }, [attempt?.id, attempt?.status, isCompleted]);
 
     const markFailed = useCallback((questionId: string, failed: boolean) => {
         const set = failedSyncRef.current;
@@ -700,8 +723,21 @@ export default function ExamPage() {
 
                 const makeupActivatedAt = result.attempt.metadata?.makeup_activated_at;
                 if (typeof makeupActivatedAt === 'string') {
-                    const previousSession = await readExamRecoverySession(examId);
-                    if (previousSession?.attempt.metadata?.makeup_activated_at !== makeupActivatedAt) {
+                    // Salinan lokal hanya dibuang bila TERBUKTI milik generasi lama
+                    // (started_at berbeda). Dulu paket cache yang hilang — logout,
+                    // sesi berakhir, gagal simpan — dianggap "lama" dan jawaban yang
+                    // belum terkirim ikut terhapus. Bila asal-usulnya tidak diketahui,
+                    // salinan diarsipkan (tidak dihapus) dan tidak dicampur.
+                    const previousSession = await readExamRecoverySession(examId).catch(() => null);
+                    const localCopy = await readExamSnapshot(result.attempt.id).catch(() => null);
+                    const localStart = localCopy?.frozenSubmission?.startedAt
+                        ?? readExamSnapshotGeneration(result.attempt.id)
+                        ?? previousSession?.attempt.started_at ?? null;
+                    const staleCopy = Boolean(localCopy) && (localStart
+                        ? Date.parse(localStart) !== Date.parse(result.attempt.started_at || '')
+                        : true);
+                    if (staleCopy) {
+                        await archiveExamSnapshot(result.attempt.id);
                         await removeExamSnapshot(result.attempt.id);
                         if (previousSession?.attempt.started_at && previousSession.attempt.personal_end_time) {
                             await removeExamSubmissionRegistration(result.attempt.id,
@@ -717,6 +753,8 @@ export default function ExamPage() {
                         } catch { /* Penyimpanan browser dapat dinonaktifkan. */ }
                     }
                 }
+                // Tandai generasi pemilik salinan lokal untuk pemeriksaan berikutnya.
+                writeExamSnapshotGeneration(result.attempt.id, result.attempt.started_at);
                 if (cancelled) return;
                 setAttempt(result.attempt);
                 attemptRef.current = result.attempt;
@@ -1034,6 +1072,7 @@ export default function ExamPage() {
             autoRetryTimerRef.current = null;
         }
         setSubmitting(true);
+        setWaitingForSyncAndSubmit(true);
 
         try {
             const durableEvents = await readSecurityEvents(activeAttempt.id).catch(() => []);
@@ -1176,6 +1215,13 @@ export default function ExamPage() {
                 setIsOffline(true);
                 return false;
             }
+            // Ujian berbagi layar setelah muat ulang: server meminta layar dibagikan
+            // lagi. Ini bukan sesi yang ditutup; paket offline jangan dihapus.
+            if (/Bagikan seluruh layar/i.test(result.error || '')) {
+                setIsOffline(false);
+                setStorageWarning('Bagikan kembali seluruh layar agar jawaban dapat dikirim ke server. Jawaban tetap tersimpan di perangkat ini.');
+                return false;
+            }
             await removeExamRecoverySession(examId).catch(() => undefined);
             await removeExamOfflineShell(examId).catch(() => undefined);
             setAccessDenied(true);
@@ -1190,6 +1236,14 @@ export default function ExamPage() {
             await removeExamOfflineShell(examId).catch(() => undefined);
             setAccessDenied(true);
             setAccessError('Sesi yang diverifikasi server berbeda dari sesi lokal. Jawaban tidak dikirim untuk mencegah tertukar.');
+            return false;
+        }
+        // Attempt yang sama tetapi generasi baru (susulan / mulai ulang saat offline):
+        // jawaban lama tidak boleh dikirim ke pengerjaan baru. Muat ulang lewat jalur
+        // normal, yang memisahkan (mengarsipkan) salinan generasi lama.
+        if (result.attempt?.started_at && localAttempt.started_at &&
+            Date.parse(result.attempt.started_at) !== Date.parse(localAttempt.started_at)) {
+            window.location.reload();
             return false;
         }
 
@@ -1379,6 +1433,30 @@ export default function ExamPage() {
             clearInterval(interval);
         };
     }, [usingOfflineRecovery, attempt?.id, isCompleted, accessDenied, submissionOnly, revalidateOfflineSession, syncPendingAnswers, flushSecurityEvents]);
+
+    // Setelah pengumpulan ditolak (mis. waktu habis, perlu pemulihan), halaman
+    // berhenti mencoba. Bila proktor kemudian membuka Pulihkan, halaman yang masih
+    // terbuka dulu tidak menyadarinya dan jendela pemulihan bisa habis sia-sia.
+    // Periksa status berkala; begitu dibuka lagi, muat ulang agar terkirim otomatis.
+    useEffect(() => {
+        const attemptId = attempt?.id;
+        if (!submissionIssue || !attemptId || isCompleted) return;
+        let active = true;
+        // Hanya perubahan dari "tertutup" menjadi "dibuka lagi" yang memicu muat
+        // ulang; penolakan saat sesi masih terbuka tidak boleh membuat putaran ulang.
+        let seenClosed = false;
+        const check = async () => {
+            if (!active || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+            const status = await getExamSubmissionStatus(attemptId).catch(() => null);
+            if (!active || !status?.success) return;
+            const reopened = status.status === 'in_progress' && (status.submissionOnly || status.remainingSeconds > 0);
+            if (!reopened) { seenClosed = true; return; }
+            if (seenClosed) window.location.reload();
+        };
+        void check();
+        const interval = setInterval(() => { void check(); }, 15_000);
+        return () => { active = false; clearInterval(interval); };
+    }, [submissionIssue, attempt?.id, isCompleted]);
 
     // Event `online` tidak selalu muncul ketika Wi-Fi tetap tersambung tetapi
     // backend sempat tidak dapat dijangkau. Selama submit menunggu, periksa ulang
@@ -1681,6 +1759,9 @@ export default function ExamPage() {
                 pendingAnswerCount: new Set([...failedSyncRef.current, ...inFlightRef.current]).size,
                 storageState: storageStateRef.current,
                 ...(report ? { interruption: report } : {}),
+                // Alasan penolakan terakhir, supaya pengawas tahu jawaban tertahan
+                // walau jaringan siswa normal.
+                ...(syncRejectionRef.current ? { rejection: syncRejectionRef.current.slice(0, 200) } : {}),
             }, exam?.metadata?.screenshot_enabled === true ? screenSharingRef.current : undefined,
             attempt.started_at).catch(() => undefined);
             if (cancelled) return;
@@ -1697,9 +1778,17 @@ export default function ExamPage() {
                     connectionReportRef.current = null;
                     try { localStorage.removeItem(`exam_connection_${attempt.id}`); } catch { /* Optional telemetry. */ }
                 }
+                // Sesi sudah berlaku lagi (mis. setelah login ulang di tab lain).
+                if (syncRejectionRef.current === SESSION_ENDED_MESSAGE) setSyncRejection(null);
+            } else if (heartbeat && !heartbeat.success && heartbeat.retryable === false) {
+                // Server menjawab tetapi menolak: ini bukan gangguan jaringan.
+                noteSyncResult(heartbeat);
             } else recordConnectionInterruption('server_unreachable');
             if (heartbeat?.success && heartbeat.submissionOnly) {
                 setSubmissionOnly(true);
+                // Proktor mengubah sesi berjalan menjadi "kirim jawaban saja":
+                // kunci dan kirim salinan perangkat sekarang, jangan menunggu klik.
+                if (Object.keys(answersRef.current).length > 0) setWaitingForSyncAndSubmit(true);
                 return;
             }
             const securityResult = await flushSecurityEvents().catch(() => null);
@@ -1712,7 +1801,7 @@ export default function ExamPage() {
         const iv = setInterval(() => { void pulse(); }, 15000);
         return () => { cancelled = true; clearInterval(iv); };
     }, [attempt, isCompleted, accessDenied, submissionOnly, flushSecurityEvents, confirmPendingTermination, recordConnectionInterruption,
-        exam?.metadata?.screenshot_enabled, screenSharingRef]);
+        noteSyncResult, exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     // ── Timer ─────────────────────────────────────────────────
     useEffect(() => {
@@ -1901,6 +1990,8 @@ export default function ExamPage() {
     const syncNotice = networkLabel
         ? { tone: 'amber' as const, text: networkLabel,
             details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; sinkronisasi jawaban dicoba otomatis. Status ini tidak memastikan semua jawaban sudah tersimpan di server. ${storageWarning || ''}` }
+        : syncRejection === SESSION_ENDED_MESSAGE
+            ? { tone: 'red' as const, text: 'Sesi login berakhir — jawaban belum terkirim', details: syncRejection }
         : failedSyncCount > 0 && syncRejection
             ? { tone: 'red' as const, text: `${failedSyncCount} jawaban ditolak server`,
                 details: `${syncRejection} Jawaban tetap tersimpan di perangkat ini. Jangan tutup halaman dan segera hubungi pengawas.` }
@@ -2044,14 +2135,14 @@ export default function ExamPage() {
                         <AlertTriangle className="text-amber-500" size={32} />
                     </div>
                     <h1 className="text-2xl font-bold text-white mb-3">
-                        Menunggu Konfirmasi Pengumpulan
+                        Memastikan Pengumpulan Jawaban
                     </h1>
                     <p className="text-slate-300 mb-6 text-base leading-relaxed">
-                        Jawaban telah dikunci dan pengiriman akan dicoba saat koneksi tersedia. Jika batas waktu sudah lewat dan server belum menerima pengumpulan, hubungi proktor untuk membuka pemulihan. <br/><strong>Tetap buka halaman ini sampai pengiriman selesai.</strong>
+                        Pengumpulan belum dapat dikonfirmasi. Jawaban mungkin sudah tersimpan di server. Sistem akan memeriksa ulang dan mengirim salinan yang sama bila diperlukan setelah koneksi tersedia. <br/><strong>Tetap buka halaman ini sampai pengumpulan terkonfirmasi.</strong>
                     </p>
                     <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 py-3 rounded-lg border border-amber-500/20">
                         <RefreshCw size={16} className="animate-spin" />
-                        Mengirim otomatis saat terhubung...
+                        Memeriksa dan mengonfirmasi saat terhubung...
                     </div>
                     {recoverySummary && (
                         <p className="mt-4 text-sm text-slate-300">

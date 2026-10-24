@@ -86,7 +86,7 @@ export class ExamMonitoringService {
             .select(
                 `id, status, total_score, score_irt, irt_theta, needs_manual_grading,
                  started_at, finished_at, tab_switch_count, warning_count, exam_id, user_id,
-                 last_seen_at, personal_end_time, metadata,
+                 last_seen_at, personal_end_time, metadata, device_fingerprint,
                  profiles:cbt_profiles(full_name, identity_number)`,
             )
             .eq('exam_id', examId)
@@ -157,6 +157,7 @@ export class ExamMonitoringService {
                 previous_deadline: log.metadata?.previous_deadline || null,
                 recovery_until: log.metadata?.recovery_until || null,
                 device_released: log.metadata?.device_released === true,
+                device_context: log.metadata?.attempted_context ?? null,
                 abandoned_local_answers: log.metadata?.abandoned_local_answers ?? null,
                 pending_answer_count: log.metadata?.pendingAnswerCount ?? null,
                 storage_state: log.metadata?.storageState || null,
@@ -182,6 +183,8 @@ export class ExamMonitoringService {
                 violation_breakdown: summariseViolations(logs.get(attempt.id) || []),
                 ...attemptHealth(attempt, exam || {}, answersByAttempt.get(attempt.id) || [], now, questions.length,
                     logs.get(attempt.id) || []),
+                // ID perangkat mentah tidak perlu sampai ke browser pengawas.
+                device_fingerprint: undefined,
                 monitoring_history: history,
             };
         });
@@ -192,7 +195,8 @@ export class ExamMonitoringService {
 
             rows.push({
                 id: `unstarted-${userId}`,
-                canReset: false,
+                // Siswa yang belum mulai hanya dapat diberi susulan (pengerjaan baru).
+                canReset: canReset(userId),
                 status: 'belum',
                 total_score: null,
                 score_irt: null,

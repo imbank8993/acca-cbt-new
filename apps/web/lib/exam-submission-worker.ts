@@ -94,8 +94,10 @@ export function createExamSubmissionWorker(deps: SubmissionWorkerDependencies) {
                 if (stopped || stillUser?.id !== entry.userId || !deps.online() || entry.examId === deps.activeExamId()) continue;
                 const result = await deps.send(entry, snapshot);
                 if (!result.success || result.savedAnswersOnly || result.submissionVerified !== true) {
-                    defer(entry, result.success ? { success: false, retryable: false,
-                        error: 'Pengumpulan belum terverifikasi lengkap. Salinan lokal tetap disimpan untuk pemeriksaan proktor.' } : result);
+                    defer(entry, result.success ? { success: false, retryable: !result.savedAnswersOnly,
+                        error: result.savedAnswersOnly
+                            ? 'Server hanya mengonfirmasi jawaban yang sudah tersimpan. Salinan lokal dipertahankan untuk pemeriksaan proktor.'
+                            : 'Pengumpulan belum dapat dikonfirmasi. Sistem akan memeriksa ulang; salinan lokal tetap disimpan.' } : result);
                     continue;
                 }
                 await deps.confirm(entry, snapshot);

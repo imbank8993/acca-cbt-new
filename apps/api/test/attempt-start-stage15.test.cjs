@@ -90,7 +90,7 @@ test('ANS-05: perangkat kedua tidak membuat attempt lain ketika start bersamaan'
     assert.equal(db.tables.cbt_exam_attempts.length, 1);
     assert.deepEqual([one.started, two.started].sort(), [false, true]);
     const refused = one.started ? two : one;
-    assert.match(refused.error, /terkunci pada perangkat/i);
+    assert.match(refused.error, /sudah dibuka di perangkat lain/i);
     assert.equal(db.tables.cbt_attempt_security_logs.length, 1);
 });
 

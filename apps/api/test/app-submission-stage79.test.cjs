@@ -227,8 +227,12 @@ test('unverified success cannot remove the background queue or emit a success no
         await worker.run();
         assert.equal(state.entries.length, 1);
         assert.equal(state.calls.includes('confirm'), false);
-        assert.equal(state.notifications[0].success, false);
-        assert.match(state.notifications[0].error, /belum terverifikasi lengkap/);
+        assert.equal(state.notifications.length, 0, 'uncertainty must not emit a failure warning');
+        state.result = { success: true, submissionVerified: true, alreadySubmitted: true };
+        state.now += 15_000;
+        await worker.run();
+        assert.equal(state.entries.length, 0);
+        assert.equal(state.notifications[0].success, true);
     }
 });
 

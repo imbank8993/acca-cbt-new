@@ -1,12 +1,12 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
 import { getStudentExamsResult,type StudentScheduledExam } from '@/lib/api/students';
-import { formatSchoolDate,formatSchoolTimeRange } from '@/lib/school-time';
+import { formatSchoolDate,formatSchoolDateTime,formatSchoolTimeRange } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { getSessionUser } from '@/lib/session';
 import { examTypeLabel } from '@/lib/exam-types';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
-import { scheduleState, scheduleCountdown } from '@/lib/student-schedule';
+import { recoveryActive, recoveryLabel, scheduleState, scheduleCountdown } from '@/lib/student-schedule';
 import { motion } from 'framer-motion';
 import {
 AlertCircle,
@@ -175,9 +175,15 @@ const SchedulePage = () => {
                                                 )}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium font-sans">
-                                                <span className="flex items-center gap-1">
-                                                    <Clock size={12} className="text-slate-400" /> {formatTimeRange(exam.start_time, exam.end_time)}
-                                                </span>
+                                                {recoveryActive(exam, now.getTime()) ? (
+                                                    <span className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 font-bold text-amber-700">
+                                                        <Clock size={12} /> {recoveryLabel(exam).badge}: {recoveryLabel(exam).action.toLowerCase()} sebelum {formatSchoolDateTime(exam.recoveryUntil, timeZone)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock size={12} className="text-slate-400" /> {formatTimeRange(exam.start_time, exam.end_time)}
+                                                    </span>
+                                                )}
                                                 <span className="flex items-center gap-1 text-[#3083FF] font-bold bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/30">
                                                     <RefreshCw size={11} /> {exam.duration_minutes || 60} menit
                                                 </span>
@@ -186,7 +192,7 @@ const SchedulePage = () => {
                                     </div>
                                     <div className="w-full md:w-auto">
                                         <div className="bg-[#3083FF] text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-[#3083FF]/10 group-hover:bg-[#2563EB] group-hover:shadow-lg group-hover:shadow-[#3083FF]/20 transition-all active:scale-95">
-                                            {exam.isInProgress ? 'Lanjutkan Ujian' : 'Kerjakan'} <ArrowRight size={14} />
+                                            {recoveryActive(exam, now.getTime()) ? recoveryLabel(exam).button : exam.isInProgress ? 'Lanjutkan Ujian' : 'Kerjakan'} <ArrowRight size={14} />
                                         </div>
                                     </div>
                                 </motion.div>

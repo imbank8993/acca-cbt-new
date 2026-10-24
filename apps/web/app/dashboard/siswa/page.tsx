@@ -9,8 +9,8 @@ import {
     type StudentScheduledExam,
 } from '@/lib/api/students';
 import { getSessionUser } from '@/lib/session';
-import { dashboardExams, scheduleState } from '@/lib/student-schedule';
-import { formatSchoolDate, formatSchoolTimeRange, getSchoolTimeZoneLabel } from '@/lib/school-time';
+import { dashboardExams, recoveryActive, recoveryLabel, scheduleState } from '@/lib/student-schedule';
+import { formatSchoolDate, formatSchoolDateTime, formatSchoolTimeRange, getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { linkifyText } from '@/lib/text-format';
 import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
@@ -127,6 +127,8 @@ export default function SiswaDashboard() {
 
     const renderExamCard = (exam: StudentScheduledExam, i: number) => {
         const isReady = scheduleState(exam, now) === 'open';
+        const inRecovery = recoveryActive(exam, now);
+        const recovery = recoveryLabel(exam);
         return (
             <div
                 key={exam.id || i}
@@ -149,7 +151,12 @@ export default function SiswaDashboard() {
 
                     <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                            {isReady ? (
+                            {inRecovery ? (
+                                <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 leading-none">
+                                    <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse"></span>
+                                    {recovery.badge}
+                                </span>
+                            ) : isReady ? (
                                 <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-50 text-[#3083FF] border border-blue-100 flex items-center gap-1 leading-none">
                                     <span className="w-1 h-1 rounded-full bg-[#3083FF] animate-pulse"></span>
                                     Aktif
@@ -169,7 +176,9 @@ export default function SiswaDashboard() {
                         
                         <p className="text-xs text-slate-400 flex items-center gap-1.5 font-sans font-medium">
                             <Clock size={12} className="text-slate-300" />
-                            {formatTime(exam.start_time, exam.end_time) === `--:-- ${getSchoolTimeZoneLabel(timeZone)}` ? 'Waktu Fleksibel' : formatTime(exam.start_time, exam.end_time)}
+                            {inRecovery
+                                ? `${recovery.action} sebelum ${formatSchoolDateTime(exam.recoveryUntil, timeZone)}`
+                                : formatTime(exam.start_time, exam.end_time) === `--:-- ${getSchoolTimeZoneLabel(timeZone)}` ? 'Waktu Fleksibel' : formatTime(exam.start_time, exam.end_time)}
                         </p>
                     </div>
                 </div>
@@ -184,7 +193,7 @@ export default function SiswaDashboard() {
                             }}
                             className="w-full sm:w-auto bg-[#3083FF] hover:bg-[#2563EB] text-white text-[10px] font-bold px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm active:scale-95"
                         >
-                            {exam.isInProgress ? 'Lanjutkan' : 'Mulai'} <ArrowRight size={12} />
+                            {inRecovery ? recovery.button : exam.isInProgress ? 'Lanjutkan' : 'Mulai'} <ArrowRight size={12} />
                         </button>
                     ) : (
                         <div className="text-[9px] font-bold text-slate-500 uppercase px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">Belum mulai</div>

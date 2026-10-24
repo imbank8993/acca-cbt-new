@@ -52,6 +52,8 @@ export interface ClientSyncHealth {
     localAnswerCount: number;
     pendingAnswerCount: number;
     storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+    /** Alasan penolakan server terakhir yang dilihat perangkat. */
+    rejection?: string;
 }
 
 export function validateSyncHealth(value?: ClientSyncHealth): ClientSyncHealth | undefined {
@@ -65,5 +67,9 @@ export function validateSyncHealth(value?: ClientSyncHealth): ClientSyncHealth |
     if (interruption && (typeof interruption.at !== 'string' || interruption.at.length > 40 || !Number.isFinite(Date.parse(interruption.at)) ||
         !Number.isInteger(interruption.remainingSeconds) || interruption.remainingSeconds < 0 || interruption.remainingSeconds > 604800 ||
         !['browser_offline', 'server_unreachable'].includes(interruption.reason))) throw new Error('Laporan koneksi tidak valid.');
-    return { ...(interruption ? { interruption: { at: interruption.at, remainingSeconds: interruption.remainingSeconds, reason: interruption.reason } } : {}), localAnswerCount: value.localAnswerCount, pendingAnswerCount: value.pendingAnswerCount, storageState: value.storageState };
+    if (value.rejection !== undefined && (typeof value.rejection !== 'string' || !value.rejection.trim() || value.rejection.length > 200)) {
+        throw new Error('Laporan penolakan tidak valid.');
+    }
+    return { ...(interruption ? { interruption: { at: interruption.at, remainingSeconds: interruption.remainingSeconds, reason: interruption.reason } } : {}), localAnswerCount: value.localAnswerCount, pendingAnswerCount: value.pendingAnswerCount, storageState: value.storageState,
+        ...(value.rejection ? { rejection: value.rejection.trim() } : {}) };
 }

@@ -1,8 +1,6 @@
 'use client';
 
-import { CollaborationButton } from '@/app/components/CollaborationButton';
-
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
@@ -36,12 +34,22 @@ export function MonitoringWorkspaceHeader({
     const sample = selectedAttempts[0]?.server_now;
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
     const elapsed = clock.sample === sample ? clock.elapsed : 0;
+    const tabsRef = useRef<HTMLElement>(null);
 
     useEffect(() => {
         const started = performance.now();
         const timer = window.setInterval(() => setClock({ sample, elapsed: Math.floor((performance.now() - started) / 1000) }), 1000);
         return () => window.clearInterval(timer);
     }, [sample, value]);
+
+    useEffect(() => {
+        const container = tabsRef.current;
+        if (!container) return;
+        const activeBtn = container.querySelector('[aria-pressed="true"]') as HTMLElement | null;
+        if (activeBtn) {
+            activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+        }
+    }, [activeTab]);
 
     const duration = selected?.duration_minutes ?? selected?.duration;
     const schedule = [
@@ -80,7 +88,6 @@ export function MonitoringWorkspaceHeader({
                         }
                     />
                 </div>
-                {(selected?.canShare || selected?.collaborationPermission) && <CollaborationButton type="exam" resourceId={value} collaboratorCount={selected?.collaboratorCount} onChanged={onRefresh} />}
                 {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
             </header>
             {value && <>
@@ -89,7 +96,7 @@ export function MonitoringWorkspaceHeader({
                             <dt>{stat.label}</dt><dd>{stat.value}</dd>
                         </div>)}
                     </dl>
-                <nav className="monitoring-workspace__tabs" aria-label="Bagian monitoring">
+                <nav ref={tabsRef} className="monitoring-workspace__tabs" aria-label="Bagian monitoring">
                     {tabs.map(tab => <button type="button" key={tab.id}
                         aria-pressed={activeTab === tab.id} onClick={() => onTabChange(tab.id)}>{tab.label}</button>)}
                 </nav>

@@ -11,6 +11,8 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
+import { getQuestionSnippet } from '@/lib/question-snippet';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
@@ -30,6 +32,7 @@ import { useMemoryState } from '@/lib/useMemoryState';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
+ChevronRight,
 Calculator,
 CheckCircle2,
 Loader2,
@@ -443,11 +446,67 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
-                                    <span className="font-semibold text-slate-700">Diurutkan dari persentase salah tertinggi</span>
-                                    {analysis.some(item => item.incorrectPercentage > 50) && <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-800">{analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau</span>}
+                                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
+                                    <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
+                                    {analysis.some(item => item.incorrectPercentage > 50) && (
+                                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
+                                            {analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="overflow-x-auto">
+                                {/* mobile analysis cards - ringkas, tinggi terkontrol */}
+                                <div className="sm:hidden divide-y divide-slate-100">
+                                    {analysis.length === 0 ? (
+                                        <div className="p-8 text-center text-slate-400 font-medium text-xs">Belum ada data</div>
+                                    ) : (
+                                        pagedAnalysis.map((anl) => {
+                                            const isCritical = anl.incorrectPercentage > 50;
+
+                                            return (
+                                                <button
+                                                    key={anl.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewQuestion(anl);
+                                                        setViewQuestionFilter('salah');
+                                                    }}
+                                                    className={`w-full py-3 px-3.5 flex items-center justify-between gap-3 text-left transition-colors active:bg-slate-100 ${
+                                                        isCritical ? 'bg-amber-50/25 hover:bg-amber-50/40' : 'bg-white hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                        <span className={`w-8 h-8 rounded-lg font-bold text-xs shrink-0 flex items-center justify-center ${
+                                                            isCritical ? 'bg-red-100 text-red-700' : 'bg-[#3083FF]/10 text-[#3083FF]'
+                                                        }`}>
+                                                            #{anl.number}
+                                                        </span>
+                                                        <div className="min-w-0 flex-1 text-left">
+                                                            <div className="text-xs font-semibold text-slate-800 line-clamp-1 truncate max-h-5 overflow-hidden text-left">
+                                                                <LatexRenderer text={getQuestionSnippet(anl.qText, 70)} className="!text-xs !leading-tight !text-left line-clamp-1 truncate" />
+                                                            </div>
+                                                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                                                                <span className="font-medium text-slate-600">{anl.type?.toUpperCase() || 'PG'}</span>
+                                                                <span>•</span>
+                                                                <span>{anl.total} siswa</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-2">
+                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                                                            isCritical
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : 'bg-emerald-50 text-emerald-700'
+                                                        }`}>
+                                                            {anl.incorrectPercentage.toFixed(0)}% salah
+                                                        </span>
+                                                        <ChevronRight size={16} className="text-slate-400" />
+                                                    </div>
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                <div className="hidden sm:block overflow-x-auto">
                                     <table className="w-full min-w-[600px]">
                                         <thead>
                                             <tr className="bg-[#3083FF]/5 text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
@@ -537,98 +596,93 @@ function MonitoringContent() {
                 </div>
             )}
             {/* VIEW QUESTION MODAL */}
-            <AnimatePresence>
+            <Modal
+                open={Boolean(viewQuestion)}
+                onClose={() => setViewQuestion(null)}
+                size="lg"
+                variant="default"
+                labelledBy="guru-modal-view-question-title"
+            >
                 {viewQuestion && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-                        onClick={() => setViewQuestion(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[85dvh]"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                <h3 className="font-bold text-slate-800">Detail Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}</h3>
-                                <button onClick={() => setViewQuestion(null)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <div className="p-6 overflow-y-auto flex-1">
-                                <LatexRenderer text={viewQuestion.qText} className="text-base text-slate-700 leading-relaxed" />
+                    <>
+                        <ModalHeader
+                            id="guru-modal-view-question-title"
+                            onClose={() => setViewQuestion(null)}
+                            title={`Detail Soal${viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}`}
+                        />
+                        <ModalBody className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                            <LatexRenderer text={viewQuestion.qText} className="text-base text-slate-700 leading-relaxed" />
 
-                                {/* Opsi jawaban terurut; kunci ditandai hijau */}
-                                {(viewQuestion.options?.length ?? 0) > 0 && (
-                                    <div className="mt-4 space-y-1.5">
-                                        {viewQuestion.options.map((opt, i) => (
-                                            <div key={opt.id || i} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-sm ${
-                                                opt.is_correct ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'
-                                            }`}>
-                                                <span className={`font-bold shrink-0 ${opt.is_correct ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                                    {String.fromCharCode(65 + i)}.
-                                                </span>
-                                                <div className="flex-1 min-w-0">
-                                                    <LatexRenderer text={opt.option_text || ''} className="!text-[13px] !leading-relaxed" />
-                                                </div>
-                                                {opt.is_correct && <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />}
+                            {/* Opsi jawaban terurut; kunci ditandai hijau */}
+                            {(viewQuestion.options?.length ?? 0) > 0 && (
+                                <div className="mt-4 space-y-1.5">
+                                    {viewQuestion.options.map((opt, i) => (
+                                        <div key={opt.id || i} className={`flex items-start gap-2 px-3 py-2 rounded-lg border text-sm ${
+                                            opt.is_correct ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'
+                                        }`}>
+                                            <span className={`font-bold shrink-0 ${opt.is_correct ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                {String.fromCharCode(65 + i)}.
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <LatexRenderer text={opt.option_text || ''} className="!text-[13px] !leading-relaxed" />
+                                            </div>
+                                            {opt.is_correct && <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+                                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200">Menjawab {viewQuestion.total}</span>
+                                <button onClick={() => setViewQuestionFilter('benar')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'benar' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>Benar {viewQuestion.correct}</button>
+                                <button onClick={() => setViewQuestionFilter('salah')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'salah' ? 'bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}>Salah {viewQuestion.incorrect}</button>
+                                {(viewQuestion.ungraded ?? 0) > 0 && (
+                                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">Belum Ternilai {viewQuestion.ungraded}</span>
+                                )}
+                            </div>
+                            {viewQuestionFilter === 'salah' && (viewQuestion.wrongStudents?.length ?? 0) > 0 && (
+                                <div className="mt-5">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 mb-2 flex items-center gap-1.5">
+                                        <AlertTriangle size={12} /> Siswa yang Menjawab Salah ({viewQuestion.wrongStudents.length})
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5">
+                                        {viewQuestion.wrongStudents.map((nm: string, i: number) => (
+                                            <div key={i} className="flex items-baseline gap-2 text-xs text-slate-700 py-1.5 border-b border-slate-100">
+                                                <span className="w-6 shrink-0 text-right font-bold text-slate-400">{i + 1}.</span>
+                                                <span className="font-medium">{nm}</span>
                                             </div>
                                         ))}
                                     </div>
-                                )}
-
-                                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
-                                    <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg border border-slate-200">Menjawab {viewQuestion.total}</span>
-                                    <button onClick={() => setViewQuestionFilter('benar')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'benar' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}>Benar {viewQuestion.correct}</button>
-                                    <button onClick={() => setViewQuestionFilter('salah')} className={`px-2.5 py-1 rounded-lg border transition-colors ${viewQuestionFilter === 'salah' ? 'bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}>Salah {viewQuestion.incorrect}</button>
-                                    {(viewQuestion.ungraded ?? 0) > 0 && (
-                                        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">Belum Ternilai {viewQuestion.ungraded}</span>
-                                    )}
                                 </div>
-                                {viewQuestionFilter === 'salah' && (viewQuestion.wrongStudents?.length ?? 0) > 0 && (
-                                    <div className="mt-5">
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 mb-2 flex items-center gap-1.5">
-                                            <AlertTriangle size={12} /> Siswa yang Menjawab Salah ({viewQuestion.wrongStudents.length})
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5">
-                                            {viewQuestion.wrongStudents.map((nm: string, i: number) => (
-                                                <div key={i} className="flex items-baseline gap-2 text-xs text-slate-700 py-1.5 border-b border-slate-100">
-                                                    <span className="w-6 shrink-0 text-right font-bold text-slate-400">{i + 1}.</span>
-                                                    <span className="font-medium">{nm}</span>
-                                                </div>
-                                            ))}
-                                        </div>
+                            )}
+                            {viewQuestionFilter === 'benar' && (viewQuestion.correctStudents?.length ?? 0) > 0 && (
+                                <div className="mt-5">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-2 flex items-center gap-1.5">
+                                        <CheckCircle2 size={12} /> Siswa yang Menjawab Benar ({viewQuestion.correctStudents.length})
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5">
+                                        {viewQuestion.correctStudents.map((nm: string, i: number) => (
+                                            <div key={i} className="flex items-baseline gap-2 text-xs text-slate-700 py-1.5 border-b border-slate-100">
+                                                <span className="w-6 shrink-0 text-right font-bold text-slate-400">{i + 1}.</span>
+                                                <span className="font-medium">{nm}</span>
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
-                                {viewQuestionFilter === 'benar' && (viewQuestion.correctStudents?.length ?? 0) > 0 && (
-                                    <div className="mt-5">
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-2 flex items-center gap-1.5">
-                                            <CheckCircle2 size={12} /> Siswa yang Menjawab Benar ({viewQuestion.correctStudents.length})
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5">
-                                            {viewQuestion.correctStudents.map((nm: string, i: number) => (
-                                                <div key={i} className="flex items-baseline gap-2 text-xs text-slate-700 py-1.5 border-b border-slate-100">
-                                                    <span className="w-6 shrink-0 text-right font-bold text-slate-400">{i + 1}.</span>
-                                                    <span className="font-medium">{nm}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                                <button onClick={() => setViewQuestion(null)} className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-                                    Tutup
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
+                                </div>
+                            )}
+                        </ModalBody>
+                        <ModalFooter align="end">
+                            <Button
+                                type="button"
+                                variant="cancel"
+                                onClick={() => setViewQuestion(null)}
+                            >
+                                Tutup
+                            </Button>
+                        </ModalFooter>
+                    </>
                 )}
-            </AnimatePresence>
+            </Modal>
 
             <ResetExamModal
                 open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}

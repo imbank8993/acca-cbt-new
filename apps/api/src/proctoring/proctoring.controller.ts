@@ -50,6 +50,10 @@ class SyncHealthDto {
 
     @IsIn(['healthy', 'fallback', 'unavailable', 'unknown'])
     storageState!: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+
+    /** Alasan server menolak jawaban terakhir (jaringan normal tetapi jawaban tertahan). */
+    @IsOptional() @IsString() @Length(1, 200)
+    rejection?: string;
 }
 
 class HeartbeatDto {
@@ -107,6 +111,14 @@ class ResetAttemptDto {
     @IsOptional()
     @IsBoolean()
     releaseDevice?: boolean;
+
+    @ApiProperty({
+        required: false,
+        description: 'Hanya kirim ulang jawaban dari penyimpanan perangkat; jawaban tidak dapat diubah selama durasi pemulihan.',
+    })
+    @IsOptional()
+    @IsBoolean()
+    submitOnly?: boolean;
 }
 
 class MakeupAttemptDto extends ResetAttemptDto {
@@ -176,7 +188,19 @@ export class ProctoringController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: ResetAttemptDto,
     ) {
-        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes, dto.releaseDevice === true);
+        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes, dto.releaseDevice === true, dto.submitOnly);
+    }
+
+    @Post('exams/:examId/participants/:studentId/makeup')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Buat ujian susulan untuk siswa yang belum pernah memulai ujian' })
+    async makeupForAbsent(
+        @CurrentUser() user: AuthUser,
+        @Param('examId', ParseUUIDPipe) examId: string,
+        @Param('studentId', ParseUUIDPipe) studentId: string,
+        @Body() dto: MakeupAttemptDto,
+    ) {
+        return this.proctoring.startMakeupForStudent(user, examId, studentId, dto.reason, dto.durationMinutes, dto.clientRequestId);
     }
 
     @Post('attempts/:attemptId/makeup')

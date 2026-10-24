@@ -55,6 +55,12 @@ export interface StudentScheduledExam {
     is_published: boolean;
     isCompleted: boolean;
     isInProgress?: boolean;
+    /** Jendela pemulihan dari proktor; berlaku walau jadwal ujian sudah berakhir. */
+    recoveryUntil?: string | null;
+    /** Pemulihan hanya untuk mengirim jawaban yang tersimpan di perangkat. */
+    recoverySubmitOnly?: boolean;
+    /** Jendela pribadi ini adalah ujian susulan (bukan pemulihan). */
+    isMakeup?: boolean;
 }
 
 export async function listStudentClasses(): Promise<StudentClass[]> {
@@ -296,6 +302,16 @@ export async function startExamAttemptAction(examId: string, deviceId?: string, 
     };
 }
 
+/** Ditampilkan bila server menolak karena sesi login berakhir (HTTP 401), walau jaringan normal. */
+export const SESSION_ENDED_MESSAGE = 'Sesi login Anda berakhir, sehingga jawaban tidak dapat dikirim walaupun jaringan normal. ' +
+    'Jangan tutup halaman ujian ini. Buka tab baru di browser yang sama, login kembali, lalu kembali ke tab ini; ' +
+    'jawaban yang tersimpan di perangkat akan terkirim otomatis. Bila ragu, hubungi pengawas.';
+
+/** Perpanjang sesi login selama ujian berlangsung (ditolak bila tidak sedang mengerjakan). */
+export function refreshExamSessionAction() {
+    return apiSend<Record<string, never>>('/api/auth/refresh', {}, 'POST', { timeoutMs: 15_000 });
+}
+
 export function saveAnswerAction(
     attemptId: string,
     questionId: string,
@@ -385,37 +401,57 @@ export async function submitExamAction(
         // Catatan pengawasan yang diakui server boleh dihapus dari antrean
         // perangkat, termasuk yang disimpan sebagai bukti susulan.
         let acceptedSecurityEventIds: string[] = [];
-        if (attemptId) {
-            const intent = await beginSubmitAction(attemptId, payload);
-            if (!intent.success) return { success: false as const, error: intent.error, retryable: intent.retryable, acceptedSecurityEventIds };
-            acceptedSecurityEventIds = Array.isArray(intent.acceptedSecurityEventIds) ? intent.acceptedSecurityEventIds : [];
-        }
+        const pendingConfirmation = () => ({ success: false as const, retryable: true,
+            confirmationPending: true as const, acceptedSecurityEventIds,
+            error: 'Pengumpulan belum dapat dikonfirmasi. Jawaban mungkin sudah tersimpan di server. Sistem akan memeriksa ulang; salinan lokal tetap disimpan.' });
+        const sendOnce = async () => {
+            if (attemptId) {
+                const intent = await beginSubmitAction(attemptId, payload);
+                if (!intent.success) return intent.retryable !== false ? pendingConfirmation()
+                    : { success: false as const, retryable: false, acceptedSecurityEventIds,
+                        ...(intent.unauthorized ? { error: SESSION_ENDED_MESSAGE, unauthorized: true as const } : { error: intent.error }) };
+                acceptedSecurityEventIds = [...new Set([...acceptedSecurityEventIds,
+                    ...(Array.isArray(intent.acceptedSecurityEventIds) ? intent.acceptedSecurityEventIds : [])])];
+            }
 
-        const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean;
-            submissionVerified?: boolean; verifiedAttemptId?: string; localAnswersNotCounted?: number }>(
-            `/api/students/exams/${encodeURIComponent(examId)}/submit`,
-            payload,
-            'POST',
-            { timeoutMs: 30_000 },
-        );
+            const res = await apiSend<{ score: number | null; alreadySubmitted?: boolean; savedAnswersOnly?: boolean; gradingPending?: boolean;
+                submissionVerified?: boolean; verifiedAttemptId?: string; localAnswersNotCounted?: number }>(
+                `/api/students/exams/${encodeURIComponent(examId)}/submit`,
+                payload,
+                'POST',
+                { timeoutMs: 30_000 },
+            );
 
-        if (res.success && (res.savedAnswersOnly || res.submissionVerified !== true || !attemptId || res.verifiedAttemptId !== attemptId)) {
-            const pending = Number(res.localAnswersNotCounted) || 0;
-            return { success: false as const, retryable: false, acceptedSecurityEventIds,
-                error: pending > 0
-                    ? `Ujian sudah ditutup, tetapi ${pending} jawaban di perangkat ini berbeda dari yang tersimpan di server dan belum dinilai. Jawaban yang sudah tersimpan di server tetap dinilai. Salinan lokal dipertahankan; hubungi proktor untuk membuka pemulihan.`
-                    : 'Pengumpulan belum terverifikasi lengkap. Lampiran atau data di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
-        }
-        return res.success
-            ? {
-                  success: true as const,
-                  submissionVerified: true as const,
-                  score: res.score,
-                  alreadySubmitted: res.alreadySubmitted ?? false,
-                  savedAnswersOnly: res.savedAnswersOnly ?? false,
-                  gradingPending: res.gradingPending ?? false,
-                  acceptedSecurityEventIds,
-              }
-            : { success: false as const, error: res.error, retryable: res.retryable, acceptedSecurityEventIds };
+            if (res.success && (res.savedAnswersOnly || res.submissionVerified !== true || !attemptId || res.verifiedAttemptId !== attemptId)) {
+                const pending = Number(res.localAnswersNotCounted) || 0;
+                // A missing/wrong receipt is uncertainty, not evidence that answers
+                // were lost. Only an explicit server comparison can report a mismatch.
+                if (attemptId && res.submissionVerified !== false && pending === 0) return pendingConfirmation();
+                return { success: false as const, retryable: false, acceptedSecurityEventIds,
+                    error: pending > 0
+                        ? `Ujian sudah ditutup, tetapi ${pending} jawaban di perangkat ini berbeda dari yang tersimpan di server dan belum dinilai. Jawaban yang sudah tersimpan di server tetap dinilai. Salinan lokal dipertahankan; hubungi proktor untuk membuka pemulihan.`
+                        : 'Pengumpulan belum terverifikasi lengkap. Lampiran atau data di server belum dikonfirmasi sesuai kiriman ini. Cadangan lokal dipertahankan; hubungi proktor.' };
+            }
+            return res.success
+                ? {
+                      success: true as const,
+                      submissionVerified: true as const,
+                      score: res.score,
+                      alreadySubmitted: res.alreadySubmitted ?? false,
+                      savedAnswersOnly: res.savedAnswersOnly ?? false,
+                      gradingPending: res.gradingPending ?? false,
+                      acceptedSecurityEventIds,
+                  }
+                : res.retryable !== false ? pendingConfirmation()
+                    : { success: false as const, retryable: false, acceptedSecurityEventIds,
+                        ...(res.unauthorized ? { error: SESSION_ENDED_MESSAGE, unauthorized: true as const } : { error: res.error }) };
+        };
+        const first = await sendOnce();
+        // The endpoint is idempotent and compares persisted contents. Re-send the
+        // exact frozen payload once to resolve a lost acknowledgement promptly;
+        // continued outages use the existing foreground/background retry backoff.
+        if (attemptId && 'confirmationPending' in first &&
+            (typeof navigator === 'undefined' || navigator.onLine !== false)) return sendOnce();
+        return first;
     }, JSON.stringify(payload));
 }

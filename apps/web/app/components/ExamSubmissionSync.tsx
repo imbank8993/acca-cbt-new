@@ -89,7 +89,7 @@ export function ExamSubmissionSync() {
                         result.alreadySubmitted ? 'Salinan di perangkat ini sama dengan jawaban di server dan sudah dibersihkan.' : 'Pengiriman otomatis selesai.');
                 } else {
                     if (/^\/dashboard\/siswa\/exam\//.test(pathRef.current)) return;
-                    toastRef.current.warning('Jawaban belum terkirim', result.error);
+                    toastRef.current.warning('Pengumpulan perlu diperiksa', result.error);
                 }
             },
         });

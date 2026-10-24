@@ -43,8 +43,9 @@ test('the old message no longer tells the student a plain reset moves the exam',
     const { attempts } = fixture();
     const refused = await attempts.start(user, 'exam', 'device-two');
     assert.equal(refused.started, false);
-    assert.match(refused.error, /Lanjutkan di perangkat itu/);
-    assert.match(refused.error, /Pindahkan ke perangkat baru/);
+    assert.match(refused.error, /lanjutkan di sana/);
+    assert.match(refused.error, /segera lapor pengawas/);
+    assert.doesNotMatch(refused.error, /minta pengawas melakukan "Reset"/);
 });
 
 test('a plain recovery keeps the device lock', async () => {
@@ -110,7 +111,7 @@ test('monitoring flags blocked attempts from another device since the last reset
         { event_type: 'DEVICE_SWITCH_BLOCKED', created_at: '2026-09-20T00:25:00Z' },
     ];
     const health = attemptHealth(attempt, {}, [], new Date('2026-09-20T00:30:00Z'), 2, logs);
-    assert.deepEqual(health.offline_review.other_device_attempts, { count: 2, last_at: '2026-09-20T00:25:00Z' });
+    assert.deepEqual(health.offline_review.other_device_attempts, { count: 2, last_at: '2026-09-20T00:25:00Z', last_context: null });
     assert.ok(health.attention_reasons.some(reason => /Mencoba masuk dari perangkat lain \(2×\)/.test(reason)));
     assert.equal(attemptHealth(attempt, {}, [], new Date('2026-09-20T00:30:00Z'), 2, logs.slice(0, 2)).offline_review.other_device_attempts, null);
 });
@@ -119,7 +120,7 @@ test('the reset dialog offers the device move for one student and sends it to th
     const modal = web('app/components/monitoring/ResetExamModal.tsx');
     assert.match(modal, /Pindahkan ke perangkat baru/);
     assert.match(modal, /const moveDevice = mode === 'PULIHKAN' && releaseDevice && !participantSummary;/);
-    assert.match(modal, /resetExamAttempt\(attempt\.id, trimmedReason, duration, moveDevice\)/);
+    assert.match(modal, /resetExamAttempt\(attempt\.id, trimmedReason, duration, moveDevice, /);
     assert.match(web('lib/api/proctoring.ts'), /releaseDevice \? \{ releaseDevice: true \} : \{\}/);
     assert.match(web('app/components/monitoring/AttemptHistoryModal.tsx'), /Dipindahkan ke perangkat baru/);
 });

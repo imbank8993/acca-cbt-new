@@ -13,6 +13,10 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { ensureExamQuestionSnapshotsInTransaction } from '../common/exam-question-snapshots';
+import { advisoryTransactionLock } from '../common/transaction-lock';
+import { canAccessExam, loadExamAudience } from '../students/exam-access';
+import { RELEASED_DEVICE_MESSAGE, isReleasedDevice } from '../common/device-context';
 import { GradingService } from '../grading/grading.service';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 
@@ -209,6 +213,9 @@ export class ProctoringService {
             if (!attempt) throw new NotFoundException('Pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
             if (attempt.status !== 'in_progress') throw new BadRequestException('Ujian tidak sedang berlangsung.');
+            if (!attempt.device_fingerprint && isReleasedDevice(attempt.metadata, deviceId)) {
+                throw new ForbiddenException(RELEASED_DEVICE_MESSAGE);
+            }
             if (!deviceId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId)) {
                 throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
             }
@@ -298,7 +305,16 @@ export class ProctoringService {
      * Berlaku untuk attempt yang DITUTUP SISTEM maupun yang SUDAH DISUBMIT siswa
      * Pengerjaan tertutup hanya menerima salinan jawaban lama; untuk mengerjakan ulang gunakan susulan.
      */
-    async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number, releaseDevice = false) {
+    /**
+     * `submitOnly`: pemulihan hanya untuk mengirim jawaban yang tersimpan di
+     * perangkat; jawaban terkunci selama jendela pemulihan. Bawaan: ya untuk
+     * pengerjaan yang sudah ditutup, tidak untuk yang masih berjalan.
+     */
+    async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number,
+        releaseDevice = false, submitOnly?: boolean) {
+        if (releaseDevice && submitOnly === true) {
+            throw new BadRequestException('Pindah perangkat tidak dapat digabung dengan "kirim jawaban saja": perangkat baru tidak memiliki salinan jawaban.');
+        }
         const normalizedReason = reason.trim();
         if (normalizedReason.length < 5 || normalizedReason.length > 500) {
             throw new BadRequestException('Alasan pemulihan wajib diisi (5–500 karakter).');
@@ -327,7 +343,7 @@ export class ProctoringService {
 
             const { data: locked, error: readError } = await db
                 .from('cbt_exam_attempts')
-                .select('id, exam_id, status, personal_end_time, metadata, device_fingerprint')
+                .select('id, exam_id, status, started_at, personal_end_time, metadata, device_fingerprint')
                 .eq('id', attemptId)
                 .maybeSingle();
             if (readError || !locked) {
@@ -336,6 +352,7 @@ export class ProctoringService {
             const row = locked as {
                 exam_id: string;
                 status: string;
+                started_at: string | null;
                 personal_end_time: string | null;
                 metadata: Record<string, unknown> | null;
                 device_fingerprint: string | null;
@@ -406,10 +423,21 @@ export class ProctoringService {
             ].filter((value, index, all): value is string => typeof value === 'string' &&
                 Number.isFinite(Date.parse(value)) && all.indexOf(value) === index).slice(-20);
             metadataWithoutOldScore.superseded_deadlines = supersededDeadlines;
+            // Pengerjaan yang masih "berjalan" tetapi tenggatnya sudah lewat (penutupan
+            // otomatis belum sempat berjalan) diperlakukan seperti yang sudah ditutup:
+            // bawaannya hanya kirim jawaban, bukan tambahan waktu mengerjakan.
+            const deadlinePassed = active && typeof previousDeadline === 'string' && Date.parse(previousDeadline) <= now.getTime();
+            const lockAnswers = submitOnly ?? (active ? previousMetadata.recovery_submit_only === true || deadlinePassed : true);
+            if (!active && !lockAnswers && !releaseDevice) {
+                throw new BadRequestException('Pengerjaan yang sudah ditutup hanya dapat dipulihkan untuk mengirim jawaban, ' +
+                    'kecuali dipindahkan ke perangkat baru atau dibuat susulan.');
+            }
             updates.metadata = active ? {
                 ...metadataWithoutOldScore,
                 proctor_recovery_until: recoveryUntil,
-                recovery_submit_only: previousMetadata.recovery_submit_only === true,
+                recovery_submit_only: lockAnswers,
+                // Salinan terkunci di perangkat memakai batas waktu sebelum reset.
+                ...(lockAnswers ? { recovery_source_deadline: previousMetadata.recovery_source_deadline || previousDeadline } : {}),
                 active_reset_at: now.toISOString(),
             } : {
                 ...metadataWithoutOldScore,
@@ -437,6 +465,14 @@ export class ProctoringService {
                 delete metadata.frozen_submission_deadline;
                 metadata.recovery_submit_only = false;
                 metadata.device_released_at = now.toISOString();
+                // Info perangkat lama tidak lagi menggambarkan pemegang ujian.
+                delete metadata.device_bound;
+                delete metadata.client_context;
+                // Perangkat lama tidak boleh mengambil kembali kunci yang dilepas.
+                if (previousDevice) {
+                    const released = Array.isArray(previousMetadata.released_devices) ? previousMetadata.released_devices : [];
+                    metadata.released_devices = [...new Set([...released, previousDevice])].slice(-10);
+                }
                 const { data: examSettings, error: examError } = await db.from('cbt_exams')
                     .select('metadata').eq('id', row.exam_id).maybeSingle();
                 if (examError) throw new BadRequestException('Pengaturan ujian belum dapat diperiksa.');
@@ -460,12 +496,14 @@ export class ProctoringService {
                 event_type: 'RESET_BY_PROCTOR',
                 metadata: {
                     reset_at: now.toISOString(),
+                    attempt_started_at: row.started_at,
                     actor_user_id: user.id,
                     reason: normalizedReason,
                     previous_status: previousStatus,
                     previous_deadline: previousDeadline,
                     recovery_until: recoveryUntil,
                     recovery_duration_minutes: durationMinutes,
+                    submit_only: releaseDevice ? false : lockAnswers,
                     server_answer_count: serverAnswerCount || 0,
                     ...(releaseDevice ? {
                         device_released: true,
@@ -484,6 +522,7 @@ export class ProctoringService {
                 recoveryUntil,
                 serverAnswerCount: serverAnswerCount || 0,
                 deviceReleased: releaseDevice,
+                submitOnly: releaseDevice ? false : lockAnswers,
             };
         });
     }
@@ -611,6 +650,10 @@ export class ProctoringService {
             // Generasi baru tanpa jawaban lama: tanda masa offline lama tidak berlaku lagi.
             delete previousMetadata.connection_lost_at_close;
             delete previousMetadata.local_answers_not_counted;
+            // Kunci perangkat dilepas: info perangkat lama tidak berlaku lagi.
+            delete previousMetadata.device_bound;
+            delete previousMetadata.client_context;
+            delete previousMetadata.released_devices;
 
             const { count: deletedAnswerCount, error: countError } = await db
                 .from('cbt_answers')
@@ -682,6 +725,107 @@ export class ProctoringService {
                 durationMinutes,
                 deletedAnswerCount: deletedAnswerCount || 0,
             };
+        });
+    }
+
+    /**
+     * Susulan untuk siswa yang belum pernah memulai ujian (tidak hadir).
+     *
+     * Dulu satu-satunya jalan adalah mengubah jadwal ujian, sehingga ujian ikut
+     * terbuka untuk semua peserta yang belum mengerjakan. Di sini dibuat satu
+     * pengerjaan baru dengan jendela waktu pribadi; jadwal ujian tidak berubah.
+     * Perangkat belum diikat: perangkat pertama yang membuka ujian menjadi
+     * perangkat ujian siswa.
+     */
+    async startMakeupForStudent(
+        user: AuthUser,
+        examId: string,
+        studentId: string,
+        reason: string,
+        durationMinutes: number,
+        clientRequestId?: string,
+    ) {
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+            throw new BadRequestException('Alasan ujian susulan wajib diisi (5–500 karakter).');
+        }
+        if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
+            throw new BadRequestException('Waktu ujian susulan harus 1–1440 menit.');
+        }
+        await this.authz.assertExamStaff(user, examId, 'reset', studentId);
+
+        const { data: exam, error: examError } = await this.db.from('cbt_exams')
+            .select('id, organization_id, is_published, status, show_results, end_time, metadata')
+            .eq('id', examId).maybeSingle();
+        if (examError || !exam) throw new NotFoundException('Ujian tidak ditemukan.');
+        if (exam.status === 'archived') throw new BadRequestException('Pulihkan ujian dari arsip sebelum membuat susulan.');
+        // Hanya peserta sasaran ujian ini; proktor tidak dapat menyisipkan siswa lain.
+        if (!canAccessExam(exam, await loadExamAudience(this.db, { id: studentId } as AuthUser))) {
+            throw new ForbiddenException('Siswa ini bukan peserta ujian tersebut.');
+        }
+
+        return this.db.transaction(async db => {
+            // Kunci yang sama dengan pembuatan attempt oleh siswa: tidak ada dua attempt aktif.
+            await advisoryTransactionLock(db, `${examId}:${studentId}`);
+            const { data: existing, error: existingError } = await db.from('cbt_exam_attempts')
+                .select('id, status, personal_end_time, metadata').eq('exam_id', examId).eq('user_id', studentId)
+                .order('started_at', { ascending: false }).limit(1).maybeSingle();
+            if (existingError) throw new BadRequestException('Status pengerjaan siswa belum dapat diperiksa.');
+            if (existing) {
+                // Percobaan ulang setelah respons hilang mengembalikan hasil yang sama.
+                if (clientRequestId && existing.metadata?.makeup_client_request_id === clientRequestId) {
+                    return { attemptId: existing.id, previousStatus: 'belum', recoveryUntil: existing.metadata.proctor_recovery_until,
+                        durationMinutes: Number(existing.metadata.makeup_duration_minutes), deletedAnswerCount: 0 };
+                }
+                throw new BadRequestException('Siswa ini sudah memiliki pengerjaan. Gunakan Susulan/Pulihkan dari baris pengerjaannya.');
+            }
+
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            const now = new Date(clock.now);
+            const endMs = Date.parse(exam.end_time || '');
+            if (exam.show_results === true && exam.metadata?.show_answer_keys === true &&
+                Number.isFinite(endMs) && now.getTime() >= endMs) {
+                throw new BadRequestException('Kunci jawaban ujian ini sudah dibuka untuk siswa. Tutup kunci jawaban ' +
+                    'terlebih dahulu, atau gunakan ujian/paket soal lain untuk susulan.');
+            }
+            await ensureExamQuestionSnapshotsInTransaction(db, examId);
+            const recoveryUntil = new Date(now.getTime() + durationMinutes * 60 * 1000).toISOString();
+            const { data: created, error: insertError } = await db.from('cbt_exam_attempts').insert({
+                organization_id: exam.organization_id,
+                exam_id: examId,
+                user_id: studentId,
+                status: 'in_progress',
+                started_at: now.toISOString(),
+                personal_end_time: recoveryUntil,
+                device_fingerprint: null,
+                metadata: {
+                    proctor_recovery_until: recoveryUntil,
+                    makeup_exam: true,
+                    makeup_for_absent: true,
+                    makeup_duration_minutes: durationMinutes,
+                    makeup_activated_at: now.toISOString(),
+                    ...(clientRequestId ? { makeup_client_request_id: clientRequestId } : {}),
+                    ...(exam.metadata?.screenshot_enabled === true ? { screen_share_confirmed: false } : {}),
+                },
+            }).select('id').maybeSingle();
+            if (insertError || !created) throw new BadRequestException('Ujian susulan belum dapat dibuat.');
+
+            const { error: logError } = await db.from('cbt_attempt_security_logs').insert({
+                attempt_id: created.id,
+                event_type: 'MAKEUP_EXAM_STARTED',
+                metadata: {
+                    actor_user_id: user.id,
+                    reason: normalizedReason,
+                    previous_status: 'belum',
+                    makeup_started_at: now.toISOString(),
+                    recovery_until: recoveryUntil,
+                    duration_minutes: durationMinutes,
+                    deleted_answer_count: 0,
+                    ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
+                },
+            });
+            if (logError) throw new BadRequestException('Jejak audit ujian susulan gagal disimpan.');
+            return { attemptId: created.id, previousStatus: 'belum', recoveryUntil, durationMinutes, deletedAnswerCount: 0 };
         });
     }
 

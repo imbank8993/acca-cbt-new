@@ -1,7 +1,23 @@
 import type { StudentScheduledExam } from './api/students';
+/** Pemulihan proktor yang masih berlaku: ujian tetap bisa dibuka walau jadwalnya sudah lewat. */
+export function recoveryActive(exam: StudentScheduledExam, now: number): boolean {
+    const until = exam.recoveryUntil ? Date.parse(exam.recoveryUntil) : NaN;
+    return Number.isFinite(until) && Number.isFinite(now) && until > now;
+}
+
+/** Teks jendela pribadi siswa: susulan, kirim ulang jawaban, atau lanjut mengerjakan. */
+export function recoveryLabel(exam: StudentScheduledExam): { badge: string; action: string; button: string } {
+    // Kirim-saja didahulukan: susulan yang kemudian dipulihkan untuk pengiriman
+    // tidak boleh tampil sebagai "Kerjakan Susulan".
+    if (exam.recoverySubmitOnly) return { badge: 'Pemulihan', action: 'Kirim jawaban', button: 'Kirim Jawaban' };
+    if (exam.isMakeup) return { badge: 'Susulan', action: 'Kerjakan', button: 'Kerjakan Susulan' };
+    return { badge: 'Pemulihan', action: 'Lanjutkan', button: 'Lanjutkan' };
+}
+
 export function scheduleState(exam: StudentScheduledExam, now: number): 'open' | 'upcoming' | 'closed' | 'invalid' {
     if (exam.isCompleted) return 'closed';
     if (!exam.is_published || exam.status === 'archived') return 'closed';
+    if (recoveryActive(exam, now)) return 'open';
     const start = exam.start_time ? Date.parse(exam.start_time) : -Infinity;
     const end = exam.end_time ? Date.parse(exam.end_time) : Infinity;
     if (Number.isNaN(start) || Number.isNaN(end) || end < start || !Number.isFinite(now)) return 'invalid';

@@ -12,6 +12,8 @@ import { CustomVideoPlayer } from './CustomVideoPlayer';
 import { InteractiveMatching } from './InteractiveMatching';
 import { LatexRenderer } from './LatexRenderer';
 import { StimulusViewer } from './StimulusViewer';
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
 
 // In QuestionRenderer, we no longer string-replace the placeholder because it breaks SSR hydration.
 // Instead, the raw [data-video-embed] placeholder is rendered, and the useEffect mountNodes
@@ -350,71 +352,88 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
             })()}
 
             {/* INSTRUCTIONS MODAL */}
-            <AnimatePresence>
-                {(() => {
-                    const inst = firstContentItem(question.instruction || question.question_instructions);
-                    const hasInst = metadata.instructions || inst?.content;
+            {(() => {
+                const inst = firstContentItem(question.instruction || question.question_instructions);
+                const hasInst = metadata.instructions || inst?.content;
 
-                    return showQuestion && showInstructions && hasInst ? (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-                            onClick={() => setShowInstructions(false)}
-                        >
-                            <motion.div
-                                initial={{ scale: 0.95, opacity: 0, y: 10 }}
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                                className="bg-white rounded-md shadow-xl max-w-lg w-full overflow-hidden"
-                                onClick={e => e.stopPropagation()}
+                return (
+                    <Modal
+                        open={Boolean(showQuestion && showInstructions && hasInst)}
+                        onClose={() => setShowInstructions(false)}
+                        size="md"
+                        variant="default"
+                        labelledBy="modal-question-instructions"
+                    >
+                        <ModalHeader
+                            id="modal-question-instructions"
+                            title="Petunjuk Pengerjaan Soal"
+                            icon={<Info size={18} className="text-amber-500" />}
+                            onClose={() => setShowInstructions(false)}
+                        />
+                        <ModalBody className="p-5 sm:p-6 text-sm leading-relaxed text-slate-700 max-h-[60vh] overflow-y-auto">
+                            {inst?.content ? (
+                                <QuestionContent content={inst.content} />
+                            ) : (
+                                metadata.instructions
+                            )}
+                        </ModalBody>
+                        <ModalFooter align="end">
+                            <Button
+                                type="button"
+                                variant="primary"
+                                onClick={() => setShowInstructions(false)}
                             >
-                                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
-                                            <Info size={16} />
-                                        </div>
-                                        <h3 className="font-bold text-slate-800">Petunjuk Pengerjaan Soal</h3>
-                                    </div>
-                                    <button onClick={() => setShowInstructions(false)} className="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-lg transition-colors">
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                                <div className="p-6 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap max-h-[60vh] overflow-y-auto">
-                                    {inst?.content ? (
-                                        <QuestionContent content={inst.content} />
-                                    ) : (
-                                        metadata.instructions
-                                    )}
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    ) : null;
-                })()}
-            </AnimatePresence>
+                                Tutup
+                            </Button>
+                        </ModalFooter>
+                    </Modal>
+                );
+            })()}
 
             {/* QUESTION TEXT */}
             {showQuestion && type !== 'short_answer' && (
-                <div className={`flex items-start gap-4 relative ${type === 'likert' ? 'flex-col items-center text-center justify-center' : ''}`}>
+                <div className={`relative ${type === 'likert' ? 'flex flex-col items-center text-center justify-center' : ''}`}>
                     {questionNumber !== undefined && (
                         <div className="hidden">{questionNumber}</div>
                     )}
-                    <div className={`flex-1 min-w-0 ${type === 'likert' ? 'w-full max-w-4xl mx-auto px-4 sm:px-8' : ''}`}>
-                        <QuestionContent content={question.question_text || ''} className="text-sm leading-relaxed text-slate-800" />
+                    <div className="flex items-start justify-between gap-3">
+                        <div className={`flex-1 min-w-0 ${type === 'likert' ? 'w-full max-w-4xl mx-auto px-4 sm:px-8' : ''}`}>
+                            <QuestionContent content={question.question_text || ''} className="text-sm leading-relaxed text-slate-800" />
+                        </div>
+                        {/* Desktop: Tombol petunjuk di samping kanan (sm: ke atas) */}
+                        {(() => {
+                            const inst = firstContentItem(question.instruction || question.question_instructions);
+                            const hasInst = metadata.instructions || inst?.content;
+
+                            return hasInst ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowInstructions(true)}
+                                    className="hidden sm:inline-flex shrink-0 items-center justify-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 transition-colors shadow-xs border border-amber-200/60"
+                                    title="Petunjuk Soal"
+                                >
+                                    <Info size={18} />
+                                </button>
+                            ) : null;
+                        })()}
                     </div>
+
+                    {/* Mobile: Tombol petunjuk di bawah teks soal berupa pill yang jelas dan tidak memakan lebar horizontal soal */}
                     {(() => {
                         const inst = firstContentItem(question.instruction || question.question_instructions);
                         const hasInst = metadata.instructions || inst?.content;
-                        
+
                         return hasInst ? (
-                            <button
-                                onClick={() => setShowInstructions(true)}
-                                className="shrink-0 flex items-center justify-center w-9 h-9 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 transition-colors shadow-sm"
-                                title="Petunjuk Soal"
-                            >
-                                <Info size={18} />
-                            </button>
+                            <div className="sm:hidden mt-2 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowInstructions(true)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors shadow-xs"
+                                >
+                                    <Info size={14} className="text-amber-600 shrink-0" />
+                                    <span>Petunjuk Pengerjaan</span>
+                                </button>
+                            </div>
                         ) : null;
                     })()}
                 </div>

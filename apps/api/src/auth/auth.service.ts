@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { jwtVerify } from 'jose';
@@ -255,6 +255,34 @@ export class AuthService {
         { onConflict: 'organization_member_id,role_id' },
       );
     }
+  }
+
+  /**
+   * Perpanjang sesi HANYA selama siswa sedang mengerjakan ujian.
+   *
+   * Sesi berlaku 12 jam sejak login dan dulu tidak pernah diperpanjang. Siswa
+   * yang login malam sebelumnya (atau lewat portal SSO pagi-pagi) kehilangan
+   * sesinya di tengah ujian: simpan otomatis, heartbeat, dan pengumpulan ditolak
+   * 401 padahal jaringan normal, sehingga jawaban menumpuk di perangkat.
+   * Status akun dibaca ulang supaya akun yang dinonaktifkan tidak ikut diperpanjang.
+   */
+  async refreshExamSession(current: AuthUser): Promise<LoginResponse> {
+    const user = await this.authUsers.findById(current.id);
+    if (!user) throw new UnauthorizedException('Akun tidak ditemukan.');
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      throw new UnauthorizedException('Akun sedang dinonaktifkan.');
+    }
+    const inactive = await this.prisma.$queryRawUnsafe<Array<{ aktif: boolean }>>(
+      `SELECT aktif FROM public.users WHERE auth_id = $1::uuid LIMIT 1`, current.id);
+    if (inactive.length > 0 && inactive[0].aktif === false) {
+      throw new UnauthorizedException('Akun Anda telah dinonaktifkan di sistem ACCA.');
+    }
+    const active = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM public.cbt_exam_attempts WHERE user_id = $1::uuid AND status = 'in_progress' LIMIT 1`, current.id);
+    if (active.length === 0) {
+      throw new ForbiddenException('Sesi hanya diperpanjang selama ujian sedang dikerjakan.');
+    }
+    return this.issueSession(current.id, user.email || current.email || '', user.raw_user_meta_data, current.fullName || undefined);
   }
 
   private async issueSession(

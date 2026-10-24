@@ -1,5 +1,6 @@
 import { hasStoredAnswer } from '@acca-cbt/shared';
 import { examDeadline } from './exam-deadline';
+import { holderSummary } from './device-context';
 
 /** Jejak masa offline yang perlu dilihat pengawas sebelum memulihkan. */
 export function offlineReview(attempt: any, logs: any[] = []) {
@@ -22,8 +23,11 @@ export function offlineReview(attempt: any, logs: any[] = []) {
         } : null,
         uncounted_local_answers: uncountedCount ? { count: uncountedCount, reported_at: uncounted.reported_at ?? null } : null,
         late_security_evidence: lateEvidence,
-        other_device_attempts: blocked.length
-            ? { count: blocked.length, last_at: blocked.map(log => log.created_at).sort().pop() ?? null } : null,
+        other_device_attempts: blocked.length ? (() => {
+            const last = [...blocked].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).pop();
+            return { count: blocked.length, last_at: last?.created_at ?? null,
+                last_context: last?.metadata?.attempted_context ?? null };
+        })() : null,
     };
 }
 
@@ -45,6 +49,10 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
     if (active && connection !== 'online') attention.push('Tidak ada kabar terbaru dari perangkat');
     if (active && report?.pendingAnswerCount > 0) attention.push('Terakhir dilaporkan ada perubahan belum terkirim');
     if (active && report?.storageState === 'unavailable') attention.push('Perangkat melaporkan penyimpanan lokal gagal');
+    // Jaringan normal (heartbeat sampai) tetapi jawaban ditolak server.
+    if (active && fresh && typeof report?.rejection === 'string' && report.rejection) {
+        attention.push(`Jawaban ditolak server: ${report.rejection}`);
+    }
     if (active && remaining !== null && remaining <= 300 && (connection !== 'online' || report?.pendingAnswerCount > 0)) {
         attention.push('Waktu hampir habis dan sinkronisasi perlu diperiksa');
     }
@@ -66,7 +74,10 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
         remaining_seconds: remaining, saved_answer_count: saved, total_questions: questionCount,
         unanswered_count: Math.max(0, questionCount - saved), last_answer_saved_at: savedDates.at(-1) || null,
         sync_health: reportAt ? { localAnswerCount: report.localAnswerCount, pendingAnswerCount: report.pendingAnswerCount,
-            storageState: report.storageState, receivedAt: reportAt, fresh } : null,
+            storageState: report.storageState, receivedAt: reportAt, fresh,
+            ...(typeof report.rejection === 'string' ? { rejection: report.rejection } : {}) } : null,
         grading_status: grading, attention_reasons: attention, offline_review: review,
+        // Perangkat pemegang ujian (jenis browser/OS, sejak kapan, kontak terakhir).
+        device_holder: attempt.device_fingerprint ? holderSummary(attempt) : null,
     };
 }

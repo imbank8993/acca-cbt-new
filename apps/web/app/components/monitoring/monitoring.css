@@ -111,50 +111,133 @@
 .monitoring-summary .monitoring-summary__attention dd { color: var(--monitoring-warning); }
 .monitoring-reset-summary { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 20px; padding: 10px 14px; border: 1px solid var(--monitoring-line); border-radius: 10px; background: var(--monitoring-surface); color: var(--monitoring-muted); font-size: 13px; }
 .monitoring-reset-summary strong { color: var(--monitoring-text); font-size: 20px; line-height: 1; font-variant-numeric: tabular-nums; }
-.monitoring-workspace__tabs { display: flex; gap: 24px; flex-wrap: wrap; border-bottom: 1px solid var(--monitoring-line); margin-bottom: 16px; }
-.monitoring-workspace__tabs button { color: var(--monitoring-muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 0 0 12px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.monitoring-workspace__tabs { display: flex; gap: 24px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-bottom: 1px solid var(--monitoring-line); margin-bottom: 16px; overscroll-behavior-x: contain; }
+.monitoring-workspace__tabs::-webkit-scrollbar { display: none; }
+.monitoring-workspace__tabs button { color: var(--monitoring-muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 0 0 12px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .monitoring-workspace__tabs button[aria-pressed="true"] { color: var(--primary, #3083ff); border-bottom-color: var(--primary, #3083ff); font-weight: 600; }
 .monitoring-workspace__tabs button:hover { color: var(--monitoring-text); }
-.monitoring-participant-filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
-.monitoring-participant-filters__search { position: relative; flex: 1 1 200px; min-width: 0; }
-.monitoring-participant-filters__search > svg { position: absolute; left: 12px; top: 12px; color: var(--monitoring-muted); pointer-events: none; }
-.monitoring-participant-filters__search input { display: block; height: 40px; width: 100%; min-width: 0; padding: 8px 12px 8px 36px; border: 1px solid var(--monitoring-line); border-radius: 8px; background: var(--monitoring-surface); color: var(--monitoring-text); font-size: 13px; }
-.monitoring-participant-filters__search input::placeholder { color: var(--monitoring-muted); }
-.monitoring-participant-filters__class { display: flex; gap: 4px; align-items: center; flex: 0 1 170px; min-width: 145px; }
-.monitoring-participant-filters__class > .uimsel-wrapper { flex: 1; min-width: 0; }
-.monitoring-class-clear { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 40px; flex-shrink: 0; border-radius: 6px; color: var(--monitoring-muted); cursor: pointer; }
-.monitoring-class-clear:hover { color: var(--monitoring-text); background: var(--monitoring-control); }
-.monitoring-class-clear:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 2px; }
-.monitoring-participant-filters__status { flex: 0 1 170px; }
-.monitoring-participant-filters .uimsel-trigger,
-.monitoring-participant-filters .uisel select.uisel-input { border: 1px solid var(--monitoring-line); border-radius: 8px; background: var(--monitoring-surface); color: var(--monitoring-text); box-shadow: none; font-size: 13px; font-weight: 400; }
-.monitoring-attention-filter { min-height: 40px; padding: 8px 12px; color: var(--monitoring-warning); background: var(--monitoring-surface); border: 1px solid var(--monitoring-line); border-radius: 8px; white-space: nowrap; font-size: 12px; cursor: pointer; }
-.monitoring-attention-filter[aria-pressed="true"] { background: var(--monitoring-warning-surface); border-color: var(--monitoring-warning); }
-.monitoring-participant-filters__actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.monitoring-refresh:focus-visible,
-.monitoring-workspace__tabs button:focus-visible,
-.monitoring-attention-filter:focus-visible,
-.monitoring-participant-filters__search input:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 3px; }
 
-@media (max-width: 767px) {
-  .monitoring-workspace__heading { flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 18px; }
-  .monitoring-workspace__picker { width: 100%; }
-  .monitoring-workspace__schedule { text-align: left; }
-  .monitoring-summary > div { padding: 0 14px; }
-  .monitoring-workspace__tabs { gap: 18px; row-gap: 10px; }
-  .monitoring-participant-filters__class, .monitoring-participant-filters__status { flex: 1 1 145px; }
+.monitoring-participant-filters { min-width: 0; }
+.monitoring-refresh:focus-visible,
+.monitoring-workspace__tabs button:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 3px; }
+
+/* Dropdown menu titik tiga di toolbar monitoring */
+.sk__menu {
+  min-width: 210px !important;
 }
 
-@media (max-width: 479px) {
-  .monitoring-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 0; padding: 16px 0; }
-  .monitoring-summary > div:nth-child(odd) { border-left: 0; }
-  .monitoring-summary > div:last-child { grid-column: 1 / -1; }
-  .monitoring-participant-filters__search { flex-basis: 100%; }
-  .monitoring-attention-filter { flex: 1 1 100%; }
-  .monitoring-participant-filters__actions { width: 100%; }
+.sk__menu button,
+.sk__menu .ui-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  padding: 10px 14px !important;
+  border: 1px solid var(--monitoring-line, #e7ecf2) !important;
+  background: var(--monitoring-surface, #ffffff) !important;
+  border-radius: 10px !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--monitoring-text, #1e293b) !important;
+  box-shadow: none !important;
+  min-height: 40px !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+
+.sk__menu button:hover,
+.sk__menu .ui-btn:hover,
+.sk__menu button:active,
+.sk__menu .ui-btn:active {
+  background: var(--monitoring-control, #f8fafc) !important;
+  border-color: #3083ff !important;
+  color: #3083ff !important;
+}
+
+.dark .sk__menu button,
+.dark .sk__menu .ui-btn {
+  background: var(--card, #172033) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .sk__menu button:hover,
+.dark .sk__menu .ui-btn:hover {
+  background: rgba(48, 131, 255, 0.15) !important;
+  border-color: #3083ff !important;
+  color: #60a5fa !important;
+}
+
+@media (max-width: 767px) {
+  .monitoring-workspace__heading { flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 16px; }
+  .monitoring-workspace__picker { width: 100%; }
+  .monitoring-workspace__schedule { text-align: left; font-size: 11.5px; }
+  
+  /* 5 Card ringkasan di mobile: 2 baris (Baris 1 = 3 card, Baris 2 = 2 card) */
+  .monitoring-summary {
+    grid-template-columns: repeat(6, 1fr);
+    padding: 0;
+    gap: 0;
+    margin: 0 0 18px;
+    border-radius: 10px;
+  }
+  .monitoring-summary > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px 4px;
+    border-left: 1px solid var(--monitoring-line);
+    border-top: 0;
+    gap: 2px;
+  }
+  /* Baris 1: 3 cards (masing-masing 2 dari 6 kolom) */
+  .monitoring-summary > div:nth-child(1),
+  .monitoring-summary > div:nth-child(2),
+  .monitoring-summary > div:nth-child(3) {
+    grid-column: span 2;
+  }
+  .monitoring-summary > div:nth-child(1) {
+    border-left: 0;
+  }
+  /* Baris 2: 2 cards (masing-masing 3 dari 6 kolom) */
+  .monitoring-summary > div:nth-child(4),
+  .monitoring-summary > div:nth-child(5) {
+    grid-column: span 3;
+    border-top: 1px solid var(--monitoring-line);
+    padding: 10px 4px 12px;
+  }
+  .monitoring-summary > div:nth-child(4) {
+    border-left: 0;
+  }
+  .monitoring-summary dt {
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .monitoring-summary dd {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .monitoring-workspace__tabs {
+    gap: 16px;
+    padding: 0 2px;
+    margin-bottom: 14px;
+  }
+  .monitoring-workspace__tabs button {
+    padding-bottom: 10px;
+    font-size: 13px;
+  }
 }
 
 @media (pointer: coarse) {
-  .monitoring-refresh, .monitoring-attention-filter, .monitoring-workspace__tabs button { min-height: 44px; }
-  .monitoring-participant-filters__search input { height: 44px; font-size: 16px; }
+  .monitoring-refresh, .monitoring-workspace__tabs button { min-height: 44px; }
 }

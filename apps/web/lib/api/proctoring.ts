@@ -39,6 +39,8 @@ export interface ClientSyncHealth {
     localAnswerCount: number;
     pendingAnswerCount: number;
     storageState: 'healthy' | 'fallback' | 'unavailable' | 'unknown';
+    /** Alasan server menolak jawaban terakhir. */
+    rejection?: string;
 }
 
 export function heartbeatExamAttempt(attemptId: string, syncHealth?: ClientSyncHealth, screenSharing?: boolean, sessionStartedAt?: string) {
@@ -59,10 +61,11 @@ export interface AttemptRecoveryResult {
     serverAnswerCount: number;
 }
 
-export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number, releaseDevice = false) {
+export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number, releaseDevice = false, submitOnly?: boolean) {
     return apiSend<AttemptRecoveryResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/reset`,
-        { reason, durationMinutes, ...(releaseDevice ? { releaseDevice: true } : {}) },
+        { reason, durationMinutes, ...(releaseDevice ? { releaseDevice: true } : {}),
+            ...(!releaseDevice && submitOnly !== undefined ? { submitOnly } : {}) },
     );
 }
 
@@ -81,6 +84,21 @@ export function startMakeupExam(
 ) {
     return apiIdempotentMutation<MakeupExamResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/makeup`,
+        { reason, durationMinutes },
+        'POST',
+        { timeoutMs: 30_000 },
+    );
+}
+
+/** Susulan untuk siswa yang belum pernah memulai ujian; jadwal ujian tidak diubah. */
+export function startMakeupForAbsentStudent(
+    examId: string,
+    studentId: string,
+    reason: string,
+    durationMinutes: number,
+) {
+    return apiIdempotentMutation<MakeupExamResult>(
+        `/api/proctoring/exams/${encodeURIComponent(examId)}/participants/${encodeURIComponent(studentId)}/makeup`,
         { reason, durationMinutes },
         'POST',
         { timeoutMs: 30_000 },

@@ -78,24 +78,24 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded(value => !value)}
-            className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><ShieldAlert size={18} /></span>
             <span className="min-w-0 flex-1">
-                <span className="block font-semibold">Jawaban & waktu ujian</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
-                    {needingAttention.length > 0
-                        ? `${needingAttention.length} dari ${attempts.length} peserta perlu perhatian`
-                        : `${attempts.length} peserta dipantau`}
-                    {sampledAt ? ` · Data server ${date(sampledAt)}` : ''}
+                <span className="block font-semibold text-sm text-slate-800 truncate">Jawaban & Waktu</span>
+                <span className="mt-0.5 block text-xs text-slate-500 truncate">
+                    {attempts.length} peserta dipantau
+                    {sampledAt ? <span className="hidden sm:inline"> · Server {date(sampledAt)}</span> : ''}
                 </span>
             </span>
-            {needingAttention.length > 0 && (
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                    {needingAttention.length} perhatian
-                </span>
-            )}
-            <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            <div className="shrink-0 flex items-center gap-2">
+                {needingAttention.length > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 whitespace-nowrap">
+                        {needingAttention.length} perhatian
+                    </span>
+                )}
+                <ChevronDown size={18} className={`text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            </div>
         </button>
         {expanded && <div className="border-t border-slate-100 p-4">
         <FilterToolbar>
@@ -155,8 +155,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     <td className="p-3">
                         <div className="flex flex-wrap gap-2">
                             <button type="button" className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedAttemptId(attempt.id)}>Detail</button>
-                            {onRecover && attempt.canReset === true && ['in_progress', 'submitted', 'auto_submitted'].includes(attempt.status) && (
-                                <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>{active ? 'Reset sesi' : 'Susulan / Pulihkan'}</button>
+                            {onRecover && attempt.canReset === true && ['in_progress', 'submitted', 'auto_submitted', 'belum'].includes(attempt.status) && (
+                                <button type="button" className="rounded border border-blue-300 px-2 py-1 text-blue-700 hover:bg-blue-50 cursor-pointer font-medium" onClick={() => void onRecover(attempt)}>{active ? 'Reset sesi' : attempt.status === 'belum' ? 'Susulan' : 'Susulan / Pulihkan'}</button>
                             )}
                         </div>
                     </td>

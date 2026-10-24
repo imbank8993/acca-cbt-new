@@ -4,8 +4,10 @@ import React, { useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { formatStudentName } from '@/lib/monitoring-health';
-import { resetExamAttempt, startMakeupExam } from '@/lib/api/proctoring';
+import { deviceLabel, formatStudentName } from '@/lib/monitoring-health';
+import { formatSchoolDateTime } from '@/lib/school-time';
+import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
+import { resetExamAttempt, startMakeupExam, startMakeupForAbsentStudent } from '@/lib/api/proctoring';
 import { hasIrtScore } from '@/lib/irt-status';
 import {
   RotateCcw,
@@ -56,14 +58,27 @@ function ResetExamForm({
   participantSummary,
   irtScoredCount,
 }: ResetExamModalProps) {
-  const [mode, setMode] = useState<ResetMode>('PULIHKAN');
+  // Siswa yang belum pernah mulai: hanya susulan (pengerjaan baru dengan jendela pribadi).
+  const notStarted = attempt?.status === 'belum';
+  const [mode, setMode] = useState<ResetMode>(notStarted ? 'SUSULAN' : 'PULIHKAN');
   const [reason, setReason] = useState('');
-  const [duration, setDuration] = useState<number>(15);
+  const [duration, setDuration] = useState<number>(() => notStarted
+    ? Number(examDuration ?? attempt?.exams?.duration_minutes ?? attempt?.exams?.duration ?? 60) || 60
+    : 15);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmedClear, setConfirmedClear] = useState(false);
   // Pindah perangkat hanya untuk satu siswa (bukan reset massal).
   const [releaseDevice, setReleaseDevice] = useState(false);
+  const { timeZone } = useSchoolTimeZone();
+  const formatTime = (value?: string | null) => value ? formatSchoolDateTime(value, timeZone) : '—';
+  // Jenis pemulihan: hanya kirim jawaban dari perangkat (terkunci) atau lanjut mengerjakan.
+  // Masih "mengerjakan" tetapi tenggat sudah lewat (penutupan otomatis belum
+  // berjalan): bawaannya hanya kirim jawaban, bukan tambahan waktu mengerjakan.
+  const [submitOnly, setSubmitOnly] = useState(
+    attempt?.status !== 'in_progress' || attempt?.metadata?.recovery_submit_only === true ||
+      (typeof attempt?.remaining_seconds === 'number' && attempt.remaining_seconds <= 0),
+  );
 
   const resolvedExamDuration = Number(
     examDuration ??
@@ -129,12 +144,13 @@ function ResetExamForm({
       setErrorMessage('Durasi harus berupa angka antara 1 dan 1440 menit.');
       return;
     }
-    if (mode === 'SUSULAN' && !confirmedClear) {
+    if (mode === 'SUSULAN' && !confirmedClear && !notStarted) {
       setErrorMessage('Konfirmasi penghapusan jawaban sebelum memulai ulang.');
       return;
     }
 
     const moveDevice = mode === 'PULIHKAN' && releaseDevice && !participantSummary;
+    const lockAnswers = !moveDevice && (submitOnly || !isActive);
 
     setErrorMessage(null);
     setIsSubmitting(true);
@@ -144,8 +160,10 @@ function ResetExamForm({
         await onConfirm(attempt.id, mode, trimmedReason, duration);
       } else {
         const result = mode === 'SUSULAN'
-          ? await startMakeupExam(attempt.id, trimmedReason, duration)
-          : await resetExamAttempt(attempt.id, trimmedReason, duration, moveDevice);
+          ? notStarted
+            ? await startMakeupForAbsentStudent(attempt.exam_id, attempt.user_id, trimmedReason, duration)
+            : await startMakeupExam(attempt.id, trimmedReason, duration)
+          : await resetExamAttempt(attempt.id, trimmedReason, duration, moveDevice, moveDevice ? undefined : lockAnswers);
 
         if (!result.success) {
           throw new Error('error' in result ? (result.error as string) : 'Gagal memproses pemulihan/susulan');
@@ -171,7 +189,7 @@ function ResetExamForm({
     >
       <ModalHeader
         id="reset-exam-modal-title"
-        title={isActive ? 'Reset Sesi Pengerjaan' : 'Tindakan Pemulihan / Susulan Ujian'}
+        title={notStarted ? 'Ujian Susulan' : isActive ? 'Reset Sesi Pengerjaan' : 'Tindakan Pemulihan / Susulan Ujian'}
         icon={<RotateCcw className="text-[#3083FF]" size={20} />}
         onClose={isSubmitting ? undefined : onClose}
       />
@@ -205,7 +223,7 @@ function ResetExamForm({
                     ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     : 'bg-blue-100 text-blue-700 border border-blue-200'
               }`}>
-                {attempt.status === 'auto_submitted' ? 'Terminated' : attempt.status === 'submitted' ? 'Selesai' : 'Mengerjakan'}
+                {attempt.status === 'auto_submitted' ? 'Terminated' : attempt.status === 'submitted' ? 'Selesai' : notStarted ? 'Belum mulai' : 'Mengerjakan'}
               </span>
             </div>
           </div>
@@ -240,12 +258,37 @@ function ResetExamForm({
             </div>
           )}
 
+          {/* Perangkat lain mencoba membuka ujian: bantu pengawas memutuskan */}
+          {!participantSummary && !notStarted && offline?.other_device_attempts && (
+            <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
+              <p className="mb-1.5 flex items-center gap-1.5 font-bold">
+                <AlertTriangle size={14} className="shrink-0" /> Ujian dibuka dari lebih dari satu perangkat
+              </p>
+              <dl className="space-y-1">
+                <div><dt className="inline font-semibold">Perangkat ujian: </dt><dd className="inline">
+                  {attempt.device_holder ? `${deviceLabel(attempt.device_holder)}, sejak ${formatTime(attempt.device_holder.since)}${attempt.device_holder.last_seen_at ? `, kontak terakhir ${formatTime(attempt.device_holder.last_seen_at)}` : ''}` : 'tidak diketahui'}
+                </dd></div>
+                <div><dt className="inline font-semibold">Perangkat yang ditolak: </dt><dd className="inline">
+                  {deviceLabel(offline.other_device_attempts.last_context)} · {offline.other_device_attempts.count}× ditolak, terakhir {formatTime(offline.other_device_attempts.last_at)}
+                </dd></div>
+                <div><dt className="inline font-semibold">Jawaban di server: </dt><dd className="inline">{savedAnswers}</dd></div>
+              </dl>
+              <p className="mt-2 font-semibold">Tanyakan siswa apakah perangkat ujian itu miliknya.</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>Miliknya dan masih bisa dipakai → minta siswa kembali ke perangkat itu (Pulihkan biasa bila waktunya habis).</li>
+                <li>Bukan miliknya / tidak bisa dipakai, dan {savedAnswers === 0 ? <strong>belum ada jawaban</strong> : 'jawaban di server memang dikerjakan siswa ini'} → <button type="button" className="font-semibold text-blue-700 underline" onClick={() => { handleModeSelect('PULIHKAN'); setReleaseDevice(true); }}>Pindahkan ke perangkat baru</button>.</li>
+                <li>Ada jawaban yang <strong>bukan dikerjakan siswa ini</strong> (uji coba, orang lain) → <button type="button" className="font-semibold text-amber-800 underline" onClick={() => handleModeSelect('SUSULAN')}>Susulan</button> (jawaban lama dihapus, mulai dari awal).</li>
+              </ul>
+            </div>
+          )}
+
           {/* Mode Selection Cards */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">
               Pilih Jenis Tindakan <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {!notStarted && (<>
               {/* Option 1: PULIHKAN */}
               <button
                 type="button"
@@ -275,6 +318,7 @@ function ResetExamForm({
                   </p>
                 </div>
               </button>
+              </>)}
 
               {/* Option 2: SUSULAN */}
               <button
@@ -297,7 +341,9 @@ function ResetExamForm({
                     )}
                   </div>
                   <p className="text-[11px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                    Ulangi ujian dari awal. Semua jawaban dan nilai lama dihapus.
+                    {notStarted
+                      ? 'Siswa belum pernah mengikuti ujian ini. Buka ujian khusus untuknya tanpa mengubah jadwal.'
+                      : 'Ulangi ujian dari awal. Semua jawaban dan nilai lama dihapus.'}
                   </p>
                 </div>
               </button>
@@ -345,9 +391,9 @@ function ResetExamForm({
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
                 {mode === 'PULIHKAN'
-                  ? releaseDevice && !participantSummary
+                  ? (releaseDevice && !participantSummary) || (isActive && !submitOnly)
                     ? 'Tenggat baru dihitung: Waktu Sekarang + Menit Tambahan. Siswa dapat melanjutkan dan mengubah jawaban selama durasi ini.'
-                    : 'Tenggat baru dihitung: Waktu Sekarang + Menit Tambahan (hanya untuk pengiriman jawaban tersimpan).'
+                    : 'Jendela pengiriman: Waktu Sekarang + Menit Tambahan. Selama durasi ini siswa dapat mengirim ulang jawaban dari perangkatnya, tetapi tidak dapat mengubah jawaban. Berlaku walau jadwal ujian sudah berakhir.'
                   : 'Peserta diberikan waktu pengerjaan utuh dari awal selama durasi ini.'}
               </p>
             </div>
@@ -382,6 +428,31 @@ function ResetExamForm({
             </div>
           </div>
 
+          {/* Jenis pemulihan */}
+          {mode === 'PULIHKAN' && !(releaseDevice && !participantSummary) && (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+              <p className="mb-2 font-bold text-slate-700">Jenis pemulihan</p>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly || !isActive} onChange={() => setSubmitOnly(true)} />
+                <span>
+                  <span className="font-semibold">Kirim ulang jawaban saja</span>
+                  <span className="block text-slate-500">Jawaban yang tersimpan di perangkat siswa dikirim otomatis begitu ujian dibuka. Jawaban dikunci dan tidak dapat diubah.</span>
+                </span>
+              </label>
+              <label className={`mt-2 flex items-start gap-2 ${isActive ? '' : 'opacity-60'}`}>
+                <input type="radio" name="recovery-kind" className="mt-0.5" disabled={!isActive} checked={isActive && !submitOnly} onChange={() => setSubmitOnly(false)} />
+                <span>
+                  <span className="font-semibold">Lanjutkan mengerjakan</span>
+                  <span className="block text-slate-500">
+                    {isActive
+                      ? 'Siswa dapat menjawab dan mengubah jawaban sampai tenggat baru.'
+                      : 'Tidak tersedia untuk ujian yang sudah ditutup. Gunakan "Pindahkan ke perangkat baru" atau Susulan.'}
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* Pindah perangkat: perangkat pertama rusak / tidak tersedia */}
           {mode === 'PULIHKAN' && !participantSummary && (
             <div className={`rounded-xl border p-3 text-xs ${releaseDevice ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-200 bg-white text-slate-700'}`}>
@@ -408,7 +479,18 @@ function ResetExamForm({
           )}
 
           {/* Warning Banner for SUSULAN */}
-          {mode === 'SUSULAN' && (
+          {mode === 'SUSULAN' && notStarted && (
+            <div role="note" className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+              <p className="font-bold">Susulan untuk siswa yang belum mengikuti ujian</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                <li>Pengerjaan baru dibuat untuk <strong>{studentName}</strong> dengan waktu {duration} menit, dihitung sejak tombol ini ditekan.</li>
+                <li>Jadwal ujian tidak berubah. Siswa lain tidak melihat ujian ini aktif.</li>
+                <li>Ujian muncul di dashboard siswa ini dengan label Susulan, walau jadwal ujian sudah lewat.</li>
+              </ul>
+            </div>
+          )}
+
+          {mode === 'SUSULAN' && !notStarted && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
               <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
               <div>
@@ -451,10 +533,12 @@ function ResetExamForm({
             {isSubmitting
               ? 'Memproses...'
               : mode === 'SUSULAN'
-                ? `${isActive ? 'Mulai Ulang' : 'Aktifkan Ujian Susulan'} (${duration} Min)`
+                ? `${notStarted ? 'Buat Ujian Susulan' : isActive ? 'Mulai Ulang' : 'Aktifkan Ujian Susulan'} (${duration} Min)`
                 : releaseDevice && !participantSummary
                   ? `Pindahkan ke Perangkat Baru (${duration} Min)`
-                  : `${isActive ? 'Atur Ulang Waktu' : 'Konfirmasi Pulihkan Ujian'} (${duration} Min)`}
+                  : submitOnly || !isActive
+                    ? `Buka Pengiriman Jawaban (${duration} Min)`
+                    : `Atur Ulang Waktu (${duration} Min)`}
           </Button>
         </ModalFooter>
       </form>

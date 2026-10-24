@@ -1,4 +1,10 @@
-import type { ExamAttemptRecord } from './api/proctor';
+import type { DeviceInfo, ExamAttemptRecord } from './api/proctor';
+
+/** "Chrome 120 · Android · 10.0.0.5" — ringkasan perangkat untuk pengawas. */
+export function deviceLabel(info?: Partial<DeviceInfo> | null, withIp = true): string {
+    const parts = [info?.browser, info?.os, withIp ? info?.ip_address : null].filter(Boolean);
+    return parts.length ? parts.join(' · ') : 'Perangkat tidak dikenali';
+}
 
 export const monitoringEventLabels: Record<string, string> = {
     SCREEN_SHARE_STOPPED: 'Berbagi layar dihentikan',

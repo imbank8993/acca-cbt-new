@@ -55,6 +55,15 @@ export class AuthController {
     return this.authService.exchangeSsoTicket(dto.token, ip, ua);
   }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Perpanjang sesi selama siswa sedang mengerjakan ujian' })
+  refresh(@CurrentUser() user: AuthUser) {
+    return this.authService.refreshExamSession(user);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -11,6 +11,7 @@ import { studentScoreType, type AuthUser } from '@acca-cbt/shared';
 import { isEssayType, toAnswerColumns, usesTextColumn } from '../common/answer-storage';
 import { examDeadline, hasActiveSubmitIntent } from '../common/exam-deadline';
 import { connectionLostAtClose } from '../common/exam-monitoring';
+import { RELEASED_DEVICE_MESSAGE, deviceSummary, holderSummary, isReleasedDevice, type DeviceContext } from '../common/device-context';
 import { normalizeAssignmentSubmission } from '../common/assignment-submission';
 import { isScoreExcluded } from '../common/score-exclusion';
 import { hasBoundSubmitIntent, hasCommittedSubmitIntent, submissionDigest, type SubmissionPayload } from '../common/submission-commitment';
@@ -214,7 +215,8 @@ export class ExamAttemptsService {
      * yang memundurkan jam laptopnya tidak boleh bisa membuka ujian lebih awal
      * atau memperpanjang durasinya.
      */
-    async start(user: AuthUser, examId: string, deviceId?: string, screenCaptureReady = false) {
+    async start(user: AuthUser, examId: string, deviceId?: string, screenCaptureReady = false,
+        clientContext?: DeviceContext | null) {
         const now = await this.serverNow();
 
         const { data: exam } = await this.db
@@ -229,10 +231,17 @@ export class ExamAttemptsService {
 
         await assertExamAccess(this.db, user, exam);
         if (exam.metadata?.screenshot_enabled === true && !screenCaptureReady) {
-            const { data: exception, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
-                .select('user_id').eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
-            if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
-            if (!exception) throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
+            // Pemulihan "kirim saja" hanya mengirim salinan terkunci; tidak ada soal
+            // yang ditampilkan, jadi berbagi layar tidak diwajibkan.
+            const { data: recovering } = await this.db.from('cbt_exam_attempts')
+                .select('metadata').eq('exam_id', examId).eq('user_id', user.id).eq('status', 'in_progress').maybeSingle();
+            const submitOnly = (recovering as { metadata?: Record<string, unknown> | null } | null)?.metadata?.recovery_submit_only === true;
+            if (!submitOnly) {
+                const { data: exception, error: exceptionError } = await this.db.from('cbt_exam_screen_share_exceptions')
+                    .select('user_id').eq('exam_id', examId).eq('user_id', user.id).maybeSingle();
+                if (exceptionError) throw new BadRequestException('Izin pengecualian berbagi layar belum dapat diperiksa.');
+                if (!exception) throw new ForbiddenException('Bagikan seluruh layar sebelum memulai atau melanjutkan ujian.');
+            }
         }
         const device = this.requireDeviceId(deviceId);
 
@@ -294,21 +303,21 @@ export class ExamAttemptsService {
             });
         }
 
-        if (existing) return this.resume(existing as any, row, now, device);
+        if (existing) return this.resume(existing as any, row, now, device, clientContext);
 
         // Dua tab dapat melewati pemeriksaan `existing` di atas pada saat yang
         // sama. Serialisasikan keputusan terakhir berdasarkan pasangan
         // siswa-ujian, lalu periksa ulang di dalam transaksi sebelum INSERT.
         // Dengan begitu retry start bersifat idempoten dan selalu kembali ke
         // attempt yang sudah menang.
-        const decision = await this.createAttemptSafely(user, examId, row, now, device);
+        const decision = await this.createAttemptSafely(user, examId, row, now, device, clientContext);
         if (decision.kind === 'completed') {
             return this.refuse('Anda sudah menyelesaikan ujian ini.', {
                 expiredAttemptId: decision.attemptId,
             });
         }
         if (decision.kind === 'existing') {
-            return this.resume(decision.attempt, row, now, device);
+            return this.resume(decision.attempt, row, now, device, clientContext);
         }
         return decision.result;
     }
@@ -326,6 +335,7 @@ export class ExamAttemptsService {
         exam: { organization_id: string; end_time: string | null; duration_minutes: number | null },
         now: Date,
         device: string,
+        clientContext?: DeviceContext | null,
     ) {
         return this.db.transaction(async db => {
             await advisoryTransactionLock(db, `${examId}:${user.id}`);
@@ -365,7 +375,7 @@ export class ExamAttemptsService {
 
             return {
                 kind: 'created' as const,
-                result: await this.createAttempt(user, examId, exam, now, device, db),
+                result: await this.createAttempt(user, examId, exam, now, device, db, clientContext),
             };
         });
     }
@@ -376,6 +386,7 @@ export class ExamAttemptsService {
         exam: { end_time: string | null; duration_minutes: number | null },
         now: Date,
         device: string,
+        clientContext?: DeviceContext | null,
     ) {
         // ── Kunci perangkat ──────────────────────────────────────────────────
         // Pengerjaan terikat pada perangkat yang pertama memulainya; melanjutkan
@@ -385,37 +396,69 @@ export class ExamAttemptsService {
         // Disimpan di kolom `device_fingerprint` tersendiri, bukan di `metadata`,
         // supaya ujian tetap bisa dimulai pada basis data yang kolom metadata-nya
         // belum ada.
-        const boundDevice: string | undefined = attempt.device_fingerprint || undefined;
+        let boundDevice: string | undefined = attempt.device_fingerprint || undefined;
 
         if (device) {
+            if (!boundDevice) {
+                // Belum terikat (susulan, pindah perangkat, data lama). Ikat HANYA
+                // bila masih kosong: dua perangkat yang membuka bersamaan tidak
+                // boleh sama-sama lolos lalu saling menimpa kunci perangkat.
+                const deviceBound = { ...deviceSummary(clientContext), at: now.toISOString() };
+                // Kunci baris lalu baca ulang metadata: pengikatan tidak boleh
+                // menimpa perubahan proktor/heartbeat yang terjadi di antaranya.
+                const claimed = await this.db.transaction(async db => {
+                    await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
+                    const { data: fresh } = await db.from('cbt_exam_attempts')
+                        .select('device_fingerprint, metadata').eq('id', attempt.id).maybeSingle();
+                    if (!fresh || fresh.device_fingerprint) return null;
+                    if (isReleasedDevice(fresh.metadata, device)) return 'released' as const;
+                    const metadata = { ...(fresh.metadata || {}), device_bound: deviceBound };
+                    const { data: updated } = await db.from('cbt_exam_attempts')
+                        .update({ device_fingerprint: device, metadata })
+                        .eq('id', attempt.id).is('device_fingerprint', null).select('id').maybeSingle();
+                    return updated ? metadata : null;
+                });
+                if (claimed === 'released') return this.refuse(RELEASED_DEVICE_MESSAGE);
+                if (claimed) {
+                    attempt.device_fingerprint = device;
+                    attempt.metadata = claimed;
+                } else {
+                    const { data: current } = await this.db.from('cbt_exam_attempts')
+                        .select('device_fingerprint, metadata, last_seen_at').eq('id', attempt.id).maybeSingle();
+                    boundDevice = current?.device_fingerprint || undefined;
+                    if (current) Object.assign(attempt, current);
+                }
+            }
+
             if (boundDevice && boundDevice !== device) {
                 // Dicatat sebagai jejak audit untuk pengawas, TETAPI dengan jenis
                 // peristiwa yang tidak ikut dihitung sebagai pelanggaran —
                 // kalau ikut, perangkat asli bisa ikut terhenti otomatis.
+                const holder = holderSummary(attempt);
                 await this.db.from('cbt_attempt_security_logs').insert({
                     attempt_id: attempt.id,
                     event_type: 'DEVICE_SWITCH_BLOCKED',
                     metadata: {
                         attempted_device: device,
                         bound_device: boundDevice,
+                        attempted_context: deviceSummary(clientContext),
+                        bound_context: holder,
                         at: now.toISOString(),
                     },
                 });
 
+                // Netral: siswa bisa saja tidak tahu ujiannya pernah dibuka di
+                // perangkat lain (lupa, uji coba guru, atau akun dipakai orang lain).
+                const timeZone = (await this.settings?.getSchoolTimeZone?.()) || 'Asia/Jakarta';
+                const label = [holder.browser, holder.os].filter(Boolean).join(' · ');
+                const since = holder.since ? `sejak pukul ${utcToLocalClock(holder.since, timeZone)} ${getSchoolTimeZoneLabel(timeZone)}` : '';
+                const where = [label, since].filter(Boolean).join(', ');
                 return this.refuse(
-                    'Ujian ini terkunci pada perangkat yang pertama Anda gunakan. Lanjutkan di perangkat itu: ' +
-                        'jawaban yang belum terkirim hanya tersimpan di sana. Bila perangkat tersebut tidak dapat ' +
-                        'dipakai, minta pengawas memilih "Pindahkan ke perangkat baru" (Pulihkan biasa tidak memindahkan perangkat).',
+                    `Ujian ini sudah dibuka di perangkat lain${where ? ` (${where})` : ''}. ` +
+                        'Jika itu perangkat Anda, lanjutkan di sana: jawaban yang belum terkirim hanya tersimpan di perangkat itu. ' +
+                        'Jika Anda tidak pernah membukanya di perangkat tersebut, segera lapor pengawas. ' +
+                        'Jangan mencoba dari perangkat lain lagi.',
                 );
-            }
-
-            if (!boundDevice) {
-                // Pengerjaan dari sebelum kunci perangkat ada: ikat sekarang.
-                await this.db
-                    .from('cbt_exam_attempts')
-                    .update({ device_fingerprint: device })
-                    .eq('id', attempt.id);
-                attempt.device_fingerprint = device;
             }
         }
 
@@ -460,6 +503,7 @@ export class ExamAttemptsService {
         now: Date,
         device: string,
         db: DbSession = this.db,
+        clientContext?: DeviceContext | null,
     ) {
         await ensureExamQuestionSnapshotsInTransaction(db, examId);
 
@@ -482,6 +526,7 @@ export class ExamAttemptsService {
                 last_seen_at: now.toISOString(),
                 personal_end_time: personalEnd.toISOString(),
                 device_fingerprint: device || null,
+                ...(device ? { metadata: { device_bound: { ...deviceSummary(clientContext), at: now.toISOString() } } } : {}),
             })
             .select()
             .maybeSingle();
@@ -662,7 +707,8 @@ export class ExamAttemptsService {
                 .eq('id', attemptId).maybeSingle();
             if (error || !attempt) throw new ForbiddenException('Sesi pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
-            if (attempt.device_fingerprint && attempt.device_fingerprint !== device) {
+            if ((attempt.device_fingerprint && attempt.device_fingerprint !== device) ||
+                (!attempt.device_fingerprint && isReleasedDevice(attempt.metadata, device))) {
                 throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
             }
             // Dinormalisasi persis seperti di submit(), supaya digest keduanya sama.
@@ -862,7 +908,8 @@ export class ExamAttemptsService {
             throw new ForbiddenException('Pemulihan hanya mengizinkan pengumpulan jawaban, bukan perubahan jawaban.');
         }
 
-        if (attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) {
+        if ((attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) ||
+            (!attempt.device_fingerprint && isReleasedDevice(attempt.metadata, deviceId))) {
             throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
         }
         const { data: exam, error: examError } = await db.from('cbt_exams')
@@ -957,9 +1004,39 @@ export class ExamAttemptsService {
         );
     }
 
+    /** Recognize legacy resets without trusting a deadline supplied by the browser. */
+    private async matchesSubmissionDeadline(
+        db: DbSession, attemptId: string,
+        attempt: { started_at?: string | null; personal_end_time?: string | null; metadata?: Record<string, unknown> | null },
+        personalEndTime: string,
+    ): Promise<boolean> {
+        const deadline = Date.parse(personalEndTime);
+        const start = Date.parse(attempt.started_at || '');
+        if (!Number.isFinite(deadline) || !Number.isFinite(start)) return false;
+        const matches = (value: unknown) => typeof value === 'string' && Date.parse(value) === deadline;
+        if ([attempt.personal_end_time, attempt.metadata?.recovery_source_deadline,
+            ...supersededDeadlines(attempt.metadata)].some(matches)) return true;
+
+        // Before superseded_deadlines existed, resets still recorded both deadlines
+        // in the server audit. Only resets belonging to this generation may supply
+        // them: an earlier makeup can reuse the attempt ID and have a later deadline.
+        const { data, error } = await db.from('cbt_attempt_security_logs')
+            .select('created_at, metadata').eq('attempt_id', attemptId)
+            .eq('event_type', 'RESET_BY_PROCTOR').gte('created_at', attempt.started_at!);
+        if (error) throw new ServiceUnavailableException('Riwayat pemulihan belum dapat diperiksa. Silakan coba lagi.');
+        return (data || []).some((row: { created_at: string; metadata?: Record<string, unknown> | null }) => {
+            const metadata = row.metadata;
+            const resetAt = typeof metadata?.reset_at === 'string' ? Date.parse(metadata.reset_at) : NaN;
+            const recordedStart = metadata?.attempt_started_at;
+            if (!(Date.parse(row.created_at) >= start) || !(resetAt >= start) ||
+                (recordedStart !== undefined && (typeof recordedStart !== 'string' || Date.parse(recordedStart) !== start))) return false;
+            return matches(metadata?.previous_deadline) || matches(metadata?.recovery_until);
+        });
+    }
+
     /** Client freezing is not proof of when answers were written. Late uploads require staff recovery. */
     private async assertFrozenSubmission(
-        user: AuthUser, attempt: any,
+        user: AuthUser, attemptId: string, attempt: any,
         snapshot: { startedAt: string; personalEndTime: string }, device: string, db: DbSession, digest: string,
     ): Promise<void> {
         if (attempt.user_id !== user.id || attempt.device_fingerprint !== device ||
@@ -967,15 +1044,16 @@ export class ExamAttemptsService {
             throw new ForbiddenException('Salinan jawaban tidak cocok dengan sesi atau perangkat ini.');
         }
         const recovery = attempt.metadata?.recovery_submit_only === true;
-        const sourceDeadline = recovery ? attempt.metadata?.recovery_source_deadline : attempt.personal_end_time;
-        // Batas waktu yang digantikan oleh reset proktor tetap mengenali salinan
-        // yang dikunci sebelum reset itu (generasi attempt sama: started_at tetap).
-        const matchesDeadline = [sourceDeadline, recovery ? attempt.personal_end_time : null,
-            ...supersededDeadlines(attempt.metadata)]
-            .some(deadline => Date.parse(snapshot.personalEndTime) === Date.parse(deadline || ''));
+        const matchesDeadline = await this.matchesSubmissionDeadline(db, attemptId, attempt, snapshot.personalEndTime);
         if (!matchesDeadline) throw new ForbiddenException('Salinan jawaban berasal dari sesi yang sudah diganti.');
         if (attempt.status !== 'in_progress' &&
             !(attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true && !recovery)) {
+            // Jendela pemulihan yang habis lalu ditutup otomatis bukan penutupan
+            // oleh pengawas/pelanggaran: proktor cukup membuka pemulihan lagi.
+            if (recovery && attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true) {
+                throw new ForbiddenException({ code: 'RECOVERY_REQUIRED',
+                    message: 'Jendela pemulihan sudah berakhir sebelum jawaban terkirim. Salinan jawaban tetap tersimpan di perangkat ini; minta proktor membuka Pulihkan lagi.' });
+            }
             throw new ForbiddenException({ code: 'SESSION_CLOSED', message: 'Sesi ditutup oleh pengawas atau pelanggaran; hubungi proktor.' });
         }
         const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
@@ -1162,9 +1240,7 @@ export class ExamAttemptsService {
             if (!attempt || !acceptableStatus || attempt.user_id !== user.id ||
                 attempt.exam_id !== examId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId.trim())) return false;
             if (frozen && (Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt) ||
-                ![attempt.personal_end_time, attempt.metadata?.recovery_source_deadline,
-                    ...supersededDeadlines(attempt.metadata)].some(deadline =>
-                    Date.parse(deadline || '') === Date.parse(frozen.personalEndTime)))) return false;
+                !await this.matchesSubmissionDeadline(db, attemptId, attempt, frozen.personalEndTime))) return false;
             const { data: saved, error: readError } = await db.from('cbt_answers')
                 .select('question_id, selected_option_id, essay_answer, metadata').eq('attempt_id', attemptId);
             if (readError) throw new ServiceUnavailableException('Jawaban tersimpan belum dapat diverifikasi. Silakan coba lagi.');
@@ -1303,7 +1379,7 @@ export class ExamAttemptsService {
                     };
                 }
                 if (frozenSubmission) {
-                    await this.assertFrozenSubmission(user, current, frozenSubmission, device, db, digest);
+                    await this.assertFrozenSubmission(user, attempt.id, current, frozenSubmission, device, db, digest);
                 } else {
                     if (current.metadata?.recovery_submit_only === true) throw new BadRequestException('Pemulihan memerlukan salinan jawaban terkunci.');
                     await this.assertOwnedAndRunning(user, attempt.id, db, device, true, digest);

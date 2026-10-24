@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
-import { formatStudentName, gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
+import { deviceLabel, formatStudentName, gradingLabel, monitoringAttention, monitoringEventLabels, storageLabels } from '@/lib/monitoring-health';
 import { formatMonitoringDuration, monitoringTime } from '@/lib/monitoring-time';
 import { unansweredQuestionCount } from '@/lib/monitoring-answer-count';
 import { AttemptScreenshots } from './AttemptScreenshots';
@@ -178,6 +178,7 @@ export function AttemptHistoryModal({
                   ['Antrean pengiriman', health ? String(health.pendingAnswerCount) : 'Belum ada laporan'],
                   ['Penyimpanan perangkat', health ? storageLabels[health.storageState] : 'Belum ada laporan'],
                   ['Laporan perangkat', health ? `${formatDate(health.receivedAt)}${fresh ? '' : ' · Laporan lama'}` : 'Belum ada laporan'],
+                  ['Perangkat ujian', attempt.device_holder ? `${deviceLabel(attempt.device_holder)} · sejak ${formatDate(attempt.device_holder.since)}` : 'Belum terikat ke perangkat'],
                   ['Kontak server terakhir', formatDate(attempt.last_seen_at)],
                   ['Batas sesi', formatDate(attempt.deadline_at)],
                   ['Waktu sesi', formatMonitoringDuration(timing.availableSeconds)],
@@ -249,6 +250,12 @@ export function AttemptHistoryModal({
                           <div className="sm:col-span-2">
                             <span className="text-slate-400 font-medium">Alasan:</span>{' '}
                             <span className="font-medium text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block mt-0.5">{reasonText}</span>
+                          </div>
+                        )}
+                        {event.type === 'DEVICE_SWITCH_BLOCKED' && (
+                          <div className="sm:col-span-2">
+                            <span className="text-slate-400 font-medium">Perangkat ditolak:</span>{' '}
+                            <span className="font-semibold text-slate-800">{deviceLabel(event.device_context)}</span>
                           </div>
                         )}
                         {event.device_released && (

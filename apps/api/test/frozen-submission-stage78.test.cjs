@@ -169,9 +169,11 @@ test('browser sends the frozen context and retries after a lost response after p
     global.window = {};
     global.localStorage = { getItem: () => device, setItem: () => {} };
     let loseResponse = true;
+    const sent = [];
     global.fetch = async (url, init) => {
         const body = JSON.parse(init.body);
         const isIntent = url.endsWith('/submit-intent');
+        if (!isIntent) sent.push(init.body);
         const result = isIntent ? await service.beginSubmit(user, 'attempt', body.deviceId, body.submission)
             : await service.submit(user, 'exam', body.answers, body.assignmentData, body.attemptId, body.deviceId, body.answerRevisions, body.frozenSubmission);
         if (!isIntent && loseResponse) { loseResponse = false; throw new Error('response lost'); }
@@ -179,13 +181,72 @@ test('browser sends the frozen context and retries after a lost response after p
     };
     try {
         const send = () => submitExamAction('exam', { q: 'offline final' }, undefined, 'attempt', { q: 1 }, context);
-        assert.equal((await send()).success, false);
+        const confirmed = await send();
+        assert.equal(confirmed.success, true);
+        assert.equal(confirmed.alreadySubmitted, true);
+        assert.equal(sent.length, 2, 'one immediate verification retry');
+        assert.equal(sent[0], sent[1], 'retry must use the exact same frozen payload');
         assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
         assert.equal(db.tables.cbt_answers[0].essay_answer, 'offline final');
         const retry = await send();
         assert.equal(retry.success, true);
         assert.equal(retry.savedAnswersOnly, false);
         assert.equal(retry.alreadySubmitted, true);
+    } finally {
+        global.fetch = original.fetch;
+        if (original.window === undefined) delete global.window; else global.window = original.window;
+        if (original.localStorage === undefined) delete global.localStorage; else global.localStorage = original.localStorage;
+    }
+});
+
+test('lost or incomplete receipts remain pending until the saved contents are confirmed', async () => {
+    const { submitExamAction } = require('../../web/lib/api/students.ts');
+    const original = { fetch: global.fetch, window: global.window, localStorage: global.localStorage };
+    global.window = {};
+    global.localStorage = { getItem: () => device, setItem: () => {} };
+    try {
+        for (const fault of ['network', 'timeout', '503', 'html', 'empty', 'receipt', 'other-attempt']) {
+            const { db, service } = fixture('auto_submitted');
+            const proctor = new ProctoringService(db, { assertExamStaff: async () => {} }, grading);
+            await proctor.resetAttempt({ id: 'proctor' }, 'attempt', 'Verified network failure', 15);
+            let fail = true;
+            const sent = [];
+            global.fetch = async (url, init) => {
+                const b = JSON.parse(init.body);
+                if (url.endsWith('/submit-intent')) {
+                    const intent = await service.beginSubmit(user, 'attempt', b.deviceId, b.submission);
+                    return new Response(JSON.stringify({ success: true, ...intent }));
+                }
+                sent.push(init.body);
+                const result = await service.submit(user, 'exam', b.answers, b.assignmentData, b.attemptId,
+                    b.deviceId, b.answerRevisions, b.frozenSubmission);
+                if (fail) {
+                    if (fault === 'network') throw new TypeError('Failed to fetch');
+                    if (fault === 'timeout') throw new DOMException('Timed out', 'AbortError');
+                    if (fault === '503') return new Response(JSON.stringify({ error: 'Verification unavailable' }), { status: 503 });
+                    if (fault === 'html') return new Response('<html>Proxy response</html>');
+                    if (fault === 'empty') return new Response('');
+                    return new Response(JSON.stringify({ success: true,
+                        ...(fault === 'other-attempt' ? { submissionVerified: true, verifiedAttemptId: 'other' } : {}) }));
+                }
+                return new Response(JSON.stringify({ success: true, ...result }));
+            };
+            const send = () => submitExamAction('exam', { q: 'offline final' }, undefined, 'attempt', { q: 1 }, context);
+            const pending = await send();
+            assert.equal(pending.success, false, fault);
+            assert.equal(pending.retryable, true, fault);
+            assert.equal(pending.confirmationPending, true, fault);
+            assert.match(pending.error, /belum dapat dikonfirmasi/);
+            assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+            assert.equal(sent.length, 2, 'bound retries during persistent outage');
+            assert.equal(sent[0], sent[1]);
+            fail = false;
+            const confirmed = await send();
+            assert.equal(confirmed.success, true, fault);
+            assert.equal(confirmed.alreadySubmitted, true, fault);
+            assert.equal(db.tables.cbt_answers.length, 1);
+            assert.equal(db.tables.cbt_answers[0].essay_answer, 'offline final');
+        }
     } finally {
         global.fetch = original.fetch;
         if (original.window === undefined) delete global.window; else global.window = original.window;

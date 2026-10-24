@@ -696,6 +696,28 @@ export async function readExamSnapshot(attemptId: string): Promise<ExamAnswerSna
     return readCurrentSnapshot(attemptId);
 }
 
+/**
+ * Pindahkan salinan jawaban ke kunci arsip sebelum dibersihkan. Salinan dari
+ * generasi pengerjaan lama tidak boleh ikut ke susulan baru, tetapi juga tidak
+ * boleh dihapus diam-diam: bisa jadi berisi jawaban yang belum pernah terkirim.
+ */
+export async function archiveExamSnapshot(attemptId: string): Promise<boolean> {
+    const current = await readExamSnapshot(attemptId).catch(() => null);
+    if (!current) return false;
+    await writeExamSnapshot(`${attemptId}#arsip-${Date.now()}`, current).catch(() => undefined);
+    return true;
+}
+
+/** Penanda generasi (started_at) pemilik salinan jawaban lokal. */
+export function readExamSnapshotGeneration(attemptId: string): string | null {
+    try { return localStorage.getItem(`exam_generation_${attemptId}`); } catch { return null; }
+}
+
+export function writeExamSnapshotGeneration(attemptId: string, startedAt?: string | null): void {
+    if (!startedAt) return;
+    try { localStorage.setItem(`exam_generation_${attemptId}`, startedAt); } catch { /* penanda opsional */ }
+}
+
 export async function removeExamSnapshot(attemptId: string): Promise<void> {
     await enqueueSnapshotOperation(attemptId, async () => {
         try { await idbDelete(attemptId); } catch { /* tetap bersihkan fallback */ }

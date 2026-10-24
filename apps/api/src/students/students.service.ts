@@ -248,12 +248,25 @@ export class StudentsService {
 
         const { data: attempts, error: attemptsError } = await this.db
             .from('cbt_exam_attempts')
-            .select('exam_id, status')
+            .select('exam_id, status, metadata')
             .eq('user_id', user.id)
             .in('exam_id', ids);
 
         if (attemptsError) throw new InternalServerErrorException('Status pengerjaan ujian belum dapat dimuat.');
-        const rows = (attempts as Array<{ exam_id: string; status: string }>) || [];
+        const rows = (attempts as Array<{ exam_id: string; status: string; metadata?: Record<string, unknown> | null }>) || [];
+        // Pemulihan dari proktor tetap berlaku setelah jadwal ujian berakhir
+        // (server `start` sudah mengizinkannya). Tanpa penanda ini dashboard dan
+        // jadwal menyembunyikan ujiannya, sehingga proktor terpaksa mengubah
+        // jadwal ujian untuk semua peserta hanya agar satu siswa bisa mengirim.
+        const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+        const nowMs = new Date(clock?.now ?? Date.now()).getTime();
+        const recovery = new Map<string, { recoveryUntil: string; recoverySubmitOnly: boolean; isMakeup: boolean }>();
+        for (const row of rows) {
+            const until = row.metadata?.proctor_recovery_until;
+            if (row.status !== 'in_progress' || typeof until !== 'string' || !(Date.parse(until) > nowMs)) continue;
+            recovery.set(row.exam_id, { recoveryUntil: until, recoverySubmitOnly: row.metadata?.recovery_submit_only === true,
+                isMakeup: row.metadata?.makeup_exam === true });
+        }
         const completed = new Set(
             rows.filter((a) => FINISHED_STATUSES.includes(a.status)).map((a) => a.exam_id),
         );
@@ -266,6 +279,7 @@ export class StudentsService {
             metadata: studentExamMetadata(exam.metadata),
             isCompleted: completed.has(exam.id),
             isInProgress: inProgress.has(exam.id),
+            ...(recovery.get(exam.id) || {}),
         }));
     }
 
@@ -315,7 +329,7 @@ export class StudentsService {
         // boleh membuat attempt atau mengubah batas waktu siswa.
         const { data: startedAttempt, error: attemptError } = await this.db
             .from('cbt_exam_attempts')
-            .select('id')
+            .select('id, status, metadata, device_fingerprint')
             .eq('exam_id', examId)
             .eq('user_id', user.id)
             .in('status', ['in_progress', 'submitted', 'auto_submitted'])
@@ -324,13 +338,22 @@ export class StudentsService {
         if (attemptError) throw new BadRequestException('Status pengerjaan belum dapat diperiksa.');
 
         const metadata = studentExamMetadata(data.metadata);
+        // Pemulihan "kirim saja" tidak membuka soal dan tidak mengubah jawaban;
+        // mewajibkan berbagi layar di sini hanya menghalangi pengiriman.
+        const submitOnlyRecovery = (startedAttempt as { status?: string; metadata?: Record<string, unknown> | null } | null)?.status === 'in_progress' &&
+            (startedAttempt as { metadata?: Record<string, unknown> | null }).metadata?.recovery_submit_only === true;
+        if (submitOnlyRecovery) metadata.screenshot_enabled = false;
         if (screenShareException) {
             metadata.screenshot_enabled = false;
             metadata.screen_share_exception = true;
             metadata.screen_share_exception_reason = (screenShareException as { reason: string }).reason;
         }
+        // Susulan yang belum pernah dibuka di perangkat mana pun tetap melewati
+        // layar persiapan (petunjuk, layar penuh, berbagi layar) seperti ujian baru.
+        const started = startedAttempt as { status?: string; metadata?: Record<string, unknown> | null; device_fingerprint?: string | null } | null;
+        const unopenedMakeup = started?.status === 'in_progress' && started.metadata?.makeup_exam === true && !started.device_fingerprint;
         return { exam: { ...data, metadata },
-            profile: profile ?? null, hasStartedAttempt: Boolean(startedAttempt) };
+            profile: profile ?? null, hasStartedAttempt: Boolean(started) && !unopenedMakeup };
     }
 
     // ── Hasil ────────────────────────────────────────────────────────────────

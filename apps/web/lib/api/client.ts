@@ -14,6 +14,8 @@ export interface ApiFailure {
     error: string;
     /** Respons mungkin hilang setelah server sempat memproses permintaan. */
     retryable?: boolean;
+    /** Sesi login tidak berlaku (HTTP 401): jaringan normal, tetapi perlu login ulang. */
+    unauthorized?: boolean;
 }
 
 export type ApiResult<T> = ({ success: true } & T) | ApiFailure;
@@ -68,7 +70,7 @@ async function request<T>(
                         response.status === 413
                             ? 'Data terlalu besar untuk dikirim.'
                             : `Server membalas dengan status ${response.status}.`,
-                    retryable: response.status >= 500 || response.status === 408 || response.status === 429,
+                    retryable: response.ok || response.status >= 500 || response.status === 408 || response.status === 429,
                 };
             }
         }
@@ -80,6 +82,7 @@ async function request<T>(
                 success: false,
                 error: (record.error as string) || `Permintaan gagal (HTTP ${response.status}).`,
                 retryable: response.status >= 500 || response.status === 408 || response.status === 429,
+                ...(response.status === 401 ? { unauthorized: true } : {}),
             };
         }
 

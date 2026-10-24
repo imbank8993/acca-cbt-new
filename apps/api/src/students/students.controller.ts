@@ -10,8 +10,11 @@ import {
     ParseUUIDPipe,
     Post,
     Put,
+    Req,
     UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { examClientContext } from '../common/exam-client-context';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '@acca-cbt/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -138,8 +141,9 @@ export class StudentsController {
         @CurrentUser() user: AuthUser,
         @Param('examId', ParseUUIDPipe) examId: string,
         @Body() dto: StartAttemptDto,
+        @Req() request: Request,
     ) {
-        return this.attempts.start(user, examId, dto.deviceId, dto.screenCaptureReady);
+        return this.attempts.start(user, examId, dto.deviceId, dto.screenCaptureReady, examClientContext(request));
     }
 
     @RateLimit({ name: 'student-answers', limit: 300, windowMs: 60_000 })

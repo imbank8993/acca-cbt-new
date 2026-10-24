@@ -297,11 +297,10 @@ test('browser submit wrapper reaches finalization at zero and recovers a lost re
                 if (!intent && loseResponse) { loseResponse = false; throw new Error('response lost'); }
                 return new Response(JSON.stringify({ success: true, ...result }), { status: 200 });
             };
-            let result = await submitExamAction('exam', { q: 'final' }, undefined, 'attempt', { q: 1 });
+            const result = await submitExamAction('exam', { q: 'final' }, undefined, 'attempt', { q: 1 });
             if (!expired) {
-                assert.equal(result.success, false);
+                assert.equal(result.success, true, 'lost acknowledgement is verified automatically');
                 assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
-                result = await submitExamAction('exam', { q: 'final' }, undefined, 'attempt', { q: 1 });
                 assert.equal(result.alreadySubmitted, true);
                 assert.equal(db.tables.cbt_answers[0].essay_answer, 'final');
             }
