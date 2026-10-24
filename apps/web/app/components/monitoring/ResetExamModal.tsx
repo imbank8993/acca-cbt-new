@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/button';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { resetExamAttempt, startMakeupExam } from '@/lib/api/proctoring';
+import { hasIrtScore } from '@/lib/irt-status';
 import {
   RotateCcw,
   ShieldCheck,
@@ -23,6 +24,8 @@ export interface ResetExamModalProps {
   attempt: ExamAttemptRecord | null;
   participantSummary?: string;
   examDuration?: number;
+  /** Jumlah peserta terpilih yang sudah punya skor IRT (reset massal). Default: dari `attempt`. */
+  irtScoredCount?: number;
   onClose: () => void;
   onSuccess?: () => void;
   onConfirm?: (attemptId: string, mode: ResetMode, reason: string, durationMinutes: number) => Promise<void>;
@@ -51,6 +54,7 @@ function ResetExamForm({
   onSuccess,
   onConfirm,
   participantSummary,
+  irtScoredCount,
 }: ResetExamModalProps) {
   const [mode, setMode] = useState<ResetMode>('PULIHKAN');
   const [reason, setReason] = useState('');
@@ -58,6 +62,8 @@ function ResetExamForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmedClear, setConfirmedClear] = useState(false);
+  // Pindah perangkat hanya untuk satu siswa (bukan reset massal).
+  const [releaseDevice, setReleaseDevice] = useState(false);
 
   const resolvedExamDuration = Number(
     examDuration ??
@@ -88,6 +94,7 @@ function ResetExamForm({
   const savedAnswers = attempt.saved_answer_count ?? 0;
   const totalQuestions = attempt.total_questions ?? 0;
   const isActive = attempt.status === 'in_progress';
+  const irtScored = irtScoredCount ?? (hasIrtScore(attempt) ? 1 : 0);
   const offline = attempt.offline_review;
   const offlineNotes = [
     offline?.connection_lost_at_close
@@ -99,6 +106,9 @@ function ResetExamForm({
       : null,
     offline?.late_security_evidence
       ? `${offline.late_security_evidence} catatan pengawasan susulan dari masa offline (lihat Riwayat). Tidak dihitung ke batas pelanggaran.`
+      : null,
+    offline?.other_device_attempts
+      ? `Siswa mencoba membuka ujian dari perangkat lain ${offline.other_device_attempts.count}× dan ditolak. Pulihkan biasa tetap mengunci ke perangkat pertama; pilih "Pindahkan ke perangkat baru" bila perangkat pertama tidak dapat dipakai.`
       : null,
   ].filter((note): note is string => Boolean(note));
 
@@ -124,6 +134,8 @@ function ResetExamForm({
       return;
     }
 
+    const moveDevice = mode === 'PULIHKAN' && releaseDevice && !participantSummary;
+
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -133,7 +145,7 @@ function ResetExamForm({
       } else {
         const result = mode === 'SUSULAN'
           ? await startMakeupExam(attempt.id, trimmedReason, duration)
-          : await resetExamAttempt(attempt.id, trimmedReason, duration);
+          : await resetExamAttempt(attempt.id, trimmedReason, duration, moveDevice);
 
         if (!result.success) {
           throw new Error('error' in result ? (result.error as string) : 'Gagal memproses pemulihan/susulan');
@@ -197,6 +209,24 @@ function ResetExamForm({
               </span>
             </div>
           </div>
+          )}
+
+          {irtScored > 0 && (
+            <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
+              <p className="mb-1.5 flex items-center gap-1.5 font-bold">
+                <AlertTriangle size={14} className="shrink-0" /> Skor IRT sudah dihitung
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  {participantSummary
+                    ? `${irtScored} siswa terpilih sudah memiliki skor IRT.`
+                    : `Siswa ini sudah memiliki skor IRT (${Number(attempt.score_irt).toFixed(2)}).`}{' '}
+                  Tindakan ini menghapus skor IRT tersebut; sistem tidak menghitungnya ulang otomatis.
+                </li>
+                <li>Setelah siswa selesai mengirim, tekan <strong>Kalkulasi IRT</strong> lagi. Sebelum itu nilainya kosong, ia tidak masuk peringkat, dan pembahasan tertutup untuk semua peserta.</li>
+                <li>Kalkulasi ulang menaksir ulang tingkat kesulitan soal, sehingga nilai IRT peserta lain dapat bergeser sedikit. Perhatikan bila nilai sudah diumumkan.</li>
+              </ul>
+            </div>
           )}
 
           {!participantSummary && offlineNotes.length > 0 && (
@@ -315,7 +345,9 @@ function ResetExamForm({
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
                 {mode === 'PULIHKAN'
-                  ? 'Tenggat baru dihitung: Waktu Sekarang + Menit Tambahan (hanya untuk pengiriman jawaban tersimpan).'
+                  ? releaseDevice && !participantSummary
+                    ? 'Tenggat baru dihitung: Waktu Sekarang + Menit Tambahan. Siswa dapat melanjutkan dan mengubah jawaban selama durasi ini.'
+                    : 'Tenggat baru dihitung: Waktu Sekarang + Menit Tambahan (hanya untuk pengiriman jawaban tersimpan).'
                   : 'Peserta diberikan waktu pengerjaan utuh dari awal selama durasi ini.'}
               </p>
             </div>
@@ -349,6 +381,31 @@ function ResetExamForm({
               </div>
             </div>
           </div>
+
+          {/* Pindah perangkat: perangkat pertama rusak / tidak tersedia */}
+          {mode === 'PULIHKAN' && !participantSummary && (
+            <div className={`rounded-xl border p-3 text-xs ${releaseDevice ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-200 bg-white text-slate-700'}`}>
+              <label className="flex items-start gap-2 font-semibold">
+                <input type="checkbox" className="mt-0.5" checked={releaseDevice} onChange={event => setReleaseDevice(event.target.checked)} />
+                <span>
+                  Pindahkan ke perangkat baru
+                  <span className="block font-normal text-slate-500">Hanya bila perangkat pertama rusak atau tidak dapat dipakai lagi.</span>
+                </span>
+              </label>
+              {releaseDevice && (
+                <ul className="mt-2 list-disc space-y-1 pl-6 text-amber-800">
+                  <li>Kunci perangkat dilepas. Perangkat yang <strong>pertama</strong> membuka ujian setelah ini menjadi perangkat ujian siswa.</li>
+                  <li>Siswa melanjutkan dengan <strong>{savedAnswers} jawaban yang tersimpan di server</strong>, dan dapat mengerjakan serta mengubah jawaban selama {duration} menit.</li>
+                  <li>
+                    {offline?.uncounted_local_answers
+                      ? <><strong>{offline.uncounted_local_answers.count} jawaban yang hanya ada di perangkat lama tidak ikut pindah</strong> dan tidak dapat dikirim lagi.</>
+                      : 'Jawaban yang belum sempat terkirim dari perangkat lama tidak ikut pindah dan tidak dapat dikirim lagi.'}
+                    {' '}Bila perangkat lama masih bisa menyala, lebih baik gunakan Pulihkan biasa di perangkat itu.
+                  </li>
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Warning Banner for SUSULAN */}
           {mode === 'SUSULAN' && (
@@ -395,7 +452,9 @@ function ResetExamForm({
               ? 'Memproses...'
               : mode === 'SUSULAN'
                 ? `${isActive ? 'Mulai Ulang' : 'Aktifkan Ujian Susulan'} (${duration} Min)`
-                : `${isActive ? 'Atur Ulang Waktu' : 'Konfirmasi Pulihkan Ujian'} (${duration} Min)`}
+                : releaseDevice && !participantSummary
+                  ? `Pindahkan ke Perangkat Baru (${duration} Min)`
+                  : `${isActive ? 'Atur Ulang Waktu' : 'Konfirmasi Pulihkan Ujian'} (${duration} Min)`}
           </Button>
         </ModalFooter>
       </form>

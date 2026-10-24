@@ -403,8 +403,9 @@ export class ExamAttemptsService {
                 });
 
                 return this.refuse(
-                    'Ujian ini terkunci pada perangkat yang pertama digunakan. Untuk melanjutkan di ' +
-                        'perangkat lain, minta pengawas melakukan "Reset" pada ujian Anda.',
+                    'Ujian ini terkunci pada perangkat yang pertama Anda gunakan. Lanjutkan di perangkat itu: ' +
+                        'jawaban yang belum terkirim hanya tersimpan di sana. Bila perangkat tersebut tidak dapat ' +
+                        'dipakai, minta pengawas memilih "Pindahkan ke perangkat baru" (Pulihkan biasa tidak memindahkan perangkat).',
                 );
             }
 
@@ -662,7 +663,7 @@ export class ExamAttemptsService {
             if (error || !attempt) throw new ForbiddenException('Sesi pengerjaan tidak ditemukan.');
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
             if (attempt.device_fingerprint && attempt.device_fingerprint !== device) {
-                throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
+                throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
             }
             // Dinormalisasi persis seperti di submit(), supaya digest keduanya sama.
             const digest = submission ? submissionDigest({ ...submission,
@@ -862,7 +863,7 @@ export class ExamAttemptsService {
         }
 
         if (attempt.device_fingerprint && attempt.device_fingerprint !== (deviceId || '').trim()) {
-            throw new ForbiddenException('Perangkat tidak cocok dengan sesi pengerjaan.');
+            throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
         }
         const { data: exam, error: examError } = await db.from('cbt_exams')
             .select('end_time, start_time, duration_minutes, is_published, metadata').eq('id', attempt.exam_id).maybeSingle();

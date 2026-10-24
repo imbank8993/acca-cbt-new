@@ -185,6 +185,8 @@ export interface ExamAttemptRecord {
         connection_lost_at_close: { last_seen_at: string | null; deadline_at: string | null; gap_seconds: number | null } | null;
         uncounted_local_answers: { count: number; reported_at: string | null } | null;
         late_security_evidence: number;
+        /** Perangkat lain mencoba membuka ujian ini sejak reset terakhir (selalu ditolak). */
+        other_device_attempts?: { count: number; last_at: string | null } | null;
     } | null;
     sync_health?: {
         localAnswerCount: number;
@@ -241,6 +243,9 @@ export interface MonitoringHistoryEvent {
     reason?: string | null;
     previous_deadline?: string | null;
     recovery_until?: string | null;
+    /** Pemulihan ini melepas kunci perangkat (siswa pindah ke perangkat baru). */
+    device_released?: boolean;
+    abandoned_local_answers?: number | null;
     pending_answer_count?: number | null;
     storage_state?: string | null;
     gap_seconds?: number | null;

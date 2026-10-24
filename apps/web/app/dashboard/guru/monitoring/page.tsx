@@ -11,6 +11,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
@@ -363,6 +364,14 @@ function MonitoringContent() {
                     />
                 )}
             </MonitoringWorkspaceHeader>
+
+            {selectedExamId && hasIRTScoring && (
+                <IrtRecalculationNotice
+                    attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    scoringType={selectedExam?.scoring_type}
+                    canCalculate={canManage}
+                />
+            )}
 
             {selectedExamId && loadError && (
                 <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">

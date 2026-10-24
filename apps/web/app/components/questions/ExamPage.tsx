@@ -139,6 +139,10 @@ export default function ExamPage() {
     const inFlightRef = useRef<Set<string>>(new Set());
     const saveQueueRef = useRef(new PerKeyQueue());
     const [failedSyncCount, setFailedSyncCount] = useState(0);
+    // Penolakan server yang tidak akan berhasil bila sekadar dicoba ulang
+    // (perangkat dipindahkan, sesi berakhir, versi bentrok). Dulu tampil sebagai
+    // "menunggu sinkronisasi … dicoba otomatis" padahal tidak akan pernah masuk.
+    const [syncRejection, setSyncRejection] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
     const [attempt, setAttempt] = useState<StudentExamAttempt | null>(null);
@@ -292,6 +296,12 @@ export default function ExamPage() {
     }, [examId, isCompleted, accessDenied, loading]);
 
     /** Tandai/lepas tanda "gagal tersimpan" untuk satu soal. */
+    const noteSyncResult = useCallback((res: { success: boolean; error?: string; retryable?: boolean } | null | undefined) => {
+        if (!res) return;
+        if (res.success) setSyncRejection(null);
+        else if (res.retryable === false) setSyncRejection(res.error || 'Server menolak jawaban.');
+    }, []);
+
     const markFailed = useCallback((questionId: string, failed: boolean) => {
         const set = failedSyncRef.current;
         if (failed) set.add(questionId); else set.delete(questionId);
@@ -375,6 +385,7 @@ export default function ExamPage() {
         ));
         try {
             const res = await syncAnswersBulkAction(att.id, rows, att.started_at);
+            noteSyncResult(res);
             if (res?.success) {
                 ids.forEach(id => {
                     if (revisionsRef.current[id] === sentRevisions[id]) failedSyncRef.current.delete(id);
@@ -384,7 +395,7 @@ export default function ExamPage() {
         } catch {
             // Biarkan tetap tertandai — percobaan berikutnya menyusul.
         }
-    }, []);
+    }, [noteSyncResult]);
 
     /**
      * Titipkan jawaban yang belum pasti tersimpan lewat sendBeacon. Dipakai saat
@@ -1807,13 +1818,14 @@ export default function ExamPage() {
             if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
                 const res = await saveAnswerAction(att.id, questionId, payload, att.started_at);
+                noteSyncResult(res);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [markFailed, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
+    }, [markFailed, noteSyncResult, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     const toggleDoubtful = useCallback(async (questionId: string) => {
         if (!ownsEditorLockRef.current) return;
@@ -1859,13 +1871,14 @@ export default function ExamPage() {
             if (revisionsRef.current[questionId] !== revision || submitInFlightRef.current) return;
             try {
                 const res = await saveAnswerAction(att.id, questionId, payload, att.started_at);
+                noteSyncResult(res);
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, !res?.success);
             } catch {
                 if (revisionsRef.current[questionId] === revision) markFailed(questionId, true);
             }
         });
         if (!saveQueueRef.current.has(questionId)) inFlightRef.current.delete(questionId);
-    }, [markFailed, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
+    }, [markFailed, noteSyncResult, submissionOnly, exam?.metadata?.screenshot_enabled, screenSharingRef]);
 
     const handleRequestFullscreen = useCallback(async () => {
         // API yang tidak tersedia tetap memiliki jalur kompatibilitas; jika
@@ -1888,6 +1901,9 @@ export default function ExamPage() {
     const syncNotice = networkLabel
         ? { tone: 'amber' as const, text: networkLabel,
             details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; sinkronisasi jawaban dicoba otomatis. Status ini tidak memastikan semua jawaban sudah tersimpan di server. ${storageWarning || ''}` }
+        : failedSyncCount > 0 && syncRejection
+            ? { tone: 'red' as const, text: `${failedSyncCount} jawaban ditolak server`,
+                details: `${syncRejection} Jawaban tetap tersimpan di perangkat ini. Jangan tutup halaman dan segera hubungi pengawas.` }
         : failedSyncCount > 0
             ? { tone: 'amber' as const, text: `${failedSyncCount} jawaban menunggu sinkronisasi`, details: 'Pengiriman dicoba kembali otomatis. Jangan tutup halaman sampai jawaban tersimpan di server.' }
             : recoverySummary

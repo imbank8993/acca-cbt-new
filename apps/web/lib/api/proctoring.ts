@@ -59,10 +59,10 @@ export interface AttemptRecoveryResult {
     serverAnswerCount: number;
 }
 
-export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number) {
+export function resetExamAttempt(attemptId: string, reason: string, durationMinutes: number, releaseDevice = false) {
     return apiSend<AttemptRecoveryResult>(
         `/api/proctoring/attempts/${encodeURIComponent(attemptId)}/reset`,
-        { reason, durationMinutes },
+        { reason, durationMinutes, ...(releaseDevice ? { releaseDevice: true } : {}) },
     );
 }
 

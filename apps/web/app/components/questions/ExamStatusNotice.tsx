@@ -2,7 +2,7 @@
 import { AlertTriangle, ChevronDown, Info, X } from 'lucide-react';
 import { useState } from 'react';
 
-export type ExamNotice = { text: string; details: string; tone: 'amber' | 'blue' };
+export type ExamNotice = { text: string; details: string; tone: 'amber' | 'blue' | 'red' };
 
 /**
  * Floating, dismissible status alert. It overlays the page instead of
@@ -19,19 +19,23 @@ export function ExamStatusNotice({ notice }: { notice?: ExamNotice | null }) {
     const text = notice?.text ?? null;
     if (text !== lastText) {
         setLastText(text);
-        setExpanded(false);
+        // Penolakan server (merah) langsung menampilkan alasannya.
+        setExpanded(notice?.tone === 'red');
         if (text === null) setDismissedText(null);
     }
 
     if (!notice || dismissedText === notice.text) return null;
     const amber = notice.tone === 'amber';
-    const Icon = amber ? AlertTriangle : Info;
+    const red = notice.tone === 'red';
+    const Icon = amber || red ? AlertTriangle : Info;
 
     return (
         <div
-            role="status"
-            aria-live="polite"
-            className={`fixed left-1/2 top-3 z-[10003] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border px-3 py-2 text-xs shadow-lg ${amber
+            role={red ? 'alert' : 'status'}
+            aria-live={red ? 'assertive' : 'polite'}
+            className={`fixed left-1/2 top-3 z-[10003] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border px-3 py-2 text-xs shadow-lg ${red
+                ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
+                : amber
                 ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'
                 : 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200'}`}
         >

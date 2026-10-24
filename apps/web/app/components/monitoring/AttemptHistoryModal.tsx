@@ -251,6 +251,14 @@ export function AttemptHistoryModal({
                             <span className="font-medium text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block mt-0.5">{reasonText}</span>
                           </div>
                         )}
+                        {event.device_released && (
+                          <div className="sm:col-span-2">
+                            <span className="font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 inline-block">
+                              Dipindahkan ke perangkat baru
+                              {event.abandoned_local_answers ? ` · ${event.abandoned_local_answers} jawaban di perangkat lama tidak ikut` : ''}
+                            </span>
+                          </div>
+                        )}
                         {event.recovery_until && (
                           <div>
                             <span className="text-slate-400 font-medium">Tenggat Baru:</span>{' '}

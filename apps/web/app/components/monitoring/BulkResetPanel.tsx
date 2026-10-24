@@ -6,6 +6,7 @@ import { resetExamAttempt, startMakeupExam } from '@/lib/api/proctoring';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { Button } from '@/app/components/ui/button';
 import { ResetExamModal } from './ResetExamModal';
+import { hasIrtScore } from '@/lib/irt-status';
 
 export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
   attempts: ExamAttemptRecord[];
@@ -76,6 +77,7 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
         attempt={batch[0] || null}
         participantSummary={`${batch.length} siswa: ${batch.map(a => formatStudentName(a.profiles?.full_name)).join(', ')}. ${progress}`}
         examDuration={examDuration}
+        irtScoredCount={batch.filter(hasIrtScore).length}
         onClose={() => { setBatch([]); onRefresh(); }}
         onConfirm={async (_id, mode, reason, duration) => {
           const failures: string[] = [];

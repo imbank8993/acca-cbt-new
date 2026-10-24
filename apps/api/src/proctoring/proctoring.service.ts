@@ -210,7 +210,7 @@ export class ProctoringService {
             if (attempt.user_id !== user.id) throw new ForbiddenException('Tidak diizinkan.');
             if (attempt.status !== 'in_progress') throw new BadRequestException('Ujian tidak sedang berlangsung.');
             if (!deviceId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId)) {
-                throw new ForbiddenException('Perangkat tidak cocok dengan sesi ujian.');
+                throw new ForbiddenException('Perangkat ini bukan perangkat ujian Anda (ujian terkunci atau sudah dipindahkan pengawas ke perangkat lain). Jawaban di perangkat ini belum tersimpan di server; hubungi pengawas.');
             }
             if (attempt.metadata?.active_restart_at &&
                 Date.parse(sessionStartedAt || '') !== Date.parse(attempt.started_at || '')) {
@@ -298,7 +298,7 @@ export class ProctoringService {
      * Berlaku untuk attempt yang DITUTUP SISTEM maupun yang SUDAH DISUBMIT siswa
      * Pengerjaan tertutup hanya menerima salinan jawaban lama; untuk mengerjakan ulang gunakan susulan.
      */
-    async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number) {
+    async resetAttempt(user: AuthUser, attemptId: string, reason: string, durationMinutes: number, releaseDevice = false) {
         const normalizedReason = reason.trim();
         if (normalizedReason.length < 5 || normalizedReason.length > 500) {
             throw new BadRequestException('Alasan pemulihan wajib diisi (5–500 karakter).');
@@ -327,16 +327,18 @@ export class ProctoringService {
 
             const { data: locked, error: readError } = await db
                 .from('cbt_exam_attempts')
-                .select('id, exam_id, status, personal_end_time, metadata')
+                .select('id, exam_id, status, personal_end_time, metadata, device_fingerprint')
                 .eq('id', attemptId)
                 .maybeSingle();
             if (readError || !locked) {
                 throw new NotFoundException('Pengerjaan tidak ditemukan.');
             }
             const row = locked as {
+                exam_id: string;
                 status: string;
                 personal_end_time: string | null;
                 metadata: Record<string, unknown> | null;
+                device_fingerprint: string | null;
             };
 
             const active = row.status === 'in_progress';
@@ -352,6 +354,7 @@ export class ProctoringService {
             const previousStatus = row.status;
             const previousDeadline = row.personal_end_time;
             const previousMetadata = { ...(row.metadata || {}) };
+            const previousDevice = row.device_fingerprint;
 
             const now = await this.databaseNow(db);
             if (active && hasCommittedSubmitIntent(row.metadata, now)) {
@@ -415,6 +418,34 @@ export class ProctoringService {
                 recovery_source_deadline: previousMetadata.recovery_source_deadline || previousDeadline,
             };
 
+            // Pindah perangkat: perangkat lama rusak/tidak tersedia. Kunci perangkat
+            // dilepas sehingga perangkat berikutnya yang membuka ujian menjadi
+            // pemilik baru. Jawaban di server tetap; jawaban yang hanya ada di
+            // perangkat lama tidak dapat dibawa (dicatat di audit). Mode
+            // "kirim salinan saja" tidak berguna di perangkat tanpa salinan, jadi
+            // siswa melanjutkan sebagai sesi kerja biasa selama durasi pemulihan.
+            let abandonedLocalAnswers = 0;
+            if (releaseDevice) {
+                const metadata = updates.metadata as Record<string, unknown>;
+                const notCounted = metadata.local_answers_not_counted as { count?: number } | undefined;
+                abandonedLocalAnswers = Number(notCounted?.count || 0);
+                delete metadata.recovery_source_deadline;
+                delete metadata.closed_by_expiry;
+                delete metadata.connection_lost_at_close;
+                delete metadata.local_answers_not_counted;
+                delete metadata.frozen_submission_received_at;
+                delete metadata.frozen_submission_deadline;
+                metadata.recovery_submit_only = false;
+                metadata.device_released_at = now.toISOString();
+                const { data: examSettings, error: examError } = await db.from('cbt_exams')
+                    .select('metadata').eq('id', row.exam_id).maybeSingle();
+                if (examError) throw new BadRequestException('Pengaturan ujian belum dapat diperiksa.');
+                if ((examSettings?.metadata as { screenshot_enabled?: boolean } | null)?.screenshot_enabled === true) {
+                    metadata.screen_share_confirmed = false;
+                }
+                updates.device_fingerprint = null;
+            }
+
             const { error: updateError } = await db
                 .from('cbt_exam_attempts')
                 .update(updates)
@@ -436,6 +467,11 @@ export class ProctoringService {
                     recovery_until: recoveryUntil,
                     recovery_duration_minutes: durationMinutes,
                     server_answer_count: serverAnswerCount || 0,
+                    ...(releaseDevice ? {
+                        device_released: true,
+                        previous_device: previousDevice,
+                        abandoned_local_answers: abandonedLocalAnswers,
+                    } : {}),
                 },
             });
             if (logError) {
@@ -447,6 +483,7 @@ export class ProctoringService {
                 previousStatus,
                 recoveryUntil,
                 serverAnswerCount: serverAnswerCount || 0,
+                deviceReleased: releaseDevice,
             };
         });
     }

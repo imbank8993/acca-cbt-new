@@ -99,6 +99,14 @@ class ResetAttemptDto {
     @Min(1)
     @Max(1440)
     durationMinutes!: number;
+
+    @ApiProperty({
+        required: false,
+        description: 'Lepas kunci perangkat agar siswa melanjutkan di perangkat lain. Jawaban di server dipertahankan.',
+    })
+    @IsOptional()
+    @IsBoolean()
+    releaseDevice?: boolean;
 }
 
 class MakeupAttemptDto extends ResetAttemptDto {
@@ -168,7 +176,7 @@ export class ProctoringController {
         @Param('attemptId', ParseUUIDPipe) attemptId: string,
         @Body() dto: ResetAttemptDto,
     ) {
-        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes);
+        return this.proctoring.resetAttempt(user, attemptId, dto.reason, dto.durationMinutes, dto.releaseDevice === true);
     }
 
     @Post('attempts/:attemptId/makeup')

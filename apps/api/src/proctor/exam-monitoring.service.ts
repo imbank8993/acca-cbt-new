@@ -156,6 +156,8 @@ export class ExamMonitoringService {
                 reason: log.metadata?.reason || null,
                 previous_deadline: log.metadata?.previous_deadline || null,
                 recovery_until: log.metadata?.recovery_until || null,
+                device_released: log.metadata?.device_released === true,
+                abandoned_local_answers: log.metadata?.abandoned_local_answers ?? null,
                 pending_answer_count: log.metadata?.pendingAnswerCount ?? null,
                 storage_state: log.metadata?.storageState || null,
                 gap_seconds: log.metadata?.gap_seconds ?? null,

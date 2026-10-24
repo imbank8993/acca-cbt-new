@@ -11,6 +11,7 @@ import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenSh
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
+import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
@@ -451,6 +452,14 @@ function MonitoringContent() {
                     </> : undefined}
                 />}
             </MonitoringWorkspaceHeader>
+
+            {selectedExamId && hasIRTScoring && (
+                <IrtRecalculationNotice
+                    attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)}
+                    scoringType={selectedExam?.scoring_type}
+                    canCalculate={selectedExam?.canManage === true}
+                />
+            )}
 
             <PASRoomMonitoringLink exam={selectedExam} role="admin" />
 

@@ -9,6 +9,11 @@ export function offlineReview(attempt: any, logs: any[] = []) {
         (!lastReset || log.created_at > lastReset)).length;
     const lost = attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true
         ? attempt.metadata?.connection_lost_at_close || null : null;
+    // Percobaan membuka ujian dari perangkat lain sejak reset terakhir. Perangkat
+    // lain selalu ditolak; pengawas perlu tahu supaya tidak mengira siswa
+    // "sudah lanjut" padahal jawabannya tertahan di perangkat pertama.
+    const blocked = logs.filter(log => log.event_type === 'DEVICE_SWITCH_BLOCKED' &&
+        (!lastReset || log.created_at > lastReset));
     const uncounted = attempt.metadata?.local_answers_not_counted;
     const uncountedCount = Number.isInteger(uncounted?.count) && uncounted.count > 0 ? uncounted.count : 0;
     return {
@@ -17,6 +22,8 @@ export function offlineReview(attempt: any, logs: any[] = []) {
         } : null,
         uncounted_local_answers: uncountedCount ? { count: uncountedCount, reported_at: uncounted.reported_at ?? null } : null,
         late_security_evidence: lateEvidence,
+        other_device_attempts: blocked.length
+            ? { count: blocked.length, last_at: blocked.map(log => log.created_at).sort().pop() ?? null } : null,
     };
 }
 
@@ -50,6 +57,9 @@ export function attemptHealth(attempt: any, exam: any, answers: any[], now: Date
         attention.push(`${review.uncounted_local_answers.count} jawaban lokal belum masuk — perlu pemulihan`);
     }
     if (review.late_security_evidence) attention.push('Ada catatan pengawasan susulan dari masa offline');
+    if (review.other_device_attempts && attempt.status !== 'submitted') {
+        attention.push(`Mencoba masuk dari perangkat lain (${review.other_device_attempts.count}×) — jawaban hanya bisa dikirim dari perangkat pertama`);
+    }
     return {
         client_context: attempt.metadata?.client_context || null,
         server_now: now.toISOString(), connection_status: connection, deadline_at: deadlineAt,
