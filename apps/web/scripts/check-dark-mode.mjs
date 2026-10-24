@@ -1,14 +1,17 @@
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const os = require('node:os');
-const assert = require('node:assert/strict');
-const postcss = require('postcss');
-const tailwind = require('@tailwindcss/postcss');
-const { chromium } = require('playwright');
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import postcss from 'postcss';
+import tailwind from '@tailwindcss/postcss';
+import { chromium } from 'playwright';
+
+const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 // Exercise actual application CSS without requiring an authenticated exam attempt.
 (async () => {
-  const root = path.resolve(__dirname, '..');
+  const root = path.resolve(scriptDirectory, '..');
   const globalFile = path.join(root, 'app/globals.css');
   const compiled = await postcss([tailwind({ base: root })]).process(await fs.readFile(globalFile, 'utf8'), { from: globalFile });
   const css = compiled.css + '\n' + (await Promise.all(['filter-toolbar.css', 'button.css', 'inline-select.css', 'modal.css'].map(name => fs.readFile(path.join(root, 'app/components/ui', name), 'utf8')))).join('\n');
