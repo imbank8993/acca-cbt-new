@@ -17,19 +17,20 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     return <div className="overflow-x-auto">
-        <table className="w-full min-w-[700px] text-left text-sm">
+        <table className="w-full min-w-[780px] text-left text-sm">
             <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
                     <th scope="col" className="px-4 py-3">Peserta</th>
                     <th scope="col" className="px-4 py-3">Status</th>
                     <th scope="col" className="px-4 py-3 text-center">Soal</th>
                     <th scope="col" className="px-4 py-3 text-right">Skor</th>
+                    <th scope="col" className="px-4 py-3 text-right">IRT</th>
                     <th scope="col" className="px-4 py-3 text-center">Peringatan</th>
                     <th scope="col" className="px-4 py-3 text-right">Aksi</th>
                 </tr>
             </thead>
             <tbody>
-                {attempts.length === 0 ? <tr><td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-500">
+                {attempts.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
                     {hasAnyAttempts ? 'Belum ada peserta yang selesai atau cocok dengan filter.' : 'Belum ada data.'}
                 </td></tr> : attempts.map(att => {
                     const isUnstarted = att.status === 'belum';
@@ -54,6 +55,10 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                     if (att.score_irt != null && !scoreModels.some(model => model.type.startsWith('irt')) && extraIrtScores.length === 0) {
                         extraIrtScores.push({ type: 'irt', label: 'Skor IRT', score: att.score_irt });
                     }
+                    const irtScores = ['submitted', 'auto_submitted'].includes(att.status)
+                        ? [...scoreModels.filter(model => model.type.startsWith('irt')), ...extraIrtScores]
+                            .filter(model => model.score != null && Number.isFinite(Number(model.score)))
+                        : [];
                     return <Fragment key={att.id}>
                         <tr className="border-b border-slate-100 transition-colors hover:bg-slate-50">
                             <td className="px-4 py-3">
@@ -70,6 +75,16 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                 {answered ?? '—'}<span className="text-slate-400">/{total ?? '—'}</span>
                             </td>
                             <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getScoreColorClass(score)}`}>{score === null ? isUnstarted ? '—' : classicalModel?.pendingLabel ?? 'Menunggu nilai' : score.toFixed(2)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-slate-800">
+                                {irtScores.length === 0 ? <span className="text-slate-400">—</span> : (
+                                    <div className="flex flex-col gap-1">
+                                        {irtScores.map(model => <span key={model.type}>
+                                            {irtScores.length > 1 && <span className="mr-1.5 text-xs font-normal text-slate-500">{model.label}</span>}
+                                            {Number(model.score).toFixed(2)}
+                                        </span>)}
+                                    </div>
+                                )}
+                            </td>
                             <td className={`px-4 py-3 text-center font-medium tabular-nums ${warningCount > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{warningCount > 0 ? warningCount : '—'}</td>
                             <td className="px-4 py-3">
                                 <div className="flex items-center justify-end gap-2">
@@ -82,7 +97,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                 </div>
                             </td>
                         </tr>
-                        {expanded && <tr id={`result-detail-${att.id}`} className="border-b border-slate-200 bg-slate-50/70"><td colSpan={6} className="px-4 py-4">
+                        {expanded && <tr id={`result-detail-${att.id}`} className="border-b border-slate-200 bg-slate-50/70"><td colSpan={7} className="px-4 py-4">
                             <dl className="grid gap-x-8 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                                 <div><dt className="text-slate-500">Durasi</dt><dd className="mt-1 font-semibold text-slate-800">{durationMinutes === null ? '—' : `${Math.floor(durationMinutes / 60)}j ${durationMinutes % 60}m`}</dd></div>
                                 <div><dt className="text-slate-500">Mulai</dt><dd className="mt-1 font-semibold text-slate-800">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '—'}</dd></div>

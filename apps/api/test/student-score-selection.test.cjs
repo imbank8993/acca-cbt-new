@@ -93,3 +93,32 @@ test('exam configuration validates student score policy and preserves unrelated 
  const metadata=service.buildMetadata('daily',{scoringType:'classical,irt_1pl',studentScoreType:'irt_1pl'},{retained:true});
  assert.equal(metadata.student_score_type,'irt_1pl');assert.equal(metadata.retained,true);
 });
+
+test('monitoring results expose calculated IRT scores in their own column', () => {
+ const fs=require('node:fs');
+ const ts=require('typescript');
+ const React=require('react');
+ const {renderToStaticMarkup}=require('react-dom/server');
+ const source=fs.readFileSync(path.resolve(__dirname,'../../web/app/components/monitoring/MonitoringResultsTable.tsx'),'utf8');
+ const code=ts.transpileModule(source,{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const loaded={exports:{}};
+ const dependencies={
+  react:{...React,useState:()=>[null,()=>{}]},
+  '@/lib/monitoring-health':{formatStudentName:name=>name||'Peserta',getScoreColorClass:()=>''},
+  '@/lib/monitoring-score-models':{monitoringScoreModels},
+  '@/lib/monitoring-answer-count':{savedAnswerCount:()=>1},
+  './ParticipantRoomInfo':{ParticipantRoomInfo:()=>null},
+ };
+ new Function('require','module','exports',code)(name=>dependencies[name]||require(name),loaded,loaded.exports);
+ const render=overrides=>renderToStaticMarkup(React.createElement(loaded.exports.MonitoringResultsTable,{
+  attempts:[{...attempt,profiles:{full_name:'Peserta'},...overrides}],hasAnyAttempts:true,onViewDetails:()=>{},
+ }));
+ const irtCell=html=>{const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);return cells[4];};
+ assert.match(render({}),/>IRT<\/th>/);
+ assert.match(irtCell(render({})),/81\.33/);
+ assert.match(irtCell(render({score_irt:0})),/0\.00/);
+ assert.match(irtCell(render({score_irt:null})),/—/);
+ const multi=irtCell(render({exams:{scoring_type:'classical,irt_1pl,irt_2pl'},detailed_scores:{irt_1pl:71.69,irt_2pl:0}}));
+ assert.match(multi,/IRT 1PL/);assert.match(multi,/71\.69/);assert.match(multi,/IRT 2PL/);assert.match(multi,/0\.00/);
+ assert.match(irtCell(render({status:'in_progress'})),/—/);
+});

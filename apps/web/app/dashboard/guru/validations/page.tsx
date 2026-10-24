@@ -10,13 +10,9 @@ import {
     CheckCircle2,
     AlertCircle,
     XCircle,
-    User,
-    BookOpen,
     Layers,
     RefreshCw,
     UserCheck,
-    Table as TableIcon,
-    LayoutGrid,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/Spinner';
@@ -36,7 +32,6 @@ export default function GuruValidationTasksPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
     const [user, setUser] = useState<AuthUser | null>(null);
 
     const loadTasks = useCallback(async () => {
@@ -60,7 +55,8 @@ export default function GuruValidationTasksPage() {
     }, []);
 
     useEffect(() => {
-        loadTasks();
+        const timer = window.setTimeout(() => { void loadTasks(); }, 0);
+        return () => window.clearTimeout(timer);
     }, [loadTasks]);
 
     const canManage = Boolean(user?.resolved?.admin || user?.resolved?.proktor || user?.resolved?.superadmin);
@@ -73,7 +69,7 @@ export default function GuruValidationTasksPage() {
         const val = task.validation;
         const title = val.title || '';
         const subject = val.bank?.subject || '';
-        const creator = val.bank?.creator_name || (val.bank as any)?.creator?.full_name || '';
+        const creator = val.bank?.creator_name || (val.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || '';
         const q = searchQuery.toLowerCase();
         const matchesSearch = title.toLowerCase().includes(q) || subject.toLowerCase().includes(q) || creator.toLowerCase().includes(q);
 
@@ -133,10 +129,10 @@ export default function GuruValidationTasksPage() {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-5 sm:gap-6">
             {/* Navigasi Tab Peran Terpadu (jika memiliki peran Admin/Proktor) */}
             {canManage && (
-                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px mb-1">
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px">
                     <Link
                         href="/dashboard/guru/validations"
                         className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary flex items-center gap-2 transition-all"
@@ -175,32 +171,6 @@ export default function GuruValidationTasksPage() {
                     ]}
                 />
                 <FilterActions className="flex items-center gap-2">
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('table')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                                viewMode === 'table'
-                                    ? 'bg-white dark:bg-slate-900 text-primary shadow-xs'
-                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                            }`}
-                            title="Tampilan Tabel"
-                        >
-                            <TableIcon size={13} /> Tabel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('cards')}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                                viewMode === 'cards'
-                                    ? 'bg-white dark:bg-slate-900 text-primary shadow-xs'
-                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                            }`}
-                            title="Tampilan Kartu"
-                        >
-                            <LayoutGrid size={13} /> Kartu
-                        </button>
-                    </div>
                     <Button
                         variant="outline"
                         onClick={loadTasks}
@@ -237,7 +207,7 @@ export default function GuruValidationTasksPage() {
                             : 'Tidak ada tugas yang cocok dengan filter pencarian.'}
                     </p>
                 </div>
-            ) : viewMode === 'table' ? (
+            ) : (
                 /* Desktop/Responsive Table View - Perfectly Consistent with Admin View */
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
@@ -256,7 +226,7 @@ export default function GuruValidationTasksPage() {
                                 {filtered.map(task => {
                                     const val = task.validation;
                                     const isSubmitted = task.status === 'submitted';
-                                    const creatorName = val.bank?.creator_name || (val.bank as any)?.creator?.full_name || 'Guru Mapel';
+                                    const creatorName = val.bank?.creator_name || (val.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
                                     const recInfo = getRecommendationInfo(task.general_recommendation);
 
                                     return (
@@ -276,7 +246,7 @@ export default function GuruValidationTasksPage() {
                                             <td className="py-3.5 px-4 max-w-xs">
                                                 {val.instructions ? (
                                                     <p className="text-[11px] text-slate-600 dark:text-slate-300 italic line-clamp-2" title={val.instructions}>
-                                                        "{val.instructions}"
+                                                        &quot;{val.instructions}&quot;
                                                     </p>
                                                 ) : (
                                                     <span className="text-slate-400 text-[11px]">-</span>
@@ -331,84 +301,6 @@ export default function GuruValidationTasksPage() {
                             </tbody>
                         </table>
                     </div>
-                </div>
-            ) : (
-                /* Card View */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filtered.map(task => {
-                        const val = task.validation;
-                        const isSubmitted = task.status === 'submitted';
-                        const recInfo = getRecommendationInfo(task.general_recommendation);
-
-                        return (
-                            <div
-                                key={task.id}
-                                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all p-5 flex flex-col justify-between"
-                            >
-                                <div>
-                                    <div className="flex items-center justify-between gap-2 mb-3">
-                                        {getStatusBadge(task.status)}
-
-                                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                                            <Calendar size={12} />
-                                            {val.deadline
-                                                ? new Date(val.deadline).toLocaleDateString('id-ID')
-                                                : 'Tanpa batas'}
-                                        </span>
-                                    </div>
-
-                                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 line-clamp-2 mb-1.5">
-                                        {val.title}
-                                    </h3>
-
-                                    <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 mb-3">
-                                        <p className="flex items-center gap-1.5">
-                                            <Layers size={13} className="text-slate-400" />
-                                            {val.bank?.subject || 'Mapel Umum'} • {val.bank?.class_level || 'Semua Kelas'}
-                                        </p>
-                                        <p className="flex items-center gap-1.5">
-                                            <User size={13} className="text-slate-400" />
-                                            Penyusun: {val.bank?.creator_name || (val.bank as any)?.creator?.full_name || 'Guru Mapel'}
-                                        </p>
-                                    </div>
-
-                                    {val.instructions && (
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs text-slate-600 dark:text-slate-300 mb-3 border border-slate-100 dark:border-slate-800">
-                                            <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5">
-                                                Arahan Proktor:
-                                            </span>
-                                            <p className="line-clamp-2 italic">"{val.instructions}"</p>
-                                        </div>
-                                    )}
-
-                                    {isSubmitted && recInfo && (
-                                        <div className={`p-2.5 border rounded-xl text-xs font-semibold flex items-center justify-between mb-3 ${recInfo.className}`}>
-                                            <span className="text-slate-600 dark:text-slate-300 font-normal">Rekomendasi Anda:</span>
-                                            <span className="font-bold flex items-center gap-1">{recInfo.icon} {recInfo.label}</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                                    <Link
-                                        href={`/dashboard/guru/validations/${val.id}/review`}
-                                        className="w-full block"
-                                    >
-                                        <Button
-                                            className={`w-full text-xs font-bold flex items-center justify-center gap-2 ${
-                                                isSubmitted
-                                                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
-                                                    : 'bg-primary text-white hover:bg-primary/90 shadow-md shadow-primary/20'
-                                            }`}
-                                        >
-                                            <Play size={14} className={isSubmitted ? '' : 'fill-white'} />
-                                            {isSubmitted ? 'Buka Kembali Hasil Validasi' : 'Mulai Simulasi & Validasi Soal'}
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </div>
-                        );
-                    })}
                 </div>
             )}
         </div>
