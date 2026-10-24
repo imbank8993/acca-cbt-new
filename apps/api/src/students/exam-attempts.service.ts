@@ -35,6 +35,12 @@ import { ScoringClient } from '../scoring/scoring.client';
 import { assertExamAccess } from './exam-access';
 import { studentQuestion } from './student-question';
 
+/** Batas waktu sesi yang sudah digantikan oleh reset proktor pada attempt yang sama. */
+export function supersededDeadlines(metadata: Record<string, unknown> | null | undefined): string[] {
+    const list = metadata?.superseded_deadlines;
+    return Array.isArray(list) ? list.filter((value): value is string => typeof value === 'string') : [];
+}
+
 /**
  * Soal yang isinya di perangkat berbeda dari yang tersimpan di server.
  *
@@ -961,8 +967,11 @@ export class ExamAttemptsService {
         }
         const recovery = attempt.metadata?.recovery_submit_only === true;
         const sourceDeadline = recovery ? attempt.metadata?.recovery_source_deadline : attempt.personal_end_time;
-        const matchesDeadline = Date.parse(snapshot.personalEndTime) === Date.parse(sourceDeadline || '') ||
-            (recovery && Date.parse(snapshot.personalEndTime) === Date.parse(attempt.personal_end_time || ''));
+        // Batas waktu yang digantikan oleh reset proktor tetap mengenali salinan
+        // yang dikunci sebelum reset itu (generasi attempt sama: started_at tetap).
+        const matchesDeadline = [sourceDeadline, recovery ? attempt.personal_end_time : null,
+            ...supersededDeadlines(attempt.metadata)]
+            .some(deadline => Date.parse(snapshot.personalEndTime) === Date.parse(deadline || ''));
         if (!matchesDeadline) throw new ForbiddenException('Salinan jawaban berasal dari sesi yang sudah diganti.');
         if (attempt.status !== 'in_progress' &&
             !(attempt.status === 'auto_submitted' && attempt.metadata?.closed_by_expiry === true && !recovery)) {
@@ -1152,7 +1161,8 @@ export class ExamAttemptsService {
             if (!attempt || !acceptableStatus || attempt.user_id !== user.id ||
                 attempt.exam_id !== examId || (attempt.device_fingerprint && attempt.device_fingerprint !== deviceId.trim())) return false;
             if (frozen && (Date.parse(attempt.started_at || '') !== Date.parse(frozen.startedAt) ||
-                ![attempt.personal_end_time, attempt.metadata?.recovery_source_deadline].some(deadline =>
+                ![attempt.personal_end_time, attempt.metadata?.recovery_source_deadline,
+                    ...supersededDeadlines(attempt.metadata)].some(deadline =>
                     Date.parse(deadline || '') === Date.parse(frozen.personalEndTime)))) return false;
             const { data: saved, error: readError } = await db.from('cbt_answers')
                 .select('question_id, selected_option_id, essay_answer, metadata').eq('attempt_id', attemptId);

@@ -412,6 +412,7 @@ test('submit-only reload preserves the original local snapshot when question con
             assignmentRef: { current: {} }, assignmentRevisionRef: { current: 0 },
             setAnswers: value => { state.answers = value; }, setDoubtfulAnswers: () => {},
             writeExamSnapshot: async () => { state.writes = (state.writes || 0) + 1; },
+            setWaitingForSyncAndSubmit: value => { state.waiting = value; },
         };
         const code = '(async () => {' + source.slice(start, end) + '})()';
         await vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
@@ -419,6 +420,8 @@ test('submit-only reload preserves the original local snapshot when question con
         assert.equal(sandbox.revisionsRef.current.q, 4);
         assert.equal(sandbox.savedD.has('q'), true);
         assert.equal(state.writes || 0, 0);
+        // Recovery submission sends the local copy automatically instead of waiting for a click.
+        assert.equal(state.waiting, frozen ? undefined : true);
     }
 });
 

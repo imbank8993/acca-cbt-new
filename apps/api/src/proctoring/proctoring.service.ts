@@ -393,6 +393,16 @@ export class ProctoringService {
             delete metadataWithoutOldScore.submit_intent_digest;
             delete metadataWithoutOldScore.closed_by_staff;
             updates.personal_end_time = recoveryUntil;
+            // Salinan jawaban yang sudah dikunci di perangkat menyimpan batas waktu
+            // sesi saat dikunci. Setiap reset mengganti batas itu; tanpa riwayat
+            // ini, pemulihan kedua (atau reset saat status masih berjalan)
+            // menolak salinan lokal sebagai "sesi yang sudah diganti".
+            const supersededDeadlines = [
+                ...(Array.isArray(previousMetadata.superseded_deadlines) ? previousMetadata.superseded_deadlines : []),
+                previousDeadline,
+            ].filter((value, index, all): value is string => typeof value === 'string' &&
+                Number.isFinite(Date.parse(value)) && all.indexOf(value) === index).slice(-20);
+            metadataWithoutOldScore.superseded_deadlines = supersededDeadlines;
             updates.metadata = active ? {
                 ...metadataWithoutOldScore,
                 proctor_recovery_until: recoveryUntil,
@@ -557,6 +567,7 @@ export class ProctoringService {
             delete previousMetadata.submit_intent_digest;
             delete previousMetadata.recovery_submit_only;
             delete previousMetadata.recovery_source_deadline;
+            delete previousMetadata.superseded_deadlines;
             delete previousMetadata.closed_by_expiry;
             delete previousMetadata.closed_by_staff;
             delete previousMetadata.frozen_submission_received_at;

@@ -800,6 +800,13 @@ export default function ExamPage() {
                     localSnapshot.doubtfulAnswers.forEach(id => savedD.add(id));
                     localAnswerIds = Object.keys(localSnapshot.answers);
                 }
+                // Pemulihan pengumpulan dibuka untuk mengirim salinan lokal. Dulu
+                // layar "Jawaban Terkunci" menunggu siswa menekan tombol; bila
+                // tidak ditekan sebelum jendela pemulihan habis, ujian ditutup lagi
+                // hanya dengan jawaban server. Kirim otomatis selama tersambung.
+                if (recoverySubmitOnly && localSnapshot && Object.keys(localSnapshot.answers || {}).length > 0) {
+                    setWaitingForSyncAndSubmit(true);
+                }
 
                 answersRef.current = savedA;
                 doubtfulRef.current = savedD;
@@ -2002,6 +2009,7 @@ export default function ExamPage() {
                 <h1 className="text-xl font-bold mb-3">Jawaban Terkunci</h1>
                 <p className="text-slate-600 mb-5">Anda hanya dapat mengirim jawaban yang sudah tersimpan. Jawaban dan lampiran tidak dapat diubah.</p>
                 {recoverySummary && <p className="text-sm text-slate-500 mb-4">Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.</p>}
+                {recoverySummary && <p className="text-sm font-semibold text-amber-700 mb-4">Kirim sebelum pukul {new Date(recoverySummary.recoveryUntil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}. Setelah itu ujian ditutup kembali.</p>}
                 {storageWarning && <p className="text-sm text-amber-700 mb-4">{storageWarning}</p>}
                 <button disabled={submitting} onClick={() => void handleSubmitExam()} className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50">
                     {submitting ? 'Mengirim jawaban...' : 'Kirim Jawaban'}
@@ -2029,6 +2037,12 @@ export default function ExamPage() {
                         <RefreshCw size={16} className="animate-spin" />
                         Mengirim otomatis saat terhubung...
                     </div>
+                    {recoverySummary && (
+                        <p className="mt-4 text-sm text-slate-300">
+                            Lokal: {recoverySummary.localCount} jawaban · Server: {recoverySummary.serverCount} jawaban.
+                            Batas pemulihan pukul {new Date(recoverySummary.recoveryUntil).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}.
+                        </p>
+                    )}
                     {storageWarning && <p className="mt-4 text-sm text-amber-300">{storageWarning}</p>}
                 </div>
             </div>
