@@ -222,8 +222,9 @@ test('ROOM-03d: daftar peserta ruang memuat NIS dan kelas terjadwal, terurut kel
     const profileSelect = db.queries.find(query => query.table === 'cbt_profiles').calls.find(call => call[0] === 'select')[1];
     assert.ok(profileSelect.split(',').every(column => ['id', 'full_name', 'identity_number', 'unique_id'].includes(column.trim())));
     const ui = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
-    assert.match(ui, /Unduh Daftar Peserta/);
-    assert.match(ui, /handleDownloadParticipants\(selectedRoom\.id\)/);
+    assert.doesNotMatch(ui, /Unduh Daftar Peserta|handleDownloadParticipants|listPASRoomParticipants/);
+    const administration = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/PASAdministrationPanel.tsx'), 'utf8');
+    assert.match(administration, /resolvedRole !== 'pengawas' && <RoomParticipantsDownload/);
     const pdf = fs.readFileSync(path.resolve(__dirname, '../../web/lib/pas/room-participants-pdf.ts'), 'utf8');
     assert.match(pdf, /if \(roomIndex > 0\) pdf\.addPage\(\);\s*const first = pdf\.getNumberOfPages\(\);\s*drawKop\(\);/);
 });

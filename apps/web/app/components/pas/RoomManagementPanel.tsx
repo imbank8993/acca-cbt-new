@@ -14,7 +14,6 @@ import {
     createPASSessionAction,
     deletePASRoomAction,
     deletePASSessionAction,
-    listPASRoomParticipants,
     listPASRooms,
     listPASSessions,
     listTeachersAndInvigilators,
@@ -48,7 +47,6 @@ import {
     AlertTriangle,
     Lock,
     Search,
-    Download,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -125,8 +123,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     const [isLoading, setIsLoading] = useState(true);
     const [roomError, setRoomError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    /** 'all' = semua ruang; selain itu id ruang yang sedang diunduh. */
-    const [downloadingParticipants, setDownloadingParticipants] = useState<string | null>(null);
 
     const selectedRoom = useMemo(
         () => rooms.find((r) => r.id === selectedRoomId) || null,
@@ -469,25 +465,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         } finally { setIsSaving(false); }
     };
 
-    /** Unduh daftar peserta (PDF A4, setiap ruang dengan kopnya sendiri). */
-    const handleDownloadParticipants = async (roomId: string | null) => {
-        if (downloadingParticipants) return;
-        setDownloadingParticipants(roomId || 'all');
-        setRoomError('');
-        try {
-            const [{ downloadRoomParticipantsPdf }, allRooms] = await Promise.all([
-                import('@/lib/pas/room-participants-pdf'),
-                listPASRoomParticipants(period.id),
-            ]);
-            const chosen = roomId ? allRooms.filter(room => room.id === roomId) : allRooms;
-            await downloadRoomParticipantsPdf(period, chosen);
-        } catch (error) {
-            setRoomError(error instanceof Error ? error.message : 'Daftar peserta belum berhasil diunduh.');
-        } finally {
-            setDownloadingParticipants(null);
-        }
-    };
-
     const handleRemoveStudent = async (userId: string) => {
         if (!selectedRoom || isSaving) return;
         if (!await deleteConfirmDialog({
@@ -642,16 +619,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={!!downloadingParticipants || !rooms.some(room => (room.pas_room_students?.length || 0) > 0)}
-                                title="Unduh daftar peserta semua ruang (PDF A4, setiap ruang dengan kop sendiri)"
-                                leftIcon={downloadingParticipants === 'all' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                                onClick={() => void handleDownloadParticipants(null)}
-                            >
-                                Unduh Daftar Peserta
-                            </Button>
                             {!period.is_locked && (
                                 <Button
                                     variant="primary"
@@ -851,13 +818,6 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-sm font-semibold text-slate-900">{addingStudents ? 'Tambah peserta' : `Peserta ruangan (${assignedStudentIds.size})`}</h3>
                                     <div className="flex items-center gap-2">
-                                        {!addingStudents && <Button variant="outline" size="sm"
-                                            disabled={isSaving || !!downloadingParticipants || assignedStudentIds.size === 0}
-                                            title={`Unduh daftar peserta ${selectedRoom.name} (PDF)`}
-                                            leftIcon={downloadingParticipants === selectedRoom.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-                                            onClick={() => void handleDownloadParticipants(selectedRoom.id)}>
-                                            Unduh
-                                        </Button>}
                                         <Button variant={addingStudents ? 'outline' : 'primary'} size="sm" disabled={isSaving}
                                             onClick={() => { setAddingStudents(!addingStudents); setStudentSearch(''); setSelectedStudentIds([]); }}>
                                             {addingStudents ? 'Kembali ke daftar' : 'Tambah Peserta'}

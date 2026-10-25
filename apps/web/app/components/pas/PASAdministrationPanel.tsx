@@ -1,6 +1,7 @@
 "use client";
 
 import { CommitteeChairNameInput } from '@/app/components/pas/CommitteeChairNameInput';
+import { RoomParticipantsDownload } from '@/app/components/pas/RoomParticipantsDownload';
 
 import Image from 'next/image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1401,6 +1402,11 @@ ${KOP_AND_A4_CSS}
                     </div>
                 </div>}
             </div>
+
+            {resolvedRole !== 'pengawas' && <RoomParticipantsDownload period={{
+                ...period,
+                profil_sekolah: period.profil_sekolah || slot?.profil_sekolah,
+            }} rooms={rooms} />}
 
             {subView === 'overview' ? (
                 <div className="space-y-4">
