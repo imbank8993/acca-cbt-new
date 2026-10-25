@@ -122,8 +122,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 text={`Perlu perhatian${needingAttention.length > 0 ? ` (${needingAttention.length})` : ''}`}
                 checked={onlyAttention} onChange={value => { setOnlyAttention(value); setPage(1); }} />
         </FilterToolbar>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full min-w-[720px] text-left text-xs">
-            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="p-3 font-semibold">Status</th><th className="p-3 font-semibold">Peringatan</th><th className="p-3 font-semibold">Aksi</th></tr></thead>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full sm:min-w-[720px] text-left text-xs">
+            <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="hidden p-3 font-semibold sm:table-cell">Status</th><th className="hidden p-3 font-semibold sm:table-cell">Peringatan</th><th className="hidden p-3 font-semibold sm:table-cell">Aksi</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;
                 const reasons = monitoringAttention(attempt, elapsed);
@@ -134,25 +134,25 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                 const active = attempt.status === 'in_progress';
                 const statusLabel = active ? 'Mengerjakan'
                     : ['submitted', 'auto_submitted'].includes(attempt.status) ? gradingLabel(attempt) : 'Belum mulai';
-                return <tr key={attempt.id} className="border-b align-top last:border-b-0">
+                return <tr key={attempt.id} onClick={() => setSelectedAttemptId(attempt.id)} className="border-b align-top last:border-b-0 cursor-pointer transition-colors hover:bg-slate-50/80 active:bg-slate-100">
                     <td className="p-3">
                         <span className="font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
-                        <ParticipantRoomInfo attempt={attempt} />
+                        <div className="hidden sm:block"><ParticipantRoomInfo attempt={attempt} /></div>
                     </td>
-                    <td className="p-3"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
-                    <td className="p-3">
+                    <td className="p-3 w-[110px] sm:w-auto"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
+                    <td className="hidden p-3 sm:table-cell">
                         <span className="font-medium">{statusLabel}</span>
                         {active && remaining !== null && <div className="mt-1 text-slate-500">Sisa {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</div>}
                         {active && attempt.connection_status === 'offline' && <div className="mt-1 text-amber-700">Tidak ada kontak terbaru</div>}
                         {active && fresh && health && health.pendingAnswerCount > 0 && <div className="mt-1 text-amber-700">{health.pendingAnswerCount} jawaban menunggu dikirim</div>}
                         {active && fresh && health?.storageState === 'unavailable' && <div className="mt-1 text-amber-700">Penyimpanan perangkat bermasalah</div>}
                     </td>
-                    <td className="p-3">
+                    <td className="hidden p-3 sm:table-cell">
                         <span className={violationCount > 0 ? 'font-medium text-amber-700' : 'text-slate-500'}>{violationCount > 0 ? violationCount + ' peringatan' : '—'}</span>
                         {active && reasons.length > 0 && <div className="mt-1 text-amber-700">Perlu pemeriksaan</div>}
                     </td>
-                    <td className="p-3">
+                    <td className="hidden p-3 sm:table-cell" onClick={e => e?.stopPropagation?.()}>
                         <div className="flex flex-wrap gap-2">
                             <button type="button" className="rounded border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedAttemptId(attempt.id)}>Detail</button>
                             {onRecover && attempt.canReset === true && ['in_progress', 'submitted', 'auto_submitted', 'belum'].includes(attempt.status) && (
@@ -199,6 +199,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             showSessionDetails
             elapsedSeconds={elapsed}
             onViewAnswers={onViewDetails}
+            onRecover={onRecover}
         />
     </section>;
 }

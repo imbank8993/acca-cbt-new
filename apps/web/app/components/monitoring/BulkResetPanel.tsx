@@ -25,7 +25,8 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
     if (!panel) return;
     const resize = () => {
       const available = window.innerHeight - Math.max(0, panel.getBoundingClientRect().top) - 24;
-      panel.style.height = `${Math.max(320, available)}px`;
+      const minHeight = Math.max(520, Math.round(window.innerHeight * 0.72));
+      panel.style.height = `${Math.max(minHeight, available)}px`;
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -41,12 +42,15 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
   const allSelected = eligible.length > 0 && chosen.length === eligible.length;
 
   return (
-    <section ref={panelRef} aria-label="Reset massal" className="mb-4 flex min-h-80 flex-col rounded-xl border border-slate-200 bg-white p-4">
+    <section ref={panelRef} aria-label="Reset massal" className="mb-4 flex min-h-[520px] flex-col rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
       {eligible.length === 0 ? (
         <p className="text-sm text-slate-500">Belum ada siswa yang dapat direset pada filter ini.</p>
       ) : <>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-800">Pilih siswa untuk direset</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800">Pilih siswa untuk direset</h2>
+          <button type="button" aria-expanded={listExpanded} onClick={() => setListExpanded(value => !value)} className="mt-1 shrink-0 cursor-pointer text-left text-xs font-semibold text-blue-700">{listExpanded ? '▼' : '▶'} {eligible.length} tersedia · {chosen.length} terpilih</button>
+        </div>
         <Button disabled={!chosen.length} onClick={() => {
           completed.current.clear();
           setResult('');
@@ -54,18 +58,29 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
           setBatch(chosen);
         }}>Reset {chosen.length} siswa terpilih</Button>
       </div>
-      <div className="mt-3 flex min-h-0 flex-1 flex-col">
-        <button type="button" aria-expanded={listExpanded} onClick={() => setListExpanded(value => !value)} className="shrink-0 cursor-pointer text-left text-sm font-semibold text-blue-700">{listExpanded ? '▼' : '▶'} {eligible.length} tersedia · {chosen.length} terpilih</button>
+      <div className="mt-2.5 flex min-h-0 flex-1 flex-col">
         {listExpanded && <>
-          <label className="my-3 flex items-center gap-2 text-sm">
+          <label className="mb-2 flex items-center gap-2.5 border-b border-slate-100 pb-2.5 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer">
             <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : eligible.map(a => a.id))} />
             Pilih semua siswa dalam filter
           </label>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-100">
-            {eligible.map(a => <label key={a.id} className="flex cursor-pointer items-center gap-3 py-2 text-sm">
-              <input type="checkbox" checked={selected.includes(a.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} />
-              <span className="min-w-0 flex-1"><span className="font-medium">{formatStudentName(a.profiles?.full_name)}</span><span className="block text-xs text-slate-500">{a.kelas_name || '—'} · {a.profiles?.identity_number || '—'}</span></span>
-              <span className={a.status === 'auto_submitted' ? 'text-xs font-semibold text-red-700' : 'text-xs text-slate-500'}>{a.status === 'auto_submitted' ? 'Ditutup otomatis · prioritas reset' : 'Selesai'}</span>
+            {eligible.map(a => <label key={a.id} className="flex cursor-pointer items-center justify-between gap-3 py-2.5 text-xs sm:text-sm hover:bg-slate-50/70">
+              <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                <input type="checkbox" className="shrink-0" checked={selected.includes(a.id)} onChange={e => setSelected(ids => e.target.checked ? [...ids, a.id] : ids.filter(id => id !== a.id))} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-slate-800">{formatStudentName(a.profiles?.full_name)}</span>
+                  <span className="mt-0.5 block truncate text-[11px] sm:text-xs text-slate-500">{a.profiles?.identity_number ? `${a.profiles.identity_number} · ` : ''}{a.kelas_name || '—'}</span>
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className={a.status === 'auto_submitted' ? 'block text-xs font-semibold text-red-700' : 'block text-xs font-medium text-slate-600'}>
+                  {a.status === 'auto_submitted' ? 'Ditutup otomatis' : 'Selesai'}
+                </span>
+                {a.status === 'auto_submitted' && (
+                  <span className="mt-0.5 block text-[11px] font-medium text-red-600/80">Prioritas reset</span>
+                )}
+              </span>
             </label>)}
           </div>
         </>}

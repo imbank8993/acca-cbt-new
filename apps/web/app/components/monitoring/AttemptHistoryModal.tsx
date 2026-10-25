@@ -13,7 +13,6 @@ import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import {
   History,
   Clock,
-  User,
   ShieldAlert,
   WifiOff,
   Wifi,
@@ -27,6 +26,7 @@ export interface AttemptHistoryModalProps {
   showSessionDetails?: boolean;
   elapsedSeconds?: number;
   onViewAnswers?: (id: string) => void;
+  onRecover?: (attempt: ExamAttemptRecord) => Promise<void> | void;
 }
 
 export function AttemptHistoryModal({
@@ -36,6 +36,7 @@ export function AttemptHistoryModal({
   showSessionDetails = false,
   elapsedSeconds = 0,
   onViewAnswers,
+  onRecover,
 }: AttemptHistoryModalProps) {
   const [zone, setZone] = useState<string | null>(null);
 
@@ -62,6 +63,16 @@ export function AttemptHistoryModal({
   const reportAge = health && attempt.server_now
     ? (Date.parse(attempt.server_now) - Date.parse(health.receivedAt)) / 1000 + elapsedSeconds : Infinity;
   const fresh = health?.fresh && reportAge <= 45;
+  const canRecoverAttempt = Boolean(
+    onRecover &&
+    attempt.canReset === true &&
+    ['in_progress', 'submitted', 'auto_submitted', 'belum'].includes(attempt.status),
+  );
+  const recoverLabel = attempt.status === 'in_progress'
+    ? 'Reset sesi'
+    : attempt.status === 'belum'
+      ? 'Susulan'
+      : 'Susulan / Pulihkan';
 
   const formatDate = (value?: string | null) => {
     if (!value) return 'Belum tercatat';
@@ -131,24 +142,40 @@ export function AttemptHistoryModal({
 
       <ModalBody className="space-y-4">
         {/* Student Info Bar */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#3083FF]/10 text-[#3083FF] font-bold text-sm">
-              <User size={16} />
-            </div>
-            <div>
-              <p className="font-bold text-slate-800">{studentName}</p>
-              <p className="text-slate-500">
-                NIS: <span className="font-mono text-slate-700">{nis}</span> · Kelas: <span className="font-medium text-slate-700">{className}</span>
-              </p>
-              <ParticipantRoomInfo attempt={attempt} />
-            </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3 text-xs">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-slate-800 truncate">{studentName}</p>
+            <p className="mt-0.5 text-slate-500 truncate">
+              {nis !== '—' ? `${nis} · ` : ''}{className}
+            </p>
+            <ParticipantRoomInfo attempt={attempt} />
           </div>
+          {canRecoverAttempt && onRecover && (
+            <button
+              type="button"
+              onClick={() => {
+                const current = attempt;
+                onClose();
+                void onRecover(current);
+              }}
+              className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+            >
+              <RotateCcw size={13} />
+              {recoverLabel}
+            </button>
+          )}
         </div>
 
         {showSessionDetails && (
           <div className="space-y-4 text-sm">
-            <p className="text-xs font-medium text-slate-600">{gradingLabel(attempt)}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-slate-600">{attempt.status === 'in_progress' ? 'Mengerjakan' : ['submitted', 'auto_submitted'].includes(attempt.status) ? gradingLabel(attempt) : 'Belum mulai'}</p>
+              {attempt.status === 'in_progress' && timing.remainingSeconds !== null && (
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-blue-700">
+                  Sisa {Math.floor(timing.remainingSeconds / 60)}:{String(timing.remainingSeconds % 60).padStart(2, '0')}
+                </span>
+              )}
+            </div>
             <dl className="grid grid-cols-3 divide-x divide-slate-200 rounded-lg bg-slate-50 py-3 text-center">
               <div className="px-2"><dt className="text-xs text-slate-500">Tersimpan</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{attempt.saved_answer_count ?? '—'} <span className="text-xs font-normal text-slate-500">/ {attempt.total_questions ?? '—'}</span></dd></div>
               <div className="px-2"><dt className="text-xs text-slate-500">Belum dijawab</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{unansweredQuestionCount(attempt) ?? '—'}</dd></div>
@@ -166,11 +193,11 @@ export function AttemptHistoryModal({
                 {monitoringAttention(attempt, elapsedSeconds).map(reason => <p key={reason}>{reason}</p>)}
               </div>
             )}
-            <details key={`warnings-${attempt.id}`} className="border-t border-slate-200 pt-3">
+            <details key={`warnings-${attempt.id}`} open className="border-t border-slate-200 pt-3">
               <summary className="cursor-pointer text-xs font-semibold text-slate-700">Peringatan · {attempt.warning_count ?? 0}</summary>
               <p className="mt-2 text-xs text-slate-500">Pindah tab {attempt.violation_breakdown?.pindah_tab ?? attempt.tab_switch_count ?? 0} · Tutup tab {attempt.violation_breakdown?.close_tab ?? 0} · Lainnya {attempt.violation_breakdown?.lainnya ?? 0}</p>
             </details>
-            <details key={`sync-${attempt.id}`} className="border-t border-slate-200 pt-3">
+            <details key={`sync-${attempt.id}`} open className="border-t border-slate-200 pt-3">
               <summary className="cursor-pointer text-xs font-semibold text-slate-700">Detail sinkronisasi & koneksi</summary>
               <dl className="mt-3 space-y-2 text-xs">
                 {[

@@ -40,7 +40,6 @@ import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 AlertTriangle,
-ChevronRight,
 Calculator,
 CheckCircle2,
 Eye,
@@ -97,7 +96,7 @@ function MonitoringContent() {
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
 
-    const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'answers' | 'results' | 'analysis' | 'reset' | 'admin'>('activeTab', 'live');
+    const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'answers' | 'results' | 'analysis' | 'reset' | 'admin' | 'screen'>('activeTab', 'live');
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [searchName, setSearchName] = useMonitoringFilterState('searchName', '');
     const [filterKelas, setFilterKelas] = useMonitoringFilterState<string[]>('filterKelas', []);
@@ -301,6 +300,15 @@ function MonitoringContent() {
 
     const canResetParticipants = exams.find(exam => exam.id === selectedExamId)?.canResetParticipants === true;
 
+    // Tab "Pengecualian layar" hanya ada untuk ujian yang mewajibkan berbagi
+    // layar dan bisa dikelola pengguna ini. Bila ujian berganti ke yang tidak
+    // memenuhi syarat, kembalikan ke tab Peserta aktif.
+    const screenShareExam = exams.find(exam => exam.id === selectedExamId);
+    const canManageScreenShare = screenShareExam?.canManage === true && screenShareExam.metadata?.screenshot_enabled === true;
+    useEffect(() => {
+        if (activeTab === 'screen' && screenShareExam && !canManageScreenShare) setActiveTab('live');
+    }, [activeTab, screenShareExam, canManageScreenShare, setActiveTab]);
+
     const handleFinishAttempt = async (attempt: ExamAttemptRecord, reason: string): Promise<string | null> => {
         const result = await finishAttemptAction(attempt.id, reason);
         if (!result.success) return result.error || 'Pengerjaan belum berhasil diselesaikan.';
@@ -438,6 +446,7 @@ function MonitoringContent() {
                     { id: 'analysis', label: 'Analisis' },
                     { id: 'reset', label: 'Reset massal' },
                     ...(hasMonitoringAdministration(selectedExam) ? [{ id: 'admin', label: 'Administrasi' }] : []),
+                    ...(canManageScreenShare ? [{ id: 'screen', label: 'Pengecualian layar' }] : []),
                 ]}
             >
                 {['live', 'results', 'reset'].includes(activeTab) && <MonitoringParticipantFilters
@@ -483,8 +492,11 @@ function MonitoringContent() {
                     onRecover={canResetParticipants ? handleResetAttempt : undefined}
                     onViewDetails={attemptId => router.push(`/dashboard/admin/monitoring/${attemptId}`)}
                     defaultExpanded
-                />
-                {selectedExam?.canManage === true && selectedExam.metadata?.screenshot_enabled === true && <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />}</>
+                /></>
+            )}
+
+            {selectedExamId && activeTab === 'screen' && canManageScreenShare && (
+                <ScreenShareExceptionsPanel key={`screen-share-exceptions-${selectedExamId}`} examId={selectedExamId} attempts={attempts.filter(attempt => attempt.exam_id === selectedExamId)} onChanged={() => void loadExamData(selectedExamId, true)} />
             )}
 
             {selectedExamId && loadError && (
@@ -533,7 +545,7 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                             >
-                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/admin/monitoring/${id}`)} />
+                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/admin/monitoring/${id}`)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
                             </motion.div>
                         )}
 
@@ -559,7 +571,6 @@ function MonitoringContent() {
                                     ) : (
                                         pagedAnalysis.map((anl) => {
                                             const isCritical = anl.incorrectPercentage > 50;
-                                            const diffLabel = anl.difficultyLabel?.toLowerCase() || '';
 
                                             return (
                                                 <button
@@ -569,47 +580,25 @@ function MonitoringContent() {
                                                         setViewQuestion(anl);
                                                         setModalActiveTab('soal');
                                                     }}
-                                                    className={`w-full py-3 px-3.5 flex items-center justify-between gap-3 text-left transition-colors active:bg-slate-100 ${
+                                                    className={`w-full p-3 flex items-start gap-3 text-left transition-colors active:bg-slate-100 ${
                                                         isCritical ? 'bg-amber-50/25 hover:bg-amber-50/40' : 'bg-white hover:bg-slate-50'
                                                     }`}
                                                 >
-                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                        <span className={`w-8 h-8 rounded-lg font-bold text-xs shrink-0 flex items-center justify-center ${
-                                                            isCritical ? 'bg-red-100 text-red-700' : 'bg-[#3083FF]/10 text-[#3083FF]'
-                                                        }`}>
+                                                    <div className="w-[72px] shrink-0 text-left">
+                                                        <div className="text-xs font-bold text-slate-800">
                                                             #{anl.number}
-                                                        </span>
-                                                        <div className="min-w-0 flex-1 text-left">
-                                                            <div className="text-xs font-semibold text-slate-800 line-clamp-1 truncate max-h-5 overflow-hidden text-left">
-                                                                <LatexRenderer text={getQuestionSnippet(anl.qText, 70)} className="!text-xs !leading-tight !text-left line-clamp-1 truncate" />
-                                                            </div>
-                                                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
-                                                                <span className="font-medium text-slate-600">{formatQuestionType(anl.type)}</span>
-                                                                {anl.difficultyLabel && (
-                                                                    <>
-                                                                        <span>•</span>
-                                                                        <span className={`font-semibold ${
-                                                                            diffLabel === 'sukar' ? 'text-red-600' :
-                                                                            diffLabel === 'mudah' ? 'text-emerald-600' : 'text-amber-600'
-                                                                        }`}>
-                                                                            {anl.difficultyLabel}
-                                                                        </span>
-                                                                    </>
-                                                                )}
-                                                                <span>•</span>
-                                                                <span>{anl.total} siswa</span>
-                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="shrink-0 flex items-center gap-2">
-                                                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
-                                                            isCritical
-                                                                ? 'bg-red-100 text-red-700'
-                                                                : 'bg-emerald-50 text-emerald-700'
+                                                        <div className={`mt-0.5 text-[11px] font-semibold tabular-nums ${
+                                                            isCritical ? 'text-rose-600' : 'text-emerald-600'
                                                         }`}>
                                                             {anl.incorrectPercentage.toFixed(0)}% salah
-                                                        </span>
-                                                        <ChevronRight size={16} className="text-slate-400" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="min-w-0 flex-1 text-left">
+                                                        <LatexRenderer
+                                                            text={getQuestionSnippet(anl.qText, 95)}
+                                                            className="!font-sans !text-xs !leading-relaxed !text-left text-slate-700 line-clamp-2 [&_.katex]:!text-[11px]"
+                                                        />
                                                     </div>
                                                 </button>
                                             );
@@ -721,32 +710,29 @@ function MonitoringContent() {
                                     </table>
                                 </div>
                                 {analysis.length > ANALYSIS_PAGE_SIZE && (
-                                    <div className="px-5 py-3 border-t border-[#3083FF]/10 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                        <span className="text-slate-500 font-semibold">
-                                            Menampilkan {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, analysis.length)} dari {analysis.length} soal
+                                    <div className="px-3.5 sm:px-5 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+                                        <span className="text-slate-500 font-medium tabular-nums">
+                                            {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, analysis.length)} dari {analysis.length} soal
                                         </span>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5 shrink-0">
                                             <button
+                                                type="button"
                                                 onClick={() => setAnalysisPage(p => Math.max(1, p - 1))}
                                                 disabled={safeAnalysisPage <= 1}
-                                                className="px-3 py-1.5 rounded-lg border border-[#3083FF]/30 text-[#3083FF] font-semibold disabled:opacity-40 hover:bg-[#3083FF]/5 transition-all"
+                                                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 font-semibold disabled:opacity-40 hover:bg-slate-50 transition-all"
                                             >
                                                 Sebelumnya
                                             </button>
-                                            <span className="font-bold text-[#3083FF]">{safeAnalysisPage}/{analysisTotalPages}</span>
+                                            <span className="px-1 font-semibold tabular-nums text-slate-600">{safeAnalysisPage} / {analysisTotalPages}</span>
                                             <button
+                                                type="button"
                                                 onClick={() => setAnalysisPage(p => Math.min(analysisTotalPages, p + 1))}
                                                 disabled={safeAnalysisPage >= analysisTotalPages}
-                                                className="px-3 py-1.5 rounded-lg border border-[#3083FF]/30 text-[#3083FF] font-semibold disabled:opacity-40 hover:bg-[#3083FF]/5 transition-all"
+                                                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 font-semibold disabled:opacity-40 hover:bg-slate-50 transition-all"
                                             >
                                                 Berikutnya
                                             </button>
                                         </div>
-                                    </div>
-                                )}
-                                {analysis.length > 0 && (
-                                    <div className="px-5 py-3 bg-[#3083FF]/10 border-t border-[#3083FF]/20 text-[10px] text-[#3083FF] font-semibold uppercase tracking-wider flex items-center gap-2">
-                                        <AlertTriangle size={11} /> Baris merah menunjukkan soal dengan persentase kesalahan &gt; 50%
                                     </div>
                                 )}
                             </motion.div>
@@ -774,6 +760,9 @@ function MonitoringContent() {
                                     <span>Detail Butir Soal{viewQuestion.number ? ` No. ${viewQuestion.number}` : ''}</span>
                                     <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-[11px] font-bold uppercase tracking-wider">
                                         {formatQuestionType(viewQuestion.type)}
+                                    </span>
+                                    <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold tracking-wider ${viewQuestion.incorrectPercentage > 50 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                        {viewQuestion.incorrectPercentage.toFixed(0)}% salah
                                     </span>
                                     {viewQuestion.difficultyLabel && (
                                         <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold uppercase tracking-wider ${
@@ -888,7 +877,9 @@ function MonitoringContent() {
                                         {viewQuestion.keyDisplay && (
                                             <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
                                                 <span className="font-semibold">Kunci Jawaban Resmi:</span>
-                                                <span className="font-bold bg-white px-3 py-1 rounded border border-blue-200">{viewQuestion.keyDisplay}</span>
+                                                <div className="font-bold bg-white px-3 py-1 rounded border border-blue-200">
+                                                    <LatexRenderer text={viewQuestion.keyDisplay} className="!font-sans !text-xs !leading-normal [&_p]:!m-0 [&_p]:inline" />
+                                                </div>
                                             </div>
                                         )}
 
@@ -950,9 +941,9 @@ function MonitoringContent() {
                                                                 <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                                 <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                                 <td className="p-3">
-                                                                    <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
-                                                                        {st.display_answer || 'Benar'}
-                                                                    </span>
+                                                                    <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                                                                        <LatexRenderer text={st.display_answer || 'Benar'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
+                                                                    </div>
                                                                 </td>
                                                                 <td className="p-3 text-right font-bold text-emerald-600">
                                                                     +{st.score !== undefined ? st.score : 1}
@@ -1004,14 +995,14 @@ function MonitoringContent() {
                                                                 <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                                 <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                                 <td className="p-3">
-                                                                    <span className="inline-block px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
-                                                                        {st.display_answer || '(Kosong / Salah)'}
-                                                                    </span>
+                                                                    <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
+                                                                        <LatexRenderer text={st.display_answer || '(Kosong / Salah)'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
+                                                                    </div>
                                                                 </td>
                                                                 <td className="p-3">
-                                                                    <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
-                                                                        {viewQuestion.keyDisplay || '-'}
-                                                                    </span>
+                                                                    <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
+                                                                        <LatexRenderer text={viewQuestion.keyDisplay || '-'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
+                                                                    </div>
                                                                 </td>
                                                                 <td className="p-3 text-right font-bold text-red-500">
                                                                     {st.score !== undefined ? st.score : 0}
@@ -1044,8 +1035,10 @@ function MonitoringContent() {
                                                             }`}>
                                                                 {dist.option_letter}
                                                             </span>
-                                                            <div className="truncate text-xs text-slate-700 font-medium">
-                                                                {dist.option_text ? dist.option_text.substring(0, 80) : ''}
+                                                            <div className="min-w-0 truncate text-xs text-slate-700 font-medium">
+                                                                {dist.option_text ? (
+                                                                    <LatexRenderer text={getQuestionSnippet(dist.option_text, 80)} className="!font-sans !text-xs !leading-normal !text-left truncate [&_p]:!m-0 [&_p]:inline" />
+                                                                ) : ''}
                                                             </div>
                                                             {dist.is_correct && (
                                                                 <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">

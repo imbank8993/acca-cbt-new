@@ -15,6 +15,7 @@ export function getQuestionSnippet(html?: string | null, maxLen = 70): string {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
+        .replace(/\\[dt]?frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2')
         .replace(/\s+/g, ' ')
         .trim();
 

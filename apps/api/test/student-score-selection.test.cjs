@@ -104,6 +104,8 @@ test('monitoring results expose calculated IRT scores in their own column', () =
  const loaded={exports:{}};
  const dependencies={
   react:{...React,useState:()=>[null,()=>{}]},
+  '@/app/components/ui/modal':{Modal:({open,children})=>open?React.createElement('div',null,children):null,ModalHeader:()=>null,ModalBody:({children})=>React.createElement('div',null,children),ModalFooter:({children})=>React.createElement('div',null,children)},
+  '@/app/components/ui/button':{Button:({children})=>React.createElement('button',null,children)},
   '@/lib/monitoring-health':{formatStudentName:name=>name||'Peserta',getScoreColorClass:()=>''},
   '@/lib/monitoring-score-models':{monitoringScoreModels},
   '@/lib/monitoring-answer-count':{savedAnswerCount:()=>1},

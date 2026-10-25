@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Clock, DoorOpen, Loader2, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
+import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
@@ -86,6 +87,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     const [tab, setTab] = useState<'live' | 'list' | 'admin'>('live');
     const [search, setSearch] = useState('');
     const [attentionOnly, setAttentionOnly] = useState(false);
+    const [selectedAttemptKey, setSelectedAttemptKey] = useState<string | null>(null);
     const request = useRef(0);
 
     const load = useCallback(async (silent = false) => {
@@ -176,21 +178,28 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                 onFinish={canFinish ? finish : undefined}
                 onViewDetails={attemptBasePath ? id => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined} />
             : tab === 'list' ? <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="overflow-x-auto" role="region" aria-label="Daftar peserta ruang" tabIndex={0}><table className="w-full min-w-[640px] text-left text-xs">
-                    <thead className="bg-slate-50 text-[11px] text-slate-500"><tr>{['Peserta', 'Kelas', 'Bank soal', 'Status', 'Peringatan'].map(label => <th key={label} scope="col" className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead>
+                <div className="overflow-x-auto" role="region" aria-label="Daftar peserta ruang" tabIndex={0}><table className="w-full sm:min-w-[640px] text-left text-xs">
+                    <thead className="bg-slate-50 text-xs sm:text-[11px] text-slate-500"><tr>{['Peserta', 'Kelas', 'Bank soal', 'Status', 'Peringatan'].map(label => <th key={label} scope="col" className={`${label === 'Peserta' ? 'p-3 sm:px-4 sm:py-3' : label === 'Status' ? 'p-3 w-[115px] sm:w-auto sm:px-4 sm:py-3' : 'hidden px-4 py-3 sm:table-cell'} font-semibold`}>{label}</th>)}</tr></thead>
                     <tbody>{[...filtered].sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id')).map(attempt => {
                         const done = FINISHED.includes(attempt.status);
                         const active = attempt.status === 'in_progress';
-                        return <tr key={`${attempt.exam_id}:${attempt.id}`} className="border-t border-slate-100">
-                            <td className="px-4 py-2.5 font-medium text-slate-900">{formatStudentName(attempt.profiles?.full_name, 'Peserta')}<div className="text-[10px] font-normal text-slate-400">NIS {attempt.profiles?.identity_number || '—'}</div></td>
-                            <td className="px-4 py-2.5 text-slate-600">{attempt.kelas_name || '—'}</td>
-                            <td className="px-4 py-2.5 text-slate-600">{slot.exams.find(exam => exam.exam_id === attempt.exam_id)?.bank_title || '—'}</td>
-                            <td className="px-4 py-2.5"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-emerald-50 text-emerald-700' : active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{done ? 'Selesai' : active ? 'Mengerjakan' : 'Belum masuk'}</span></td>
-                            <td className="px-4 py-2.5 tabular-nums text-slate-600">{attempt.warning_count || 0}</td>
+                        return <tr key={`${attempt.exam_id}:${attempt.id}`} onClick={() => setSelectedAttemptKey(`${attempt.exam_id}:${attempt.id}`)} className="border-t border-slate-100 align-top sm:align-middle cursor-pointer transition-colors hover:bg-slate-50 active:bg-slate-100">
+                            <td className="p-3 sm:px-4 sm:py-2.5 font-medium text-slate-900">{formatStudentName(attempt.profiles?.full_name, 'Peserta')}<div className="mt-1 sm:mt-0 text-xs sm:text-[10px] font-normal text-slate-500 sm:text-slate-400">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div></td>
+                            <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{attempt.kelas_name || '—'}</td>
+                            <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{slot.exams.find(exam => exam.exam_id === attempt.exam_id)?.bank_title || '—'}</td>
+                            <td className="p-3 w-[115px] sm:w-auto sm:px-4 sm:py-2.5"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-emerald-50 text-emerald-700' : active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{done ? 'Selesai' : active ? 'Mengerjakan' : 'Belum masuk'}</span><div className="mt-1 font-semibold text-slate-800 sm:hidden">{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</div></td>
+                            <td className="hidden px-4 py-2.5 tabular-nums text-slate-600 sm:table-cell">{attempt.warning_count || 0}</td>
                         </tr>;
                     })}</tbody>
                 </table></div>
                 {!filtered.length && <p className="px-4 py-10 text-center text-sm text-slate-500">Tidak ada peserta yang cocok.</p>}
+                <AttemptHistoryModal
+                    open={Boolean(selectedAttemptKey)}
+                    attempt={filtered.find(attempt => `${attempt.exam_id}:${attempt.id}` === selectedAttemptKey) || attempts.find(attempt => `${attempt.exam_id}:${attempt.id}` === selectedAttemptKey) || null}
+                    onClose={() => setSelectedAttemptKey(null)}
+                    showSessionDetails
+                    onViewAnswers={attemptBasePath ? id => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined}
+                />
             </div>
             : <MonitoringPASAdministrationPanel key={slot.key} exam={administrationExam} attempts={attempts} userRole={userRole} />}
     </section>;

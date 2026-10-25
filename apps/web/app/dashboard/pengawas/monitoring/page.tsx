@@ -6,7 +6,7 @@ import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPane
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
-import { ResetExamModal } from '@/app/components/monitoring';
+import { AttemptHistoryModal, ResetExamModal } from '@/app/components/monitoring';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
@@ -121,6 +121,7 @@ function MonitoringContent() {
     };
 
     const [selectedResetAttempt, setSelectedResetAttempt] = useState<ExamAttemptRecord | null>(null);
+    const [selectedDetailAttemptId, setSelectedDetailAttemptId] = useState<string | null>(null);
 
     const selectedExam = exams.find(exam => exam.id === selectedExamId);
     const canResetParticipants = selectedExam?.canResetParticipants === true;
@@ -211,15 +212,15 @@ function MonitoringContent() {
             {activeTab === 'results' && (
                     <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
                         <div className="overflow-x-auto">
-                            <table className="w-full table-fixed text-left text-xs sm:table-auto">
-                                <thead className="hidden sm:table-header-group">
-                                    <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                                        <th className="py-3 px-3 sm:px-4">Nama Siswa</th>
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 font-semibold text-xs sm:font-bold sm:uppercase sm:tracking-wider sm:text-[10px]">
+                                        <th className="p-3 sm:px-4">Peserta</th>
                                         <th className="hidden py-3 px-3 sm:table-cell">Kelas</th>
-                                        <th className="py-3 px-3">Status</th>
+                                        <th className="p-3 w-[125px] sm:w-auto sm:px-3">Status</th>
                                         <th className="hidden py-3 px-3 sm:table-cell">Waktu Mulai</th>
                                         <th className="hidden py-3 px-3 sm:table-cell">Pelanggaran</th>
-                                        <th className="py-3 px-2 text-right sm:px-4">Aksi</th>
+                                        <th className="hidden py-3 px-2 text-right sm:table-cell sm:px-4">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -244,18 +245,19 @@ function MonitoringContent() {
                                             return (
                                                 <tr
                                                     key={attempt.id}
-                                                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                                    onClick={() => setSelectedDetailAttemptId(attempt.id)}
+                                                    className="cursor-pointer hover:bg-slate-50/80 active:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors align-top sm:align-middle"
                                                 >
-                                                    <td className="py-3 px-3 text-xs font-medium text-slate-900 dark:text-white sm:px-4">
+                                                    <td className="p-3 text-xs font-medium text-slate-900 dark:text-white sm:px-4">
                                                         <div className="truncate">{formatStudentName(attempt.profiles?.full_name, 'Peserta')}</div>
-                                                        <div className="mt-1 truncate text-[10px] font-normal text-slate-500 sm:hidden">
-                                                            {[attempt.kelas_name, formatTime(attempt.started_at ?? null)].filter(Boolean).join(' · ') || 'Belum mulai'}
+                                                        <div className="mt-1 truncate text-xs font-normal text-slate-500 sm:hidden">
+                                                            {attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}
                                                         </div>
                                                     </td>
                                                     <td className="hidden py-3 px-3 text-slate-600 dark:text-slate-300 font-medium sm:table-cell">
                                                         {attempt.kelas_name || '-'}
                                                     </td>
-                                                    <td className="py-3 px-2 sm:px-3">
+                                                    <td className="p-3 w-[125px] sm:w-auto sm:px-3">
                                                         {isStarted && (
                                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${attempt.connection_status === 'offline' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
                                                                 <span className={`w-1.5 h-1.5 rounded-full ${attempt.connection_status === 'offline' ? 'bg-amber-500' : 'bg-blue-500 animate-pulse'}`} />
@@ -273,6 +275,9 @@ function MonitoringContent() {
                                                                 Belum Masuk
                                                             </span>
                                                         )}
+                                                        <div className="mt-1 font-semibold text-slate-800 dark:text-slate-200 sm:hidden">
+                                                            {attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab
+                                                        </div>
                                                     </td>
                                                     <td className="hidden py-3 px-3 text-slate-500 dark:text-slate-400 sm:table-cell">
                                                         {formatTime(attempt.started_at ?? null)}
@@ -293,24 +298,33 @@ function MonitoringContent() {
                                                             <span className="text-slate-300 dark:text-slate-600">-</span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3 px-2 text-right sm:px-4">
-                                                        {canResetParticipants && attempt.canReset === true && isFinished && !attempt.id.startsWith('unstarted-') && (
+                                                    <td className="hidden py-3 px-2 text-right sm:table-cell sm:px-4" onClick={e => e.stopPropagation()}>
+                                                        <div className="inline-flex items-center justify-end gap-2">
                                                             <button
-                                                                onClick={() =>
-                                                                    handleReset(attempt)
-                                                                }
-                                                                disabled={isResetting}
-                                                                className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all disabled:opacity-50 sm:px-2.5 sm:py-1 sm:text-[11px]"
-                                                                title="Buka kembali pengerjaan siswa yang sudah submit"
+                                                                type="button"
+                                                                onClick={() => setSelectedDetailAttemptId(attempt.id)}
+                                                                className="rounded border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
                                                             >
-                                                                <RotateCcw
-                                                                    size={12}
-                                                                    className={isResetting ? 'animate-spin' : ''}
-                                                                />
-                                                                <span className="sm:hidden">Pulihkan</span>
-                                                                <span className="hidden sm:inline">Susulan / Pulihkan</span>
+                                                                Detail
                                                             </button>
-                                                        )}
+                                                            {canResetParticipants && attempt.canReset === true && isFinished && !attempt.id.startsWith('unstarted-') && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleReset(attempt)
+                                                                    }
+                                                                    disabled={isResetting}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-500/30 transition-all disabled:opacity-50 sm:px-2.5 sm:py-1 sm:text-[11px]"
+                                                                    title="Buka kembali pengerjaan siswa yang sudah submit"
+                                                                >
+                                                                    <RotateCcw
+                                                                        size={12}
+                                                                        className={isResetting ? 'animate-spin' : ''}
+                                                                    />
+                                                                    <span className="sm:hidden">Pulihkan</span>
+                                                                    <span className="hidden sm:inline">Susulan / Pulihkan</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -359,6 +373,14 @@ function MonitoringContent() {
             {activeTab === 'admin' && selectedExam && hasMonitoringAdministration(selectedExam) && (
                 <MonitoringPASAdministrationPanel key={`pas-administration-${selectedExam.id}`} exam={selectedExam} attempts={attempts.filter(attempt => attempt.exam_id === selectedExam.id)} userRole="pengawas" />
             )}
+
+            <AttemptHistoryModal
+                open={Boolean(selectedDetailAttemptId)}
+                attempt={attempts.find(attempt => attempt.id === selectedDetailAttemptId) || null}
+                onClose={() => setSelectedDetailAttemptId(null)}
+                showSessionDetails
+                onRecover={canResetParticipants ? handleReset : undefined}
+            />
 
             <ResetExamModal
                 open={canResetParticipants && selectedResetAttempt?.canReset === true && selectedResetAttempt.exam_id === selectedExamId}
