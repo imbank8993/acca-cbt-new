@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { deleteMaterial, learningRequest, type LearningMaterial } from '@/lib/learning-api';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
-import { InlineSelect } from '@/components/ui/InlineSelect';
+import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { Button } from '@/app/components/ui/button';
 import '@/app/components/learning/learning.css';
 
 export default function LearningLibrary() {
@@ -136,43 +137,36 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
 
     return (
         <main className="learning">
-            <div className="learn-toolbar">
-                <div className="learn-tabs">
-                    <button aria-pressed={!manage} onClick={() => setManage(false)}>
-                        Semua materi
-                        <span className="learn-tab-count">{materials.length}</span>
-                    </button>
-                    {canManage && (
-                        <button aria-pressed={manage} onClick={() => setManage(true)}>
+            {canManage && (
+                <div className="learn-toolbar">
+                    <div className="learn-tabs" role="group" aria-label="Tampilan bahan ajar">
+                        <button type="button" aria-pressed={!manage} onClick={() => setManage(false)}>
+                            Semua materi
+                            <span className="learn-tab-count">{materials.length}</span>
+                        </button>
+                        <button type="button" aria-pressed={manage} onClick={() => setManage(true)}>
                             Kelola materi
                         </button>
-                    )}
-                </div>
-                <div className="learn-toolbar-right">
-                    <div className="learn-search">
-                        <Search size={15} />
-                        <input
-                            aria-label="Cari bahan ajar"
-                            placeholder="Cari judul atau mata pelajaran"
-                            value={query}
-                            onChange={event => setQuery(event.target.value)}
-                        />
                     </div>
-                    {canManage && manage && (
-                        <button className="learn-primary" disabled={creating} onClick={() => void create()}>
+                    {manage && (
+                        <button type="button" className="learn-primary" disabled={creating} onClick={() => void create()}>
                             <Plus size={16} />
                             {creating ? 'Menyiapkan draf…' : 'Tambah bahan ajar'}
                         </button>
                     )}
                 </div>
-            </div>
+            )}
 
-            <section className="learn-filters" aria-label="Filter bahan ajar">
-                <div className="learn-field">
-                    <label htmlFor="filter-grade">Tingkatan kelas</label>
-                    <InlineSelect
-                        id="filter-grade"
-                        aria-label="Tingkatan kelas"
+            <section className="mb-4 space-y-2" aria-label="Filter bahan ajar">
+                <FilterToolbar>
+                    <FilterSearch
+                        label="Cari bahan ajar"
+                        placeholder="Cari judul atau mata pelajaran"
+                        value={query}
+                        onChange={setQuery}
+                    />
+                    <FilterSelect
+                        label="Tingkatan kelas"
                         value={grade}
                         onChange={value => {
                             setGrade(value);
@@ -181,15 +175,9 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                             setSubtopic('');
                         }}
                         options={gradeOptions}
-                        height="38px"
-                        minWidth="100%"
                     />
-                </div>
-                <div className="learn-field">
-                    <label htmlFor="filter-subject">Mata pelajaran</label>
-                    <InlineSelect
-                        id="filter-subject"
-                        aria-label="Mata pelajaran"
+                    <FilterSelect
+                        label="Mata pelajaran"
                         value={subject}
                         onChange={value => {
                             setSubject(value);
@@ -197,55 +185,43 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                             setSubtopic('');
                         }}
                         options={subjectOptions}
-                        height="38px"
-                        minWidth="100%"
                     />
-                </div>
-                <div className="learn-field">
-                    <label htmlFor="filter-topic">Materi</label>
-                    <InlineSelect
-                        id="filter-topic"
-                        aria-label="Materi"
+                    <FilterSelect
+                        label="Materi"
                         value={topic}
                         onChange={value => {
                             setTopic(value);
                             setSubtopic('');
                         }}
                         options={topicOptions}
-                        height="38px"
-                        minWidth="100%"
                     />
-                </div>
-                <div className="learn-field">
-                    <label htmlFor="filter-subtopic">Submateri</label>
-                    <InlineSelect
-                        id="filter-subtopic"
-                        aria-label="Submateri"
+                    <FilterSelect
+                        label="Submateri"
                         value={subtopic}
-                        onChange={value => setSubtopic(value)}
+                        onChange={setSubtopic}
                         options={subtopicOptions}
-                        height="38px"
-                        minWidth="100%"
                     />
-                </div>
-                {filtered && (
-                    <button
-                        type="button"
-                        className="learn-reset-btn"
-                        onClick={() => {
-                            setQuery('');
-                            setGrade('');
-                            setSubject('');
-                            setTopic('');
-                            setSubtopic('');
-                        }}
-                    >
-                        <RotateCcw size={14} />
-                        Reset filter
-                    </button>
-                )}
+                    {filtered && (
+                        <FilterActions>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setQuery('');
+                                    setGrade('');
+                                    setSubject('');
+                                    setTopic('');
+                                    setSubtopic('');
+                                }}
+                            >
+                                <RotateCcw size={14} />
+                                Reset filter
+                            </Button>
+                        </FilterActions>
+                    )}
+                </FilterToolbar>
                 {!loading && (
-                    <small role="status">{visible.length} dari {materials.length} bahan ajar</small>
+                    <p role="status" className="text-xs text-slate-500 dark:text-slate-400">{visible.length} dari {materials.length} bahan ajar</p>
                 )}
             </section>
 

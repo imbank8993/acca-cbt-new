@@ -42,3 +42,29 @@ for (const [label, Service, method] of [
         }
     });
 }
+
+test('admin/proctor: ujian ASAS/AM berstatus scheduled dihitung mendatang, aktif, lalu selesai', async () => {
+    const future = '2099-07-31T19:30:00+08:00';
+    const past = '2020-07-31T19:30:00+08:00';
+    const pas = { organization_id: 'school', created_by: null, is_published: true, status: 'scheduled', exam_type: 'pas' };
+    const db = fixtureDb({ cbt_exams: [
+        { ...pas, start_time: future, end_time: future },
+        { ...pas, start_time: past, end_time: future },
+        { ...pas, start_time: past, end_time: past },
+        { ...pas, start_time: past, end_time: future, is_published: false },
+    ] });
+    const service = new ProctorService(db, {
+        assertOrgMonitoring: async () => {}, assertOrgStaff: async () => {}, isRestrictedProctor: async () => false,
+    });
+    const result = await service.getStats({ id: 'admin' }, 'school');
+    assert.deepEqual([result.draftExams, result.ongoingExams, result.finishedExams], [1, 1, 1]);
+});
+
+test('ujian dari jadwal ASAS/AM tidak lagi berlabel "Tidak diketahui"', () => {
+    const { semesterAssessmentSourceLabel } = require('../src/common/exam-types.ts');
+    assert.equal(semesterAssessmentSourceLabel({ exam_type: 'pas',
+        description: 'TKA Bahasa Indonesia • Kelas XII A | 2026/2027 | PAS ganjil', metadata: { is_pas_exam: true } }),
+    'ASAS/ASAT · Kelas XII A');
+    assert.equal(semesterAssessmentSourceLabel({ exam_type: 'am', description: 'Bank • Kelas XII B | 2026' }), 'AM · Kelas XII B');
+    assert.equal(semesterAssessmentSourceLabel({ exam_type: 'quiz', description: 'x' }), null);
+});

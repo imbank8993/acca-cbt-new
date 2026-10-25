@@ -205,11 +205,13 @@ test('SUSULAN-75: pemulihan biasa mempertahankan jawaban lama', async () => {
     assert.equal(result.serverAnswerCount, 2);
     assert.equal(db.tables.cbt_exam_attempts[0].detailed_scores, null);
     for (const key of ["teacher_score", "teacher_feedback", "graded_at"]) assert.equal(db.tables.cbt_exam_attempts[0].metadata[key], undefined);
-    assert.equal(result.recoveryUntil, '2026-09-30T02:30:00.000Z');
+    // Pengerjaan tertutup = kirim jawaban saja: minimal 60 menit agar perangkat sempat tersambung.
+    assert.equal(result.recoveryUntil, '2026-09-30T03:00:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
-    assert.equal(db.tables.cbt_exam_attempts[0].personal_end_time, '2026-09-30T02:30:00.000Z');
-    assert.equal(db.tables.cbt_exam_attempts[0].metadata.proctor_recovery_until, '2026-09-30T02:30:00.000Z');
-    assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.recovery_duration_minutes, 30);
+    assert.equal(db.tables.cbt_exam_attempts[0].personal_end_time, '2026-09-30T03:00:00.000Z');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.proctor_recovery_until, '2026-09-30T03:00:00.000Z');
+    assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.recovery_duration_minutes, 60);
+    assert.equal(db.tables.cbt_attempt_security_logs[0].metadata.requested_duration_minutes, 30);
     assert.equal(db.tables.cbt_attempt_security_logs[0].event_type, 'RESET_BY_PROCTOR');
 });
 

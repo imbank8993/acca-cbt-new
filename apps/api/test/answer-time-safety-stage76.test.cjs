@@ -28,10 +28,17 @@ test('delayed bulk retry, unversioned clients and equal-version conflicts cannot
     const db = fixture();
     const attempts = service(db);
     await attempts.saveAnswer(user, 'attempt', row(2), device);
-    for (const revision of [1, undefined, 2]) {
-        await assert.rejects(attempts.syncAnswers(user, 'attempt', [row(revision, 'old')], device), e => e.getStatus() === 409);
+    // Bulk sync tidak lagi gagal total: versi lama dilewati (server lebih baru),
+    // versi sama berisi beda dilaporkan sebagai bentrok — keduanya tidak menimpa.
+    for (const revision of [1, undefined]) {
+        const result = await attempts.syncAnswers(user, 'attempt', [row(revision, 'old')], device);
+        assert.deepEqual(result.superseded, ['q']);
         assert.equal(db.tables.cbt_answers[0].essay_answer, 'new');
     }
+    const conflict = await attempts.syncAnswers(user, 'attempt', [row(2, 'old')], device);
+    assert.deepEqual(conflict.rejected.map(item => item.code), ['REVISION_CONFLICT']);
+    assert.equal(db.tables.cbt_answers[0].essay_answer, 'new');
+    await assert.rejects(attempts.saveAnswer(user, 'attempt', row(1, 'old'), device), e => e.getStatus() === 409);
     await attempts.syncAnswers(user, 'attempt', [row(2)], device);
     await attempts.saveAnswer(user, 'attempt', row(3, ''), device);
     assert.equal(db.tables.cbt_answers[0].essay_answer, null);
@@ -154,6 +161,19 @@ test('answers and closed status are committed while scoring is still pending', a
     assert.equal(db.tables.cbt_answers[0].essay_answer, 'last second');
     release();
     await submitting;
+});
+
+test('submit keeps every valid answer when one answer no longer belongs to the exam', async () => {
+    const db = fixture();
+    db.tables.cbt_attempt_security_logs = [];
+    const result = await service(db).submit(user, 'exam', { q: 'final', 'soal-hilang': 'x' }, undefined, 'attempt', device, { q: 1 });
+    assert.equal(db.tables.cbt_exam_attempts[0].status, 'submitted');
+    assert.deepEqual(db.tables.cbt_answers.map(item => [item.question_id, item.essay_answer]), [['q', 'final']]);
+    assert.deepEqual(result.rejectedAnswers.map(item => [item.questionId, item.code]), [['soal-hilang', 'QUESTION_NOT_IN_EXAM']]);
+    // Soal yang memang bukan bagian ujian tidak dapat dinilai; sisanya terverifikasi lengkap.
+    assert.equal(result.submissionVerified, true);
+    const log = db.tables.cbt_attempt_security_logs.find(item => item.event_type === 'ANSWERS_REJECTED');
+    assert.equal(log.metadata.stage, 'submit');
 });
 
 test('stale submit cannot replace a newer autosave', async () => {

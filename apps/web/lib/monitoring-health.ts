@@ -16,6 +16,7 @@ export const monitoringEventLabels: Record<string, string> = {
     CONNECTION_LOST_AT_CLOSE: 'Waktu habis saat perangkat tanpa kontak',
     LATE_SECURITY_EVIDENCE: 'Catatan pengawasan susulan dari masa offline (tidak dihitung)',
     LOCAL_ANSWERS_NOT_COUNTED: 'Jawaban di perangkat tidak ikut dinilai',
+    ANSWERS_REJECTED: 'Sebagian jawaban ditolak server (jawaban lain tetap tersimpan)',
     CLIENT_CONTEXT_CHANGED: 'Jaringan/browser peserta berganti di tengah sesi',
     SCREEN_SHARE_UNCONFIRMED: 'Berbagi layar tidak terkonfirmasi browser',
     screen_share_lost: 'Berbagi layar terputus lebih dari 30 detik (pelanggaran)',

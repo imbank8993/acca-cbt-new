@@ -37,6 +37,10 @@ const PRESET_REASONS = [
 ];
 
 const QUICK_DURATIONS = [15, 30, 60];
+/** Sama dengan server: jendela lebih pendek habis sebelum perangkat sempat tersambung. */
+const MIN_RECOVERY_MINUTES = 10;
+const MIN_SUBMIT_ONLY_RECOVERY_MINUTES = 60;
+const SUBMIT_ONLY_QUICK_DURATIONS = [60, 120, 480];
 
 export function ResetExamModal(props: ResetExamModalProps) {
   if (!props.open || !props.attempt || props.attempt.canReset !== true) return null;
@@ -64,8 +68,10 @@ function ResetExamForm({
 
   const [mode, setMode] = useState<ResetMode>(notStarted ? 'SUSULAN' : 'PULIHKAN');
   const [reason, setReason] = useState('');
+  const initialSubmitOnly = attempt?.status !== 'in_progress' || attempt?.metadata?.recovery_submit_only === true ||
+    (typeof attempt?.remaining_seconds === 'number' && attempt.remaining_seconds <= 0);
   const [durationInput, setDurationInput] = useState<string>(() =>
-    String(notStarted ? resolvedExamDuration : 15)
+    String(notStarted ? resolvedExamDuration : initialSubmitOnly ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : 15)
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,10 +83,7 @@ function ResetExamForm({
   // Jenis pemulihan: hanya kirim jawaban dari perangkat (terkunci) atau lanjut mengerjakan.
   // Masih "mengerjakan" tetapi tenggat sudah lewat (penutupan otomatis belum
   // berjalan): bawaannya hanya kirim jawaban, bukan tambahan waktu mengerjakan.
-  const [submitOnly, setSubmitOnly] = useState(
-    attempt?.status !== 'in_progress' || attempt?.metadata?.recovery_submit_only === true ||
-      (typeof attempt?.remaining_seconds === 'number' && attempt.remaining_seconds <= 0),
-  );
+  const [submitOnly, setSubmitOnly] = useState(initialSubmitOnly);
 
   const parsedDuration = Number.parseInt(durationInput.trim(), 10);
   const duration = Number.isFinite(parsedDuration) ? parsedDuration : 0;
@@ -89,15 +92,26 @@ function ResetExamForm({
   const handleModeSelect = (newMode: ResetMode) => {
     setMode(newMode);
     if (newMode === 'PULIHKAN') {
-      setDurationInput('15');
+      setDurationInput(String(!releaseDevice && (submitOnly || attempt?.status !== 'in_progress') ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : 15));
     } else if (newMode === 'SUSULAN') {
       setDurationInput(String(resolvedExamDuration));
     }
   };
 
+  // Pemulihan "kirim saja" (atau sesi yang sudah ditutup) butuh jendela panjang;
+  // pemulihan "lanjut mengerjakan" minimal 10 menit. Susulan bebas.
+  const recoveryLocked = mode === 'PULIHKAN' && !releaseDevice &&
+    (submitOnly || attempt?.status !== 'in_progress');
+  const minDuration = mode === 'PULIHKAN'
+    ? (recoveryLocked ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : MIN_RECOVERY_MINUTES)
+    : 1;
+  const chooseSubmitOnly = (value: boolean) => {
+    setSubmitOnly(value);
+    if (value && duration < MIN_SUBMIT_ONLY_RECOVERY_MINUTES) setDurationInput(String(MIN_SUBMIT_ONLY_RECOVERY_MINUTES));
+  };
   const quickDurations = Array.from(
-    new Set([...QUICK_DURATIONS, resolvedExamDuration])
-  ).sort((a, b) => a - b);
+    new Set(recoveryLocked ? SUBMIT_ONLY_QUICK_DURATIONS : [...QUICK_DURATIONS, resolvedExamDuration])
+  ).filter(mins => mins >= minDuration).sort((a, b) => a - b);
 
   if (!open || !attempt || attempt.canReset !== true) return null;
 
@@ -137,6 +151,12 @@ function ResetExamForm({
     }
     if (!Number.isInteger(duration) || duration < 1 || duration > 1440) {
       setErrorMessage('Durasi harus berupa angka antara 1 dan 1440 menit.');
+      return;
+    }
+    if (duration < minDuration) {
+      setErrorMessage(recoveryLocked
+        ? `Pemulihan "kirim jawaban saja" minimal ${MIN_SUBMIT_ONLY_RECOVERY_MINUTES} menit agar perangkat siswa sempat tersambung dan mengirim. Waktu ini tidak menambah waktu mengerjakan.`
+        : `Pemulihan minimal ${MIN_RECOVERY_MINUTES} menit agar siswa sempat membuka ulang ujian.`);
       return;
     }
     if (mode === 'SUSULAN' && !confirmedClear && !notStarted) {
@@ -321,10 +341,17 @@ function ResetExamForm({
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {mins}m
+                  {mins >= 60 && mins % 60 === 0 ? `${mins / 60}j` : `${mins}m`}
                 </button>
               ))}
             </div>
+            {mode === 'PULIHKAN' && (
+              <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+                {recoveryLocked
+                  ? `Minimal ${MIN_SUBMIT_ONLY_RECOVERY_MINUTES} menit. Hanya untuk mengirim jawaban yang tersimpan di perangkat; tidak menambah waktu mengerjakan.`
+                  : `Minimal ${MIN_RECOVERY_MINUTES} menit. Sisa waktu siswa yang masih lebih panjang tidak akan dipotong.`}
+              </p>
+            )}
           </div>
 
           {/* Alasan Pemulihan / Susulan */}
@@ -360,14 +387,14 @@ function ResetExamForm({
               {!(releaseDevice && !participantSummary) && (
                 <div className="space-y-1.5">
                   <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly || !isActive} onChange={() => setSubmitOnly(true)} />
+                    <input type="radio" name="recovery-kind" className="mt-0.5" checked={submitOnly || !isActive} onChange={() => chooseSubmitOnly(true)} />
                     <span className="leading-snug">
                       <span className="font-semibold text-slate-800">Kirim ulang jawaban saja</span>
                       <span className="block text-[11px] text-slate-500">Kirim jawaban dari perangkat siswa tanpa mengubah isinya.</span>
                     </span>
                   </label>
                   <label className={`flex items-start gap-2 cursor-pointer ${isActive ? '' : 'opacity-50'}`}>
-                    <input type="radio" name="recovery-kind" className="mt-0.5" disabled={!isActive} checked={isActive && !submitOnly} onChange={() => setSubmitOnly(false)} />
+                    <input type="radio" name="recovery-kind" className="mt-0.5" disabled={!isActive} checked={isActive && !submitOnly} onChange={() => chooseSubmitOnly(false)} />
                     <span className="leading-snug">
                       <span className="font-semibold text-slate-800">Lanjutkan mengerjakan</span>
                       <span className="block text-[11px] text-slate-500">

@@ -1782,6 +1782,13 @@ html body .option-text .katex-display {
   .sidebar-mobile-backdrop {
     display: none !important;
   }
+
+  /* Latar ambient adalah lapisan position:fixed (z-index 0). Lebar kertas A4
+     (±794px) masuk breakpoint "layar kecil", sehingga lapisan ini muncul saat
+     mencetak dan MENUTUPI isi halaman di setiap lembar (hasil PDF putih). */
+  .acca-ambient-bg {
+    display: none !important;
+  }
 }
 
 /* ============================================

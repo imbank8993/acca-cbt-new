@@ -67,12 +67,15 @@ test('zero cohort averages do not divide by zero or imply missing data', async (
     assert.equal(r.comparison.classAverage,0); assert.equal(r.comparison.difference,0);
     assert.equal(r.comparison.betterThanClass,null);
 });
-test('unreleased discussion never queries answers or snapshots or leaks correctness', async () => {
+test('unreleased discussion counts activity without reading snapshots or correctness', async () => {
     const db = fixture(); const r = await new StudentAnalyticsService(db).overview(user);
     assert.equal(r.overview.averageScore,80); assert.equal(r.dataQuality.analyzedExams,0);
     assert.deepEqual(r.strengthsWeaknesses,[]);
     assert.ok(r.difficultyPerformance.every(row=>row.percentage===null));
-    assert.ok(!db.queries.some(q=>['cbt_answers','cbt_exam_question_snapshots'].includes(q.table)));
+    assert.ok(!db.queries.some(q=>q.table==='cbt_exam_question_snapshots'));
+    const answerQuery=db.queries.find(q=>q.table==='cbt_answers');
+    assert.ok(answerQuery);
+    assert.doesNotMatch(answerQuery.calls.find(call=>call[0]==='select')[1], /is_correct/);
 });
 test('snapshot denominator includes unanswered questions and excludes uncertain/subjective grading', async () => {
     const row = attempt('a','e',60); row.exams.metadata.show_answer_keys=true;
@@ -88,13 +91,13 @@ test('snapshot denominator includes unanswered questions and excludes uncertain/
     const easy=r.difficultyPerformance.find(row=>row.difficulty==='easy');
     assert.equal(easy.totalQuestions,5); assert.equal(easy.correctAnswers,3); assert.equal(easy.percentage,60);
     assert.equal(r.subjectPerformance[0].questionTypeBreakdown[0].total,6);
-    assert.equal(r.dataQuality.unknownGrades,1); assert.equal(r.studyHabits.averageQuestionsPerMinute,null);
+    assert.equal(r.dataQuality.unknownGrades,1); assert.equal(r.studyHabits.averageQuestionsPerMinute,0.4);
     assert.ok(!JSON.stringify(r).includes('response')); assert.ok(!JSON.stringify(r).includes('selected'));
 });
 test('legacy exams without snapshots are not analyzed against mutable current bank questions', async () => {
     const row=attempt('a','e',80); row.exams.metadata.show_answer_keys=true;
     const r=await new StudentAnalyticsService(fixture([row])).overview(user);
-    assert.equal(r.dataQuality.analyzedExams,0); assert.equal(r.studyHabits.averageQuestionsPerMinute,null);
+    assert.equal(r.dataQuality.analyzedExams,0); assert.equal(r.studyHabits.averageQuestionsPerMinute,0);
     assert.ok(r.difficultyPerformance.every(row=>row.totalQuestions===0));
 });
 test('invalid timing and tiny samples do not invent speed or learning recommendations', async () => {
@@ -130,7 +133,7 @@ test('history limit is bounded, integral and applied to released final scores', 
     assert.equal((await service.history(user,NaN)).length,2);
     assert.equal((await service.history(user,-1)).length,2);
 });
-test('speed counts answered snapshot questions including subjective responses, not empty questions', async () => {
+test('speed counts answered questions including subjective responses, not empty questions', async () => {
     const row=attempt('a','e',80); row.exams.metadata.show_answer_keys=true;
     const db=fixture([row],{
         cbt_exam_question_snapshots:['mcq','likert','short_answer'].map((type,index)=>({exam_id:'e',question_snapshot:{id:'q'+index,type,difficulty:'easy'}})),
@@ -141,4 +144,27 @@ test('speed counts answered snapshot questions including subjective responses, n
     assert.equal(r.studyHabits.averageQuestionsPerMinute,0.2); // 2 responses / 10 minutes.
     assert.equal(r.difficultyPerformance[0].totalQuestions,2);
     assert.equal(r.difficultyPerformance[0].correctAnswers,1);
+});
+
+test('speed uses matching timed exams, counts each response once and does not depend on snapshots or keys', async () => {
+    const db = fixture([
+        attempt('a','e1',80),
+        attempt('b','e2',60,{finished_at:'2026-09-19T00:20:00Z'}),
+        attempt('invalid','e3',70,{started_at:'invalid'}),
+        attempt('zero','e4',70,{finished_at:'2026-09-19T00:00:00Z'}),
+        attempt('hidden','e5',90,{exams:exam('e5',{show_results:false})}),
+    ], {cbt_answers:[
+        {attempt_id:'a',question_id:'q1',selected_option_id:'choice'},
+        {attempt_id:'a',question_id:'q1',selected_option_id:'choice'},
+        {attempt_id:'a',question_id:'q2',essay_answer:'essay'},
+        {attempt_id:'a',question_id:'empty',essay_answer:'  '},
+        {attempt_id:'b',question_id:'q3',essay_answer:'3'},
+        ...['invalid','zero','hidden','foreign'].map(attempt_id=>({attempt_id,question_id:'q',selected_option_id:'choice'})),
+    ]});
+    const r=await new StudentAnalyticsService(db).overview(user);
+    assert.equal(r.studyHabits.averageQuestionsPerMinute,0.1); // 3 responses / 30 minutes.
+    assert.equal(r.studyHabits.speedMeasuredExams,2);
+    assert.equal(r.studyHabits.speedAnsweredQuestions,3);
+    assert.equal(r.dataQuality.analyzedExams,0);
+    assert.ok(!JSON.stringify(r).includes('choice'));
 });

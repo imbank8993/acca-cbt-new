@@ -15,7 +15,7 @@ import { localDateTimeToUtc } from '../common/school-time';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-monitoring-access';
-import { isSemesterAssessmentExam } from '../common/exam-types';
+import { isSemesterAssessmentExam, semesterAssessmentSourceLabel } from '../common/exam-types';
 import { resolveExamBankIds } from '../common/exam-question-sources';
 import { assertNoActiveAttempts } from '../common/exam-active-attempts';
 import { ALLOWED_EXTENSIONS } from '../storage/storage.service';
@@ -147,7 +147,9 @@ export class ExamAdminService {
             ...exam,
             isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete, collaborationPermission: access.grant?.permission || null,
             collaboratorCount: counts.get(exam.id) || 0,
-            creatorName: creatorNames.get(exam.created_by) || 'Tidak diketahui',
+            // Ujian dari jadwal ASAS/ASAT/AM dibuat sistem (tanpa pembuat): tampilkan
+            // jenis & kelasnya, bukan "Tidak diketahui".
+            creatorName: creatorNames.get(exam.created_by) || semesterAssessmentSourceLabel(exam) || 'Tidak diketahui',
             canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
             canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),
             canCorrectKeys: !restrictedProctor || (() => {

@@ -142,6 +142,9 @@ export default function ExamPage() {
     const inFlightRef = useRef<Set<string>>(new Set());
     const saveQueueRef = useRef(new PerKeyQueue());
     const [failedSyncCount, setFailedSyncCount] = useState(0);
+    // Jawaban yang ditolak server per soal (permanen, bukan gangguan jaringan).
+    // Dicatat terpisah supaya tidak dikirim ulang tanpa henti dan terlihat oleh siswa.
+    const [rejectedAnswers, setRejectedAnswers] = useState<Record<string, string>>({});
     // Penolakan server yang tidak akan berhasil bila sekadar dicoba ulang
     // (perangkat dipindahkan, sesi berakhir, versi bentrok). Dulu tampil sebagai
     // "menunggu sinkronisasi … dicoba otomatis" padahal tidak akan pernah masuk.
@@ -325,6 +328,19 @@ export default function ExamPage() {
         return () => { stopped = true; clearInterval(timer); };
     }, [attempt?.id, attempt?.status, isCompleted]);
 
+    /** Catat hasil sinkronisasi massal: soal yang ditolak, dan yang kini sudah diterima. */
+    const applySyncOutcome = useCallback((sentIds: string[],
+        res: { success: boolean; rejected?: Array<{ questionId: string; message: string }> } | null | undefined) => {
+        if (!res?.success) return;
+        const rejected = Array.isArray(res.rejected) ? res.rejected : [];
+        setRejectedAnswers(previous => {
+            const next = { ...previous };
+            sentIds.forEach(id => { delete next[id]; });
+            rejected.forEach(item => { next[item.questionId] = item.message; });
+            return next;
+        });
+    }, []);
+
     const markFailed = useCallback((questionId: string, failed: boolean) => {
         const set = failedSyncRef.current;
         if (failed) set.add(questionId); else set.delete(questionId);
@@ -409,6 +425,7 @@ export default function ExamPage() {
         try {
             const res = await syncAnswersBulkAction(att.id, rows, att.started_at);
             noteSyncResult(res);
+            applySyncOutcome(ids, res);
             if (res?.success) {
                 ids.forEach(id => {
                     if (revisionsRef.current[id] === sentRevisions[id]) failedSyncRef.current.delete(id);
@@ -418,7 +435,7 @@ export default function ExamPage() {
         } catch {
             // Biarkan tetap tertandai — percobaan berikutnya menyusul.
         }
-    }, [noteSyncResult]);
+    }, [noteSyncResult, applySyncOutcome]);
 
     /**
      * Titipkan jawaban yang belum pasti tersimpan lewat sendBeacon. Dipakai saat
@@ -893,6 +910,7 @@ export default function ExamPage() {
                     ));
                     try {
                         const sync = await syncAnswersBulkAction(result.attempt.id, rows, result.attempt.started_at);
+                        applySyncOutcome(localAnswerIds, sync);
                         if (sync?.success) {
                             localAnswerIds.forEach(id => failedSyncRef.current.delete(id));
                             setRecoverySummary(current => current ? {
@@ -972,7 +990,7 @@ export default function ExamPage() {
             setLoading(false);
         });
         return () => { cancelled = true; fetchExamDataRef.current = null; ownsEditorLockRef.current = false; releaseEditor?.(); };
-    }, [examId, restoreAssignment, screenSharingRef]);
+    }, [examId, restoreAssignment, screenSharingRef, applySyncOutcome]);
 
     // Ingat nomor terakhir agar reload offline kembali ke posisi yang sama.
     // Sedikit debounce menghindari penulisan beruntun saat siswa menekan tombol
@@ -1175,6 +1193,7 @@ export default function ExamPage() {
 
                 if (answersArray.length > 0) {
                     const res = await syncAnswersBulkAction(att.id, answersArray, att.started_at);
+                    applySyncOutcome(answersArray.map(row => row.questionId), res);
                     if (res.success) {
                         // Seluruh snapshot durable baru saja dikirim ulang.
                         answersArray.forEach(row => {
@@ -1195,7 +1214,7 @@ export default function ExamPage() {
             console.error('Failed to sync answers', e);
             return false;
         }
-    }, []);
+    }, [applySyncOutcome]);
 
     /**
      * Paket offline hanya memberi hak untuk tetap mengerjakan sampai deadline
@@ -1987,11 +2006,17 @@ export default function ExamPage() {
     const safeMode = exam?.metadata?.is_safe_mode !== false;
     const screenShareBlocked = exam?.metadata?.screenshot_enabled === true && !screenshots.sharing && !isCompleted && !submissionOnly;
     const networkLabel = examNetworkLabel(isOffline, !!serverUnavailableAt, isNetworkWeak);
+    const rejectedAnswerNumbers = Object.keys(rejectedAnswers)
+        .map(id => questions.findIndex(question => question.id === id) + 1)
+        .filter(number => number > 0).sort((a, b) => a - b);
     const syncNotice = networkLabel
         ? { tone: 'amber' as const, text: networkLabel,
             details: `Waktu tetap berjalan. Jangan tutup halaman. ${Object.keys(answers).length} jawaban tersedia di perangkat; sinkronisasi jawaban dicoba otomatis. Status ini tidak memastikan semua jawaban sudah tersimpan di server. ${storageWarning || ''}` }
         : syncRejection === SESSION_ENDED_MESSAGE
             ? { tone: 'red' as const, text: 'Sesi login berakhir — jawaban belum terkirim', details: syncRejection }
+        : rejectedAnswerNumbers.length > 0
+            ? { tone: 'red' as const, text: `Jawaban soal ${rejectedAnswerNumbers.join(', ')} ditolak server`,
+                details: `${Object.values(rejectedAnswers)[0] || 'Server menolak jawaban ini.'} Jawaban soal lain tetap tersimpan. Pilih ulang jawaban soal tersebut; bila tetap ditolak, segera beri tahu pengawas.` }
         : failedSyncCount > 0 && syncRejection
             ? { tone: 'red' as const, text: `${failedSyncCount} jawaban ditolak server`,
                 details: `${syncRejection} Jawaban tetap tersimpan di perangkat ini. Jangan tutup halaman dan segera hubungi pengawas.` }

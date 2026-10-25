@@ -46,7 +46,7 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
 
     assert.equal(result.previousStatus, 'auto_submitted');
     assert.equal(result.serverAnswerCount, 2);
-    assert.equal(result.recoveryUntil, '2026-09-20T00:25:00.000Z');
+    assert.equal(result.recoveryUntil, '2026-09-20T01:00:00.000Z');
     assert.equal(db.tables.cbt_exam_attempts[0].status, 'in_progress');
     assert.equal(db.tables.cbt_exam_attempts[0].device_fingerprint, 'old-device');
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.recovery_submit_only, true);
@@ -54,7 +54,7 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
     assert.equal(db.tables.cbt_exam_attempts[0].metadata.submit_intent_at, undefined);
     assert.equal(
         db.tables.cbt_exam_attempts[0].metadata.proctor_recovery_until,
-        '2026-09-20T00:25:00.000Z',
+        '2026-09-20T01:00:00.000Z',
     );
 
     const audit = db.tables.cbt_attempt_security_logs[0];
@@ -63,7 +63,30 @@ test('ANS-03: pemulihan mencatat alasan, aktor, jumlah jawaban, dan deadline dar
     assert.match(audit.metadata.reason, /jaringan siswa/i);
     assert.equal(audit.metadata.server_answer_count, 2);
     assert.equal(audit.metadata.reset_at, '2026-09-20T00:00:00.000Z');
-    assert.equal(audit.metadata.recovery_duration_minutes, 25);
+    assert.equal(audit.metadata.recovery_duration_minutes, 60);
+    assert.equal(audit.metadata.requested_duration_minutes, 25);
+});
+
+test('ANS-03b: reset sesi berjalan tidak pernah memotong sisa waktu (kasus laptop mati)', async () => {
+    // Siswa offline dengan sisa 56 menit; proktor memilih 2 menit.
+    const data = tables();
+    Object.assign(data.cbt_exam_attempts[0], { status: 'in_progress', finished_at: null,
+        personal_end_time: '2026-09-20T00:56:00Z', metadata: {} });
+    const db = fixtureDb(data, [], { now: '2026-09-20T00:00:00Z' });
+    const result = await service(db).resetAttempt(proctor, 'attempt', 'Listrik padam / Laptop mati', 2);
+    assert.equal(result.recoveryUntil, '2026-09-20T00:56:00.000Z');
+    assert.equal(db.tables.cbt_exam_attempts[0].personal_end_time, '2026-09-20T00:56:00.000Z');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.recovery_submit_only, false);
+
+    // Sisa waktu sedikit: diperpanjang ke minimum 10 menit, bukan 2 menit.
+    const short = tables();
+    Object.assign(short.cbt_exam_attempts[0], { status: 'in_progress', finished_at: null,
+        personal_end_time: '2026-09-20T00:03:00Z', metadata: {} });
+    const db2 = fixtureDb(short, [], { now: '2026-09-20T00:00:00Z' });
+    const extended = await service(db2).resetAttempt(proctor, 'attempt', 'Gangguan koneksi internet', 2);
+    assert.equal(extended.recoveryUntil, '2026-09-20T00:10:00.000Z');
+    assert.equal(db2.tables.cbt_attempt_security_logs[0].metadata.recovery_duration_minutes, 10);
+    assert.equal(db2.tables.cbt_attempt_security_logs[0].metadata.requested_duration_minutes, 2);
 });
 
 test('ANS-03: alasan kosong atau terlalu pendek ditolak sebelum perubahan data', async () => {

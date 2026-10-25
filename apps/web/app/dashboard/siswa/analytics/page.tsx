@@ -3,13 +3,11 @@ import { useSchoolTimeZone } from "@/lib/useSchoolTimeZone";
 import { formatSchoolDate } from "@/lib/school-time";
 import type {
 StudentAnalyticsData,
-StudentComparison,
-StudentExamHistoryItem,
 } from '@/lib/api/student-analytics';
 import {
 getStudentAnalytics
 } from '@/lib/api/student-analytics';
-import { getSessionUser } from '@/lib/session';
+import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
 ArcElement,
 BarElement,
@@ -68,44 +66,58 @@ export default function StudentAnalyticsPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [loading, setLoading] = useState(true);
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
-    const [examHistory, setExamHistory] = useState<StudentExamHistoryItem[]>([]);
-    const [comparison, setComparison] = useState<StudentComparison | null>(null);
     const [loadError, setLoadError] = useState('');
     const requestVersion = useRef(0);
+    const [chartFontFamily, setChartFontFamily] = useState('Poppins, sans-serif');
+
+    useEffect(() => {
+        let active = true;
+        // Canvas charts need the resolved Next.js font name rather than a CSS variable.
+        void document.fonts.ready.then(() => {
+            if (active) setChartFontFamily(getComputedStyle(document.body).getPropertyValue('--font-poppins').trim() || 'Poppins, sans-serif');
+        });
+        return () => { active = false; };
+    }, []);
+
+    const inFlight = useRef<number | null>(null);
+    const lastSnapshot = useRef<string | undefined>(undefined);
+    const examHistory = analytics?.examHistory || [];
+    const comparison = analytics?.comparison || null;
 
     const loadData = useCallback(async () => {
-            const version = ++requestVersion.current;
-            setLoading(true);
-            setLoadError('');
-            setAnalytics(null);
-            setExamHistory([]);
-            setComparison(null);
-            try {
-                const user = await getSessionUser();
-                if (!user) throw new Error('Sesi berakhir. Silakan login kembali.');
-                const analyticsData = await getStudentAnalytics();
-                if (version !== requestVersion.current) return;
-                setAnalytics(analyticsData);
-                setExamHistory(analyticsData?.examHistory || []);
-                setComparison(analyticsData?.comparison || null);
-            } catch (error) {
-                if (version === requestVersion.current) setLoadError(error instanceof Error ? error.message : 'Analisis belum dapat dimuat.');
-            } finally {
-                if (version === requestVersion.current) setLoading(false);
+        if (inFlight.current !== null) return;
+        const version = ++requestVersion.current;
+        inFlight.current = version;
+        // Retain the current charts during background checks, including failed checks.
+        if (lastSnapshot.current === undefined) setLoading(true);
+        try {
+            const next = await getStudentAnalytics();
+            if (version !== requestVersion.current) return;
+            const snapshot = JSON.stringify(next);
+            if (snapshot !== lastSnapshot.current) {
+                lastSnapshot.current = snapshot;
+                setAnalytics(next);
             }
+            setLoadError('');
+        } catch (error) {
+            if (version === requestVersion.current) setLoadError(error instanceof Error ? error.message : 'Analisis belum dapat dimuat.');
+        } finally {
+            if (inFlight.current === version) inFlight.current = null;
+            if (version === requestVersion.current) setLoading(false);
+        }
     }, []);
 
     useEffect(() => {
         const pendingRequests = requestVersion;
+        const pendingFlight = inFlight;
         const initialLoad = window.setTimeout(() => void loadData(), 0);
-        const handleFocus = () => void loadData();
-        window.addEventListener('focus', handleFocus);
         return () => {
             pendingRequests.current++;
+            pendingFlight.current = null;
             window.clearTimeout(initialLoad);
-            window.removeEventListener('focus', handleFocus);
         };
     }, [loadData]);
+    useAutoRefresh(loadData, REFRESH_INTERVAL.dashboard);
 
     const formatDuration = (seconds: number | null) => {
         if (seconds === null || !Number.isFinite(seconds)) return '—';
@@ -138,12 +150,12 @@ export default function StudentAnalyticsPage() {
         return (
             <div className="flex flex-col items-center justify-center py-32 space-y-3">
                 <Loader2 size={36} className="text-[#3083FF] animate-spin" />
-                <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-sans">Memuat analisis performa...</p>
+                <p className="text-slate-400 font-bold text-xs tracking-wider uppercase font-poppins">Memuat analisis performa...</p>
             </div>
         );
     }
 
-    if (loadError) return (
+    if (loadError && !analytics) return (
         <div role="alert" className="max-w-xl mx-auto mt-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-center">
             <p className="font-semibold text-red-700">Analisis gagal dimuat</p>
             <p className="mt-2 text-sm text-red-600">{loadError}</p>
@@ -192,6 +204,8 @@ export default function StudentAnalyticsPage() {
                 backgroundColor: '#1e293b',
                 titleColor: '#fff',
                 bodyColor: '#fff',
+                titleFont: { family: chartFontFamily },
+                bodyFont: { family: chartFontFamily },
                 padding: 10,
                 cornerRadius: 8
             }
@@ -199,11 +213,12 @@ export default function StudentAnalyticsPage() {
         scales: {
             y: {
                 beginAtZero: true,
-                max: 100,
+                max: 105,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { callback: (value) => `${value}%` }
+                ticks: { stepSize: 10, font: { family: chartFontFamily }, callback: (value) => Number(value) <= 100 ? `${value}%` : '' }
             },
             x: {
+                ticks: { font: { family: chartFontFamily } },
                 grid: { display: false }
             }
         }
@@ -230,15 +245,21 @@ export default function StudentAnalyticsPage() {
     const subjectChartOptions: ChartOptions<'bar'> = {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                titleFont: { family: chartFontFamily },
+                bodyFont: { family: chartFontFamily },
+            },
+        },
         scales: {
             y: {
                 beginAtZero: true,
                 max: 100,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { callback: (value) => `${value}%` },
+                ticks: { font: { family: chartFontFamily }, callback: (value) => `${value}%` },
             },
-            x: { grid: { display: false } },
+            x: { grid: { display: false }, ticks: { font: { family: chartFontFamily } } },
         },
     };
 
@@ -247,9 +268,10 @@ export default function StudentAnalyticsPage() {
     const weaknessData = strengthsWeaknesses.filter(s => s.type === 'weakness');
 
     return (
-        <div className="max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
+        <div className="font-poppins max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{timeZoneError}</div>}
 
+            {loadError && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Data terakhir tetap ditampilkan. {loadError}</div>}
             <div className="space-y-6">
                 {/* Overview Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -267,7 +289,7 @@ export default function StudentAnalyticsPage() {
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Rata-rata</span>
                         </div>
-                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">{overview.averageScore}%</p>
+                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.averageScore}%</p>
                         <p className="text-xs text-slate-400 font-medium mt-2">dari {overview.totalExams} ujian</p>
                     </motion.div>
 
@@ -285,7 +307,7 @@ export default function StudentAnalyticsPage() {
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Peringkat</span>
                         </div>
-                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">#{overview.rank || '-'}</p>
+                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">#{overview.rank || '-'}</p>
                         <p className="text-xs text-slate-400 font-medium mt-2">{overview.rank == null ? 'Peserta pembanding belum cukup' : `dari ${overview.totalStudents} peserta ujian yang sama`}</p>
                     </motion.div>
 
@@ -303,7 +325,7 @@ export default function StudentAnalyticsPage() {
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Persentil</span>
                         </div>
-                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">{overview.percentile == null ? '—' : `${overview.percentile}%`}</p>
+                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.percentile == null ? '—' : `${overview.percentile}%`}</p>
                         <p className="text-xs text-slate-400 font-medium mt-2">peserta pembanding dengan rata-rata lebih rendah</p>
                     </motion.div>
 
@@ -321,7 +343,7 @@ export default function StudentAnalyticsPage() {
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Total Waktu</span>
                         </div>
-                        <p className="text-2xl font-black text-slate-800 leading-none font-mono">{formatDuration(overview.totalStudyTime)}</p>
+                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{formatDuration(overview.totalStudyTime)}</p>
                         <p className="text-xs text-slate-400 font-medium mt-2">waktu pengerjaan ujian</p>
                     </motion.div>
                 </div>
@@ -341,7 +363,7 @@ export default function StudentAnalyticsPage() {
                         </h3>
                         <div className="grid grid-cols-3 gap-6">
                             <div className="text-center">
-                                <p className="text-4xl font-black text-[#3083FF] font-mono">{comparison.studentAverage}%</p>
+                                <p className="text-4xl font-semibold text-[#3083FF] tabular-nums tracking-tight">{comparison.studentAverage}%</p>
                                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Skor Anda</p>
                             </div>
                             <div className="text-center flex flex-col items-center justify-center">
@@ -358,7 +380,7 @@ export default function StudentAnalyticsPage() {
                                 </p>
                             </div>
                             <div className="text-center">
-                                <p className="text-4xl font-black text-slate-300 font-mono">{comparison.classAverage}%</p>
+                                <p className="text-4xl font-semibold text-slate-300 tabular-nums tracking-tight">{comparison.classAverage}%</p>
                                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">{comparison.totalPeers} peserta pembanding</p>
                             </div>
                         </div>
@@ -432,14 +454,14 @@ export default function StudentAnalyticsPage() {
                                             <td className="px-6 py-4">
                                                 <span className="font-semibold text-slate-800">{subject.subjectName}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-slate-600 font-mono font-medium text-sm">{subject.totalExams}</td>
+                                            <td className="px-6 py-4 text-center text-slate-600 tabular-nums tracking-tight font-medium text-sm">{subject.totalExams}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
                                                     {subject.averageScore}%
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold font-mono text-sm">{formatScore(subject.highestScore)}%</td>
-                                            <td className="px-6 py-4 text-center text-rose-500 font-bold font-mono text-sm">{formatScore(subject.lowestScore)}%</td>
+                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}%</td>
+                                            <td className="px-6 py-4 text-center text-rose-500 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.lowestScore)}%</td>
                                             <td className="px-6 py-4 text-center">
                                                 {subject.totalExams < 2 ? <span className="text-xs text-slate-400">Belum cukup data</span> : (
                                                 <div className={`flex items-center justify-center gap-1.5 ${getTrendColor(subject.trend)}`}>
@@ -482,7 +504,7 @@ export default function StudentAnalyticsPage() {
                                     <div key={diff.difficulty} className="space-y-1">
                                         <div className="flex items-center justify-between">
                                             <span className={`font-bold text-xs uppercase tracking-wide ${colors.text}`}>{colors.label}</span>
-                                            <span className="text-xs font-semibold text-slate-500 font-mono">{diff.percentage == null ? 'Belum ada data' : `${diff.percentage}% (${diff.correctAnswers}/${diff.totalQuestions})`}</span>
+                                            <span className="text-xs font-semibold text-slate-500 tabular-nums tracking-tight">{diff.percentage == null ? 'Belum ada data' : `${diff.percentage}% (${diff.correctAnswers}/${diff.totalQuestions})`}</span>
                                         </div>
                                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                             <div
@@ -517,7 +539,7 @@ export default function StudentAnalyticsPage() {
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-emerald-800 text-xs truncate leading-snug">{strength.category}</p>
-                                                <p className="text-xs text-emerald-700/90 mt-1 leading-normal font-sans font-medium">{strength.description}</p>
+                                                <p className="text-xs text-emerald-700/90 mt-1 leading-normal font-poppins font-medium">{strength.description}</p>
                                                 <p className="text-[10px] text-emerald-600 font-bold mt-2 italic leading-normal">{strength.recommendation}</p>
                                             </div>
                                         </div>
@@ -554,7 +576,7 @@ export default function StudentAnalyticsPage() {
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-amber-800 text-xs truncate leading-snug">{weakness.category}</p>
-                                                <p className="text-xs text-amber-700/90 mt-1 leading-normal font-sans font-medium">{weakness.description}</p>
+                                                <p className="text-xs text-amber-700/90 mt-1 leading-normal font-poppins font-medium">{weakness.description}</p>
                                                 <p className="text-[10px] text-amber-650 text-amber-600 font-bold mt-2 italic leading-normal">{weakness.recommendation}</p>
                                             </div>
                                         </div>
@@ -585,20 +607,21 @@ export default function StudentAnalyticsPage() {
                     </h3>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-[#3083FF] font-mono leading-none">{formatDuration(studyHabits.averageTimePerExam)}</p>
+                            <p className="text-xl font-bold text-[#3083FF] tabular-nums tracking-tight leading-none">{formatDuration(studyHabits.averageTimePerExam)}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Rata-rata / Ujian</p>
                         </div>
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-emerald-600 font-mono leading-none">{formatDuration(studyHabits.fastestCompletion)}</p>
+                            <p className="text-xl font-bold text-emerald-600 tabular-nums tracking-tight leading-none">{formatDuration(studyHabits.fastestCompletion)}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Tercepat</p>
                         </div>
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-rose-500 font-mono leading-none">{formatDuration(studyHabits.slowestCompletion)}</p>
+                            <p className="text-xl font-bold text-rose-500 tabular-nums tracking-tight leading-none">{formatDuration(studyHabits.slowestCompletion)}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Terlama</p>
                         </div>
                         <div className="text-center p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-                            <p className="text-xl font-bold text-indigo-600 font-mono leading-none">{studyHabits.averageQuestionsPerMinute ?? '—'}</p>
+                            <p className="text-xl font-bold text-indigo-600 tabular-nums tracking-tight leading-none">{studyHabits.averageQuestionsPerMinute == null ? '—' : formatScore(studyHabits.averageQuestionsPerMinute)}</p>
                             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-wide">Soal / Menit</p>
+                            {studyHabits.speedMeasuredExams > 0 && <p className="mt-1 text-[10px] text-slate-500">{studyHabits.speedAnsweredQuestions} soal dijawab · {studyHabits.speedMeasuredExams} ujian</p>}
                         </div>
                     </div>
                 </motion.div>
@@ -635,7 +658,7 @@ export default function StudentAnalyticsPage() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0 ml-4">
-                                            <p className="text-base font-black text-slate-800 font-mono leading-none">{formatScore(exam.score)}%</p>
+                                            <p className="text-base font-semibold text-slate-800 tabular-nums tracking-tight leading-none">{formatScore(exam.score)}%</p>
                                             <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-wide leading-none">{formatDuration(exam.timeSpentSeconds)}</p>
                                         </div>
                                     </div>

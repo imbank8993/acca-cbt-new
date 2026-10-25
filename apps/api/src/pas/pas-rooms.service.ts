@@ -63,6 +63,72 @@ export class PasRoomsService {
         return (data as any[]) || [];
     }
 
+    /**
+     * Daftar peserta setiap ruang untuk dokumen cetak: nama, NIS/NISN, dan kelas.
+     * Kelas dipilih dari kelas yang dijadwalkan di folder ini bila siswa
+     * tercatat di lebih dari satu kelas.
+     */
+    async listRoomParticipants(user: AuthUser, periodId: string) {
+        await this.authz.assertStaffByRecord(user, 'cbt_pas_periods', periodId);
+
+        const [roomsRes, placementsRes, schedulesRes] = await Promise.all([
+            this.db.from('cbt_pas_rooms').select('id, name, capacity').eq('pas_period_id', periodId).order('name'),
+            this.db.from('cbt_pas_room_students').select('user_id, pas_room_id').eq('pas_period_id', periodId),
+            this.db.from('cbt_pas_class_schedules').select('class_id').eq('pas_period_id', periodId),
+        ]);
+        if (roomsRes.error || placementsRes.error || schedulesRes.error) {
+            this.logger.error(`Gagal membaca peserta ruang: ${(roomsRes.error || placementsRes.error || schedulesRes.error)?.message}`);
+            throw new ServiceUnavailableException('Daftar peserta ruang belum dapat dimuat. Silakan coba lagi.');
+        }
+        const rooms = (roomsRes.data as Array<{ id: string; name: string; capacity: number | null }>) || [];
+        const placements = (placementsRes.data as Array<{ user_id: string; pas_room_id: string }>) || [];
+        const scheduledClassIds = new Set(((schedulesRes.data as Array<{ class_id: string | null }>) || [])
+            .map(row => row.class_id).filter((id): id is string => !!id));
+
+        const userIds = [...new Set(placements.map(row => row.user_id))];
+        const profiles = new Map<string, { full_name?: string | null; identity_number?: string | null; unique_id?: string | null }>();
+        const classesByUser = new Map<string, Array<{ id: string; name: string }>>();
+        for (let i = 0; i < userIds.length; i += 300) {
+            const batch = userIds.slice(i, i + 300);
+            const [profileRes, memberRes] = await Promise.all([
+                this.db.from('cbt_profiles').select('id, full_name, identity_number, unique_id').in('id', batch),
+                this.db.from('cbt_class_members').select('user_id, class_id, classes:cbt_classes(name)').in('user_id', batch),
+            ]);
+            if (profileRes.error || memberRes.error) {
+                this.logger.error(`Gagal membaca identitas peserta: ${(profileRes.error || memberRes.error)?.message}`);
+                throw new ServiceUnavailableException('Identitas peserta ruang belum dapat dimuat. Silakan coba lagi.');
+            }
+            for (const profile of (profileRes.data as any[]) || []) profiles.set(profile.id, profile);
+            for (const member of (memberRes.data as any[]) || []) {
+                const name = member.classes?.name;
+                if (!member.class_id || !name) continue;
+                classesByUser.set(member.user_id, [...(classesByUser.get(member.user_id) || []), { id: member.class_id, name }]);
+            }
+        }
+        const classOf = (userId: string) => {
+            const options = classesByUser.get(userId) || [];
+            const preferred = options.filter(option => scheduledClassIds.has(option.id));
+            return [...(preferred.length ? preferred : options)]
+                .sort((a, b) => a.name.localeCompare(b.name, 'id'))[0]?.name || null;
+        };
+
+        return rooms.map(room => ({
+            id: room.id,
+            name: room.name,
+            capacity: room.capacity,
+            students: placements.filter(row => row.pas_room_id === room.id).map(row => {
+                const profile = profiles.get(row.user_id) || {};
+                return {
+                    user_id: row.user_id,
+                    full_name: profile.full_name || null,
+                    nis: profile.identity_number || profile.unique_id || null,
+                    class_name: classOf(row.user_id),
+                };
+            }).sort((a, b) => (a.class_name || '').localeCompare(b.class_name || '', 'id', { numeric: true })
+                || (a.full_name || '').localeCompare(b.full_name || '', 'id')),
+        }));
+    }
+
     async createRoom(user: AuthUser, periodId: string, dto: CreatePASRoomDto) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
 

@@ -47,6 +47,10 @@ const PRINT_CSS = `
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     overflow-wrap: anywhere;
+    /* Lembar selalu di atas lapisan latar mana pun (fixed/z-index) milik aplikasi. */
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
 }
 #exam-pdf-content .eqc-frame { width: 100%; border-collapse: collapse; border: none; table-layout: fixed; }
 #exam-pdf-content .eqc-frame > thead > tr > td,

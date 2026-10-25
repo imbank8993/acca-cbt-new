@@ -275,6 +275,29 @@ export async function listPASRooms(periodId: string): Promise<PASRoom[]> {
     return res.rooms;
 }
 
+export interface PASRoomParticipant {
+    user_id: string;
+    full_name: string | null;
+    nis: string | null;
+    class_name: string | null;
+}
+
+export interface PASRoomParticipants {
+    id: string;
+    name: string;
+    capacity: number | null;
+    students: PASRoomParticipant[];
+}
+
+/** Peserta setiap ruang (nama, NIS/NISN, kelas) untuk dokumen cetak. */
+export async function listPASRoomParticipants(periodId: string): Promise<PASRoomParticipants[]> {
+    const res = await apiGet<{ rooms: PASRoomParticipants[] }>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}/room-participants`,
+    );
+    if (!res.success) throw new Error(res.error || 'Daftar peserta ruang belum dapat dimuat.');
+    return res.rooms;
+}
+
 export function createPASRoomAction(periodId: string, name: string, capacity: number) {
     return apiCreate<{ id: string }>(`/api/pas/periods/${encodeURIComponent(periodId)}/rooms`, {
         name,

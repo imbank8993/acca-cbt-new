@@ -97,7 +97,7 @@ export function buildAdministrationScheduleRows(
         || a.className.localeCompare(b.className, 'id-ID'));
 }
 
-async function logoDataUrl(url: string): Promise<string> {
+export async function logoDataUrl(url: string): Promise<string> {
     if (!url) return '';
     try {
         const response = await fetch(url, { mode: 'cors' });

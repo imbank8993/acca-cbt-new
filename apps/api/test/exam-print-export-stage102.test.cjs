@@ -71,6 +71,17 @@ test('PRINT-05: halaman cetak mandiri tanpa navigasi aplikasi', () => {
     assert.match(read('apps/web/app/components/questions/ExamPrintView.tsx'), /buildPrintItems/);
 });
 
+test('PRINT-06: lapisan latar aplikasi dan mode gelap tidak menutupi/memudarkan hasil cetak', () => {
+    const css = read('apps/web/app/globals.css');
+    const printBlock = css.slice(css.indexOf('@media print {'), css.indexOf('LATEX RENDERER - Professional Styling'));
+    assert.match(printBlock, /\.acca-ambient-bg \{\s*display: none !important;/);
+    const sheet = read('apps/web/app/components/questions/ExamPrintView.tsx');
+    assert.match(sheet, /position: relative;\s*z-index: 2;\s*isolation: isolate;/);
+    const page = read('apps/web/app/components/questions/QuestionBankPrintPage.tsx');
+    assert.match(page, /root\.classList\.remove\('dark'\)/);
+    assert.match(page, /if \(wasDark\) root\.classList\.add\('dark'\)/);
+});
+
 async function wordHtml(blob) {
     return (await mammoth.convertToHtml({ buffer: Buffer.from(await blob.arrayBuffer()) })).value;
 }

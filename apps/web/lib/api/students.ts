@@ -326,10 +326,14 @@ export function saveAnswerAction(
     );
 }
 
+export interface RejectedAnswerReport { questionId: string; code: string; message: string }
+
 export async function syncAnswersBulkAction(attemptId: string, answers: AnswerPayload[], sessionStartedAt?: string) {
     if (answers.length === 0) return { success: true as const };
 
-    return apiSend<{ attemptId: string; saved: number }>(
+    // Server menyimpan jawaban yang sah dan melaporkan yang ditolak per soal,
+    // sehingga satu jawaban bermasalah tidak lagi menahan jawaban lainnya.
+    return apiSend<{ attemptId: string; saved: number; rejected?: RejectedAnswerReport[]; superseded?: string[] }>(
         `/api/students/attempts/${encodeURIComponent(attemptId)}/answers`,
         { answers, deviceId: getDeviceId(), sessionStartedAt },
         'PUT',

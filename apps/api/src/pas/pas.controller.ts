@@ -245,6 +245,15 @@ export class PasController {
         return { rooms: await this.rooms.listRooms(user, periodId) };
     }
 
+    @Get('periods/:periodId/room-participants')
+    @ApiOperation({ summary: 'Daftar peserta setiap ruang (nama, NIS/NISN, kelas) untuk dokumen cetak' })
+    async listRoomParticipants(
+        @CurrentUser() user: AuthUser,
+        @Param('periodId', ParseUUIDPipe) periodId: string,
+    ) {
+        return { rooms: await this.rooms.listRoomParticipants(user, periodId) };
+    }
+
     @Post('periods/:periodId/rooms')
     @ApiOperation({ summary: 'Tambah ruang ujian' })
     createRoom(

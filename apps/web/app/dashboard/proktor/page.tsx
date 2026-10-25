@@ -269,11 +269,13 @@ export default function ProktorDashboard() {
                         <div className="divide-y divide-slate-100">
                             {exams.slice(0, 6).map((exam, idx) => {
                                 const isPublished = !!exam.is_published;
+                                // Ujian dari jadwal ASAS/ASAT/AM berstatus `scheduled` sampai selesai.
+                                const isRunnable = exam.status === 'active' || exam.status === 'scheduled';
                                 const isDraft = !isPublished;
                                 const now = new Date();
                                 const isFinished = exam.status === 'finished' ||
-                                    (isPublished && exam.status === 'active' && exam.end_time && new Date(exam.end_time) < now);
-                                const isOngoing = isPublished && exam.status === 'active' &&
+                                    (isPublished && isRunnable && exam.end_time && new Date(exam.end_time) < now);
+                                const isOngoing = isPublished && isRunnable &&
                                     (!exam.start_time || new Date(exam.start_time) <= now) &&
                                     (!exam.end_time || new Date(exam.end_time) >= now);
 

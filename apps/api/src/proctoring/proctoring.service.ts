@@ -23,6 +23,25 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 /** Status attempt yang boleh di-reset proktor. */
 const RESETTABLE_STATUSES = ['auto_submitted', 'submitted'];
 
+/** Minimal waktu pemulihan agar siswa sempat memuat ulang, berbagi layar, dan mengirim. */
+export const MIN_RECOVERY_MINUTES = 10;
+/** Pemulihan "kirim jawaban saja" tidak menambah waktu mengerjakan, jadi boleh lama. */
+export const MIN_SUBMIT_ONLY_RECOVERY_MINUTES = 60;
+
+/**
+ * Durasi pemulihan yang benar-benar dipakai. Data nyata: sepuluh reset 1–5 menit
+ * berturut-turut habis sebelum perangkat siswa sempat tersambung kembali.
+ */
+export function effectiveRecoveryMinutes(requested: number, submitOnly: boolean): number {
+    return Math.max(requested, submitOnly ? MIN_SUBMIT_ONLY_RECOVERY_MINUTES : MIN_RECOVERY_MINUTES);
+}
+
+/** Tenggat baru = yang paling lama antara tenggat lama (bila masih berjalan) dan tenggat pemulihan. */
+export function laterDeadline(previous: string | null | undefined, recovery: Date, now: Date): Date {
+    const old = typeof previous === 'string' ? Date.parse(previous) : NaN;
+    return Number.isFinite(old) && old > now.getTime() && old > recovery.getTime() ? new Date(old) : recovery;
+}
+
 @Injectable()
 export class ProctoringService {
     private readonly logger = new Logger(ProctoringService.name);
@@ -397,9 +416,17 @@ export class ProctoringService {
                 tab_switch_count: 0,
             };
 
-            const recoveryUntil = new Date(
-                now.getTime() + durationMinutes * 60 * 1000,
-            ).toISOString();
+            // Pemulihan TIDAK PERNAH memotong sisa waktu yang masih berjalan.
+            // Dulu tenggat selalu diganti menjadi "sekarang + durasi": reset 2 menit
+            // untuk siswa yang laptopnya mati memangkas sisa ~56 menitnya, ujian
+            // ditutup saat perangkatnya offline, dan jawabannya tertahan di perangkat.
+            const lockRequested = submitOnly ?? (active
+                ? previousMetadata.recovery_submit_only === true ||
+                    (typeof previousDeadline === 'string' && Date.parse(previousDeadline) <= now.getTime())
+                : true);
+            const effectiveMinutes = effectiveRecoveryMinutes(durationMinutes, lockRequested && !releaseDevice);
+            const recoveryUntil = laterDeadline(previousDeadline,
+                new Date(now.getTime() + effectiveMinutes * 60 * 1000), now).toISOString();
             const metadataWithoutOldScore = { ...previousMetadata };
             delete metadataWithoutOldScore.teacher_score;
             delete metadataWithoutOldScore.teacher_feedback;
@@ -502,7 +529,8 @@ export class ProctoringService {
                     previous_status: previousStatus,
                     previous_deadline: previousDeadline,
                     recovery_until: recoveryUntil,
-                    recovery_duration_minutes: durationMinutes,
+                    recovery_duration_minutes: effectiveMinutes,
+                    ...(effectiveMinutes !== durationMinutes ? { requested_duration_minutes: durationMinutes } : {}),
                     submit_only: releaseDevice ? false : lockAnswers,
                     server_answer_count: serverAnswerCount || 0,
                     ...(releaseDevice ? {
@@ -520,6 +548,7 @@ export class ProctoringService {
                 attemptId,
                 previousStatus,
                 recoveryUntil,
+                durationMinutes: effectiveMinutes,
                 serverAnswerCount: serverAnswerCount || 0,
                 deviceReleased: releaseDevice,
                 submitOnly: releaseDevice ? false : lockAnswers,

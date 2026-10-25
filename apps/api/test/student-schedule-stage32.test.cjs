@@ -118,3 +118,32 @@ test('Schedule retains expired exams and fails explicitly for unavailable data',
     await assert.rejects(new StudentsService(fixtureDb(data, ['cbt_exams'])).listExams(user), /belum dapat dimuat/);
     await assert.rejects(new StudentsService(fixtureDb(data, ['cbt_exam_attempts'])).listExams(user), /belum dapat dimuat/);
 });
+
+test('Ujian ASAS/AM (status scheduled) tampil di dashboard dan jadwal siswa begitu diaktifkan', async () => {
+    const { dashboardExams, scheduleState } = require('../../web/lib/student-schedule.ts');
+    const now = Date.parse('2026-10-25T08:00:00Z');
+    const asas = { id: 'asas', exam_type: 'pas', status: 'scheduled', is_published: true, isCompleted: false,
+        start_time: '2026-10-25T07:00:00Z', end_time: '2026-10-25T14:00:00Z' };
+    const am = { ...asas, id: 'am', exam_type: 'am', start_time: '2026-10-26T07:00:00Z', end_time: '2026-10-26T09:00:00Z' };
+    assert.equal(scheduleState(asas, now), 'open');
+    assert.deepEqual(dashboardExams([am, asas], now).map(row => row.id), ['asas', 'am']);
+
+    // Server: siswa kelas target menerima ujian ASAS yang sudah diaktifkan, apa pun statusnya.
+    const { fixtureDb } = require('./fixture-db.cjs');
+    const { StudentsService } = require('../src/students/students.service.ts');
+    const db = fixtureDb({
+        cbt_organization_members: [{ organization_id: 'school', user_id: 'student', is_active: true }],
+        cbt_class_members: [{ class_id: 'class-xii-a', user_id: 'student' }],
+        cbt_additional_class_members: [],
+        cbt_exam_participants: [],
+        cbt_exam_targets: [{ exam_id: 'asas', class_id: 'class-xii-a' }, { exam_id: 'hidden', class_id: 'class-xii-a' }],
+        cbt_exams: [
+            { ...asas, organization_id: 'school', metadata: { is_pas_exam: true } },
+            { ...asas, id: 'hidden', organization_id: 'school', is_published: false, metadata: { is_pas_exam: true } },
+        ],
+        cbt_exam_attempts: [],
+    }, [], { now: '2026-10-25T08:00:00Z' });
+    const service = new StudentsService(db);
+    const listed = await service.listExams({ id: 'student' });
+    assert.deepEqual(listed.map(row => row.id), ['asas'], 'yang belum diaktifkan tetap tersembunyi');
+});

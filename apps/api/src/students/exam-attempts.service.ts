@@ -74,6 +74,32 @@ export interface AnswerInput {
     revision?: number;
 }
 
+/** Satu jawaban yang tidak dapat disimpan, beserta sebabnya. */
+export interface RejectedAnswer {
+    questionId: string;
+    code: 'QUESTION_NOT_IN_EXAM' | 'DOUBLE_FORMAT' | 'FORMAT_MISMATCH' | 'OPTION_NOT_IN_QUESTION' | 'INVALID_REVISION' | 'REVISION_CONFLICT';
+    message: string;
+}
+
+/**
+ * Alasan sebuah jawaban tidak sah untuk soal ujiannya, atau null bila sah.
+ * Dipakai per jawaban supaya satu jawaban bermasalah tidak menggagalkan yang lain.
+ */
+export function answerProblem(question: any, answer: AnswerInput): Omit<RejectedAnswer, 'questionId'> | null {
+    if (!question) return { code: 'QUESTION_NOT_IN_EXAM', message: 'Soal tidak termasuk dalam ujian yang sedang dikerjakan.' };
+    const selectedOptionId = answer.selected_option_id?.trim();
+    const essayAnswerProvided = answer.essay_answer !== undefined && answer.essay_answer !== '';
+    if (selectedOptionId && essayAnswerProvided) return { code: 'DOUBLE_FORMAT', message: 'Jawaban tidak boleh memakai dua format sekaligus.' };
+    if (usesTextColumn(question.type)) {
+        return selectedOptionId ? { code: 'FORMAT_MISMATCH', message: 'Format jawaban tidak sesuai dengan tipe soal.' } : null;
+    }
+    if (essayAnswerProvided) return { code: 'FORMAT_MISMATCH', message: 'Format jawaban tidak sesuai dengan tipe soal.' };
+    if (!selectedOptionId) return null;
+    const optionIds = new Set<string>(((question.bank_question_options as Array<{ id: string }> | null) || []).map(option => option.id));
+    return optionIds.has(selectedOptionId) ? null
+        : { code: 'OPTION_NOT_IN_QUESTION', message: 'Pilihan jawaban tidak termasuk dalam soal tersebut.' };
+}
+
 /**
  * Jalur pengerjaan ujian: memulai, menyimpan jawaban, dan mengumpulkan.
  *
@@ -659,14 +685,59 @@ export class ExamAttemptsService {
         const device = this.requireDeviceId(deviceId);
         this.assertAnswerInputSizes(answers);
 
-        await this.db.transaction(async db => {
+        // Jawaban dinilai satu per satu. Dulu satu jawaban yang tidak sah
+        // menggagalkan seluruh kiriman, lalu klien mengulang kiriman yang sama
+        // tiap 15 detik sampai waktu habis: semua jawaban lain ikut tertahan.
+        // Pemeriksaan tingkat pengerjaan (pemilik, perangkat, tenggat) tetap
+        // menolak seluruh kiriman, karena memang berlaku untuk semuanya.
+        const outcome = await this.db.transaction(async db => {
             await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attemptId);
             const owned = await this.assertOwnedAndRunning(user, attemptId, db, device, false, undefined, sessionStartedAt);
-            await this.assertAnswersBelongToExam(owned.examId, answers, db);
-            await this.upsertAnswers(attemptId, answers, db);
+            const { valid, rejected } = await this.classifyAnswers(owned.examId, answers, db);
+            const written = await this.upsertAnswers(attemptId, valid, db, { lenient: true });
+            const allRejected = [...rejected, ...written.rejected];
+            if (allRejected.length) await this.logRejectedAnswers(db, attemptId, user.id, allRejected, 'sync');
+            return { rejected: allRejected, superseded: written.superseded };
         });
 
-        return { attemptId, saved: answers.length };
+        return {
+            attemptId,
+            saved: answers.length - outcome.rejected.length - outcome.superseded.length,
+            rejected: outcome.rejected,
+            superseded: outcome.superseded,
+        };
+    }
+
+    /** Pisahkan jawaban sah dan yang tidak sah untuk soal ujian ini. */
+    private async classifyAnswers(examId: string, answers: AnswerInput[], db: DbSession = this.db) {
+        const questions = await readExamQuestionVersion(db, examId);
+        const byId = new Map<string, any>(questions.map(question => [question.id, question]));
+        const valid: AnswerInput[] = [];
+        const rejected: RejectedAnswer[] = [];
+        for (const answer of answers) {
+            const problem = answerProblem(byId.get(answer.questionId), answer);
+            if (problem) rejected.push({ questionId: answer.questionId, ...problem });
+            else valid.push(answer);
+        }
+        return { valid, rejected };
+    }
+
+    /** Jejak untuk pengawas: berapa jawaban ditolak dan mengapa (isi jawaban tidak disimpan). */
+    private async logRejectedAnswers(db: DbSession, attemptId: string, userId: string,
+        rejected: RejectedAnswer[], stage: 'sync' | 'submit'): Promise<void> {
+        const codes: Record<string, number> = {};
+        rejected.forEach(item => { codes[item.code] = (codes[item.code] || 0) + 1; });
+        const { error } = await db.from('cbt_attempt_security_logs').insert({
+            attempt_id: attemptId, event_type: 'ANSWERS_REJECTED',
+            metadata: { source: 'server_monitoring', stage, actor_user_id: userId, count: rejected.length, codes,
+                question_ids: [...new Set(rejected.map(item => item.questionId))].slice(0, 50) },
+        });
+        if (error) {
+            this.logger.warn(`Jejak jawaban ditolak ${attemptId} belum tercatat: ${error.message}`);
+            // A failed SQL statement aborts this transaction. Never acknowledge
+            // answers as saved when the subsequent commit would roll them back.
+            throw new ServiceUnavailableException('Penyimpanan jawaban belum selesai. Silakan coba lagi.');
+        }
     }
 
     /** Read-only preflight for the application-wide delivery queue. */
@@ -775,7 +846,11 @@ export class ExamAttemptsService {
         });
     }
 
-    private async upsertAnswers(attemptId: string, answers: AnswerInput[], db: DbSession = this.db): Promise<void> {
+    private async upsertAnswers(attemptId: string, answers: AnswerInput[], db: DbSession = this.db,
+        options: { lenient?: boolean } = {}): Promise<{ rejected: RejectedAnswer[]; superseded: string[] }> {
+        const rejected: RejectedAnswer[] = [];
+        const superseded: string[] = [];
+        if (answers.length === 0) return { rejected, superseded };
         // The caller holds the attempt row lock, so version checks and writes
         // are serialized across autosave, bulk retry, beacon and submit.
         const { data: saved, error: readError } = await db.from('cbt_answers')
@@ -796,7 +871,9 @@ export class ExamAttemptsService {
             const previous = rows.get(answer.questionId) || existing.get(answer.questionId);
             const revision = answer.revision ?? 0;
             if (!Number.isSafeInteger(revision) || revision < 0) {
-                throw new BadRequestException('Versi jawaban tidak valid.');
+                if (!options.lenient) throw new BadRequestException('Versi jawaban tidak valid.');
+                rejected.push({ questionId: answer.questionId, code: 'INVALID_REVISION', message: 'Versi jawaban tidak valid.' });
+                continue;
             }
             const previousRevision = Number(previous?.metadata?.answer_revision || 0);
             const row = {
@@ -809,15 +886,23 @@ export class ExamAttemptsService {
             const same = previous && previous.selected_option_id === row.selected_option_id &&
                 previous.essay_answer === row.essay_answer && Boolean(previous.is_doubtful) === row.is_doubtful;
             if (revision < previousRevision || (revision > 0 && revision === previousRevision && !same)) {
-                throw new ConflictException('Ada versi jawaban yang lebih baru. Muat ulang halaman untuk menyelaraskan jawaban.');
+                if (!options.lenient) {
+                    throw new ConflictException('Ada versi jawaban yang lebih baru. Muat ulang halaman untuk menyelaraskan jawaban.');
+                }
+                // Server sudah menyimpan versi yang lebih baru: bukan kehilangan, lewati.
+                if (revision < previousRevision) superseded.push(answer.questionId);
+                else rejected.push({ questionId: answer.questionId, code: 'REVISION_CONFLICT',
+                    message: 'Versi jawaban bentrok dengan yang tersimpan di server.' });
+                continue;
             }
             if (revision === previousRevision && same) continue;
             rows.set(answer.questionId, row);
         }
-        if (!rows.size) return;
+        if (!rows.size) return { rejected, superseded };
         const { error } = await db.from('cbt_answers').upsert([...rows.values()],
             { onConflict: 'attempt_id, question_id' });
         if (error) throw new BadRequestException(error.message);
+        return { rejected, superseded };
     }
 
     /**
@@ -832,41 +917,8 @@ export class ExamAttemptsService {
         answers: AnswerInput[],
         db: DbSession = this.db,
     ): Promise<void> {
-        const questions = await readExamQuestionVersion(db, examId);
-        const byId = new Map<string, any>(questions.map(question => [question.id, question]));
-
-        for (const answer of answers) {
-            const question = byId.get(answer.questionId);
-            if (!question) {
-                throw new BadRequestException('Soal tidak termasuk dalam ujian yang sedang dikerjakan.');
-            }
-
-            const selectedOptionId = answer.selected_option_id?.trim();
-            const essayAnswerProvided = answer.essay_answer !== undefined && answer.essay_answer !== '';
-            if (selectedOptionId && essayAnswerProvided) {
-                throw new BadRequestException('Jawaban tidak boleh memakai dua format sekaligus.');
-            }
-
-            if (usesTextColumn(question.type)) {
-                if (selectedOptionId) {
-                    throw new BadRequestException('Format jawaban tidak sesuai dengan tipe soal.');
-                }
-                continue;
-            }
-
-            if (essayAnswerProvided) {
-                throw new BadRequestException('Format jawaban tidak sesuai dengan tipe soal.');
-            }
-            if (!selectedOptionId) continue;
-
-            const optionIds = new Set<string>(
-                ((question.bank_question_options as Array<{ id: string }> | null) || [])
-                    .map(option => option.id),
-            );
-            if (!optionIds.has(selectedOptionId)) {
-                throw new BadRequestException('Pilihan jawaban tidak termasuk dalam soal tersebut.');
-            }
-        }
+        const { rejected } = await this.classifyAnswers(examId, answers, db);
+        if (rejected.length) throw new BadRequestException(rejected[0].message);
     }
 
     /**
@@ -1363,6 +1415,7 @@ export class ExamAttemptsService {
         // Accept and durably close the attempt BEFORE calling external scoring.
         // A slow/offline scoring service must never lose a timely submission.
         let committed: { score: number | null; alreadySubmitted: boolean; savedAnswersOnly: boolean; gradingPending?: boolean; finishedAt?: string; answers?: Record<string, string> };
+        let submitRejected: RejectedAnswer[] = [];
         try {
             committed = await this.db.transaction(async db => {
                 await db.raw('SELECT id FROM public.cbt_exam_attempts WHERE id = $1::uuid FOR UPDATE', attempt.id);
@@ -1391,16 +1444,25 @@ export class ExamAttemptsService {
                 }
                 const questions = await readExamQuestionVersion(db, examId);
                 const byId = new Map(questions.map(question => [question.id, question]));
-                const rows: AnswerInput[] = Object.entries(studentAnswers).map(([questionId, raw]) => {
+                // Pengumpulan tidak lagi gagal total karena satu jawaban: jawaban sah
+                // disimpan dan dinilai, yang tidak sah dicatat untuk pengawas.
+                const unknownRows: RejectedAnswer[] = [];
+                const rows: AnswerInput[] = Object.entries(studentAnswers).flatMap(([questionId, raw]) => {
                     if (typeof raw !== 'string' || !byId.has(questionId)) {
-                        throw new BadRequestException('Jawaban pengumpulan tidak sesuai dengan soal ujian.');
+                        unknownRows.push({ questionId, code: 'QUESTION_NOT_IN_EXAM',
+                            message: 'Jawaban pengumpulan tidak sesuai dengan soal ujian.' });
+                        return [];
                     }
                     const columns = toAnswerColumns(byId.get(questionId)!.type, raw);
-                    return { questionId, selected_option_id: columns.selected_option_id ?? undefined,
-                        essay_answer: columns.essay_answer ?? undefined, revision: answerRevisions?.[questionId] };
+                    return [{ questionId, selected_option_id: columns.selected_option_id ?? undefined,
+                        essay_answer: columns.essay_answer ?? undefined, revision: answerRevisions?.[questionId] }];
                 });
-                await this.assertAnswersBelongToExam(examId, rows, db);
-                await this.upsertAnswers(attempt.id, rows, db);
+                const { valid, rejected: invalidRows } = await this.classifyAnswers(examId, rows, db);
+                // Versi tetap diperiksa tegas: salinan perangkat yang lebih tua dari
+                // server berarti server sudah memegang jawaban yang lebih baru (409).
+                await this.upsertAnswers(attempt.id, valid, db);
+                submitRejected = [...unknownRows, ...invalidRows];
+                if (submitRejected.length) await this.logRejectedAnswers(db, attempt.id, user.id, submitRejected, 'submit');
                 const { data: saved, error: savedError } = await db.from('cbt_answers')
                     .select('question_id, selected_option_id, essay_answer').eq('attempt_id', attempt.id);
                 if (savedError) throw new BadRequestException('Jawaban belum dapat dibaca.');
@@ -1496,6 +1558,7 @@ export class ExamAttemptsService {
             alreadySubmitted: committed.alreadySubmitted,
             savedAnswersOnly: committed.savedAnswersOnly,
             ...(committed.gradingPending ? { gradingPending: true } : {}),
+            ...(submitRejected.length ? { rejectedAnswers: submitRejected } : {}),
         };
     }
 

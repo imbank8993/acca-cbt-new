@@ -197,6 +197,44 @@ test('ROOM-03c: UI tidak bisa mencentang siswa dari ruang lain; pemindahan lewat
     assert.match(sql, /UNIQUE INDEX IF NOT EXISTS cbt_pas_room_students_period_user_unique\s+ON public\.cbt_pas_room_students \(pas_period_id, user_id\)/);
 });
 
+test('ROOM-03d: daftar peserta ruang memuat NIS dan kelas terjadwal, terurut kelas lalu nama', async () => {
+    const data = tables();
+    data.cbt_pas_room_students.push({ id: 'placement-3', pas_period_id: 'period-1', pas_room_id: 'room-a', user_id: 'student-3' });
+    data.cbt_profiles = [
+        { id: 'student-1', full_name: 'Zahra', identity_number: '111' },
+        { id: 'student-2', full_name: 'Budi', identity_number: '222' },
+        { id: 'student-3', full_name: 'Ahmad', unique_id: '333' },
+    ];
+    data.cbt_classes = [{ id: 'class-a', name: 'XII A' }, { id: 'class-b', name: 'XII B' }, { id: 'club', name: 'Ekskul Robotik' }];
+    data.cbt_class_members = [
+        { user_id: 'student-1', class_id: 'class-a', classes: { name: 'XII A' } },
+        { user_id: 'student-1', class_id: 'club', classes: { name: 'Ekskul Robotik' } },
+        { user_id: 'student-2', class_id: 'class-b', classes: { name: 'XII B' } },
+        { user_id: 'student-3', class_id: 'class-a', classes: { name: 'XII A' } },
+    ];
+    data.cbt_pas_class_schedules = [{ id: 's1', pas_period_id: 'period-1', class_id: 'class-a' }, { id: 's2', pas_period_id: 'period-1', class_id: 'class-b' }];
+    const db = fixtureDb(data);
+    const service = new PasRoomsService(db, { ...authz, assertStaffByRecord: async () => {} });
+    const rooms = await service.listRoomParticipants(user, 'period-1');
+    const roomA = rooms.find(room => room.id === 'room-a');
+    assert.deepEqual(roomA.students.map(s => [s.full_name, s.nis, s.class_name]), [['Ahmad', '333', 'XII A'], ['Zahra', '111', 'XII A']]);
+    assert.deepEqual(rooms.find(room => room.id === 'room-b').students.map(s => [s.full_name, s.nis, s.class_name]), [['Budi', '222', 'XII B']]);
+    const profileSelect = db.queries.find(query => query.table === 'cbt_profiles').calls.find(call => call[0] === 'select')[1];
+    assert.ok(profileSelect.split(',').every(column => ['id', 'full_name', 'identity_number', 'unique_id'].includes(column.trim())));
+    const ui = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
+    assert.match(ui, /Unduh Daftar Peserta/);
+    assert.match(ui, /handleDownloadParticipants\(selectedRoom\.id\)/);
+    const pdf = fs.readFileSync(path.resolve(__dirname, '../../web/lib/pas/room-participants-pdf.ts'), 'utf8');
+    assert.match(pdf, /if \(roomIndex > 0\) pdf\.addPage\(\);\s*const first = pdf\.getNumberOfPages\(\);\s*drawKop\(\);/);
+});
+
+test('ROOM-03e: unduhan peserta menolak hasil tidak lengkap bila pembacaan data gagal', async () => {
+    for (const table of ['cbt_pas_rooms', 'cbt_pas_room_students', 'cbt_pas_class_schedules', 'cbt_profiles', 'cbt_class_members']) {
+        const service = new PasRoomsService(fixtureDb(tables(), [table]), { ...authz, assertStaffByRecord: async () => {} });
+        await assert.rejects(service.listRoomParticipants(user, 'period-1'), error => error.getStatus?.() === 503);
+    }
+});
+
 test('ROOM-06: ruang lintas periode dan pengguna dengan peran salah ditolak', async () => {
     const db = fixtureDb(tables());
     const service = new PasRoomsService(db, authz);

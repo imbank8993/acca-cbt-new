@@ -4,7 +4,9 @@ export const MONITORING_EVENTS = ['SCREEN_SHARE_STOPPED', 'SYNC_HEALTH_CHANGED',
     'CLIENT_CONTEXT_CHANGED', 'SCREEN_SHARE_UNCONFIRMED',
     // Jejak masa offline. Bukan pelanggaran baru (tidak menambah penghitung),
     // tetapi wajib terlihat oleh pengawas sebelum memutuskan pemulihan.
-    'CONNECTION_LOST_AT_CLOSE', 'LATE_SECURITY_EVIDENCE', 'LOCAL_ANSWERS_NOT_COUNTED'];
+    'CONNECTION_LOST_AT_CLOSE', 'LATE_SECURITY_EVIDENCE', 'LOCAL_ANSWERS_NOT_COUNTED',
+    // Jawaban tertentu ditolak server; sisanya tetap tersimpan. Catatan untuk pengawas.
+    'ANSWERS_REJECTED'];
 
 /** Sama dengan ambang "offline" pada monitoring (attempt-health). */
 export const CONNECTION_LOST_THRESHOLD_MS = 45_000;

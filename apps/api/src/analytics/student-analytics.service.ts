@@ -145,6 +145,24 @@ export class StudentAnalyticsService {
         const scores = attempts.map(attempt => analyticsScore(attempt)!);
         const durations = attempts.map(analyticsDuration).filter((value): value is number => value !== null);
         const totalTime = durations.reduce((sum, value) => sum + value, 0);
+        // Speed measures answering activity, independent of answer-key release or grading.
+        const timedAttempts = attempts.filter(attempt => (analyticsDuration(attempt) ?? 0) > 0);
+        let answeredWithTime = 0;
+        const speedTime = timedAttempts.reduce((sum, attempt) => sum + analyticsDuration(attempt)!, 0);
+        if (timedAttempts.length) {
+            const response = await this.db.from('cbt_answers')
+                .select('attempt_id, question_id, selected_option_id, essay_answer')
+                .in('attempt_id', timedAttempts.map(attempt => attempt.id));
+            if (response.error) throw new InternalServerErrorException('Waktu pengerjaan soal belum dapat dianalisis.');
+            const answered = new Set<string>();
+            for (const answer of response.data || []) {
+                if (answer.question_id && (answer.selected_option_id ||
+                    (typeof answer.essay_answer === 'string' && answer.essay_answer.trim()))) {
+                    answered.add(`${answer.attempt_id}:${answer.question_id}`);
+                }
+            }
+            answeredWithTime = answered.size;
+        }
         const subjects = new Map<string, { name: string; scores: number[]; types: Map<string, Stats> }>();
         for (const attempt of attempts) {
             const subject = subjectOf(attempt), group = subjects.get(subject.id) || { name: subject.name, scores: [] as number[], types: new Map<string, Stats>() };
@@ -156,7 +174,7 @@ export class StudentAnalyticsService {
             catch (error) { if (!(error instanceof ForbiddenException)) throw error; }
         }
         const types = new Map<string, Stats>(), difficulties = new Map<string, Stats>();
-        let analyzedExams = 0, unknownGrades = 0, answeredWithTime = 0;
+        let analyzedExams = 0, unknownGrades = 0;
         if (released.length) {
             const [snapshotResult, answerResult] = await Promise.all([
                 this.db.from('cbt_exam_question_snapshots').select('exam_id, question_snapshot').in('exam_id', released.map(row => row.exams.id)),
@@ -178,7 +196,6 @@ export class StudentAnalyticsService {
                     const answer = answers.get(`${attempt.id}:${question.id}`);
                     const answered = Boolean(answer?.selected_option_id ||
                         (typeof answer?.essay_answer === 'string' && answer.essay_answer.trim()));
-                    if (answered && analyticsDuration(attempt) !== null) answeredWithTime++;
                     if (!type || SUBJECTIVE_TYPES.has(type)) continue;
                     const essay = ['essay', 'esay', 'uraian'].includes(type);
                     if (typeof answer?.is_correct !== 'boolean' && (answered || essay)) { unknownGrades++; continue; }
@@ -219,9 +236,9 @@ export class StudentAnalyticsService {
             studyHabits: { averageTimePerExam: durations.length ? Math.round(mean(durations)) : null,
                 fastestCompletion: durations.length ? Math.min(...durations) : null,
                 slowestCompletion: durations.length ? Math.max(...durations) : null,
-                // Speed cannot be inferred when only part of the exams has authentic question data.
-                averageQuestionsPerMinute: unknownGrades === 0 && analyzedExams === attempts.length && durations.length === attempts.length && totalTime > 0
-                    ? rounded(answeredWithTime / (totalTime / 60)) : null },
+                averageQuestionsPerMinute: speedTime > 0 ? rounded(answeredWithTime / (speedTime / 60)) : null,
+                speedMeasuredExams: timedAttempts.length,
+                speedAnsweredQuestions: answeredWithTime },
             dataQuality: { excludedAttempts, analyzedExams, totalExams: attempts.length, unknownGrades,
                 timedExams: durations.length, comparisonScope: 'same-exams' },
             examHistory: history.slice(0, 20), comparison: cohort.comparison,

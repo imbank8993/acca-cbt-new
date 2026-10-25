@@ -76,7 +76,7 @@ const SchedulePage = () => {
 
         // Check if completed
         if (exam.isCompleted) {
-            return { label: 'Selesai', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle2, enabled: false };
+            return { label: 'Selesai', color: 'text-[#4B78B8]', bg: 'bg-[#EFF5FD] border-[#C6D9F3]', icon: CheckCircle2, enabled: false };
         }
 
         const startTime = exam.start_time ? new Date(exam.start_time) : null;
@@ -126,7 +126,7 @@ const SchedulePage = () => {
             {/* Stats bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
-                    <p className="text-2xl font-black text-emerald-600 font-mono">{loadError ? '—' : openExams.length}</p>
+                    <p className="text-2xl font-black text-[#4B78B8] font-mono">{loadError ? '—' : openExams.length}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Tersedia</p>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition-shadow">
@@ -147,7 +147,7 @@ const SchedulePage = () => {
             {openExams.length > 0 && (
                 <section className="space-y-4">
                     <div className="flex items-center gap-2 px-1">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-[#6B9FE8] rounded-full animate-pulse" />
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Tersedia Sekarang</h3>
                     </div>
                     <div className="space-y-3">
@@ -161,10 +161,10 @@ const SchedulePage = () => {
                                     onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.click(); }}
                                     onClick={() => { const time = clock.current ? clock.current.time + performance.now() - clock.current.tick : NaN; if (scheduleState(exam, time) === 'open' && !inFlight.current) router.push(`/dashboard/siswa/exam/${exam.id}`); else void loadData(); }}
                                 >
-                                    <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
+                                    <div className="absolute left-0 top-0 h-full w-1 bg-[#6B9FE8]" />
                                     
                                     <div className="flex items-center gap-4 flex-1 w-full min-w-0 pl-1.5">
-                                        <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-all text-emerald-600 group-hover:text-white">
+                                        <div className="w-12 h-12 bg-[#EFF5FD] border border-[#D8E6F8] rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#3083FF] group-hover:border-[#3083FF] transition-all text-[#4B78B8] group-hover:text-white">
                                             <Clock size={18} />
                                         </div>
                                         <div className="min-w-0 flex-1">

@@ -83,6 +83,9 @@ export interface StudyHabitStats {
     fastestCompletion: number | null;
     slowestCompletion: number | null;
     averageQuestionsPerMinute: number | null;
+    /** Speed uses only exams with valid, positive working time. */
+    speedMeasuredExams: number;
+    speedAnsweredQuestions: number;
 }
 
 export interface StudentAnalyticsData {

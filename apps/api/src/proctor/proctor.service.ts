@@ -6,6 +6,7 @@ import { listOperationalSubjects } from '../common/subject-catalog';
 import { insertIdempotently } from '../common/idempotent-create';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { PrismaService } from '../prisma/prisma.service';
+import { isRunnableExamStatus } from '../common/exam-types';
 
 /** Format tahun ajaran yang diterima, mis. `2025/2026`. */
 const SCHOOL_YEAR_PATTERN = /^\d{4}\/\d{4}$/;
@@ -253,17 +254,17 @@ export class ProctorService {
             totalBanks: banks.count || 0,
             // Legacy response key: the dashboard displays this as Ujian Mendatang.
             draftExams: rows.filter(
-                (e) => e.is_published && e.status === 'active' &&
+                (e) => e.is_published && isRunnableExamStatus(e.status) &&
                     ms(e.start_time) > now && (!e.end_time || ms(e.end_time) > now),
             ).length,
             ongoingExams: rows.filter(
-                (e) => e.is_published && e.status === 'active' && withinWindow(e),
+                (e) => e.is_published && isRunnableExamStatus(e.status) && withinWindow(e),
             ).length,
             finishedExams: rows.filter(
                 (e) =>
                     e.status === 'finished' ||
                     (e.is_published &&
-                        e.status === 'active' &&
+                        isRunnableExamStatus(e.status) &&
                         e.end_time &&
                         ms(e.end_time) < now),
             ).length,

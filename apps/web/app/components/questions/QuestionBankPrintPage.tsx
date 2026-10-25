@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Info, Loader2, Printer, X } f
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 const ExamPrintView = dynamic(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
 
@@ -49,6 +49,20 @@ export default function QuestionBankPrintPage({ role }: Props) {
             .catch(() => { if (active) setState('missing'); });
         return () => { active = false; };
     }, [bankId]);
+
+    // Lembar cetak selalu bertema terang: aturan warna mode gelap aplikasi
+    // (teks pudar, kepala tabel gelap) tidak boleh ikut ke kertas/PDF.
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        const wasDark = root.classList.contains('dark');
+        const previousScheme = root.style.colorScheme;
+        root.classList.remove('dark');
+        root.style.colorScheme = 'light';
+        return () => {
+            if (wasDark) root.classList.add('dark');
+            root.style.colorScheme = previousScheme;
+        };
+    }, []);
 
     // Nama berkas bawaan "Simpan sebagai PDF" mengikuti judul dokumen.
     useEffect(() => {
