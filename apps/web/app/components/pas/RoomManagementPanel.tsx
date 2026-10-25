@@ -149,7 +149,13 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
         (room.pas_room_students || []).map(student => [student.user_id, room] as const))), [rooms]);
     const visibleClassStudents = classStudents.filter(student =>
         `${student.name || student.full_name || ''} ${student.identity_number || ''}`.toLocaleLowerCase('id-ID').includes(studentSearch.toLocaleLowerCase('id-ID')));
-    const selectableStudents = visibleClassStudents.filter(student => !assignedStudentIds.has(student.id));
+    // Satu siswa hanya boleh di satu ruang: siswa yang sudah di ruang lain tidak
+    // bisa dicentang (termasuk lewat "Pilih semua"); pemindahan lewat tombol Pindahkan.
+    const roomElsewhere = (studentId: string) => {
+        const room = studentRoomMap.get(studentId);
+        return room && room.id !== selectedRoom?.id ? room : null;
+    };
+    const selectableStudents = visibleClassStudents.filter(student => !assignedStudentIds.has(student.id) && !roomElsewhere(student.id));
     const visibleRoomStudents = (selectedRoom?.pas_room_students || []).filter(student =>
         formatStudentName(student.profiles?.full_name, 'Tanpa Nama').toLocaleLowerCase('id-ID').includes(studentSearch.toLocaleLowerCase('id-ID')));
 
@@ -407,10 +413,14 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
             alert(`Kapasitas ruang tidak mencukupi. Tersedia ${remainingCapacity} kursi.`);
             return;
         }
+        const studentIds = [...new Set(selectedStudentIds)].filter(id => !roomElsewhere(id));
+        if (studentIds.length === 0) {
+            setRoomError('Siswa yang dipilih sudah ditempatkan di ruang lain. Satu siswa hanya boleh di satu ruang.');
+            return;
+        }
         setIsSaving(true);
         setRoomError('');
         try {
-            const studentIds = [...new Set(selectedStudentIds)];
             const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, studentIds);
             if (!result.success) throw new Error(result.error || 'Peserta belum berhasil ditambahkan.');
             const updatedRooms = await listPASRooms(period.id);
@@ -425,6 +435,33 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
             setStudentSearch('');
         } catch (error) {
             setRoomError(error instanceof Error ? error.message : 'Peserta belum berhasil ditambahkan.');
+        } finally { setIsSaving(false); }
+    };
+
+    /** Pindahkan satu siswa dari ruang lamanya ke ruang ini, setelah dikonfirmasi. */
+    const handleMoveStudent = async (studentId: string, studentName: string) => {
+        const fromRoom = roomElsewhere(studentId);
+        if (!selectedRoom || !fromRoom || isSaving || isClassLoading) return;
+        if (remainingCapacity < 1) {
+            setRoomError(`Kapasitas ${selectedRoom.name} sudah penuh.`);
+            return;
+        }
+        if (!await confirmDialog({
+            title: 'Pindahkan Siswa?',
+            text: `${studentName} sudah ditempatkan di ${fromRoom.name}. Satu siswa hanya boleh di satu ruang, jadi penempatannya di ${fromRoom.name} akan dihapus dan dipindahkan ke ${selectedRoom.name}.`,
+            confirmText: 'Pindahkan',
+            cancelText: 'Batal',
+            variant: 'warning',
+        })) return;
+        setIsSaving(true);
+        setRoomError('');
+        try {
+            const result = await assignStudentsToRoomAction(period.id, selectedRoom.id, [studentId], { move: true });
+            if (!result.success) throw new Error(result.error || 'Siswa belum berhasil dipindahkan.');
+            await refreshRooms();
+            setSelectedStudentIds(previous => previous.filter(id => id !== studentId));
+        } catch (error) {
+            setRoomError(error instanceof Error ? error.message : 'Siswa belum berhasil dipindahkan.');
         } finally { setIsSaving(false); }
     };
 
@@ -788,7 +825,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     <InlineSelect value={selectedClassId} disabled={isSaving} onChange={val => void handleLoadClassStudents(val)}
                                         minWidth="100%" height="40px" title="Kelas asal peserta"
                                         options={[{ value: '', label: 'Pilih kelas asal' }, ...classes.map(c => ({ value: c.id, label: c.name.replace(/^kelas\s+/i, '') }))]} />
-                                    <p className="text-xs text-slate-500">Centang peserta yang akan ditempatkan di ruangan ini. Peserta dari ruang lain akan dipindahkan.</p>
+                                    <p className="text-xs text-slate-500">Centang peserta yang akan ditempatkan di ruangan ini. Satu siswa hanya boleh di satu ruang; siswa yang sudah di ruang lain dapat dipindahkan lewat tombol Pindahkan.</p>
                                 </div>}
 
                                 {(!addingStudents || selectedClassId) && <label className="pas-room-search flex items-center gap-2 rounded-lg px-3 py-2.5">
@@ -814,17 +851,26 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                             {visibleClassStudents.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Tidak ada peserta yang cocok.</p>}
                                             {visibleClassStudents.map(student => {
                                                 const alreadyHere = assignedStudentIds.has(student.id);
-                                                const previousRoom = studentRoomMap.get(student.id);
-                                                return <label key={student.id} className="flex items-center gap-3 px-2 py-3 text-sm">
-                                                    <input type="checkbox" disabled={isSaving || alreadyHere} checked={alreadyHere || selectedStudentIds.includes(student.id)}
-                                                        onChange={e => setSelectedStudentIds(previous => e.target.checked ? [...new Set([...previous, student.id])] : previous.filter(id => id !== student.id))} />
-                                                    <span className="min-w-0 flex-1">
-                                                        <span className="block font-medium text-slate-800">{formatStudentName(student.name || student.full_name, 'Tanpa Nama')}</span>
-                                                        {(student.identity_number || previousRoom) && <span className="mt-0.5 block text-xs text-slate-500">
-                                                            {[student.identity_number, alreadyHere ? 'Sudah di ruangan ini' : previousRoom ? `Dari ${previousRoom.name}` : ''].filter(Boolean).join(' · ')}
-                                                        </span>}
-                                                    </span>
-                                                </label>;
+                                                const otherRoom = alreadyHere ? null : roomElsewhere(student.id);
+                                                const studentName = formatStudentName(student.name || student.full_name, 'Tanpa Nama');
+                                                return <div key={student.id} className="flex items-center gap-3 px-2 py-3 text-sm">
+                                                    <label className={`flex min-w-0 flex-1 items-center gap-3 ${otherRoom ? 'cursor-not-allowed' : ''}`}>
+                                                        <input type="checkbox" disabled={isSaving || alreadyHere || !!otherRoom} checked={alreadyHere || (!otherRoom && selectedStudentIds.includes(student.id))}
+                                                            onChange={e => setSelectedStudentIds(previous => e.target.checked ? [...new Set([...previous, student.id])] : previous.filter(id => id !== student.id))} />
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className={`block font-medium ${otherRoom ? 'text-slate-400' : 'text-slate-800'}`}>{studentName}</span>
+                                                            {(student.identity_number || alreadyHere || otherRoom) && <span className="mt-0.5 block text-xs text-slate-500">
+                                                                {[student.identity_number, alreadyHere ? 'Sudah di ruangan ini' : otherRoom ? `Sudah di ${otherRoom.name}` : ''].filter(Boolean).join(' · ')}
+                                                            </span>}
+                                                        </span>
+                                                    </label>
+                                                    {otherRoom && <button type="button" disabled={isSaving || remainingCapacity < 1}
+                                                        onClick={() => void handleMoveStudent(student.id, studentName)}
+                                                        className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                                                        title={remainingCapacity < 1 ? 'Ruangan ini sudah penuh' : `Pindahkan dari ${otherRoom.name} ke ruangan ini`}>
+                                                        Pindahkan
+                                                    </button>}
+                                                </div>;
                                             })}
                                         </div>
                                     </>}

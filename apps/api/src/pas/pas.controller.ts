@@ -289,7 +289,7 @@ export class PasController {
         @Param('periodId', ParseUUIDPipe) periodId: string,
         @Body() dto: AssignRoomStudentsDto,
     ) {
-        return this.rooms.assignStudents(user, periodId, dto.roomId, dto.userIds);
+        return this.rooms.assignStudents(user, periodId, dto.roomId, dto.userIds, { move: dto.move === true });
     }
 
     @Delete('periods/:periodId/room-students/:userId')

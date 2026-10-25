@@ -116,12 +116,12 @@ test('UI room previews and recaps select only the requested session and date', (
     assert.deepEqual(getRoomSessionInvigilators(room), []);
 });
 
-test('ROOM-03: siswa dipindahkan atomik dan peserta yang sudah ada tidak dihitung dua kali', async () => {
+test('ROOM-03: siswa dipindahkan atomik (move eksplisit) dan peserta yang sudah ada tidak dihitung dua kali', async () => {
     const db = fixtureDb(tables());
     const service = new PasRoomsService(db, authz);
 
     const result = await service.assignStudents(
-        user, 'period-1', 'room-b', ['student-1', 'student-1', 'student-2'],
+        user, 'period-1', 'room-b', ['student-1', 'student-1', 'student-2'], { move: true },
     );
 
     assert.equal(result.assigned, 2);
@@ -139,7 +139,7 @@ test('ROOM-04: kegagalan insert siswa mengembalikan penugasan ruang lama', async
     const service = new PasRoomsService(db, authz);
 
     await assert.rejects(
-        service.assignStudents(user, 'period-1', 'room-b', ['student-1']),
+        service.assignStudents(user, 'period-1', 'room-b', ['student-1'], { move: true }),
         /gagal menempatkan siswa/i,
     );
     assert.equal(db.tables.cbt_pas_room_students.some(
@@ -157,12 +157,44 @@ test('ROOM-05: kapasitas ruang ditegakkan sebelum pemindahan', async () => {
     const service = new PasRoomsService(db, authz);
 
     await assert.rejects(
-        service.assignStudents(user, 'period-1', 'room-b', ['student-1']),
+        service.assignStudents(user, 'period-1', 'room-b', ['student-1'], { move: true }),
         /kapasitas ruang tidak cukup/i,
     );
     assert.equal(db.tables.cbt_pas_room_students.some(
         (row) => row.pas_room_id === 'room-a' && row.user_id === 'student-1',
     ), true);
+});
+
+test('ROOM-03b: satu siswa hanya satu ruang — siswa dari ruang lain ditolak tanpa move', async () => {
+    const data = tables();
+    data.cbt_profiles = [{ id: 'student-1', full_name: 'Ahmad Fauzi' }];
+    const db = fixtureDb(data);
+    const service = new PasRoomsService(db, authz);
+
+    await assert.rejects(
+        service.assignStudents(user, 'period-1', 'room-b', ['student-1', 'student-3']),
+        (error) => error.status === 409 && /1 siswa sudah ditempatkan di ruang lain: Ahmad Fauzi \(A\)/.test(error.message)
+            && /Satu siswa hanya boleh di satu ruang/.test(error.message),
+    );
+    // Tidak ada yang berubah, termasuk siswa lain dalam permintaan yang sama.
+    assert.deepEqual(db.tables.cbt_pas_room_students.map(row => `${row.user_id}@${row.pas_room_id}`).sort(),
+        ['student-1@room-a', 'student-2@room-b']);
+
+    // Siswa baru dan siswa yang sudah di ruang ini tetap diterima.
+    const result = await service.assignStudents(user, 'period-1', 'room-a', ['student-1', 'student-3']);
+    assert.equal(result.assigned, 2);
+    assert.deepEqual(db.tables.cbt_pas_room_students.filter(row => row.pas_room_id === 'room-a').map(row => row.user_id).sort(),
+        ['student-1', 'student-3']);
+});
+
+test('ROOM-03c: UI tidak bisa mencentang siswa dari ruang lain; pemindahan lewat konfirmasi', () => {
+    const ui = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'), 'utf8');
+    assert.match(ui, /selectableStudents = visibleClassStudents\.filter\(student => !assignedStudentIds\.has\(student\.id\) && !roomElsewhere\(student\.id\)\)/);
+    assert.match(ui, /disabled=\{isSaving \|\| alreadyHere \|\| !!otherRoom\}/);
+    assert.match(ui, /assignStudentsToRoomAction\(period\.id, selectedRoom\.id, \[studentId\], \{ move: true \}\)/);
+    assert.doesNotMatch(ui, /Peserta dari ruang lain akan dipindahkan/);
+    const sql = fs.readFileSync(path.resolve(__dirname, '../../../database/migrations/20261025_01_pas_room_student_single_room.sql'), 'utf8');
+    assert.match(sql, /UNIQUE INDEX IF NOT EXISTS cbt_pas_room_students_period_user_unique\s+ON public\.cbt_pas_room_students \(pas_period_id, user_id\)/);
 });
 
 test('ROOM-06: ruang lintas periode dan pengguna dengan peran salah ditolak', async () => {

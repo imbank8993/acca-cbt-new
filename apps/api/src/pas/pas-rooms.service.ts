@@ -262,11 +262,12 @@ export class PasRoomsService {
     /**
      * Tugaskan peserta ke sebuah ruang.
      *
-     * Seorang siswa hanya boleh menempati satu ruang per periode (ada batasan
-     * unik untuk itu), jadi penugasan lamanya di periode yang sama dihapus lebih
-     * dulu — termasuk bila ruang lamanya berbeda.
+     * Aturan: satu siswa hanya boleh menempati satu ruang per folder ujian.
+     * Siswa yang sudah berada di ruang lain DITOLAK (409) beserta nama siswa dan
+     * ruangnya, kecuali pemanggil meminta pemindahan secara eksplisit
+     * (`move: true`); barulah penempatan lamanya dihapus dalam transaksi yang sama.
      */
-    async assignStudents(user: AuthUser, periodId: string, roomId: string, userIds: string[]) {
+    async assignStudents(user: AuthUser, periodId: string, roomId: string, userIds: string[], options: { move?: boolean } = {}) {
         await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
         const uniqueUserIds = [...new Set(userIds)];
         if (uniqueUserIds.length === 0) return { roomId, assigned: 0 };
@@ -305,6 +306,7 @@ export class PasRoomsService {
                 ((currentRows as Array<{ user_id: string }>) || []).map((row) => row.user_id),
             );
             const movingIds = uniqueUserIds.filter((id) => !currentIds.has(id));
+            if (!options.move) await this.assertNotPlacedElsewhere(db, periodId, roomId, movingIds);
             const capacity = Number((room as { capacity: number | null }).capacity) || 0;
             if (currentIds.size + movingIds.length > capacity) {
                 throw new ConflictException(
@@ -336,6 +338,37 @@ export class PasRoomsService {
 
             return { roomId, assigned: uniqueUserIds.length };
         });
+    }
+
+    /** Tolak siswa yang sudah menempati ruang lain pada folder yang sama. */
+    private async assertNotPlacedElsewhere(db: DbSession, periodId: string, roomId: string, userIds: string[]): Promise<void> {
+        if (userIds.length === 0) return;
+        const { data, error } = await db.from('cbt_pas_room_students')
+            .select('user_id, pas_room_id')
+            .eq('pas_period_id', periodId)
+            .in('user_id', userIds);
+        if (error) throw new BadRequestException(`Gagal memeriksa penempatan siswa: ${error.message}`);
+        const elsewhere = ((data as Array<{ user_id: string; pas_room_id: string }>) || [])
+            .filter(row => row.pas_room_id !== roomId);
+        if (elsewhere.length === 0) return;
+
+        const [{ data: rooms }, { data: profiles }] = await Promise.all([
+            db.from('cbt_pas_rooms').select('id, name').in('id', [...new Set(elsewhere.map(row => row.pas_room_id))]),
+            db.from('cbt_profiles').select('id, full_name').in('id', [...new Set(elsewhere.map(row => row.user_id))]),
+        ]);
+        const roomName = new Map(((rooms as Array<{ id: string; name?: string }>) || []).map(room => [room.id, room.name || 'ruang lain']));
+        const personName = new Map(((profiles as Array<{ id: string; full_name?: string }>) || []).map(p => [p.id, p.full_name || 'Siswa']));
+        const byStudent = new Map<string, string[]>();
+        for (const row of elsewhere) {
+            byStudent.set(row.user_id, [...(byStudent.get(row.user_id) || []), roomName.get(row.pas_room_id) || 'ruang lain']);
+        }
+        const details = [...byStudent.entries()]
+            .map(([userId, names]) => `${personName.get(userId) || 'Siswa'} (${[...new Set(names)].join(', ')})`);
+        const shown = details.slice(0, 5).join(', ') + (details.length > 5 ? `, dan ${details.length - 5} lainnya` : '');
+        throw new ConflictException(
+            `${byStudent.size} siswa sudah ditempatkan di ruang lain: ${shown}. `
+            + 'Satu siswa hanya boleh di satu ruang. Keluarkan dari ruang lamanya atau gunakan Pindahkan.',
+        );
     }
 
     async removeStudent(user: AuthUser, periodId: string, userId: string) {

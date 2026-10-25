@@ -48,6 +48,7 @@ for (const [name, change, pattern] of [
  ['outside session', f => { f.schedule.window_end_time = '10:00'; }, /tidak sesuai sesi/],
  ['duration too long', f => { f.schedule.duration_minutes = 121; }, /Durasi/],
  ['room not allocated', f => { f.db.tables.cbt_pas_room_students.pop(); }, /1 peserta belum dialokasikan/],
+ ['student in two rooms', f => { const first = f.db.tables.cbt_pas_room_students[0]; f.db.tables.cbt_pas_room_students.push({ ...first, pas_room_id: first.pas_room_id === 'r1' ? 'r2' : 'r1' }); }, /1 peserta terdaftar di lebih dari satu ruang/],
  ['room outside period', f => { f.db.tables.cbt_pas_rooms[1].pas_period_id = 'foreign'; }, /belum dialokasikan/],
  ['room over capacity', f => { f.db.tables.cbt_pas_rooms[0].capacity = 1; f.db.tables.cbt_pas_room_students.push({ user_id: 'other-class', pas_period_id: 'p', pas_room_id: 'r1' }); }, /Kapasitas Lab/],
  ['dangling exam', f => { f.schedule.exam_id = 'missing'; }, /terhubung tidak tersedia/],

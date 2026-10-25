@@ -307,10 +307,15 @@ export function copyInvigilatorsAction(periodId: string, fromDate: string, toDat
     );
 }
 
-export function assignStudentsToRoomAction(periodId: string, roomId: string, userIds: string[]) {
+/**
+ * Tempatkan siswa ke ruang. Satu siswa hanya boleh di satu ruang per folder:
+ * siswa yang sudah di ruang lain ditolak server, kecuali `move: true`
+ * (pemindahan yang sudah dikonfirmasi pengguna).
+ */
+export function assignStudentsToRoomAction(periodId: string, roomId: string, userIds: string[], options: { move?: boolean } = {}) {
     return apiSend<{ roomId: string; assigned: number }>(
         `/api/pas/periods/${encodeURIComponent(periodId)}/room-students`,
-        { roomId, userIds },
+        { roomId, userIds, ...(options.move ? { move: true } : {}) },
         'PUT',
     );
 }

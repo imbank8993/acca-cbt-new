@@ -228,6 +228,15 @@ export class AssignRoomStudentsDto extends AssignUsersDto {
     @ApiProperty()
     @IsUUID('4', { message: 'roomId tidak valid' })
     roomId!: string;
+
+    @ApiPropertyOptional({
+        default: false,
+        description: 'Satu siswa hanya boleh di satu ruang per folder. Tanpa `move: true`, siswa yang sudah '
+            + 'ditempatkan di ruang lain ditolak; dengan `move: true` siswa dipindahkan secara eksplisit.',
+    })
+    @IsOptional()
+    @IsBoolean()
+    move?: boolean;
 }
 
 export class AssignRoomInvigilatorsDto extends AssignUsersDto {

@@ -289,6 +289,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const isQuestionEditRoute = pathname.includes('/questions/') && pathname.endsWith('/edit');
     const isLearningReaderRoute = /^\/dashboard\/learning\/[^/]+\/?$/.test(pathname);
+    // Lembar cetak berdiri sendiri: tanpa sidebar, header, maupun bottom nav
+    // agar tidak ikut tercetak ke PDF.
+    const isPrintRoute = /^\/dashboard\/[^/]+\/questions\/[^/]+\/print\/?$/.test(pathname);
+
+    if (isPrintRoute) {
+        return <div className="print-route bg-slate-200 text-slate-900 print:bg-white">{children}</div>;
+    }
 
     if (isLearningReaderRoute) {
         return <div className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">{children}</div>;

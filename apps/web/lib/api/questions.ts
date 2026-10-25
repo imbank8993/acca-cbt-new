@@ -171,6 +171,9 @@ export interface QuestionRecord {
     kisi_kisi_id?: string | null;
     stimulus?: BankTextItem | null;
     instruction?: BankTextItem | null;
+    /** Relasi dimensi seperti dikirim API (`dimension:cbt_question_dimensions`). */
+    dimension?: DimensionItem | null;
+    /** Nama lama relasi dimensi; dipertahankan untuk data cache/arsip lama. */
     question_dimensions?: DimensionItem | null;
     created_at?: string;
     updated_at?: string;

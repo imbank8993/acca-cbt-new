@@ -26,7 +26,6 @@ BookOpen,
 Check,
 CheckSquare,
 ChevronDown,
-ChevronLeft,
 ChevronUp,
 Edit3,
 Eye,
@@ -53,13 +52,12 @@ import { useMemoryState } from '@/lib/useMemoryState';
 import { getQuestionTypeLabel } from '@/app/types/question';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useParams,useSearchParams } from 'next/navigation';
+import { useParams,useRouter,useSearchParams } from 'next/navigation';
 const StimulusManager = dynamic(() => import('@/app/components/questions/StimulusManager'), { ssr: false });
 const InstructionManager = dynamic(() => import('@/app/components/questions/InstructionManager'), { ssr: false });
 const QuestionEditorModal = dynamic(() => import('@/app/components/questions/QuestionEditorModal'), { ssr: false });
 const BulkImportModal = dynamic(() => import('@/app/components/questions/BulkImportModal'), { ssr: false });
 const PreviewModal = dynamic(() => import('@/app/components/questions/PreviewModal'), { ssr: false });
-const ExamPrintView = dynamic(() => import('@/app/components/questions/ExamPrintView').then(mod => mod.ExamPrintView), { ssr: false });
 const BankValidationFeedbackTab = dynamic(() => import('@/app/components/questions/BankValidationFeedbackTab'), { ssr: false });
 const BankValidationSummary = dynamic(() => import('@/app/components/questions/BankValidationSummary'), { ssr: false });
 
@@ -73,6 +71,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const params = useParams();
     const bankId = params.bankId as string;
     const searchParams = useSearchParams();
+    const router = useRouter();
 
     const cachePrefix = `${role}_questions_${bankId}`;
     const questionsBasePath = `/dashboard/${role}/questions`;
@@ -145,6 +144,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const exportDropdownRef = useRef<HTMLDivElement>(null);
     const [stimuliList, setStimuliList] = useMemoryState<BankTextItem[]>(`${cachePrefix}_stimuliList`, []);
     const [instructionsList, setInstructionsList] = useMemoryState<BankTextItem[]>(`${cachePrefix}_instructionsList`, []);
@@ -179,6 +179,12 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         editingQuestionRef.current = editingQuestion;
         isEditorOpenRef.current = isEditorOpen;
     }, [filteredQuestions, editingQuestion, isEditorOpen]);
+
+    // Tautan lama `?print=true` dialihkan ke halaman cetak mandiri (tanpa navigasi aplikasi).
+    useEffect(() => {
+        if (searchParams.get('print') !== 'true') return;
+        router.replace(`${questionsBasePath}/${bankId}/print`);
+    }, [bankId, questionsBasePath, router, searchParams]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -441,32 +447,51 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
     
     const handleExportWord = async () => {
-        const { exportQuestionsToWord } = await import('@/lib/export-template');
+        if (isExporting || !canManage) return;
+        setIsExporting(true);
         try {
-            const result = await exportQuestionsToWord(
-                questions,
-                bankInfo || { title: 'Bank Soal' },
-                stimuliList,
-                instructionsList,
-                kisiKisiList,
-                dimensionsList
-            );
-            const url = window.URL.createObjectURL(result.blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = result.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            // Impor dinamis di dalam try: chunk yang gagal dimuat (mis. setelah
+            // deploy baru) tetap memunculkan pesan, bukan error senyap.
+            const { exportQuestionsToWord, ExportCancelledError } = await import('@/lib/export-template');
+            try {
+                const result = await exportQuestionsToWord(
+                    questions,
+                    bankInfo || { title: 'Bank Soal' },
+                    stimuliList,
+                    instructionsList,
+                    kisiKisiList,
+                    dimensionsList,
+                    {
+                        onMissingImages: ({ count, questionNumbers }) => confirmDialog({
+                            title: 'Sebagian gambar tidak dapat dimuat',
+                            text: `${count} gambar${questionNumbers.length ? ` pada soal ${questionNumbers.join(', ')}` : ''} gagal diunduh. Lanjutkan ekspor dengan penanda "[gambar tidak dapat dimuat]"? Gambar aslinya tetap tersimpan di bank soal.`,
+                            confirmText: 'Lanjutkan', cancelText: 'Batal', variant: 'warning',
+                        }),
+                    }
+                );
+                const url = window.URL.createObjectURL(result.blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = result.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // Firefox/Safari membatalkan unduhan bila URL langsung dicabut.
+                window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+            } catch (err) {
+                if (err instanceof ExportCancelledError) return;
+                throw err;
+            }
         } catch (err) {
             console.error('Export failed:', err);
             alert('Gagal mengexport dokumen: ' + (getErrorMessage(err) || String(err)));
+        } finally {
+            setIsExporting(false);
         }
     };
 
     const handleExportPdf = () => {
-        window.open(`${questionsBasePath}/${bankId}?print=true`, '_blank');
+        window.open(`${questionsBasePath}/${bankId}/print`, '_blank');
     };
 
     const totalQuestions = questions.length;
@@ -488,33 +513,8 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     </div>;
 
     if (searchParams.get('print') === 'true') {
-        if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500 font-medium animate-pulse">Menyiapkan dokumen cetak...</div></div>;
-        return (
-            <div className="min-h-screen bg-slate-200 flex flex-col print:bg-white print:p-0">
-                <div className="print:hidden shrink-0 bg-white border-b border-slate-300 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-                    <h2 className="text-sm font-bold text-slate-800">Pratinjau Cetak — {bankInfo?.title || 'Bank Soal'}</h2>
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => window.print()}
-                            className="px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2"
-                        >
-                            <Printer size={14} /> Cetak / Save PDF
-                        </button>
-                        <button
-                            onClick={() => window.close()}
-                            className="px-5 py-2 bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-200 transition-all"
-                        >
-                            Tutup Tab
-                        </button>
-                    </div>
-                </div>
-                <div className="flex-1 p-8 print:p-0 overflow-y-auto">
-                    <div className="max-w-[210mm] mx-auto bg-white shadow-xl print:shadow-none print:max-w-none print:mx-0">
-                        <ExamPrintView bankInfo={bankInfo} questions={questions} />
-                    </div>
-                </div>
-            </div>
-        );
+        // Tautan lama (?print=true) dialihkan ke halaman cetak mandiri.
+        return <div className="p-8 text-center text-sm text-slate-500">Membuka lembar cetak…</div>;
     }
 
     return (
@@ -524,10 +524,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 <div className="max-w-6xl mx-auto px-4 md:px-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between py-3 sm:py-0 sm:h-14 gap-3 sm:gap-0">
                         <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0 scrollbar-hide">
-                            <Link href={questionsBasePath} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 whitespace-nowrap">
-                                <ChevronLeft size={16} /> <span className="hidden sm:inline">Bank Soal</span>
-                            </Link>
-                            <div className="w-px h-5 bg-slate-200 shrink-0" />
                             <div className="flex items-center gap-2 shrink-0">
                                 <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
                                     <BookOpen size={13} className="text-white" />
@@ -539,10 +535,11 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                             {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton mobileIconOnly type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
                             {/* Export Dropdown */}
                             <div className="relative" ref={exportDropdownRef}>
-                                <Button mobileIconOnly aria-label="Export" title="Export" type="button" variant="outline" size="sm"
+                                <Button mobileIconOnly aria-label="Export" title={isExporting ? 'Menyiapkan dokumen Word…' : 'Export'} type="button" variant="outline" size="sm"
                                     onClick={() => setIsExportOpen(!isExportOpen)}
                                     className="w-full sm:w-auto"
-                                    leftIcon={<FileDown size={16} />}
+                                    aria-busy={isExporting}
+                                    leftIcon={isExporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
                                     rightIcon={<InlineSelectIndicator open={isExportOpen} size={12} />}
                                     aria-expanded={isExportOpen} aria-controls="bank-export-menu">
                                     Export
@@ -552,14 +549,17 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         <div className="px-3 py-2 border-b border-slate-100">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Export Dokumen</p>
                                         </div>
-                                        <button onClick={() => { handleExportWord(); setIsExportOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors">
-                                            <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center"><FileText size={13} className="text-blue-600" /></div>
-                                            <div className="text-left"><p className="text-xs font-semibold text-slate-700">Bank Soal (Word)</p><p className="text-[10px] text-slate-400">Format tabel siap import</p></div>
-                                        </button>
-                                        <div className="border-t border-slate-100" />
-                                        <button onClick={() => { handleExportPdf(); setIsExportOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors">
+                                        {/* Word memuat kunci jawaban: hanya untuk pengelola bank. */}
+                                        {canManage && (<>
+                                            <button type="button" disabled={isExporting} onClick={() => { void handleExportWord(); setIsExportOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-wait transition-colors">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">{isExporting ? <Loader2 size={13} className="text-blue-600 animate-spin" /> : <FileText size={13} className="text-blue-600" />}</div>
+                                                <div className="text-left"><p className="text-xs font-semibold text-slate-700">Bank Soal (Word)</p><p className="text-[10px] text-slate-400">{isExporting ? 'Sedang disiapkan…' : 'Format tabel siap import, dengan kunci'}</p></div>
+                                            </button>
+                                            <div className="border-t border-slate-100" />
+                                        </>)}
+                                        <button type="button" onClick={() => { handleExportPdf(); setIsExportOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors">
                                             <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><Printer size={13} className="text-red-600" /></div>
-                                            <div className="text-left"><p className="text-xs font-semibold text-slate-700">Lembar Ujian (PDF-ready)</p><p className="text-[10px] text-slate-400">Siap print, form jawaban</p></div>
+                                            <div className="text-left"><p className="text-xs font-semibold text-slate-700">Lembar Ujian (PDF)</p><p className="text-[10px] text-slate-400">A4 siap cetak, tanpa kunci</p></div>
                                         </button>
                                     </div>
                                 )}
@@ -810,10 +810,10 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                                 <FileSearch size={11} /> Kisi-kisi
                                                             </button>
                                                         )}
-                                                        {q.type === 'sjt' && q.question_dimensions && (
+                                                        {q.type === 'sjt' && (q.dimension || q.question_dimensions) && (
                                                             <span className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
                                                                 <Target size={12} className="shrink-0" />
-                                                                <span className="truncate">{q.question_dimensions.name}</span>
+                                                                <span className="truncate">{(q.dimension || q.question_dimensions)?.name}</span>
                                                             </span>
                                                         )}
                                                     </div>

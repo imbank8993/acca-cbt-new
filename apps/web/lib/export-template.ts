@@ -13,10 +13,11 @@ VerticalAlign,
 WidthType
 } from 'docx';
 import JSZip from 'jszip';
+import { bankFileTitle,documentHost,exportBaseName,fileDateStamp,isCorrectOption,printableOptions,questionScore,sortedOptions } from './exam-print-model';
 import { optionLabel } from './option-label';
 import { attachQuestionArchive } from './question-archive';
 import { portableQuestion } from './question-transfer';
-import { loadWordImages,wordRuns,type WordImages } from './word-images';
+import { imageUrlsIn,loadWordImages,wordRuns,type WordImages } from './word-images';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'] as const;
@@ -38,6 +39,7 @@ interface ExportOption {
     id?: string;
     option_text?: string;
     text?: string;
+    /** Bisa `null` pada data nyata (kunci B/S belum ditentukan). */
     is_correct?: boolean;
     isCorrect?: boolean;
     order?: number;
@@ -66,7 +68,10 @@ interface ExportQuestion {
     bank_question_options?: ExportOption[];
     options?: ExportOption[];
     metadata?: ExportQuestionMetadata;
-    question_dimensions?: { name?: string } | null;
+    /** Relasi dimensi dari API (`dimension`); `question_dimensions` untuk data lama. */
+    dimension?: { name?: string | null } | null;
+    question_dimensions?: { name?: string | null } | null;
+    dimension_id?: string | null;
     stimulus?: ExportContentItem | null;
     instruction?: ExportContentItem | null;
 }
@@ -212,12 +217,28 @@ const dRow = (cells: TableCell[]) => new TableRow({ children: cells, cantSplit: 
 type RowSpec = TableCell[];             // one row = array of cells
 type RowsForOneQuestion = RowSpec[]; // one question produces N rows
 
-function buildAkademikRows(question: ExportQuestion, idx: number, images: WordImages = new Map()): RowsForOneQuestion {
+/** Nama dimensi soal, dari relasi API mana pun yang tersedia. */
+function dimensionName(question: ExportQuestion, dimensionsList: ExportDimension[]): string {
+    return question.dimension?.name
+        || question.question_dimensions?.name
+        || dimensionsList.find((d) => d.id === question.dimension_id)?.name
+        || '-';
+}
+
+/** Kunci B/S per pernyataan; kunci yang belum ditentukan ditulis "?" agar terlihat. */
+function trueFalseKey(option: ExportOption): string {
+    const value = isCorrectOption(option);
+    return value === null ? '?' : value ? 'B' : 'S';
+}
+
+function buildAkademikRows(question: ExportQuestion, idx: number, images: WordImages = new Map(), questionNo = idx + 1): RowsForOneQuestion {
     const dataCell = imageCells(images);
-    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Opsi kosong dilewati — aturan yang sama dengan lembar PDF dan importer,
+    // sehingga huruf kunci di Word selalu cocok dengan huruf di kertas.
+    const opts = printableOptions(question);
     const typeLabel = TYPE_LABEL[question.type] || 'PG';
-    const qNo = String(idx + 1);
-    const score = String(question.score_default ?? question.scoreDefault ?? 1);
+    const qNo = String(questionNo);
+    const score = String(questionScore(question));
     const fill = (row: number) => (row % 2 === 0 ? 'FFFFFF' : 'EFF6FF');
 
     const out: RowsForOneQuestion = [];
@@ -246,8 +267,7 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
             row++;
         });
     } else if (question.type === 'true_false') {
-        const kunciArr = opts.map((o) => (o.is_correct || o.isCorrect) ? 'B' : 'S');
-        const kunci = kunciArr.join('|');
+        const kunci = opts.map(trueFalseKey).join('|');
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
             dataCell(typeLabel, 8, fill(row - 1), 'CENTER'),
@@ -256,7 +276,7 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
         opts.forEach((opt, oi) => {
-            const key = (opt.is_correct || opt.isCorrect) ? 'B' : 'S';
+            const key = trueFalseKey(opt);
             out.push([
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(`P${oi + 1}`, 8, fill(row), 'CENTER'),
@@ -333,8 +353,14 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
             dataCell(score, 10, fill(row - 1), 'CENTER'),
         ]);
     } else if (question.type === 'ordering') {
-        const correctOrder = portableQuestion(question).metadata.correct_order ?? [];
+        const correctOrder = (portableQuestion(question).metadata.correct_order ?? []).map(String);
         const kunci = correctOrder.join(' | ');
+        // Posisi benar tiap pernyataan, sesuai kunci di baris utama.
+        const allOpts = sortedOptions(question);
+        const positionOf = (opt: ExportOption, fallback: number) => {
+            const at = correctOrder.indexOf(String(allOpts.indexOf(opt) + 1));
+            return String(at >= 0 ? at + 1 : fallback + 1);
+        };
         out.push([
             dataCell(qNo, 5, fill(row++), 'CENTER'),
             dataCell(typeLabel, 8, fill(row - 1), 'CENTER'),
@@ -347,7 +373,7 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
                 dataCell('', 5, fill(row), 'CENTER'),
                 dataCell(String(oi + 1), 8, fill(row), 'CENTER'),
                 dataCell(opt.option_text || opt.text || '', 64, fill(row)),
-                dataCell(String(oi + 1), 13, fill(row), 'CENTER'),
+                dataCell(positionOf(opt, oi), 13, fill(row), 'CENTER'),
                 dataCell('', 10, fill(row)),
             ]);
             row++;
@@ -356,11 +382,12 @@ function buildAkademikRows(question: ExportQuestion, idx: number, images: WordIm
     return out;
 }
 
-function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsList: ExportDimension[] = [], images: WordImages = new Map()): RowsForOneQuestion {
+function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsList: ExportDimension[] = [], images: WordImages = new Map(), questionNo = idx + 1): RowsForOneQuestion {
     const dataCell = imageCells(images);
-    const opts = [...(question.bank_question_options || question.options || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const opts = printableOptions(question);
     const typeLabel = TYPE_LABEL[question.type] || 'SJT';
-    const qNo = String(idx + 1);
+    const qNo = String(questionNo);
+    const questionDimension = dimensionName(question, dimensionsList);
     const fill = (row: number) => (row % 2 === 0 ? 'FFFFFF' : 'F1F0FB');
 
     const out: RowsForOneQuestion = [];
@@ -372,7 +399,7 @@ function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsL
             dataCell(qNo, 5, fill(row++), 'CENTER'),
             dataCell(typeLabel, 10, fill(row - 1), 'CENTER'),
             dataCell(question.question_text || '', 50, fill(row - 1)),
-            dataCell(question.question_dimensions?.name || '-', 20, fill(row - 1), 'CENTER'),
+            dataCell(questionDimension, 20, fill(row - 1), 'CENTER'),
             dataCell('', 15, fill(row - 1), 'CENTER'),
         ]);
         opts.forEach((opt, oi) => {
@@ -394,7 +421,7 @@ function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsL
             dataCell(qNo, 5, fill(row++), 'CENTER'),
             dataCell(typeLabel, 10, fill(row - 1), 'CENTER'),
             dataCell(question.question_text || '', 50, fill(row - 1)),
-            dataCell(question.question_dimensions?.name || '-', 20, fill(row - 1), 'CENTER'),
+            dataCell(questionDimension, 20, fill(row - 1), 'CENTER'),
             dataCell('', 15, fill(row - 1), 'CENTER'),
         ]);
         opts.forEach((opt) => {
@@ -415,7 +442,10 @@ function buildKepribadianRows(question: ExportQuestion, idx: number, dimensionsL
 
 // ─── Section builders (Stimulus, Petunjuk) ────────────────────────────────────
 
-function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
+/** Nomor soal sesuai urutan di bank (bukan urutan di dokumen pecahan). */
+const numberAt = (numbers: number[], index: number) => numbers[index] ?? index + 1;
+
+function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map(), numbers: number[] = []): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!stimuli || stimuli.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -431,11 +461,11 @@ function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQue
 
     stimuli.forEach((s) => {
         const qNos = questions
-            .map((q, i) => (q.stimulus_id === s.id ? i + 1 : null))
+            .map((q, i) => (q.stimulus_id === s.id ? numberAt(numbers, i) : null))
             .filter(Boolean)
             .join(', ');
         rows.push(dRow([
-            dataCell(qNos, 15, fill(rowIdx++), 'CENTER'),
+            dataCell(qNos || '-', 15, fill(rowIdx++), 'CENTER'),
             dataCell(s.title || '-', 20, fill(rowIdx - 1)),
             dataCell(s.content || '', 65, fill(rowIdx - 1)),
         ]));
@@ -446,7 +476,7 @@ function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQue
         if (!q.stimulus_id && q.metadata?.import_stimulus) {
             const text = q.metadata.import_stimulus;
             if (!metaStimuli.has(text)) metaStimuli.set(text, []);
-            metaStimuli.get(text)!.push(i + 1);
+            metaStimuli.get(text)!.push(numberAt(numbers, i));
         }
     });
     metaStimuli.forEach((qNos, text) => {
@@ -471,7 +501,7 @@ function buildStimulusSection(stimuli: ExportContentItem[], questions: ExportQue
     ];
 }
 
-function buildInstructionSection(instructions: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
+function buildInstructionSection(instructions: ExportContentItem[], questions: ExportQuestion[], images: WordImages = new Map(), numbers: number[] = []): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!instructions || instructions.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -487,11 +517,11 @@ function buildInstructionSection(instructions: ExportContentItem[], questions: E
 
     instructions.forEach((ins) => {
         const qNos = questions
-            .map((q, i) => (q.instruction_id === ins.id ? i + 1 : null))
+            .map((q, i) => (q.instruction_id === ins.id ? numberAt(numbers, i) : null))
             .filter(Boolean)
             .join(', ');
         rows.push(dRow([
-            dataCell(qNos, 15, fill(rowIdx++), 'CENTER'),
+            dataCell(qNos || '-', 15, fill(rowIdx++), 'CENTER'),
             dataCell(ins.title || '-', 20, fill(rowIdx - 1)),
             dataCell(ins.content || '', 65, fill(rowIdx - 1)),
         ]));
@@ -502,7 +532,7 @@ function buildInstructionSection(instructions: ExportContentItem[], questions: E
         if (!q.instruction_id && q.metadata?.import_instruction) {
             const text = q.metadata.import_instruction;
             if (!metaInstructions.has(text)) metaInstructions.set(text, []);
-            metaInstructions.get(text)!.push(i + 1);
+            metaInstructions.get(text)!.push(numberAt(numbers, i));
         }
     });
     metaInstructions.forEach((qNos, text) => {
@@ -527,7 +557,7 @@ function buildInstructionSection(instructions: ExportContentItem[], questions: E
     ];
 }
 
-function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: ExportQuestion[], images: WordImages = new Map()): (Paragraph | Table)[] {
+function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: ExportQuestion[], images: WordImages = new Map(), numbers: number[] = []): (Paragraph | Table)[] {
     const dataCell = imageCells(images);
     if (!kisiKisiList || kisiKisiList.length === 0) return [];
     const headerColor = '1E3A8A';
@@ -544,7 +574,7 @@ function buildKisiKisiSection(kisiKisiList: ExportKisiKisiItem[], questions: Exp
 
     kisiKisiList.forEach((kisi) => {
         const qNos = questions
-            .map((q, i) => (q.kisi_kisi_id === kisi.id ? i + 1 : null))
+            .map((q, i) => (q.kisi_kisi_id === kisi.id ? numberAt(numbers, i) : null))
             .filter(Boolean)
             .join(', ');
         
@@ -611,7 +641,7 @@ function makeHeader(variant: Variant, logoBuffer: ArrayBuffer | Uint8Array | nul
 function makeFooter(): Footer {
     return new Footer({
         children: [new Paragraph({
-            children: [new TextRun({ text: 'acca.icgowa.sch.id', bold: true, size: 24, color: '1E3A8A', font: 'Calibri' })],
+            children: [new TextRun({ text: documentHost(), bold: true, size: 24, color: '1E3A8A', font: 'Calibri' })],
             alignment: AlignmentType.CENTER,
         })],
     });
@@ -638,7 +668,7 @@ function makeTitleParagraph(variant: Variant, bankTitle: string): Paragraph[] {
 
 // ─── Document factory ─────────────────────────────────────────────────────────
 
-function buildQuestionTable(variant: Variant, questions: ExportQuestion[], dimensionsList: ExportDimension[] = [], images: WordImages = new Map()): Table {
+function buildQuestionTable(variant: Variant, questions: ExportQuestion[], dimensionsList: ExportDimension[] = [], images: WordImages = new Map(), numbers: number[] = []): Table {
     const color = THEME[variant].header;
     const headerCols = variant === 'akademik'
         ? [
@@ -660,8 +690,8 @@ function buildQuestionTable(variant: Variant, questions: ExportQuestion[], dimen
 
     questions.forEach((q, idx) => {
         const produced: RowsForOneQuestion = variant === 'akademik'
-            ? buildAkademikRows(q, idx, images)
-            : buildKepribadianRows(q, idx, dimensionsList, images);
+            ? buildAkademikRows(q, idx, images, numberAt(numbers, idx))
+            : buildKepribadianRows(q, idx, dimensionsList, images, numberAt(numbers, idx));
         produced.forEach((cells: RowSpec) => {
             rows.push(dRow(cells));
         });
@@ -686,15 +716,24 @@ async function fetchLogoBuffer(): Promise<ArrayBuffer | null> {
     }
 }
 
+export interface WordBuildOptions {
+    /** Nomor soal sesuai urutan bank; dipakai saat bank campuran dipecah dua dokumen. */
+    numbers?: number[];
+    /** Gambar yang sudah dimuat sebelumnya (dimuat otomatis bila tidak ada). */
+    images?: WordImages;
+}
+
 export async function buildAkademikDoc(
     questions: ExportQuestion[],
     bankInfo: ExportBankInfo,
     stimuli: ExportContentItem[] = [],
     instructions: ExportContentItem[] = [],
-    kisiKisiList: ExportKisiKisiItem[] = []
+    kisiKisiList: ExportKisiKisiItem[] = [],
+    options: WordBuildOptions = {}
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
-    const images = await loadWordImages([questions, stimuli, instructions, kisiKisiList]);
+    const images = options.images ?? await loadWordImages([questions, stimuli, instructions, kisiKisiList]);
+    const numbers = options.numbers ?? [];
     const doc = new Document({
         creator: 'adaCode CBT',
         title: THEME.akademik.title,
@@ -705,10 +744,10 @@ export async function buildAkademikDoc(
             footers: { default: makeFooter() },
             children: [
                 ...makeTitleParagraph('akademik', bankInfo?.title || '-'),
-                buildQuestionTable('akademik', questions, [], images),
-                ...buildStimulusSection(stimuli, questions, images),
-                ...buildInstructionSection(instructions, questions, images),
-                ...buildKisiKisiSection(kisiKisiList, questions, images),
+                buildQuestionTable('akademik', questions, [], images, numbers),
+                ...buildStimulusSection(stimuli, questions, images, numbers),
+                ...buildInstructionSection(instructions, questions, images, numbers),
+                ...buildKisiKisiSection(kisiKisiList, questions, images, numbers),
             ],
         }],
     });
@@ -721,10 +760,11 @@ export async function buildAkademikDoc(
 export async function buildKepribadianDoc(
     questions: ExportQuestion[],
     bankInfo: ExportBankInfo,
-    dimensionsList: ExportDimension[] = []
+    dimensionsList: ExportDimension[] = [],
+    options: WordBuildOptions = {}
 ): Promise<Blob> {
     const logoBuffer = await fetchLogoBuffer();
-    const images = await loadWordImages(questions);
+    const images = options.images ?? await loadWordImages(questions);
     const doc = new Document({
         creator: 'adaCode CBT',
         title: THEME.kepribadian.title,
@@ -735,7 +775,7 @@ export async function buildKepribadianDoc(
             footers: { default: makeFooter() },
             children: [
                 ...makeTitleParagraph('kepribadian', bankInfo?.title || '-'),
-                buildQuestionTable('kepribadian', questions, dimensionsList, images),
+                buildQuestionTable('kepribadian', questions, dimensionsList, images, options.numbers ?? []),
             ],
         }],
     });
@@ -751,26 +791,71 @@ export type ExportResult = {
     filename: string;
 };
 
+/** Dilempar bila pengguna membatalkan ekspor (bukan kegagalan). */
+export class ExportCancelledError extends Error {
+    constructor() {
+        super('Ekspor dibatalkan.');
+        this.name = 'ExportCancelledError';
+    }
+}
+
+export interface ExportWordOptions {
+    /**
+     * Dipanggil bila ada gambar yang tidak dapat dimuat. Kembalikan `true`
+     * untuk melanjutkan dengan penanda "[gambar tidak dapat dimuat]".
+     * Tanpa callback ini, ekspor dibatalkan agar gambar tidak hilang diam-diam.
+     */
+    onMissingImages?: (info: { count: number; questionNumbers: number[] }) => boolean | Promise<boolean>;
+}
+
 export async function exportQuestionsToWord(
     questions: ExportQuestion[],
     bankInfo: ExportBankInfo,
     stimuli: ExportContentItem[] = [],
     instructions: ExportContentItem[] = [],
     kisiKisiList: ExportKisiKisiItem[] = [],
-    dimensionsList: ExportDimension[] = []
+    dimensionsList: ExportDimension[] = [],
+    options: ExportWordOptions = {}
 ): Promise<ExportResult> {
-    // Group questions by variant
-    const akademikQuestions = questions.filter(q => TYPE_MAP_QUESTION_KIND[q.type] === 'akademik');
-    const kepribadianQuestions = questions.filter(q => TYPE_MAP_QUESTION_KIND[q.type] === 'kepribadian');
+    // Kelompokkan per varian sambil mempertahankan nomor soal asli di bank.
+    const numbered = questions.map((question, index) => ({ question, number: index + 1 }));
+    const akademik = numbered.filter(item => TYPE_MAP_QUESTION_KIND[item.question.type] !== 'kepribadian');
+    const kepribadian = numbered.filter(item => TYPE_MAP_QUESTION_KIND[item.question.type] === 'kepribadian');
+    const akademikQuestions = akademik.map(item => item.question);
+    const kepribadianQuestions = kepribadian.map(item => item.question);
 
     const hasAkademik = akademikQuestions.length > 0;
     const hasKepribadian = kepribadianQuestions.length > 0;
-    const safeTitle = (bankInfo?.title || 'bank').replace(/\s+/g, '_');
+    // Contoh: Bank_Soal_PAKET_2_TKA_BAHASA_INDONESIA_2026-10-25.docx
+    const safeTitle = bankFileTitle(bankInfo?.title);
+    const baseName = `${exportBaseName('bank', bankInfo?.title)}_${fileDateStamp()}`;
+
+    // Muat semua gambar sekali, lalu laporkan yang gagal per nomor soal.
+    const images = await loadWordImages([questions, stimuli, instructions, kisiKisiList]);
+    const failed = new Set(images.failed || []);
+    if (failed.size > 0) {
+        const questionNumbers = numbered
+            .filter(({ question }) => imageUrlsIn([question, question.stimulus, question.instruction]).some(url => failed.has(url)))
+            .map(item => item.number);
+        const proceed = options.onMissingImages
+            ? await options.onMissingImages({ count: failed.size, questionNumbers })
+            : false;
+        if (!proceed) {
+            if (options.onMissingImages) throw new ExportCancelledError();
+            throw new Error(`${failed.size} gambar tidak dapat dimuat. Ekspor dibatalkan agar gambar tidak hilang.`);
+        }
+    }
+
+    const buildAkademik = () => buildAkademikDoc(akademikQuestions, bankInfo, stimuli, instructions, kisiKisiList, {
+        images, numbers: akademik.map(item => item.number),
+    });
+    const buildKepribadian = () => buildKepribadianDoc(kepribadianQuestions, bankInfo, dimensionsList, {
+        images, numbers: kepribadian.map(item => item.number),
+    });
 
     if (hasAkademik && hasKepribadian) {
-        // Mixed → produce two .docx and zip them
-        const akBlob = await buildAkademikDoc(akademikQuestions, bankInfo, stimuli, instructions, kisiKisiList);
-        const kpBlob = await buildKepribadianDoc(kepribadianQuestions, bankInfo, dimensionsList);
+        // Campuran → dua .docx dalam satu zip
+        const [akBlob, kpBlob] = await Promise.all([buildAkademik(), buildKepribadian()]);
 
         const zip = new JSZip();
         zip.file(`Bank_Soal_Pengetahuan_${safeTitle}.docx`, akBlob);
@@ -780,16 +865,16 @@ export async function exportQuestionsToWord(
         return {
             kind: 'zip',
             blob: zipBlob,
-            filename: `Bank_Soal_Lengkap_${safeTitle}_${Date.now()}.zip`,
+            filename: `${baseName}.zip`,
         };
     }
 
     if (hasKepribadian) {
-        const blob = await buildKepribadianDoc(kepribadianQuestions, bankInfo, dimensionsList);
-        return { kind: 'single', blob, filename: `bank_soal_${safeTitle}_${Date.now()}.docx` };
+        const blob = await buildKepribadian();
+        return { kind: 'single', blob, filename: `${baseName}.docx` };
     }
 
-    // Default: akademik (or empty)
-    const blob = await buildAkademikDoc(akademikQuestions, bankInfo, stimuli, instructions, kisiKisiList);
-    return { kind: 'single', blob, filename: `bank_soal_${safeTitle}_${Date.now()}.docx` };
+    // Default: akademik (atau bank kosong)
+    const blob = await buildAkademik();
+    return { kind: 'single', blob, filename: `${baseName}.docx` };
 }

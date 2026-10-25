@@ -77,12 +77,16 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             if (!(Number.isInteger(schedule.duration_minutes) && schedule.duration_minutes > 0 && schedule.duration_minutes <= end - start)) issues.push('Durasi ujian tidak sesuai waktu yang tersedia');
             const relevantRooms = new Set<string>();
             let missing = 0;
+            let duplicated = 0;
             for (const userId of students) {
                 const rows = allocationsByUser.get(userId) || [];
-                if (rows.length !== 1 || !roomById.has(rows[0].pas_room_id)) missing++;
+                // Satu siswa hanya boleh di satu ruang; data ganda dilaporkan terpisah.
+                if (rows.length > 1) duplicated++;
+                else if (rows.length !== 1 || !roomById.has(rows[0].pas_room_id)) missing++;
                 else relevantRooms.add(rows[0].pas_room_id);
             }
             if (missing) issues.push(`${missing} peserta belum dialokasikan ke ruang ujian. Atur peserta pada tab Ruang`);
+            if (duplicated) issues.push(`${duplicated} peserta terdaftar di lebih dari satu ruang. Keluarkan dari salah satu ruang pada tab Ruang`);
             for (const roomId of relevantRooms) {
                 const room = roomById.get(roomId)!;
                 if (!(Number(room.capacity) > 0) || (occupantsByRoom.get(roomId)?.size || 0) > Number(room.capacity)) issues.push(`Kapasitas ${room.name} tidak mencukupi`);
