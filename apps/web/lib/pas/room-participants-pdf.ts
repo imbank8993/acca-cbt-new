@@ -1,6 +1,7 @@
 import type { PASRoomParticipants } from '@/lib/api/pas';
 import { fileDateStamp, safeFileName } from '@/lib/exam-print-model';
-import { logoDataUrl } from './administration-schedule-pdf';
+import { loadKopLogo } from '@/lib/school-logo';
+import { drawPdfKop } from './pdf-kop';
 import { formatKopParts, type ProfilSekolah } from './print-kop';
 
 export interface RoomParticipantsPeriod {
@@ -41,7 +42,7 @@ export async function downloadRoomParticipantsPdf(period: RoomParticipantsPeriod
     const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const kop = formatKopParts(period.profil_sekolah);
-    const logo = await logoDataUrl(kop.logoUrl);
+    const logo = await loadKopLogo(kop.logoUrl);
     const left = 20, right = 190, center = (left + right) / 2, bottomLimit = 275;
     const widths = [10, 72, 32, 28, 28];
     const headers = ['No', 'Nama Peserta', 'NIS / NISN', 'Kelas', 'Keterangan'];
@@ -53,33 +54,7 @@ export async function downloadRoomParticipantsPdf(period: RoomParticipantsPeriod
     let y = 0;
 
     const drawKop = () => {
-        y = 14;
-        if (logo) {
-            try { pdf.addImage(logo, logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', left, 11, 20, 20); }
-            catch { /* Kop teks tetap dicetak bila format logo tidak didukung. */ }
-        }
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFont('times', 'bold');
-        if (kop.isMadrasah) {
-            pdf.setFontSize(11);
-            pdf.text(kop.kemenagLine1, center + 6, y, { align: 'center' }); y += 4.6;
-            pdf.text(kop.kemenagLine2, center + 6, y, { align: 'center' }); y += 4.8;
-        }
-        pdf.setFontSize(14);
-        pdf.text(kop.namaMadrasah, center + 6, y, { align: 'center' }); y += 4.8;
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(8.5);
-        const contact = [kop.alamatLine, kop.kontakLine].filter(Boolean);
-        contact.forEach(line => {
-            (pdf.splitTextToSize(line, right - left - 26) as string[]).forEach(part => {
-                pdf.text(part, center + 6, y, { align: 'center' }); y += 3.7;
-            });
-        });
-        y = Math.max(y, 34);
-        pdf.setDrawColor(0, 0, 0);
-        pdf.setLineWidth(0.8); pdf.line(left, y, right, y);
-        pdf.setLineWidth(0.25); pdf.line(left, y + 0.9, right, y + 0.9);
-        y += 8;
+        y = drawPdfKop(pdf, kop, logo, { left, right, top: 10 }) + 7;
     };
 
     const drawTableHeader = () => {

@@ -1,5 +1,7 @@
 import type { PASClassSchedule, PASSession } from '@/app/types/pas';
 import { getRoomSessionInvigilators, pasDay, type PASRoomMember } from '@/lib/api/pas';
+import { loadKopLogo } from '@/lib/school-logo';
+import { drawPdfKop } from './pdf-kop';
 import { formatKopParts, type ProfilSekolah } from './print-kop';
 
 export interface SchedulePrintPeriod {
@@ -97,21 +99,6 @@ export function buildAdministrationScheduleRows(
         || a.className.localeCompare(b.className, 'id-ID'));
 }
 
-export async function logoDataUrl(url: string): Promise<string> {
-    if (!url) return '';
-    try {
-        const response = await fetch(url, { mode: 'cors' });
-        if (!response.ok) return '';
-        const blob = await response.blob();
-        return await new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-            reader.onerror = () => resolve('');
-            reader.readAsDataURL(blob);
-        });
-    } catch { return ''; }
-}
-
 /** Unduh jadwal lengkap sebagai PDF A4 lanskap dengan kop profil sekolah. */
 export async function downloadAdministrationSchedulePdf(period: SchedulePrintPeriod, rooms: SchedulePrintRoom[], sessions: SchedulePrintSession[]) {
     const rows = buildAdministrationScheduleRows(period.pas_class_schedules || [], rooms, sessions);
@@ -120,7 +107,7 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
     const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const kop = formatKopParts(period.profil_sekolah);
-    const logo = await logoDataUrl(kop.logoUrl);
+    const logo = await loadKopLogo(kop.logoUrl);
     const left = 12, right = 285, center = 148.5;
     const widths = [9, 29, 32, 55, 28, 36, 65, 19];
     const headers = ['No', 'Hari / Tanggal', 'Sesi / Jam', 'Mata Pelajaran / Bank Soal', 'Kelas', 'Ruang', 'Pengawas', 'Status'];
@@ -128,28 +115,7 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
     let y = 0;
 
     const drawPageHeader = () => {
-        y = 12;
-        if (logo) {
-            try { pdf.addImage(logo, logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', left, 10, 19, 19); }
-            catch { /* Kop teks tetap dicetak bila format logo tidak didukung. */ }
-        }
-        pdf.setTextColor(0, 0, 0);
-        pdf.setFont('times', 'bold');
-        if (kop.isMadrasah) {
-            pdf.setFontSize(10);
-            pdf.text(kop.kemenagLine1, center, y, { align: 'center' }); y += 4;
-            pdf.text(kop.kemenagLine2, center, y, { align: 'center' }); y += 4;
-        }
-        pdf.setFontSize(13);
-        pdf.text(kop.namaMadrasah, center, y, { align: 'center' }); y += 4.5;
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(8);
-        if (kop.alamatLine) { pdf.text(kop.alamatLine, center, y, { align: 'center' }); y += 3.5; }
-        if (kop.kontakLine) { pdf.text(kop.kontakLine, center, y, { align: 'center' }); y += 3.5; }
-        y = Math.max(y, 32);
-        pdf.setLineWidth(0.7); pdf.line(left, y, right, y);
-        pdf.setLineWidth(0.2); pdf.line(left, y + 0.8, right, y + 0.8);
-        y += 6;
+        y = drawPdfKop(pdf, kop, logo, { left, right, top: 8, logoSize: 21 }) + 5.5;
         pdf.setFont('times', 'bold'); pdf.setFontSize(12);
         pdf.text('JADWAL PELAKSANAAN UJIAN', center, y, { align: 'center' }); y += 5;
         pdf.setFont('times', 'normal'); pdf.setFontSize(9);

@@ -1,5 +1,6 @@
 "use client";
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { effectiveRoomFilter, matchesRoomFilter, monitoringRoomOptions } from '@/lib/monitoring-rooms';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
@@ -47,6 +48,7 @@ function MonitoringContent() {
     const [liveAlerts, setLiveAlerts] = useState<ViolationEvent[]>([]);
     const [searchName, setSearchName] = useState('');
     const [filterKelas, setFilterKelas] = useState<string[]>([]);
+    const [filterRoom, setFilterRoom] = useState('');
     const [activeTab, setActiveTab] = useState('live');
     const [attentionOnly, setAttentionOnly] = useState(false);
     const [resettingId] = useState<string | null>(null);
@@ -135,7 +137,11 @@ function MonitoringContent() {
     ).sort((a, b) => a.localeCompare(b, 'id'));
 
     // Filter daftar pengerjaan
+    // Ujian folder ASAS/AM: peserta dapat disaring per ruang tempat duduknya.
+    const roomOptions = monitoringRoomOptions(attempts.filter(a => a.exam_id === selectedExamId));
+    const roomFilter = effectiveRoomFilter(filterRoom, roomOptions);
     const filteredAttempts = attempts.filter((a) => {
+        if (!matchesRoomFilter(a, roomFilter)) return false;
         const matchName = [a.profiles?.full_name, a.profiles?.identity_number, a.kelas_name].some(value => String(value || '').toLowerCase().includes(searchName.trim().toLowerCase()));
         const matchClass = filterKelas.length === 0 || filterKelas.includes(a.kelas_name?.trim() || '');
         const matchStatus =
@@ -183,6 +189,9 @@ function MonitoringContent() {
                         onSearchChange={setSearchName}
                         classOptions={availableClasses}
                         selectedClasses={filterKelas}
+                        roomOptions={roomOptions}
+                        selectedRoom={roomFilter}
+                        onRoomChange={setFilterRoom}
                         onClassesChange={setFilterKelas}
                         status={activeTab === 'reset' ? resetStatus : activeTab === 'results' ? statusFilter : undefined}
                         onStatusChange={activeTab === 'reset' ? setResetStatus : activeTab === 'results' ? setStatusFilter : undefined}

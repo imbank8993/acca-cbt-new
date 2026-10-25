@@ -1,6 +1,7 @@
 "use client";
 
 import { formatKopParts, type ProfilSekolah } from '@/lib/pas/print-kop';
+import { useKopLogo } from '@/lib/useKopLogo';
 import React, { useState, useEffect } from 'react';
 import {
     Printer,
@@ -62,6 +63,8 @@ export function ValidationReportModal({
         }, 0);
         return () => { active = false; window.clearTimeout(timer); };
     }, [isOpen, validationId]);
+
+    const kopLogo = useKopLogo(schoolProfile?.logo_url);
 
     if (!isOpen) return null;
 
@@ -197,11 +200,13 @@ export function ValidationReportModal({
                         >
                             {/* Kop Surat Resmi */}
                             <div className="validation-letterhead">
-                                {kop.logoUrl && (
-                                    // School logos can come from the organization's configured external host.
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={kop.logoUrl} alt={`Logo ${kop.namaMadrasah}`} className="validation-letterhead-logo" />
-                                )}
+                                <div className="validation-letterhead-logo-cell">
+                                    {(kopLogo?.dataUrl || kop.logoUrl) && (
+                                        // Data URL logo (or the configured external URL while it loads).
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={kopLogo?.dataUrl || kop.logoUrl} alt={`Logo ${kop.namaMadrasah}`} className="validation-letterhead-logo" />
+                                    )}
+                                </div>
                                 <div className="validation-letterhead-text">
                                     {kop.isMadrasah && <>
                                         <div className="validation-letterhead-ministry">{kop.kemenagLine1}</div>
@@ -413,15 +418,25 @@ export function ValidationReportModal({
                 #validation-report-print-sheet :is(td, th, [class*="border-"]) { border-color: #cbd5e1 !important; }
                 #validation-report-print-sheet .validation-letterhead {
                     display: grid;
-                    grid-template-columns: 72px minmax(0, 1fr) 72px;
+                    grid-template-columns: 84px minmax(0, 1fr) 84px;
                     align-items: center;
-                    gap: 12px;
-                    padding-bottom: 12px;
-                    margin-bottom: 24px;
-                    border-bottom: 4px double #000;
+                    column-gap: 10px;
+                    position: relative;
+                    padding-bottom: 8px;
+                    margin-bottom: 26px;
+                    border-bottom: 3px solid #000 !important;
                     break-inside: avoid;
                 }
-                .validation-letterhead-logo { width: 72px; height: 84px; object-fit: contain; }
+                #validation-report-print-sheet .validation-letterhead::after {
+                    content: '';
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    bottom: -6px;
+                    border-top: 1px solid #000;
+                }
+                .validation-letterhead-logo-cell { width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
+                .validation-letterhead-logo { display: block; max-width: 84px; max-height: 84px; width: auto; height: auto; object-fit: contain; }
                 .validation-letterhead-text { grid-column: 2; text-align: center; }
                 .validation-letterhead-ministry { font-size: 12pt; font-weight: bold; line-height: 1.25; }
                 #validation-report-print-sheet .validation-letterhead h1 { font-size: 15pt; font-weight: bold; line-height: 1.25; margin: 0; }

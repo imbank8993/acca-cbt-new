@@ -7,6 +7,7 @@ const { assertAnswerKeysReleased } = require('../src/common/answer-key-release.t
 const { StorageAccessService } = require('../src/storage/storage-access.service.ts');
 const { StorageController } = require('../src/storage/storage.controller.ts');
 const { StorageService } = require('../src/storage/storage.service.ts');
+const { DbService } = require('../src/prisma/prisma-db-adapter.ts');
 const { fileKey, isPublicFile } = require('../src/storage/storage-file-policy.ts');
 const { StudentsService } = require('../src/students/students.service.ts');
 const { ExamReviewService } = require('../src/analytics/exam-review.service.ts');
@@ -129,13 +130,14 @@ test('HTTP media guard rejects anonymous and internal-key callers but streams to
     }
     passport.use(new TestStrategy());
     t.after(() => passport.unuse('jwt'));
-    const { access } = fixture();
+    const { access, db } = fixture();
     const moduleRef = await Test.createTestingModule({
         imports: [PassportModule.register({ defaultStrategy: 'jwt' })],
         controllers: [StorageController],
         providers: [
             { provide: StorageService, useValue: { getObject: async () => ({ contentType: 'image/png', stream: Readable.from(['image']) }) } },
             { provide: StorageAccessService, useValue: access },
+            { provide: DbService, useValue: db },
         ],
     }).compile();
     const app = moduleRef.createNestApplication();

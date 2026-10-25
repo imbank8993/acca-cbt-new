@@ -5,6 +5,7 @@ import {
     IsBoolean,
     IsInt,
     IsNotEmpty,
+    IsObject,
     IsOptional,
     IsString,
     IsUUID,
@@ -73,6 +74,18 @@ export class UpdatePASCommitteeChairDto {
     @IsOptional()
     @IsString()
     committee_chair_nip?: string;
+}
+
+/** Isi divalidasi rinci oleh `normalizePasExamSettings` (bidang, tipe, dan bank soal folder). */
+export class UpdatePASExamSettingsDto {
+    @ApiProperty({ example: { show_results: true, show_answer_keys: true, is_safe_mode: true, max_violations: 3 } })
+    @IsObject()
+    defaults!: Record<string, unknown>;
+
+    @ApiPropertyOptional({ description: 'Timpaan per bank soal: { [bankId]: { show_answer_keys: true } }' })
+    @IsOptional()
+    @IsObject()
+    banks?: Record<string, Record<string, unknown>>;
 }
 
 export class UpdatePASPeriodDto {

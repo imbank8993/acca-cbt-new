@@ -16,6 +16,10 @@ interface MonitoringParticipantFiltersProps {
     classOptions: string[];
     selectedClasses: string[];
     onClassesChange: (value: string[]) => void;
+    /** Ruang ujian folder ASAS/AM; filter ruang hanya tampil bila ada pilihan. */
+    roomOptions?: Array<{ value: string; label: string; count?: number }>;
+    selectedRoom?: string;
+    onRoomChange?: (value: string) => void;
     status?: string;
     onStatusChange?: (value: string) => void;
     includeActiveStatus?: boolean;
@@ -31,6 +35,9 @@ export function MonitoringParticipantFilters({
     classOptions,
     selectedClasses,
     onClassesChange,
+    roomOptions = [],
+    selectedRoom = '',
+    onRoomChange,
     status = 'all',
     onStatusChange,
     includeActiveStatus = true,
@@ -77,6 +84,18 @@ export function MonitoringParticipantFilters({
                         ...classOptions.map(c => ({ value: c, label: c })),
                     ]}
                 />
+
+                {onRoomChange && roomOptions.length > 0 && (
+                    <FilterSelect
+                        label="Ruang"
+                        value={selectedRoom}
+                        onChange={onRoomChange}
+                        options={[
+                            { value: '', label: 'Semua ruang' },
+                            ...roomOptions.map(room => ({ value: room.value, label: room.count !== undefined ? `${room.label} (${room.count})` : room.label })),
+                        ]}
+                    />
+                )}
 
                 {onStatusChange && (
                     <FilterSelect

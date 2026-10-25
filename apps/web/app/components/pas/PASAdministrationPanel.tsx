@@ -44,6 +44,9 @@ import {
     type PASRoomMember,
 } from '@/lib/api/pas';
 import { formatKopParts, KOP_AND_A4_CSS, renderKopHTML, type ProfilSekolah } from '@/lib/pas/print-kop';
+import { drawPdfKop } from '@/lib/pas/pdf-kop';
+import { loadKopLogo } from '@/lib/school-logo';
+import { useKopLogo } from '@/lib/useKopLogo';
 import { generateQrMatrix, generateQrSvgDataUrl } from '@/lib/pas/qr-svg';
 import { schoolTodayDate } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
@@ -85,6 +88,25 @@ export interface PASAdministrationPanelProps {
 }
 
 type AdminSubView = 'overview' | 'editor' | 'berita_acara_a4' | 'daftar_hadir_a4';
+
+type OverviewStatus = 'draft' | 'submitted' | 'rejected' | 'approved';
+type OverviewStatusFilter = 'all' | OverviewStatus;
+
+/** Same rule as the status badge, so the filter counts always match what is shown in the list. */
+function overviewStatus(item: PASAdministrationOverviewItem): OverviewStatus {
+    if (item.status === 'approved' && (item.signature_version || 1) >= 3) return 'approved';
+    if (item.status === 'submitted') return 'submitted';
+    if (item.status === 'rejected') return 'rejected';
+    return 'draft';
+}
+
+const OVERVIEW_FILTERS: Array<{ value: OverviewStatusFilter; label: string }> = [
+    { value: 'all', label: 'Semua' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'submitted', label: 'Menunggu persetujuan' },
+    { value: 'rejected', label: 'Perlu perbaikan' },
+    { value: 'approved', label: 'Disahkan' },
+];
 
 interface StudentAttendanceDraft {
     status: PASAttendanceStatus;
@@ -263,6 +285,9 @@ export default function PASAdministrationPanel({
     const [overviewItems, setOverviewItems] = useState<PASAdministrationOverviewItem[]>([]);
     const [isLoadingOverview, setIsLoadingOverview] = useState(false);
     const [overviewError, setOverviewError] = useState<string | null>(null);
+    const [overviewFilter, setOverviewFilter] = useState<OverviewStatusFilter>('all');
+    const [overviewSearch, setOverviewSearch] = useState('');
+    const overviewListRef = useRef<HTMLDivElement>(null);
 
     const [loadError, setLoadError] = useState<string | null>(null);
     const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -490,6 +515,39 @@ export default function PASAdministrationPanel({
     const pendingApprovalCount = useMemo(() => {
         return overviewItems.filter((i) => i.status === 'submitted').length;
     }, [overviewItems]);
+
+    const overviewCounts = useMemo(() => {
+        const counts: Record<OverviewStatusFilter, number> = {
+            all: overviewItems.length, draft: 0, submitted: 0, rejected: 0, approved: 0,
+        };
+        for (const item of overviewItems) counts[overviewStatus(item)] += 1;
+        return counts;
+    }, [overviewItems]);
+
+    // Filtered list grouped per exam date, ordered by session start time then room name.
+    const overviewGroups = useMemo(() => {
+        const query = overviewSearch.trim().toLowerCase();
+        const matches = overviewItems.filter(item =>
+            (overviewFilter === 'all' || overviewStatus(item) === overviewFilter) &&
+            (!query || [item.room_name, item.session_name, item.invigilator_name, ...item.assigned_invigilators]
+                .some(value => String(value ?? '').toLowerCase().includes(query))));
+        matches.sort((a, b) =>
+            a.exam_date.localeCompare(b.exam_date) ||
+            a.start_time.localeCompare(b.start_time) ||
+            a.room_name.localeCompare(b.room_name, 'id', { numeric: true }));
+        const groups: Array<{ date: string; items: PASAdministrationOverviewItem[] }> = [];
+        for (const item of matches) {
+            const last = groups[groups.length - 1];
+            if (last?.date === item.exam_date) last.items.push(item);
+            else groups.push({ date: item.exam_date, items: [item] });
+        }
+        return groups;
+    }, [overviewItems, overviewFilter, overviewSearch]);
+
+    const showOverviewList = (filter: OverviewStatusFilter) => {
+        setOverviewFilter(filter);
+        overviewListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const handleSaveSlot = async (
         action: 'save_draft' | 'submit' | 'approve' = 'save_draft',
@@ -736,6 +794,7 @@ export default function PASAdministrationPanel({
             ),
         [slot?.period.organization_name, slot?.profil_sekolah],
     );
+    const kopLogo = useKopLogo(kopParts.logoUrl);
 
     const verifiedBadgeSvgHtml =
         '<svg width="15" height="15" viewBox="0 0 16 16" fill="#2563eb" style="display:inline-block; vertical-align:middle; margin-right:4px; flex-shrink:0;"><path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zm.287 5.984-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7 8.793l2.646-2.647a.5.5 0 0 1 .708.708"/></svg>';
@@ -766,12 +825,13 @@ export default function PASAdministrationPanel({
         const effectiveChairNip = currentSlot.report.committee_chair_nip || '';
         const effectiveProcNip = currentSlot.report.proctor_nip || '';
 
-        const kopHtml = renderKopHTML(
-            currentSlot.profil_sekolah || {
-                nama: currentSlot.period.organization_name,
-                jenjang: 'MA',
-            },
-        );
+        const kopProfile = currentSlot.profil_sekolah || {
+            nama: currentSlot.period.organization_name,
+            jenjang: 'MA',
+        };
+        const kopHtml = renderKopHTML(kopProfile, {
+            logoSrc: (await loadKopLogo(formatKopParts(kopProfile).logoUrl))?.dataUrl,
+        });
 
         const rowsHtml = currentSlot.students
             .map((st, idx) => {
@@ -1025,57 +1085,10 @@ ${KOP_AND_A4_CSS}
             },
         );
 
-        // Try loading school logo for KOP if available
-        if (kParts.logoUrl) {
-            try {
-                const resp = await fetch(kParts.logoUrl, { mode: 'cors' });
-                if (resp.ok) {
-                    const blob = await resp.blob();
-                    const logoDataUrl = await new Promise<string>((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-                        reader.onerror = () => resolve('');
-                        reader.readAsDataURL(blob);
-                    });
-                    if (logoDataUrl) {
-                        const imgFormat = logoDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
-                        pdf.addImage(logoDataUrl, imgFormat, marginLeft, 10, 21, 21);
-                    }
-                }
-            } catch {
-                // Continue gracefully without logo if blocked by CORS
-            }
-        }
-
-        // KOP Sekolah (sama dengan KOP Laporan Guru Asuh pada acca-new)
+        // KOP Sekolah: logo profil sekolah + teks Kementerian Agama, sama dengan semua dokumen ujian.
         const centerX = marginLeft + contentW / 2;
-        pdf.setFont('times', 'bold');
-        if (kParts.isMadrasah) {
-            pdf.setFontSize(11.5);
-            pdf.text(kParts.kemenagLine1, centerX, y, { align: 'center' });
-            y += 4.8;
-            pdf.text(kParts.kemenagLine2, centerX, y, { align: 'center' });
-            y += 5.4;
-        }
-        pdf.setFontSize(14);
-        pdf.text(kParts.namaMadrasah, centerX, y, { align: 'center' });
-        y += 4.5;
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(8.8);
-        if (kParts.alamatLine) {
-            pdf.text(kParts.alamatLine, centerX, y, { align: 'center' });
-            y += 3.8;
-        }
-        if (kParts.kontakLine) {
-            pdf.text(kParts.kontakLine, centerX, y, { align: 'center' });
-            y += 3.8;
-        }
-        y = Math.max(y, 33);
-        pdf.setLineWidth(0.8);
-        pdf.line(marginLeft, y, pageW - marginRight, y);
-        pdf.setLineWidth(0.25);
-        pdf.line(marginLeft, y + 0.9, pageW - marginRight, y + 0.9);
-        y += 6.5;
+        const kopLogo = await loadKopLogo(kParts.logoUrl);
+        y = drawPdfKop(pdf, kParts, kopLogo, { left: marginLeft, right: pageW - marginRight, top: 10 }) + 5.6;
 
         // Judul & Subjudul Dokumen
         pdf.setFont('times', 'bold');
@@ -1371,15 +1384,6 @@ ${KOP_AND_A4_CSS}
                             { value: 'daftar_hadir_a4', label: 'Daftar hadir (A4)' },
                         ]}
                     />
-                    {resolvedRole !== 'pengawas' && <Button variant="outline" size="sm"
-                        disabled={isPrintingSchedule || !period.pas_class_schedules?.length}
-                        isLoading={isPrintingSchedule} onClick={() => void handleDownloadSchedule()}
-                        leftIcon={<Printer size={14} />}>
-                        Unduh Jadwal PDF
-                    </Button>}
-                    {resolvedRole !== 'pengawas' && pendingApprovalCount > 0 && (
-                        <span className="text-xs text-amber-700">{pendingApprovalCount} menunggu persetujuan</span>
-                    )}
                 </div>
 
                 {/* Right side: Committee Chair quick config */}
@@ -1403,45 +1407,134 @@ ${KOP_AND_A4_CSS}
                 </div>}
             </div>
 
-            {resolvedRole !== 'pengawas' && <RoomParticipantsDownload period={{
-                ...period,
-                profil_sekolah: period.profil_sekolah || slot?.profil_sekolah,
-            }} rooms={rooms} />}
-
             {subView === 'overview' ? (
                 <div className="space-y-4">
-                    <dl className="flex flex-wrap gap-x-6 gap-y-2 py-2">
-                        {[
-                            ['Ruang & sesi', overviewItems.length],
-                            ['Menunggu persetujuan', pendingApprovalCount],
-                            ['Disahkan', overviewItems.filter(i => i.status === 'approved').length],
-                            ['Draft', overviewItems.filter(i => i.status !== 'approved' && i.status !== 'submitted').length],
-                        ].map(([label, count]) => (
-                            <div key={label} className="flex items-baseline gap-2 text-xs">
-                                <dt className="text-slate-500">{label}</dt>
-                                <dd className="font-semibold tabular-nums text-slate-800">{count}</dd>
+                    {/* ── Dokumen ujian: semua unduhan folder di satu tempat ── */}
+                    <section aria-labelledby="pas-exam-documents" className="space-y-3">
+                        <h3 id="pas-exam-documents" className="text-sm font-bold text-slate-900">Dokumen Ujian</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <div className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="flex items-start gap-3">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#3083FF]">
+                                        <Printer size={17} />
+                                    </span>
+                                    <div className="min-w-0">
+                                        <h4 className="text-sm font-semibold text-slate-900">Jadwal Pelaksanaan</h4>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            {period.pas_class_schedules?.length
+                                                ? `${period.pas_class_schedules.length} jadwal kelas · ${rooms.length} ruang · ${sessions.length} sesi`
+                                                : 'Belum ada jadwal kelas'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button variant="outline" size="sm" className="mt-auto w-full"
+                                    disabled={isPrintingSchedule || !period.pas_class_schedules?.length}
+                                    isLoading={isPrintingSchedule} onClick={() => void handleDownloadSchedule()}
+                                    leftIcon={<Download size={14} />}>
+                                    Unduh PDF
+                                </Button>
                             </div>
-                        ))}
-                    </dl>
+
+                            {resolvedRole !== 'pengawas' && <RoomParticipantsDownload period={{
+                                ...period,
+                                profil_sekolah: period.profil_sekolah || slot?.profil_sekolah,
+                            }} rooms={rooms} />}
+
+                            <div className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="flex items-start gap-3">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                                        <FileCheck2 size={17} />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="text-sm font-semibold text-slate-900">Berita Acara &amp; Daftar Hadir</h4>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            <span className="font-semibold tabular-nums text-slate-800">
+                                                {overviewCounts.approved}/{overviewCounts.all}
+                                            </span> disahkan
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                                    <div className="h-full rounded-full bg-emerald-500 transition-all"
+                                        style={{ width: `${overviewCounts.all ? Math.round((overviewCounts.approved / overviewCounts.all) * 100) : 0}%` }} />
+                                </div>
+                                {pendingApprovalCount > 0 && (
+                                    <button type="button" onClick={() => showOverviewList('submitted')}
+                                        className="self-start text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
+                                        {pendingApprovalCount} menunggu persetujuan
+                                    </button>
+                                )}
+                                <Button variant="outline" size="sm" className="mt-auto w-full"
+                                    disabled={!overviewCounts.all}
+                                    onClick={() => showOverviewList('all')}>
+                                    Lihat per ruang ↓
+                                </Button>
+                            </div>
+                        </div>
+                    </section>
 
                     {/* Table of all slots */}
-                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                        <div className="px-5 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div>
+                    <div ref={overviewListRef} className="scroll-mt-4 bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="px-5 py-4 border-b border-slate-100 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                                     <FileCheck2 size={16} className="text-[#3083FF]" />
                                     Dokumen ruang ujian
                                 </h3>
+                                <div className="flex items-center gap-2">
+                                    <label className="relative block">
+                                        <span className="sr-only">Cari ruang, sesi, atau pengawas</span>
+                                        <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="search"
+                                            value={overviewSearch}
+                                            onChange={event => setOverviewSearch(event.target.value)}
+                                            placeholder="Cari ruang / pengawas"
+                                            className="h-8 w-full sm:w-52 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#3083FF] focus:outline-none"
+                                        />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => void loadOverview()}
+                                        disabled={isLoadingOverview}
+                                        title="Segarkan data"
+                                        className="inline-flex shrink-0 items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                                    >
+                                        <RefreshCw size={13} className={isLoadingOverview ? 'animate-spin text-[#3083FF]' : ''} />
+                                        <span className="hidden sm:inline">Segarkan</span>
+                                    </button>
+                                </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => void loadOverview()}
-                                disabled={isLoadingOverview}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer self-start sm:self-auto"
-                            >
-                                <RefreshCw size={13} className={isLoadingOverview ? 'animate-spin text-[#3083FF]' : ''} />
-                                Segarkan Data
-                            </button>
+                            <div role="tablist" aria-label="Filter status dokumen" className="flex gap-1.5 overflow-x-auto pb-0.5">
+                                {OVERVIEW_FILTERS
+                                    .filter(filter => filter.value !== 'rejected' || overviewCounts.rejected > 0)
+                                    .map(filter => {
+                                        const active = overviewFilter === filter.value;
+                                        const count = overviewCounts[filter.value];
+                                        const attention = (filter.value === 'submitted' || filter.value === 'rejected') && count > 0;
+                                        return (
+                                            <button
+                                                key={filter.value}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={active}
+                                                onClick={() => setOverviewFilter(filter.value)}
+                                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                                                    active
+                                                        ? 'border-[#3083FF] bg-[#3083FF] text-white'
+                                                        : attention
+                                                            ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                                                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {filter.label}
+                                                <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${
+                                                    active ? 'bg-white/25 text-white' : attention ? 'bg-amber-200/70 text-amber-900' : 'bg-slate-100 text-slate-600'
+                                                }`}>{count}</span>
+                                            </button>
+                                        );
+                                    })}
+                            </div>
                         </div>
 
                         {overviewError && <p role="alert" className="px-5 py-3 text-xs text-red-700">{overviewError}</p>}
@@ -1454,24 +1547,39 @@ ${KOP_AND_A4_CSS}
                             <div className="p-12 text-center text-slate-400 text-xs">
                                 Belum ada ruang atau sesi ujian yang dijadwalkan pada folder ini.
                             </div>
+                        ) : overviewGroups.length === 0 ? (
+                            <div className="p-10 text-center text-xs text-slate-500">
+                                Tidak ada dokumen yang cocok dengan filter ini.{' '}
+                                <button type="button" onClick={() => { setOverviewFilter('all'); setOverviewSearch(''); }}
+                                    className="font-semibold text-[#3083FF] hover:underline cursor-pointer">
+                                    Tampilkan semua
+                                </button>
+                            </div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse text-xs">
                                     <thead>
                                         <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                             <th className="py-3 px-4">Ruang &amp; Sesi</th>
-                                            <th className="py-3 px-3">Tanggal</th>
                                             <th className="py-3 px-3">Pengawas</th>
                                             <th className="py-3 px-3 text-center">Kehadiran</th>
                                             <th className="py-3 px-3">Status</th>
                                             <th className="py-3 px-4 text-right">Aksi</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {overviewItems.map((item) => {
-                                            const isSubmitted = item.status === 'submitted';
-                                            const isApproved = item.status === 'approved' && (item.signature_version || 1) >= 3;
-                                            const isRejected = item.status === 'rejected';
+                                    {overviewGroups.map(group => (
+                                    <tbody key={group.date} className="divide-y divide-slate-100 border-b border-slate-100 last:border-b-0">
+                                        <tr className="bg-slate-50/80">
+                                            <th colSpan={5} scope="colgroup" className="px-4 py-2 text-left text-[11px] font-semibold text-slate-600">
+                                                {formatIndonesianLongDate(group.date)}
+                                                <span className="ml-2 font-normal text-slate-400">{group.items.length} ruang &amp; sesi</span>
+                                            </th>
+                                        </tr>
+                                        {group.items.map((item) => {
+                                            const status = overviewStatus(item);
+                                            const isSubmitted = status === 'submitted';
+                                            const isApproved = status === 'approved';
+                                            const isRejected = status === 'rejected';
 
                                             return (
                                                 <tr
@@ -1486,9 +1594,6 @@ ${KOP_AND_A4_CSS}
                                                             <Clock size={11} className="text-slate-400" />
                                                             <span>{item.session_name} ({item.start_time.substring(0, 5)} - {item.end_time.substring(0, 5)})</span>
                                                         </div>
-                                                    </td>
-                                                    <td className="py-3 px-3 font-medium text-slate-700 whitespace-nowrap">
-                                                        {formatIndonesianLongDate(item.exam_date)}
                                                     </td>
                                                     <td className="py-3 px-3">
                                                         <div className="text-slate-800 font-medium">
@@ -1586,6 +1691,7 @@ ${KOP_AND_A4_CSS}
                                             );
                                         })}
                                     </tbody>
+                                    ))}
                                 </table>
                             </div>
                         )}
@@ -2186,17 +2292,17 @@ ${KOP_AND_A4_CSS}
                             style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: '10.5pt', lineHeight: 1.38 }}
                         >
                             {/* KOP SURAT RESMI (Sama persis dengan KOP Laporan Guru Asuh pada acca-new) */}
-                            <div className="relative block min-h-[80px]">
-                                {kopParts.logoUrl ? (
-                                    <Image unoptimized width={96} height={96}
-                                        src={kopParts.logoUrl}
-                                        alt="Logo Madrasah"
-                                        className="absolute left-0 top-0 w-[80px] h-[80px] object-contain"
-                                    />
-                                ) : (
-                                    <div className="absolute left-0 top-0 w-[80px] h-[80px]" />
-                                )}
-                                <div className="w-full text-center">
+                            <div className="grid grid-cols-[84px_minmax(0,1fr)_84px] items-center gap-x-[10px] min-h-[84px]">
+                                <div className="flex h-[84px] w-[84px] items-center justify-center">
+                                    {(kopLogo?.dataUrl || kopParts.logoUrl) && (
+                                        <Image unoptimized width={84} height={84}
+                                            src={kopLogo?.dataUrl || kopParts.logoUrl}
+                                            alt={`Logo ${kopParts.namaMadrasah}`}
+                                            className="max-h-[84px] max-w-[84px] h-auto w-auto object-contain"
+                                        />
+                                    )}
+                                </div>
+                                <div className="min-w-0 text-center">
                                     {kopParts.isMadrasah && (
                                         <>
                                             <div className="font-bold uppercase leading-[1.25]" style={{ fontSize: '12pt' }}>
@@ -2221,6 +2327,7 @@ ${KOP_AND_A4_CSS}
                                         </div>
                                     )}
                                 </div>
+                                <div aria-hidden="true" />
                             </div>
                             <div className="border-t-[3px] border-black mt-[6px]" />
                             <div className="border-t border-black mt-[2px] mb-[16px]" />

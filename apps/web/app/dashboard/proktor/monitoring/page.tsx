@@ -4,6 +4,7 @@ import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { effectiveRoomFilter, matchesRoomFilter, monitoringRoomOptions } from '@/lib/monitoring-rooms';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { PASRoomMonitoringLink } from '@/app/components/monitoring/PASRoomMonitoringLink';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
@@ -79,6 +80,7 @@ function MonitoringContent() {
     const [viewQuestionFilter, setViewQuestionFilter] = useState<'salah' | 'benar'>('salah');
     const [searchName, setSearchName] = useMonitoringFilterState('searchName', '');
     const [filterKelas, setFilterKelas] = useMonitoringFilterState<string[]>('filterKelas', []);
+    const [filterRoom, setFilterRoom] = useMonitoringFilterState<string>('filterRoom', '');
     const [filterStatus, setFilterStatus] = useMonitoringFilterState('filterStatus', 'all');
     const [resetStatus, setResetStatus] = useMonitoringFilterState('resetStatus', 'all');
     const [onlyAttention, setOnlyAttention] = useMonitoringFilterState('onlyAttention', false);
@@ -276,7 +278,11 @@ function MonitoringContent() {
         attempts.flatMap((a) => String(a.kelas_name || '').split(',').map((s: string) => s.trim()).filter((s: string) => s && s !== '-'))
     )].sort();
     const deferredSearchName = useDeferredValue(searchName);
+    // Ujian folder ASAS/AM: peserta dapat disaring per ruang tempat duduknya.
+    const roomOptions = monitoringRoomOptions(attempts.filter(a => a.exam_id === selectedExamId));
+    const roomFilter = effectiveRoomFilter(filterRoom, roomOptions);
     const filteredAttempts = attempts
+        .filter((a) => matchesRoomFilter(a, roomFilter))
         .filter((a) => !deferredSearchName.trim() || (a.profiles?.full_name || '').toLowerCase().includes(deferredSearchName.trim().toLowerCase()))
         .filter((a) => filterKelas.length === 0 || String(a.kelas_name || '').split(',').map((s: string) => s.trim()).some(kelas => filterKelas.includes(kelas)))
         .sort((a, b) => Number(b.canReset === true && b.status === 'auto_submitted') - Number(a.canReset === true && a.status === 'auto_submitted') || (b.warning_count ?? 0) - (a.warning_count ?? 0));
@@ -357,6 +363,9 @@ function MonitoringContent() {
                         onSearchChange={setSearchName}
                         classOptions={kelasOptions}
                         selectedClasses={filterKelas}
+                        roomOptions={roomOptions}
+                        selectedRoom={roomFilter}
+                        onRoomChange={setFilterRoom}
                         onClassesChange={setFilterKelas}
                         status={activeTab === 'reset' ? resetStatus : activeTab === 'results' ? filterStatus : undefined}
                         includeActiveStatus={false}
@@ -452,7 +461,7 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
-                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/proktor/monitoring/${id}`)} onRecover={canResetParticipants ? handleResetAttempt : undefined} />
+                                <MonitoringResultsTable attempts={finishedAttempts} hasAnyAttempts={attempts.length > 0} onViewDetails={id => router.push(`/dashboard/proktor/monitoring/${id}`)} onRecover={canResetParticipants ? handleResetAttempt : undefined} showRoomInfo={roomOptions.length > 0} />
                             </motion.div>
                         )}
 

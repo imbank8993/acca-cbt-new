@@ -30,6 +30,8 @@ import { StorageAccessService } from './storage-access.service';
 import { canUploadSvg, fileKey, fileServingHeaders, isPublicFile } from './storage-file-policy';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MAX_UPLOAD_BYTES, StorageService } from './storage.service';
+import { DbService } from '../prisma/prisma-db-adapter';
+import { fetchExternalLogo, isLogoContentType, pickSchoolLogoUrl } from './school-logo';
 
 /**
  * Folder path yang boleh dikirim klien.
@@ -65,7 +67,53 @@ function sanitizeFolder(raw: string, callerId: string): string {
 export class StorageController {
   private readonly logger = new Logger(StorageController.name);
 
-  constructor(private readonly storage: StorageService, private readonly access: StorageAccessService) {}
+  constructor(
+    private readonly storage: StorageService,
+    private readonly access: StorageAccessService,
+    private readonly db?: DbService,
+  ) {}
+
+  /**
+   * Logo sekolah untuk kop dokumen (PDF, halaman cetak, pratinjau), selalu
+   * dari origin aplikasi. Logo di bucket sendiri dibaca langsung; logo di host
+   * luar diambilkan server karena browser tidak boleh menyematkannya ke PDF
+   * tanpa izin CORS dari host tersebut.
+   */
+  @RateLimit({ name: 'storage-school-logo', limit: 120, windowMs: 60_000 })
+  @Get('school-logo')
+  @ApiOperation({ summary: 'Logo profil sekolah untuk kop dokumen' })
+  async serveSchoolLogo(@Res() res: Response) {
+    if (!this.db) throw new NotFoundException('Logo sekolah belum diatur.');
+    const [profile, organization] = await Promise.all([
+      this.db.from('profil_sekolah').select('logo_url').limit(1).maybeSingle(),
+      this.db.from('cbt_organizations').select('logo_url').order('created_at', { ascending: true }).limit(1).maybeSingle(),
+    ]);
+    const url = pickSchoolLogoUrl(profile, organization);
+    if (!url) throw new NotFoundException('Logo sekolah belum diatur.');
+
+    const send = (contentType: string) => {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('Vary', 'Cookie, Authorization');
+      for (const [name, value] of Object.entries(fileServingHeaders(contentType))) res.setHeader(name, value);
+    };
+
+    const key = this.storage.objectKeyFromUrl(url);
+    if (key) {
+      const obj = key.startsWith('lms-private/') ? null : await this.storage.getObject(key);
+      if (!obj || !isLogoContentType(obj.contentType)) throw new NotFoundException('Logo sekolah tidak ditemukan.');
+      send(obj.contentType);
+      if (obj.contentLength !== undefined) res.setHeader('Content-Length', obj.contentLength);
+      obj.stream.pipe(res);
+      return;
+    }
+
+    const logo = await fetchExternalLogo(url);
+    if (!logo) throw new NotFoundException('Logo sekolah tidak dapat diambil dari alamatnya.');
+    send(logo.contentType);
+    res.setHeader('Content-Length', logo.body.length);
+    res.end(logo.body);
+  }
 
   @Get('status')
   @ApiOperation({ summary: 'Status konfigurasi penyimpanan R2' })

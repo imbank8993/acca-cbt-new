@@ -90,10 +90,17 @@ export function formatKopParts(profil: ProfilSekolah | null | undefined) {
 }
 
 /**
- * Membangun HTML KOP surat (letterhead) resmi dari data `profil_sekolah`,
- * sama persis dengan KOP Laporan Guru Asuh pada `acca-new`.
+ * Membangun HTML KOP surat (letterhead) resmi dari data `profil_sekolah`.
+ *
+ * Tata letak tiga kolom: logo | teks | ruang kosong selebar logo, sehingga
+ * teks selalu simetris di tengah halaman dan tidak menabrak logo. Berikan
+ * `logoSrc` (PNG data URL dari `loadKopLogo`) agar logo pasti ikut tercetak
+ * walaupun berkas aslinya berada di host lain.
  */
-export function renderKopHTML(profil: ProfilSekolah | null | undefined): string {
+export function renderKopHTML(
+    profil: ProfilSekolah | null | undefined,
+    options: { logoSrc?: string | null } = {},
+): string {
     const parts = formatKopParts(profil);
 
     const kemenagLines = parts.isMadrasah
@@ -101,19 +108,21 @@ export function renderKopHTML(profil: ProfilSekolah | null | undefined): string 
            <div class="kop-kemenag">${escHtml(parts.kemenagLine2)}</div>`
         : '';
 
-    const logo = parts.logoUrl
-        ? `<img src="${escHtml(parts.logoUrl)}" class="kop-logo" alt="Logo" crossorigin="anonymous" />`
-        : '<div class="kop-logo"></div>';
+    const logoSrc = options.logoSrc || parts.logoUrl;
+    const logo = logoSrc
+        ? `<img src="${escHtml(logoSrc)}" class="kop-logo" alt="Logo ${escHtml(parts.namaMadrasah)}" />`
+        : '';
 
     return `
     <div class="kop">
-      ${logo}
+      <div class="kop-logo-cell">${logo}</div>
       <div class="kop-text">
         ${kemenagLines}
         <div class="kop-nama">${escHtml(parts.namaMadrasah)}</div>
         ${parts.alamatLine ? `<div class="kop-alamat">${escHtml(parts.alamatLine)}</div>` : ''}
         ${parts.kontakLine ? `<div class="kop-alamat">${escHtml(parts.kontakLine)}</div>` : ''}
       </div>
+      <div class="kop-logo-cell" aria-hidden="true"></div>
     </div>
     <div class="kop-rule-thick"></div>
     <div class="kop-rule-thin"></div>`;
@@ -134,9 +143,10 @@ export const KOP_AND_A4_CSS = `
   @media screen and (max-width: 820px) {
       body { zoom: calc(100vw / 820); }
   }
-  .kop { display: flex; align-items: center; gap: 14px; position: relative; display: block; min-height: 80px; }
-  .kop-logo { width: 80px; height: 80px; object-fit: contain; flex-shrink: 0; position: absolute; left: 0; top: 0; margin: 0; }
-  .kop-text { flex: 1; text-align: center; width: 100%; }
+  .kop { display: grid; grid-template-columns: 84px minmax(0, 1fr) 84px; align-items: center; column-gap: 10px; min-height: 84px; break-inside: avoid; }
+  .kop-logo-cell { width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
+  .kop-logo { display: block; max-width: 84px; max-height: 84px; width: auto; height: auto; object-fit: contain; }
+  .kop-text { text-align: center; min-width: 0; }
   .kop-kemenag { font-size: 12pt; font-weight: bold; text-transform: uppercase; line-height: 1.25; }
   .kop-nama { font-size: 15pt; font-weight: bold; text-transform: uppercase; line-height: 1.25; }
   .kop-alamat { font-size: 9pt; color: #222; line-height: 1.25; }

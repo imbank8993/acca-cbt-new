@@ -1,3 +1,4 @@
+import type { PASExamSettingsConfig } from '@/lib/pas/exam-settings';
 // =====================================================
 // PAS/PAT System Types
 // =====================================================
@@ -20,6 +21,8 @@ export interface Subject {
 
 export interface PASPeriod {
   screenshot_enabled?: boolean;
+  /** Pengaturan ujian folder (bawaan + per bank soal). */
+  exam_settings?: PASExamSettingsConfig | null;
   profil_sekolah?: ProfilSekolah | null;
   id: string;
   organization_id: string;

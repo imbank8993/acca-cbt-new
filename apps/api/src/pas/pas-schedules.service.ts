@@ -20,6 +20,7 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
 import { loadPasReadiness } from './pas-readiness';
+import { pasExamSettingsColumns, resolvePasExamSettings, storedPasExamSettings } from '../common/pas-exam-settings';
 
 /**
  * Jadwal kelas dan sesi waktu sebuah periode PAS, serta pembangkitan ujiannya.
@@ -386,7 +387,7 @@ export class PasSchedulesService {
 
             const { data: period } = await db
                 .from('cbt_pas_periods')
-                .select('id, organization_id, name, type, school_year, semester, is_locked, screenshot_enabled, start_date, end_date')
+                .select('id, organization_id, name, type, school_year, semester, is_locked, screenshot_enabled, exam_settings, start_date, end_date')
                 .eq('id', schedule.pas_period_id)
                 .maybeSingle();
 
@@ -433,6 +434,8 @@ export class PasSchedulesService {
             const bankTitle = (bank as { title?: string }).title || 'Ujian';
             const className = (cls as { name?: string }).name || 'N/A';
             const folderName = String(periodRow.name || '').trim();
+            // Pengaturan folder (bawaan + timpaan bank soal), sama dengan bidang ujian biasa.
+            const settings = pasExamSettingsColumns(resolvePasExamSettings(storedPasExamSettings(periodRow), schedule.bank_id));
 
             const payload = {
                 organization_id: periodRow.organization_id,
@@ -445,16 +448,13 @@ export class PasSchedulesService {
                 duration_minutes: duration,
                 start_time: startTime,
                 end_time: endTime,
-                randomize_questions: true,
-                randomize_options: true,
-                show_results: false,
+                ...settings.columns,
                 is_published: activate,
                 status: 'scheduled',
                 exam_type: periodRow.type || 'pas',
                 metadata: {
-                    is_safe_mode: true,
+                    ...settings.metadata,
                     is_pas_exam: true,
-                    screenshot_enabled: periodRow.screenshot_enabled === true,
                     pas_period_id: schedule.pas_period_id,
                     pas_period_name: folderName || null,
                     pas_schedule_id: scheduleId,

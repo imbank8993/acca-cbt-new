@@ -13,9 +13,15 @@ import { insertIdempotently } from '../common/idempotent-create';
 import { listOperationalSubjects } from '../common/subject-catalog';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { normalizeSqlTime } from '../common/school-time';
-import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASPeriodDto } from './dto/pas.dto';
+import type { CreatePASPeriodDto, UpdatePASCommitteeChairDto, UpdatePASExamSettingsDto, UpdatePASPeriodDto } from './dto/pas.dto';
 import { writablePasPeriod, pasDateRange, storedPasDate } from '../common/pas-period-policy';
 import { loadPasReadiness } from './pas-readiness';
+import {
+    normalizePasExamSettings,
+    pasExamSettingsColumns,
+    resolvePasExamSettings,
+    storedPasExamSettings,
+} from '../common/pas-exam-settings';
 
 /**
  * Periode PAS/PAT dan data pendukungnya.
@@ -110,7 +116,7 @@ export class PasService {
         if (schedulesError) throw new BadRequestException('Daftar jadwal belum dapat dibaca.');
         const readiness = await loadPasReadiness(this.db, period, schedules || []);
 
-        return { ...(period as object), profil_sekolah: {
+        return { ...(period as object), exam_settings: storedPasExamSettings(period as { exam_settings?: unknown; screenshot_enabled?: boolean }), profil_sekolah: {
             ...(schoolProfile || {}),
             nama: schoolProfile?.nama || organization?.name || 'MADRASAH',
             logo_url: schoolProfile?.logo_url || organization?.logo_url || null,
@@ -196,6 +202,90 @@ export class PasService {
             const { data, error: updateError } = await db.from('cbt_pas_periods').update(updateData).eq('id', periodId).select().single();
             if (updateError) throw new BadRequestException('Folder ujian belum berhasil diperbarui.');
             return data;
+        });
+    }
+
+    /**
+     * Simpan pengaturan ujian folder (bawaan + per bank soal) dan terapkan ke
+     * ujian yang sudah dibangkitkan.
+     *
+     * - Nilai & pembahasan selalu ikut diperbarui, kecuali ujian yang sedang
+     *   dalam koreksi kunci (rilisnya menunggu penilaian ulang selesai).
+     * - Acak soal/opsi, mode aman, batas pelanggaran, dan berbagi layar tidak
+     *   diubah pada ujian yang sudah dikerjakan siswa, supaya peserta dalam satu
+     *   ujian tidak mendapat aturan berbeda. Ujian itu dilaporkan kembali.
+     */
+    async updateExamSettings(user: AuthUser, periodId: string, dto: UpdatePASExamSettingsDto) {
+        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        return this.db.transaction(async db => {
+            await writablePasPeriod(db, periodId);
+            const { data: scheduleRows, error: scheduleError } = await db.from('cbt_pas_class_schedules')
+                .select('id, bank_id, exam_id').eq('pas_period_id', periodId);
+            if (scheduleError) throw new BadRequestException('Jadwal folder belum dapat dibaca.');
+            const schedules = (scheduleRows || []) as Array<{ id: string; bank_id: string | null; exam_id: string | null }>;
+            const config = normalizePasExamSettings(dto, new Set(schedules.map(row => row.bank_id).filter((id): id is string => Boolean(id))));
+
+            const { error: saveError } = await db.from('cbt_pas_periods')
+                .update({ exam_settings: config, screenshot_enabled: config.defaults.screenshot_enabled })
+                .eq('id', periodId);
+            if (saveError) throw new BadRequestException('Pengaturan ujian belum berhasil disimpan.');
+
+            const examIds = [...new Set(schedules.map(row => row.exam_id).filter((id): id is string => Boolean(id)))];
+            const result = { exam_settings: config, updated: 0, security_locked: [] as string[], results_locked: [] as string[] };
+            if (!examIds.length) return result;
+
+            // Serialize with new attempts and other exam updates before checking
+            // history or merging metadata, so concurrent requests cannot undo each other.
+            await lockExamsForDeletion(db, examIds);
+
+            const [{ data: examRows, error: examError }, { data: attemptRows, error: attemptError }] = await Promise.all([
+                db.from('cbt_exams').select('id, title, description, show_results, randomize_questions, randomize_options, metadata').in('id', examIds),
+                db.from('cbt_exam_attempts').select('exam_id').in('exam_id', examIds),
+            ]);
+            if (examError || attemptError) throw new BadRequestException('Ujian folder belum dapat diperiksa.');
+            const exams = new Map(((examRows || []) as any[]).map(exam => [exam.id as string, exam]));
+            const started = new Set(((attemptRows || []) as Array<{ exam_id: string }>).map(row => row.exam_id));
+            const now = new Date().toISOString();
+
+            for (const schedule of schedules) {
+                const exam = schedule.exam_id ? exams.get(schedule.exam_id) : null;
+                if (!exam) continue;
+                const label = String(exam.description || exam.title || 'Ujian').split('|')[0].trim();
+                const { columns, metadata } = pasExamSettingsColumns(resolvePasExamSettings(config, schedule.bank_id));
+                const meta: Record<string, unknown> = { ...(exam.metadata || {}) };
+                const update: Record<string, unknown> = {};
+
+                const correcting = Boolean((meta.key_correction as { state?: string } | undefined)?.state) &&
+                    (meta.key_correction as { state?: string }).state !== 'ready';
+                const resultsChanged = exam.show_results !== columns.show_results || meta.show_answer_keys !== metadata.show_answer_keys;
+                if (correcting && resultsChanged) result.results_locked.push(label);
+                else {
+                    update.show_results = columns.show_results;
+                    meta.show_answer_keys = metadata.show_answer_keys;
+                }
+
+                const securityChanged = exam.randomize_questions !== columns.randomize_questions ||
+                    exam.randomize_options !== columns.randomize_options ||
+                    meta.is_safe_mode !== metadata.is_safe_mode ||
+                    (meta.max_violations === undefined ? 3 : meta.max_violations) !== metadata.max_violations ||
+                    (meta.screenshot_enabled === true) !== metadata.screenshot_enabled;
+                if (started.has(exam.id)) {
+                    if (securityChanged) result.security_locked.push(label);
+                } else {
+                    update.randomize_questions = columns.randomize_questions;
+                    update.randomize_options = columns.randomize_options;
+                    Object.assign(meta, {
+                        is_safe_mode: metadata.is_safe_mode,
+                        max_violations: metadata.max_violations,
+                        screenshot_enabled: metadata.screenshot_enabled,
+                    });
+                }
+
+                const { error } = await db.from('cbt_exams').update({ ...update, metadata: meta, updated_at: now }).eq('id', exam.id);
+                if (error) throw new BadRequestException(`Pengaturan ${label} belum berhasil diterapkan.`);
+                result.updated += 1;
+            }
+            return result;
         });
     }
 

@@ -16,12 +16,16 @@ test('same PAS folder reveals bank and class without renaming exams or changing 
     const b=makeExam({id:'biology',metadata:{bank_title:'Biologi XI'}});
     const c=makeExam({id:'math-b',description:'Matematika XI • Kelas XI B | 2026/2027 | PAS 1'});
     assert.notEqual(helpers.monitoringExamLabel(a),helpers.monitoringExamLabel(b));
-    assert.notEqual(helpers.monitoringExamDetails(a),helpers.monitoringExamDetails(c));
-    assert.match(helpers.monitoringExamDetails(a),/XI A.*2026.2027/);
+    assert.notEqual(helpers.monitoringExamLabel(a),helpers.monitoringExamLabel(c));
+    // Ujian folder ditampilkan per kelas; nama folder dan periode menjadi keterangan.
+    assert.equal(helpers.monitoringExamLabel(a),'Kelas XI A · Matematika XI');
+    assert.equal(helpers.monitoringExamLabel(c),'Kelas XI B · Matematika XI');
+    assert.equal(helpers.monitoringExamDetails(a),'PAS Ganjil · 2026/2027 · PAS 1');
+    assert.deepEqual(helpers.sortMonitoringExams([c,b,a],0).map(e=>e.id),['biology','math-a','math-b']);
     assert.equal(a.title,'PAS Ganjil'); assert.equal(a.id,'math-a');
     assert.equal(helpers.monitoringExamLabel(makeExam({title:'Harian',metadata:null,description:null})),'Harian');
     assert.equal(helpers.monitoringExamDetails(makeExam({description:null,subject:'Bahasa Arab'})),'Bahasa Arab');
-    assert.equal(helpers.monitoringExamLabel(makeExam({metadata:{bank_title:42}})),'PAS Ganjil');
+    assert.equal(helpers.monitoringExamLabel(makeExam({metadata:{bank_title:42}})),'Kelas XI A · Matematika XI');
 });
 
 test('picker keeps class and schedule visible after selection and forwards distinct exam IDs', () => {
@@ -41,9 +45,9 @@ test('picker keeps class and schedule visible after selection and forwards disti
     let chosen;
     const html=renderToStaticMarkup(React.createElement(mod.exports.default,{exams,now:Date.parse('2026-10-17T00:01:00Z'),value:'math-b',onChange:v=>chosen=v}));
     assert.match(html,/Kelas XI B/); assert.match(html,/Asia.Makassar/); assert.match(html,/90 menit/);
-    assert.equal(props.value,'math-b'); assert.match(props.options[0].subLabel,/Kelas XI A/);
-    assert.match(props.options[1].subLabel,/Kelas XI B/);
-    assert.match(props.options[0].label,/PAS Ganjil.*Matematika XI/);
+    assert.equal(props.value,'math-b'); assert.match(props.options[0].label,/^Kelas XI A · Matematika XI$/);
+    assert.match(props.options[1].label,/^Kelas XI B · Matematika XI$/);
+    assert.match(props.options[0].subLabel,/PAS Ganjil · 2026\/2027 · PAS 1 · .*90 menit/);
     props.onChange('math-a'); assert.equal(chosen,'math-a');
     assert.match(props.searchPlaceholder,/kelas/);
     const unsafe=makeExam({description:'<img src=x onerror=alert(1)>'});

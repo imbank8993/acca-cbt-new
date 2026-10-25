@@ -28,6 +28,7 @@ import {
     CreatePASPeriodDto,
     CreatePASRoomDto,
     CreatePASScheduleDto,
+    UpdatePASExamSettingsDto,
     CreatePASSessionDto,
     GeneratePASExamsDto,
     PASActivationDto,
@@ -113,6 +114,17 @@ export class PasController {
         @Body() dto: UpdatePASPeriodDto,
     ) {
         return this.pas.updatePeriod(user, periodId, dto);
+    }
+
+    @Put('periods/:periodId/exam-settings')
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Pengaturan ujian folder (bawaan + per bank soal), diterapkan ke ujian yang sudah dibangkitkan' })
+    updateExamSettings(
+        @CurrentUser() user: AuthUser,
+        @Param('periodId', ParseUUIDPipe) periodId: string,
+        @Body() dto: UpdatePASExamSettingsDto,
+    ) {
+        return this.pas.updateExamSettings(user, periodId, dto);
     }
 
     @Patch('periods/:periodId/committee-chair')

@@ -1,6 +1,7 @@
 import type { PASPeriod,PASSession } from '@/app/types/pas';
 import type { OrganizationClass } from './proctor';
 import { apiCreate,apiGet,apiSend } from './client';
+import type { PASExamSettings, PASExamSettingsSaveResult } from '@/lib/pas/exam-settings';
 
 export interface PASSubjectSummary {
     id: string;
@@ -128,6 +129,18 @@ export function updatePASPeriodAction(
         `/api/pas/periods/${encodeURIComponent(periodId)}`,
         data,
         'PATCH',
+    );
+}
+
+/** Simpan pengaturan ujian folder dan terapkan ke ujian yang sudah dibangkitkan. */
+export function updatePASExamSettingsAction(
+    periodId: string,
+    data: { defaults: PASExamSettings; banks: Record<string, Partial<PASExamSettings>> },
+) {
+    return apiSend<PASExamSettingsSaveResult>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}/exam-settings`,
+        data,
+        'PUT',
     );
 }
 

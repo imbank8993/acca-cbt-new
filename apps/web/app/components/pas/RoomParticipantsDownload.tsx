@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Users } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { listPASRoomParticipants } from '@/lib/api/pas';
@@ -38,23 +38,34 @@ export function RoomParticipantsDownload({ period, rooms }: {
     };
 
     return (
-        <section aria-label="Unduh daftar peserta ruang" className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3">
+        <section aria-label="Unduh daftar peserta ruang"
+            className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#3083FF]">
+                    <Users size={17} />
+                </span>
+                <div className="min-w-0">
+                    <h4 className="text-sm font-semibold text-slate-900">Daftar Peserta</h4>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                        {rooms.length ? `${rooms.length} ruang · satu kop untuk setiap ruang` : 'Belum ada ruang ujian'}
+                    </p>
+                </div>
+            </div>
+            <div className="mt-auto flex flex-col gap-2">
                 <InlineSelect
                     value={roomId}
                     onChange={setSelectedRoom}
-                    disabled={isDownloading}
+                    disabled={isDownloading || !rooms.length}
                     title="Pilih ruang untuk daftar peserta"
-                    minWidth="220px"
-                    height="36px"
+                    minWidth="100%"
+                    height="34px"
                     options={[{ value: 'all', label: 'Semua ruang' }, ...rooms.map(room => ({ value: room.id, label: room.name }))]}
                 />
-                <Button variant="outline" size="sm" disabled={isDownloading || !rooms.length}
+                <Button variant="outline" size="sm" className="w-full" disabled={isDownloading || !rooms.length}
                     isLoading={isDownloading} leftIcon={<Download size={14} />}
                     onClick={() => void download()}>
-                    Unduh Daftar Peserta
+                    Unduh PDF
                 </Button>
-                <p className="text-xs text-slate-500">PDF A4 dengan kop sekolah untuk setiap ruang.</p>
             </div>
             {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         </section>

@@ -2,16 +2,36 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Clock, DoorOpen, Loader2, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calculator, Clock, DoorOpen, Loader2, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
+import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
+import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
+import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
+import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
+import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
+import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
+import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
+import { Button } from '@/app/components/ui/button';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
+import { calculateExamIRT } from '@/lib/api/grading';
 import { listPASMonitoringSlots, type PASMonitoringSlot } from '@/lib/api/pas';
-import { finishAttemptAction, getExamAttemptsAction, type ExamAttemptRecord, type OrganizationExam } from '@/lib/api/proctor';
+import {
+    finishAttemptAction,
+    getExamAnswersForAnalysisAction,
+    getExamAttemptsAction,
+    listOrganizationExams,
+    type ExamAttemptRecord,
+    type ItemAnalysis,
+    type OrganizationExam,
+} from '@/lib/api/proctor';
+import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
+import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
+import { buildItemAnalysis } from '@/lib/item-analysis';
 import { formatStudentName } from '@/lib/monitoring-health';
-import { schoolTodayDate, utcToSchoolLocalDateTime } from '@/lib/school-time';
+import { getSchoolTimeZone, schoolTodayDate, utcToSchoolLocalDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 
 type StaffRole = 'admin' | 'proktor' | 'pengawas';
@@ -77,18 +97,41 @@ function SlotCard({ slot, active, onSelect }: { slot: PASMonitoringSlot; active:
     </button>;
 }
 
+type RoomTab = 'live' | 'list' | 'answers' | 'results' | 'analysis' | 'reset' | 'screen' | 'admin';
+
+/** Tab monitoring ruang. Hasil & Analisis untuk Admin/Proktor; Pengecualian layar hanya bila ada ujian yang mewajibkan berbagi layar. */
+export function roomTabs(userRole: StaffRole, options: { canScreen: boolean }): Array<[RoomTab, string]> {
+    const staff = userRole !== 'pengawas';
+    return [
+        ['live', 'Peserta aktif'],
+        ['list', 'Daftar peserta'],
+        ['answers', 'Jawaban'],
+        ...(staff ? [['results', 'Hasil'], ['analysis', 'Analisis']] as Array<[RoomTab, string]> : []),
+        ['reset', 'Reset massal'],
+        ...(options.canScreen ? [['screen', 'Pengecualian layar']] as Array<[RoomTab, string]> : []),
+        ['admin', 'Absensi & berita acara'],
+    ];
+}
+
 function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBack }: {
     slot: PASMonitoringSlot; userRole: StaffRole; monitoringBasePath: string; attemptBasePath?: string; onBack?: () => void;
 }) {
     const router = useRouter();
     const [attemptsByExam, setAttemptsByExam] = useState<Record<string, ExamAttemptRecord[]>>({});
+    const [examRecords, setExamRecords] = useState<Record<string, OrganizationExam>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [tab, setTab] = useState<'live' | 'list' | 'admin'>('live');
+    const [tab, setTab] = useState<RoomTab>('live');
     const [search, setSearch] = useState('');
     const [attentionOnly, setAttentionOnly] = useState(false);
     const [selectedAttemptKey, setSelectedAttemptKey] = useState<string | null>(null);
+    const [focusExamId, setFocusExamId] = useState(slot.exams[0]?.exam_id || '');
+    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; error?: string } | null>(null);
+    const [analysisLoading, setAnalysisLoading] = useState(false);
+    const [resetAttempt, setResetAttempt] = useState<ExamAttemptRecord | null>(null);
+    const [busy, setBusy] = useState(false);
     const request = useRef(0);
+    const analysisRequest = useRef(0);
 
     const load = useCallback(async (silent = false) => {
         const id = ++request.current;
@@ -114,6 +157,16 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     }, [load]);
     useAutoRefresh(() => void load(true), REFRESH_INTERVAL.monitoring);
 
+    // Hak akses per ujian (reset, kelola, koreksi kunci) dan pengaturannya, sama dengan monitoring ujian biasa.
+    useEffect(() => {
+        let active = true;
+        const ids = new Set(slot.exams.map(exam => exam.exam_id));
+        listOrganizationExams()
+            .then(list => { if (active) setExamRecords(Object.fromEntries(list.filter(exam => ids.has(exam.id)).map(exam => [exam.id, exam]))); })
+            .catch(() => { /* Tanpa data ujian, aksi yang butuh izin tetap tersembunyi. */ });
+        return () => { active = false; };
+    }, [slot.exams]);
+
     const examLabel = useMemo(() => new Map(slot.exams.map(exam => [exam.exam_id, `${exam.class_name} · ${exam.bank_title}`])), [slot.exams]);
     const attempts = useMemo(() => slotAttempts(slot, attemptsByExam), [slot, attemptsByExam]);
     const query = search.trim().toLocaleLowerCase('id-ID');
@@ -123,16 +176,105 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     const finished = attempts.filter(attempt => FINISHED.includes(attempt.status)).length;
     const attention = activeMonitoringRows(attempts, 'attention').length;
     const canFinish = userRole !== 'pengawas';
+    const canReset = (examId: string) => examRecords[examId]?.canResetParticipants === true;
+    const screenExams = slot.exams.filter(exam => examRecords[exam.exam_id]?.canManage === true && examRecords[exam.exam_id]?.metadata?.screenshot_enabled === true);
+    const tabs = roomTabs(userRole, { canScreen: screenExams.length > 0 });
+    const activeTab: RoomTab = tabs.some(([id]) => id === tab) ? tab : 'live';
+    const focusExam = examRecords[focusExamId];
+    const focusLabel = examLabel.get(focusExamId) || '';
+    const examDuration = (examId: string) => examRecords[examId]?.duration_minutes ?? examRecords[examId]?.duration;
+    const longestDuration = Math.max(0, ...slot.exams.map(exam => examDuration(exam.exam_id) || 0)) || undefined;
+    const viewAnswers = attemptBasePath ? (id: string) => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined;
+    const recover = (attempt: ExamAttemptRecord) => {
+        if (canReset(attempt.exam_id) && attempt.canReset === true) setResetAttempt(attempt);
+    };
+
     const finish = async (attempt: ExamAttemptRecord, reason: string) => {
         const result = await finishAttemptAction(attempt.id, reason);
         if (!result.success) return result.error || 'Pengerjaan belum dapat diselesaikan.';
         await load(true);
         return null;
     };
+
+    const loadAnalysis = useCallback(async (examId: string) => {
+        if (!examId) return;
+        const id = ++analysisRequest.current;
+        setAnalysisLoading(true);
+        try {
+            const [data, examAttempts] = await Promise.all([getExamAnswersForAnalysisAction(examId), getExamAttemptsAction(examId)]);
+            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts) });
+        } catch (loadError) {
+            if (id === analysisRequest.current) setAnalysis({ examId, items: [], error: loadError instanceof Error ? loadError.message : 'Analisis belum dapat dimuat.' });
+        } finally {
+            if (id === analysisRequest.current) setAnalysisLoading(false);
+        }
+    }, []);
+
+    const openTab = (next: RoomTab) => {
+        setTab(next);
+        if (next === 'analysis' && analysis?.examId !== focusExamId) void loadAnalysis(focusExamId);
+    };
+    const changeFocusExam = (examId: string) => {
+        setFocusExamId(examId);
+        if (activeTab === 'analysis') void loadAnalysis(examId);
+    };
+
+    const exportResults = async () => {
+        if (!focusExamId) return;
+        setBusy(true);
+        try {
+            const [freshAttempts, freshAnalysis, timeZone] = await Promise.all([
+                getExamAttemptsAction(focusExamId), getExamAnswersForAnalysisAction(focusExamId), getSchoolTimeZone(),
+            ]);
+            if (!freshAttempts.length) throw new Error('Data peserta belum tersedia. Muat ulang monitoring sebelum export.');
+            if (freshAttempts.some(a => a.status !== 'belum') && (freshAnalysis.questions.length || freshAttempts.some(a => (a.total_questions || 0) > 0)) && !freshAnalysis.detailed) {
+                throw new Error('Analisis rinci belum tersedia. Coba kembali setelah layanan penilaian tersedia.');
+            }
+            await exportDetailedAnalysisToExcel({
+                exam: focusExam, attempts: freshAttempts, analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+            });
+        } catch (exportError) {
+            await alertDialog({ title: 'Export Belum Berhasil', text: exportError instanceof Error ? exportError.message : 'Export belum dapat dibuat.', variant: 'danger' });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const calculateIrt = async () => {
+        if (!focusExamId) return;
+        const confirmed = await confirmDialog({
+            title: 'Kalkulasi Skor IRT?',
+            text: `Nilai seluruh peserta ${focusLabel} akan dihitung ulang berdasarkan tingkat kesulitan butir soal.`,
+            confirmText: 'Ya, Hitung Skor IRT',
+            variant: 'primary',
+        });
+        if (!confirmed) return;
+        setBusy(true);
+        try {
+            const result = await calculateExamIRT(focusExamId);
+            await alertDialog(result.success
+                ? { title: 'Kalkulasi IRT Selesai', text: `${result.count ?? 0} skor peserta telah diperbarui.${result.warnings?.length ? `\n\nPeringatan:\n${result.warnings.map(warning => `• ${warning}`).join('\n')}` : ''}`, variant: 'success' }
+                : { title: 'Gagal Kalkulasi IRT', text: result.error || 'Terjadi kesalahan sistem', variant: 'danger' });
+            await load(true);
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const administrationExam = {
         id: slot.exams[0]?.exam_id, exam_type: slot.period.type, title: slot.period.name,
         metadata: { pas_period_id: slot.period.id, pas_schedule_id: slot.exams[0]?.schedule_id },
     } as unknown as OrganizationExam;
+    const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim() === 'irt' || type.trim().startsWith('irt_'));
+    const resettable = filtered.filter(attempt => canReset(attempt.exam_id));
+    const showSearch = !['admin', 'analysis', 'screen'].includes(activeTab);
+    const examPicker = (label: string) => slot.exams.length > 1 && <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">{label}
+        <select value={focusExamId} onChange={event => changeFocusExam(event.target.value)}
+            className="max-w-[320px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium">
+            {slot.exams.map(exam => <option key={exam.exam_id} value={exam.exam_id}>{exam.class_name} · {exam.bank_title}</option>)}
+        </select>
+    </label>;
 
     return <section className="space-y-4" aria-label={`Monitoring ${slot.room.name} ${slot.session.name}`}>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -155,29 +297,66 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
             <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Ujian di ruang ini">
                 {slot.exams.map(exam => <a key={exam.exam_id} href={`${monitoringBasePath}?exam=${encodeURIComponent(exam.exam_id)}`}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:border-blue-300 hover:text-blue-700"
-                    title="Buka monitoring per ujian (jawaban, reset, hasil)">{exam.class_name} · {exam.bank_title} <span className="text-slate-400">({exam.student_count})</span></a>)}
+                    title="Buka monitoring seluruh peserta ujian ini (semua ruang)">{exam.class_name} · {exam.bank_title} <span className="text-slate-400">({exam.student_count})</span></a>)}
             </div>
         </div>
 
-        <nav className="flex gap-1 rounded-lg bg-slate-100 p-1 text-xs font-semibold" aria-label="Bagian monitoring ruang">
-            {([['live', 'Peserta aktif'], ['list', 'Daftar peserta'], ['admin', 'Absensi & berita acara']] as const).map(([id, label]) =>
-                <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}
-                    className={`flex-1 rounded-md px-3 py-2 ${tab === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>)}
+        <nav className="flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 text-xs font-semibold [&>button]:shrink-0" aria-label="Bagian monitoring ruang">
+            {tabs.map(([id, label]) =>
+                <button key={id} type="button" aria-pressed={activeTab === id} onClick={() => openTab(id)}
+                    className={`flex-1 whitespace-nowrap rounded-md px-3 py-2 ${activeTab === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>)}
         </nav>
 
-        {tab !== 'admin' && <div className="flex flex-wrap items-center gap-3">
+        {showSearch && <div className="flex flex-wrap items-center gap-3">
             <input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cari nama, NIS, kelas, atau mapel…" aria-label="Cari peserta"
                 className="min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500/20" />
-            {tab === 'live' && <label className="inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={attentionOnly} onChange={event => setAttentionOnly(event.target.checked)} />Hanya yang perlu perhatian</label>}
+            {activeTab === 'live' && <label className="inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={attentionOnly} onChange={event => setAttentionOnly(event.target.checked)} />Hanya yang perlu perhatian</label>}
         </div>}
 
         {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertCircle size={14} className="mt-0.5 shrink-0" />{error}</div>}
 
-        {loading && !attempts.length ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat peserta ruang…</div>
-            : tab === 'live' ? <ActiveParticipantsPanel key={slot.key} attempts={filtered} attentionOnly={attentionOnly}
+        {activeTab === 'admin' ? <MonitoringPASAdministrationPanel key={slot.key} exam={administrationExam} attempts={attempts} userRole={userRole} />
+            : activeTab === 'analysis' ? <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {examPicker('Analisis ujian')}
+                    <p className="text-[11px] text-slate-500">Mencakup seluruh peserta {focusLabel || 'ujian ini'}, termasuk yang duduk di ruang lain.</p>
+                </div>
+                {analysisLoading && analysis?.examId !== focusExamId ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat analisis…</div>
+                    : analysis?.error ? <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertCircle size={14} className="mt-0.5 shrink-0" />{analysis.error}
+                        <button type="button" className="ml-auto font-semibold underline" onClick={() => void loadAnalysis(focusExamId)}>Coba lagi</button></div>
+                    : <ItemAnalysisPanel key={analysis?.examId || focusExamId} analysis={analysis?.examId === focusExamId ? analysis.items : []} />}
+            </div>
+            : activeTab === 'screen' ? <div className="space-y-4">
+                {screenExams.map(exam => <section key={exam.exam_id} aria-label={`Pengecualian layar ${exam.class_name} ${exam.bank_title}`} className="space-y-2">
+                    {screenExams.length > 1 && <h3 className="text-xs font-bold text-slate-700">{exam.class_name} · {exam.bank_title}</h3>}
+                    <ScreenShareExceptionsPanel examId={exam.exam_id} attempts={attempts.filter(attempt => attempt.exam_id === exam.exam_id)} onChanged={() => void load(true)} />
+                </section>)}
+            </div>
+            : loading && !attempts.length ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat peserta ruang…</div>
+            : activeTab === 'live' ? <ActiveParticipantsPanel key={slot.key} attempts={filtered} attentionOnly={attentionOnly}
                 onFinish={canFinish ? finish : undefined}
-                onViewDetails={attemptBasePath ? id => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined} />
-            : tab === 'list' ? <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                onViewDetails={viewAnswers} />
+            : activeTab === 'answers' ? <MonitoringHealthPanel key={slot.key} attempts={filtered} defaultExpanded
+                onRecover={slot.exams.some(exam => canReset(exam.exam_id)) ? recover : undefined}
+                onViewDetails={viewAnswers} />
+            : activeTab === 'results' ? <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    {examPicker('Tindakan untuk')}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusExamId && <ExamKeyCorrectionButton key={focusExamId} examId={focusExamId} onComplete={() => void load(true)} />}
+                        {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
+                        <Button variant="outline" size="sm" icon="export" onClick={() => void exportResults()} disabled={busy || !focusExamId}>Export</Button>
+                    </div>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <MonitoringResultsTable attempts={filtered.filter(attempt => attempt.status !== 'in_progress')} hasAnyAttempts={attempts.length > 0}
+                        onViewDetails={id => viewAnswers?.(id)} onRecover={slot.exams.some(exam => canReset(exam.exam_id)) ? recover : undefined} />
+                </div>
+            </div>
+            : activeTab === 'reset' ? (resettable.length || slot.exams.some(exam => canReset(exam.exam_id))
+                ? <BulkResetPanel key={slot.key} attempts={resettable} examDuration={longestDuration} onRefresh={() => void load(true)} />
+                : <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">Reset memerlukan akses admin, proktor, atau pengawas yang ditugaskan pada ujian ini.</p>)
+            : <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <div className="overflow-x-auto" role="region" aria-label="Daftar peserta ruang" tabIndex={0}><table className="w-full sm:min-w-[640px] text-left text-xs">
                     <thead className="bg-slate-50 text-xs sm:text-[11px] text-slate-500"><tr>{['Peserta', 'Kelas', 'Bank soal', 'Status', 'Peringatan'].map(label => <th key={label} scope="col" className={`${label === 'Peserta' ? 'p-3 sm:px-4 sm:py-3' : label === 'Status' ? 'p-3 w-[115px] sm:w-auto sm:px-4 sm:py-3' : 'hidden px-4 py-3 sm:table-cell'} font-semibold`}>{label}</th>)}</tr></thead>
                     <tbody>{[...filtered].sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id')).map(attempt => {
@@ -198,10 +377,17 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                     attempt={filtered.find(attempt => `${attempt.exam_id}:${attempt.id}` === selectedAttemptKey) || attempts.find(attempt => `${attempt.exam_id}:${attempt.id}` === selectedAttemptKey) || null}
                     onClose={() => setSelectedAttemptKey(null)}
                     showSessionDetails
-                    onViewAnswers={attemptBasePath ? id => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined}
+                    onViewAnswers={viewAnswers}
                 />
-            </div>
-            : <MonitoringPASAdministrationPanel key={slot.key} exam={administrationExam} attempts={attempts} userRole={userRole} />}
+            </div>}
+
+        <ResetExamModal
+            open={Boolean(resetAttempt) && resetAttempt?.canReset === true}
+            attempt={resetAttempt}
+            examDuration={resetAttempt ? examDuration(resetAttempt.exam_id) : undefined}
+            onClose={() => setResetAttempt(null)}
+            onSuccess={() => void load(true)}
+        />
     </section>;
 }
 
