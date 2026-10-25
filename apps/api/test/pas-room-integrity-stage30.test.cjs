@@ -289,6 +289,28 @@ test('ROOM-12: tanggal tugas harus valid dan berada dalam rentang folder', async
     assert.equal(db.writes.length, 0);
 });
 
+test('ROOM-12b: tanggal folder dari basis data (string tengah malam UTC) tetap diterima', async () => {
+    // Adapter basis data menyerialkan kolom DATE sebagai "YYYY-MM-DDT00:00:00.000Z".
+    const data = tables();
+    Object.assign(data.cbt_pas_periods[0], { start_date: '2026-10-19T00:00:00.000Z', end_date: '2026-10-23T00:00:00.000Z' });
+    const db = fixtureDb(data);
+    const service = new PasRoomsService(db, authz);
+    const result = await service.assignInvigilators(user, 'room-b', ['teacher-1'], 'session-1', DAY);
+    assert.equal(result.assigned, 1);
+    await assert.rejects(service.assignInvigilators(user, 'room-b', ['teacher-1'], 'session-1', '2026-11-01'), /di antara 2026-10-19 dan 2026-10-23/);
+    assert.equal((await service.copyInvigilators(user, 'period-1', DAY, '2026-10-21')).copied, 2);
+});
+
+test('ROOM-12c: input pengguna tetap ketat; hanya tanggal tersimpan yang memakai storedPasDate', () => {
+    const { pasDate, storedPasDate } = require('../src/common/pas-period-policy.ts');
+    assert.equal(storedPasDate('2026-10-19T00:00:00.000Z'), '2026-10-19');
+    assert.throws(() => pasDate('2026-10-19T00:00:00.000Z'), /YYYY-MM-DD/);
+    const rooms = fs.readFileSync(path.resolve(__dirname, '../src/pas/pas-rooms.service.ts'), 'utf8');
+    assert.match(rooms, /storedPasDate\(period\.start_date\), end = storedPasDate\(period\.end_date\)/);
+    const location = fs.readFileSync(path.resolve(__dirname, '../src/common/pas-participant-location.ts'), 'utf8');
+    assert.match(location, /storedPasDate\(contexts\[0\]\.scheduled_date\)/);
+});
+
 test('ROOM-13: salin pengawas mengganti seluruh tanggal tujuan dengan susunan tanggal sumber', async () => {
     const db = fixtureDb(tables());
     const service = new PasRoomsService(db, authz);

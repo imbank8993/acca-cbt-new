@@ -11,7 +11,7 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { insertIdempotently } from '../common/idempotent-create';
 import { advisoryTransactionLock } from '../common/transaction-lock';
 import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
-import { pasDate, writablePasPeriod } from '../common/pas-period-policy';
+import { pasDate, storedPasDate, writablePasPeriod } from '../common/pas-period-policy';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import type { CreatePASRoomDto } from './dto/pas.dto';
 
@@ -230,7 +230,9 @@ export class PasRoomsService {
     /** Tanggal tugas harus berada di dalam rentang folder (bila rentangnya diisi). */
     private assertDateInPeriod(period: Record<string, any>, date: string) {
         if (!period.start_date || !period.end_date) return;
-        const start = pasDate(period.start_date), end = pasDate(period.end_date);
+        // Tanggal folder dibaca dari basis data ("YYYY-MM-DDT00:00:00.000Z"),
+        // bukan input pengguna — pakai pembaca tanggal tersimpan.
+        const start = storedPasDate(period.start_date), end = storedPasDate(period.end_date);
         if (date < start || date > end) {
             throw new BadRequestException(`Tanggal bertugas harus di antara ${start} dan ${end}.`);
         }

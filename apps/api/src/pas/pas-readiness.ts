@@ -2,7 +2,13 @@ import type { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from '../common/chunk';
 import { normalizeSqlTime } from '../common/school-time';
 
-export interface PasReadiness { ready: boolean; issues: string[]; activated: boolean | null; room_ids?: string[] }
+export interface PasReadiness {
+    ready: boolean; issues: string[]; activated: boolean | null; room_ids?: string[];
+    /** Jumlah siswa kelas jadwal ini per ruang (room id → jumlah). */
+    room_counts?: Record<string, number>;
+    /** Siswa kelas ini yang belum punya ruang. */
+    unassigned_count?: number;
+}
 
 /** Operational completeness is separate from exam generation and live/finished status. */
 export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any, schedules: any[]): Promise<Map<string, PasReadiness>> {
@@ -76,6 +82,7 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduled) || scheduled < date(period.start_date) || scheduled > date(period.end_date)) issues.push('Tanggal ujian di luar periode folder');
             if (!(Number.isInteger(schedule.duration_minutes) && schedule.duration_minutes > 0 && schedule.duration_minutes <= end - start)) issues.push('Durasi ujian tidak sesuai waktu yang tersedia');
             const relevantRooms = new Set<string>();
+            const roomCounts: Record<string, number> = {};
             let missing = 0;
             let duplicated = 0;
             for (const userId of students) {
@@ -83,7 +90,10 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
                 // Satu siswa hanya boleh di satu ruang; data ganda dilaporkan terpisah.
                 if (rows.length > 1) duplicated++;
                 else if (rows.length !== 1 || !roomById.has(rows[0].pas_room_id)) missing++;
-                else relevantRooms.add(rows[0].pas_room_id);
+                else {
+                    relevantRooms.add(rows[0].pas_room_id);
+                    roomCounts[rows[0].pas_room_id] = (roomCounts[rows[0].pas_room_id] || 0) + 1;
+                }
             }
             if (missing) issues.push(`${missing} peserta belum dialokasikan ke ruang ujian. Atur peserta pada tab Ruang`);
             if (duplicated) issues.push(`${duplicated} peserta terdaftar di lebih dari satu ruang. Keluarkan dari salah satu ruang pada tab Ruang`);
@@ -99,7 +109,7 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
                 if (exam.question_bank_id !== schedule.bank_id || !targets.some(row => row.exam_id === exam.id && row.class_id === schedule.class_id)) issues.push('Bank soal atau target kelas ujian belum sesuai jadwal');
             }
             if (schedule.status === 'cancelled') issues.push('Jadwal dibatalkan');
-            results.set(schedule.id, { ready: issues.length === 0, issues, activated: exam?.is_published === true, room_ids: [...relevantRooms] });
+            results.set(schedule.id, { ready: issues.length === 0, issues, activated: exam?.is_published === true, room_ids: [...relevantRooms], room_counts: roomCounts, unassigned_count: missing });
         }
     } catch {
         for (const schedule of schedules) results.set(schedule.id, { ready: false, issues: ['Data kelengkapan belum dapat diperiksa. Muat ulang daftar.'], activated: schedule.exam_id ? null : false });

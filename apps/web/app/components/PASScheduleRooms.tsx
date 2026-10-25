@@ -13,7 +13,9 @@ export function PASScheduleRooms({ schedule, rooms, onManage }: {
             const supervisors = getRoomSessionInvigilators(room, schedule.session_id, schedule.scheduled_date);
             const names = supervisors.map(person => person.profiles?.full_name || 'Nama pengawas belum tersedia');
             return <div key={id}>
-                <p className="font-medium text-slate-800">{room.name}</p>
+                <p className="font-medium text-slate-800">{room.name}
+                    {schedule.allocated_room_counts?.[id] != null && <span className="ml-1 font-normal text-slate-500">· {schedule.allocated_room_counts[id]} siswa</span>}
+                </p>
                 {supervisors.length ? <p className="mt-0.5 text-[11px] text-slate-500">{names.join(', ')}</p>
                     : <button type="button" onClick={onManage} className="mt-0.5 text-[11px] text-amber-600">Atur pengawas</button>}
             </div>;

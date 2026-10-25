@@ -119,6 +119,8 @@ export class PasService {
             readiness: readiness.get(schedule.id),
             is_activated: readiness.get(schedule.id)?.activated ?? null,
             allocated_room_ids: readiness.get(schedule.id)?.room_ids || [],
+            allocated_room_counts: readiness.get(schedule.id)?.room_counts || {},
+            unallocated_student_count: readiness.get(schedule.id)?.unassigned_count ?? 0,
             scheduled_time: normalizeSqlTime(schedule.scheduled_time),
             window_end_time: normalizeSqlTime(schedule.window_end_time),
         })) };

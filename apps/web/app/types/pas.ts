@@ -76,6 +76,10 @@ export interface PASSession {
 
 export interface PASClassSchedule {
   allocated_room_ids?: string[];
+  /** Jumlah siswa kelas ini di tiap ruang (room id → jumlah). */
+  allocated_room_counts?: Record<string, number>;
+  /** Siswa kelas ini yang belum ditempatkan di ruang mana pun. */
+  unallocated_student_count?: number;
   is_activated?: boolean | null;
   readiness?: { ready: boolean; issues: string[] };
   id: string;

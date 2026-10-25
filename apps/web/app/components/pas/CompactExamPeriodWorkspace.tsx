@@ -109,6 +109,10 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
     const dialogTitle = useId();
     const schedules = period.pas_class_schedules || [];
     const roomNames = (schedule: PASClassSchedule) => (schedule.allocated_room_ids || []).map(id => rooms.find(room => room.id === id)?.name || 'Data ruang belum dimuat');
+    /** Ruang tempat siswa kelas ini duduk, terbanyak dulu, beserta jumlah siswanya. */
+    const roomAllocations = (schedule: PASClassSchedule) => (schedule.allocated_room_ids || [])
+        .map(id => ({ id, name: rooms.find(room => room.id === id)?.name || 'Data ruang belum dimuat', count: schedule.allocated_room_counts?.[id] }))
+        .sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.name.localeCompare(b.name, 'id'));
     const className = (schedule: PASClassSchedule) => schedule.classes?.name || classes.find(kelas => kelas.id === schedule.class_id)?.name || 'Kelas belum ditentukan';
     const dates = [...new Set(schedules.map(schedule => day(schedule.scheduled_date)).filter(Boolean))].sort();
     const query = search.trim().toLowerCase();
@@ -191,7 +195,8 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                     </tr></thead>
                     <tbody>{visible.map(schedule => {
                         const session = sessions.find(item => item.id === schedule.session_id);
-                        const names = roomNames(schedule);
+                        const allocations = roomAllocations(schedule);
+                        const unallocated = schedule.unallocated_student_count || 0;
                         const title = bankTitle(schedule.bank_id, schedule);
                         const ready = isPASScheduleReady(schedule);
                         return <tr key={schedule.id} data-selected={selectedIds.includes(schedule.id)}>
@@ -199,7 +204,15 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                                 onChange={event => setSelectedIds(ids => event.target.checked ? [...new Set([...ids, schedule.id])] : ids.filter(id => id !== schedule.id))} /></td>
                             <td className="cp-bank"><strong>{title}</strong><span>{className(schedule)}</span></td>
                             <td className="cp-date"><span>{formatSchoolDate(schedule.scheduled_date, timeZone)}</span><small>{session?.name || 'Sesi belum ditentukan'} · {clock(session?.start_time || schedule.scheduled_time)}–{clock(session?.end_time || schedule.window_end_time)}</small></td>
-                            <td><button type="button" className="cp-room" onClick={() => setDetailId(schedule.id)}>{names.length > 1 ? `${names.length} ruang` : names[0] || schedule.room || 'Belum diatur'}</button>{!names.length && <small className="cp-room-pending">Penempatan belum diatur</small>}</td>
+                            <td>{allocations.length ? <button type="button" className="cp-room cp-room-list" onClick={() => setDetailId(schedule.id)}
+                                aria-label={`Ruang ${className(schedule)}: ${allocations.map(room => room.count != null ? `${room.name} ${room.count} siswa` : room.name).join(', ')}`}>
+                                {allocations.slice(0, 3).map(room => <span key={room.id} className="cp-room-line">
+                                    <span className="cp-room-name">{room.name}</span>{room.count != null && <span className="cp-room-count">({room.count})</span>}
+                                </span>)}
+                                {allocations.length > 3 && <span className="cp-room-more">+{allocations.length - 3} ruang lainnya</span>}
+                            </button> : <button type="button" className="cp-room" onClick={() => setDetailId(schedule.id)}>{schedule.room || 'Belum diatur'}</button>}
+                            {!allocations.length ? <small className="cp-room-pending">Penempatan belum diatur</small>
+                                : unallocated > 0 && <small className="cp-room-pending">{unallocated} siswa belum dapat ruang</small>}</td>
                             <td>{ready ? <span className="cp-ready">Siap</span> : <button type="button" className="cp-warning" onClick={() => setDetailId(schedule.id)}>Perlu dilengkapi</button>}</td>
                             <td><span className={`cp-access ${schedule.is_activated === true ? 'is-active' : ''}`}>{access(schedule)}</span>{lifecycle(schedule) && <small className="cp-lifecycle">{lifecycle(schedule)}</small>}</td>
                             <td><div className="cp-row-actions"><button type="button" className="cp-link" aria-label={`Detail ${title} ${className(schedule)}`} onClick={() => setDetailId(schedule.id)}>Detail</button>

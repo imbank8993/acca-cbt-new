@@ -221,6 +221,19 @@ test('detail shows actual room and current session supervisors from the latest s
     assert.match(text(find(tree, node => node.type === 'dialog')), /Jadwal tidak lagi tersedia/);
 });
 
+test('room column names every room with the class head count instead of "N ruang"', () => {
+    const h = harness();
+    const rooms = ['a', 'b', 'c', 'd'].map(id => ({ id, name: `Ruang ${id.toUpperCase()}`, pas_room_invigilators: [] }));
+    const split = schedule({ allocated_room_ids: ['a', 'b'], allocated_room_counts: { a: 8, b: 12 }, unallocated_student_count: 3 });
+    let row = find(h.render(h.workspace.CompactExamPeriodSchedules, props([split], { rooms })), node => node.type === 'tr' && node.props.key === 'ready');
+    assert.match(text(row), /Ruang B\(12\)Ruang A\(8\)/);
+    assert.match(text(row), /3 siswa belum dapat ruang/);
+    assert.doesNotMatch(text(row), /\d ruang\b(?! lainnya)/);
+    const wide = schedule({ allocated_room_ids: ['a', 'b', 'c', 'd'], allocated_room_counts: { a: 5, b: 5, c: 5, d: 5 } });
+    row = find(h.render(h.workspace.CompactExamPeriodSchedules, props([wide], { rooms })), node => node.type === 'tr' && node.props.key === 'ready');
+    assert.match(text(row), /Ruang A\(5\)Ruang B\(5\)Ruang C\(5\)\+1 ruang lainnya/);
+});
+
 test('both routes enable the compact workspace for ASAS/ASAT (pas, legacy pat) and AM only', () => {
     const { isSemesterAssessmentType } = require('../../web/lib/exam-types.ts');
     for (const role of ['admin', 'proktor']) {

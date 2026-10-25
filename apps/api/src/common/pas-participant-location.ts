@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { chunk } from './chunk';
 import { isPasMonitoringExam } from './pas-monitoring-access';
-import { pasDate } from './pas-period-policy';
+import { storedPasDate } from './pas-period-policy';
 
 export interface PasParticipantLocation {
     status: 'assigned' | 'unassigned' | 'unavailable';
@@ -45,7 +45,7 @@ export async function loadPasParticipantLocations(db: DbService, exam: {
         if (contexts.length !== 1 || !contexts[0].pas_period_id || !contexts[0].session_id || !contexts[0].scheduled_date || !exam.organization_id) return locations;
         const { pas_period_id: periodId, session_id: sessionId } = contexts[0];
         // Pengawas bergilir per hari: ambil yang bertugas pada tanggal ujian ini.
-        const examDate = pasDate(contexts[0].scheduled_date);
+        const examDate = storedPasDate(contexts[0].scheduled_date);
         const periods = await read(db.from('cbt_pas_periods').select('id').eq('id', periodId).eq('organization_id', exam.organization_id));
         if (!periods.length) return locations;
         const [sessions, rooms, allocations] = await Promise.all([

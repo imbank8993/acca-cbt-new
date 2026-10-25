@@ -62,6 +62,11 @@
 .cp-date { min-width: 175px; font-variant-numeric: tabular-nums; }
 .cp-date small, .cp-lifecycle, .cp-room-pending { display: block; margin-top: 4px; font-size: 11px; color: var(--cp-muted); }
 .cp-room { max-width: 160px; text-align: left; font-size: 12px; cursor: pointer; border-radius: 4px; }
+.cp-room-list { display: flex; flex-direction: column; gap: 2px; max-width: 220px; }
+.cp-room-line { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.cp-room-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-room-count { flex-shrink: 0; color: var(--cp-muted); font-variant-numeric: tabular-nums; }
+.cp-room-more { font-size: 11px; color: var(--cp-muted); }
 .cp-room:hover { color: var(--cp-blue); }
 .cp-ready { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #237652; white-space: nowrap; }
 .cp-ready::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }

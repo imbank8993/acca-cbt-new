@@ -27,7 +27,7 @@ function fixture(failed = []) {
 
 test('PAS readiness requires complete assignments in every actual room, not just an existing exam', async () => {
  const f = fixture();
- assert.deepEqual(await f.read(), { ready: true, issues: [], activated: true, room_ids: ['r1', 'r2'] });
+ assert.deepEqual(await f.read(), { ready: true, issues: [], activated: true, room_ids: ['r1', 'r2'], room_counts: { r1: 1, r2: 1 }, unassigned_count: 0 });
  f.db.tables.cbt_pas_room_invigilators = [];
  let result = await f.read();
  assert.equal(result.ready, false);
@@ -59,6 +59,17 @@ for (const [name, change, pattern] of [
 ]) test(`PAS readiness rejects ${name}`, async () => {
  const f = fixture(); change(f); const result = await f.read();
  assert.equal(result.ready, false); assert.ok(result.issues.some(issue => pattern.test(issue)), result.issues.join('; '));
+});
+
+test('PAS readiness reports how many students of the class sit in each room', async () => {
+ const f = fixture();
+ const result = await f.read();
+ assert.deepEqual(result.room_counts, { r1: 1, r2: 1 });
+ assert.equal(result.unassigned_count, 0);
+ f.db.tables.cbt_pas_room_students.pop();
+ const missing = await f.read();
+ assert.equal(missing.unassigned_count, 1);
+ assert.equal(Object.values(missing.room_counts).reduce((a, b) => a + b, 0), 1);
 });
 
 test('PAS readiness updates after allocation/proctor changes, supports split classes without one room label and SQL TIME dates', async () => {
@@ -122,7 +133,7 @@ function activationService(db, auth = {}) {
 
 test('a complete schedule is ready before activation; missing supervisors reject direct API activation with no writes', async () => {
  const f = fixture(); f.schedule.exam_id = null; f.db.tables.cbt_exams = []; f.db.tables.cbt_exam_targets = [];
- assert.deepEqual(await f.read(), { ready: true, issues: [], activated: false, room_ids: ['r1', 'r2'] });
+ assert.deepEqual(await f.read(), { ready: true, issues: [], activated: false, room_ids: ['r1', 'r2'], room_counts: { r1: 1, r2: 1 }, unassigned_count: 0 });
  f.db.tables.cbt_pas_room_invigilators = [];
  const before = structuredClone(f.db.tables);
  await assert.rejects(activationService(f.db).setActivation({ id: 'admin' }, 'sc', true), /Pengawas/);
