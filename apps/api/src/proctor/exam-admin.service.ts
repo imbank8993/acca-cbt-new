@@ -74,7 +74,12 @@ export class ExamAdminService {
                 .select('id')
                 .eq('organization_id', organizationId)
                 .eq('created_by', user.id);
-            const bankIds = ((ownedBanks as Array<{ id: string }>) || []).map((b) => b.id);
+            // Guru mapel: bank buatannya dan bank tempat ia menjadi kolaborator. Ujian
+            // ASAS/AM yang memakai bank itu ikut terlihat untuk dipantau (tanpa hak kelola/reset).
+            const bankIds = [...new Set([
+                ...((ownedBanks as Array<{ id: string }>) || []).map((b) => b.id),
+                ...(await collaborationGrants(this.db, 'bank', user.id)).keys(),
+            ])];
 
             assignedStudents = await assignedPasExamStudents(this.db, user.id, organizationId);
             const assignedIds = [...assignedStudents.keys()];
@@ -101,7 +106,10 @@ export class ExamAdminService {
                 ? await this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id)
                 : { data: [], error: null };
             if (bankError) throw new BadRequestException('Kepemilikan bank soal belum dapat diperiksa.');
-            const ownedIds = new Set((banks || []).map((bank: { id: string }) => bank.id));
+            const ownedIds = new Set([
+                ...(banks || []).map((bank: { id: string }) => bank.id),
+                ...(teacher ? (await collaborationGrants(this.db, 'bank', user.id)).keys() : []),
+            ]);
             exams = exams.filter(exam => sharedIds.includes(exam.id) || assignedIds.has(exam.id) ||
                 (teacher && (exam.created_by === user.id || ownedIds.has(exam.question_bank_id))));
         }

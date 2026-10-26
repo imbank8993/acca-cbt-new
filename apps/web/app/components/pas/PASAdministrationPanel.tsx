@@ -17,9 +17,7 @@ import {
     Loader2,
     Printer,
     QrCode,
-    RefreshCw,
     Save,
-    Search,
     Edit,
     ShieldCheck,
     UserCheck,
@@ -27,7 +25,9 @@ import {
     X,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
+import { FilterActions, FilterField, FilterInput, FilterSearch, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import { Modal, ModalBody, ModalField, ModalFooter } from '@/app/components/ui/modal';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { drawAdministrationSigners, resolveAdministrationInvigilators } from '@/lib/pas/administration-signers';
 import type { PASClassSchedule } from '@/app/types/pas';
@@ -1337,7 +1337,7 @@ ${KOP_AND_A4_CSS}
 
     if (rooms.length === 0 || sessions.length === 0) {
         return (
-            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
+            <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-2">
                 <AlertCircle size={36} className="mx-auto text-amber-500" />
                 <h3 className="text-sm font-bold text-slate-800">Ruang atau Sesi Ujian Belum Tersedia</h3>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1367,51 +1367,40 @@ ${KOP_AND_A4_CSS}
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
-                    <label htmlFor="pas-administration-view" className="text-xs font-medium text-slate-500">Tampilan</label>
-                    <InlineSelect
-                        id="pas-administration-view"
-                        value={subView}
-                        onChange={value => setSubView(value as AdminSubView)}
-                        title="Pilih tampilan administrasi"
-                        minWidth="220px"
-                        height="36px"
-                        options={[
-                            ...(resolvedRole !== 'pengawas' ? [{ value: 'overview', label: 'Persetujuan dokumen' }] : []),
-                            { value: 'editor', label: 'Absensi & berita acara' },
-                            { value: 'berita_acara_a4', label: 'Berita acara (A4)' },
-                            { value: 'daftar_hadir_a4', label: 'Daftar hadir (A4)' },
-                        ]}
-                    />
+            {/* ── Navigasi tampilan (pill) + ketua panitia ── */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div role="group" aria-label="Tampilan administrasi" className="inline-flex max-w-full self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                    {([
+                        ...(resolvedRole !== 'pengawas' ? [['overview', 'Ringkasan']] : []),
+                        ['editor', 'Absensi & Berita Acara'],
+                        ['berita_acara_a4', 'Berita Acara A4'],
+                        ['daftar_hadir_a4', 'Daftar Hadir A4'],
+                    ] as Array<[AdminSubView, string]>).map(([id, label]) =>
+                        <button key={id} type="button" aria-pressed={subView === id} onClick={() => setSubView(id)}
+                            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${subView === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                            {label}
+                        </button>)}
                 </div>
-
-                {/* Right side: Committee Chair quick config */}
-                {subView !== 'overview' && <div className="flex items-center gap-2 self-start">
-                    <div className="inline-flex flex-wrap items-center gap-2 text-xs">
-                        <UserCheck size={13} className="text-[#3083FF] shrink-0" />
-                        <span className="text-slate-500">Ketua Panitia:</span>
-                        <strong className="text-slate-800 max-w-[180px] truncate">
+                <div className="flex items-center gap-2.5 self-start rounded-xl border border-slate-200 bg-white py-1.5 pl-3 pr-1.5 text-xs lg:self-auto">
+                    <UserCheck size={15} className="shrink-0 text-blue-600" aria-hidden="true" />
+                    <div className="min-w-0 leading-tight">
+                        <p className="text-[10.5px] text-slate-500">Ketua panitia</p>
+                        <p className="max-w-[220px] truncate font-semibold text-slate-800">
                             {slot?.committee_chair?.committee_chair_name || period.committee_chair_name || 'Belum diatur'}
-                        </strong>
-                        {!period.is_locked && (
-                            <button
-                                type="button"
-                                onClick={openChairModal}
-                                className="text-[11px] font-bold text-[#3083FF] hover:underline cursor-pointer ml-1"
-                            >
-                                (Atur)
-                            </button>
-                        )}
+                        </p>
                     </div>
-                </div>}
+                    {!period.is_locked && <Button type="button" variant="ghost" size="sm" onClick={openChairModal}>Atur</Button>}
+                </div>
             </div>
 
             {subView === 'overview' ? (
                 <div className="space-y-4">
                     {/* ── Dokumen ujian: semua unduhan folder di satu tempat ── */}
                     <section aria-labelledby="pas-exam-documents" className="space-y-3">
-                        <h3 id="pas-exam-documents" className="text-sm font-bold text-slate-900">Dokumen Ujian</h3>
+                        <div>
+                            <h3 id="pas-exam-documents" className="text-sm font-semibold text-slate-900">Dokumen ujian</h3>
+                            <p className="mt-0.5 text-xs text-slate-500">Unduh dokumen folder dengan kop sekolah, siap cetak A4.</p>
+                        </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                             <div className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
                                 <div className="flex items-start gap-3">
@@ -1459,10 +1448,9 @@ ${KOP_AND_A4_CSS}
                                         style={{ width: `${overviewCounts.all ? Math.round((overviewCounts.approved / overviewCounts.all) * 100) : 0}%` }} />
                                 </div>
                                 {pendingApprovalCount > 0 && (
-                                    <button type="button" onClick={() => showOverviewList('submitted')}
-                                        className="self-start text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
+                                    <Button type="button" variant="ghost" size="sm" className="self-start text-amber-700" onClick={() => showOverviewList('submitted')}>
                                         {pendingApprovalCount} menunggu persetujuan
-                                    </button>
+                                    </Button>
                                 )}
                                 <Button variant="outline" size="sm" className="mt-auto w-full"
                                     disabled={!overviewCounts.all}
@@ -1477,33 +1465,17 @@ ${KOP_AND_A4_CSS}
                     <div ref={overviewListRef} className="scroll-mt-4 bg-white rounded-xl border border-slate-200 overflow-hidden">
                         <div className="px-5 py-4 border-b border-slate-100 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                    <FileCheck2 size={16} className="text-[#3083FF]" />
-                                    Dokumen ruang ujian
-                                </h3>
-                                <div className="flex items-center gap-2">
-                                    <label className="relative block">
-                                        <span className="sr-only">Cari ruang, sesi, atau pengawas</span>
-                                        <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="search"
-                                            value={overviewSearch}
-                                            onChange={event => setOverviewSearch(event.target.value)}
-                                            placeholder="Cari ruang / pengawas"
-                                            className="h-8 w-full sm:w-52 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#3083FF] focus:outline-none"
-                                        />
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => void loadOverview()}
-                                        disabled={isLoadingOverview}
-                                        title="Segarkan data"
-                                        className="inline-flex shrink-0 items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
-                                    >
-                                        <RefreshCw size={13} className={isLoadingOverview ? 'animate-spin text-[#3083FF]' : ''} />
-                                        <span className="hidden sm:inline">Segarkan</span>
-                                    </button>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-slate-900">Berita acara per ruang</h3>
+                                    <p className="mt-0.5 text-xs text-slate-500">Periksa dan sahkan dokumen yang dikirim pengawas.</p>
                                 </div>
+                                <FilterToolbar className="sm:min-w-[340px]" actionsInline>
+                                    <FilterSearch value={overviewSearch} onChange={setOverviewSearch} placeholder="Cari ruang / pengawas" width="220px" />
+                                    <FilterActions>
+                                        <Button type="button" variant="outline" size="sm" icon="refresh" onClick={() => void loadOverview()}
+                                            disabled={isLoadingOverview} title="Segarkan data">Segarkan</Button>
+                                    </FilterActions>
+                                </FilterToolbar>
                             </div>
                             <div role="tablist" aria-label="Filter status dokumen" className="flex gap-1.5 overflow-x-auto pb-0.5">
                                 {OVERVIEW_FILTERS
@@ -1550,10 +1522,9 @@ ${KOP_AND_A4_CSS}
                         ) : overviewGroups.length === 0 ? (
                             <div className="p-10 text-center text-xs text-slate-500">
                                 Tidak ada dokumen yang cocok dengan filter ini.{' '}
-                                <button type="button" onClick={() => { setOverviewFilter('all'); setOverviewSearch(''); }}
-                                    className="font-semibold text-[#3083FF] hover:underline cursor-pointer">
+                                <Button type="button" variant="ghost" size="sm" onClick={() => { setOverviewFilter('all'); setOverviewSearch(''); }}>
                                     Tampilkan semua
-                                </button>
+                                </Button>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -1628,62 +1599,44 @@ ${KOP_AND_A4_CSS}
                                                     </td>
                                                     <td className="py-3 px-3 whitespace-nowrap">
                                                         {isApproved ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                <CheckCircle2 size={12} />
-                                                                Resmi (Disahkan)
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                                                                <CheckCircle2 size={12} />Disahkan
                                                             </span>
                                                         ) : isSubmitted ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs animate-pulse">
-                                                                <Clock size={12} />
-                                                                Menunggu ACC
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                                                                <Clock size={12} />Menunggu ACC
                                                             </span>
                                                         ) : isRejected ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-50 text-red-700 border border-red-200" title={item.rejection_note || 'Perlu perbaikan'}>
-                                                                <AlertCircle size={12} />
-                                                                Perlu Perbaikan
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200" title={item.rejection_note || 'Perlu perbaikan'}>
+                                                                <AlertCircle size={12} />Perlu perbaikan
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                                                <Edit size={12} />
-                                                                Draft
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+                                                                <Edit size={12} />Draft
                                                             </span>
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-4 text-right whitespace-nowrap">
                                                         <div className="inline-flex items-center gap-1.5">
                                                             {isSubmitted && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => void handleApproveSlot({ roomId: item.room_id, sessionId: item.session_id, examDate: item.exam_date })}
-                                                                    disabled={isApproving}
-                                                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                                                                    title="ACC menjadi dokumen resmi"
-                                                                >
-                                                                    <CheckCircle2 size={13} />
-                                                                    ACC Dokumen
-                                                                </button>
+                                                                <Button type="button" variant="activate" size="sm" disabled={isApproving} title="ACC menjadi dokumen resmi"
+                                                                    leftIcon={<CheckCircle2 size={14} />}
+                                                                    onClick={() => void handleApproveSlot({ roomId: item.room_id, sessionId: item.session_id, examDate: item.exam_date })}>
+                                                                    ACC
+                                                                </Button>
                                                             )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setSelectedRoomId(item.room_id);
-                                                                    setSelectedSessionId(item.session_id);
-                                                                    setSelectedDate(item.exam_date);
-                                                                    setSubView('editor');
-                                                                }}
-                                                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-200 text-slate-700 hover:text-[#3083FF] font-semibold text-xs transition-colors cursor-pointer"
-                                                            >
+                                                            <Button type="button" variant="outline" size="sm" onClick={() => {
+                                                                setSelectedRoomId(item.room_id);
+                                                                setSelectedSessionId(item.session_id);
+                                                                setSelectedDate(item.exam_date);
+                                                                setSubView('editor');
+                                                            }}>
                                                                 {isSubmitted ? 'Periksa' : 'Buka'}
-                                                            </button>
+                                                            </Button>
                                                             {isSubmitted && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleOpenRejectModal({ roomId: item.room_id, sessionId: item.session_id, examDate: item.exam_date, roomName: item.room_name })}
-                                                                    className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs transition-colors cursor-pointer"
-                                                                    title="Minta Perbaikan / Kembalikan ke Pengawas"
-                                                                >
-                                                                    <X size={13} />
-                                                                </button>
+                                                                <Button type="button" variant="ghost" size="sm" className="text-red-600" leftIcon={<X size={14} />}
+                                                                    aria-label="Minta perbaikan" title="Minta Perbaikan / Kembalikan ke Pengawas"
+                                                                    onClick={() => handleOpenRejectModal({ roomId: item.room_id, sessionId: item.session_id, examDate: item.exam_date, roomName: item.room_name })} />
                                                             )}
                                                         </div>
                                                     </td>
@@ -1699,76 +1652,30 @@ ${KOP_AND_A4_CSS}
                 </div>
             ) : (
                 <>
-                    {/* ── Filter Bar: Ruang + Sesi + Tanggal ── */}
-                    <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Ruang Ujian
-                                </label>
-                                <InlineSelect
-                                    value={selectedRoomId}
-                                    onChange={(val) => setSelectedRoomId(val)}
-                                    options={rooms.map((r) => ({
-                                        value: r.id,
-                                        label: r.name,
-                                    }))}
-                                    minWidth="100%"
-                                    height="38px"
-                                    title="Pilih Ruang Ujian"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Sesi Ujian
-                                </label>
-                                <InlineSelect
-                                    value={selectedSessionId}
-                                    onChange={(val) => setSelectedSessionId(val)}
-                                    options={sessions.map((s) => ({
-                                        value: s.id,
-                                        label: `${s.name} (${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)})`,
-                                    }))}
-                                    minWidth="100%"
-                                    height="38px"
-                                    title="Pilih Sesi Ujian"
-                                />
-                                </div>
-
-                            <div>
-                                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                    Tanggal Pelaksanaan
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="date"
-                                        value={selectedDate}
-                                        min={period.start_date?.split('T')[0] || undefined}
-                                        max={period.end_date?.split('T')[0] || undefined}
-                                        onChange={(e) => setSelectedDate(e.target.value)}
-                                        className="w-full h-[38px] px-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => void loadSlot()}
-                                        disabled={isLoading}
-                                        title="Muat ulang data absensi & waktu ujian"
-                                        className="h-[38px] w-[38px] shrink-0 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                                    >
-                                        <RefreshCw size={14} className={isLoading ? 'animate-spin text-[#3083FF]' : ''} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    {/* ── Filter: Ruang + Sesi + Tanggal ── */}
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 pb-3 pt-2">
+                    <FilterToolbar alwaysExpanded>
+                        <FilterField label="Ruang ujian" bare width="220px">
+                            <InlineSelect value={selectedRoomId} onChange={setSelectedRoomId} title="Pilih ruang ujian" minWidth="100%" height="38px"
+                                aria-label="Ruang ujian" options={rooms.map(r => ({ value: r.id, label: r.name }))} />
+                        </FilterField>
+                        <FilterField label="Sesi ujian" bare width="240px">
+                            <InlineSelect value={selectedSessionId} onChange={setSelectedSessionId} title="Pilih sesi ujian" minWidth="100%" height="38px"
+                                aria-label="Sesi ujian" options={sessions.map(s => ({ value: s.id, label: `${s.name} (${s.start_time.substring(0, 5)}–${s.end_time.substring(0, 5)})` }))} />
+                        </FilterField>
+                        <FilterInput label="Tanggal pelaksanaan" icon="calendar3" type="date" value={selectedDate} onChange={setSelectedDate} width="180px"
+                            min={period.start_date?.split('T')[0] || undefined} max={period.end_date?.split('T')[0] || undefined} />
+                        <FilterActions>
+                            <Button type="button" variant="outline" size="sm" icon="refresh" onClick={() => void loadSlot()} disabled={isLoading}
+                                title="Muat ulang data absensi & waktu ujian">Muat ulang</Button>
+                        </FilterActions>
+                    </FilterToolbar>
                     </div>
 
                     {loadError && (
                         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 flex items-center justify-between">
                             <span>{loadError}</span>
-                            <button type="button" onClick={() => void loadSlot()} className="font-bold underline ml-3 cursor-pointer">
-                                Muat Ulang
-                            </button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => void loadSlot()}>Muat ulang</Button>
                         </div>
                     )}
 
@@ -1792,85 +1699,48 @@ ${KOP_AND_A4_CSS}
                     )}
 
                     {isLoading || !slot ? (
-                        <div className="bg-white rounded-2xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-2">
+                        <div className="bg-white rounded-xl border border-slate-200 p-16 flex flex-col items-center justify-center gap-2">
                             <Loader2 size={28} className="animate-spin text-[#3083FF]" />
                             <p className="text-xs text-slate-500 font-medium">Memuat data peserta, waktu ujian, dan Berita Acara...</p>
                         </div>
                     ) : subView === 'editor' ? (
                         <div className="space-y-4">
-                            {/* ── Status Alert Banner ── */}
-                            <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                                slot.report.status === 'approved'
-                                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                                    : slot.report.status === 'submitted'
-                                      ? 'bg-amber-50/80 border-amber-300 text-amber-900 shadow-2xs'
-                                      : slot.report.status === 'rejected'
-                                        ? 'bg-red-50/70 border-red-200 text-red-900'
-                                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                            {/* ── Status dokumen ── */}
+                            <div className={`flex flex-col gap-3 rounded-xl border bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                                slot.report.status === 'approved' ? 'border-emerald-200' : slot.report.status === 'submitted' ? 'border-amber-300' : slot.report.status === 'rejected' ? 'border-red-200' : 'border-slate-200'
                             }`}>
-                                <div className="flex items-start gap-3 min-w-0">
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                                        slot.report.status === 'approved'
-                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                            : slot.report.status === 'submitted'
-                                              ? 'bg-amber-100 text-amber-700 border-amber-300 animate-pulse'
-                                              : slot.report.status === 'rejected'
-                                                ? 'bg-red-100 text-red-700 border-red-300'
-                                                : 'bg-slate-200/70 text-slate-600 border-slate-300'
-                                    }`}>
-                                        {slot.report.status === 'approved' ? (
-                                            <ShieldCheck size={18} />
-                                        ) : slot.report.status === 'submitted' ? (
-                                            <Clock size={18} />
-                                        ) : slot.report.status === 'rejected' ? (
-                                            <AlertCircle size={18} />
-                                        ) : (
-                                            <Edit size={18} />
-                                        )}
-                                    </div>
+                                <div className="flex min-w-0 items-start gap-3">
+                                    <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                        slot.report.status === 'approved' ? 'bg-emerald-50 text-emerald-600'
+                                            : slot.report.status === 'submitted' ? 'bg-amber-50 text-amber-600'
+                                            : slot.report.status === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                                    }`} aria-hidden="true">
+                                        {slot.report.status === 'approved' ? <ShieldCheck size={16} /> : slot.report.status === 'submitted' ? <Clock size={16} />
+                                            : slot.report.status === 'rejected' ? <AlertCircle size={16} /> : <Edit size={16} />}
+                                    </span>
                                     <div className="min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${
-                                                slot.report.status === 'approved'
-                                                    ? 'bg-emerald-600 text-white'
-                                                    : slot.report.status === 'submitted'
-                                                      ? 'bg-amber-500 text-white'
-                                                      : slot.report.status === 'rejected'
-                                                        ? 'bg-red-600 text-white'
-                                                        : 'bg-slate-500 text-white'
-                                            }`}>
-                                                {slot.report.status === 'approved'
-                                                    ? 'Resmi & Disahkan'
-                                                    : slot.report.status === 'submitted'
-                                                      ? 'Menunggu ACC Proktor'
-                                                      : slot.report.status === 'rejected'
-                                                        ? 'Perlu Perbaikan'
-                                                        : 'Draft'}
-                                            </span>
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {slot.report.status === 'approved' ? 'Dokumen resmi & disahkan'
+                                                : slot.report.status === 'submitted' ? 'Menunggu ACC proktor'
+                                                : slot.report.status === 'rejected' ? 'Perlu perbaikan' : 'Draft'}
                                             {slot.report.submitted_at && slot.report.status === 'submitted' && (
-                                                <span className="text-xs text-amber-800 font-medium">
-                                                    Diserahkan pada {formatSignedTimestamp(slot.report.submitted_at, timeZone)}
-                                                </span>
+                                                <span className="ml-2 text-xs font-normal text-slate-500">Dikirim {formatSignedTimestamp(slot.report.submitted_at, timeZone)}</span>
                                             )}
                                             {slot.report.approved_at && slot.report.status === 'approved' && (
-                                                <span className="text-xs text-emerald-800 font-medium">
-                                                    Disahkan oleh {slot.report.proctor_name || 'Proktor'} pada {formatSignedTimestamp(slot.report.approved_at, timeZone)}
-                                                </span>
+                                                <span className="ml-2 text-xs font-normal text-slate-500">oleh {slot.report.proctor_name || 'Proktor'} · {formatSignedTimestamp(slot.report.approved_at, timeZone)}</span>
                                             )}
-                                        </div>
-                                        <p className="text-xs mt-1 text-slate-600">
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-slate-500">
                                             {slot.report.status === 'approved'
                                                 ? 'Dokumen resmi siap diunduh dan diverifikasi.'
                                                 : slot.report.status === 'submitted'
-                                                  ? 'Menunggu pemeriksaan proktor.'
+                                                  ? 'Periksa absensi dan berita acara sebelum mengesahkan.'
                                                   : slot.report.status === 'rejected'
-                                                    ? `Catatan perbaikan dari Proktor: "${slot.report.rejection_note || 'Perlu perbaikan.'}"`
+                                                    ? `Catatan proktor: "${slot.report.rejection_note || 'Perlu perbaikan.'}"`
                                                     : 'Isi absensi dan berita acara, lalu kirim ke proktor.'}
                                         </p>
                                         {slot.report.is_saved && slot.report.signature_version < 3 && (
-                                            <p className="mt-1 text-xs font-medium text-amber-700">
-                                                Dokumen lama perlu diperiksa dan di-ACC ulang.
-                                            </p>
+                                            <p className="mt-1 text-xs font-medium text-amber-700">Dokumen lama perlu diperiksa dan di-ACC ulang.</p>
                                         )}
                                     </div>
                                 </div>
@@ -1878,27 +1748,14 @@ ${KOP_AND_A4_CSS}
                                 {resolvedRole !== 'pengawas' && (slot.report.status !== 'approved' || slot.report.signature_version < 3) && (
                                     <div className="flex items-center gap-2 shrink-0 flex-wrap">
                                         {slot.report.status === 'submitted' && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleOpenRejectModal()}
-                                                disabled={isLoading || isApproving}
-                                                className="text-red-700 border-red-300 hover:bg-red-50"
-                                                leftIcon={<AlertCircle size={13} />}
-                                            >
-                                                Minta Perbaikan
+                                            <Button variant="outline" size="sm" onClick={() => handleOpenRejectModal()}
+                                                disabled={isLoading || isApproving} className="text-red-700" leftIcon={<AlertCircle size={14} />}>
+                                                Minta perbaikan
                                             </Button>
                                         )}
-                                        <Button
-                                            variant="primary"
-                                            size="sm"
-                                            onClick={() => void handleApproveSlot()}
-                                            disabled={isLoading || isApproving}
-                                            isLoading={isApproving}
-                                            className="bg-[#3083FF] hover:bg-blue-600 text-white"
-                                            leftIcon={<CheckCircle2 size={13} />}
-                                        >
-                                            ACC Dokumen Resmi
+                                        <Button variant="primary" size="sm" onClick={() => void handleApproveSlot()}
+                                            disabled={isLoading || isApproving} isLoading={isApproving} leftIcon={<CheckCircle2 size={14} />}>
+                                            ACC dokumen resmi
                                         </Button>
                                     </div>
                                 )}
@@ -1921,21 +1778,10 @@ ${KOP_AND_A4_CSS}
                                 )}
                             </div>
                             {slot.students.length > 0 && <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={syncFromExamActivity}
-                                    title="Set Hadir untuk peserta yang tercatat mulai ujian"
-                                    className="px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-[#3083FF] text-xs font-semibold transition-colors"
-                                >
-                                    Sinkron Aktivitas
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={markAllHadir}
-                                    className="px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-emerald-700 text-xs font-semibold transition-colors"
-                                >
-                                    Tandai Semua Hadir
-                                </button>
+                                <Button type="button" variant="ghost" size="sm" onClick={syncFromExamActivity}
+                                    title="Set Hadir untuk peserta yang tercatat mulai ujian">Sinkron aktivitas</Button>
+                                <Button type="button" variant="outline" size="sm" onClick={markAllHadir}
+                                    leftIcon={<Check size={14} />}>Tandai semua hadir</Button>
                             </div>}
                         </div>
 
@@ -1946,18 +1792,10 @@ ${KOP_AND_A4_CSS}
                                 {liveCounts.izin > 0 && <span>Izin <strong className="text-blue-700">{liveCounts.izin}</strong></span>}
                                 {liveCounts.alpha > 0 && <span>Alpha <strong className="text-red-700">{liveCounts.alpha}</strong></span>}
                             </div>
-                            {(slot.students.length > 8 || studentSearch.trim().length > 0) && <div className="relative w-full sm:w-56 sm:ml-auto">
-                                <Search
-                                    size={13}
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                                />
-                                <input
-                                    type="text"
-                                    value={studentSearch}
-                                    onChange={(e) => setStudentSearch(e.target.value)}
-                                    placeholder="Cari nama, NISN, kelas..."
-                                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-[#3083FF]"
-                                />
+                            {(slot.students.length > 8 || studentSearch.trim().length > 0) && <div className="w-full sm:w-64 sm:ml-auto">
+                                <FilterToolbar alwaysExpanded>
+                                    <FilterSearch value={studentSearch} onChange={setStudentSearch} placeholder="Cari nama, NISN, kelas…" width="100%" />
+                                </FilterToolbar>
                             </div>}
                         </div>
                         )}
@@ -2076,7 +1914,7 @@ ${KOP_AND_A4_CSS}
 
                     {/* ── Right Column (5 cols): Form Berita Acara & Tanda Tangan ── */}
                     <div className="xl:col-span-5 space-y-4">
-                        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-4">
+                        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
                             <div>
                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                                     <FileText size={15} className="text-[#3083FF]" />
@@ -2102,15 +1940,10 @@ ${KOP_AND_A4_CSS}
                                 </div>
 
                                 <div>
-                                    <button
-                                        type="button"
-                                        aria-expanded={showIncidentDetails}
-                                        aria-controls="pas-incident-summary"
-                                        onClick={() => setShowIncidentDetails((open) => !open)}
-                                        className="text-xs font-semibold text-[#3083FF] hover:underline"
-                                    >
+                                    <Button type="button" variant="ghost" size="sm" aria-expanded={showIncidentDetails} aria-controls="pas-incident-summary"
+                                        onClick={() => setShowIncidentDetails((open) => !open)}>
                                         {showIncidentDetails ? 'Sembunyikan kejadian khusus' : hasNotableIncident(incidentSummary) ? 'Lihat kejadian khusus' : '+ Tambah kejadian khusus / kendala'}
-                                    </button>
+                                    </Button>
                                     {showIncidentDetails && (
                                         <div id="pas-incident-summary" className="mt-2">
                                             <label htmlFor="pas-incident-text" className="block text-xs font-bold text-slate-700 mb-1">
@@ -2235,10 +2068,9 @@ ${KOP_AND_A4_CSS}
                                             onClick={() => void handleSaveSlot('submit', false)}
                                             disabled={isSaving}
                                             isLoading={isSaving}
-                                            className="bg-amber-600 hover:bg-amber-700 text-white"
-                                            leftIcon={<CheckCircle2 size={13} />}
+                                            leftIcon={<CheckCircle2 size={14} />}
                                         >
-                                            Kirim ke Proktor (Submit)
+                                            Kirim ke proktor
                                         </Button>
                                     </div>
                                 )}
@@ -2251,12 +2083,10 @@ ${KOP_AND_A4_CSS}
             ) : (
                 /* ── A4 Document Preview (Berita Acara or Daftar Hadir) — Identik KOP & Proporsi Laporan Guru Asuh acca-new ── */
                 <div className="space-y-4">
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-xs text-slate-600 font-medium">
-                            Pratinjau Dokumen Ukuran <strong>A4 Portrait (794px · Margin 10mm 15mm 15mm 20mm)</strong> —{' '}
-                            {subView === 'berita_acara_a4'
-                                ? `Berita Acara (${baVerificationCode})`
-                                : `Daftar Hadir Peserta (${dhVerificationCode})`}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900">{subView === 'berita_acara_a4' ? 'Berita Acara' : 'Daftar Hadir Peserta'}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">Pratinjau A4 potret · kode verifikasi {subView === 'berita_acara_a4' ? baVerificationCode : dhVerificationCode}</p>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button
@@ -2286,7 +2116,7 @@ ${KOP_AND_A4_CSS}
                         </div>
                     </div>
 
-                    <div className="bg-slate-200/70 rounded-2xl p-4 sm:p-8 overflow-x-auto flex justify-center">
+                    <div className="flex justify-center overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-4 sm:p-8">
                         <div
                             className="bg-white shadow-xl border border-slate-300 text-black w-[794px] min-h-[1123px] p-[10mm_15mm_15mm_20mm] shrink-0"
                             style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: '10.5pt', lineHeight: 1.38 }}
@@ -2762,135 +2592,43 @@ ${KOP_AND_A4_CSS}
         </>
     )}
 
-    {isRejectModalOpen && rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">
-            <div className="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-xl">
-                <button
-                    type="button"
-                    onClick={() => setIsRejectModalOpen(false)}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-                >
-                    <X size={20} />
-                </button>
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-red-50 border border-red-200 rounded-xl flex items-center justify-center text-red-600 shrink-0">
-                        <AlertCircle size={20} />
-                    </div>
-                    <div>
-                        <h3 className="text-base font-bold text-slate-900">Minta Perbaikan Administrasi</h3>
-                        <p className="text-xs text-slate-500">
-                            Ruang: {rejectTarget.roomName} · Tanggal: {formatIndonesianLongDate(rejectTarget.examDate)}
-                        </p>
-                    </div>
-                </div>
+    <Modal open={isRejectModalOpen && Boolean(rejectTarget)} onClose={() => setIsRejectModalOpen(false)} size="md" variant="delete"
+        labelledBy="pas-reject-title" title="Minta Perbaikan Administrasi" icon={<AlertCircle size={18} />}
+        subtitle={rejectTarget ? `Ruang ${rejectTarget.roomName} · ${formatIndonesianLongDate(rejectTarget.examDate)}` : undefined}>
+        <ModalBody>
+            <ModalField label="Catatan revisi untuk pengawas" required>
+                <textarea rows={3} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)}
+                    placeholder="Contoh: Mohon periksa kembali absensi siswa yang sakit / lengkapi tanda tangan pengawas..." />
+            </ModalField>
+        </ModalBody>
+        <ModalFooter>
+            <Button type="button" variant="cancel" onClick={() => setIsRejectModalOpen(false)}>Batal</Button>
+            <Button type="button" variant="danger" isLoading={isRejecting} disabled={isRejecting || !rejectNote.trim()}
+                leftIcon={<AlertCircle size={15} />} onClick={() => void handleConfirmReject()}>Kembalikan ke Pengawas</Button>
+        </ModalFooter>
+    </Modal>
 
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Catatan Revisi untuk Pengawas <span className="text-red-500">*</span>
-                        </label>
-                        <textarea
-                            rows={3}
-                            placeholder="Contoh: Mohon periksa kembali absensi siswa yang sakit / lengkapi tanda tangan pengawas..."
-                            value={rejectNote}
-                            onChange={(e) => setRejectNote(e.target.value)}
-                            className="w-full p-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400/20"
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => setIsRejectModalOpen(false)}
-                            className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                        >
-                            Batal
-                        </button>
-                        <Button
-                            type="button"
-                            onClick={() => void handleConfirmReject()}
-                            disabled={isRejecting}
-                            className="bg-red-600 hover:bg-red-700 text-white text-xs h-9 px-4 rounded-xl flex items-center gap-1.5"
-                        >
-                            {isRejecting ? <Loader2 size={14} className="animate-spin" /> : <AlertCircle size={14} />}
-                            Kembalikan ke Pengawas
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )}
-
-            {isChairModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">
-                    <div className="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-xl">
-                        <button
-                            type="button"
-                            onClick={() => setIsChairModalOpen(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-center text-[#3083FF] shrink-0">
-                                <UserCheck size={20} />
-                            </div>
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">Atur Ketua Panitia Ujian</h3>
-                                <p className="text-xs text-slate-500 truncate max-w-[260px]">Folder: {period.name}</p>
-                            </div>
-                        </div>
-
-                        {chairError && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-                                {chairError}
-                            </div>
-                        )}
-
-                        <form onSubmit={handleSaveCommitteeChair} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                    Nama Lengkap & Gelar Ketua Panitia <span className="text-red-500">*</span>
-                                </label>
+            <Modal open={isChairModalOpen} onClose={() => setIsChairModalOpen(false)} size="md" variant="edit"
+                labelledBy="pas-chair-title" title="Atur Ketua Panitia Ujian" icon={<UserCheck size={18} />} subtitle={`Folder: ${period.name}`}>
+                <form onSubmit={handleSaveCommitteeChair}>
+                    <ModalBody>
+                        {chairError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">{chairError}</div>}
+                        <div className="space-y-4">
+                            <ModalField label="Nama lengkap & gelar ketua panitia" required>
                                 <CommitteeChairNameInput required value={chairName} nip={chairNip}
-                                    onChange={(name, nip) => { setChairName(name); setChairNip(nip); }}
-                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20" />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                    NIP Ketua Panitia (Opsional)
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Contoh: 197805122005011002 atau -"
-                                    value={chairNip}
-                                    onChange={(e) => setChairNip(e.target.value)}
-                                    className="w-full h-10 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
-                                />
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsChairModalOpen(false)}
-                                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
-                                >
-                                    Batal
-                                </button>
-                                <Button
-                                    type="submit"
-                                    disabled={isSavingChair || !chairName.trim()}
-                                    className="bg-[#3083FF] hover:bg-[#256cd1] text-white text-xs h-9 px-4 rounded-xl flex items-center gap-1.5"
-                                >
-                                    {isSavingChair ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                                    Simpan Perubahan
-                                </Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                    onChange={(name, nip) => { setChairName(name); setChairNip(nip); }} />
+                            </ModalField>
+                            <ModalField label="NIP ketua panitia" hint="Opsional. Isi tanda - bila tidak ada.">
+                                <input type="text" value={chairNip} onChange={(e) => setChairNip(e.target.value)} placeholder="Contoh: 197805122005011002" />
+                            </ModalField>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button type="button" variant="cancel" onClick={() => setIsChairModalOpen(false)}>Batal</Button>
+                        <Button type="submit" variant="primary" icon="save" isLoading={isSavingChair} disabled={isSavingChair || !chairName.trim()}>Simpan</Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
         </div>
     );
 }

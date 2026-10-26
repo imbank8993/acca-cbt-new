@@ -403,6 +403,8 @@ export class AuthorizationService {
                 .eq('id', record.question_bank_id)
                 .maybeSingle();
             if ((bank as { created_by?: string } | null)?.created_by === user.id) return;
+            // Kolaborator bank soal (guru mapel lain) juga memantau seluruh pesertanya.
+            if (bank && await collaborationGrant(this.db, 'bank', record.question_bank_id, user.id)) return;
         }
 
         const hasDuty = await this.roles.hasOrgRole(user.id, record.organization_id, ['Pengawas']);

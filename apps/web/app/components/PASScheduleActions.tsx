@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal, Monitor, Trash2 } from 'lucide-react';
+import { Button } from './ui/button';
 
 export function PASScheduleActions({ active, canActivate, busy, monitoringHref, canDelete, onActivate, onDelete, compact = false }: {
     active?: boolean | null; canActivate: boolean; busy: boolean; monitoringHref?: string;
@@ -33,20 +34,19 @@ export function PASScheduleActions({ active, canActivate, busy, monitoringHref, 
         };
     }, [position]);
     return <div className="pas-schedule-actions">
-        {!compact && <button type="button" disabled={busy || (active !== true && !canActivate)} onClick={onActivate}
-            title={active === true ? 'Nonaktifkan ujian' : canActivate ? 'Aktifkan ujian' : 'Lengkapi kebutuhan ujian terlebih dahulu'}
-            className={`pas-schedule-activation ${active === true ? 'is-active' : ''}`}>
+        {!compact && <Button type="button" size="sm" variant={active === true ? 'outline' : 'primary'} disabled={busy || (active !== true && !canActivate)} onClick={onActivate}
+            title={active === true ? 'Nonaktifkan ujian' : canActivate ? 'Aktifkan ujian' : 'Lengkapi kebutuhan ujian terlebih dahulu'}>
             {busy ? 'Memproses…' : active === true ? 'Nonaktifkan' : 'Aktifkan'}
-        </button>}
-        {(compact || monitoringHref || canDelete) && <button ref={trigger} type="button" disabled={busy} aria-label="Aksi lainnya"
-            aria-haspopup="menu" aria-expanded={Boolean(position)} className="pas-schedule-more"
+        </Button>}
+        {(compact || monitoringHref || canDelete) && <Button ref={trigger} type="button" variant="ghost" size="sm" disabled={busy} aria-label="Aksi lainnya"
+            aria-haspopup="menu" aria-expanded={Boolean(position)} leftIcon={<MoreHorizontal size={18} />}
             onClick={() => {
                 if (position) { setPosition(null); return; }
                 const rect = trigger.current!.getBoundingClientRect();
                 const menuHeight = compact ? (1 + Number(Boolean(monitoringHref)) + Number(canDelete)) * 40 + 12 : 112;
                 setPosition({ left: Math.max(8, Math.min(window.innerWidth - 200, rect.right - 192)),
                     top: rect.bottom + menuHeight > window.innerHeight ? Math.max(8, rect.top - menuHeight) : rect.bottom + 6 });
-            }}><MoreHorizontal size={18} /></button>}
+            }} />}
         {position && createPortal(<div ref={menu} role="menu" aria-label="Aksi jadwal" className="pas-schedule-menu" style={{ left: position.left, top: position.top }}
             onBlur={event => { if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setPosition(null); }}
             onKeyDown={event => {

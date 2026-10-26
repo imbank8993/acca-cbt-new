@@ -31,7 +31,6 @@ import { Button } from '@/app/components/ui/button';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
     AlertTriangle,
-    BarChart3,
     Calendar,
     Check,
     DoorOpen,
@@ -47,17 +46,16 @@ import {
     Zap
 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
-import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
 import React,{ useCallback,useEffect,useState } from 'react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import { PASExamSettingsPanel } from '@/app/components/pas/PASExamSettingsPanel';
-import { PASBankResultsPanel } from '@/app/components/pas/PASBankResultsPanel';
+import { PASTodayStatusCard } from '@/app/components/pas/PASTodayStatusCard';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/components/pas/CompactExamPeriodWorkspace';
 import BulkScheduleGrid from './BulkScheduleGrid';
 import { isSemesterAssessmentType } from '@/lib/exam-types';
 
-type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'exam_settings' | 'monitoring' | 'results' | 'administration' | 'bulk';
+type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'exam_settings' | 'administration' | 'bulk';
 type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
 
 export default function ProctorPASDetailPage() {
@@ -74,10 +72,10 @@ export default function ProctorPASDetailPage() {
     const [rooms, setRooms] = useState<PASRoom[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabId>('schedules');
-    // ?tab=monitoring membuka langsung tab Pelaksanaan (mis. dari halaman monitoring ujian).
+    // Pelaksanaan kini dipantau di halaman Monitoring; tautan lama ?tab=monitoring diteruskan ke sana.
     useEffect(() => {
-        if (new URLSearchParams(window.location.search).get('tab') === 'monitoring') setActiveTab('monitoring');
-    }, []);
+        if (new URLSearchParams(window.location.search).get('tab') === 'monitoring') router.replace(`/dashboard/proktor/monitoring?exam=${encodeURIComponent(`pas:${periodId}`)}`);
+    }, [router, periodId]);
     const [logisticsSubTab, setLogisticsSubTab] = useState<LogisticsSubTab>('rooms');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAddScheduleOpen, setIsAddScheduleOpen] = useState(false);
@@ -293,9 +291,9 @@ export default function ProctorPASDetailPage() {
             <div className="max-w-2xl mx-auto py-20 text-center">
                 <AlertTriangle size={48} className="text-amber-400 mx-auto mb-4" />
                 <h2 className="text-xl font-bold text-slate-700 mb-2">Periode Tidak Ditemukan</h2>
-                <button onClick={() => router.push('/dashboard/proktor/exams')} className="px-6 py-2 bg-[#3083FF] text-white rounded-xl mt-4">
+                <Button variant="primary" className="mt-4" onClick={() => router.push('/dashboard/proktor/exams')}>
                     Kembali ke Pengaturan
-                </button>
+                </Button>
             </div>
         );
     }
@@ -361,8 +359,12 @@ export default function ProctorPASDetailPage() {
                 <CompactExamPeriodHeader
                     period={period}
                     schedules={schedules}
-                    activeTab={activeTab}
-                    onTabChange={tab => setActiveTab(tab as TabId)}
+                    activeTab={activeTab === 'rooms_sessions' ? (logisticsSubTab === 'sessions' ? 'sessions' : 'rooms') : activeTab}
+                    onTabChange={(tab) => {
+                        // "Ruang dan Pengawas" dan "Sesi" adalah tab sendiri di folder ASAS/AM.
+                        if (tab === 'rooms' || tab === 'sessions') { setLogisticsSubTab(tab); setActiveTab('rooms_sessions'); }
+                        else setActiveTab(tab as TabId);
+                    }}
                     formatDate={formatDate}
                     onSettings={() => setIsEditModalOpen(true)}
                     onAddSchedule={openAddSchedule}
@@ -484,16 +486,6 @@ export default function ProctorPASDetailPage() {
                         <Settings2 size={13} />
                         Pengaturan Ujian
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('results')}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                            activeTab === 'results' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                        <BarChart3 size={13} />
-                        Hasil & Analisis
-                    </button>
                     {!period.is_locked && (
                         <button type="button" onClick={() => setActiveTab('bulk')}
                             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
@@ -555,20 +547,8 @@ export default function ProctorPASDetailPage() {
                     view={logisticsSubTab}
                     onViewChange={setLogisticsSubTab}
                     onChange={() => void loadData()}
+                    hideNav={isCompactPeriod}
                 />
-            )}
-
-            {activeTab === 'monitoring' && isCompactPeriod && (
-                <PASSlotMonitoring
-                    periodId={period.id}
-                    userRole="proktor"
-                    monitoringBasePath="/dashboard/proktor/monitoring"
-                    attemptBasePath="/dashboard/proktor/monitoring"
-                />
-            )}
-
-            {activeTab === 'results' && (
-                <PASBankResultsPanel period={period} attemptBasePath="/dashboard/proktor/monitoring" />
             )}
 
             {activeTab === 'administration' && (
@@ -597,6 +577,11 @@ export default function ProctorPASDetailPage() {
                     }}
                     onCancel={() => setActiveTab('schedules')}
                 />
+            )}
+
+            {isCompactPeriod && (activeTab === 'schedules' || activeTab === 'live_today') && liveSchedules.length > 0 && (
+                <PASTodayStatusCard periodId={period.id} today={todayStr}
+                    monitoringHref={`/dashboard/proktor/monitoring?exam=${encodeURIComponent(`pas:${period.id}`)}`} />
             )}
 
             {/* ── SCHEDULES & LIVE TAB ── */}

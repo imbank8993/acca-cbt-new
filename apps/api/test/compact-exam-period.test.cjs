@@ -38,6 +38,23 @@ function harness() {
         useId() { const index = cursor++; return `test-control-${index}`; },
         useEffect() {},
     };
+    // Komponen bersama (Button, FilterToolbar, Modal) dirender sebagai elemen dasar agar mudah diperiksa.
+    const h = React.createElement;
+    const ui = {
+        button: { Button: ({ children, leftIcon, ...props }) => h('button', props, ...[leftIcon, children].filter(item => item != null)) },
+        filters: {
+            FilterToolbar: ({ children }) => h('div', {}, children),
+            FilterActions: ({ children }) => h('div', {}, children),
+            FilterSearch: ({ value, onChange, placeholder }) => h('input', { type: 'search', value, placeholder, onChange: event => onChange(event.target.value) }),
+            FilterSelect: ({ label, value, onChange, options = [] }) => h('select', { 'aria-label': label, value, onChange: event => onChange(event.target.value) },
+                ...options.map(option => h('option', { value: option.value }, option.label))),
+        },
+        modal: {
+            Modal: ({ open, children }) => open === false ? null : h('dialog', {}, children),
+            ModalBody: ({ children }) => h('div', {}, children),
+            ModalFooter: ({ children }) => h('div', {}, children),
+        },
+    };
     const load = (relativePath, modules = {}) => {
         const source = fs.readFileSync(path.join(web, relativePath), 'utf8');
         const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -53,17 +70,21 @@ function harness() {
     };
     const status = load('app/components/PASScheduleStatus.tsx', { './ui/modal': {}, './ui/button': {} });
     const room = load('app/components/PASScheduleRooms.tsx', {
+        './ui/button': ui.button,
         '@/lib/api/pas': { getRoomSessionInvigilators: (value, session) => session ? (value?.pas_room_invigilators || []).filter(person => person.session_id === session) : [] },
     });
     const examTypes = load('lib/exam-types.ts');
     const workspace = load('app/components/pas/CompactExamPeriodWorkspace.tsx', {
+        '@/app/components/ui/button': ui.button,
+        '@/app/components/ui/filtertoolbar': ui.filters,
+        '@/app/components/ui/modal': ui.modal,
         '@/lib/school-time': { formatSchoolDate: value => value.split('T')[0], getSchoolTimeZoneLabel: () => 'WITA' },
         '@/lib/exam-types': examTypes,
         '../PASScheduleStatus': status,
         '../PASScheduleRooms': room,
         '../PASScheduleActions': { PASScheduleActions: props => React.createElement('schedule-actions', props) },
     });
-    const actions = load('app/components/PASScheduleActions.tsx', { 'react-dom': { createPortal: value => value } });
+    const actions = load('app/components/PASScheduleActions.tsx', { 'react-dom': { createPortal: value => value }, './ui/button': ui.button });
     return { workspace, actions, render(component, props) { cursor = 0; return component(props); } };
 }
 
@@ -142,7 +163,7 @@ test('compact actions menu preserves locked deactivation and disables unknown ac
 });
 
 test('changing every schedule filter clears selections and resetting restores the full list', () => {
-    for (const filter of ['search', 'Filter tanggal', 'Filter kelas', 'Filter kesiapan', 'Filter akses siswa']) {
+    for (const filter of ['search', 'Tanggal', 'Kelas', 'Kesiapan', 'Akses siswa']) {
         const h = harness();
         const value = props([schedule({}), schedule({ id: 'second', is_activated: true })]);
         let tree = h.render(h.workspace.CompactExamPeriodSchedules, value);
@@ -150,7 +171,7 @@ test('changing every schedule filter clears selections and resetting restores th
         tree = h.render(h.workspace.CompactExamPeriodSchedules, value);
         assert.match(text(tree), /2 jadwal dipilih/);
         const control = filter === 'search' ? find(tree, node => node.type === 'input' && node.props.type === 'search') : find(tree, node => node.type === 'select' && node.props['aria-label'] === filter);
-        control.props.onChange({ target: { value: { search: 'tidak cocok', 'Filter tanggal': '2026-10-20', 'Filter kelas': 'missing', 'Filter kesiapan': 'pending', 'Filter akses siswa': 'unknown' }[filter] } });
+        control.props.onChange({ target: { value: { search: 'tidak cocok', Tanggal: '2026-10-20', Kelas: 'missing', Kesiapan: 'pending', 'Akses siswa': 'unknown' }[filter] } });
         tree = h.render(h.workspace.CompactExamPeriodSchedules, value);
         assert.equal(nodes(tree).some(node => node.props['aria-label'] === 'Tindakan jadwal terpilih'), false, filter);
         button(tree, 'Hapus filter').props.onClick();

@@ -33,6 +33,23 @@ test('jadwal PDF memuat setiap ruang dan semua pengawas sesuai tanggal, termasuk
     assert.equal(rows[2].invigilators, 'Belum ditugaskan');
 });
 
+test('jadwal hanya memuat ruang: kelas berbeda di ruang & sesi yang sama menjadi satu baris', () => {
+    const rooms = [{ id: 'r1', name: 'Ruang 1', pas_room_invigilators: [] }, { id: 'r2', name: 'Ruang 2', pas_room_invigilators: [] }];
+    const sessions = [{ id: 's1', name: 'Sesi 1', start_time: '07:30:00', end_time: '09:30:00' }];
+    const base = { scheduled_date: '2026-10-06', session_id: 's1', duration_minutes: 90, status: 'scheduled', question_banks: { title: 'Bahasa Indonesia' } };
+    const rows = buildAdministrationScheduleRows([
+        { ...base, id: 'xa', classes: { name: 'X A' }, allocated_room_ids: ['r1', 'r2'] },
+        { ...base, id: 'xb', classes: { name: 'X B' }, allocated_room_ids: ['r1'] },
+        { ...base, id: 'xc', classes: { name: 'X C' }, allocated_room_ids: ['r1'], question_banks: { title: 'Matematika' }, status: 'active' },
+    ], rooms, sessions);
+    assert.deepEqual(rows.map(row => row.room), ['Ruang 1', 'Ruang 2']);
+    assert.equal(rows[0].exam, 'Bahasa Indonesia\nMatematika');
+    assert.equal(rows[0].status, 'Terjadwal, Aktif');
+    assert.ok(rows.every(row => !('className' in row)));
+    const source = require('node:fs').readFileSync(path.resolve(__dirname, '../../web/lib/pas/administration-schedule-pdf.ts'), 'utf8');
+    assert.match(source, /const headers = \['No', 'Hari \/ Tanggal', 'Sesi \/ Jam', 'Mata Pelajaran \/ Bank Soal', 'Ruang', 'Pengawas', 'Status'\];/);
+});
+
 test('jadwal menggabungkan tanggal dan sesi berulang tanpa mencampur sesi atau tanggal lain', () => {
     const rows = [
         { date: '2026-10-06', session: 'Sesi 1', time: '07:30–09:30' },

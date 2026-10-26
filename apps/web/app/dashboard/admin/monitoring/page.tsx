@@ -15,6 +15,8 @@ import { ResetExamModal } from '@/app/components/monitoring';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
+import { FolderExamMonitor } from '@/app/components/monitoring/FolderExamMonitor';
+import { groupFolderExams, isFolderGroupId, resolveMonitoringSelection } from '@/lib/monitoring-folder';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
@@ -22,7 +24,6 @@ import type { IrtCalibration } from '@/lib/irt-calibration';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { buildItemAnalysis } from '@/lib/item-analysis';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
-import { PASRoomMonitoringLink } from '@/app/components/monitoring/PASRoomMonitoringLink';
 import { Button } from '@/app/components/ui/button';
 import { calculateExamIRT } from '@/lib/api/grading';
 import { finishAttemptAction,getExamAnswersForAnalysisAction,getExamAttemptsAction,getExamAttemptsResult,getProctorOrganization,listOrganizationExams } from '@/lib/api/proctor';
@@ -45,7 +46,7 @@ Loader2,
 ShieldAlert,
 } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
-import { Suspense,useCallback,useDeferredValue,useEffect,useRef,useState } from 'react';
+import { Suspense,useCallback,useDeferredValue,useEffect,useMemo,useRef,useState } from 'react';
 
 export type { ItemAnalysis };
 
@@ -58,7 +59,14 @@ function MonitoringContent() {
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_monitoring_exams', []);
-    const [selectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
+    const [rawSelectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
+    // Ujian folder ASAS/AM tampil satu entri per bank soal (lihat FolderExamMonitor).
+    const groupedExams = useMemo(() => groupFolderExams(exams), [exams]);
+    const pickedExamId = exams.length ? resolveMonitoringSelection(rawSelectedExamId, groupedExams) : rawSelectedExamId;
+    const folderGroup = groupedExams.groups.get(pickedExamId) ?? null;
+    const [folderRefresh, setFolderRefresh] = useState(0);
+    // Data monitoring ujian biasa hanya dimuat bila yang dipilih bukan ujian folder.
+    const selectedExamId = folderGroup ? '' : pickedExamId;
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
@@ -87,7 +95,7 @@ function MonitoringContent() {
                 const examList = sortMonitoringExams(await listOrganizationExams());
                 console.log('[Monitoring] Exams:', examList);
                 setExams(examList);
-                if (!initialExamId && examList.length > 0) setSelectedExamId(current => examList.some(exam => exam.id === current) ? current : examList[0].id);
+                if (!initialExamId && examList.length > 0) setSelectedExamId(current => (examList.some(exam => exam.id === current) || isFolderGroupId(current)) ? current : (groupFolderExams(examList).list[0]?.id ?? examList[0].id));
             }
         }
         setIsLoading(false);
@@ -309,10 +317,11 @@ function MonitoringContent() {
     return (
         <div className="monitoring-page pb-24 max-w-7xl mx-auto">
             <MonitoringWorkspaceHeader
-                exams={exams} now={monitoringNow} value={selectedExamId}
-                onExamChange={setSelectedExamId} onRefresh={handleRefresh} refreshing={isRefreshing}
+                exams={groupedExams.list} now={monitoringNow} value={pickedExamId}
+                onExamChange={setSelectedExamId} onRefresh={folderGroup ? () => setFolderRefresh(count => count + 1) : handleRefresh} refreshing={isRefreshing}
                 attempts={attempts} activeTab={activeTab}
                 onTabChange={tab => setActiveTab(tab as typeof activeTab)}
+                hideDetails={Boolean(folderGroup)}
                 tabs={[
                     { id: 'live', label: 'Peserta aktif' },
                     { id: 'answers', label: 'Jawaban' },
@@ -323,6 +332,8 @@ function MonitoringContent() {
                     ...(canManageScreenShare ? [{ id: 'screen', label: 'Pengecualian layar' }] : []),
                 ]}
             >
+                {folderGroup ? <FolderExamMonitor key={folderGroup.id} group={folderGroup} userRole="admin"
+                    attemptBasePath="/dashboard/admin/monitoring" refreshToken={folderRefresh} /> : <>
                 {['live', 'results', 'reset'].includes(activeTab) && <MonitoringParticipantFilters
                     search={searchName} onSearchChange={setSearchName}
                     classOptions={kelasOptions} selectedClasses={filterKelas} onClassesChange={setFilterKelas}
@@ -338,6 +349,7 @@ function MonitoringContent() {
                         <Button variant="outline" icon="export" onClick={exportResultsToExcel}>Export</Button>
                     </> : undefined}
                 />}
+                </>}
             </MonitoringWorkspaceHeader>
 
             {selectedExamId && hasIRTScoring && (
@@ -347,8 +359,6 @@ function MonitoringContent() {
                     canCalculate={selectedExam?.canManage === true}
                 />
             )}
-
-            <PASRoomMonitoringLink exam={selectedExam} role="admin" />
 
             {selectedExamId && activeTab === 'reset' && <>
                 {canResetParticipants ? <BulkResetPanel
@@ -396,7 +406,7 @@ function MonitoringContent() {
             )}
 
             {/* Empty state */}
-            {!selectedExamId && (
+            {!pickedExamId && (
                 <div className="py-16 text-center bg-white border border-[#3083FF]/30 rounded-lg">
                     <div className="w-16 h-16 bg-[#3083FF]/10 rounded-lg flex items-center justify-center mx-auto mb-4 border border-[#3083FF]/30">
                         <ShieldAlert size={32} className="text-[#3083FF]" />

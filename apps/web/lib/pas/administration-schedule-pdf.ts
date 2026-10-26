@@ -25,7 +25,6 @@ export interface AdministrationScheduleRow {
     session: string;
     time: string;
     exam: string;
-    className: string;
     room: string;
     invigilators: string;
     status: string;
@@ -60,13 +59,17 @@ function dateLabel(date: string): string {
     });
 }
 
-/** Satu baris untuk setiap jadwal dan ruang yang dipakai oleh kelas tersebut. */
+/**
+ * Satu baris per tanggal × sesi × ruang. Jadwal beberapa kelas yang memakai ruang
+ * yang sama digabung; kelas tidak ditampilkan karena pelaksanaan diatur per ruang.
+ */
 export function buildAdministrationScheduleRows(
     schedules: PASClassSchedule[], rooms: SchedulePrintRoom[], sessions: SchedulePrintSession[],
 ): AdministrationScheduleRow[] {
     const roomById = new Map(rooms.map(room => [room.id, room]));
     const sessionById = new Map(sessions.map(session => [session.id, session]));
-    return schedules.flatMap(schedule => {
+    const merged = new Map<string, AdministrationScheduleRow & { exams: string[]; statuses: string[] }>();
+    for (const schedule of schedules) {
         const date = pasDay(schedule.scheduled_date);
         const session = sessionById.get(schedule.session_id || '');
         const allocated = [...new Set(schedule.allocated_room_ids || [])]
@@ -80,23 +83,38 @@ export function buildAdministrationScheduleRows(
         const sessionTime = session
             ? `${session.start_time.slice(0, 5)}–${session.end_time.slice(0, 5)}`
             : schedule.scheduled_time?.slice(0, 5) || '-';
-        return usedRooms.map(room => ({
-            date,
-            session: session?.name || 'Sesi belum ditetapkan',
-            time: `${sessionTime} · ${schedule.duration_minutes || '-'} menit`,
-            exam,
-            className: schedule.classes?.name || 'Kelas belum ditetapkan',
-            room: room?.name || schedule.room?.trim() || 'Belum ditetapkan',
-            invigilators: room && session
-                ? getRoomSessionInvigilators(room, session.id, date)
-                    .map(inv => inv.profiles?.full_name || 'Pengawas')
-                    .sort((a, b) => a.localeCompare(b, 'id-ID')).join(', ') || 'Belum ditugaskan'
-                : 'Belum ditugaskan',
-            status: statusLabels[schedule.status] || schedule.status || '-',
-        }));
-    }).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
-        || a.session.localeCompare(b.session, 'id-ID') || a.room.localeCompare(b.room, 'id-ID')
-        || a.className.localeCompare(b.className, 'id-ID'));
+        const status = statusLabels[schedule.status] || schedule.status || '-';
+        for (const room of usedRooms) {
+            const roomName = room?.name || schedule.room?.trim() || 'Belum ditetapkan';
+            const time = `${sessionTime} · ${schedule.duration_minutes || '-'} menit`;
+            const key = [date, schedule.session_id || sessionTime, room?.id || roomName.toLocaleLowerCase('id-ID')].join('\u0000');
+            const current = merged.get(key);
+            if (current) {
+                if (!current.exams.includes(exam)) current.exams.push(exam);
+                if (!current.statuses.includes(status)) current.statuses.push(status);
+                continue;
+            }
+            merged.set(key, {
+                date,
+                session: session?.name || 'Sesi belum ditetapkan',
+                time,
+                exam,
+                exams: [exam],
+                room: roomName,
+                invigilators: room && session
+                    ? getRoomSessionInvigilators(room, session.id, date)
+                        .map(inv => inv.profiles?.full_name || 'Pengawas')
+                        .sort((a, b) => a.localeCompare(b, 'id-ID')).join(', ') || 'Belum ditugaskan'
+                    : 'Belum ditugaskan',
+                status,
+                statuses: [status],
+            });
+        }
+    }
+    return [...merged.values()]
+        .map(({ exams, statuses, ...row }) => ({ ...row, exam: exams.join('\n'), status: statuses.join(', ') }))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
+            || a.session.localeCompare(b.session, 'id-ID') || a.room.localeCompare(b.room, 'id-ID', { numeric: true }));
 }
 
 /** Unduh jadwal lengkap sebagai PDF A4 lanskap dengan kop profil sekolah. */
@@ -109,8 +127,8 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
     const kop = formatKopParts(period.profil_sekolah);
     const logo = await loadKopLogo(kop.logoUrl);
     const left = 12, right = 285, center = 148.5;
-    const widths = [9, 29, 32, 55, 28, 36, 65, 19];
-    const headers = ['No', 'Hari / Tanggal', 'Sesi / Jam', 'Mata Pelajaran / Bank Soal', 'Kelas', 'Ruang', 'Pengawas', 'Status'];
+    const widths = [9, 29, 32, 70, 36, 78, 19];
+    const headers = ['No', 'Hari / Tanggal', 'Sesi / Jam', 'Mata Pelajaran / Bank Soal', 'Ruang', 'Pengawas', 'Status'];
     const xs = widths.map((_, index) => left + widths.slice(0, index).reduce((sum, width) => sum + width, 0));
     let y = 0;
 
@@ -136,7 +154,7 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
     type PreparedRow = { row: AdministrationScheduleRow; lines: string[][]; height: number };
     const prepared = rows.map((row, index): PreparedRow => {
         const values = [String(index + 1), dateLabel(row.date), `${row.session}\n${row.time}`,
-            row.exam, row.className, row.room, row.invigilators, row.status];
+            row.exam, row.room, row.invigilators, row.status];
         pdf.setFont('times', 'normal'); pdf.setFontSize(8);
         const lines = values.map((value, column) => pdf.splitTextToSize(value, widths[column] - 3) as string[]);
         const height = Math.max(8, ...lines.map(item => item.length * 3.6 + 3));
@@ -154,7 +172,7 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
         let rowY = startY;
         pageRows.forEach(item => {
             positions.push(rowY);
-            [0, 3, 4, 5, 6, 7].forEach(column => drawCell(item, column, rowY, item.height));
+            [0, 3, 4, 5, 6].forEach(column => drawCell(item, column, rowY, item.height));
             rowY += item.height;
         });
         const groups = getAdministrationScheduleMergeRuns(pageRows.map(item => item.row));
@@ -183,7 +201,7 @@ export async function downloadAdministrationSchedulePdf(period: SchedulePrintPer
     for (let page = 1; page <= pages; page++) {
         pdf.setPage(page);
         pdf.setFont('times', 'normal'); pdf.setFontSize(8); pdf.setTextColor(90, 90, 90);
-        pdf.text(`${period.name} · ${rows.length} baris jadwal`, left, 200);
+        pdf.text(`${period.name} · ${rows.length} ruang terjadwal`, left, 200);
         pdf.text(`Halaman ${page} dari ${pages}`, right, 200, { align: 'right' });
     }
     const safeName = period.name.replace(/[^a-zA-Z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'ujian';

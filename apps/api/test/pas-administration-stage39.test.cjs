@@ -32,14 +32,15 @@ const {
 
 const { createFixtures, createAuthzMock, signingInput } = require('./pas-administration-fixtures.cjs');
 
-test('ADMIN-01: RoomManagementModal memisahkan Pengawas dari modal detail ruang ke view tersendiri', () => {
+test('ADMIN-01: pengawas diatur bersama ruang (Ruang dan Pengawas), tidak di modal detail ruang', () => {
     for (const roleDir of ['admin', 'proktor']) {
         const modalSource = fs.readFileSync(
             path.resolve(__dirname, '../../web/app/components/pas/RoomManagementPanel.tsx'),
             'utf8',
         );
         assert.match(modalSource, /view\??:\s*'rooms'\s*\|\s*'sessions'\s*\|\s*'invigilators'/);
-        assert.match(modalSource, /Pemetaan Pengawas Ruang & Sesi/);
+        assert.match(modalSource, /Ruang dan Pengawas<\/h3>/);
+        assert.match(modalSource, /title="Tambah pengawas"/);
         assert.doesNotMatch(modalSource, /useState<'students'\s*\|\s*'proctors'\s*\|\s*'schedules'>/);
     }
 });

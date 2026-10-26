@@ -242,6 +242,7 @@ test('schedule room column shows actual rooms and session supervisors instead of
  const code = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS } }).outputText;
  const mod = { exports: {} };
  new Function('require', 'module', 'exports', 'React', code)(name => {
+  if (name === './ui/button') return { Button: 'button' };
   assert.equal(name, '@/lib/api/pas');
   return { getRoomSessionInvigilators: (room, session) => (room?.pas_room_invigilators || []).filter(member => member.session_id === session) };
  }, mod, mod.exports, React);

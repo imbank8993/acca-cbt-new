@@ -172,15 +172,18 @@ function loadRoomTabs() {
     new Function('require', 'module', 'exports', code)(name => name === 'react'
         ? { useState: () => [], useEffect() {}, useMemo: fn => fn(), useCallback: fn => fn, useRef: value => ({ current: value }) }
         : new Proxy({}, { get: (_, key) => key }), mod, mod.exports);
-    return mod.exports.roomTabs;
+    return mod.exports.roomSections;
 }
 
-test('SET-07: monitoring ruang ASAS/AM punya tab yang sama dengan monitoring ujian biasa', () => {
-    const roomTabs = loadRoomTabs();
-    const labels = (role, canScreen) => roomTabs(role, { canScreen }).map(([, label]) => label);
-    assert.deepEqual(labels('proktor', true), ['Peserta aktif', 'Daftar peserta', 'Jawaban', 'Hasil', 'Analisis', 'Reset massal', 'Pengecualian layar', 'Absensi & berita acara']);
-    assert.deepEqual(labels('admin', false), ['Peserta aktif', 'Daftar peserta', 'Jawaban', 'Hasil', 'Analisis', 'Reset massal', 'Absensi & berita acara']);
-    assert.deepEqual(labels('pengawas', false), ['Peserta aktif', 'Daftar peserta', 'Jawaban', 'Reset massal', 'Absensi & berita acara']);
+test('SET-07: monitoring ruang ASAS/AM ringkas: 4 bagian, reset & pengecualian layar di menu Tindakan', () => {
+    const roomSections = loadRoomTabs();
+    assert.deepEqual(roomSections('proktor'), ['peserta', 'jawaban', 'hasil', 'berita']);
+    assert.deepEqual(roomSections('admin'), ['peserta', 'jawaban', 'hasil', 'berita']);
+    assert.deepEqual(roomSections('pengawas'), ['peserta', 'jawaban', 'berita']);
+    const workspace = fs.readFileSync(path.resolve(__dirname, '../../web/app/components/monitoring/ParticipantsWorkspace.tsx'), 'utf8');
+    assert.match(workspace, /\['reset', 'Reset massal'\]/);
+    assert.match(workspace, /\['screen', 'Pengecualian layar'\]/);
+    assert.match(workspace, /userRole !== 'guru' && examRecords\[examId\]\?\.canResetParticipants === true/);
 });
 
 test('SET-08: tab Pengaturan Ujian tersedia di folder dan monitoring biasa memakai panel analisis bersama', () => {
