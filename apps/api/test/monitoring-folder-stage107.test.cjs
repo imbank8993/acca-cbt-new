@@ -134,3 +134,15 @@ test('MF-07: Ruang dan Pengawas satu tab dengan tombol Tambah pengawas; Sesi tab
     }
     assert.match(web('app/components/pas/CompactExamPeriodWorkspace.tsx'), /className="cp-summary-card"/);
 });
+
+test('MF-08: pilihan Per bank soal | Per ruang di pojok kanan atas; filter peserta memakai FilterToolbar', () => {
+    const header = web('app/components/monitoring/MonitoringWorkspaceHeader.tsx');
+    assert.match(header, /\{schedule && <p className="monitoring-workspace__schedule">\{schedule\}<\/p>\}\s*<\/div>\s*\{headerAction && <div className="monitoring-workspace__action">/);
+    for (const role of ['admin', 'proktor', 'guru']) {
+        assert.match(web(`app/dashboard/${role}/monitoring/page.tsx`), new RegExp(`headerAction=\\{folderGroup \\? <FolderViewToggle role="${role}"`));
+    }
+    const workspace = web('app/components/monitoring/ParticipantsWorkspace.tsx');
+    assert.match(workspace, /<FilterToolbar>\s*<FilterSearch/);
+    assert.doesNotMatch(workspace, /ParticipantSummaryLine attempts=/);
+    assert.match(workspace, /<Button type="button" variant="outline" size="sm" aria-haspopup="menu"/);
+});

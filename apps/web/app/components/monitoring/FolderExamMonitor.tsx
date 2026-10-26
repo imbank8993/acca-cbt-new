@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
-import { ParticipantSummaryLine, ParticipantsWorkspace, WorkspaceError } from '@/app/components/monitoring/ParticipantsWorkspace';
+import { ParticipantsWorkspace, WorkspaceError } from '@/app/components/monitoring/ParticipantsWorkspace';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { getExamAttemptsAction, type ExamAttemptRecord } from '@/lib/api/proctor';
 import type { FolderExamGroup } from '@/lib/monitoring-folder';
@@ -20,33 +20,38 @@ export function folderViews(role: FolderMonitorRole): FolderMonitorView[] {
     return role === 'guru' ? ['bank'] : ['bank', 'room'];
 }
 
+/** Pilihan Per bank soal | Per ruang; dipasang di pojok kanan atas, sebaris dengan pemilih ujian. */
+export function FolderViewToggle({ role, value, onChange }: { role: FolderMonitorRole; value: FolderMonitorView; onChange: (view: FolderMonitorView) => void }) {
+    const views = folderViews(role);
+    if (views.length < 2) return null;
+    return <div role="group" aria-label="Tampilan monitoring" className="inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+        {views.map(id => <button key={id} type="button" aria-pressed={value === id} onClick={() => onChange(id)}
+            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${value === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+            {id === 'bank' ? 'Per bank soal' : 'Per ruang'}
+        </button>)}
+    </div>;
+}
+
 /**
  * Monitoring satu bank soal ujian folder ASAS/AM di halaman Monitoring.
  * - Per bank soal: semua siswa bank itu dari semua kelas & ruang.
  * - Per ruang: papan ruang folder, lalu isi ruang.
  */
-export function FolderExamMonitor({ group, userRole, attemptBasePath, refreshToken = 0 }: {
+export function FolderExamMonitor({ group, userRole, attemptBasePath, refreshToken = 0, view }: {
     group: FolderExamGroup;
     userRole: FolderMonitorRole;
     attemptBasePath?: string;
     /** Bertambah saat tombol Perbarui di kepala halaman ditekan. */
     refreshToken?: number;
+    /** Tampilan terpilih (dikendalikan halaman lewat FolderViewToggle). */
+    view?: FolderMonitorView;
 }) {
     const views = folderViews(userRole);
-    const [view, setView] = useState<FolderMonitorView>(defaultFolderView(userRole));
-    const activeView = views.includes(view) ? view : views[0];
-
-    return <div className="space-y-4">
-        {views.length > 1 && <div role="group" aria-label="Tampilan monitoring" className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
-            {views.map(id => <button key={id} type="button" aria-pressed={activeView === id} onClick={() => setView(id)}
-                className={`rounded-full px-3.5 py-1.5 transition-colors ${activeView === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-                {id === 'bank' ? 'Per bank soal' : 'Per ruang'}
-            </button>)}
-        </div>}
-        {activeView === 'bank'
-            ? <BankMonitor key={`${group.id}:${refreshToken}`} group={group} userRole={userRole} attemptBasePath={attemptBasePath} />
-            : <PASSlotMonitoring key={`${group.periodId}:${refreshToken}`} periodId={group.periodId} userRole={userRole === 'guru' ? 'admin' : userRole} attemptBasePath={attemptBasePath} embedded />}
-    </div>;
+    const activeView = view && views.includes(view) ? view : defaultFolderView(userRole);
+    return activeView === 'bank'
+        ? <BankMonitor key={`${group.id}:${refreshToken}`} group={group} userRole={userRole} attemptBasePath={attemptBasePath} />
+        : <PASSlotMonitoring key={`${group.periodId}:${refreshToken}`} periodId={group.periodId} userRole={userRole === 'guru' ? 'admin' : userRole}
+            attemptBasePath={attemptBasePath} embedded />;
 }
 
 function BankMonitor({ group, userRole, attemptBasePath }: { group: FolderExamGroup; userRole: FolderMonitorRole; attemptBasePath?: string }) {
@@ -88,7 +93,6 @@ function BankMonitor({ group, userRole, attemptBasePath }: { group: FolderExamGr
     })), [group]);
 
     return <section className="space-y-3" aria-label={`Monitoring bank soal ${group.bankTitle}`}>
-        <ParticipantSummaryLine attempts={attempts} />
         {error && <WorkspaceError text={error} onRetry={() => void load(false)} />}
         <ParticipantsWorkspace
             attempts={attempts}

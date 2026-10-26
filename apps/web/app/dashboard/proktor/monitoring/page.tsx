@@ -18,7 +18,7 @@ import { getQuestionSnippet } from '@/lib/question-snippet';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
-import { FolderExamMonitor } from '@/app/components/monitoring/FolderExamMonitor';
+import { FolderExamMonitor, FolderViewToggle, defaultFolderView, type FolderMonitorView } from '@/app/components/monitoring/FolderExamMonitor';
 import { groupFolderExams, isFolderGroupId, resolveMonitoringSelection } from '@/lib/monitoring-folder';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
@@ -77,6 +77,8 @@ function MonitoringContent() {
     const pickedExamId = exams.length ? resolveMonitoringSelection(rawSelectedExamId, groupedExams) : rawSelectedExamId;
     const folderGroup = groupedExams.groups.get(pickedExamId) ?? null;
     const [folderRefresh, setFolderRefresh] = useState(0);
+    const [folderView, setFolderView] = useState<FolderMonitorView | null>(null);
+    const activeFolderView = folderView ?? defaultFolderView('proktor');
     // Data monitoring ujian biasa hanya dimuat bila yang dipilih bukan ujian folder.
     const selectedExamId = folderGroup ? '' : pickedExamId;
 
@@ -360,6 +362,7 @@ function MonitoringContent() {
                 activeTab={activeTab}
                 onTabChange={value => setActiveTab(value as typeof activeTab)}
                 hideDetails={Boolean(folderGroup)}
+                headerAction={folderGroup ? <FolderViewToggle role="proktor" value={activeFolderView} onChange={setFolderView} /> : undefined}
                 tabs={[
                     { id: 'live', label: 'Peserta aktif' },
                     { id: 'answers', label: 'Jawaban' },
@@ -371,7 +374,7 @@ function MonitoringContent() {
                 ]}
             >
                 {folderGroup ? <FolderExamMonitor key={folderGroup.id} group={folderGroup} userRole="proktor"
-                    attemptBasePath="/dashboard/proktor/monitoring" refreshToken={folderRefresh} /> : <>
+                    attemptBasePath="/dashboard/proktor/monitoring" refreshToken={folderRefresh} view={activeFolderView} /> : <>
                 {selectedExamId && (activeTab === 'live' || activeTab === 'results' || activeTab === 'reset') && (
                     <MonitoringParticipantFilters
                         search={searchName}

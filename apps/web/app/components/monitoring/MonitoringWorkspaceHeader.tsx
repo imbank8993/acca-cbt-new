@@ -23,12 +23,14 @@ interface MonitoringWorkspaceHeaderProps {
     tabs: { id: string; label: string }[];
     /** Ujian folder ASAS/AM: ringkasan & tab diurus oleh tampilan per bank/ruang di `children`. */
     hideDetails?: boolean;
+    /** Kontrol di pojok kanan atas, sebaris dengan pemilih ujian (mis. Per bank soal | Per ruang). */
+    headerAction?: ReactNode;
     children?: ReactNode;
 }
 
 export function MonitoringWorkspaceHeader({
     exams, now, value, onExamChange, onRefresh, refreshing, attempts,
-    activeTab, onTabChange, tabs, hideDetails = false, children,
+    activeTab, onTabChange, tabs, hideDetails = false, headerAction, children,
 }: MonitoringWorkspaceHeaderProps) {
     const { timeZone, error } = useSchoolTimeZone();
     const selected = exams.find(exam => exam.id === value);
@@ -89,8 +91,9 @@ export function MonitoringWorkspaceHeader({
                             </button>
                         }
                     />
+                    {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
                 </div>
-                {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
+                {headerAction && <div className="monitoring-workspace__action">{headerAction}</div>}
             </header>
             {value && hideDetails && children}
             {value && !hideDetails && <>

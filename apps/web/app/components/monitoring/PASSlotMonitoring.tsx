@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, ArrowLeft, Clock, DoorOpen, Loader2, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
-import { ParticipantSummaryLine, ParticipantsWorkspace, WorkspaceError, type WorkspaceSection } from '@/app/components/monitoring/ParticipantsWorkspace';
+import { ParticipantsWorkspace, WorkspaceError, type WorkspaceSection } from '@/app/components/monitoring/ParticipantsWorkspace';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { REFRESH_INTERVAL, useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { listPASMonitoringSlots, type PASMonitoringSlot } from '@/lib/api/pas';
@@ -91,8 +91,8 @@ export function mergeSlotExams(exams: PASMonitoringSlot['exams']): PASMonitoring
     return [...byExam.values()];
 }
 
-function RoomMonitor({ slot, userRole, attemptBasePath, onBack }: {
-    slot: PASMonitoringSlot; userRole: StaffRole; attemptBasePath?: string; onBack?: () => void;
+function RoomMonitor({ slot, userRole, attemptBasePath, onBack, trailing }: {
+    slot: PASMonitoringSlot; userRole: StaffRole; attemptBasePath?: string; onBack?: () => void; trailing?: ReactNode;
 }) {
     // Ujian gabungan per bank soal muncul sekali, walau dipakai beberapa kelas di ruang ini.
     const roomExams = useMemo(() => mergeSlotExams(slot.exams), [slot.exams]);
@@ -160,7 +160,6 @@ function RoomMonitor({ slot, userRole, attemptBasePath, onBack }: {
                     <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />Perbarui
                 </button>
             </div>
-            <ParticipantSummaryLine attempts={attempts} fallbackTotal={slot.counts.total} />
         </div>
 
         {error && <WorkspaceError text={error} onRetry={() => void load(false)} />}
@@ -175,6 +174,7 @@ function RoomMonitor({ slot, userRole, attemptBasePath, onBack }: {
             attemptBasePath={attemptBasePath}
             onReload={() => load(true)}
             exportTitle={slot.period.name}
+            trailing={trailing}
             administration={<MonitoringPASAdministrationPanel key={slot.key} exam={administrationExam} attempts={attempts} userRole={userRole} />}
         />
     </section>;
@@ -185,7 +185,7 @@ function RoomMonitor({ slot, userRole, attemptBasePath, onBack }: {
  * - Proktor/Admin: papan semua ruang dalam satu folder pada tanggal terpilih.
  * - Pengawas: langsung ke ruang yang sedang ia awasi; ruang tugas lain tetap bisa dipilih.
  */
-export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath, embedded = false }: {
+export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath, embedded = false, trailing }: {
     periodId?: string;
     userRole: StaffRole;
     /** Tidak dipakai lagi; dipertahankan agar pemanggil lama tetap valid. */
@@ -193,6 +193,8 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     attemptBasePath?: string;
     /** Di dalam halaman Monitoring: tanpa judul kartu, cukup baris pilihan tanggal. */
     embedded?: boolean;
+    /** Kontrol di ujung kanan (papan ruang: baris tanggal; isi ruang: baris tab). */
+    trailing?: ReactNode;
 }) {
     const { timeZone } = useSchoolTimeZone();
     const [dates, setDates] = useState<string[]>([]);
@@ -251,7 +253,7 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
     }, [slots, periodId]);
 
     return <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {(!embedded || !selected) && <div className="flex flex-wrap items-center justify-between gap-3">
             {!embedded && <div>
                 <h2 className="text-sm font-bold text-slate-900">{invigilatorView ? 'Ruang yang Saya Awasi' : 'Pelaksanaan per Ruang'}</h2>
                 <p className="mt-0.5 text-xs text-slate-500">{invigilatorView
@@ -262,12 +264,13 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
                 <InlineSelect value={date} onChange={value => { setSelectedKey(null); void load(value); }} disabled={!dates.length || loading} minWidth="220px" aria-label="Tanggal ujian"
                     options={dates.length ? dates.map(item => ({ value: item, label: formatSlotDate(item) })) : [{ value: '', label: 'Belum ada jadwal' }]} />
             </label>}
-        </div>
+            {!selected && trailing && <div className="ml-auto">{trailing}</div>}
+        </div>}
 
         {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertCircle size={14} className="mt-0.5 shrink-0" />{error}
             <button type="button" className="ml-auto font-semibold underline" onClick={() => void load(date)}>Coba lagi</button></div>}
 
-        {selected ? <RoomMonitor key={selected.key} slot={selected} userRole={userRole}
+        {selected ? <RoomMonitor key={selected.key} slot={selected} userRole={userRole} trailing={trailing}
             attemptBasePath={attemptBasePath} onBack={slots.length > 1 || !invigilatorView ? () => setSelectedKey(null) : undefined} />
             : loading ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat ruang ujian…</div>
             : !slots.length ? <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">

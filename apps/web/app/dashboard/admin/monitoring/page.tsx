@@ -15,7 +15,7 @@ import { ResetExamModal } from '@/app/components/monitoring';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
-import { FolderExamMonitor } from '@/app/components/monitoring/FolderExamMonitor';
+import { FolderExamMonitor, FolderViewToggle, defaultFolderView, type FolderMonitorView } from '@/app/components/monitoring/FolderExamMonitor';
 import { groupFolderExams, isFolderGroupId, resolveMonitoringSelection } from '@/lib/monitoring-folder';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
@@ -65,6 +65,8 @@ function MonitoringContent() {
     const pickedExamId = exams.length ? resolveMonitoringSelection(rawSelectedExamId, groupedExams) : rawSelectedExamId;
     const folderGroup = groupedExams.groups.get(pickedExamId) ?? null;
     const [folderRefresh, setFolderRefresh] = useState(0);
+    const [folderView, setFolderView] = useState<FolderMonitorView | null>(null);
+    const activeFolderView = folderView ?? defaultFolderView('admin');
     // Data monitoring ujian biasa hanya dimuat bila yang dipilih bukan ujian folder.
     const selectedExamId = folderGroup ? '' : pickedExamId;
 
@@ -322,6 +324,7 @@ function MonitoringContent() {
                 attempts={attempts} activeTab={activeTab}
                 onTabChange={tab => setActiveTab(tab as typeof activeTab)}
                 hideDetails={Boolean(folderGroup)}
+                headerAction={folderGroup ? <FolderViewToggle role="admin" value={activeFolderView} onChange={setFolderView} /> : undefined}
                 tabs={[
                     { id: 'live', label: 'Peserta aktif' },
                     { id: 'answers', label: 'Jawaban' },
@@ -333,7 +336,7 @@ function MonitoringContent() {
                 ]}
             >
                 {folderGroup ? <FolderExamMonitor key={folderGroup.id} group={folderGroup} userRole="admin"
-                    attemptBasePath="/dashboard/admin/monitoring" refreshToken={folderRefresh} /> : <>
+                    attemptBasePath="/dashboard/admin/monitoring" refreshToken={folderRefresh} view={activeFolderView} /> : <>
                 {['live', 'results', 'reset'].includes(activeTab) && <MonitoringParticipantFilters
                     search={searchName} onSearchChange={setSearchName}
                     classOptions={kelasOptions} selectedClasses={filterKelas} onClassesChange={setFilterKelas}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Calculator, ChevronDown, Loader2, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calculator, ChevronDown, Loader2 } from 'lucide-react';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
@@ -14,6 +14,7 @@ import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringRe
 import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
 import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
 import { Button } from '@/app/components/ui/button';
+import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -90,7 +91,7 @@ export function ParticipantSummaryLine({ attempts, fallbackTotal }: { attempts: 
  */
 export function ParticipantsWorkspace({
     attempts, examOptions, examRecords, userRole, sections, loading, attemptBasePath, onReload,
-    administration, showRoomFilter = false, exportTitle,
+    administration, showRoomFilter = false, exportTitle, trailing,
 }: {
     attempts: ExamAttemptRecord[];
     examOptions: Array<{ exam_id: string; label: string }>;
@@ -103,6 +104,8 @@ export function ParticipantsWorkspace({
     administration?: ReactNode;
     showRoomFilter?: boolean;
     exportTitle: string;
+    /** Kontrol tambahan di ujung kanan baris tab (mis. pilihan Per bank soal | Per ruang). */
+    trailing?: ReactNode;
 }) {
     const router = useRouter();
     const [section, setSection] = useState<WorkspaceSection>(sections[0]);
@@ -254,30 +257,31 @@ export function ParticipantsWorkspace({
                     {SECTION_LABELS[id]}
                 </button>)}
             </nav>
-            {actions.length > 0 && <div ref={menuRef} className="relative mb-1.5">
-                <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                    Tindakan <ChevronDown size={14} />
-                </button>
-                {menuOpen && <div role="menu" className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+            {(actions.length > 0 || trailing) && <div className="mb-1.5 ml-auto flex items-center gap-2">
+            {actions.length > 0 && <div ref={menuRef} className="relative">
+                <Button type="button" variant="outline" size="sm" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
+                    rightIcon={<ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
+                    Tindakan
+                </Button>
+                {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
                     {actions.map(([id, label]) => <button key={id} type="button" role="menuitem" onClick={() => { setAction(id); setMenuOpen(false); }}
-                        className="block w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">{label}</button>)}
+                        className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50">
+                        <span className="text-sm font-medium text-slate-800">{label}</span>
+                        <span className="text-[11px] text-slate-500">{id === 'reset' ? 'Buka ulang pengerjaan beberapa peserta' : 'Izinkan peserta tanpa berbagi layar'}</span>
+                    </button>)}
                 </div>}
+            </div>}
+            {trailing}
             </div>}
         </div>
 
-        {showFilters && <div className="flex flex-wrap items-center gap-2">
-            <label className="relative min-w-[200px] flex-1">
-                <span className="sr-only">Cari peserta</span>
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Cari nama, NIS, atau kelas…"
-                    className="h-[34px] w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/20" />
-            </label>
-            {classOptions.length > 1 && <InlineSelect value={klass} onChange={setClassFilter} minWidth="140px" aria-label="Filter kelas"
+        {showFilters && <FilterToolbar>
+            <FilterSearch value={search} onChange={setSearch} placeholder="Cari nama, NIS, atau kelas…" grow={2} width="240px" />
+            {classOptions.length > 1 && <FilterSelect label="Kelas" icon="people" value={klass} onChange={setClassFilter} width="150px"
                 options={[{ value: '', label: 'Semua kelas' }, ...classOptions.map(name => ({ value: name, label: name }))]} />}
-            {roomOptions.length > 0 && <InlineSelect value={room} onChange={setRoomFilter} minWidth="150px" aria-label="Filter ruang"
+            {roomOptions.length > 0 && <FilterSelect label="Ruang" icon="door-open" value={room} onChange={setRoomFilter} width="170px"
                 options={[{ value: '', label: 'Semua ruang' }, ...roomOptions.map(option => ({ value: option.value, label: `${option.label} (${option.count})` }))]} />}
-        </div>}
+        </FilterToolbar>}
 
         {action ? <div className="space-y-3">
             <button type="button" onClick={() => setAction(null)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
