@@ -243,6 +243,14 @@ export class PasController {
     }
 
     // ── Ruang ────────────────────────────────────────────────────────────────
+    @Post('periods/:periodId/merge-exams')
+    @Roles('ADMIN', 'PROKTOR')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Gabungkan ujian per kelas yang belum dikerjakan menjadi satu ujian per bank soal × sesi' })
+    mergeExams(@CurrentUser() user: AuthUser, @Param('periodId', ParseUUIDPipe) periodId: string) {
+        return this.schedules.mergeExams(user, periodId);
+    }
+
     @Put('schedules/:scheduleId/activation')
     setActivation(@CurrentUser() user: AuthUser, @Param('scheduleId', ParseUUIDPipe) scheduleId: string, @Body() dto: PASActivationDto) {
         return this.schedules.setActivation(user, scheduleId, dto.active);

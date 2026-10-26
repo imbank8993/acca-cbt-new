@@ -44,7 +44,7 @@ test('SET-01: folder lama tanpa pengaturan tetap memakai perilaku sebelumnya; sc
     assert.deepEqual(storedPasExamSettings({ exam_settings: {}, screenshot_enabled: false }).defaults, PAS_EXAM_SETTING_DEFAULTS);
     assert.deepEqual(PAS_EXAM_SETTING_DEFAULTS, {
         randomize_questions: true, randomize_options: true, show_results: false, show_answer_keys: false,
-        is_safe_mode: true, max_violations: 3, screenshot_enabled: false,
+        is_safe_mode: true, max_violations: 3, screenshot_enabled: false, scoring: 'classical',
     });
     assert.equal(storedPasExamSettings({ exam_settings: null, screenshot_enabled: true }).defaults.screenshot_enabled, true);
     const stored = storedPasExamSettings({ exam_settings: {
@@ -73,6 +73,8 @@ test('SET-03: kiriman tidak valid ditolak dengan pesan yang jelas', () => {
     assert.throws(() => normalizePasExamSettings({ defaults: {}, banks: { 'bank-x': {} } }), /ID bank soal/);
     assert.throws(() => normalizePasExamSettings({ defaults: {}, banks: { [OUTSIDE]: { show_results: true } } }, new Set([MATH])), /dijadwalkan di folder ini/);
     assert.equal(normalizePasExamSettings({ defaults: { max_violations: null } }).defaults.max_violations, null);
+    assert.throws(() => normalizePasExamSettings({ defaults: { scoring: 'irt_9pl' } }), /model penilaian/);
+    assert.equal(normalizePasExamSettings({ defaults: { scoring: 'irt_1pl' } }).defaults.scoring, 'irt_1pl');
 });
 
 test('SET-04: simpan pengaturan menerapkan nilai/pembahasan ke semua ujian, keamanan hanya ke ujian yang belum dikerjakan', async () => {

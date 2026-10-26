@@ -3,7 +3,7 @@
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
-import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { effectiveRoomFilter, matchesRoomFilter, monitoringRoomOptions } from '@/lib/monitoring-rooms';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
 import { PASRoomMonitoringLink } from '@/app/components/monitoring/PASRoomMonitoringLink';
@@ -21,6 +21,8 @@ import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
+import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
+import type { IrtCalibration } from '@/lib/irt-calibration';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -72,6 +74,7 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
+    const [irtCalibration, setIrtCalibration] = useState<IrtCalibration | null>(null);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration' | 'screen'>('activeTab', 'live');
@@ -123,7 +126,7 @@ function MonitoringContent() {
                     setLoadError(null);
                     return rows;
                 }),
-                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null })
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null })
             ]);
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
@@ -167,6 +170,7 @@ function MonitoringContent() {
             if (generation !== examRequestGenerationRef.current) return;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
+            if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
@@ -304,7 +308,7 @@ function MonitoringContent() {
             await exportDetailedAnalysisToExcel({
                 exam: exams.find(exam => exam.id === selectedExamId), attempts: freshAttempts,
                 analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
-                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
             });
         } catch (error) {
             alert(error instanceof Error ? error.message : 'Export belum dapat dibuat.');
@@ -418,6 +422,7 @@ function MonitoringContent() {
             {selectedExamId && (
                 <div className="space-y-4">
 
+                    {activeTab === 'analysis' && <IrtParametersPanel key={`irt-${selectedExamId}`} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}
                     <AnimatePresence mode="wait">
                         {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} onFinish={selectedExam?.canManage === true ? handleFinishAttempt : undefined} />}
 

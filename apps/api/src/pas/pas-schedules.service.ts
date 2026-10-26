@@ -5,7 +5,6 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { assertNoActiveAttempts } from '../common/exam-active-attempts';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
 import {
@@ -20,7 +19,7 @@ import { DbService, type DbSession } from '../prisma/prisma-db-adapter';
 import { SettingsService } from '../settings/settings.service';
 import type { CreatePASScheduleDto, CreatePASSessionDto } from './dto/pas.dto';
 import { loadPasReadiness } from './pas-readiness';
-import { pasExamSettingsColumns, resolvePasExamSettings, storedPasExamSettings } from '../common/pas-exam-settings';
+import { pasExamLabel, pasExamSettingsColumns, pasExamSettingsUpdate, resolvePasExamSettings, storedPasExamSettings } from '../common/pas-exam-settings';
 
 /**
  * Jadwal kelas dan sesi waktu sebuah periode PAS, serta pembangkitan ujiannya.
@@ -269,27 +268,33 @@ export class PasSchedulesService {
 
             const { data: schedule } = await db
                 .from('cbt_pas_class_schedules')
-                .select('status, exam_id')
+                .select('status, exam_id, class_id')
                 .eq('id', scheduleId)
                 .eq('pas_period_id', periodId)
                 .maybeSingle();
             if (!schedule) throw new NotFoundException('Jadwal tidak ditemukan.');
 
-            const row = schedule as { status: string | null; exam_id: string | null };
+            const row = schedule as { status: string | null; exam_id: string | null; class_id: string };
             if (row.status === 'active') {
                 throw new ConflictException('Jadwal sedang aktif. Tidak bisa dihapus.');
             }
 
+            const shared = row.exam_id ? (await this.linkedSchedules(db, row.exam_id)).filter(item => item.id !== scheduleId) : [];
             if (row.exam_id) {
                 await lockExamsForDeletion(db, [row.exam_id]);
-                await assertExamsHaveNoHistory(db, [row.exam_id]);
+                // Ujian gabungan tetap dipakai kelas lain: cukup pastikan kelas ini belum mengerjakan.
+                if (shared.length) await this.assertClassHasNoHistory(db, row.exam_id, row.class_id);
+                else await assertExamsHaveNoHistory(db, [row.exam_id]);
             }
 
             const { error } = await db.from('cbt_pas_class_schedules')
                 .delete().eq('id', scheduleId);
             if (error) throw new BadRequestException(`Gagal menghapus jadwal: ${error.message}`);
 
-            if (row.exam_id) {
+            if (row.exam_id && shared.length) {
+                await this.removeClassTarget(db, row.exam_id, row.class_id);
+                await this.refreshExamClasses(db, row.exam_id);
+            } else if (row.exam_id) {
                 const { error: examError } = await db.from('cbt_exams').delete().eq('id', row.exam_id);
                 if (examError) throw new BadRequestException(`Gagal menghapus ujian: ${examError.message}`);
             }
@@ -333,7 +338,6 @@ export class PasSchedulesService {
         return { created, skipped };
     }
 
-    /** Mengembalikan alasan jika dilewati, atau `null` bila ujian berhasil dibuat. */
     async setActivation(user: AuthUser, scheduleId: string, active: boolean) {
         await this.authz.assertProktorByParent(user, 'cbt_pas_class_schedules', scheduleId, 'pas_period_id', 'cbt_pas_periods');
         if (active) {
@@ -346,17 +350,111 @@ export class PasSchedulesService {
         return this.db.transaction(async db => {
             await this.lockPeriod(db, source.pas_period_id);
             await advisoryTransactionLock(db, `pas-exam-generation:${scheduleId}`);
-            const { data: schedule, error } = await db.from('cbt_pas_class_schedules').select('exam_id').eq('id', scheduleId).maybeSingle();
+            const { data: schedule, error } = await db.from('cbt_pas_class_schedules').select('exam_id, class_id').eq('id', scheduleId).maybeSingle();
             if (error || !schedule) throw new BadRequestException('Jadwal belum dapat dibaca.');
             if (schedule.exam_id) {
-                await assertNoActiveAttempts(db, schedule.exam_id, 'menonaktifkan jadwal');
-                const { error: updateError } = await db.from('cbt_exams').update({ is_published: false }).eq('id', schedule.exam_id);
-                if (updateError) throw new BadRequestException('Ujian belum berhasil dinonaktifkan.');
+                // Menonaktifkan satu kelas tidak menutup ujian gabungan bagi kelas lain.
+                await this.assertClassNotWorking(db, schedule.exam_id, schedule.class_id);
+                await this.removeClassTarget(db, schedule.exam_id, schedule.class_id);
             }
             return { id: scheduleId, active: false };
         });
     }
 
+    /**
+     * Gabungkan ujian per-kelas lama menjadi satu ujian per bank soal × tanggal × sesi.
+     *
+     * Hanya ujian yang belum punya riwayat (pengerjaan/sertifikat) yang dilebur.
+     * Kelas yang sudah aktif tetap aktif di ujian gabungan; kelas yang belum aktif
+     * tetap menunggu aktivasi. Ujian yang sudah dikerjakan dibiarkan terpisah dan
+     * dilaporkan kembali.
+     */
+    async mergeExams(user: AuthUser, periodId: string) {
+        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        return this.db.transaction(async (db) => {
+            await this.lockPeriod(db, periodId);
+            const { data: period, error: periodError } = await db.from('cbt_pas_periods')
+                .select('id, organization_id, name, type, school_year, semester, is_locked, screenshot_enabled, exam_settings')
+                .eq('id', periodId).maybeSingle();
+            if (periodError) throw new BadRequestException('Folder ujian belum dapat dibaca.');
+            if (!period) throw new NotFoundException('Folder ujian tidak ditemukan.');
+            if ((period as { is_locked?: boolean }).is_locked) throw new ConflictException('Periode sudah dikunci. Buka kunci sebelum menggabungkan ujian.');
+
+            const { data: scheduleRows, error: scheduleError } = await db.from('cbt_pas_class_schedules')
+                .select('id, pas_period_id, bank_id, class_id, exam_id, session_id, scheduled_date, scheduled_time, window_end_time, duration_minutes')
+                .eq('pas_period_id', periodId);
+            if (scheduleError) throw new BadRequestException('Jadwal folder belum dapat dibaca.');
+            const groups = new Map<string, any[]>();
+            for (const schedule of ((scheduleRows || []) as any[]).filter(row => row.exam_id && row.bank_id)) {
+                const key = this.groupKey(schedule);
+                groups.set(key, [...(groups.get(key) || []), schedule]);
+            }
+
+            const result = { merged: 0, groups: 0, kept_separate: [] as string[] };
+            for (const [key, schedules] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+                const examIds = [...new Set(schedules.map(row => row.exam_id as string))].sort();
+                if (examIds.length < 2) continue;
+                await advisoryTransactionLock(db, `pas-exam-group:${key}`);
+                await lockExamsForDeletion(db, examIds);
+                const [{ data: examRows, error: examError }, history, { data: targetRows, error: targetError }] = await Promise.all([
+                    db.from('cbt_exams').select('id, title, description, is_published, status, question_bank_id, show_results, randomize_questions, randomize_options, scoring_type, metadata').in('id', examIds),
+                    this.examsWithHistory(db, examIds),
+                    db.from('cbt_exam_targets').select('exam_id, class_id').in('exam_id', examIds),
+                ]);
+                if (examError || targetError) throw new BadRequestException('Ujian folder belum dapat diperiksa.');
+                const exams = ((examRows || []) as any[]).filter(exam => !['archived', 'cancelled'].includes(exam.status));
+                if (exams.length < 2) continue;
+                const keeper = exams.find(exam => history.has(exam.id)) || exams[0];
+                const removable = exams.filter(exam => exam.id !== keeper.id && !history.has(exam.id));
+                for (const exam of exams) if (exam.id !== keeper.id && history.has(exam.id)) result.kept_separate.push(pasExamLabel(exam));
+                if (!removable.length) continue;
+
+                const targets = (targetRows || []) as Array<{ exam_id: string; class_id: string | null }>;
+                const activeClasses = new Set<string>();
+                for (const exam of [keeper, ...removable]) {
+                    if (exam.is_published !== true) continue;
+                    for (const target of targets) if (target.exam_id === exam.id && target.class_id) activeClasses.add(target.class_id);
+                }
+                // Target ujian lama yang belum aktif bukan aktivasi; tanpa riwayat aman dibersihkan.
+                if (!history.has(keeper.id) && keeper.is_published !== true) {
+                    const { error } = await db.from('cbt_exam_targets').delete().eq('exam_id', keeper.id);
+                    if (error) throw new BadRequestException('Target kelas ujian belum dapat dirapikan.');
+                }
+                const removableIds = removable.map(exam => exam.id);
+                const { error: relinkError } = await db.from('cbt_pas_class_schedules').update({ exam_id: keeper.id }).in('exam_id', removableIds);
+                if (relinkError) throw new BadRequestException('Jadwal belum dapat ditautkan ke ujian gabungan.');
+                const { error: targetDeleteError } = await db.from('cbt_exam_targets').delete().in('exam_id', removableIds);
+                if (targetDeleteError) throw new BadRequestException('Target kelas ujian lama belum dapat dihapus.');
+                const { error: examDeleteError } = await db.from('cbt_exams').delete().in('id', removableIds);
+                if (examDeleteError) throw new BadRequestException('Ujian per kelas belum dapat dihapus.');
+                for (const classId of activeClasses) await this.addClassTarget(db, keeper.id, classId);
+                if (activeClasses.size) {
+                    const { error } = await db.from('cbt_exams')
+                        .update({ is_published: true, ...(keeper.status === 'draft' ? { status: 'scheduled' } : {}) }).eq('id', keeper.id);
+                    if (error) throw new BadRequestException('Ujian gabungan belum dapat diaktifkan.');
+                }
+                // Ujian gabungan yang belum dikerjakan mengikuti pengaturan folder terbaru.
+                const settings = resolvePasExamSettings(storedPasExamSettings(period as any), keeper.question_bank_id);
+                const change = pasExamSettingsUpdate(keeper, settings, history.has(keeper.id));
+                const { error: settingsError } = await db.from('cbt_exams').update(change.update).eq('id', keeper.id);
+                if (settingsError) throw new BadRequestException('Pengaturan ujian gabungan belum dapat diterapkan.');
+                await this.refreshExamClasses(db, keeper.id);
+                result.merged += removable.length;
+                result.groups += 1;
+            }
+            return result;
+        });
+    }
+
+    /**
+     * Bangkitkan (dan bila diminta aktifkan) ujian untuk satu jadwal kelas.
+     *
+     * Kelas yang memakai bank soal yang sama pada tanggal, sesi, jam, dan durasi
+     * yang sama berbagi SATU ujian: monitoring, hasil, analisis butir, dan IRT
+     * dihitung dari seluruh peserta bank itu. Sebuah kelas baru dapat masuk
+     * setelah jadwalnya diaktifkan (kelas ditambahkan sebagai target ujian).
+     * Mengembalikan alasan jika dilewati, atau `null` bila berhasil.
+     */
     private async generateOne(user: AuthUser, scheduleId: string, activate = false): Promise<string | null> {
         const { data: source } = await this.db.from('cbt_pas_class_schedules')
             .select('pas_period_id').eq('id', scheduleId).maybeSingle();
@@ -402,11 +500,20 @@ export class PasSchedulesService {
             }
             if (schedule.exam_id) {
                 if (!activate) return `${scheduleId}: ujian sudah pernah dibangkitkan`;
-                const { data: existing } = await db.from('cbt_exams').select('status').eq('id', schedule.exam_id).maybeSingle();
-                const { error } = await db.from('cbt_exams').update({ is_published: true, ...(existing?.status === 'draft' ? { status: 'scheduled' } : {}) }).eq('id', schedule.exam_id);
-                if (error) throw new BadRequestException('Ujian belum berhasil diaktifkan.');
+                await this.activateClass(db, schedule.exam_id, schedule.class_id);
                 return null;
             }
+
+            const groupKey = this.groupKey(schedule);
+            await advisoryTransactionLock(db, `pas-exam-group:${groupKey}`);
+            const sharedExamId = await this.findGroupExam(db, schedule, groupKey);
+            if (sharedExamId) {
+                await this.linkSchedule(db, scheduleId, sharedExamId);
+                await this.refreshExamClasses(db, sharedExamId);
+                if (activate) await this.activateClass(db, sharedExamId, schedule.class_id);
+                return null;
+            }
+
             const [{ data: bank }, { data: cls }] = await Promise.all([
                 schedule.bank_id
                     ? db.from('cbt_question_banks').select('title').eq('id', schedule.bank_id)
@@ -442,14 +549,12 @@ export class PasSchedulesService {
                 question_bank_id: schedule.bank_id,
                 subject_id: schedule.subject_id || null,
                 title: folderName || bankTitle,
-                description:
-                    `${bankTitle} • Kelas ${className} | ` +
-                    `${periodRow.school_year} | ${String(periodRow.type || '').toUpperCase()} ${periodRow.semester}`,
+                description: this.examDescription(bankTitle, [className], periodRow),
                 duration_minutes: duration,
                 start_time: startTime,
                 end_time: endTime,
                 ...settings.columns,
-                is_published: activate,
+                is_published: false,
                 status: 'scheduled',
                 exam_type: periodRow.type || 'pas',
                 metadata: {
@@ -458,6 +563,7 @@ export class PasSchedulesService {
                     pas_period_id: schedule.pas_period_id,
                     pas_period_name: folderName || null,
                     pas_schedule_id: scheduleId,
+                    pas_group_key: groupKey,
                     bank_title: bankTitle,
                     window_open: openTime,
                     window_close: closeTime,
@@ -474,33 +580,142 @@ export class PasSchedulesService {
                 select: 'id',
             });
 
-            const { data: existingTarget, error: targetReadError } = await db
-                .from('cbt_exam_targets')
-                .select('id')
-                .eq('exam_id', exam.id)
-                .eq('class_id', schedule.class_id)
-                .limit(1)
-                .maybeSingle();
-            if (targetReadError) {
-                throw new BadRequestException(`Gagal memeriksa target kelas: ${targetReadError.message}`);
-            }
-            if (!existingTarget) {
-                const { error: targetError } = await db
-                    .from('cbt_exam_targets')
-                    .insert({ exam_id: exam.id, class_id: schedule.class_id });
-                if (targetError) {
-                    throw new BadRequestException(`Gagal menetapkan kelas: ${targetError.message}`);
-                }
-            }
-
-            const { error: linkError } = await db
-                .from('cbt_pas_class_schedules')
-                .update({ exam_id: exam.id })
-                .eq('id', scheduleId);
-            if (linkError) throw new BadRequestException(`Gagal menautkan ujian: ${linkError.message}`);
-
+            await this.linkSchedule(db, scheduleId, exam.id);
+            if (activate) await this.activateClass(db, exam.id, schedule.class_id);
             return null;
         });
+    }
+
+    // ── Ujian gabungan per bank soal ─────────────────────────────────────────
+
+    /** Kelas yang memakai bank, tanggal, sesi, jam, dan durasi yang sama berbagi satu ujian. */
+    private groupKey(schedule: any): string {
+        const day = schedule.scheduled_date instanceof Date
+            ? schedule.scheduled_date.toISOString().slice(0, 10) : String(schedule.scheduled_date || '').slice(0, 10);
+        return [schedule.pas_period_id, schedule.bank_id, day, schedule.session_id || '',
+            normalizeSqlTime(schedule.scheduled_time) || '', normalizeSqlTime(schedule.window_end_time) || '',
+            schedule.duration_minutes || 90].join('|');
+    }
+
+    private async findGroupExam(db: DbSession, schedule: any, groupKey: string): Promise<string | null> {
+        const { data, error } = await db.from('cbt_pas_class_schedules')
+            .select('id, pas_period_id, bank_id, exam_id, session_id, scheduled_date, scheduled_time, window_end_time, duration_minutes')
+            .eq('pas_period_id', schedule.pas_period_id).eq('bank_id', schedule.bank_id);
+        if (error) throw new BadRequestException('Jadwal bank soal belum dapat diperiksa.');
+        const examIds = [...new Set(((data || []) as any[])
+            .filter(row => row.id !== schedule.id && row.exam_id && this.groupKey(row) === groupKey)
+            .map(row => row.exam_id as string))].sort();
+        if (!examIds.length) return null;
+        const { data: exams, error: examError } = await db.from('cbt_exams')
+            .select('id, status, question_bank_id').in('id', examIds);
+        if (examError) throw new BadRequestException('Ujian bank soal belum dapat diperiksa.');
+        const usable = ((exams || []) as any[]).find(exam => exam.question_bank_id === schedule.bank_id && !['archived', 'cancelled'].includes(exam.status));
+        return usable?.id || null;
+    }
+
+    private async linkSchedule(db: DbSession, scheduleId: string, examId: string): Promise<void> {
+        const { error: linkError } = await db.from('cbt_pas_class_schedules').update({ exam_id: examId }).eq('id', scheduleId);
+        if (linkError) throw new BadRequestException(`Gagal menautkan ujian: ${linkError.message}`);
+    }
+
+    private async linkedSchedules(db: DbSession, examId: string): Promise<Array<{ id: string; class_id: string }>> {
+        const { data, error } = await db.from('cbt_pas_class_schedules').select('id, class_id').eq('exam_id', examId);
+        if (error) throw new BadRequestException('Jadwal ujian belum dapat diperiksa.');
+        return (data || []) as Array<{ id: string; class_id: string }>;
+    }
+
+    private async addClassTarget(db: DbSession, examId: string, classId: string): Promise<void> {
+        const { data: existing, error: readError } = await db.from('cbt_exam_targets')
+            .select('id').eq('exam_id', examId).eq('class_id', classId).limit(1).maybeSingle();
+        if (readError) throw new BadRequestException(`Gagal memeriksa target kelas: ${readError.message}`);
+        if (existing) return;
+        const { error: targetError } = await db.from('cbt_exam_targets').insert({ exam_id: examId, class_id: classId });
+        if (targetError) throw new BadRequestException(`Gagal menetapkan kelas: ${targetError.message}`);
+    }
+
+    /** Kelas boleh masuk: jadikan target dan terbitkan ujian. */
+    private async activateClass(db: DbSession, examId: string, classId: string): Promise<void> {
+        await this.addClassTarget(db, examId, classId);
+        const { data: existing } = await db.from('cbt_exams').select('status').eq('id', examId).maybeSingle();
+        const { error } = await db.from('cbt_exams')
+            .update({ is_published: true, ...(existing?.status === 'draft' ? { status: 'scheduled' } : {}) }).eq('id', examId);
+        if (error) throw new BadRequestException('Ujian belum berhasil diaktifkan.');
+    }
+
+    /** Lepas kelas dari ujian; ujian ditutup bila tidak ada lagi kelas aktif. */
+    private async removeClassTarget(db: DbSession, examId: string, classId: string): Promise<void> {
+        const { error } = await db.from('cbt_exam_targets').delete().eq('exam_id', examId).eq('class_id', classId);
+        if (error) throw new BadRequestException('Kelas belum berhasil dinonaktifkan.');
+        const { data: remaining, error: readError } = await db.from('cbt_exam_targets').select('id').eq('exam_id', examId).limit(1);
+        if (readError) throw new BadRequestException('Target kelas ujian belum dapat diperiksa.');
+        if (!((remaining || []) as unknown[]).length) {
+            const { error: updateError } = await db.from('cbt_exams').update({ is_published: false }).eq('id', examId);
+            if (updateError) throw new BadRequestException('Ujian belum berhasil dinonaktifkan.');
+        }
+    }
+
+    private async classMembers(db: DbSession, classId: string): Promise<string[]> {
+        const { data, error } = await db.from('cbt_class_members').select('user_id').eq('class_id', classId);
+        if (error) throw new BadRequestException('Anggota kelas belum dapat diperiksa.');
+        return ((data || []) as Array<{ user_id: string }>).map(row => row.user_id);
+    }
+
+    private async assertClassNotWorking(db: DbSession, examId: string, classId: string): Promise<void> {
+        const members = await this.classMembers(db, classId);
+        if (!members.length) return;
+        const { data, error } = await db.from('cbt_exam_attempts')
+            .select('id').eq('exam_id', examId).eq('status', 'in_progress').in('user_id', members);
+        if (error) throw new BadRequestException('Status pengerjaan peserta belum dapat diperiksa.');
+        const count = ((data as unknown[] | null) || []).length;
+        if (count) {
+            throw new ConflictException(
+                `${count} siswa kelas ini sedang mengerjakan ujian. Tunggu sampai mereka selesai, atau selesaikan ` +
+                'pengerjaannya dari Monitoring, sebelum menonaktifkan jadwal.',
+            );
+        }
+    }
+
+    private async assertClassHasNoHistory(db: DbSession, examId: string, classId: string): Promise<void> {
+        const members = await this.classMembers(db, classId);
+        if (!members.length) return;
+        const { data, error } = await db.from('cbt_exam_attempts').select('id').eq('exam_id', examId).in('user_id', members).limit(1);
+        if (error) throw new BadRequestException('Riwayat pengerjaan kelas belum dapat diperiksa.');
+        if (((data as unknown[] | null) || []).length) {
+            throw new ConflictException('Kelas ini sudah mengerjakan ujian, sehingga jadwalnya tidak dapat dihapus.');
+        }
+    }
+
+    private async examsWithHistory(db: DbSession, examIds: string[]): Promise<Set<string>> {
+        const used = new Set<string>();
+        for (const table of ['cbt_exam_attempts', 'cbt_certificates']) {
+            const { data, error } = await db.from(table).select('exam_id').in('exam_id', examIds);
+            if (error) throw new BadRequestException('Riwayat ujian belum dapat diperiksa.');
+            for (const row of (data || []) as Array<{ exam_id: string }>) used.add(row.exam_id);
+        }
+        return used;
+    }
+
+    private examDescription(bankTitle: string, classNames: string[], period: any): string {
+        const classes = [...new Set(classNames.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+        return `${bankTitle} • Kelas ${classes.join(', ') || '-'} | ` +
+            `${period.school_year} | ${String(period.type || '').toUpperCase()} ${period.semester}`;
+    }
+
+    /** Perbarui deskripsi ujian gabungan dengan semua kelas yang memakainya. */
+    private async refreshExamClasses(db: DbSession, examId: string): Promise<void> {
+        const { data: exam } = await db.from('cbt_exams').select('id, metadata, description').eq('id', examId).maybeSingle();
+        if (!exam) return;
+        const schedules = await this.linkedSchedules(db, examId);
+        if (!schedules.length) return;
+        const { data: classRows } = await db.from('cbt_classes').select('id, name').in('id', schedules.map(row => row.class_id));
+        const names = ((classRows || []) as Array<{ name?: string }>).map(row => row.name || '').filter(Boolean);
+        const [head, ...rest] = String((exam as any).description || '').split('|');
+        const bankTitle = String((exam as any).metadata?.bank_title || head.split('•')[0] || 'Ujian').trim();
+        const classes = [...new Set(names)].sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+        const description = `${bankTitle} • Kelas ${classes.join(', ') || '-'}${rest.length ? ` |${rest.join('|')}` : ''}`;
+        if (description === (exam as any).description) return;
+        const { error } = await db.from('cbt_exams').update({ description }).eq('id', examId);
+        if (error) throw new BadRequestException('Deskripsi ujian gabungan belum dapat diperbarui.');
     }
 
     private sessionClock(value: string | Date): string {

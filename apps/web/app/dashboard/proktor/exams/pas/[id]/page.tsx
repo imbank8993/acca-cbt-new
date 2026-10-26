@@ -31,6 +31,7 @@ import { Button } from '@/app/components/ui/button';
 import { AnimatePresence,motion } from 'framer-motion';
 import {
     AlertTriangle,
+    BarChart3,
     Calendar,
     Check,
     DoorOpen,
@@ -50,12 +51,13 @@ import PASSlotMonitoring from '@/app/components/monitoring/PASSlotMonitoring';
 import React,{ useCallback,useEffect,useState } from 'react';
 import PASAdministrationPanel from '@/app/components/pas/PASAdministrationPanel';
 import { PASExamSettingsPanel } from '@/app/components/pas/PASExamSettingsPanel';
+import { PASBankResultsPanel } from '@/app/components/pas/PASBankResultsPanel';
 import EditPASPeriodModal from '@/app/components/pas/EditPASPeriodModal';
 import { CompactExamPeriodHeader, CompactExamPeriodSchedules } from '@/app/components/pas/CompactExamPeriodWorkspace';
 import BulkScheduleGrid from './BulkScheduleGrid';
 import { isSemesterAssessmentType } from '@/lib/exam-types';
 
-type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'exam_settings' | 'monitoring' | 'administration' | 'bulk';
+type TabId = 'schedules' | 'live_today' | 'rooms_sessions' | 'exam_settings' | 'monitoring' | 'results' | 'administration' | 'bulk';
 type LogisticsSubTab = 'rooms' | 'sessions' | 'invigilators';
 
 export default function ProctorPASDetailPage() {
@@ -482,6 +484,16 @@ export default function ProctorPASDetailPage() {
                         <Settings2 size={13} />
                         Pengaturan Ujian
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('results')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                            activeTab === 'results' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <BarChart3 size={13} />
+                        Hasil & Analisis
+                    </button>
                     {!period.is_locked && (
                         <button type="button" onClick={() => setActiveTab('bulk')}
                             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
@@ -533,6 +545,7 @@ export default function ProctorPASDetailPage() {
                     key={period.id}
                     period={period}
                     onSaved={(examSettings) => setPeriod((prev) => (prev ? { ...prev, exam_settings: examSettings, screenshot_enabled: examSettings.defaults.screenshot_enabled } : prev))}
+                    onReload={() => void loadData()}
                 />
             )}
 
@@ -552,6 +565,10 @@ export default function ProctorPASDetailPage() {
                     monitoringBasePath="/dashboard/proktor/monitoring"
                     attemptBasePath="/dashboard/proktor/monitoring"
                 />
+            )}
+
+            {activeTab === 'results' && (
+                <PASBankResultsPanel period={period} attemptBasePath="/dashboard/proktor/monitoring" />
             )}
 
             {activeTab === 'administration' && (

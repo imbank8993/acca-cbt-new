@@ -8,6 +8,7 @@ import type {
     ExamAnswerRecord,
 } from './api/proctor';
 import type { QuestionOptionRecord, QuestionRecord } from './api/questions';
+import { difficultyLabel, discriminationLabel, type IrtCalibration } from './irt-calibration';
 
 interface ExportItemAnalysis {
     id: string;
@@ -37,6 +38,76 @@ export interface ExportAnalysisOptions {
     timeZone?: string;
     questions?: QuestionRecord[];
     answers?: ExamAnswerRecord[];
+    /** Parameter butir dari Kalkulasi IRT terakhir (sheet Parameter_IRT). */
+    irt?: IrtCalibration | null;
+}
+
+type XlsxModule = typeof import('xlsx-js-style');
+
+const IRT_MODEL_LABELS: Record<string, string> = { irt_1pl: 'IRT 1PL', irt_2pl: 'IRT 2PL', irt_3pl: 'IRT 3PL' };
+
+/** Model IRT yang aktif pada ujian; nilai lama `irt` setara 1PL. */
+export function enabledIrtModels(scoringType?: string | null): string[] {
+    const types = String(scoringType || '').split(',').map(type => type.trim().toLowerCase());
+    return ['irt_1pl', 'irt_2pl', 'irt_3pl'].filter(model => types.includes(model) || (model === 'irt_1pl' && types.includes('irt')));
+}
+
+/**
+ * Sheet "Parameter_IRT": ciri tiap butir dari Kalkulasi IRT terakhir — proporsi benar,
+ * tingkat kesulitan (b), daya beda (a), peluang menebak (c) — beserta catatan dan cara membacanya.
+ */
+export function appendIrtParameterSheet(XLSX: XlsxModule, wb: ReturnType<XlsxModule['utils']['book_new']>, irt: IrtCalibration, timeZone = 'UTC') {
+    const showA = irt.models.some(model => model === 'irt_2pl' || model === 'irt_3pl');
+    const showC = irt.models.includes('irt_3pl');
+    const calculated = Number.isFinite(Date.parse(irt.calculated_at))
+        ? new Intl.DateTimeFormat('id-ID', { timeZone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(irt.calculated_at)) : '-';
+    const header = ['No Soal', 'Pernyataan', 'Jenis', 'Teks Soal', 'Menjawab', 'Benar', 'Proporsi benar (p)', 'Kesulitan (b)', 'Kategori kesulitan',
+        ...(showA ? ['Daya beda (a)', 'Kategori daya beda'] : []), ...(showC ? ['Tebakan (c)'] : []), 'Catatan'];
+    const rows = irt.items.map(item => [
+        item.number || '-', item.part || '-', formatQuestionTypeID(item.type), item.text || '-', item.total, item.correct,
+        Number(item.p.toFixed(4)), Number(item.b.toFixed(3)), difficultyLabel(item.b).label,
+        ...(showA ? [Number(item.a.toFixed(3)), discriminationLabel(item.a).label] : []),
+        ...(showC ? [Number(item.c.toFixed(3))] : []),
+        item.flags.join(', ') || '-',
+    ]);
+    const aoa: Array<Array<string | number>> = [
+        ['Parameter soal IRT'],
+        ['Dihitung', calculated],
+        ['Jumlah peserta', irt.participant_count],
+        ['Model', irt.models.map(model => IRT_MODEL_LABELS[model] || model).join(', ') || 'IRT'],
+        ...irt.warnings.map(warning => ['Peringatan', warning]),
+        [],
+        header,
+        ...rows,
+        [],
+        ['Cara membaca'],
+        ['Proporsi benar (p)', 'Persentase peserta yang menjawab benar (0–1).'],
+        ['Kesulitan (b)', 'Di bawah −1 mudah, −1 s.d. 1 sedang, di atas 1 sulit. Siswa berkemampuan setara b berpeluang 50% menjawab benar.'],
+        ...(showA ? [['Daya beda (a)', 'Makin besar makin baik membedakan siswa pandai dan kurang; di bawah 0,5 sebaiknya ditinjau.']] : []),
+        ...(showC ? [['Tebakan (c)', 'Peluang benar karena menebak = 1 ÷ jumlah opsi.']] : []),
+        ['Catatan', 'Terlalu mudah: p ≥ 0,90. Terlalu sulit: p ≤ 0,20.'],
+        ['Nilai siswa', 'Bukan penjumlahan angka di atas. Kemampuan siswa (θ) ditaksir dari pola benar-salah, lalu nilai = 50 + 15 × θ (dibatasi 0–100).'],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(aoa);
+    sheet['!cols'] = header.map(label => ({ wch: label === 'Teks Soal' ? 60 : label === 'Pernyataan' ? 30 : label === 'Catatan' ? 28 : 16 }));
+    const headerRow = aoa.indexOf(header);
+    header.forEach((_, column) => {
+        const cell = sheet[XLSX.utils.encode_cell({ r: headerRow, c: column })];
+        if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'E8F0FE' } } };
+    });
+    const title = sheet.A1;
+    if (title) title.s = { font: { bold: true, sz: 13 } };
+    XLSX.utils.book_append_sheet(wb, sheet, 'Parameter_IRT');
+}
+
+/** Unduh hanya analisis IRT (sheet Parameter_IRT) dari tabel Parameter soal IRT. */
+export async function exportIrtParametersToExcel(irt: IrtCalibration, title: string, timeZone?: string) {
+    if (!irt.items.length) throw new Error('Belum ada parameter soal IRT untuk diekspor.');
+    const XLSX = await import('xlsx-js-style');
+    const wb = XLSX.utils.book_new();
+    appendIrtParameterSheet(XLSX, wb, irt, timeZone);
+    const safeTitle = (title || 'Ujian').replace(/[^a-z0-9]/gi, '_');
+    XLSX.writeFile(wb, `Analisis_IRT_${safeTitle}.xlsx`, { cellStyles: true });
 }
 
 function cleanHtml(text: string | null | undefined): string {
@@ -85,6 +156,7 @@ export async function buildAnalysisWorkbook({
     timeZone = 'UTC',
     questions = [],
     answers = [],
+    irt = null,
 }: ExportAnalysisOptions) {
     if (!attempts?.length && !analysis?.length && !detailedAnalysis?.items?.length) {
         throw new Error('Tidak ada data untuk diekspor');
@@ -122,6 +194,7 @@ export async function buildAnalysisWorkbook({
     const date = (value?: string | null) => value && Number.isFinite(Date.parse(value))
         ? new Intl.DateTimeFormat('id-ID', { timeZone, dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value)) : 'Belum tercatat';
     const generatedAt = new Date().toISOString();
+    const irtModels = enabledIrtModels(exam?.scoring_type);
     const attemptById = new Map(attempts.map(attempt => [attempt.id, attempt]));
     // ─────────────────────────────────────────────────────────────────────────────
     // SHEET 1: Rekap_Hasil (Hasil & Ringkasan Siswa)
@@ -151,17 +224,24 @@ export async function buildAnalysisWorkbook({
                 'Kelas': a.kelas_name || '-',
                 'Status': statusLabel,
                 'Nilai Klasik': !['submitted', 'auto_submitted'].includes(a.status) ? 'Belum dikumpulkan' : a.total_score == null ? 'Menunggu penilaian' : Number(a.detailed_scores?.classical ?? a.total_score).toFixed(2),
+                // Satu kolom per model IRT yang dipakai ujian, agar jelas nilai mana yang berasal dari model apa.
+                ...Object.fromEntries(irtModels.map((model, index) => {
+                    const value = (a.detailed_scores as Record<string, number | undefined> | null | undefined)?.[model] ?? (index === irtModels.length - 1 ? a.score_irt : null);
+                    return [`Nilai ${IRT_MODEL_LABELS[model]}`, value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '-'];
+                })),
                 'Status Penilaian': gradingLabel(a),
                 'ID Pengerjaan': a.id,
                 'Soal terisi di server': a.saved_answer_count ?? 'Belum diketahui',
                 'Soal kosong di server': a.unanswered_count ?? 'Belum diketahui',
                 'Tenggat pribadi': date(a.deadline_at),
                 'Simpan terakhir (server)': date(a.last_answer_saved_at),
-                'Nilai IRT': a.detailed_scores?.irt_1pl != null
-                    ? Number(a.detailed_scores.irt_1pl).toFixed(2)
-                    : a.score_irt != null
-                    ? Number(a.score_irt).toFixed(2)
-                    : '-',
+                ...(irtModels.length ? {} : {
+                    'Nilai IRT': a.detailed_scores?.irt_1pl != null
+                        ? Number(a.detailed_scores.irt_1pl).toFixed(2)
+                        : a.score_irt != null
+                        ? Number(a.score_irt).toFixed(2)
+                        : '-',
+                }),
                 'Pelanggaran Total': a.warning_count ?? 0,
                 'Pindah Tab': bd.pindah_tab,
                 'Close Tab': bd.close_tab,
@@ -427,6 +507,9 @@ export async function buildAnalysisWorkbook({
         ];
         XLSX.utils.book_append_sheet(wb, wsDistraktor, 'Distribusi_Pengecoh');
     }
+
+    // SHEET 5: Parameter_IRT (bila Kalkulasi IRT pernah dijalankan)
+    if (irt?.items?.length) appendIrtParameterSheet(XLSX, wb, irt, timeZone);
 
     for (const name of wb.SheetNames) {
         const sheet = wb.Sheets[name];

@@ -53,8 +53,7 @@ for (const [name, change, pattern] of [
  ['room over capacity', f => { f.db.tables.cbt_pas_rooms[0].capacity = 1; f.db.tables.cbt_pas_room_students.push({ user_id: 'other-class', pas_period_id: 'p', pas_room_id: 'r1' }); }, /Kapasitas Lab/],
  ['dangling exam', f => { f.schedule.exam_id = 'missing'; }, /terhubung tidak tersedia/],
  ['archived exam', f => { f.db.tables.cbt_exams[0].status = 'archived'; }, /diarsipkan/],
- ['wrong exam class', f => { f.db.tables.cbt_exam_targets = []; }, /target kelas ujian/],
- ['wrong bank on exam', f => { f.db.tables.cbt_exams[0].question_bank_id = 'other'; }, /Bank soal atau target/],
+ ['wrong bank on exam', f => { f.db.tables.cbt_exams[0].question_bank_id = 'other'; }, /Bank soal ujian/],
  ['cancelled', f => { f.schedule.status = 'cancelled'; }, /dibatalkan/],
 ]) test(`PAS readiness rejects ${name}`, async () => {
  const f = fixture(); change(f); const result = await f.read();
@@ -272,4 +271,16 @@ test('pengawas bergilir: kesiapan memeriksa pengawas pada tanggal jadwal, bukan 
  assert.deepEqual(result.issues, ['Pengawas Lab belum diatur pada tanggal dan sesi ini', 'Pengawas Ruang 2 belum diatur pada tanggal dan sesi ini']);
  for (const row of f.db.tables.cbt_pas_room_invigilators) row.exam_date = new Date('2026-10-11T00:00:00Z');
  assert.equal((await f.read()).ready, true);
+});
+
+test('PAS readiness: kelas tanpa target pada ujian gabungan berarti belum diaktifkan, bukan data rusak', async () => {
+ const f = fixture();
+ f.db.tables.cbt_exam_targets = [{ exam_id: 'e', class_id: 'kelas-lain' }];
+ const result = await f.read();
+ assert.equal(result.ready, true, result.issues.join('; '));
+ assert.equal(result.activated, false);
+ f.db.tables.cbt_exam_targets.push({ exam_id: 'e', class_id: 'c' });
+ assert.equal((await f.read()).activated, true);
+ f.db.tables.cbt_exams[0].is_published = false;
+ assert.equal((await f.read()).activated, false);
 });

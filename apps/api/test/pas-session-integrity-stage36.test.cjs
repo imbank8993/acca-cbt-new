@@ -90,7 +90,7 @@ function tables(locked = false) {
     };
 }
 
-for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: generates a folder exam with screenshot settings and class targets`, async () => {
+for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: generates a folder exam with screenshot settings; class becomes a target on activation`, async () => {
     const db = fixtureDb(tables());
     Object.assign(db.tables.cbt_pas_periods[0], { type: assessmentType, name: 'Ujian Bersama', screenshot_enabled: true });
     const service = new PasSchedulesService(db, authz, { getSchoolTimeZone: async () => 'Asia/Makassar' });
@@ -100,7 +100,9 @@ for (const assessmentType of ['pas', 'pat', 'am']) test(`${assessmentType}: gene
     assert.equal(exam.exam_type, assessmentType);
     assert.equal(exam.metadata.pas_period_id, 'period-1');
     assert.equal(exam.metadata.screenshot_enabled, true);
-    assert.equal(db.tables.cbt_exam_targets[0].class_id, 'class-1');
+    // Ujian dapat dipakai beberapa kelas; kelas baru menjadi target saat jadwalnya diaktifkan.
+    assert.equal(db.tables.cbt_exam_targets.length, 0);
+    assert.equal(exam.is_published, false);
 });
 
 test('SESSION-01: periode terkunci menolak penambahan sesi', async () => {

@@ -106,10 +106,13 @@ export async function loadPasReadiness(db: Pick<DbService, 'from'>, period: any,
             if (schedule.exam_id && !exam) issues.push('Data ujian terhubung tidak tersedia');
             if (exam) {
                 if (['archived', 'cancelled'].includes(exam.status)) issues.push('Ujian diarsipkan atau dibatalkan');
-                if (exam.question_bank_id !== schedule.bank_id || !targets.some(row => row.exam_id === exam.id && row.class_id === schedule.class_id)) issues.push('Bank soal atau target kelas ujian belum sesuai jadwal');
+                if (exam.question_bank_id !== schedule.bank_id) issues.push('Bank soal ujian belum sesuai jadwal');
             }
             if (schedule.status === 'cancelled') issues.push('Jadwal dibatalkan');
-            results.set(schedule.id, { ready: issues.length === 0, issues, activated: exam?.is_published === true, room_ids: [...relevantRooms], room_counts: roomCounts, unassigned_count: missing });
+            // Satu ujian dapat dipakai beberapa kelas (bank × tanggal × sesi yang sama);
+            // sebuah kelas aktif bila ujiannya terbit DAN kelas itu menjadi targetnya.
+            const activated = exam?.is_published === true && targets.some(row => row.exam_id === exam.id && row.class_id === schedule.class_id);
+            results.set(schedule.id, { ready: issues.length === 0, issues, activated, room_ids: [...relevantRooms], room_counts: roomCounts, unassigned_count: missing });
         }
     } catch {
         for (const schedule of schedules) results.set(schedule.id, { ready: false, issues: ['Data kelengkapan belum dapat diperiksa. Muat ulang daftar.'], activated: schedule.exam_id ? null : false });

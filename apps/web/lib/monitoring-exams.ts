@@ -31,7 +31,8 @@ export function folderExamParts(exam: Pick<OrganizationExam, 'title' | 'descript
 
 export function monitoringExamLabel(exam: OrganizationExam): string {
     const folder = folderExamParts(exam);
-    if (folder) return `Kelas ${folder.className} · ${folder.bank || exam.title}`;
+    // Ujian folder digabung per bank soal: bank lebih dulu, lalu kelas pesertanya.
+    if (folder) return `${folder.bank || exam.title} · Kelas ${folder.className}`;
     const bank = typeof exam.metadata?.bank_title === 'string'
         ? exam.metadata.bank_title.trim() : exam.question_bank_title?.trim();
     return bank && bank !== exam.title.trim() ? `${exam.title} — ${bank}` : exam.title;
@@ -46,7 +47,7 @@ export function monitoringExamDetails(exam: OrganizationExam): string {
     return description || subject;
 }
 
-/** Aktif dulu, lalu judul; ujian satu folder berurutan per kelas (XII A, XII B, …). */
+/** Aktif dulu, lalu judul; ujian satu folder berurutan per bank soal lalu kelas. */
 export function sortMonitoringExams(exams: OrganizationExam[], now = Date.now()): OrganizationExam[] {
     return [...exams].sort((a, b) =>
         Number(isMonitoringExamActive(b, now)) - Number(isMonitoringExamActive(a, now)) ||

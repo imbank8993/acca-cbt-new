@@ -132,6 +132,15 @@ export function updatePASPeriodAction(
     );
 }
 
+/** Gabungkan ujian per kelas yang belum dikerjakan menjadi satu ujian per bank soal × sesi. */
+export function mergePASExamsAction(periodId: string) {
+    return apiSend<{ merged: number; groups: number; kept_separate: string[] }>(
+        `/api/pas/periods/${encodeURIComponent(periodId)}/merge-exams`,
+        {},
+        'POST',
+    );
+}
+
 /** Simpan pengaturan ujian folder dan terapkan ke ujian yang sudah dibangkitkan. */
 export function updatePASExamSettingsAction(
     periodId: string,

@@ -74,11 +74,14 @@ test('unpublishing is refused while students are working, allowed once they fini
 test('deactivating an ASAS/ASAT schedule is refused while students are working', async () => {
     const db = fixtureDb({
         cbt_pas_periods: [{ id: 'p' }],
-        cbt_pas_class_schedules: [{ id: 'sc', pas_period_id: 'p', exam_id: EXAM }],
+        cbt_pas_class_schedules: [{ id: 'sc', pas_period_id: 'p', exam_id: EXAM, class_id: 'c' }],
         cbt_exams: [{ id: EXAM, is_published: true }],
-        cbt_exam_attempts: [{ id: ATTEMPT, exam_id: EXAM, status: 'in_progress' }],
+        cbt_exam_targets: [{ exam_id: EXAM, class_id: 'c' }],
+        cbt_class_members: [{ class_id: 'c', user_id: 'student' }],
+        cbt_exam_attempts: [{ id: ATTEMPT, exam_id: EXAM, user_id: 'student', status: 'in_progress' }],
     });
     const s = new PasSchedulesService(db, { assertProktorByParent: async () => {} }, { getSchoolTimeZone: async () => 'Asia/Makassar' });
     await assert.rejects(s.setActivation({ id: 'admin' }, 'sc', false), /menonaktifkan jadwal/);
     assert.equal(db.tables.cbt_exams[0].is_published, true);
+    assert.equal(db.tables.cbt_exam_targets.length, 1);
 });

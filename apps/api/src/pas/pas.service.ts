@@ -18,9 +18,11 @@ import { writablePasPeriod, pasDateRange, storedPasDate } from '../common/pas-pe
 import { loadPasReadiness } from './pas-readiness';
 import {
     normalizePasExamSettings,
-    pasExamSettingsColumns,
+    pasExamLabel,
+    pasExamSettingsUpdate,
     resolvePasExamSettings,
     storedPasExamSettings,
+    type PasExamRow,
 } from '../common/pas-exam-settings';
 
 /**
@@ -239,49 +241,21 @@ export class PasService {
             await lockExamsForDeletion(db, examIds);
 
             const [{ data: examRows, error: examError }, { data: attemptRows, error: attemptError }] = await Promise.all([
-                db.from('cbt_exams').select('id, title, description, show_results, randomize_questions, randomize_options, metadata').in('id', examIds),
+                db.from('cbt_exams').select('id, title, description, show_results, randomize_questions, randomize_options, scoring_type, metadata').in('id', examIds),
                 db.from('cbt_exam_attempts').select('exam_id').in('exam_id', examIds),
             ]);
             if (examError || attemptError) throw new BadRequestException('Ujian folder belum dapat diperiksa.');
-            const exams = new Map(((examRows || []) as any[]).map(exam => [exam.id as string, exam]));
             const started = new Set(((attemptRows || []) as Array<{ exam_id: string }>).map(row => row.exam_id));
+            // Ujian gabungan dipakai beberapa jadwal kelas dari bank yang sama: terapkan sekali per ujian.
+            const bankByExam = new Map(schedules.filter(row => row.exam_id).map(row => [row.exam_id as string, row.bank_id]));
             const now = new Date().toISOString();
 
-            for (const schedule of schedules) {
-                const exam = schedule.exam_id ? exams.get(schedule.exam_id) : null;
-                if (!exam) continue;
-                const label = String(exam.description || exam.title || 'Ujian').split('|')[0].trim();
-                const { columns, metadata } = pasExamSettingsColumns(resolvePasExamSettings(config, schedule.bank_id));
-                const meta: Record<string, unknown> = { ...(exam.metadata || {}) };
-                const update: Record<string, unknown> = {};
-
-                const correcting = Boolean((meta.key_correction as { state?: string } | undefined)?.state) &&
-                    (meta.key_correction as { state?: string }).state !== 'ready';
-                const resultsChanged = exam.show_results !== columns.show_results || meta.show_answer_keys !== metadata.show_answer_keys;
-                if (correcting && resultsChanged) result.results_locked.push(label);
-                else {
-                    update.show_results = columns.show_results;
-                    meta.show_answer_keys = metadata.show_answer_keys;
-                }
-
-                const securityChanged = exam.randomize_questions !== columns.randomize_questions ||
-                    exam.randomize_options !== columns.randomize_options ||
-                    meta.is_safe_mode !== metadata.is_safe_mode ||
-                    (meta.max_violations === undefined ? 3 : meta.max_violations) !== metadata.max_violations ||
-                    (meta.screenshot_enabled === true) !== metadata.screenshot_enabled;
-                if (started.has(exam.id)) {
-                    if (securityChanged) result.security_locked.push(label);
-                } else {
-                    update.randomize_questions = columns.randomize_questions;
-                    update.randomize_options = columns.randomize_options;
-                    Object.assign(meta, {
-                        is_safe_mode: metadata.is_safe_mode,
-                        max_violations: metadata.max_violations,
-                        screenshot_enabled: metadata.screenshot_enabled,
-                    });
-                }
-
-                const { error } = await db.from('cbt_exams').update({ ...update, metadata: meta, updated_at: now }).eq('id', exam.id);
+            for (const exam of ((examRows || []) as PasExamRow[])) {
+                const label = pasExamLabel(exam as PasExamRow & { description?: string; title?: string });
+                const change = pasExamSettingsUpdate(exam, resolvePasExamSettings(config, bankByExam.get(exam.id)), started.has(exam.id));
+                if (change.resultsLocked) result.results_locked.push(label);
+                if (change.securityLocked) result.security_locked.push(label);
+                const { error } = await db.from('cbt_exams').update({ ...change.update, updated_at: now }).eq('id', exam.id);
                 if (error) throw new BadRequestException(`Pengaturan ${label} belum berhasil diterapkan.`);
                 result.updated += 1;
             }

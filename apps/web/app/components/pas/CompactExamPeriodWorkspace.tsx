@@ -67,7 +67,7 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
             {stats.map(([label, value], index) => <div key={label} className={index === 3 && value > 0 ? 'cp-summary-warning' : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}
         </dl>
         <nav className="cp-tabs" aria-label="Bagian pengaturan ujian">
-            {[['schedules', 'Jadwal'], ['rooms_sessions', 'Ruang & Sesi'], ['exam_settings', 'Pengaturan Ujian'], ['monitoring', 'Pelaksanaan'], ['administration', 'Administrasi']].map(([id, label]) =>
+            {[['schedules', 'Jadwal'], ['rooms_sessions', 'Ruang & Sesi'], ['exam_settings', 'Pengaturan Ujian'], ['monitoring', 'Pelaksanaan'], ['results', 'Hasil & Analisis'], ['administration', 'Administrasi']].map(([id, label]) =>
                 <button key={id} type="button" aria-pressed={activeTab === id || (id === 'schedules' && activeTab === 'bulk')} onClick={() => onTabChange(id)}>{label}</button>)}
         </nav>
     </div>;

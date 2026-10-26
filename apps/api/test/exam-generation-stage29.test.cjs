@@ -68,7 +68,9 @@ test('GEN-01: retry pembangkitan PAS tidak membuat ujian atau target ganda', asy
     assert.deepEqual(first, { created: 1, skipped: [] });
     assert.equal(retry.created, 0);
     assert.equal(db.tables.cbt_exams.length, 1);
-    assert.equal(db.tables.cbt_exam_targets.length, 1);
+    // Kelas menjadi target saat jadwalnya diaktifkan, bukan saat dibangkitkan.
+    assert.equal(db.tables.cbt_exam_targets.length, 0);
+    assert.equal(db.tables.cbt_exams[0].is_published, false);
     assert.equal(db.tables.cbt_pas_class_schedules[0].exam_id, db.tables.cbt_exams[0].id);
 });
 

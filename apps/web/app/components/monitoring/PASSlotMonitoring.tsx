@@ -8,6 +8,7 @@ import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButto
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
+import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/MonitoringPASAdministrationPanel';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
@@ -29,6 +30,7 @@ import {
 } from '@/lib/api/proctor';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { exportDetailedAnalysisToExcel } from '@/lib/export-excel-analysis';
+import type { IrtCalibration } from '@/lib/irt-calibration';
 import { buildItemAnalysis } from '@/lib/item-analysis';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getSchoolTimeZone, schoolTodayDate, utcToSchoolLocalDateTime } from '@/lib/school-time';
@@ -113,10 +115,25 @@ export function roomTabs(userRole: StaffRole, options: { canScreen: boolean }): 
     ];
 }
 
+/** Satu entri per ujian: ujian gabungan (satu bank soal, beberapa kelas) diringkas menjadi satu. */
+export function mergeSlotExams(exams: PASMonitoringSlot['exams']): PASMonitoringSlot['exams'] {
+    const byExam = new Map<string, PASMonitoringSlot['exams'][number]>();
+    for (const exam of exams) {
+        const current = byExam.get(exam.exam_id);
+        if (!current) { byExam.set(exam.exam_id, { ...exam }); continue; }
+        const classes = new Set([...current.class_name.split(', '), exam.class_name]);
+        current.class_name = [...classes].sort((a, b) => a.localeCompare(b, 'id', { numeric: true })).join(', ');
+        current.student_count += exam.student_count;
+    }
+    return [...byExam.values()];
+}
+
 function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBack }: {
     slot: PASMonitoringSlot; userRole: StaffRole; monitoringBasePath: string; attemptBasePath?: string; onBack?: () => void;
 }) {
     const router = useRouter();
+    // Ujian gabungan per bank soal muncul sekali, walau dipakai beberapa kelas di ruang ini.
+    const roomExams = useMemo(() => mergeSlotExams(slot.exams), [slot.exams]);
     const [attemptsByExam, setAttemptsByExam] = useState<Record<string, ExamAttemptRecord[]>>({});
     const [examRecords, setExamRecords] = useState<Record<string, OrganizationExam>>({});
     const [loading, setLoading] = useState(true);
@@ -125,8 +142,8 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     const [search, setSearch] = useState('');
     const [attentionOnly, setAttentionOnly] = useState(false);
     const [selectedAttemptKey, setSelectedAttemptKey] = useState<string | null>(null);
-    const [focusExamId, setFocusExamId] = useState(slot.exams[0]?.exam_id || '');
-    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; error?: string } | null>(null);
+    const [focusExamId, setFocusExamId] = useState(roomExams[0]?.exam_id || '');
+    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; irt?: IrtCalibration | null; error?: string } | null>(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [resetAttempt, setResetAttempt] = useState<ExamAttemptRecord | null>(null);
     const [busy, setBusy] = useState(false);
@@ -137,19 +154,19 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
         const id = ++request.current;
         if (!silent) setLoading(true);
         setError(null);
-        const results = await Promise.allSettled(slot.exams.map(exam => getExamAttemptsAction(exam.exam_id)));
+        const results = await Promise.allSettled(roomExams.map(exam => getExamAttemptsAction(exam.exam_id)));
         if (id !== request.current) return;
         const next: Record<string, ExamAttemptRecord[]> = {};
         const failures: string[] = [];
         results.forEach((result, index) => {
-            const exam = slot.exams[index];
+            const exam = roomExams[index];
             if (result.status === 'fulfilled') next[exam.exam_id] = result.value;
             else failures.push(`${exam.class_name} (${exam.bank_title})`);
         });
         setAttemptsByExam(next);
         if (failures.length) setError(`Peserta ujian ${failures.join(', ')} belum dapat dimuat.`);
         setLoading(false);
-    }, [slot]);
+    }, [roomExams]);
 
     useEffect(() => {
         setAttemptsByExam({});
@@ -160,14 +177,14 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     // Hak akses per ujian (reset, kelola, koreksi kunci) dan pengaturannya, sama dengan monitoring ujian biasa.
     useEffect(() => {
         let active = true;
-        const ids = new Set(slot.exams.map(exam => exam.exam_id));
+        const ids = new Set(roomExams.map(exam => exam.exam_id));
         listOrganizationExams()
             .then(list => { if (active) setExamRecords(Object.fromEntries(list.filter(exam => ids.has(exam.id)).map(exam => [exam.id, exam]))); })
             .catch(() => { /* Tanpa data ujian, aksi yang butuh izin tetap tersembunyi. */ });
         return () => { active = false; };
-    }, [slot.exams]);
+    }, [roomExams]);
 
-    const examLabel = useMemo(() => new Map(slot.exams.map(exam => [exam.exam_id, `${exam.class_name} · ${exam.bank_title}`])), [slot.exams]);
+    const examLabel = useMemo(() => new Map(roomExams.map(exam => [exam.exam_id, `${exam.class_name} · ${exam.bank_title}`])), [roomExams]);
     const attempts = useMemo(() => slotAttempts(slot, attemptsByExam), [slot, attemptsByExam]);
     const query = search.trim().toLocaleLowerCase('id-ID');
     const filtered = attempts.filter(attempt => !query || [attempt.profiles?.full_name, attempt.profiles?.identity_number, attempt.kelas_name, examLabel.get(attempt.exam_id)]
@@ -177,13 +194,13 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     const attention = activeMonitoringRows(attempts, 'attention').length;
     const canFinish = userRole !== 'pengawas';
     const canReset = (examId: string) => examRecords[examId]?.canResetParticipants === true;
-    const screenExams = slot.exams.filter(exam => examRecords[exam.exam_id]?.canManage === true && examRecords[exam.exam_id]?.metadata?.screenshot_enabled === true);
+    const screenExams = roomExams.filter(exam => examRecords[exam.exam_id]?.canManage === true && examRecords[exam.exam_id]?.metadata?.screenshot_enabled === true);
     const tabs = roomTabs(userRole, { canScreen: screenExams.length > 0 });
     const activeTab: RoomTab = tabs.some(([id]) => id === tab) ? tab : 'live';
     const focusExam = examRecords[focusExamId];
     const focusLabel = examLabel.get(focusExamId) || '';
     const examDuration = (examId: string) => examRecords[examId]?.duration_minutes ?? examRecords[examId]?.duration;
-    const longestDuration = Math.max(0, ...slot.exams.map(exam => examDuration(exam.exam_id) || 0)) || undefined;
+    const longestDuration = Math.max(0, ...roomExams.map(exam => examDuration(exam.exam_id) || 0)) || undefined;
     const viewAnswers = attemptBasePath ? (id: string) => router.push(`${attemptBasePath}/${encodeURIComponent(id)}`) : undefined;
     const recover = (attempt: ExamAttemptRecord) => {
         if (canReset(attempt.exam_id) && attempt.canReset === true) setResetAttempt(attempt);
@@ -202,7 +219,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
         setAnalysisLoading(true);
         try {
             const [data, examAttempts] = await Promise.all([getExamAnswersForAnalysisAction(examId), getExamAttemptsAction(examId)]);
-            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts) });
+            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts), irt: data.irt ?? null });
         } catch (loadError) {
             if (id === analysisRequest.current) setAnalysis({ examId, items: [], error: loadError instanceof Error ? loadError.message : 'Analisis belum dapat dimuat.' });
         } finally {
@@ -232,7 +249,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
             }
             await exportDetailedAnalysisToExcel({
                 exam: focusExam, attempts: freshAttempts, analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
-                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
             });
         } catch (exportError) {
             await alertDialog({ title: 'Export Belum Berhasil', text: exportError instanceof Error ? exportError.message : 'Export belum dapat dibuat.', variant: 'danger' });
@@ -263,16 +280,16 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
     };
 
     const administrationExam = {
-        id: slot.exams[0]?.exam_id, exam_type: slot.period.type, title: slot.period.name,
-        metadata: { pas_period_id: slot.period.id, pas_schedule_id: slot.exams[0]?.schedule_id },
+        id: roomExams[0]?.exam_id, exam_type: slot.period.type, title: slot.period.name,
+        metadata: { pas_period_id: slot.period.id, pas_schedule_id: roomExams[0]?.schedule_id },
     } as unknown as OrganizationExam;
     const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim() === 'irt' || type.trim().startsWith('irt_'));
     const resettable = filtered.filter(attempt => canReset(attempt.exam_id));
     const showSearch = !['admin', 'analysis', 'screen'].includes(activeTab);
-    const examPicker = (label: string) => slot.exams.length > 1 && <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">{label}
+    const examPicker = (label: string) => roomExams.length > 1 && <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">{label}
         <select value={focusExamId} onChange={event => changeFocusExam(event.target.value)}
             className="max-w-[320px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium">
-            {slot.exams.map(exam => <option key={exam.exam_id} value={exam.exam_id}>{exam.class_name} · {exam.bank_title}</option>)}
+            {roomExams.map(exam => <option key={exam.exam_id} value={exam.exam_id}>{exam.class_name} · {exam.bank_title}</option>)}
         </select>
     </label>;
 
@@ -295,7 +312,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                         <dt className="text-[11px] text-slate-500">{label}</dt><dd className="text-lg font-bold tabular-nums text-slate-900">{value}</dd></div>)}
             </dl>
             <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Ujian di ruang ini">
-                {slot.exams.map(exam => <a key={exam.exam_id} href={`${monitoringBasePath}?exam=${encodeURIComponent(exam.exam_id)}`}
+                {roomExams.map(exam => <a key={exam.exam_id} href={`${monitoringBasePath}?exam=${encodeURIComponent(exam.exam_id)}`}
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 hover:border-blue-300 hover:text-blue-700"
                     title="Buka monitoring seluruh peserta ujian ini (semua ruang)">{exam.class_name} · {exam.bank_title} <span className="text-slate-400">({exam.student_count})</span></a>)}
             </div>
@@ -324,7 +341,10 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                 {analysisLoading && analysis?.examId !== focusExamId ? <div className="flex min-h-40 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Memuat analisis…</div>
                     : analysis?.error ? <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700"><AlertCircle size={14} className="mt-0.5 shrink-0" />{analysis.error}
                         <button type="button" className="ml-auto font-semibold underline" onClick={() => void loadAnalysis(focusExamId)}>Coba lagi</button></div>
-                    : <ItemAnalysisPanel key={analysis?.examId || focusExamId} analysis={analysis?.examId === focusExamId ? analysis.items : []} />}
+                    : <>
+                        <IrtParametersPanel key={`irt-${focusExamId}`} calibration={analysis?.examId === focusExamId ? analysis.irt : null} scoringType={focusExam?.scoring_type} exportTitle={`${slot.period.name} ${focusLabel}`} />
+                        <ItemAnalysisPanel key={analysis?.examId || focusExamId} analysis={analysis?.examId === focusExamId ? analysis.items : []} />
+                    </>}
             </div>
             : activeTab === 'screen' ? <div className="space-y-4">
                 {screenExams.map(exam => <section key={exam.exam_id} aria-label={`Pengecualian layar ${exam.class_name} ${exam.bank_title}`} className="space-y-2">
@@ -337,7 +357,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                 onFinish={canFinish ? finish : undefined}
                 onViewDetails={viewAnswers} />
             : activeTab === 'answers' ? <MonitoringHealthPanel key={slot.key} attempts={filtered} defaultExpanded
-                onRecover={slot.exams.some(exam => canReset(exam.exam_id)) ? recover : undefined}
+                onRecover={roomExams.some(exam => canReset(exam.exam_id)) ? recover : undefined}
                 onViewDetails={viewAnswers} />
             : activeTab === 'results' ? <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -350,10 +370,10 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                 </div>
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     <MonitoringResultsTable attempts={filtered.filter(attempt => attempt.status !== 'in_progress')} hasAnyAttempts={attempts.length > 0}
-                        onViewDetails={id => viewAnswers?.(id)} onRecover={slot.exams.some(exam => canReset(exam.exam_id)) ? recover : undefined} />
+                        onViewDetails={id => viewAnswers?.(id)} onRecover={roomExams.some(exam => canReset(exam.exam_id)) ? recover : undefined} />
                 </div>
             </div>
-            : activeTab === 'reset' ? (resettable.length || slot.exams.some(exam => canReset(exam.exam_id))
+            : activeTab === 'reset' ? (resettable.length || roomExams.some(exam => canReset(exam.exam_id))
                 ? <BulkResetPanel key={slot.key} attempts={resettable} examDuration={longestDuration} onRefresh={() => void load(true)} />
                 : <p className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">Reset memerlukan akses admin, proktor, atau pengawas yang ditugaskan pada ujian ini.</p>)
             : <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -365,7 +385,7 @@ function RoomMonitor({ slot, userRole, monitoringBasePath, attemptBasePath, onBa
                         return <tr key={`${attempt.exam_id}:${attempt.id}`} onClick={() => setSelectedAttemptKey(`${attempt.exam_id}:${attempt.id}`)} className="border-t border-slate-100 align-top sm:align-middle cursor-pointer transition-colors hover:bg-slate-50 active:bg-slate-100">
                             <td className="p-3 sm:px-4 sm:py-2.5 font-medium text-slate-900">{formatStudentName(attempt.profiles?.full_name, 'Peserta')}<div className="mt-1 sm:mt-0 text-xs sm:text-[10px] font-normal text-slate-500 sm:text-slate-400">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div></td>
                             <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{attempt.kelas_name || '—'}</td>
-                            <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{slot.exams.find(exam => exam.exam_id === attempt.exam_id)?.bank_title || '—'}</td>
+                            <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{roomExams.find(exam => exam.exam_id === attempt.exam_id)?.bank_title || '—'}</td>
                             <td className="p-3 w-[115px] sm:w-auto sm:px-4 sm:py-2.5"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${done ? 'bg-emerald-50 text-emerald-700' : active ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{done ? 'Selesai' : active ? 'Mengerjakan' : 'Belum masuk'}</span><div className="mt-1 font-semibold text-slate-800 sm:hidden">{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</div></td>
                             <td className="hidden px-4 py-2.5 tabular-nums text-slate-600 sm:table-cell">{attempt.warning_count || 0}</td>
                         </tr>;

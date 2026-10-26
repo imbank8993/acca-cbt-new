@@ -565,11 +565,14 @@ export class ExamMonitoringService {
 
         const { data: examRow } = await this.db
             .from('cbt_exams')
-            .select('question_bank_id')
+            .select('question_bank_id, metadata')
             .eq('id', examId)
             .maybeSingle();
 
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
+        // Parameter butir IRT berlaku untuk seluruh peserta ujian; hanya untuk staf
+        // yang melihat semua peserta (bukan pengawas yang dibatasi ke ruangnya).
+        const irt = allowedStudents ? null : ((examRow as { metadata?: Record<string, unknown> | null }).metadata?.irt_calibration ?? null);
         const questionVersionSource = await hasExamQuestionSnapshots(this.db, examId) ? 'frozen' : 'legacy_current_bank';
         const sorted = await readExamQuestionVersion(this.db, examId) as any[];
         if (sorted.length === 0) return { questions: [], answers: [], detailed: null };
@@ -604,7 +607,7 @@ export class ExamMonitoringService {
         const attemptList = ((attemptRows as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
         await this.fillMissingIdentityNumbers(attemptList);
         const attemptIds = attemptList.map((a) => a.id);
-        if (attemptIds.length === 0) return { questions, answers: [], detailed: null };
+        if (attemptIds.length === 0) return { questions, answers: [], detailed: null, irt };
 
         const assigned = await this.loadAssignedStudents(examId);
 
@@ -658,7 +661,7 @@ export class ExamMonitoringService {
             const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
             detailed.generated_at = new Date(clock.now).toISOString();
         }
-        return { questions, answers, detailed };
+        return { questions, answers, detailed, irt };
     }
 
     /**

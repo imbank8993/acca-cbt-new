@@ -20,7 +20,12 @@ export interface PasExamSettings {
     /** `null` = catat pelanggaran tanpa mengakhiri ujian. */
     max_violations: number | null;
     screenshot_enabled: boolean;
+    /** Model nilai siswa. IRT dihitung dari seluruh peserta satu ujian (satu bank soal × sesi). */
+    scoring: PasScoringModel;
 }
+
+export const PAS_SCORING_MODELS = ['classical', 'irt_1pl', 'irt_2pl', 'irt_3pl'] as const;
+export type PasScoringModel = typeof PAS_SCORING_MODELS[number];
 
 export interface PasExamSettingsConfig {
     defaults: PasExamSettings;
@@ -36,6 +41,7 @@ export const PAS_EXAM_SETTING_DEFAULTS: PasExamSettings = {
     is_safe_mode: true,
     max_violations: 3,
     screenshot_enabled: false,
+    scoring: 'classical',
 };
 
 const BOOLEAN_KEYS = ['randomize_questions', 'randomize_options', 'show_results', 'show_answer_keys', 'is_safe_mode', 'screenshot_enabled'] as const;
@@ -65,6 +71,12 @@ function readSettings(value: unknown, label: string): Partial<PasExamSettings> {
             throw new BadRequestException(`${label}: batas pelanggaran harus angka bulat 1–100 atau tanpa batas.`);
         }
         result.max_violations = limit as number | null;
+    }
+    if (value.scoring !== undefined) {
+        if (!PAS_SCORING_MODELS.includes(value.scoring as PasScoringModel)) {
+            throw new BadRequestException(`${label}: model penilaian harus Klasik atau IRT 1PL/2PL/3PL.`);
+        }
+        result.scoring = value.scoring as PasScoringModel;
     }
     return result;
 }
@@ -126,12 +138,72 @@ export function pasExamSettingsColumns(settings: PasExamSettings) {
             randomize_questions: settings.randomize_questions,
             randomize_options: settings.randomize_options,
             show_results: settings.show_results,
+            // IRT selalu disertai nilai klasik sebagai pembanding guru; siswa melihat model terpilih.
+            scoring_type: settings.scoring === 'classical' ? 'classical' : `classical,${settings.scoring}`,
         },
         metadata: {
             show_answer_keys: settings.show_answer_keys,
             is_safe_mode: settings.is_safe_mode,
             max_violations: settings.max_violations,
             screenshot_enabled: settings.screenshot_enabled,
+            student_score_type: settings.scoring,
         },
     };
+}
+
+export interface PasExamRow {
+    id: string;
+    show_results?: boolean | null;
+    randomize_questions?: boolean | null;
+    randomize_options?: boolean | null;
+    scoring_type?: string | null;
+    metadata?: Record<string, unknown> | null;
+}
+
+/**
+ * Perubahan `cbt_exams` untuk menerapkan pengaturan pada satu ujian.
+ *
+ * - Nilai, pembahasan, dan model penilaian selalu ikut, kecuali selama koreksi
+ *   kunci berjalan (rilis menunggu penilaian ulang selesai).
+ * - Pengacakan dan keamanan tidak diubah bila siswa sudah mulai mengerjakan,
+ *   supaya peserta dalam satu ujian tidak mendapat aturan berbeda.
+ */
+export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSettings, started: boolean) {
+    const { columns, metadata } = pasExamSettingsColumns(settings);
+    const meta: Record<string, unknown> = { ...(exam.metadata || {}) };
+    const update: Record<string, unknown> = {};
+    const correction = meta.key_correction as { state?: string } | undefined;
+    const correcting = Boolean(correction?.state) && correction?.state !== 'ready';
+    const resultsChanged = exam.show_results !== columns.show_results ||
+        meta.show_answer_keys !== metadata.show_answer_keys ||
+        (exam.scoring_type || 'classical') !== columns.scoring_type ||
+        (meta.student_score_type || 'classical') !== metadata.student_score_type;
+    const resultsLocked = correcting && resultsChanged;
+    if (!resultsLocked) {
+        update.show_results = columns.show_results;
+        update.scoring_type = columns.scoring_type;
+        meta.show_answer_keys = metadata.show_answer_keys;
+        meta.student_score_type = metadata.student_score_type;
+    }
+    const securityChanged = exam.randomize_questions !== columns.randomize_questions ||
+        exam.randomize_options !== columns.randomize_options ||
+        meta.is_safe_mode !== metadata.is_safe_mode ||
+        (meta.max_violations === undefined ? 3 : meta.max_violations) !== metadata.max_violations ||
+        (meta.screenshot_enabled === true) !== metadata.screenshot_enabled;
+    const securityLocked = started && securityChanged;
+    if (!started) {
+        update.randomize_questions = columns.randomize_questions;
+        update.randomize_options = columns.randomize_options;
+        Object.assign(meta, {
+            is_safe_mode: metadata.is_safe_mode,
+            max_violations: metadata.max_violations,
+            screenshot_enabled: metadata.screenshot_enabled,
+        });
+    }
+    return { update: { ...update, metadata: meta }, resultsLocked, securityLocked };
+}
+
+/** Label singkat ujian folder untuk pesan: "Bank • Kelas XII A, XII B". */
+export function pasExamLabel(exam: { description?: string | null; title?: string | null }): string {
+    return String(exam.description || exam.title || 'Ujian').split('|')[0].trim();
 }

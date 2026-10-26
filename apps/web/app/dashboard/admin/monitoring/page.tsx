@@ -3,7 +3,7 @@
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
-import { sortMonitoringExams } from '@/lib/monitoring-exams';
+import { monitoringExamLabel, sortMonitoringExams } from '@/lib/monitoring-exams';
 import { effectiveRoomFilter, matchesRoomFilter, monitoringRoomOptions } from '@/lib/monitoring-rooms';
 import { useMonitoringExamClock } from '@/lib/useMonitoringExamClock';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
@@ -17,6 +17,8 @@ import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { MonitoringWorkspaceHeader } from '@/app/components/monitoring/MonitoringWorkspaceHeader';
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
+import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
+import type { IrtCalibration } from '@/lib/irt-calibration';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { buildItemAnalysis } from '@/lib/item-analysis';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
@@ -60,6 +62,7 @@ function MonitoringContent() {
 
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
+    const [irtCalibration, setIrtCalibration] = useState<IrtCalibration | null>(null);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'answers' | 'results' | 'analysis' | 'reset' | 'admin' | 'screen'>('activeTab', 'live');
@@ -112,7 +115,7 @@ function MonitoringContent() {
                     }
                     return result;
                 }),
-                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null })
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null })
             ]);
             if (generation !== examRequestGenerationRef.current) return;
             if (!attemptsResult.success) {
@@ -122,6 +125,7 @@ function MonitoringContent() {
             const attData = attemptsResult.attempts;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
+            if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
 
             setAnalysis(buildItemAnalysis(analysisData, attData));
             setLoadError(null);
@@ -278,7 +282,7 @@ function MonitoringContent() {
             await exportDetailedAnalysisToExcel({
                 exam: exams.find(exam => exam.id === selectedExamId), attempts: freshAttempts,
                 analysis: [], detailedAnalysis: freshAnalysis.detailed, timeZone,
-                questions: freshAnalysis.questions, answers: freshAnalysis.answers,
+                questions: freshAnalysis.questions, answers: freshAnalysis.answers, irt: freshAnalysis.irt ?? null,
             });
         } catch (error) {
             alert(error instanceof Error ? error.message : 'Export belum dapat dibuat.');
@@ -408,6 +412,7 @@ function MonitoringContent() {
             {selectedExamId && (
                 <div className="space-y-4">
 
+                    {activeTab === 'analysis' && <IrtParametersPanel key={`irt-${selectedExamId}`} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}
                     <AnimatePresence mode="wait">
                         {/* === REKAP TAB === */}
                         {activeTab === 'results' && (

@@ -1,3 +1,4 @@
+import type { IrtCalibration } from '@/lib/irt-calibration';
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
 import type { AnswerValue,Question } from '@/app/types';
@@ -790,18 +791,21 @@ export async function getExamAnswersForAnalysisAction(
     questions: QuestionRecord[];
     answers: ExamAnswerRecord[];
     detailed: DetailedItemAnalysisResponse | null;
+    /** Parameter butir dari Kalkulasi IRT terakhir; `null` bila belum pernah dihitung. */
+    irt?: IrtCalibration | null;
 }> {
     const res = await apiGet<{
         questions: QuestionRecord[];
         answers: ExamAnswerRecord[];
         detailed?: DetailedItemAnalysisResponse | null;
+        irt?: IrtCalibration | null;
     }>(
         `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis`,
         { timeoutMs: 60_000 },
     );
     return res.success
-        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null }
-        : { questions: [], answers: [], detailed: null };
+        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null, irt: res.irt ?? null }
+        : { questions: [], answers: [], detailed: null, irt: null };
 }
 
 export async function getAttemptFullDetailsAction(attemptId: string): Promise<AttemptFullDetails | null> {

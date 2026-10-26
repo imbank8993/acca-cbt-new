@@ -17,6 +17,7 @@ import { isEssayType } from '../common/answer-storage';
 import { isScoreExcluded } from '../common/score-exclusion';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { ScoringClient } from '../scoring/scoring.client';
+import { buildIrtCalibration, type IrtCalibration, type IrtItemParameterInput } from '../common/irt-calibration';
 
 /** Status attempt yang dianggap selesai dan ikut dihitung. */
 const FINISHED_STATUSES = ['submitted', 'auto_submitted'];
@@ -516,6 +517,7 @@ export class GradingService {
             result.attempts.some(a => !rows.some(row => row.id === a.id))) {
             throw new InternalServerErrorException('Hasil IRT tidak lengkap.');
         }
+        let calibration: IrtCalibration | null = null;
         await this.db.transaction(async db => {
             await advisoryTransactionLock(db, `exam-key-correction:${examId}`);
             if (JSON.stringify(await readExamQuestionVersion(db, examId)) !== JSON.stringify(questions)) {
@@ -542,8 +544,24 @@ export class GradingService {
                 .eq('id', attempt.id).select('id').maybeSingle();
                 if (saveError || !saved) throw new InternalServerErrorException('Nilai IRT gagal disimpan.');
             }
+
+            // Parameter tiap butir (p, b, a, c) disimpan bersama nilai agar guru dapat
+            // menilai kualitas soal. Disimpan di transaksi yang sama: keduanya selalu cocok.
+            await db.raw('SELECT id FROM public.cbt_exams WHERE id = $1::uuid FOR UPDATE', examId);
+            const latest = await db.from('cbt_exams').select('metadata').eq('id', examId).maybeSingle();
+            if (latest.error || !latest.data) throw new InternalServerErrorException('Parameter soal IRT gagal disimpan.');
+            const [clock] = await db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
+            calibration = buildIrtCalibration(questions as any[], result.items as IrtItemParameterInput[], {
+                calculatedAt: new Date(clock?.now ?? Date.now()).toISOString(),
+                participantCount: rows.length,
+                models: scoringTypes.filter(type => type.startsWith('irt')),
+                warnings: result.warnings || [],
+            });
+            const stored = await db.from('cbt_exams')
+                .update({ metadata: { ...(latest.data.metadata || {}), irt_calibration: calibration } }).eq('id', examId);
+            if (stored.error) throw new InternalServerErrorException('Parameter soal IRT gagal disimpan.');
         });
 
-        return { count: result.count, items: result.items, warnings: result.warnings || [] };
+        return { count: result.count, items: result.items, calibration, warnings: result.warnings || [] };
     }
 }
