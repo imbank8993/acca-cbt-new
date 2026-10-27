@@ -298,8 +298,11 @@
   .monitoring-section-tabs { min-width: 0; width: 100%; gap: 0; scrollbar-width: none; }
   .monitoring-section-tabs > button { flex: 1 0 auto; min-height: 44px; padding: 10px 12px; font-size: 13px; }
   .monitoring-section-bar > div { margin: 0; align-self: center; }
-  .monitoring-section-bar .ui-btn { min-height: 44px; }
-  .monitoring-actions-trigger { width: 44px; min-width: 44px; padding: 0 !important; }
+  .monitoring-section-bar .ui-btn:not(.monitoring-actions-trigger) { min-height: 44px; }
+  /* Ikon ⋯ seukuran teks tab; area sentuh tetap 44px lewat ::after. */
+  .monitoring-actions-trigger { position: relative; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0 !important; overflow: visible; }
+  .monitoring-actions-trigger::after { content: ''; position: absolute; inset: -6px; }
+  .monitoring-actions-trigger > svg:first-child { width: 16px; height: 16px; }
   .monitoring-actions-trigger > .ui-btn__label { display: none; }
   .monitoring-actions-trigger > svg:first-child { display: inline-flex; }
   .monitoring-actions-trigger > svg:last-child { display: none; }

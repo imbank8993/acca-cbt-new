@@ -201,7 +201,7 @@ test('SET-08: tab Pengaturan Ujian tersedia di folder dan monitoring biasa memak
         .map(attribute => [attribute.name.getText(monitoring), attribute.initializer?.expression?.getText(monitoring)]));
     assert.equal(attributes.get('key'), 'selectedExamId');
     assert.equal(attributes.get('analysis'), 'analysis');
-    assert.ok(attributes.has('topicAnalysis'), 'analisis materi diteruskan ke panel yang sama');
+    assert.ok(!attributes.has('topicAnalysis'), 'analisis penguasaan materi tidak ditampilkan di monitoring');
     assert.match(web('app/dashboard/admin/monitoring/page.tsx'), /setAnalysis\(buildItemAnalysis\(analysisData, attData\)\)/);
 });
 

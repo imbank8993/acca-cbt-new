@@ -1,6 +1,5 @@
 "use client";
 
-import type { TopicAnalysis } from '@acca-cbt/shared';
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
@@ -59,7 +58,6 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [topicAnalysis, setTopicAnalysis] = useState<{ examId: string; data?: TopicAnalysis } | null>(null);
     const [isCalculatingIrt, setIsCalculatingIrt] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_monitoring_exams', []);
     const [rawSelectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
@@ -139,7 +137,6 @@ function MonitoringContent() {
             const attData = attemptsResult.attempts;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
-            setTopicAnalysis({ examId, data: 'topicAnalysis' in analysisData ? analysisData.topicAnalysis : undefined });
             if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
 
             setAnalysis(buildItemAnalysis(analysisData, attData));
@@ -451,7 +448,7 @@ function MonitoringContent() {
                                 key="analysis"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                             >
-                                <ItemAnalysisPanel key={selectedExamId} analysis={analysis} topicAnalysis={topicAnalysis?.examId === selectedExamId ? topicAnalysis.data : undefined} />
+                                <ItemAnalysisPanel key={selectedExamId} analysis={analysis} />
                             </motion.div>
                         )}
                     </AnimatePresence>

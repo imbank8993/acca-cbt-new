@@ -1,7 +1,5 @@
 "use client";
 
-import type { TopicAnalysis } from '@acca-cbt/shared';
-import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
@@ -72,7 +70,6 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [topicAnalysis, setTopicAnalysis] = useState<{ examId: string; data?: TopicAnalysis } | null>(null);
     const [isCalculatingIrt, setIsCalculatingIrt] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_monitoring_exams', []);
     const [rawSelectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
@@ -185,7 +182,6 @@ function MonitoringContent() {
             if (generation !== examRequestGenerationRef.current) return;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
-            setTopicAnalysis({ examId, data: 'topicAnalysis' in analysisData ? analysisData.topicAnalysis : undefined });
             if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
             setAnalysis(analysisArray);
         } catch (error) {
@@ -502,7 +498,6 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="space-y-4"
                             >
-                                <TopicAnalysisPanel analysis={topicAnalysis?.examId === selectedExamId ? topicAnalysis.data : undefined} />
                                 <div className="monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                                     <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>

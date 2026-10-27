@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Layers, Lock, Settings2 } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, FolderOpen, GraduationCap, Layers, Lock, Settings2 } from 'lucide-react';
 import type { PASClassSchedule, PASPeriod, PASSession } from '@/app/types/pas';
 import type { PASRoom } from '@/lib/api/pas';
 import { formatSchoolDate, getSchoolTimeZoneLabel } from '@/lib/school-time';
@@ -36,14 +36,17 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
     const pending = schedules.length - ready;
 
     return <div className="compact-period-header">
-        <header className="cp-heading">
-            <div className="cp-title">
-                <h1>{period.name}</h1>
-                <div className="cp-context">
-                    <span className="cp-type">{semesterAssessmentLabel(period.type, true)}</span>
-                    <span>{formatDate(period.start_date)}–{formatDate(period.end_date)}</span>
-                    <span>{period.school_year} · {period.semester === 'genap' ? 'Genap' : 'Ganjil'}</span>
-                    {period.is_locked && <span className="cp-locked"><Lock size={12} aria-hidden="true" />Terkunci</span>}
+        <header className="cp-heading cp-hero">
+            <div className="cp-hero-main">
+                <span className="cp-hero-icon" aria-hidden="true"><FolderOpen size={22} /></span>
+                <div className="cp-title">
+                    <h1>{period.name}</h1>
+                    <div className="cp-context">
+                        <span className="cp-type">{semesterAssessmentLabel(period.type, true)}</span>
+                        <span className="cp-chip"><CalendarDays size={13} aria-hidden="true" />{formatDate(period.start_date)}–{formatDate(period.end_date)}</span>
+                        <span className="cp-chip"><GraduationCap size={13} aria-hidden="true" />{period.school_year} · Semester {period.semester === 'genap' ? 'Genap' : 'Ganjil'}</span>
+                        {period.is_locked && <span className="cp-chip cp-locked"><Lock size={12} aria-hidden="true" />Terkunci</span>}
+                    </div>
                 </div>
             </div>
             <div className="cp-heading-actions">

@@ -1,7 +1,5 @@
 "use client";
 
-import type { TopicAnalysis } from '@acca-cbt/shared';
-import { TopicAnalysisPanel } from './TopicAnalysisPanel';
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Eye, PieChart, UserCheck, UserX } from 'lucide-react';
 import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
@@ -44,7 +42,7 @@ const ANALYSIS_PAGE_SIZE = 10;
  * halaman) dan detail butir berisi teks soal, kunci, siswa benar/salah, serta
  * sebaran pengecoh. Dipakai monitoring ujian biasa dan monitoring ruang ASAS/AM.
  */
-export function ItemAnalysisPanel({ analysis, className = '', topicAnalysis }: { analysis: ItemAnalysis[]; className?: string; topicAnalysis?: TopicAnalysis }) {
+export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: ItemAnalysis[]; className?: string }) {
     const [analysisPage, setAnalysisPage] = useState(1);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
@@ -63,8 +61,7 @@ export function ItemAnalysisPanel({ analysis, className = '', topicAnalysis }: {
     const emptyText = analysis.length ? 'Tidak ada soal yang sesuai dengan pencarian atau filter.' : 'Belum ada data';
 
     return (
-        <>
-        <TopicAnalysisPanel analysis={topicAnalysis} />
+        <div className="monitoring-analysis-panel flex flex-col gap-4">
         <FilterToolbar>
             <FilterSearch value={search} onChange={value => { setSearch(value); setAnalysisPage(1); }}
                 label="Cari soal" placeholder="Cari teks atau nomor soal…" />
@@ -626,6 +623,6 @@ export function ItemAnalysisPanel({ analysis, className = '', topicAnalysis }: {
                 </>
             )}
         </Modal>
-        </>
+        </div>
     );
 }
