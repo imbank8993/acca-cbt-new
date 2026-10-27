@@ -16,6 +16,12 @@ export interface PASStaffMember {
     roles: string[];
 }
 
+export interface PASCommitteeTeacher {
+    id: string;
+    name: string;
+    nip: string | null;
+}
+
 export interface PASRoomMember {
     user_id: string;
     session_id?: string | null;
@@ -204,6 +210,12 @@ export async function listOrganizationClasses(
 export async function listTeachersAndInvigilators(): Promise<PASStaffMember[]> {
     const res = await apiGet<{ staff: PASStaffMember[] }>('/api/pas/staff');
     return res.success ? res.staff : [];
+}
+
+export async function listCommitteeTeachers(): Promise<PASCommitteeTeacher[]> {
+    const res = await apiGet<{ teachers: PASCommitteeTeacher[] }>('/api/pas/committee-teachers');
+    if (!res.success) throw new Error(res.error || 'Master guru belum dapat dimuat.');
+    return res.teachers;
 }
 
 // ── Sesi ─────────────────────────────────────────────────────────────────────

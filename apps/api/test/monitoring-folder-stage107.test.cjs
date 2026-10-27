@@ -102,7 +102,7 @@ test('MF-04: Proktor mulai per ruang, Admin per bank soal, guru hanya per bank s
 
 test('MF-05: folder ASAS/AM 5 tab; pelaksanaan dipantau di halaman Monitoring', () => {
     assert.match(web('app/components/pas/CompactExamPeriodWorkspace.tsx'),
-        /COMPACT_PERIOD_TABS = \[\s*\['schedules', 'Jadwal'\], \['rooms', 'Ruang dan Pengawas'\], \['sessions', 'Sesi'\], \['exam_settings', 'Pengaturan Ujian'\], \['administration', 'Administrasi'\],\s*\] as const/);
+        /COMPACT_PERIOD_TABS = \[\s*\['schedules', 'Jadwal'\], \['rooms', 'Ruang dan Pengawas'\], \['sessions', 'Sesi'\], \['administration', 'Administrasi'\], \['exam_settings', 'Pengaturan Ujian'\],\s*\] as const/);
     for (const role of ['admin', 'proktor']) {
         const page = web(`app/dashboard/${role}/exams/pas/[id]/page.tsx`);
         assert.doesNotMatch(page, /PASSlotMonitoring|PASBankResultsPanel|Hasil & Analisis/);

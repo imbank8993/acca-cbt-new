@@ -4,6 +4,7 @@ import {
     Injectable,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -394,6 +395,22 @@ export class PasService {
         // untuk kelas tanpa siswa hanya menghasilkan ujian yang tak seorang pun
         // bisa mengerjakannya.
         return activeYearOnly ? classes.filter((c) => c.studentCount > 0) : classes;
+    }
+
+    /** Master Guru ACCA juga mencakup guru yang belum memiliki keanggotaan CBT. */
+    async listCommitteeTeachers(user: AuthUser, organizationId: string) {
+        await this.authz.assertProktor(user, organizationId);
+        // Seperti master_ruangan, master_guru dipakai bersama oleh instalasi satu sekolah ini.
+        const { data, error } = await this.db.from('master_guru')
+            .select('id, nama_lengkap, nip, jenis_pegawai, aktif')
+            .order('nama_lengkap');
+        if (error) {
+            throw new ServiceUnavailableException('Master guru belum dapat dimuat. Nama dan NIP tetap dapat diisi manual.');
+        }
+        return ((data || []) as Array<{ id: string | number; nama_lengkap: string | null; nip: string | null; jenis_pegawai: string | null; aktif: boolean | null }>)
+            .filter(teacher => teacher.aktif !== false && teacher.nama_lengkap?.trim()
+                && ['', 'GURU'].includes(String(teacher.jenis_pegawai || '').trim().toUpperCase()))
+            .map(teacher => ({ id: String(teacher.id), name: teacher.nama_lengkap!.trim(), nip: teacher.nip?.trim() || null }));
     }
 
     /**

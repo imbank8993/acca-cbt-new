@@ -39,9 +39,9 @@
 .compact-period-schedules > .ftb-toolbar { margin-bottom: 0 !important; }
 /* Empat card terpisah, sama lebar dalam satu baris. */
 .cp-summary-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 22px; }
-.cp-summary-card > div { min-width: 0; padding: 16px 20px; background: var(--cp-panel); border: 1px solid var(--cp-line); border-radius: 12px; }
-.cp-summary-card dt { color: var(--cp-muted); font-size: 12px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cp-summary-card dd { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cp-summary-card > div { min-width: 0; padding: 16px 20px; background: var(--cp-panel); border: 1px solid var(--cp-line); border-radius: 12px; text-align: center; }
+.cp-summary-card dt { color: var(--cp-muted); font-size: 12px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-summary-card dd { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 700; font-variant-numeric: tabular-nums; }
 .cp-summary-card .is-good dd { color: #237652; }
 .cp-summary-card .is-active dd { color: var(--cp-blue); }
 .cp-summary-card .is-warning dd { color: var(--cp-warning); }

@@ -179,6 +179,15 @@ export class PasController {
         return { rooms: await this.rooms.listMasterRooms(user, organizationId) };
     }
 
+    @Get('committee-teachers')
+    @ApiOperation({ summary: 'Master guru aktif untuk ketua panitia ujian' })
+    async listCommitteeTeachers(
+        @CurrentUser() user: AuthUser,
+        @CurrentSchoolId() organizationId: string,
+    ) {
+        return { teachers: await this.pas.listCommitteeTeachers(user, organizationId) };
+    }
+
     @Get('staff')
     @ApiOperation({ summary: 'Guru dan pengawas organisasi, untuk penugasan ruang' })
     async listStaff(

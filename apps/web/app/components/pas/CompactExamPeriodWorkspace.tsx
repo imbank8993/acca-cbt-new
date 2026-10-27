@@ -26,7 +26,7 @@ interface HeaderProps {
 }
 
 export const COMPACT_PERIOD_TABS = [
-    ['schedules', 'Jadwal'], ['rooms', 'Ruang dan Pengawas'], ['sessions', 'Sesi'], ['exam_settings', 'Pengaturan Ujian'], ['administration', 'Administrasi'],
+    ['schedules', 'Jadwal'], ['rooms', 'Ruang dan Pengawas'], ['sessions', 'Sesi'], ['administration', 'Administrasi'], ['exam_settings', 'Pengaturan Ujian'],
 ] as const;
 
 /** Kepala folder ASAS/AM: judul & aksi utama, kartu ringkasan 4 kolom, lalu satu baris tab. */
@@ -59,7 +59,7 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
         </header>
         <dl className="cp-summary-card" aria-label="Ringkasan jadwal ujian">
             {([
-                ['Jadwal kelas', schedules.length, ''],
+                ['Jadwal', schedules.length, ''],
                 ['Siap', ready, ready > 0 && ready === schedules.length ? 'is-good' : ''],
                 ['Aktif', active, active > 0 ? 'is-active' : ''],
                 ['Perlu dilengkapi', pending, pending > 0 ? 'is-warning' : ''],

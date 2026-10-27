@@ -485,7 +485,7 @@ const ExamsPage = () => {
                                                         ? 'bg-red-50 text-red-600 border border-red-200'
                                                         : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
                                                 }`}>
-                                                    FOLDER UJIAN {semesterAssessmentLabel(period.type)} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
+                                                    {semesterAssessmentLabel(period.type)} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>
                                                 {isDraft && (
                                                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
@@ -508,7 +508,7 @@ const ExamsPage = () => {
                                                         ? 'bg-red-50 text-red-700 border-red-100'
                                                         : 'bg-blue-50 text-blue-700 border border-blue-100'
                                                 }`}>
-                                                    <BookOpen size={12} className={isDraft ? 'text-red-600' : 'text-blue-600'} /> {bankCount} Bank Soal • {scheduleCount} Jadwal Kelas
+                                                    <BookOpen size={12} className={isDraft ? 'text-red-600' : 'text-blue-600'} /> {bankCount} Bank Soal • {scheduleCount} Jadwal
                                                 </span>
                                                 <span className="flex items-center gap-1.5 text-slate-500">
                                                     <Calendar size={12} className="text-slate-400" />
