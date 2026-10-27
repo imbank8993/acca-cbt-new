@@ -10,6 +10,7 @@ import { listPASMonitoringSlots, type PASMonitoringSlot } from '@/lib/api/pas';
 import { getExamAttemptsAction, listOrganizationExams, type ExamAttemptRecord, type OrganizationExam } from '@/lib/api/proctor';
 import { schoolTodayDate, utcToSchoolLocalDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
+import './monitoring.css';
 
 type StaffRole = 'admin' | 'proktor' | 'pengawas';
 
@@ -50,27 +51,21 @@ export function slotAttempts(slot: PASMonitoringSlot, attemptsByExam: Record<str
     return rows;
 }
 
-function SlotCard({ slot, active, onSelect }: { slot: PASMonitoringSlot; active: boolean; onSelect: () => void }) {
-    const { total, in_progress: running, finished, not_started: waiting } = slot.counts;
-    const tone = total > 0 && finished === total ? 'border-emerald-200 bg-emerald-50/50'
-        : running > 0 ? 'border-blue-200 bg-blue-50/40' : 'border-slate-200 bg-white';
-    return <button type="button" onClick={onSelect} aria-pressed={active}
-        className={`w-full rounded-xl border p-3 text-left transition hover:border-blue-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${tone} ${active ? 'ring-2 ring-blue-500/40' : ''}`}>
-        <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-                <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-900"><DoorOpen size={14} className="shrink-0 text-blue-600" />{slot.room.name}</p>
-                <p className="mt-0.5 truncate text-[11px] text-slate-500">{slot.exams.map(exam => exam.class_name).join(', ')}</p>
-            </div>
-            {slot.is_mine && <span className="shrink-0 rounded-md bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">Tugas saya</span>}
-        </div>
-        <dl className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px]">
-            <div className="rounded-md bg-white/70 px-1 py-1"><dt className="text-slate-500">Mengerjakan</dt><dd className="font-bold tabular-nums text-blue-700">{running}</dd></div>
-            <div className="rounded-md bg-white/70 px-1 py-1"><dt className="text-slate-500">Selesai</dt><dd className="font-bold tabular-nums text-emerald-700">{finished}</dd></div>
-            <div className="rounded-md bg-white/70 px-1 py-1"><dt className="text-slate-500">Belum</dt><dd className="font-bold tabular-nums text-slate-700">{waiting}</dd></div>
-        </dl>
-        <p className="mt-2 truncate text-[11px] text-slate-500"><ShieldCheck size={11} className="mr-1 inline text-slate-400" />
-            {slot.invigilators.length ? slot.invigilators.map(person => person.full_name).join(', ') : <span className="text-amber-700">Pengawas belum diatur</span>}</p>
-    </button>;
+function SlotRow({ slot, onSelect }: { slot: PASMonitoringSlot; onSelect: () => void }) {
+    const { in_progress: running, finished, not_started: waiting } = slot.counts;
+    const classes = [...new Set(slot.exams.flatMap(exam => exam.class_name.split(', ')))].join(', ');
+    return <tr>
+        <td><div className="monitoring-room-name"><DoorOpen size={15} aria-hidden="true" />
+            <button type="button" onClick={onSelect}>{slot.room.name}</button>
+            {slot.is_mine && <span className="monitoring-room-assignment">Tugas saya</span>}
+        </div></td>
+        <td>{classes || '—'}</td>
+        <td className="monitoring-room-count monitoring-room-count--running">{running}</td>
+        <td className="monitoring-room-count monitoring-room-count--finished">{finished}</td>
+        <td className="monitoring-room-count">{waiting}</td>
+        <td>{slot.invigilators.length ? slot.invigilators.map(person => person.full_name).join(', ') : <span className="text-amber-700">Pengawas belum diatur</span>}</td>
+        <td><button type="button" className="monitoring-room-open" onClick={onSelect} aria-label={`Buka ruang ${slot.room.name}`}>Buka ruang</button></td>
+    </tr>;
 }
 
 /** Bagian monitoring ruang: Hasil hanya untuk Admin/Proktor; reset & pengecualian layar ada di menu Tindakan. */
@@ -280,8 +275,17 @@ export default function PASSlotMonitoring({ periodId, userRole, attemptBasePath,
             </div>
             : <div className="space-y-5">{sessions.map(group => <section key={group.label} aria-label={group.label}>
                 <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{group.label}</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {group.slots.map(slot => <SlotCard key={slot.key} slot={slot} active={false} onSelect={() => setSelectedKey(slot.key)} />)}
+                <div className="monitoring-room-table-wrap" role="region" aria-label={`Daftar ruang ${group.label}`} tabIndex={0}>
+                    <table className="monitoring-room-table">
+                        <thead><tr>
+                            <th scope="col">Ruang</th><th scope="col">Kelas</th>
+                            <th scope="col" className="monitoring-room-count">Mengerjakan</th>
+                            <th scope="col" className="monitoring-room-count">Selesai</th>
+                            <th scope="col" className="monitoring-room-count">Belum masuk</th>
+                            <th scope="col">Pengawas</th><th scope="col"><span className="sr-only">Tindakan</span></th>
+                        </tr></thead>
+                        <tbody>{group.slots.map(slot => <SlotRow key={slot.key} slot={slot} onSelect={() => setSelectedKey(slot.key)} />)}</tbody>
+                    </table>
                 </div>
             </section>)}</div>}
     </div>;

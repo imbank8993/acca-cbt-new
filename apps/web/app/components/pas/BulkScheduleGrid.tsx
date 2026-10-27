@@ -1,5 +1,7 @@
 "use client";
 
+import { InlineSelect } from '@/app/components/ui/inlineselect';
+
 import type { PASPeriod,PASSession } from '@/app/types/pas';
 import { addPASScheduleAction,listMasterRooms,type MasterRoom,type PASRoom,type PASSubjectSummary } from '@/lib/api/pas';
 import type { OrganizationClass } from '@/lib/api/proctor';
@@ -409,46 +411,55 @@ export default function BulkScheduleGrid({
                             return (
                                 <tr key={row.id} className={row.status === 'saved' ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
                                     <td className="p-1.5">
-                                        <select
+                                        <InlineSelect
                                             value={row.bank_id}
                                             disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'bank_id', event.target.value)}
+                                            onChange={(value) => handleChange(row.id, 'bank_id', value)}
                                             onKeyDown={(event) => handleKeyDown(event, index, 'bank_id')}
-                                            className={controlClass}
+                                            aria-label={`Bank soal baris ${index + 1}`}
+                                            minWidth="0"
+                                            height="36px"
+                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
                                         >
                                             <option value="">Pilih Bank Soal...</option>
                                             {qBanks.map((bank) => (
                                                 <option key={bank.id} value={bank.id}>{bank.title}</option>
                                             ))}
-                                        </select>
+                                        </InlineSelect>
                                     </td>
                                     <td className="p-1.5">
-                                        <select
+                                        <InlineSelect
                                             value={row.subject_id}
                                             disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'subject_id', event.target.value)}
+                                            onChange={(value) => handleChange(row.id, 'subject_id', value)}
                                             onKeyDown={(event) => handleKeyDown(event, index, 'subject_id')}
-                                            className={controlClass}
+                                            aria-label={`Mata pelajaran baris ${index + 1}`}
+                                            minWidth="0"
+                                            height="36px"
+                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
                                         >
                                             <option value="">Otomatis / Opsional</option>
                                             {subjects.map((subject) => (
                                                 <option key={subject.id} value={subject.id}>{subject.name}</option>
                                             ))}
-                                        </select>
+                                        </InlineSelect>
                                     </td>
                                     <td className="p-1.5">
-                                        <select
+                                        <InlineSelect
                                             value={row.class_id}
                                             disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'class_id', event.target.value)}
+                                            onChange={(value) => handleChange(row.id, 'class_id', value)}
                                             onKeyDown={(event) => handleKeyDown(event, index, 'class_id')}
-                                            className={controlClass}
+                                            aria-label={`Kelas baris ${index + 1}`}
+                                            minWidth="0"
+                                            height="36px"
+                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
                                         >
                                             <option value="">Pilih Kelas...</option>
                                             {classes.map((item) => (
                                                 <option key={item.id} value={item.id}>{item.name}</option>
                                             ))}
-                                        </select>
+                                        </InlineSelect>
                                     </td>
                                     <td className="p-1.5">
                                         <input
@@ -463,12 +474,15 @@ export default function BulkScheduleGrid({
                                         />
                                     </td>
                                     <td className="p-1.5">
-                                        <select
+                                        <InlineSelect
                                             value={row.session_id}
                                             disabled={disabled}
-                                            onChange={(event) => handleChange(row.id, 'session_id', event.target.value)}
+                                            onChange={(value) => handleChange(row.id, 'session_id', value)}
                                             onKeyDown={(event) => handleKeyDown(event, index, 'session_id')}
-                                            className={controlClass}
+                                            aria-label={`Sesi ujian baris ${index + 1}`}
+                                            minWidth="0"
+                                            height="36px"
+                                            className={`w-full ${row.status === 'error' ? '[&>select]:border-red-300 [&>select]:bg-red-50/40' : ''}`}
                                         >
                                             <option value="">Pilih Sesi...</option>
                                             {sessions.map((session) => (
@@ -476,7 +490,7 @@ export default function BulkScheduleGrid({
                                                     {session.name} ({session.start_time.substring(0, 5)} - {session.end_time.substring(0, 5)} {tzLabel})
                                                 </option>
                                             ))}
-                                        </select>
+                                        </InlineSelect>
                                     </td>
                                     <td className="p-1.5">
                                         <input

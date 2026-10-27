@@ -442,7 +442,6 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     semester: formData.pasSemester,
                     start_date: formData.pasStartDate,
                     end_date: formData.pasEndDate,
-                    screenshot_enabled: formData.screenshotEnabled,
                 });
 
                 if (!res.success) {
@@ -1299,7 +1298,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                     </div>
                         </>
                     )}
-                    <div className="border-t border-slate-100 pt-4">
+                    {!isPasFolderCreate && <div className="border-t border-slate-100 pt-4">
                         <label className="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
                             <input type="checkbox" checked={formData.screenshotEnabled}
                                 onChange={e => setFormData(prev => ({ ...prev, screenshotEnabled: e.target.checked }))}
@@ -1308,7 +1307,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                                 <span className="mt-1 block text-xs text-slate-500">Siswa wajib berbagi layar penuh. Hanya kejadian tertentu yang disimpan, maksimal 10 gambar per peserta; gambar dihapus setelah 7 hari.</span>
                             </span>
                         </label>
-                    </div>
+                    </div>}
                 </ModalBody>
                 <ModalFooter>
                     <Button

@@ -96,7 +96,7 @@
 }
 
 .monitoring-workspace { margin-bottom: 18px; min-width: 0; }
-.monitoring-workspace__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.monitoring-workspace__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .monitoring-workspace__schedule { color: var(--monitoring-muted); font-size: 12px; line-height: 1.6; margin: 6px 0 0 2px; text-align: left; }
 .monitoring-workspace__action { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; min-height: 42px; }
 .monitoring-workspace__picker { width: min(64%, 720px); min-width: 0; }
@@ -119,6 +119,42 @@
 .monitoring-workspace__tabs button:hover { color: var(--monitoring-text); }
 
 .monitoring-participant-filters { min-width: 0; }
+.monitoring-participants-workspace,
+.monitoring-participants-list { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.monitoring-participants-workspace > .ftb-toolbar { margin: 0; }
+
+.monitoring-results { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.monitoring-results__toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; padding: 14px 16px; border: 1px solid var(--monitoring-line, #e7ecf2); border-radius: 12px; background: var(--monitoring-surface, #fff); }
+.monitoring-results__scope { display: flex; flex: 1 1 300px; align-items: center; gap: 12px; min-width: 0; max-width: 560px; color: var(--monitoring-muted, #64748b); font-size: 12px; font-weight: 500; }
+.monitoring-results__scope > span { flex-shrink: 0; }
+.monitoring-results__scope .uisel { flex: 1; min-width: 0; }
+.monitoring-results__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.monitoring-results__actions > .ui-btn { height: 36px; min-height: 36px; padding: 0 14px; border-radius: 8px; font-size: 12px; box-shadow: none; }
+@media (max-width: 767px) {
+  .monitoring-results__toolbar { padding: 12px; gap: 12px; }
+  .monitoring-results__scope { flex-basis: 100%; max-width: none; flex-direction: column; align-items: stretch; gap: 6px; }
+  .monitoring-results__actions { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .monitoring-results__actions > .ui-btn { min-height: 40px; height: auto; white-space: normal; }
+}
+
+.monitoring-room-table-wrap { overflow-x: auto; border: 1px solid var(--monitoring-line, #e7ecf2); border-radius: 12px; background: var(--monitoring-surface, #fff); }
+.monitoring-room-table { width: 100%; min-width: 900px; border-collapse: collapse; text-align: left; font-size: 13px; color: var(--monitoring-muted, #64748b); }
+.monitoring-room-table th { background: var(--monitoring-control, #f8fafc); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.monitoring-room-table th,
+.monitoring-room-table td { padding: 16px; border-bottom: 1px solid var(--monitoring-line, #e7ecf2); vertical-align: middle; }
+.monitoring-room-table tbody tr:last-child td { border-bottom: 0; }
+.monitoring-room-table tbody tr:hover { background: var(--monitoring-control, #f8fafc); }
+.monitoring-room-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 180px; color: var(--monitoring-text, #1e293b); font-weight: 600; }
+.monitoring-room-name svg { flex-shrink: 0; color: #2563eb; }
+.monitoring-room-name button { text-align: left; }
+.monitoring-room-assignment { padding: 3px 7px; border-radius: 5px; background: #2563eb; color: #fff; font-size: 10px; white-space: nowrap; }
+.monitoring-room-table .monitoring-room-count { text-align: center; font-variant-numeric: tabular-nums; }
+.monitoring-room-count--running { color: #2563eb; font-weight: 600; }
+.monitoring-room-count--finished { color: #059669; font-weight: 600; }
+.monitoring-room-open { padding: 7px 10px; border: 1px solid var(--monitoring-line, #e7ecf2); border-radius: 7px; color: #2563eb; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.monitoring-room-open:hover { background: var(--monitoring-control, #f8fafc); }
+.monitoring-room-name button:focus-visible,
+.monitoring-room-open:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; }
 .monitoring-refresh:focus-visible,
 .monitoring-workspace__tabs button:focus-visible { outline: 2px solid var(--primary, #3083ff); outline-offset: 3px; }
 

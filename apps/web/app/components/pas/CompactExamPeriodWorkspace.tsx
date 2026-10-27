@@ -96,7 +96,7 @@ const PAGE_SIZE = 25;
 /** Nilai kosong = "semua" (sama dengan tombol atur ulang filter di FilterToolbar). */
 const ALL = '';
 
-export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, timeZone, today, bankTitle, busy, onActivation, onDelete, onManageRooms, monitoringBasePath, onAddSchedule, onBulkSchedule }: SchedulesProps) {
+export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, timeZone, today, bankTitle, busy, onActivation, onDelete, onManageRooms, monitoringBasePath }: SchedulesProps) {
     const [search, setSearch] = useState('');
     const [dateFilter, setDateFilter] = useState(ALL);
     const [classFilter, setClassFilter] = useState(ALL);
@@ -218,15 +218,11 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                     })}</tbody>
                 </table>
             </div>
-            {!visible.length && <div className="cp-empty">
-                <p>{schedules.length ? 'Tidak ada jadwal yang sesuai.' : 'Belum ada jadwal ujian.'}</p>
-                <div className="cp-empty-actions">
-                    {hasFilters ? <Button variant="ghost" size="sm" onClick={resetFilters}>Hapus filter</Button>
-                        : !period.is_locked && <>
-                            <Button icon="add" size="sm" onClick={onAddSchedule}>Tambah jadwal</Button>
-                            <Button variant="outline" size="sm" onClick={onBulkSchedule}>Jadwal massal</Button>
-                        </>}
-                </div>
+            {!visible.length && schedules.length > 0 && <div className="cp-empty">
+                <p>Tidak ada jadwal yang sesuai.</p>
+                {hasFilters && <div className="cp-empty-actions">
+                    <Button variant="ghost" size="sm" onClick={resetFilters}>Hapus filter</Button>
+                </div>}
             </div>}
             <div className="cp-footer">
                 <span role="status">{filtered.length ? `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filtered.length)} dari ${filtered.length} jadwal` : '0 jadwal'}</span>

@@ -16,6 +16,7 @@ import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenSh
 import { Button } from '@/app/components/ui/button';
 import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
+import './monitoring.css';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { calculateExamIRT } from '@/lib/api/grading';
 import {
@@ -249,7 +250,7 @@ export function ParticipantsWorkspace({
     const peopleRows = [...scoped].filter(row => effectiveStatus === 'all' || attemptState(row) === effectiveStatus)
         .sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id'));
 
-    return <div className="space-y-3">
+    return <div className="monitoring-participants-workspace">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
             <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Bagian monitoring">
                 {sections.map(id => <button key={id} type="button" aria-pressed={!action && activeSection === id} onClick={() => openSection(id)}
@@ -311,7 +312,7 @@ export function ParticipantsWorkspace({
                 </>}
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
-        : activeSection === 'peserta' ? <div className="space-y-3">
+        : activeSection === 'peserta' ? <div className="monitoring-participants-list">
             <div role="group" aria-label="Filter status" className="flex flex-wrap gap-1.5">
                 {STATUS_FILTERS.map(([id, label]) => <button key={id} type="button" aria-pressed={effectiveStatus === id} onClick={() => setStatus(id)}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${effectiveStatus === id
@@ -360,10 +361,14 @@ export function ParticipantsWorkspace({
         </div>
         : activeSection === 'jawaban' ? <MonitoringHealthPanel attempts={scoped} defaultExpanded
             onRecover={anyReset ? recover : undefined} onViewDetails={viewAnswers} />
-        : <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                {examPicker('Tindakan untuk')}
-                <div className="ml-auto flex flex-wrap items-center gap-2">
+        : <div className="monitoring-results">
+            <div className="monitoring-results__toolbar">
+                {examOptions.length > 1 && <label className="monitoring-results__scope">
+                    <span>Tindakan untuk</span>
+                    <InlineSelect value={focusId} onChange={changeFocus} minWidth="0" height="36px" aria-label="Tindakan untuk"
+                        options={examOptions.map(option => ({ value: option.exam_id, label: option.label }))} />
+                </label>}
+                <div className="monitoring-results__actions">
                     {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} onComplete={() => void onReload()} />}
                     {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}
                     <Button variant="outline" size="sm" icon="export" onClick={() => void exportResults()} disabled={busy || !focusId}>Export</Button>

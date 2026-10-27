@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, type KeyboardEventHandler } from 'react';
 import './inline-select.css';
 
 export type InlineSelectOption = { value: string; label: string; disabled?: boolean };
@@ -13,6 +13,7 @@ export type InlineSelectOption = { value: string; label: string; disabled?: bool
 export function InlineSelect({
     value,
     onChange,
+    onKeyDown,
     options,
     children,
     title,
@@ -27,6 +28,7 @@ export function InlineSelect({
 }: {
     value: string;
     onChange: (value: string) => void;
+    onKeyDown?: KeyboardEventHandler<HTMLSelectElement>;
     options?: InlineSelectOption[];
     children?: ReactNode;
     title?: string;
@@ -52,6 +54,7 @@ export function InlineSelect({
                 className="uisel-input"
                 value={value}
                 onChange={e => onChange(e.target.value)}
+                onKeyDown={onKeyDown}
                 title={title}
                 disabled={disabled}
             >
