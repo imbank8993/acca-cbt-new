@@ -560,20 +560,36 @@ export class ExamMonitoringService {
      * butir menghitung SEMUA jawaban peserta yang sedang mengerjakan sebagai
      * salah, dan angkanya menyesatkan justru saat ujian sedang berlangsung.
      */
-    async getItemAnalysis(user: AuthUser, examId: string) {
-        const studentIds = await this.authz.assertExamMonitoring(user, examId);
-        const allowedStudents = studentIds === undefined ? null : new Set(studentIds);
+    async getItemAnalysis(user: AuthUser, examId: string, combineWith: string[] = []) {
+        // Ujian folder ASAS/AM lama yang masih terpisah per kelas: satu bank soal,
+        // dianalisis bersama agar analisis tidak dipilah per kelas.
+        const examIds = [...new Set([examId, ...combineWith.filter(Boolean)])].slice(0, 20);
+        const scopes = new Map<string, Set<string> | null>();
+        for (const id of examIds) {
+            const studentIds = await this.authz.assertExamMonitoring(user, id);
+            scopes.set(id, studentIds === undefined ? null : new Set(studentIds));
+        }
+        const allowedStudents = scopes.get(examId) ?? null;
+        const restricted = [...scopes.values()].some(scope => scope !== null);
 
-        const { data: examRow } = await this.db
+        const { data: examRows } = await this.db
             .from('cbt_exams')
-            .select('question_bank_id, metadata')
-            .eq('id', examId)
-            .maybeSingle();
+            .select('id, question_bank_id, metadata')
+            .in('id', examIds);
+        const rows = (examRows as Array<{ id: string; question_bank_id: string | null; metadata?: Record<string, unknown> | null }> | null) || [];
+        const examRow = rows.find(row => row.id === examId);
 
         if (!examRow) throw new NotFoundException('Ujian tidak ditemukan.');
-        // Parameter butir IRT berlaku untuk seluruh peserta ujian; hanya untuk staf
+        if (examIds.length > 1) {
+            const periodOf = (row: typeof examRow) => row.metadata?.pas_period_id ?? null;
+            if (rows.length !== examIds.length || rows.some(row => !row.question_bank_id || row.question_bank_id !== examRow.question_bank_id
+                || !periodOf(row) || periodOf(row) !== periodOf(examRow))) {
+                throw new BadRequestException('Analisis gabungan hanya untuk ujian dari bank soal dan folder yang sama.');
+            }
+        }
+        // Parameter butir IRT berlaku untuk seluruh peserta satu ujian; hanya untuk staf
         // yang melihat semua peserta (bukan pengawas yang dibatasi ke ruangnya).
-        const irt = allowedStudents ? null : ((examRow as { metadata?: Record<string, unknown> | null }).metadata?.irt_calibration ?? null);
+        const irt = restricted || examIds.length > 1 ? null : (examRow.metadata?.irt_calibration ?? null);
         const questionVersionSource = await hasExamQuestionSnapshots(this.db, examId) ? 'frozen' : 'legacy_current_bank';
         const sorted = await withQuestionTopics(this.db, await readExamQuestionVersion(this.db, examId) as any[]);
         if (sorted.length === 0) return { questions: [], answers: [], detailed: null };
@@ -600,18 +616,28 @@ export class ExamMonitoringService {
                 })),
         }));
 
-        const { data: attemptRows, error: attemptError } = await this.db
+        const attemptQuery = this.db
             .from('cbt_exam_attempts')
-            .select('id, user_id, status, total_score, profiles:cbt_profiles(full_name, identity_number)')
-            .eq('exam_id', examId);
+            .select('id, exam_id, user_id, status, total_score, profiles:cbt_profiles(full_name, identity_number)');
+        const { data: attemptRows, error: attemptError } = examIds.length > 1
+            ? await attemptQuery.in('exam_id', examIds)
+            : await attemptQuery.eq('exam_id', examId);
 
         if (attemptError) throw new BadRequestException('Data peserta analisis belum dapat dibaca.');
-        const attemptList = ((attemptRows as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
+        const attemptList = ((attemptRows as any[]) || []).filter(attempt => {
+            const scope = examIds.length > 1 ? scopes.get(attempt.exam_id) ?? null : allowedStudents;
+            return !scope || scope.has(attempt.user_id);
+        });
         await this.fillMissingIdentityNumbers(attemptList);
         const attemptIds = attemptList.map((a) => a.id);
         if (attemptIds.length === 0) return { questions, answers: [], detailed: null, irt, topicAnalysis: buildTopicAnalysis(sorted, [], []) };
 
         const assigned = await this.loadAssignedStudents(examId);
+        for (const otherId of examIds.slice(1)) {
+            for (const [userId, className] of (await this.loadAssignedStudents(otherId)).classByUser) {
+                if (!assigned.classByUser.has(userId)) assigned.classByUser.set(userId, className);
+            }
+        }
 
         const participants = attemptList.map((att) => {
             const profile = Array.isArray(att.profiles) ? att.profiles[0] : att.profiles;

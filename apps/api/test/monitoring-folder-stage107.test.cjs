@@ -146,3 +146,53 @@ test('MF-08: pilihan Per bank soal | Per ruang di pojok kanan atas; filter peser
     assert.doesNotMatch(workspace, /ParticipantSummaryLine attempts=/);
     assert.match(workspace, /<Button type="button" variant="outline" size="sm" aria-haspopup="menu"/);
 });
+
+test('MF-09: analisis bank soal menggabungkan ujian per kelas tanpa filter kelas', async () => {
+    const { ExamMonitoringService } = require('../src/proctor/exam-monitoring.service.ts');
+    const meta = { pas_period_id: 'p1', irt_calibration: { model: 'irt_1pl' } };
+    const exams = ['xa', 'xb'].map(id => ({ id, question_bank_id: 'bank', metadata: meta }));
+    const question = { id: 'q1', type: 'mcq', score_default: 1, question_text: 'Soal', bank_question_options: [] };
+    const db = fixtureDb({
+        cbt_exams: [...exams, { id: 'other', question_bank_id: 'bank-lain', metadata: meta }],
+        cbt_exam_question_snapshots: ['xa', 'xb', 'other'].map(exam_id => ({ exam_id, order_number: 1, question_snapshot: question })),
+        cbt_exam_attempts: [
+            { id: 'a1', exam_id: 'xa', user_id: 'u1', status: 'submitted', total_score: 100 },
+            { id: 'a2', exam_id: 'xb', user_id: 'u2', status: 'submitted', total_score: 0 },
+        ],
+        cbt_answers: [
+            { attempt_id: 'a1', question_id: 'q1', selected_option_id: 'o', is_correct: true, score: 1 },
+            { attempt_id: 'a2', question_id: 'q1', selected_option_id: 'o', is_correct: false, score: 0 },
+        ],
+        cbt_exam_targets: [], cbt_class_members: [], cbt_bank_questions: [],
+    });
+    const checked = [];
+    const service = new ExamMonitoringService(db, { assertExamMonitoring: async (_user, id) => { checked.push(id); return undefined; } }, { post: async () => null }, {}, {});
+    const single = await service.getItemAnalysis({ id: 'staff' }, 'xa');
+    assert.equal(single.answers.length, 1);
+    assert.deepEqual(single.irt, { model: 'irt_1pl' });
+    const combined = await service.getItemAnalysis({ id: 'staff' }, 'xa', ['xb']);
+    assert.deepEqual(checked.slice(-2), ['xa', 'xb'], 'setiap ujian diperiksa izinnya');
+    assert.equal(combined.answers.length, 2);
+    assert.equal(combined.irt, null, 'IRT per ujian tidak dicampur');
+    await assert.rejects(service.getItemAnalysis({ id: 'staff' }, 'xa', ['other']), /bank soal dan folder yang sama/);
+    const workspace = web('app/components/monitoring/ParticipantsWorkspace.tsx');
+    assert.doesNotMatch(workspace, /examPicker\('Ujian'\)/);
+    assert.match(workspace, /getExamAnswersForAnalysisAction\(first, others\)/);
+});
+
+test('MF-10: route analisis meneruskan pilihan ujian gabungan ke backend', async () => {
+    const source = web('app/api/proctor/exams/[examId]/item-analysis/route.ts');
+    const ts = require('typescript');
+    const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+    const mod = { exports: {} };
+    new Function('require', 'module', 'exports', code)(name => name === '@/lib/nest-proxy'
+        ? { proxyGet: async (_request, path) => path } : {}, mod, mod.exports);
+    const context = { params: Promise.resolve({ examId: 'first' }) };
+    const plain = await mod.exports.GET({ nextUrl: new URL('https://local.test/item-analysis') }, context);
+    assert.equal(plain, '/proctor/exams/first/item-analysis');
+    const combined = await mod.exports.GET({ nextUrl: new URL('https://local.test/item-analysis?with=second%2Cthird&unused=ignored') }, context);
+    const url = new URL(combined, 'https://backend.test');
+    assert.equal(url.pathname, '/proctor/exams/first/item-analysis');
+    assert.equal(url.searchParams.get('with'), 'second,third');
+    assert.equal(url.searchParams.has('unused'), false);
+});

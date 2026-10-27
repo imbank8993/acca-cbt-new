@@ -6,5 +6,7 @@ export async function GET(
     context: { params: Promise<{ examId: string }> },
 ) {
     const { examId } = await context.params;
-    return proxyGet(request, `/proctor/exams/${encodeURIComponent(examId)}/item-analysis`);
+    const combineWith = request.nextUrl.searchParams.get('with');
+    const query = combineWith ? `?with=${encodeURIComponent(combineWith)}` : '';
+    return proxyGet(request, `/proctor/exams/${encodeURIComponent(examId)}/item-analysis${query}`);
 }

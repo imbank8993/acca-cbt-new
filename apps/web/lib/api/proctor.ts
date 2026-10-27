@@ -789,6 +789,8 @@ export interface ItemAnalysis {
 
 export async function getExamAnswersForAnalysisAction(
     examId: string,
+    /** Ujian lain (per kelas) dari bank soal & folder yang sama untuk dianalisis bersama. */
+    combineWith: string[] = [],
 ): Promise<{
     topicAnalysis?: TopicAnalysis;
     questions: QuestionRecord[];
@@ -804,7 +806,7 @@ export async function getExamAnswersForAnalysisAction(
         detailed?: DetailedItemAnalysisResponse | null;
         irt?: IrtCalibration | null;
     }>(
-        `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis`,
+        `/api/proctor/exams/${encodeURIComponent(examId)}/item-analysis${combineWith.length ? `?with=${combineWith.map(encodeURIComponent).join(',')}` : ''}`,
         { timeoutMs: 60_000 },
     );
     return res.success

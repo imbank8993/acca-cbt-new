@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -384,8 +385,13 @@ export class ProctorController {
     getItemAnalysis(
         @CurrentUser() user: AuthUser,
         @Param('examId', ParseUUIDPipe) examId: string,
+        @Query('with') combineWith?: string,
     ) {
-        return this.monitoring.getItemAnalysis(user, examId);
+        // ?with=<id>,<id>: gabungkan ujian per kelas dari bank soal & folder yang sama.
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const ids = String(combineWith || '').split(',').map(id => id.trim()).filter(Boolean);
+        if (ids.some(id => !uuid.test(id))) throw new BadRequestException('Daftar ujian gabungan tidak valid.');
+        return this.monitoring.getItemAnalysis(user, examId, ids);
     }
 
     @Get('exams/:examId/submissions')

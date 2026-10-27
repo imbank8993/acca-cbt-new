@@ -16,7 +16,6 @@ import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
 import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
 import { Button } from '@/app/components/ui/button';
 import { FilterSearch, FilterSelect, FilterToggle, FilterToolbar } from '@/app/components/ui/filtertoolbar';
-import { InlineSelect } from '@/app/components/ui/inlineselect';
 import './monitoring.css';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { calculateExamIRT } from '@/lib/api/grading';
@@ -120,7 +119,6 @@ export function ParticipantsWorkspace({
     const [onlyIncomplete, setOnlyIncomplete] = useState(false);
     const [onlyAttention, setOnlyAttention] = useState(false);
     const [attentionCount, setAttentionCount] = useState(0);
-    const [focusExamId, setFocusExamId] = useState(examOptions[0]?.exam_id || '');
     const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; topicAnalysis?: TopicAnalysis; irt: IrtCalibration | null; error?: string } | null>(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -135,7 +133,9 @@ export function ParticipantsWorkspace({
         .map(row => row.exam_id))].filter(id => examOptions.some(option => option.exam_id === id));
     const focusId = activeSection === 'hasil'
         ? (examOptions.length === 1 ? examOptions[0].exam_id : resultExamIds.length === 1 ? resultExamIds[0] : '')
-        : examOptions.some(option => option.exam_id === focusExamId) ? focusExamId : examOptions[0]?.exam_id || '';
+        : examOptions[0]?.exam_id || '';
+    // Analisis selalu mencakup seluruh ujian bank soal ini (ujian lama per kelas digabung).
+    const analysisKey = examOptions.map(option => option.exam_id).join(',');
     const focusExam = examRecords[focusId];
     const focusLabel = examOptions.find(option => option.exam_id === focusId)?.label || '';
     const staff = userRole === 'admin' || userRole === 'proktor';
@@ -183,8 +183,12 @@ export function ParticipantsWorkspace({
         const id = ++analysisRequest.current;
         setAnalysisLoading(true);
         try {
-            const [data, examAttempts] = await Promise.all([getExamAnswersForAnalysisAction(examId), getExamAttemptsAction(examId)]);
-            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts), topicAnalysis: data.topicAnalysis, irt: data.irt ?? null });
+            const [first, ...others] = examId.split(',');
+            const [data, attemptLists] = await Promise.all([
+                getExamAnswersForAnalysisAction(first, others),
+                Promise.all([first, ...others].map(examKey => getExamAttemptsAction(examKey))),
+            ]);
+            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, attemptLists.flat()), topicAnalysis: data.topicAnalysis, irt: data.irt ?? null });
         } catch (loadError) {
             if (id === analysisRequest.current) setAnalysis({ examId, items: [], irt: null, error: loadError instanceof Error ? loadError.message : 'Analisis belum dapat dimuat.' });
         } finally {
@@ -195,11 +199,7 @@ export function ParticipantsWorkspace({
     const openSection = (next: WorkspaceSection) => {
         setAction(null);
         setSection(next);
-        if (next === 'analisis' && analysis?.examId !== focusId) void loadAnalysis(focusId);
-    };
-    const changeFocus = (examId: string) => {
-        setFocusExamId(examId);
-        if (activeSection === 'analisis' && !action) void loadAnalysis(examId);
+        if (next === 'analisis' && analysis?.examId !== analysisKey) void loadAnalysis(analysisKey);
     };
 
     const exportResults = async () => {
@@ -240,17 +240,13 @@ export function ParticipantsWorkspace({
                 ? { title: 'Kalkulasi IRT Selesai', text: `${result.count ?? 0} skor peserta telah diperbarui.${result.warnings?.length ? `\n\nPeringatan:\n${result.warnings.map(warning => `• ${warning}`).join('\n')}` : ''}`, variant: 'success' }
                 : { title: 'Gagal Kalkulasi IRT', text: result.error || 'Terjadi kesalahan sistem', variant: 'danger' });
             await onReload();
-            if (analysis?.examId === focusId) void loadAnalysis(focusId);
+            if (analysis?.examId === analysisKey) void loadAnalysis(analysisKey);
         } finally {
             setBusy(false);
         }
     };
 
     const hasIrt = String(focusExam?.scoring_type || '').split(',').some(type => type.trim().startsWith('irt'));
-    const examPicker = (label: string) => examOptions.length > 1 && <label className="flex items-center gap-2 text-xs font-medium text-slate-600">{label}
-        <InlineSelect value={focusId} onChange={changeFocus} minWidth="220px" aria-label={label}
-            options={examOptions.map(option => ({ value: option.exam_id, label: option.label }))} />
-    </label>;
     const showFilters = !action && ['peserta', 'jawaban', 'hasil'].includes(activeSection);
     const actions = [
         ...(anyReset ? [['reset', 'Reset massal'] as const] : []),
@@ -313,16 +309,18 @@ export function ParticipantsWorkspace({
         </div>
         : activeSection === 'berita' ? administration
         : activeSection === 'analisis' ? <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                {examPicker('Ujian')}
-                <p className="text-[11px] text-slate-500">Mencakup seluruh peserta {focusLabel || 'ujian ini'}.</p>
-            </div>
-            {analysisLoading && analysis?.examId !== focusId ? <Placeholder text="Memuat analisis…" />
-                : analysis?.examId === focusId && analysis.error ? <ErrorLine text={analysis.error} onRetry={() => void loadAnalysis(focusId)} />
+            <p className="text-right text-[11px] text-slate-500">Mencakup seluruh peserta {examOptions.length > 1 ? 'semua kelas pada bank soal ini' : focusLabel || 'ujian ini'}.</p>
+            {analysisLoading && analysis?.examId !== analysisKey ? <Placeholder text="Memuat analisis…" />
+                : analysis?.examId === analysisKey && analysis.error ? <ErrorLine text={analysis.error} onRetry={() => void loadAnalysis(analysisKey)} />
                 : <>
-                    <IrtParametersPanel key={`irt-${focusId}`} calibration={analysis?.examId === focusId ? analysis.irt : null}
-                        scoringType={focusExam?.scoring_type} exportTitle={`${exportTitle} ${examOptions.length > 1 ? focusLabel : ''}`.trim()} />
-                    <ItemAnalysisPanel key={focusId} analysis={analysis?.examId === focusId ? analysis.items : []} topicAnalysis={analysis?.examId === focusId ? analysis.topicAnalysis : undefined} />
+                    {examOptions.length === 1
+                        ? <IrtParametersPanel key={`irt-${analysisKey}`} calibration={analysis?.examId === analysisKey ? analysis.irt : null}
+                            scoringType={examRecords[analysisKey]?.scoring_type} exportTitle={exportTitle} />
+                        : examOptions.some(option => String(examRecords[option.exam_id]?.scoring_type || '').includes('irt'))
+                            && <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                Parameter IRT dihitung per ujian. Gabungkan ujian per kelas di tab Pengaturan Ujian pada folder agar IRT dihitung untuk seluruh peserta bank soal.
+                            </p>}
+                    <ItemAnalysisPanel key={analysisKey} analysis={analysis?.examId === analysisKey ? analysis.items : []} topicAnalysis={analysis?.examId === analysisKey ? analysis.topicAnalysis : undefined} />
                 </>}
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
