@@ -38,6 +38,7 @@ import { listQuestionBanks, type QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { AssignValidationModal } from './AssignValidationModal';
 import { ValidationReportModal } from './ValidationReportModal';
+import { ValidationTabs } from './ValidationTabs';
 
 interface ValidationsListPageProps {
     role: 'Admin' | 'Proktor';
@@ -56,7 +57,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [decision, setDecision] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
     const [savingDecision, setSavingDecision] = useState(false);
     const [decisionError, setDecisionError] = useState<string | null>(null);
-    const [myTasksCount, setMyTasksCount] = useState<number>(0);
+    const [myTasksCount, setMyTasksCount] = useState<number>();
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -166,30 +167,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     };
 
     return (
-        <div className="space-y-4">
-            {/* Navigasi Tab Peran Terpadu */}
-            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px mb-1">
-                <Link
-                    href={role === 'Admin' ? '/dashboard/admin/questions/validations' : '/dashboard/proktor/questions/validations'}
-                    className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary flex items-center gap-2 transition-all"
-                >
-                    <ShieldCheck size={14} /> Kelola Sesi Validasi ({role})
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
-                        {validations.length}
-                    </span>
-                </Link>
-                <Link
-                    href="/dashboard/guru/validations"
-                    className="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-2 transition-all"
-                >
-                    <UserCheck size={14} /> Tugas Validasi Saya
-                    {myTasksCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                            {myTasksCount}
-                        </span>
-                    )}
-                </Link>
-            </div>
+        <div className="flex flex-col gap-4 sm:gap-6">
+            <ValidationTabs activeTab="manage" manageRole={role} tasksCount={myTasksCount} />
 
             {/* Filter Toolbar (Standardized) */}
             <FilterToolbar className="validation-toolbar">

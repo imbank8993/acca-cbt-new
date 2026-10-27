@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-    ShieldCheck,
     Calendar,
     Clock,
     Play,
@@ -12,10 +11,10 @@ import {
     XCircle,
     Layers,
     RefreshCw,
-    UserCheck,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { ValidationTabs } from '@/app/components/validations/ValidationTabs';
 import {
     FilterToolbar,
     FilterSearch,
@@ -33,19 +32,16 @@ export default function GuruValidationTasksPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [user, setUser] = useState<AuthUser | null>(null);
+    const [sessionLoading, setSessionLoading] = useState(true);
+    const [tasksCount, setTasksCount] = useState<number>();
 
     const loadTasks = useCallback(async () => {
         setLoading(true);
         setLoadError(null);
         try {
-            const [list, sessionUser] = await Promise.all([
-                listMyValidationTasks(),
-                getSessionUser(),
-            ]);
+            const list = await listMyValidationTasks();
             setTasks(list);
-            if (sessionUser) {
-                setUser(sessionUser);
-            }
+            setTasksCount(list.length);
         } catch (e) {
             console.error('Failed to load my validation tasks', e);
             setLoadError(e instanceof Error ? e.message : 'Tugas validasi belum dapat dimuat.');
@@ -55,16 +51,24 @@ export default function GuruValidationTasksPage() {
     }, []);
 
     useEffect(() => {
+        let cancelled = false;
+        void getSessionUser().then(sessionUser => {
+            if (!cancelled) setUser(sessionUser);
+        }).catch(error => {
+            console.error('Failed to load validation role', error);
+        }).finally(() => {
+            if (!cancelled) setSessionLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, []);
+
+    useEffect(() => {
         const timer = window.setTimeout(() => { void loadTasks(); }, 0);
         return () => window.clearTimeout(timer);
     }, [loadTasks]);
 
     const canManage = Boolean(user?.resolved?.admin || user?.resolved?.proktor || user?.resolved?.superadmin);
     const manageRoleLabel = user?.resolved?.admin || user?.resolved?.superadmin ? 'Admin' : 'Proktor';
-    const manageUrl = user?.resolved?.admin || user?.resolved?.superadmin 
-        ? '/dashboard/admin/questions/validations' 
-        : '/dashboard/proktor/questions/validations';
-
     const filtered = tasks.filter(task => {
         const val = task.validation;
         const title = val.title || '';
@@ -129,27 +133,9 @@ export default function GuruValidationTasksPage() {
     };
 
     return (
-        <div className="flex flex-col gap-5 sm:gap-6">
-            {/* Navigasi Tab Peran Terpadu (jika memiliki peran Admin/Proktor) */}
-            {canManage && (
-                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-px">
-                    <Link
-                        href="/dashboard/guru/validations"
-                        className="px-4 py-2 text-xs font-bold border-b-2 border-primary text-primary flex items-center gap-2 transition-all"
-                    >
-                        <UserCheck size={14} /> Tugas Validasi Saya
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
-                            {tasks.length}
-                        </span>
-                    </Link>
-                    <Link
-                        href={manageUrl}
-                        className="px-4 py-2 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-2 transition-all"
-                    >
-                        <ShieldCheck size={14} /> Kelola Sesi Validasi ({manageRoleLabel})
-                    </Link>
-                </div>
-            )}
+        <div className="flex flex-col gap-4 sm:gap-6">
+            <ValidationTabs activeTab="tasks" manageRole={canManage ? manageRoleLabel : undefined}
+                tasksCount={tasksCount} sessionLoading={sessionLoading} />
 
             {/* Filter Toolbar (Standardized ACCA Design) */}
             <FilterToolbar className="validation-toolbar">

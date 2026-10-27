@@ -157,7 +157,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                 </div>
             )}
 
-            <section className="mb-4 space-y-2" aria-label="Filter bahan ajar">
+            <section className="mb-4 flex flex-col gap-4" aria-label="Filter bahan ajar">
                 <FilterToolbar>
                     <FilterSearch
                         label="Cari bahan ajar"
