@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { OrganizationExam } from '@/lib/api/proctor';
-import { Archive, CloudUpload, CloudOff, FileText, MoreHorizontal, Settings, Trash2, Unlock, Users } from 'lucide-react';
+import { Activity, Archive, CloudUpload, CloudOff, FileText, MoreHorizontal, Settings, Trash2, Unlock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal, ModalBody } from '@/components/ui/modal';
 import { CollaborationButton } from './CollaborationButton';
@@ -33,7 +33,7 @@ export function ExamMobileActions({ exam, busy, canPublish, onPublish, onMonitor
                 leftIcon={exam.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
                 title={!exam.is_published && !canPublish ? 'Tugaskan ke kelas terlebih dahulu sebelum mempublish' : undefined}
                 onClick={onPublish}>{exam.is_published ? 'Unpublish' : 'Publish'}</Button>
-            <Button mobileIconOnly aria-label="Monitor ujian" title="Monitor ujian" type="button" size="sm" variant="primary" leftIcon={<i className="fa-solid fa-chart-line" aria-hidden="true" />} onClick={onMonitor}>Monitor</Button>
+            <Button className="exam-mobile-monitor" aria-label="Monitor ujian" title="Monitor ujian" type="button" size="sm" variant="primary" leftIcon={<Activity size={16} aria-hidden="true" />} onClick={onMonitor}>Monitor</Button>
             {canShare && <CollaborationButton mobileIconOnly className="min-w-0" type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={onChanged} />}
             <Button mobileIconOnly aria-label="Aksi lainnya" title="Aksi lainnya" type="button" size="sm" variant="outline" leftIcon={<MoreHorizontal size={16} />}
                 className="min-w-0" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Lainnya</Button>

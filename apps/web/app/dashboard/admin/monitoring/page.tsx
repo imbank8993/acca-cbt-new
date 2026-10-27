@@ -58,6 +58,7 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('proktor_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isCalculatingIrt, setIsCalculatingIrt] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('proktor_monitoring_exams', []);
     const [rawSelectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
     // Ujian folder ASAS/AM tampil satu entri per bank soal (lihat FolderExamMonitor).
@@ -115,7 +116,8 @@ function MonitoringContent() {
             setDetailedAnalysis(null);
             setLoadError(null);
         }
-        if (!silent) setIsRefreshing(true);
+        // Status visual selalu mengikuti permintaan terbaru, termasuk refresh senyap.
+        setIsRefreshing(!silent);
         try {
             const [attemptsResult, analysisData] = await Promise.all([
                 getExamAttemptsResult(examId).then(result => {
@@ -146,7 +148,7 @@ function MonitoringContent() {
             }
         } finally {
             if (loadingExamIdsRef.current.get(examId) === generation) loadingExamIdsRef.current.delete(examId);
-            if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
+            if (generation === examRequestGenerationRef.current) setIsRefreshing(false);
         }
     }, [activeTab, setAnalysis, setAttempts, setDetailedAnalysis]);
 
@@ -161,6 +163,7 @@ function MonitoringContent() {
             else {
                 examRequestGenerationRef.current += 1;
                 lastRequestedExamIdRef.current = null;
+                setIsRefreshing(false);
                 setAttempts([]);
                 setAnalysis([]);
                 setDetailedAnalysis(null);
@@ -218,7 +221,7 @@ function MonitoringContent() {
         });
         if (!confirmed) return;
 
-        setIsRefreshing(true);
+        setIsCalculatingIrt(true);
         try {
             const res = await calculateExamIRT(selectedExamId);
             if (res.success) {
@@ -244,8 +247,9 @@ function MonitoringContent() {
                 text: 'Terjadi kesalahan saat kalkulasi IRT',
                 variant: 'danger',
             });
+        } finally {
+            setIsCalculatingIrt(false);
         }
-        setIsRefreshing(false);
     };
 
 
@@ -348,7 +352,7 @@ function MonitoringContent() {
                     attentionOnly={onlyAttention} onAttentionChange={activeTab === 'live' ? setOnlyAttention : undefined}
                     actions={activeTab === 'results' ? <>
                         {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && selectedExamId && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
-                        {hasIRTScoring && <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing} leftIcon={<Calculator size={16} />}>Kalkulasi IRT</Button>}
+                        {hasIRTScoring && <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing || isCalculatingIrt} leftIcon={<Calculator size={16} />}>Kalkulasi IRT</Button>}
                         <Button variant="outline" icon="export" onClick={exportResultsToExcel}>Export</Button>
                     </> : undefined}
                 />}

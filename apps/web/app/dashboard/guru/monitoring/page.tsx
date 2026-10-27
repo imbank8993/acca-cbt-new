@@ -69,6 +69,7 @@ function MonitoringContent() {
 
     const [isLoading, setIsLoading] = useMemoryState('guru_monitoring_isLoading', true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isCalculatingIrt, setIsCalculatingIrt] = useState(false);
     const [exams, setExams] = useMemoryState<OrganizationExam[]>('guru_monitoring_exams', []);
     const [rawSelectedExamId, setSelectedExamId] = useMonitoringFilterState<string>('selectedExamId', initialExamId, initialExamId || undefined);
     // Ujian folder ASAS/AM tampil satu entri per bank soal (lihat FolderExamMonitor).
@@ -126,7 +127,8 @@ function MonitoringContent() {
             lastRequestedExamIdRef.current = examId;
             setAttempts([]); setAnalysis([]); setLoadError(null);
         }
-        if (!silent) setIsRefreshing(true);
+        // Status visual selalu mengikuti permintaan terbaru, termasuk refresh senyap.
+        setIsRefreshing(!silent);
         try {
             const [attData, analysisData] = await Promise.all([
                 getExamAttemptsAction(examId).then(rows => {
@@ -188,7 +190,7 @@ function MonitoringContent() {
             if (generation === examRequestGenerationRef.current) setLoadError(error instanceof Error ? error.message : 'Data monitoring belum dapat dimuat.');
         } finally {
             if (loadingExamIdsRef.current.get(examId) === generation) loadingExamIdsRef.current.delete(examId);
-            if (!silent && generation === examRequestGenerationRef.current) setIsRefreshing(false);
+            if (generation === examRequestGenerationRef.current) setIsRefreshing(false);
         }
     }, [activeTab, setAnalysis, setAttempts, setDetailedAnalysis]);
 
@@ -201,10 +203,16 @@ function MonitoringContent() {
         const timer = window.setTimeout(() => {
             setAnalysisPage(1);
             if (selectedExamId) void loadExamData(selectedExamId);
-            else { setAttempts([]); setAnalysis([]); }
+            else {
+                examRequestGenerationRef.current += 1;
+                lastRequestedExamIdRef.current = '';
+                setIsRefreshing(false);
+                setLoadError(null);
+                setAttempts([]); setAnalysis([]); setDetailedAnalysis(null);
+            }
         }, 0);
         return () => window.clearTimeout(timer);
-    }, [loadExamData, selectedExamId, setAnalysis, setAttempts]);
+    }, [loadExamData, selectedExamId, setAnalysis, setAttempts, setDetailedAnalysis]);
 
     const handleRefresh = () => { if (selectedExamId) loadExamData(selectedExamId); };
 
@@ -248,7 +256,7 @@ function MonitoringContent() {
         });
         if (!confirmed) return;
 
-        setIsRefreshing(true);
+        setIsCalculatingIrt(true);
         try {
             const res = await calculateExamIRT(selectedExamId);
             if (res.success) {
@@ -274,8 +282,9 @@ function MonitoringContent() {
                 text: 'Terjadi kesalahan saat kalkulasi IRT',
                 variant: 'danger',
             });
+        } finally {
+            setIsCalculatingIrt(false);
         }
-        setIsRefreshing(false);
     };
 
 
@@ -385,7 +394,7 @@ function MonitoringContent() {
                         actions={activeTab === 'results' ? <>
                             {selectedExam?.canManage === true && selectedExam.canCorrectKeys !== false && <ExamKeyCorrectionButton key={selectedExamId} examId={selectedExamId} onComplete={handleRefresh} />}
                             {canManage && hasIRTScoring && (
-                                <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing} leftIcon={<Calculator size={14} />}>
+                                <Button variant="outline" onClick={handleCalculateIRT} disabled={isRefreshing || isCalculatingIrt} leftIcon={<Calculator size={14} />}>
                                     Kalkulasi IRT
                                 </Button>
                             )}
@@ -473,7 +482,7 @@ function MonitoringContent() {
                             <motion.div
                                 key="analysis"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                                className="bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
+                                className="monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden"
                             >
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                                     <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
@@ -484,7 +493,7 @@ function MonitoringContent() {
                                     )}
                                 </div>
                                 {/* mobile analysis cards - ringkas, tinggi terkontrol */}
-                                <div className="sm:hidden divide-y divide-slate-100">
+                                <div className="monitoring-analysis__mobile sm:hidden divide-y divide-slate-100">
                                     {analysis.length === 0 ? (
                                         <div className="p-8 text-center text-slate-400 font-medium text-xs">Belum ada data</div>
                                     ) : (
@@ -580,7 +589,7 @@ function MonitoringContent() {
                                     </table>
                                 </div>
                                 {analysis.length > ANALYSIS_PAGE_SIZE && (
-                                    <div className="px-3.5 sm:px-5 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+                                    <div className="monitoring-analysis__pagination px-3.5 sm:px-5 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
                                         <span className="text-slate-500 font-medium tabular-nums">
                                             {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, analysis.length)} dari {analysis.length} soal
                                         </span>

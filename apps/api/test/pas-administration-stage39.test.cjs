@@ -390,3 +390,21 @@ test('ADMIN-12: pengawas bergilir per hari — akses dan nama di berita acara me
     assert.equal(day1.report.invigilator_name, 'Dra. Siti Aminah, M.Pd.');
     assert.equal(day2.report.invigilator_name, 'Ahmad Rifai, S.Pd.');
 });
+
+
+test('administrasi memakai kelas yang dipetakan ke ujian meski siswa juga anggota kelas UTBK', async () => {
+    const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
+    db.tables.cbt_classes.push({ id: 'utbk', organization_id: 'org-1', name: 'UTBK A' });
+    db.tables.cbt_class_members.push({ id: 'cm-utbk', class_id: 'utbk', user_id: 'student-1', role: 'siswa' });
+    const service = new PasAdministrationService(db, createAuthzMock());
+    const params = { periodId: 'period-1', roomId: 'room-1', sessionId: 'session-1', examDate: '2026-10-17' };
+    const user = { id: 'pengawas-1', isPlatformAdmin: false };
+    let slot = await service.getAdministrationSlot(user, params);
+    assert.equal(slot.students.find(student => student.user_id === 'student-1').class_name, 'X MIPA 1');
+    db.tables.cbt_exam_attempts = [];
+    slot = await service.getAdministrationSlot(user, params);
+    assert.equal(slot.students.find(student => student.user_id === 'student-1').class_name, 'X MIPA 1');
+    db.tables.cbt_exam_participants = [{ exam_id: 'exam-math-1', user_id: 'student-1', regular_class_id: 'class-11b' }];
+    slot = await service.getAdministrationSlot(user, params);
+    assert.equal(slot.students.find(student => student.user_id === 'student-1').class_name, 'XI IPS 1');
+});

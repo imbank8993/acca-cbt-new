@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Eye, PieChart, UserCheck, UserX } from 'lucide-react';
+import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Button } from '@/app/components/ui/button';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -45,13 +46,31 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
     const [analysisPage, setAnalysisPage] = useState(1);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
-    const analysisTotalPages = Math.max(1, Math.ceil(analysis.length / ANALYSIS_PAGE_SIZE));
+    const [search, setSearch] = useState('');
+    const [difficulty, setDifficulty] = useState('');
+    const query = search.trim().toLocaleLowerCase('id');
+    const filteredAnalysis = analysis.filter(item =>
+        (!difficulty || (item.difficultyLabel?.trim().toLocaleLowerCase('id') || 'unknown') === difficulty)
+        && (!query || String(item.number) === query.replace(/^#/, '')
+            || getQuestionSnippet(item.qText, Number.MAX_SAFE_INTEGER).toLocaleLowerCase('id').includes(query)));
+    const difficultyOptions = [...new Set(analysis.map(item => item.difficultyLabel?.trim()).filter((label): label is string => Boolean(label)))];
+    const analysisTotalPages = Math.max(1, Math.ceil(filteredAnalysis.length / ANALYSIS_PAGE_SIZE));
     const safeAnalysisPage = Math.min(analysisPage, analysisTotalPages);
-    const pagedAnalysis = analysis.slice((safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE, safeAnalysisPage * ANALYSIS_PAGE_SIZE);
+    const pagedAnalysis = filteredAnalysis.slice((safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE, safeAnalysisPage * ANALYSIS_PAGE_SIZE);
+    const emptyText = analysis.length ? 'Tidak ada soal yang sesuai dengan pencarian atau filter.' : 'Belum ada data';
 
     return (
         <>
-        <div className={`bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden ${className}`}>
+        <FilterToolbar>
+            <FilterSearch value={search} onChange={value => { setSearch(value); setAnalysisPage(1); }}
+                label="Cari soal" placeholder="Cari teks atau nomor soal…" />
+            <FilterSelect value={difficulty} onChange={value => { setDifficulty(value); setAnalysisPage(1); }}
+                label="Kesukaran" width="200px" grow={0}
+                options={[{ value: '', label: 'Semua kesukaran' },
+                    ...difficultyOptions.map(label => ({ value: label.toLocaleLowerCase('id'), label })),
+                    ...(analysis.some(item => !item.difficultyLabel?.trim()) ? [{ value: 'unknown', label: 'Belum ditentukan' }] : [])]} />
+        </FilterToolbar>
+        <div className={`monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden ${className}`}>
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                 <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
                 {analysis.some(item => item.incorrectPercentage > 50) && (
@@ -61,9 +80,9 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                 )}
             </div>
             {/* mobile analysis cards - ringkas, tinggi terkontrol */}
-            <div className="sm:hidden divide-y divide-slate-100">
-                {analysis.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 font-medium text-xs">Belum ada data</div>
+            <div className="monitoring-analysis__mobile sm:hidden divide-y divide-slate-100">
+                {filteredAnalysis.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 font-medium text-xs">{emptyText}</div>
                 ) : (
                     pagedAnalysis.map((anl) => {
                         const isCritical = anl.incorrectPercentage > 50;
@@ -91,6 +110,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                     </div>
                                 </div>
                                 <div className="min-w-0 flex-1 text-left">
+                                    <div className="mb-1 text-[11px] text-slate-500">{formatQuestionType(anl.type)} · {anl.difficultyLabel || 'Kesukaran belum ditentukan'}</div>
                                     <LatexRenderer
                                         text={getQuestionSnippet(anl.qText, 95)}
                                         className="!font-sans !text-xs !leading-relaxed !text-left text-slate-700 line-clamp-2 [&_.katex]:!text-[11px]"
@@ -117,8 +137,8 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                         </tr>
                     </thead>
                     <tbody>
-                        {analysis.length === 0 ? (
-                            <tr><td colSpan={9} className="p-12 text-center text-slate-400 font-medium">Belum ada data</td></tr>
+                        {filteredAnalysis.length === 0 ? (
+                            <tr><td colSpan={9} className="p-12 text-center text-slate-400 font-medium">{emptyText}</td></tr>
                         ) : (
                             pagedAnalysis.map((anl) => {
                                 const isCritical = anl.incorrectPercentage > 50;
@@ -205,10 +225,10 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                     </tbody>
                 </table>
             </div>
-            {analysis.length > ANALYSIS_PAGE_SIZE && (
-                <div className="px-3.5 sm:px-5 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+            {filteredAnalysis.length > ANALYSIS_PAGE_SIZE && (
+                <div className="monitoring-analysis__pagination px-3.5 sm:px-5 py-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
                     <span className="text-slate-500 font-medium tabular-nums">
-                        {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, analysis.length)} dari {analysis.length} soal
+                        {(safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE + 1}–{Math.min(safeAnalysisPage * ANALYSIS_PAGE_SIZE, filteredAnalysis.length)} dari {filteredAnalysis.length} soal
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                         <button

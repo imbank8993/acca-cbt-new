@@ -28,6 +28,7 @@ import {
     Trash2,
     XCircle,
 } from 'lucide-react';
+import './compact-exam-period.css';
 import React,{ useEffect,useId,useMemo,useRef,useState } from 'react';
 
 interface BulkScheduleGridProps {
@@ -336,7 +337,7 @@ export default function BulkScheduleGrid({
     const tzLabel = getSchoolTimeZoneLabel(timeZone);
 
     return (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden flex flex-col">
+        <div className="bulk-schedule bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden flex flex-col">
             <div className="p-4 sm:px-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
                 <div>
                     <h3 className="font-bold text-slate-900 text-sm">Penjadwalan Massal</h3>
@@ -387,8 +388,8 @@ export default function BulkScheduleGrid({
                 ))}
             </datalist>
 
-            <div className="p-4 overflow-x-auto">
-                <table ref={tableRef} className="w-full min-w-[1040px] text-xs border-collapse">
+            <div className="bulk-schedule__body p-4 overflow-x-auto">
+                <table ref={tableRef} className="bulk-schedule__table w-full min-w-[1040px] text-xs border-collapse">
                     <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
                             <th className="px-2.5 py-2.5 text-left font-semibold min-w-[210px]">Bank Soal *</th>
@@ -409,8 +410,8 @@ export default function BulkScheduleGrid({
                                 row.status === 'error' ? 'border-red-300 bg-red-50/40' : 'border-slate-200'
                             }`;
                             return (
-                                <tr key={row.id} className={row.status === 'saved' ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
-                                    <td className="p-1.5">
+                                <tr key={row.id} aria-label={`Jadwal baris ${index + 1}`} className={row.status === 'saved' ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
+                                    <td data-label="Bank Soal *" className="p-1.5">
                                         <InlineSelect
                                             value={row.bank_id}
                                             disabled={disabled}
@@ -427,7 +428,7 @@ export default function BulkScheduleGrid({
                                             ))}
                                         </InlineSelect>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Mata Pelajaran" className="p-1.5">
                                         <InlineSelect
                                             value={row.subject_id}
                                             disabled={disabled}
@@ -444,7 +445,7 @@ export default function BulkScheduleGrid({
                                             ))}
                                         </InlineSelect>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Kelas *" className="p-1.5">
                                         <InlineSelect
                                             value={row.class_id}
                                             disabled={disabled}
@@ -461,9 +462,10 @@ export default function BulkScheduleGrid({
                                             ))}
                                         </InlineSelect>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Tanggal *" className="p-1.5">
                                         <input
                                             type="date"
+                                            aria-label={`Tanggal baris ${index + 1}`}
                                             min={period?.start_date?.split('T')[0]}
                                             max={period?.end_date?.split('T')[0]}
                                             value={row.date}
@@ -473,7 +475,7 @@ export default function BulkScheduleGrid({
                                             className={controlClass}
                                         />
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Sesi Ujian *" className="p-1.5">
                                         <InlineSelect
                                             value={row.session_id}
                                             disabled={disabled}
@@ -492,9 +494,10 @@ export default function BulkScheduleGrid({
                                             ))}
                                         </InlineSelect>
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Durasi (menit)" className="p-1.5">
                                         <input
                                             type="number"
+                                            aria-label={`Durasi baris ${index + 1}`}
                                             min="1"
                                             value={row.duration_minutes ?? 90}
                                             disabled={disabled}
@@ -503,10 +506,11 @@ export default function BulkScheduleGrid({
                                             className={controlClass}
                                         />
                                     </td>
-                                    <td className="p-1.5">
+                                    <td data-label="Ruangan" className="p-1.5">
                                         <input
                                             type="text"
                                             list={roomDatalistId}
+                                            aria-label={`Ruangan baris ${index + 1}`}
                                             placeholder="Opsional..."
                                             value={row.room}
                                             disabled={disabled}
@@ -515,13 +519,13 @@ export default function BulkScheduleGrid({
                                             className={controlClass}
                                         />
                                     </td>
-                                    <td className="px-2.5 py-2 align-middle">
+                                    <td data-label="Status" className="px-2.5 py-2 align-middle">
                                         {row.status === 'saving' && <span className="flex items-center gap-1.5 text-blue-700 font-medium"><Loader2 size={14} className="animate-spin shrink-0" /> Menyimpan</span>}
                                         {row.status === 'saved' && <span className="flex items-center gap-1.5 text-emerald-700 font-medium"><CheckCircle2 size={14} className="shrink-0" /> Tersimpan</span>}
                                         {row.status === 'error' && <span className="flex items-start gap-1.5 text-red-600"><XCircle size={14} className="mt-0.5 shrink-0" /> <span>{row.error}</span></span>}
                                         {row.status === 'idle' && <span className="text-slate-400">Belum disimpan</span>}
                                     </td>
-                                    <td className="p-1.5 text-center">
+                                    <td data-label="Aksi" className="p-1.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             <button
                                                 type="button"
@@ -579,7 +583,7 @@ export default function BulkScheduleGrid({
                 {timeZoneError && <p role="alert" className="mt-3 text-sm text-red-700">{timeZoneError}</p>}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+            <div className="bulk-schedule__footer p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
                 <span className="text-xs text-slate-500">
                     {savedCount > 0 ? `${savedCount} dari ${rows.length} baris sudah tersimpan.` : `${rows.length} baris pada daftar.`}
                 </span>

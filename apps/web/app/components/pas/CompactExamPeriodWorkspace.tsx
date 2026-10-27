@@ -194,7 +194,14 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                         return <tr key={schedule.id} data-selected={selectedIds.includes(schedule.id)}>
                             <td><input type="checkbox" aria-label={`Pilih ${title} ${className(schedule)}`} checked={selectedIds.includes(schedule.id)} disabled={busy}
                                 onChange={event => setSelectedIds(ids => event.target.checked ? [...new Set([...ids, schedule.id])] : ids.filter(id => id !== schedule.id))} /></td>
-                            <td className="cp-bank"><strong>{title}</strong><span>{className(schedule)}</span></td>
+                            <td className="cp-bank"><strong>{title}</strong><span>{className(schedule)}</span>
+                                <div className="cp-mobile-schedule-meta">
+                                    <span>{formatSchoolDate(schedule.scheduled_date, timeZone)} · {session?.name || 'Sesi belum ditentukan'}</span>
+                                    <span>{clock(session?.start_time || schedule.scheduled_time)}–{clock(session?.end_time || schedule.window_end_time)} · {access(schedule)}</span>
+                                    <span>{allocations.length ? allocations.map(room => room.name).join(', ') : schedule.room || 'Ruang belum diatur'}</span>
+                                    <span className={ready ? 'cp-ready' : 'cp-warning'}>{ready ? 'Siap' : 'Perlu dilengkapi'}</span>
+                                </div>
+                            </td>
                             <td className="cp-date"><span>{formatSchoolDate(schedule.scheduled_date, timeZone)}</span><small>{session?.name || 'Sesi belum ditentukan'} · {clock(session?.start_time || schedule.scheduled_time)}–{clock(session?.end_time || schedule.window_end_time)}</small></td>
                             <td>{allocations.length ? <button type="button" className="cp-room cp-room-list" onClick={() => setDetailId(schedule.id)}
                                 aria-label={`Ruang ${className(schedule)}: ${allocations.map(room => room.count != null ? `${room.name} ${room.count} siswa` : room.name).join(', ')}`}>

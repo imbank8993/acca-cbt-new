@@ -211,7 +211,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
         closeBank();
     };
 
-    return <div className="space-y-4">
+    return <div className="pas-exam-settings space-y-4">
         {locked && <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
             <Lock size={14} className="mt-0.5 shrink-0" />Folder terkunci. Buka kunci folder untuk mengubah pengaturan ujian.
         </div>}
@@ -237,7 +237,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
                 <p className="mt-0.5 text-xs text-slate-500">Atur khusus bila aturan sebuah bank soal berbeda, misalnya hanya Matematika yang dibuka pembahasannya.</p>
             </div>
             {banks.length === 0 ? <p className="px-5 py-10 text-center text-xs text-slate-500">Belum ada bank soal yang dijadwalkan di folder ini.</p>
-                : <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-xs">
+                : <div className="mt-3 overflow-x-auto"><table className="pas-exam-settings__banks w-full min-w-[560px] text-left text-xs">
                     <thead className="border-y border-slate-100 bg-slate-50/70 text-[11px] text-slate-500">
                         <tr><th scope="col" className="px-4 py-2.5 font-semibold sm:px-5">Bank soal</th><th scope="col" className="px-3 py-2.5 font-semibold">Aturan</th><th scope="col" className="px-4 py-2.5 sm:px-5"><span className="sr-only">Tindakan</span></th></tr>
                     </thead>
@@ -269,7 +269,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
             {notice.lines.map(line => <p key={line} className="text-amber-800">{line}</p>)}
         </div>}
 
-        {dirty && !locked && <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+        {dirty && !locked && <div className="pas-exam-settings__save sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
             <p className="text-xs text-slate-600">Ada perubahan yang belum disimpan.</p>
             <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" onClick={reset} disabled={saving}>Batalkan</Button>

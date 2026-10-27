@@ -353,7 +353,7 @@ export default function AdminPASDetailPage() {
     const groupedSchedules = getGroupedSchedules(filteredSchedules);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-5 pb-24">
+        <div className="exam-period-page max-w-7xl mx-auto space-y-5 pb-24">
             {roomLoadError && (
                 <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
                     {roomLoadError}

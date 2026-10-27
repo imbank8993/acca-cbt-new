@@ -72,7 +72,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
     const selectedAttempt = selectedId ? attempts.find(att => att.id === selectedId) ?? null : null;
     const selectedFacts = selectedAttempt ? getAttemptResultFacts(selectedAttempt) : null;
 
-    return <div className="overflow-x-auto">
+    return <div className="monitoring-results-table overflow-x-auto">
         <table className="w-full sm:min-w-[780px] text-left text-xs sm:text-sm">
             <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
@@ -111,9 +111,10 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                             className="border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50 active:bg-slate-100"
                         >
                             <td className="p-3 sm:px-4 sm:py-3">
-                                <span className="font-medium sm:font-semibold text-slate-800">{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</span>
+                                <button type="button" className="monitoring-participant-name font-medium sm:font-semibold text-slate-800" onClick={event => { event.stopPropagation(); setSelectedId(att.id); }}>{formatStudentName(att.profiles?.full_name, 'Tanpa Nama')}</button>
                                 <span className="mt-1 sm:mt-0.5 block text-xs text-slate-500">{att.profiles?.identity_number ? `${att.profiles.identity_number} · ` : ''}{att.kelas_name || 'Tanpa kelas'}</span>
                                 {showRoomInfo && <div className="hidden sm:block"><ParticipantRoomInfo attempt={att} /></div>}
+                                <span className="mt-2 block text-[11px] text-slate-500 sm:hidden">{statusText} · {answered ?? '—'} / {total ?? '—'} terjawab</span>
                             </td>
                             <td className="hidden px-4 py-3 sm:table-cell">
                                 <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass}`}>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Calculator, ChevronDown, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calculator, ChevronDown, Loader2, MoreHorizontal } from 'lucide-react';
 import { ActiveParticipantsPanel } from '@/app/components/ActiveParticipantsPanel';
 import { ExamKeyCorrectionButton } from '@/app/components/ExamKeyCorrectionButton';
 import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
@@ -251,8 +251,8 @@ export function ParticipantsWorkspace({
         .sort((a, b) => String(a.profiles?.full_name || '').localeCompare(String(b.profiles?.full_name || ''), 'id'));
 
     return <div className="monitoring-participants-workspace">
-        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
-            <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Bagian monitoring">
+        <div className="monitoring-section-bar flex flex-wrap items-end justify-between gap-2 border-b border-slate-200">
+            <nav className="monitoring-section-tabs -mb-px flex gap-1 overflow-x-auto" aria-label="Bagian monitoring">
                 {sections.map(id => <button key={id} type="button" aria-pressed={!action && activeSection === id} onClick={() => openSection(id)}
                     className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${!action && activeSection === id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                     {SECTION_LABELS[id]}
@@ -260,8 +260,8 @@ export function ParticipantsWorkspace({
             </nav>
             {(actions.length > 0 || trailing) && <div className="mb-1.5 ml-auto flex items-center gap-2">
             {actions.length > 0 && <div ref={menuRef} className="relative">
-                <Button type="button" variant="outline" size="sm" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
-                    rightIcon={<ChevronDown size={14} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
+                <Button type="button" variant="outline" size="sm" aria-haspopup="menu" className="monitoring-actions-trigger" aria-label="Tindakan" leftIcon={<MoreHorizontal size={18} className="sm:hidden" />} aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}
+                    rightIcon={<ChevronDown size={14} className={`hidden sm:block transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />}>
                     Tindakan
                 </Button>
                 {menuOpen && <div role="menu" aria-label="Tindakan" className="absolute right-0 z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
@@ -313,7 +313,7 @@ export function ParticipantsWorkspace({
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
         : activeSection === 'peserta' ? <div className="monitoring-participants-list">
-            <div role="group" aria-label="Filter status" className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label="Filter status" className="monitoring-status-filters flex flex-wrap gap-1.5">
                 {STATUS_FILTERS.map(([id, label]) => <button key={id} type="button" aria-pressed={effectiveStatus === id} onClick={() => setStatus(id)}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${effectiveStatus === id
                         ? 'border-blue-600 bg-blue-600 text-white'
@@ -326,7 +326,7 @@ export function ParticipantsWorkspace({
                 ? <ActiveParticipantsPanel attempts={scoped.filter(row => attemptState(row) === 'working')} attentionOnly={effectiveStatus === 'attention'}
                     onFinish={finish} onViewDetails={viewAnswers} />
                 : <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div className="overflow-x-auto" role="region" aria-label="Daftar peserta" tabIndex={0}><table className="w-full text-left text-xs sm:min-w-[640px]">
+                    <div className="overflow-x-auto" role="region" aria-label="Daftar peserta" tabIndex={0}><table className="monitoring-participants-table w-full text-left text-xs sm:min-w-[640px]">
                         <thead className="bg-slate-50 text-[11px] text-slate-500"><tr>
                             <th scope="col" className="p-3 font-semibold sm:px-4">Peserta</th>
                             <th scope="col" className="hidden px-4 py-3 font-semibold sm:table-cell">Kelas</th>
@@ -338,8 +338,12 @@ export function ParticipantsWorkspace({
                         <tbody>{peopleRows.map(row => {
                             const state = attemptState(row);
                             return <tr key={`${row.exam_id}:${row.id}`} onClick={() => setSelectedKey(`${row.exam_id}:${row.id}`)} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50">
-                                <td className="p-3 font-medium text-slate-900 sm:px-4">{formatStudentName(row.profiles?.full_name, 'Peserta')}
-                                    <div className="text-[11px] font-normal text-slate-500">{row.profiles?.identity_number || '—'}<span className="sm:hidden"> · {row.kelas_name || '—'}</span></div></td>
+                                <td className="p-3 font-medium text-slate-900 sm:px-4"><button type="button" className="monitoring-participant-name" onClick={event => { event.stopPropagation(); setSelectedKey(`${row.exam_id}:${row.id}`); }}>{formatStudentName(row.profiles?.full_name, 'Peserta')}</button>
+                                    <div className="text-[11px] font-normal text-slate-500">{row.profiles?.identity_number || '—'}<span className="sm:hidden"> · {row.kelas_name || '—'}</span></div>
+                                    <div className="monitoring-participant-meta sm:hidden">
+                                        {showRoomFilter && <span>{row.pas_location?.room_name || 'Belum ditempatkan'}</span>}
+                                        <span>{row.saved_answer_count ?? '—'} / {row.total_questions ?? '—'} terjawab{(row.warning_count || 0) > 0 && ` · ${row.warning_count} peringatan`}</span>
+                                    </div></td>
                                 <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{row.kelas_name || '—'}</td>
                                 <td className="hidden px-4 py-2.5 text-slate-600 sm:table-cell">{showRoomFilter ? (row.pas_location?.room_name || 'Belum ditempatkan') : (examOptions.find(option => option.exam_id === row.exam_id)?.label || '—')}</td>
                                 <td className="p-3 sm:px-4"><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${state === 'finished' ? 'bg-emerald-50 text-emerald-700' : state === 'working' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>

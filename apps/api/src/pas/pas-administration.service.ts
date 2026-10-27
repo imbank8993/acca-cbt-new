@@ -509,7 +509,7 @@ export class PasAdministrationService {
         );
         const activeSchedules = dateSchedules.length > 0 ? dateSchedules : relevantSessionSchedules;
 
-        const [attemptsRes, savedAttendancesRes, savedReportRes] = await Promise.all([
+        const [attemptsRes, savedAttendancesRes, savedReportRes, participantsRes] = await Promise.all([
             studentIds.length > 0 && activeSchedules.some((sc) => sc.exam_id)
                 ? this.db
                       .from('cbt_exam_attempts')
@@ -535,6 +535,12 @@ export class PasAdministrationService {
                 .eq('session_id', session.id)
                 .eq('exam_date', effectiveDate)
                 .maybeSingle(),
+            studentIds.length > 0 && activeSchedules.some((sc) => sc.exam_id)
+                ? this.db.from('cbt_exam_participants')
+                      .select('exam_id, user_id, regular_class_id')
+                      .in('exam_id', activeSchedules.map((sc) => sc.exam_id).filter(Boolean))
+                      .in('user_id', studentIds)
+                : Promise.resolve({ data: [] }),
         ]);
 
         const scheduleByExamId = new Map<string, any>();
@@ -566,6 +572,14 @@ export class PasAdministrationService {
                 const attempt = attemptByStudent.get(userId);
                 const savedAtt = savedAttendanceByStudent.get(userId);
                 const matchedSchedule = attempt?.exam_id ? scheduleByExamId.get(attempt.exam_id) : undefined;
+                // Gunakan pemetaan ujian, bukan keanggotaan kelas terakhir (mis. UTBK).
+                const mappedParticipant = ((participantsRes.data as any[]) || []).find(participant =>
+                    participant.user_id === userId && classById.has(participant.regular_class_id)
+                    && (!attempt?.exam_id || participant.exam_id === attempt.exam_id));
+                const mappedSchedule = activeSchedules.find(sc =>
+                    classById.has(sc.class_id) && ((classMembersRes.data as any[]) || []).some(member =>
+                        member.user_id === userId && member.class_id === sc.class_id)
+                    && (!attempt?.exam_id || sc.exam_id === attempt.exam_id));
                 const nisValue = profile.identity_number || profile.unique_id || profile.nis || '-';
                 const fallbackBank = matchedSchedule?.bank_id
                     ? bankById.get(matchedSchedule.bank_id)
@@ -580,9 +594,11 @@ export class PasAdministrationService {
                     nis: nisValue,
                     identity_number: nisValue,
                     class_name:
-                        classMap.get(userId) ||
+                        classById.get(mappedParticipant?.regular_class_id) ||
+                        classById.get(mappedSchedule?.class_id) ||
                         matchedSchedule?.classes?.name ||
                         (matchedSchedule?.class_id ? classById.get(matchedSchedule.class_id) : undefined) ||
+                        classMap.get(userId) ||
                         '-',
                     exam_title:
                         matchedSchedule?.question_banks?.title ||

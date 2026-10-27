@@ -446,7 +446,7 @@ const ExamsPage = () => {
 
 
     return (
-        <div className="max-w-7xl mx-auto pb-24">
+        <div className="exams-page max-w-7xl mx-auto pb-24">
             {timeZoneError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {/* ── Hero Header — Navy Gradient ── */}

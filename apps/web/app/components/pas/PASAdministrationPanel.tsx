@@ -1,4 +1,5 @@
 "use client";
+import './compact-exam-period.css';
 
 import { CommitteeChairNameInput } from '@/app/components/pas/CommitteeChairNameInput';
 import { RoomParticipantsDownload } from '@/app/components/pas/RoomParticipantsDownload';
@@ -1366,15 +1367,15 @@ ${KOP_AND_A4_CSS}
     };
 
     return (
-        <div className="space-y-4">
+        <div className="pas-administration space-y-4">
             {/* ── Navigasi tampilan (pill) + ketua panitia ── */}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div role="group" aria-label="Tampilan administrasi" className="inline-flex max-w-full self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+                <div role="group" aria-label="Tampilan administrasi" className="pas-administration__tabs inline-flex max-w-full self-start overflow-x-auto rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
                     {([
                         ...(resolvedRole !== 'pengawas' ? [['overview', 'Ringkasan']] : []),
                         ['editor', 'Absensi & Berita Acara'],
-                        ['berita_acara_a4', 'Berita Acara A4'],
-                        ['daftar_hadir_a4', 'Daftar Hadir A4'],
+                        ['berita_acara_a4', 'Berita Acara'],
+                        ['daftar_hadir_a4', 'Daftar Hadir'],
                     ] as Array<[AdminSubView, string]>).map(([id, label]) =>
                         <button key={id} type="button" aria-pressed={subView === id} onClick={() => setSubView(id)}
                             className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${subView === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
@@ -1806,7 +1807,7 @@ ${KOP_AND_A4_CSS}
                                 Belum ada peserta yang ditempatkan di ruang ini.
                             </p>
                         ) : <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="pas-attendance-table w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                                         <th className="py-2.5 px-3 w-10 text-center">No</th>
@@ -1845,7 +1846,7 @@ ${KOP_AND_A4_CSS}
                                                             NISN: {st.identity_number || '-'} · <span className="font-medium text-slate-700">{st.class_name}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-2.5 px-3">
+                                                    <td data-label="Waktu ujian" className="py-2.5 px-3">
                                                         <div className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
                                                             <Clock size={11} className="text-slate-500" />
                                                             {startTime} – {endTime}
@@ -1858,7 +1859,7 @@ ${KOP_AND_A4_CSS}
                                                                   : 'Belum mulai ujian'}
                                                         </div>
                                                     </td>
-                                                    <td className="py-2.5 px-3">
+                                                    <td data-label="Kehadiran" className="py-2.5 px-3">
                                                         <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 gap-0.5">
                                                             {(
                                                                 [
@@ -1871,6 +1872,7 @@ ${KOP_AND_A4_CSS}
                                                                 <button
                                                                     key={opt.id}
                                                                     type="button"
+                                                                    aria-pressed={currentStatus === opt.id}
                                                                     onClick={() => updateStudentStatus(st.user_id, opt.id)}
                                                                     className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${
                                                                         currentStatus === opt.id
@@ -1888,10 +1890,11 @@ ${KOP_AND_A4_CSS}
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="py-2.5 px-3">
+                                                    <td data-label="Keterangan" className="py-2.5 px-3">
                                                         <input
                                                             type="text"
                                                             value={currentRemark}
+                                                            aria-label={`Keterangan ${st.full_name}`}
                                                             onChange={(e) => updateStudentRemark(st.user_id, e.target.value)}
                                                             placeholder={
                                                                 currentStatus === 'sakit'

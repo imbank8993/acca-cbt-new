@@ -691,7 +691,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                         </div>
                     ) : (
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <label className="pas-proctor-date flex items-center gap-2 text-xs font-medium text-slate-600">
                                 <Calendar size={14} className="text-slate-400" aria-hidden="true" />Tanggal
                                 <InlineSelect value={selectedProctorDate} onChange={value => handleProctorDateChange(String(value))} disabled={isSaving}
                                     minWidth="240px" aria-label="Tanggal tugas pengawas"

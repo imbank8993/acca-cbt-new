@@ -24,7 +24,7 @@ export function folderViews(role: FolderMonitorRole): FolderMonitorView[] {
 export function FolderViewToggle({ role, value, onChange }: { role: FolderMonitorRole; value: FolderMonitorView; onChange: (view: FolderMonitorView) => void }) {
     const views = folderViews(role);
     if (views.length < 2) return null;
-    return <div role="group" aria-label="Tampilan monitoring" className="inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+    return <div role="group" aria-label="Tampilan monitoring" className="monitoring-view-toggle inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
         {views.map(id => <button key={id} type="button" aria-pressed={value === id} onClick={() => onChange(id)}
             className={`whitespace-nowrap rounded-full px-3.5 py-1.5 transition-colors ${value === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
             {id === 'bank' ? 'Per bank soal' : 'Per ruang'}

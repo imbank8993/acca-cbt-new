@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { FilterSearch, FilterSelect, FilterToggle, FilterToolbar } from './ui/filtertoolbar';
 import type { ExamAttemptRecord } from '@/lib/api/proctor';
 import { formatStudentName, gradingLabel, monitoringAttention } from '@/lib/monitoring-health';
-import { formatSchoolDateTime, getSchoolTimeZone } from '@/lib/school-time';
 import { AttemptHistoryModal } from '@/app/components/monitoring';
 import { unansweredQuestionCount, sortByAnswerCount, sortByUnansweredCount } from '@/lib/monitoring-answer-count';
 import { monitoringTime } from '@/lib/monitoring-time';
@@ -12,7 +11,7 @@ import { ParticipantRoomInfo } from './monitoring/ParticipantRoomInfo';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
-export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defaultExpanded = false }: {
+export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails }: {
     attempts: ExamAttemptRecord[];
     onRecover?: (attempt: ExamAttemptRecord) => Promise<void> | void;
     onViewDetails?: (id: string) => void;
@@ -24,26 +23,17 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const [classFilter, setClassFilter] = useState('');
     const [onlyIncomplete, setOnlyIncomplete] = useState(false);
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
-    const [zone, setZone] = useState<string | null>(null);
     const [page, setPage] = useState(1);
-    const [expanded, setExpanded] = useState(defaultExpanded);
     const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
     const sampledAt = attempts[0]?.server_now;
     const elapsed = clock.sample === sampledAt ? clock.elapsed : 0;
-    useEffect(() => {
-        let alive = true;
-        void getSchoolTimeZone().then(value => { if (alive) setZone(value); }).catch(() => undefined);
-        return () => { alive = false; };
-    }, []);
     useEffect(() => {
         const started = performance.now();
         const tick = () => setClock({ sample: sampledAt, elapsed: Math.floor((performance.now() - started) / 1000) });
         const timer = setInterval(tick, 1000);
         return () => clearInterval(timer);
     }, [sampledAt]);
-    const date = (value?: string | null) => !value ? 'Belum tercatat' : zone
-        ? formatSchoolDateTime(value, zone) : `${new Date(value).toISOString()} (UTC)`;
     const needingAttention = attempts.filter(attempt => monitoringAttention(attempt, elapsed).length > 0);
     const classOptions = [...new Set(attempts
         .map(attempt => attempt.kelas_name?.trim())
@@ -73,31 +63,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
     const pageCount = Math.max(1, Math.ceil(rows.length / 25));
     const currentPage = Math.min(page, pageCount);
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
-    return <section className="my-4 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm" aria-label="Keamanan jawaban dan waktu ujian">
-        <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded(value => !value)}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
-        >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><ShieldAlert size={18} /></span>
-            <span className="min-w-0 flex-1">
-                <span className="block font-semibold text-sm text-slate-800 truncate">Jawaban & Waktu</span>
-                <span className="mt-0.5 block text-xs text-slate-500 truncate">
-                    {attempts.length} peserta dipantau
-                    {sampledAt ? <span className="hidden sm:inline"> · Server {date(sampledAt)}</span> : ''}
-                </span>
-            </span>
-            <div className="shrink-0 flex items-center gap-2">
-                {needingAttention.length > 0 && (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 whitespace-nowrap">
-                        {needingAttention.length} perhatian
-                    </span>
-                )}
-                <ChevronDown size={18} className={`text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-            </div>
-        </button>
-        {expanded && <div className="border-t border-slate-100 p-4">
+    return <section className="monitoring-health overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm" aria-label="Keamanan jawaban dan waktu ujian">
+        <div className="p-4">
         <FilterToolbar>
             <FilterSearch value={searchQuery}
                 onChange={value => { setSearchQuery(value); setPage(1); }}
@@ -136,9 +103,13 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
                     : ['submitted', 'auto_submitted'].includes(attempt.status) ? gradingLabel(attempt) : 'Belum mulai';
                 return <tr key={attempt.id} onClick={() => setSelectedAttemptId(attempt.id)} className="border-b align-top last:border-b-0 cursor-pointer transition-colors hover:bg-slate-50/80 active:bg-slate-100">
                     <td className="p-3">
-                        <span className="font-medium text-slate-800">{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</span>
+                        <button type="button" className="monitoring-participant-name font-medium text-slate-800" onClick={event => { event.stopPropagation(); setSelectedAttemptId(attempt.id); }}>{formatStudentName(attempt.profiles?.full_name, 'Tanpa nama')}</button>
                         <div className="mt-1 text-slate-500">{attempt.profiles?.identity_number || '—'} · {attempt.kelas_name || '—'}</div>
                         <div className="hidden sm:block"><ParticipantRoomInfo attempt={attempt} /></div>
+                        <div className="monitoring-health__mobile-status sm:hidden">
+                            <span>{statusLabel}{active && remaining !== null && ` · Sisa ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`}</span>
+                            {(violationCount > 0 || (active && reasons.length > 0)) && <span className="text-amber-700">{violationCount > 0 ? `${violationCount} peringatan` : 'Perlu pemeriksaan'}</span>}
+                        </div>
                     </td>
                     <td className="p-3 w-[110px] sm:w-auto"><strong>{attempt.saved_answer_count ?? '—'} / {attempt.total_questions ?? '—'} terjawab</strong></td>
                     <td className="hidden p-3 sm:table-cell">
@@ -164,7 +135,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             })}</tbody>
         </table></div>
         {pageCount > 1 && (
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+            <div className="monitoring-health__pagination mt-3 flex items-center justify-between text-xs text-slate-500">
                 <span>
                     Halaman <strong className="font-semibold text-slate-700">{currentPage}</strong> / {pageCount} · {rows.length} peserta
                 </span>
@@ -189,7 +160,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, defa
             </div>
         )}
         {!rows.length && <p className="py-4 text-sm text-slate-500">{hasActiveFilter ? 'Tidak ada peserta pada filter ini.' : 'Data monitoring belum tersedia.'}</p>}
-        </div>}
+        </div>
 
         {/* Shared Modals */}
         <AttemptHistoryModal

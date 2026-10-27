@@ -284,6 +284,7 @@ export function FilterToolbar({
                 {/* Mobile View: field wajib ditumpuk langsung, tanpa tombol "Filter" */}
                 {alwaysExpanded ? (
                     <div className="ftb-mobile-wrap">
+                        {hasSearch && <div className="ftb-mobile-search-wrap">{searchItems}</div>}
                         {hasFilters && (
                             <div className="ftb-modal-filter-list ftb-mobile-expanded-list">
                                 {filterItems}
