@@ -156,6 +156,7 @@ export interface QuestionMetadata {
 }
 
 export interface QuestionRecord {
+    topic?: string | null;
     id: string;
     number?: number;
     type: QuestionType;

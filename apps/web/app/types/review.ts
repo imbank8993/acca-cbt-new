@@ -3,6 +3,7 @@
  * Types for exam review and answer analysis
  */
 
+import type { TopicAnalysis } from '@acca-cbt/shared';
 import type { Question,QuestionType } from './question';
 
 // ─── Review Types ─────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ export interface ReviewSummary {
 // ─── Full Exam Review ─────────────────────────────────────────────────────────
 
 export interface ExamReview {
+    topicAnalysis?: TopicAnalysis;
     attemptId: string;
     examId: string;
     examTitle: string;

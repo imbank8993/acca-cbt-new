@@ -32,7 +32,7 @@ function fixture(role) {
         examRequestGenerationRef: { current: 0 }, loadingExamIdsRef: { current: new Map() }, lastRequestedExamIdRef: { current: '' },
         setIsRefreshing: value => { state.refreshing = value; },
         setAttempts: value => { state.attempts = value; }, setLoadError: value => { state.error = value; },
-        setAnalysis() {}, setDetailedAnalysis() {}, setIrtCalibration() {}, setAnalysisPage() {},
+        setAnalysis() {}, setDetailedAnalysis() {}, setTopicAnalysis() {}, setIrtCalibration() {}, setAnalysisPage() {},
         formatStudentName: name => name, buildItemAnalysis: () => [], console: { error() {} },
         window: { setTimeout(callback) { callback(); return 1; }, clearTimeout() {} },
     };

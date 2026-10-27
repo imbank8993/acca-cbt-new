@@ -1,3 +1,4 @@
+import type { TopicAnalysis } from '@acca-cbt/shared';
 import type { IrtCalibration } from '@/lib/irt-calibration';
 import { getSessionUser } from '../session';
 import { apiCreate,apiGet,apiSend } from './client';
@@ -762,6 +763,7 @@ export interface DetailedItemAnalysisResponse {
 }
 
 export interface ItemAnalysis {
+    topic?: string | null;
     id: string;
     number?: number;
     qText: string;
@@ -788,6 +790,7 @@ export interface ItemAnalysis {
 export async function getExamAnswersForAnalysisAction(
     examId: string,
 ): Promise<{
+    topicAnalysis?: TopicAnalysis;
     questions: QuestionRecord[];
     answers: ExamAnswerRecord[];
     detailed: DetailedItemAnalysisResponse | null;
@@ -795,6 +798,7 @@ export async function getExamAnswersForAnalysisAction(
     irt?: IrtCalibration | null;
 }> {
     const res = await apiGet<{
+        topicAnalysis?: TopicAnalysis;
         questions: QuestionRecord[];
         answers: ExamAnswerRecord[];
         detailed?: DetailedItemAnalysisResponse | null;
@@ -804,7 +808,7 @@ export async function getExamAnswersForAnalysisAction(
         { timeoutMs: 60_000 },
     );
     return res.success
-        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null, irt: res.irt ?? null }
+        ? { questions: res.questions, answers: res.answers, detailed: res.detailed ?? null, irt: res.irt ?? null, topicAnalysis: res.topicAnalysis }
         : { questions: [], answers: [], detailed: null, irt: null };
 }
 

@@ -1,4 +1,5 @@
 "use client";
+import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { getErrorMessage } from '@/lib/errors';
 import { InlineMath } from '@/app/components/questions/InlineMath';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -264,6 +265,8 @@ export default function ExamReviewPage() {
                     </div>
                 </div>
             </div>
+
+            {review.topicAnalysis?.topics.length ? <div className="w-full max-w-4xl mx-auto px-4 py-4"><TopicAnalysisPanel analysis={review.topicAnalysis} personal /></div> : null}
 
             {/* Filter Tabs */}
             <div className="bg-white border-b border-slate-200">

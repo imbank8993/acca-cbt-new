@@ -11,19 +11,31 @@ import { ParticipantRoomInfo } from './monitoring/ParticipantRoomInfo';
 
 type MonitoringStatusFilter = 'all' | 'submitted' | 'in_progress' | 'auto_submitted' | 'belum';
 
-export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails }: {
+export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails, externalFilters }: {
     attempts: ExamAttemptRecord[];
     onRecover?: (attempt: ExamAttemptRecord) => Promise<void> | void;
     onViewDetails?: (id: string) => void;
     defaultExpanded?: boolean;
+    externalFilters?: {
+        onlyIncomplete: boolean;
+        onlyAttention: boolean;
+        scopeKey: string;
+        onAttentionCountChange: (count: number) => void;
+    };
 }) {
-    const [onlyAttention, setOnlyAttention] = useState(false);
+    const [localOnlyAttention, setOnlyAttention] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<MonitoringStatusFilter>('all');
     const [classFilter, setClassFilter] = useState('');
-    const [onlyIncomplete, setOnlyIncomplete] = useState(false);
+    const [localOnlyIncomplete, setOnlyIncomplete] = useState(false);
+    const onlyAttention = externalFilters?.onlyAttention ?? localOnlyAttention;
+    const onlyIncomplete = externalFilters?.onlyIncomplete ?? localOnlyIncomplete;
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
-    const [page, setPage] = useState(1);
+    const pageScope = JSON.stringify([externalFilters?.scopeKey, onlyAttention, onlyIncomplete]);
+    const [pagination, setPagination] = useState({ scope: pageScope, page: 1 });
+    if (pagination.scope !== pageScope) setPagination({ scope: pageScope, page: 1 });
+    const page = pagination.scope === pageScope ? pagination.page : 1;
+    const setPage = (next: number) => setPagination({ scope: pageScope, page: next });
     const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
     const sampledAt = attempts[0]?.server_now;
@@ -35,6 +47,10 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails }: {
         return () => clearInterval(timer);
     }, [sampledAt]);
     const needingAttention = attempts.filter(attempt => monitoringAttention(attempt, elapsed).length > 0);
+    const onAttentionCountChange = externalFilters?.onAttentionCountChange;
+    useEffect(() => {
+        onAttentionCountChange?.(needingAttention.length);
+    }, [onAttentionCountChange, needingAttention.length]);
     const classOptions = [...new Set(attempts
         .map(attempt => attempt.kelas_name?.trim())
         .filter((name): name is string => Boolean(name)))]
@@ -65,7 +81,7 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails }: {
     const visibleRows = rows.slice((currentPage - 1) * 25, currentPage * 25);
     return <section className="monitoring-health overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm" aria-label="Keamanan jawaban dan waktu ujian">
         <div className="p-4">
-        <FilterToolbar>
+        {!externalFilters && <FilterToolbar>
             <FilterSearch value={searchQuery}
                 onChange={value => { setSearchQuery(value); setPage(1); }}
                 placeholder="Cari nama, NIS, atau kelas..." label="Cari peserta" />
@@ -88,8 +104,8 @@ export function MonitoringHealthPanel({ attempts, onRecover, onViewDetails }: {
             <FilterToggle label="Perhatian"
                 text={`Perlu perhatian${needingAttention.length > 0 ? ` (${needingAttention.length})` : ''}`}
                 checked={onlyAttention} onChange={value => { setOnlyAttention(value); setPage(1); }} />
-        </FilterToolbar>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200"><table className="w-full sm:min-w-[720px] text-left text-xs">
+        </FilterToolbar>}
+        <div className={`${externalFilters ? '' : 'mt-3 '}overflow-x-auto rounded-lg border border-slate-200`}><table className="w-full sm:min-w-[720px] text-left text-xs">
             <thead><tr className="border-b bg-slate-50 text-slate-500"><th className="p-3 font-semibold">Peserta</th><th className="p-3 font-semibold" aria-sort={onlyIncomplete ? "descending" : "ascending"} title={onlyIncomplete ? "Soal belum dijawab, dari paling banyak" : "Jumlah soal dijawab, dari paling sedikit"}>Jawaban {onlyIncomplete ? "↓" : "↑"}</th><th className="hidden p-3 font-semibold sm:table-cell">Status</th><th className="hidden p-3 font-semibold sm:table-cell">Peringatan</th><th className="hidden p-3 font-semibold sm:table-cell">Aksi</th></tr></thead>
             <tbody>{visibleRows.map(attempt => {
                 const health = attempt.sync_health;

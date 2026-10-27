@@ -1,3 +1,4 @@
+import type { TopicAnalysis } from '@acca-cbt/shared';
 import { withExamSubmissionLock } from '../exam-submission-lock';
 import { getDeviceId } from '../device-id';
 import { apiGet,apiSend } from './client';
@@ -115,6 +116,7 @@ export interface StudentResult {
 }
 
 export interface StudentResultQuestion extends Omit<Question, 'bank_question_options'> {
+    topic?: string | null;
     options: Question['bank_question_options'];
     bank_question_options?: Question['bank_question_options'];
 }
@@ -131,6 +133,7 @@ export interface StudentAttemptAnswer {
 }
 
 export interface StudentAttemptDetails {
+    topicAnalysis?: TopicAnalysis;
     answerKeysReleased: boolean;
     answerKeysMessage?: string | null;
     attempt: {
@@ -176,6 +179,7 @@ export async function getAttemptDetailsResult(attemptId: string) {
         details: {
             answerKeysReleased: res.answerKeysReleased,
             answerKeysMessage: res.answerKeysMessage,
+            topicAnalysis: res.topicAnalysis,
             attempt: res.attempt,
             dimensions: res.dimensions,
             interpretations: res.interpretations,

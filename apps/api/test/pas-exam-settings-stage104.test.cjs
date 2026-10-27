@@ -189,7 +189,19 @@ test('SET-07: monitoring ruang ASAS/AM ringkas: 4 bagian, reset & pengecualian l
 test('SET-08: tab Pengaturan Ujian tersedia di folder dan monitoring biasa memakai panel analisis bersama', () => {
     const web = file => fs.readFileSync(path.resolve(__dirname, '../../web', file), 'utf8');
     assert.match(web('app/components/pas/CompactExamPeriodWorkspace.tsx'), /\['exam_settings', 'Pengaturan Ujian'\]/);
-    assert.match(web('app/dashboard/admin/monitoring/page.tsx'), /<ItemAnalysisPanel key=\{selectedExamId\} analysis=\{analysis\} \/>/);
+    const monitoring = ts.createSourceFile('monitoring.tsx', web('app/dashboard/admin/monitoring/page.tsx'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    let panel;
+    const visit = node => {
+        if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(monitoring) === 'ItemAnalysisPanel') panel = node;
+        ts.forEachChild(node, visit);
+    };
+    visit(monitoring);
+    assert.ok(panel, 'monitoring memakai panel analisis bersama');
+    const attributes = new Map(panel.attributes.properties.filter(ts.isJsxAttribute)
+        .map(attribute => [attribute.name.getText(monitoring), attribute.initializer?.expression?.getText(monitoring)]));
+    assert.equal(attributes.get('key'), 'selectedExamId');
+    assert.equal(attributes.get('analysis'), 'analysis');
+    assert.ok(attributes.has('topicAnalysis'), 'analisis materi diteruskan ke panel yang sama');
     assert.match(web('app/dashboard/admin/monitoring/page.tsx'), /setAnalysis\(buildItemAnalysis\(analysisData, attData\)\)/);
 });
 

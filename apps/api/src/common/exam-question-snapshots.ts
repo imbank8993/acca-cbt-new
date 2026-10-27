@@ -8,7 +8,8 @@ import { markScoreExcluded } from './score-exclusion';
 /** Seluruh data yang dapat memengaruhi tampilan, urutan, dan nilai. */
 export const EXAM_QUESTION_SNAPSHOT_SELECT = `
   id, bank_id, question_text, type, score_default, metadata, dimension_id,
-  difficulty, created_at, revision,
+  difficulty, created_at, revision, kisi_kisi_id,
+  kisi_kisi:cbt_question_kisi_kisi(materi),
   bank_question_options:cbt_bank_question_options(
     id, option_text, is_correct, weight, order, metadata
   ),

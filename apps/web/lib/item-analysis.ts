@@ -16,6 +16,7 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
     if (data.detailed?.items?.length) {
         return data.detailed.items.map((item): ItemAnalysis => ({
             id: item.id,
+            topic: data.questions.find(question => question.id === item.id)?.topic,
             number: item.number,
             qText: item.question_text,
             type: item.type,
@@ -84,6 +85,7 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
         const graded = stat.correct + stat.incorrect;
         return {
             id: question.id,
+            topic: question.topic,
             number: question.number ?? 0,
             qText: question.question_text,
             type: question.type,

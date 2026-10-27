@@ -1,3 +1,5 @@
+import { buildTopicAnalysis, hasStoredAnswer } from '@acca-cbt/shared';
+import { withQuestionTopics } from '../common/exam-question-topics';
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
@@ -104,11 +106,11 @@ export class ExamReviewService {
         // dibaca layar ujian. Soal yang TIDAK dijawab ikut terbawa, sehingga
         // `unansweredCount` bisa terisi; menyusunnya dari `cbt_answers` saja
         // akan membuat soal kosong hilang sama sekali dari review.
-        const bankQuestions = await loadFrozenExamQuestions(
+        const bankQuestions = await withQuestionTopics(this.db, await loadFrozenExamQuestions(
             this.db,
             record.exam_id,
             record.exams?.question_bank_id,
-        );
+        ));
 
         const orderedQuestions = orderQuestionsForStudent(bankQuestions, {
             userId: record.user_id,
@@ -231,7 +233,7 @@ export class ExamReviewService {
                     image_url: question.metadata?.image_url,
                     explanation: question.metadata?.explanation,
                     difficulty: question.difficulty,
-                    topic: question.metadata?.topic,
+                    topic: question.topic,
                 },
             });
         });
@@ -264,6 +266,10 @@ export class ExamReviewService {
                 : 0;
 
         return {
+            topicAnalysis: buildTopicAnalysis(bankQuestions, [attemptId], ((answers as any[]) || []).map(answer => ({
+                participantId: attemptId, questionId: answer.question_id,
+                answered: hasStoredAnswer(answer), isCorrect: answer.is_correct,
+            }))),
             attemptId: record.id,
             examId: record.exams?.id,
             examTitle: record.exams?.title || 'Ujian',

@@ -1,4 +1,5 @@
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
+import { withQuestionTopics } from '../common/exam-question-topics';
 import { readExamQuestionVersion } from '../common/exam-question-snapshots';
 import {
     BadRequestException,
@@ -11,7 +12,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { publicStudentScores, type AuthUser } from '@acca-cbt/shared';
+import { buildTopicAnalysis, hasStoredAnswer, publicStudentScores, type AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamAccess, canAccessExam, loadExamAudience } from './exam-access';
 import { studentExamMetadata } from './student-exam-metadata';
@@ -443,7 +444,7 @@ export class StudentsService {
         if (error) throw new BadRequestException(error.message);
         // Review the full exam version, including questions with no saved answer.
         // Bank edits must not change the keys shown for an existing exam snapshot.
-        const questions = await readExamQuestionVersion(this.db, row.exams.id);
+        const questions = await withQuestionTopics(this.db, await readExamQuestionVersion(this.db, row.exams.id));
         const answersByQuestion = new Map(((answers as any[]) || []).map(answer => [answer.question_id, answer]));
 
         const bankId = row.exams?.question_bank_id;
@@ -472,6 +473,10 @@ export class StudentsService {
             attempt: publicAttempt,
             answerKeysReleased: true,
             answerKeysMessage: null,
+            topicAnalysis: buildTopicAnalysis(questions, [attemptId], ((answers as any[]) || []).map(answer => ({
+                participantId: attemptId, questionId: answer.question_id,
+                answered: hasStoredAnswer(answer), isCorrect: answer.is_correct,
+            }))),
             dimensions: (dimensions as any[]) || [],
             interpretations: (interpretations as any[]) || [],
             answers: questions.map(question => {
@@ -484,7 +489,7 @@ export class StudentsService {
                     isCorrect: answer ? answer.is_correct : false,
                     score: answer?.score ?? 0,
                     question: {
-                        id: question.id, question_text: question.question_text,
+                        id: question.id, topic: question.topic, question_text: question.question_text,
                         type: question.type, score_default: question.score_default,
                         metadata: question.metadata,
                         options: question.bank_question_options || [],

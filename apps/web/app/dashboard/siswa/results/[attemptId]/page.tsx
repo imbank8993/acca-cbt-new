@@ -1,5 +1,6 @@
 "use client";
 import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
+import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
 import { QuestionSearchBar } from '@/app/components/QuestionSearchBar';
 import { matchesQuestionSearch } from '@/lib/question-search';
@@ -36,6 +37,7 @@ function StudentAnswerAnalysis({ answer, index }: {
                 {unanswered && <span className="text-slate-500">Belum dijawab</span>}
                 <span>Nilai: <span className="font-bold text-slate-700">{manualPending ? 'Menunggu koreksi' : answer.score ?? '—'}</span></span>
             </div>
+            {question.topic && <p className="mb-3 text-xs font-medium text-blue-700">Materi: {question.topic}</p>}
             <div className="bg-white p-3 sm:p-3.5 rounded-lg border border-slate-200 shadow-sm text-sm">
                 <QuestionRenderer
                     question={{ ...question, bank_question_options: question.options }}
@@ -267,6 +269,8 @@ export default function StudentResultDetailsPage() {
                     <button type="button" onClick={() => void load()} className="mt-2 font-bold underline">Periksa kembali pembahasan</button>
                 </div>
             )}
+
+            {details.answerKeysReleased !== false && <TopicAnalysisPanel analysis={details.topicAnalysis} personal />}
 
             {/* Tab Content */}
             {details.answerKeysReleased !== false && answersWithQuestions.length > 0 && (

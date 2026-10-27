@@ -1,4 +1,5 @@
-import { hasStoredAnswer } from '@acca-cbt/shared';
+import { buildTopicAnalysis, hasStoredAnswer } from '@acca-cbt/shared';
+import { withQuestionTopics } from '../common/exam-question-topics';
 import { attemptHealth } from '../common/attempt-health';
 import { MONITORING_EVENTS, connectionLostAtClose } from '../common/exam-monitoring';
 import { readExamQuestionVersion, hasExamQuestionSnapshots, loadFrozenExamQuestions } from '../common/exam-question-snapshots';
@@ -574,7 +575,7 @@ export class ExamMonitoringService {
         // yang melihat semua peserta (bukan pengawas yang dibatasi ke ruangnya).
         const irt = allowedStudents ? null : ((examRow as { metadata?: Record<string, unknown> | null }).metadata?.irt_calibration ?? null);
         const questionVersionSource = await hasExamQuestionSnapshots(this.db, examId) ? 'frozen' : 'legacy_current_bank';
-        const sorted = await readExamQuestionVersion(this.db, examId) as any[];
+        const sorted = await withQuestionTopics(this.db, await readExamQuestionVersion(this.db, examId) as any[]);
         if (sorted.length === 0) return { questions: [], answers: [], detailed: null };
 
         const questionById = new Map(sorted.map((q) => [q.id, q]));
@@ -586,6 +587,7 @@ export class ExamMonitoringService {
             type: question.type,
             score_default: Number(question.score_default ?? 1),
             metadata: question.metadata,
+            topic: question.topic,
             options: [...(question.bank_question_options || [])]
                 .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
                 .map((option: any) => ({
@@ -607,7 +609,7 @@ export class ExamMonitoringService {
         const attemptList = ((attemptRows as any[]) || []).filter(attempt => !allowedStudents || allowedStudents.has(attempt.user_id));
         await this.fillMissingIdentityNumbers(attemptList);
         const attemptIds = attemptList.map((a) => a.id);
-        if (attemptIds.length === 0) return { questions, answers: [], detailed: null, irt };
+        if (attemptIds.length === 0) return { questions, answers: [], detailed: null, irt, topicAnalysis: buildTopicAnalysis(sorted, [], []) };
 
         const assigned = await this.loadAssignedStudents(examId);
 
@@ -661,7 +663,11 @@ export class ExamMonitoringService {
             const [clock] = await this.db.raw<Array<{ now: Date }>>('SELECT clock_timestamp() AS now');
             detailed.generated_at = new Date(clock.now).toISOString();
         }
-        return { questions, answers, detailed, irt };
+        const topicAnalysis = buildTopicAnalysis(sorted,
+            participants.filter(participant => ['submitted', 'auto_submitted'].includes(participant.status)).map(participant => participant.attempt_id),
+            answers.map(answer => ({ participantId: answer.attempt_id, questionId: answer.question_id,
+                answered: hasStoredAnswer(answer), isCorrect: answer.is_correct })));
+        return { questions, answers, detailed, irt, topicAnalysis };
     }
 
     /**

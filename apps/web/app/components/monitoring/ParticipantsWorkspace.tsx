@@ -1,5 +1,6 @@
 'use client';
 
+import type { TopicAnalysis } from '@acca-cbt/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Calculator, ChevronDown, Loader2, MoreHorizontal } from 'lucide-react';
@@ -14,7 +15,7 @@ import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringRe
 import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
 import { ScreenShareExceptionsPanel } from '@/app/components/monitoring/ScreenShareExceptionsPanel';
 import { Button } from '@/app/components/ui/button';
-import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
+import { FilterSearch, FilterSelect, FilterToggle, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import './monitoring.css';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
@@ -116,8 +117,11 @@ export function ParticipantsWorkspace({
     const [search, setSearch] = useState('');
     const [classFilter, setClassFilter] = useState('');
     const [roomFilter, setRoomFilter] = useState('');
+    const [onlyIncomplete, setOnlyIncomplete] = useState(false);
+    const [onlyAttention, setOnlyAttention] = useState(false);
+    const [attentionCount, setAttentionCount] = useState(0);
     const [focusExamId, setFocusExamId] = useState(examOptions[0]?.exam_id || '');
-    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; irt: IrtCalibration | null; error?: string } | null>(null);
+    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; topicAnalysis?: TopicAnalysis; irt: IrtCalibration | null; error?: string } | null>(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [resetAttempt, setResetAttempt] = useState<ExamAttemptRecord | null>(null);
@@ -126,7 +130,12 @@ export function ParticipantsWorkspace({
     const menuRef = useRef<HTMLDivElement>(null);
 
     const activeSection = sections.includes(section) ? section : sections[0];
-    const focusId = examOptions.some(option => option.exam_id === focusExamId) ? focusExamId : examOptions[0]?.exam_id || '';
+    const resultExamIds = [...new Set(attempts
+        .filter(row => !classFilter || String(row.kelas_name || '').split(',').map(name => name.trim()).includes(classFilter))
+        .map(row => row.exam_id))].filter(id => examOptions.some(option => option.exam_id === id));
+    const focusId = activeSection === 'hasil'
+        ? (examOptions.length === 1 ? examOptions[0].exam_id : resultExamIds.length === 1 ? resultExamIds[0] : '')
+        : examOptions.some(option => option.exam_id === focusExamId) ? focusExamId : examOptions[0]?.exam_id || '';
     const focusExam = examRecords[focusId];
     const focusLabel = examOptions.find(option => option.exam_id === focusId)?.label || '';
     const staff = userRole === 'admin' || userRole === 'proktor';
@@ -175,7 +184,7 @@ export function ParticipantsWorkspace({
         setAnalysisLoading(true);
         try {
             const [data, examAttempts] = await Promise.all([getExamAnswersForAnalysisAction(examId), getExamAttemptsAction(examId)]);
-            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts), irt: data.irt ?? null });
+            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, examAttempts), topicAnalysis: data.topicAnalysis, irt: data.irt ?? null });
         } catch (loadError) {
             if (id === analysisRequest.current) setAnalysis({ examId, items: [], irt: null, error: loadError instanceof Error ? loadError.message : 'Analisis belum dapat dimuat.' });
         } finally {
@@ -282,6 +291,11 @@ export function ParticipantsWorkspace({
                 options={[{ value: '', label: 'Semua kelas' }, ...classOptions.map(name => ({ value: name, label: name }))]} />}
             {roomOptions.length > 0 && <FilterSelect label="Ruang" icon="door-open" value={room} onChange={setRoomFilter} width="170px"
                 options={[{ value: '', label: 'Semua ruang' }, ...roomOptions.map(option => ({ value: option.value, label: `${option.label} (${option.count})` }))]} />}
+            {activeSection === 'jawaban' && <>
+                <FilterToggle label="Jawaban" text="Belum terjawab" checked={onlyIncomplete} onChange={setOnlyIncomplete} />
+                <FilterToggle label="Perhatian" text={`Perlu perhatian${attentionCount > 0 ? ` (${attentionCount})` : ''}`}
+                    checked={onlyAttention} onChange={setOnlyAttention} />
+            </>}
         </FilterToolbar>}
 
         {action ? <div className="space-y-3">
@@ -308,7 +322,7 @@ export function ParticipantsWorkspace({
                 : <>
                     <IrtParametersPanel key={`irt-${focusId}`} calibration={analysis?.examId === focusId ? analysis.irt : null}
                         scoringType={focusExam?.scoring_type} exportTitle={`${exportTitle} ${examOptions.length > 1 ? focusLabel : ''}`.trim()} />
-                    <ItemAnalysisPanel key={focusId} analysis={analysis?.examId === focusId ? analysis.items : []} />
+                    <ItemAnalysisPanel key={focusId} analysis={analysis?.examId === focusId ? analysis.items : []} topicAnalysis={analysis?.examId === focusId ? analysis.topicAnalysis : undefined} />
                 </>}
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
@@ -364,14 +378,11 @@ export function ParticipantsWorkspace({
             />
         </div>
         : activeSection === 'jawaban' ? <MonitoringHealthPanel attempts={scoped} defaultExpanded
+            externalFilters={{ onlyIncomplete, onlyAttention, scopeKey: JSON.stringify([query, klass, room]), onAttentionCountChange: setAttentionCount }}
             onRecover={anyReset ? recover : undefined} onViewDetails={viewAnswers} />
         : <div className="monitoring-results">
             <div className="monitoring-results__toolbar">
-                {examOptions.length > 1 && <label className="monitoring-results__scope">
-                    <span>Tindakan untuk</span>
-                    <InlineSelect value={focusId} onChange={changeFocus} minWidth="0" height="36px" aria-label="Tindakan untuk"
-                        options={examOptions.map(option => ({ value: option.exam_id, label: option.label }))} />
-                </label>}
+                {!focusId && <p className="text-xs text-slate-500">Pilih kelas pada filter di atas untuk koreksi kunci, kalkulasi IRT, atau export.</p>}
                 <div className="monitoring-results__actions">
                     {focusExam?.canManage === true && focusExam.canCorrectKeys !== false && focusId && <ExamKeyCorrectionButton key={focusId} examId={focusId} onComplete={() => void onReload()} />}
                     {hasIrt && focusExam?.canManage === true && <Button variant="outline" size="sm" onClick={() => void calculateIrt()} disabled={busy} leftIcon={<Calculator size={14} />}>Kalkulasi IRT</Button>}

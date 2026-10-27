@@ -1,5 +1,7 @@
 "use client";
 
+import type { TopicAnalysis } from '@acca-cbt/shared';
+import { TopicAnalysisPanel } from './TopicAnalysisPanel';
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Eye, PieChart, UserCheck, UserX } from 'lucide-react';
 import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
@@ -42,7 +44,7 @@ const ANALYSIS_PAGE_SIZE = 10;
  * halaman) dan detail butir berisi teks soal, kunci, siswa benar/salah, serta
  * sebaran pengecoh. Dipakai monitoring ujian biasa dan monitoring ruang ASAS/AM.
  */
-export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: ItemAnalysis[]; className?: string }) {
+export function ItemAnalysisPanel({ analysis, className = '', topicAnalysis }: { analysis: ItemAnalysis[]; className?: string; topicAnalysis?: TopicAnalysis }) {
     const [analysisPage, setAnalysisPage] = useState(1);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
@@ -52,6 +54,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
     const filteredAnalysis = analysis.filter(item =>
         (!difficulty || (item.difficultyLabel?.trim().toLocaleLowerCase('id') || 'unknown') === difficulty)
         && (!query || String(item.number) === query.replace(/^#/, '')
+            || item.topic?.toLocaleLowerCase('id').includes(query)
             || getQuestionSnippet(item.qText, Number.MAX_SAFE_INTEGER).toLocaleLowerCase('id').includes(query)));
     const difficultyOptions = [...new Set(analysis.map(item => item.difficultyLabel?.trim()).filter((label): label is string => Boolean(label)))];
     const analysisTotalPages = Math.max(1, Math.ceil(filteredAnalysis.length / ANALYSIS_PAGE_SIZE));
@@ -61,6 +64,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
 
     return (
         <>
+        <TopicAnalysisPanel analysis={topicAnalysis} />
         <FilterToolbar>
             <FilterSearch value={search} onChange={value => { setSearch(value); setAnalysisPage(1); }}
                 label="Cari soal" placeholder="Cari teks atau nomor soal…" />
@@ -110,7 +114,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                     </div>
                                 </div>
                                 <div className="min-w-0 flex-1 text-left">
-                                    <div className="mb-1 text-[11px] text-slate-500">{formatQuestionType(anl.type)} · {anl.difficultyLabel || 'Kesukaran belum ditentukan'}</div>
+                                    <div className="mb-1 text-[11px] text-slate-500">{anl.topic && <span className="block font-medium">{anl.topic}</span>}{formatQuestionType(anl.type)} · {anl.difficultyLabel || 'Kesukaran belum ditentukan'}</div>
                                     <LatexRenderer
                                         text={getQuestionSnippet(anl.qText, 95)}
                                         className="!font-sans !text-xs !leading-relaxed !text-left text-slate-700 line-clamp-2 [&_.katex]:!text-[11px]"
@@ -155,6 +159,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                         <td className="p-4 text-center font-bold text-[#3083FF] text-[11px]">{anl.number}</td>
                                         <td className="p-4">
                                             <div className="min-w-0">
+                                                {anl.topic && <p className="mb-1 text-[11px] font-medium text-blue-700">Materi: {anl.topic}</p>}
                                                 <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
                                                     <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
                                                 </div>
