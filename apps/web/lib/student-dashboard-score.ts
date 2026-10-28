@@ -1,4 +1,4 @@
-import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
+import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS, STUDENT_SCORE_TYPES } from '@acca-cbt/shared';
 import type { StudentResult } from './api/students';
 
 export function dashboardResultScore(result: StudentResult): number | null {
@@ -15,13 +15,23 @@ export function dashboardAverageScore(results: StudentResult[]): number | null {
     return dashboardScoreSummary(results).average;
 }
 
-/** Summaries never average theta and classical points, or different IRT models. */
-export function dashboardScoreSummary(results: StudentResult[]) {
+/** Summaries never average IRT (200–800) and classical points, or different IRT models. */
+export function dashboardScoreSummaries(results: StudentResult[]) {
     const valid = results.filter(result => dashboardResultScore(result) !== null);
-    const type = valid[0]?.score_type || studentScoreType(valid[0]?.exams);
-    const scores = valid.filter(result => (result.score_type || studentScoreType(result.exams)) === type)
-        .map(result => dashboardResultScore(result)!);
-    const average = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
-    return { type, label: STUDENT_SCORE_LABELS[type], count: scores.length,
-        average: average === null ? null : type === 'classical' ? Math.round(average) : Math.round(average * 1000) / 1000 };
+    return STUDENT_SCORE_TYPES.flatMap(type => {
+        const scores = valid.filter(result => (result.score_type || studentScoreType(result.exams)) === type)
+            .map(result => dashboardResultScore(result)!);
+        if (!scores.length) return [];
+        const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+        return [{ type, label: STUDENT_SCORE_LABELS[type], count: scores.length,
+            average: type === 'classical' ? Math.round(average) : Math.round(average * 100) / 100 }];
+    });
+}
+
+export function dashboardScoreSummary(results: StudentResult[]) {
+    const first = results.find(result => dashboardResultScore(result) !== null);
+    const type = first?.score_type || studentScoreType(first?.exams);
+    return dashboardScoreSummaries(results).find(summary => summary.type === type) ?? {
+        type, label: STUDENT_SCORE_LABELS[type], count: 0, average: null,
+    };
 }

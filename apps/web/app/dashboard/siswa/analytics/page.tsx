@@ -176,8 +176,9 @@ export default function StudentAnalyticsPage() {
     }
 
     const { overview, subjectPerformance, difficultyPerformance, strengthsWeaknesses, studyHabits, performanceTrend } = analytics;
-    const thetaScores = overview.scoreType?.startsWith('irt_') === true;
-    const scoreUnit = thetaScores ? ' θ' : '%';
+    // Nilai IRT dilaporkan pada skala 200–800 (500 + 100θ), tanpa satuan persen.
+    const irtScores = overview.scoreType?.startsWith('irt_') === true;
+    const scoreUnit = irtScores ? '' : '%';
 
     // Chart data: Performance Trend
     const trendChartData = {
@@ -214,10 +215,11 @@ export default function StudentAnalyticsPage() {
         },
         scales: {
             y: {
-                beginAtZero: !thetaScores,
-                max: thetaScores ? undefined : 105,
+                beginAtZero: !irtScores,
+                min: irtScores ? 200 : undefined,
+                max: irtScores ? 800 : 105,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { stepSize: thetaScores ? undefined : 10, font: { family: chartFontFamily }, callback: (value) => thetaScores ? `${value} θ` : Number(value) <= 100 ? `${value}%` : '' }
+                ticks: { stepSize: irtScores ? 100 : 10, font: { family: chartFontFamily }, callback: (value) => irtScores ? `${value}` : Number(value) <= 100 ? `${value}%` : '' }
             },
             x: {
                 ticks: { font: { family: chartFontFamily } },
@@ -256,8 +258,9 @@ export default function StudentAnalyticsPage() {
         },
         scales: {
             y: {
-                beginAtZero: true,
-                max: thetaScores ? undefined : 100,
+                beginAtZero: !irtScores,
+                min: irtScores ? 200 : undefined,
+                max: irtScores ? 800 : 100,
                 grid: { color: 'rgba(0,0,0,0.03)' },
                 ticks: { font: { family: chartFontFamily }, callback: (value) => `${value}${scoreUnit}` },
             },
@@ -375,7 +378,7 @@ export default function StudentAnalyticsPage() {
                                     ) : (
                                         <ArrowDownRight size={14} />
                                     )}
-                                    <span>{Math.abs(comparison.difference)} {thetaScores ? 'θ' : 'poin'}</span>
+                                    <span>{Math.abs(comparison.difference)} poin</span>
                                 </div>
                                 <p className="text-xs text-slate-500 font-medium mt-2">
                                     {comparison.difference === 0 ? 'sama dengan' : comparison.difference > 0 ? 'di atas' : 'di bawah'} rata-rata
@@ -462,8 +465,8 @@ export default function StudentAnalyticsPage() {
                                                     {subject.averageScore}{scoreUnit}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}%</td>
-                                            <td className="px-6 py-4 text-center text-rose-500 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.lowestScore)}%</td>
+                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}{scoreUnit}</td>
+                                            <td className="px-6 py-4 text-center text-rose-500 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.lowestScore)}{scoreUnit}</td>
                                             <td className="px-6 py-4 text-center">
                                                 {subject.totalExams < 2 ? <span className="text-xs text-slate-400">Belum cukup data</span> : (
                                                 <div className={`flex items-center justify-center gap-1.5 ${getTrendColor(subject.trend)}`}>

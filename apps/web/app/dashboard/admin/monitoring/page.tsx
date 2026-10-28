@@ -20,6 +20,7 @@ import { groupFolderExams, isFolderGroupId, resolveMonitoringSelection } from '@
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
+import { MonitoringAnalysisView } from '@/app/components/monitoring/MonitoringAnalysisView';
 import type { IrtCalibration } from '@/lib/irt-calibration';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { buildItemAnalysis } from '@/lib/item-analysis';
@@ -429,7 +430,6 @@ function MonitoringContent() {
             {selectedExamId && (
                 <div className="space-y-4">
 
-                    {activeTab === 'analysis' && <IrtParametersPanel key={`irt-${selectedExamId}`} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}
                     <AnimatePresence mode="wait">
                         {/* === REKAP TAB === */}
                         {activeTab === 'results' && (
@@ -448,7 +448,10 @@ function MonitoringContent() {
                                 key="analysis"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                             >
-                                <ItemAnalysisPanel key={selectedExamId} analysis={analysis} />
+                                <MonitoringAnalysisView key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
+                                    irt={<IrtParametersPanel questions={analysis} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}>
+                                    <ItemAnalysisPanel key={selectedExamId} analysis={analysis} />
+                                </MonitoringAnalysisView>
                             </motion.div>
                         )}
                     </AnimatePresence>

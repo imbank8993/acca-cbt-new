@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { AlertTriangle, Download, Info, Sigma } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
+import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { alertDialog } from '@/lib/confirm-dialog';
-import { difficultyLabel, discriminationLabel, type IrtCalibration } from '@/lib/irt-calibration';
+import { difficultyLabel, discriminationLabel, withIrtQuestionText, type IrtCalibration } from '@/lib/irt-calibration';
 
 const PAGE_SIZE = 15;
 const TONE: Record<string, string> = {
@@ -23,13 +24,14 @@ const usesIrt = (scoringType?: string | null) => String(scoringType || '').split
  * daya beda (a), dan peluang menebak (c). Nilai siswa IRT tidak menjumlahkan angka ini;
  * angka ini dipakai untuk menaksir kemampuan siswa dari pola benar-salahnya.
  */
-export function IrtParametersPanel({ calibration, scoringType, title = 'Parameter soal IRT', exportTitle, timeZone }: {
+export function IrtParametersPanel({ calibration, scoringType, title = 'Parameter soal IRT', exportTitle, timeZone, questions }: {
     calibration?: IrtCalibration | null;
     scoringType?: string | null;
     title?: string;
-    /** Nama ujian untuk nama berkas Excel "Analisis_IRT_<nama>.xlsx". */
+    /** Nama ujian untuk laporan PDF A4. */
     exportTitle?: string;
     timeZone?: string;
+    questions?: Parameters<typeof withIrtQuestionText>[1];
 }) {
     const [page, setPage] = useState(1);
     const [reviewOnly, setReviewOnly] = useState(false);
@@ -45,8 +47,9 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
 
     const showA = calibration.models.some(model => model === 'irt_2pl' || model === 'irt_3pl');
     const showC = calibration.models.includes('irt_3pl');
-    const flagged = calibration.items.filter(item => item.flags.length);
-    const rows = reviewOnly ? flagged : calibration.items;
+    const report = withIrtQuestionText(calibration, questions);
+    const flagged = report.items.filter(item => item.flags.length);
+    const rows = reviewOnly ? flagged : report.items;
     const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
     const current = Math.min(page, pages);
     const visible = rows.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
@@ -55,8 +58,8 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
     const exportIrt = async () => {
         setExporting(true);
         try {
-            const { exportIrtParametersToExcel } = await import('@/lib/export-excel-analysis');
-            await exportIrtParametersToExcel(calibration, exportTitle || title, timeZone);
+            const { exportIrtParametersToPdf } = await import('@/lib/export-irt-pdf');
+            await exportIrtParametersToPdf(report, exportTitle || title, timeZone);
         } catch (error) {
             await alertDialog({ title: 'Export IRT Belum Berhasil', text: error instanceof Error ? error.message : 'Berkas belum dapat dibuat.', variant: 'danger' });
         } finally {
@@ -74,7 +77,7 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
                         {' '}dari {calibration.participant_count} peserta · {calibration.models.map(model => model.replace('irt_', '').toUpperCase()).join(', ') || 'IRT'}
                     </p>
                     <Button size="sm" variant="outline" onClick={() => void exportIrt()} isLoading={exporting} disabled={exporting || !calibration.items.length}
-                        leftIcon={<Download size={14} />}>Export IRT</Button>
+                        title="Unduh seluruh butir sebagai PDF A4" leftIcon={<Download size={14} />}>Export PDF</Button>
                 </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -86,16 +89,6 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
                 </label>
             </div>
             {calibration.warnings.map(warning => <p key={warning} className="flex items-start gap-1.5 text-[11px] text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{warning}</p>)}
-            <details className="text-[11px] text-slate-600">
-                <summary className="cursor-pointer font-semibold text-blue-700">Cara membaca angka ini</summary>
-                <ul className="mt-1.5 list-disc space-y-1 pl-4">
-                    <li><strong>Benar (p)</strong>: persentase peserta yang menjawab benar.</li>
-                    <li><strong>Kesulitan (b)</strong>: di bawah −1 mudah, −1 s.d. 1 sedang, di atas 1 sulit. Siswa dengan kemampuan setara b berpeluang 50% menjawab benar.</li>
-                    {showA && <li><strong>Daya beda (a)</strong>: makin besar, makin baik soal membedakan siswa pandai dan kurang. Di bawah 0,5 sebaiknya ditinjau.</li>}
-                    {showC && <li><strong>Tebakan (c)</strong>: peluang benar karena menebak (1 ÷ jumlah opsi).</li>}
-                    <li>Skor IRT dilaporkan sebagai estimasi kemampuan siswa (θ) dari pola benar-salah, tanpa konversi ke 0–100. Nilai θ dapat negatif, nol, atau positif. Nilai klasikal tetap 0–100; poin esai masuk klasikal dan tidak dicampur dengan θ.</li>
-                </ul>
-            </details>
         </div>
         <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-xs">
@@ -116,9 +109,13 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
                         const discrimination = discriminationLabel(item.a);
                         return <tr key={item.item_id} className={item.flags.length ? 'bg-amber-50/30' : undefined}>
                             <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{item.number || '-'}</td>
-                            <td className="max-w-[360px] px-3 py-2.5 text-slate-700">
-                                <p className="line-clamp-2">{item.text || '—'}</p>
-                                {item.part && <p className="mt-0.5 truncate text-[11px] text-slate-500">Pernyataan: {item.part}</p>}
+                            <td className="min-w-[220px] max-w-[360px] px-3 py-2.5 text-slate-700">
+                                <div className="max-w-[360px] overflow-x-auto py-1">
+                                <LatexRenderer text={item.text || '—'} className="!text-xs !leading-relaxed" />
+                                {item.part && <div className="mt-1 text-[11px] text-slate-500">Pernyataan:
+                                    <LatexRenderer text={item.part} className="!text-[11px] !leading-relaxed" />
+                                </div>}
+                                </div>
                             </td>
                             <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{Math.round(item.p * 100)}%<span className="block text-[10px] text-slate-400">{item.correct}/{item.total}</span></td>
                             <td className="px-3 py-2.5"><span className="tabular-nums text-slate-700">{item.b.toFixed(2)}</span> <span className={`ml-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${TONE[difficulty.tone]}`}>{difficulty.label}</span></td>

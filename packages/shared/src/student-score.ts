@@ -17,6 +17,16 @@ export function studentScoreType(exam?: ScoreExam | null): StudentScoreType {
     if (enabled.includes(requested)) return requested;
     return (['irt_3pl', 'irt_2pl', 'irt_1pl'] as StudentScoreType[]).find(type => enabled.includes(type)) || 'classical';
 }
+/**
+ * Skala pelaporan IRT lokal: 500 + 100θ, dibatasi 200–800.
+ * θ asli tetap tersimpan (score_irt, irt_theta, detailed_scores); skala ini hanya untuk
+ * dilaporkan. 500 adalah titik acuan θ = 0, bukan jaminan rerata peserta atau nasional.
+ */
+export const IRT_REPORT_SCALE = { mean: 500, sd: 100, min: 200, max: 800 } as const;
+export function irtScaledScore(theta: number): number {
+    const scaled = IRT_REPORT_SCALE.mean + IRT_REPORT_SCALE.sd * theta;
+    return Math.round(Math.min(IRT_REPORT_SCALE.max, Math.max(IRT_REPORT_SCALE.min, scaled)) * 100) / 100;
+}
 export function hasThetaIrtScale(attempt: Pick<ScoreAttempt, 'metadata'>): boolean {
     return attempt.metadata?.irt_score_scale === 'theta';
 }
@@ -31,10 +41,12 @@ export function selectedStudentScore(attempt: ScoreAttempt, exam?: ScoreExam | n
     if (type === 'classical') return finiteScore(attempt.total_score, true);
     // Legacy 0–100 scores cannot be inverted reliably (clipping/essay blending).
     if (!hasThetaIrtScale(attempt)) return null;
+    // Nilai siswa IRT dilaporkan pada skala 200–800, bukan θ mentah.
     const detailed = finiteScore(attempt.detailed_scores?.[type]);
-    if (detailed !== null) return detailed;
+    if (detailed !== null) return irtScaledScore(detailed);
     const defaultType = studentScoreType({ scoring_type: exam?.scoring_type });
-    return type === defaultType ? finiteScore(attempt.score_irt) : null;
+    const theta = type === defaultType ? finiteScore(attempt.score_irt) : null;
+    return theta === null ? null : irtScaledScore(theta);
 }
 export function publicStudentScores(attempt: ScoreAttempt, exam?: ScoreExam | null) {
     const type = studentScoreType(exam);

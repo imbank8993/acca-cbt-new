@@ -9,7 +9,7 @@ import type {
 } from './api/proctor';
 import type { QuestionOptionRecord, QuestionRecord } from './api/questions';
 import { difficultyLabel, discriminationLabel, type IrtCalibration } from './irt-calibration';
-import { hasThetaIrtScale, classicalDifficulty, classicalDifficultyIndex } from '@acca-cbt/shared';
+import { hasThetaIrtScale, irtScaledScore, classicalDifficulty, classicalDifficultyIndex } from '@acca-cbt/shared';
 
 interface ExportItemAnalysis {
     id: string;
@@ -87,7 +87,7 @@ export function appendIrtParameterSheet(XLSX: XlsxModule, wb: ReturnType<XlsxMod
         ...(showA ? [['Daya beda (a)', 'Makin besar makin baik membedakan siswa pandai dan kurang; di bawah 0,5 sebaiknya ditinjau.']] : []),
         ...(showC ? [['Tebakan (c)', 'Peluang benar karena menebak = 1 ÷ jumlah opsi.']] : []),
         ['Catatan', 'Terlalu mudah: p ≥ 0,90. Terlalu sulit: p ≤ 0,20.'],
-        ['Nilai siswa', 'Bukan penjumlahan angka di atas. Kemampuan siswa (θ) ditaksir dari pola benar-salah, lalu nilai = 50 + 15 × θ (dibatasi 0–100).'],
+        ['Nilai siswa', 'Bukan penjumlahan angka di atas. Kemampuan siswa (θ) ditaksir dari pola benar-salah, lalu nilai = 500 + 100 × θ (dibatasi 200–800). 500 adalah titik acuan θ = 0 pada skala lokal ujian ini.'],
     ];
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
     sheet['!cols'] = header.map(label => ({ wch: label === 'Teks Soal' ? 60 : label === 'Pernyataan' ? 30 : label === 'Catatan' ? 28 : 16 }));
@@ -226,9 +226,14 @@ export async function buildAnalysisWorkbook({
                 'Status': statusLabel,
                 'Nilai Klasik': !['submitted', 'auto_submitted'].includes(a.status) ? 'Belum dikumpulkan' : a.total_score == null ? 'Menunggu penilaian' : Number(a.detailed_scores?.classical ?? a.total_score).toFixed(2),
                 // Satu kolom per model IRT yang dipakai ujian, agar jelas nilai mana yang berasal dari model apa.
-                ...Object.fromEntries(irtModels.map((model, index) => {
+                // Nilai skala 200–800 untuk dilaporkan, θ mentah tetap disertakan untuk analisis guru.
+                ...Object.fromEntries(irtModels.flatMap((model, index) => {
                     const value = hasThetaIrtScale(a) ? (a.detailed_scores as Record<string, number | undefined> | null | undefined)?.[model] ?? (index === irtModels.length - 1 ? a.score_irt : null) : null;
-                    return [`Nilai ${IRT_MODEL_LABELS[model]} (θ)`, value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(6) : '-'];
+                    const valid = value != null && Number.isFinite(Number(value));
+                    return [
+                        [`Nilai ${IRT_MODEL_LABELS[model]} (200–800)`, valid ? irtScaledScore(Number(value)).toFixed(2) : '-'],
+                        [`Nilai ${IRT_MODEL_LABELS[model]} (θ)`, valid ? Number(value).toFixed(6) : '-'],
+                    ];
                 })),
                 'Status Penilaian': gradingLabel(a),
                 'ID Pengerjaan': a.id,
@@ -236,13 +241,14 @@ export async function buildAnalysisWorkbook({
                 'Soal kosong di server': a.unanswered_count ?? 'Belum diketahui',
                 'Tenggat pribadi': date(a.deadline_at),
                 'Simpan terakhir (server)': date(a.last_answer_saved_at),
-                ...(irtModels.length ? {} : {
-                    'Nilai IRT (θ)': !hasThetaIrtScale(a) ? '-' : a.detailed_scores?.irt_1pl != null
-                        ? Number(a.detailed_scores.irt_1pl).toFixed(2)
-                        : a.score_irt != null
-                        ? Number(a.score_irt).toFixed(2)
-                        : '-',
-                }),
+                ...(irtModels.length ? {} : (() => {
+                    const theta = !hasThetaIrtScale(a) ? null : a.detailed_scores?.irt_1pl ?? a.score_irt ?? null;
+                    const valid = theta != null && Number.isFinite(Number(theta));
+                    return {
+                        'Nilai IRT (200–800)': valid ? irtScaledScore(Number(theta)).toFixed(2) : '-',
+                        'Nilai IRT (θ)': valid ? Number(theta).toFixed(2) : '-',
+                    };
+                })()),
                 'Pelanggaran Total': a.warning_count ?? 0,
                 'Pindah Tab': bd.pindah_tab,
                 'Close Tab': bd.close_tab,

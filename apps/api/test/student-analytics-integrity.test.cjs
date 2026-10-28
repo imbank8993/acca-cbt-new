@@ -53,7 +53,7 @@ test('analytics groups theta separately from classical and accepts signed estima
             exams:exam('t',{scoring_type:'irt_1pl'})})];
     const r = await new StudentAnalyticsService(fixture(rows)).overview(user);
     assert.equal(r.overview.scoreType,'irt_1pl');
-    assert.equal(r.overview.averageScore,-1.5);
+    assert.equal(r.overview.averageScore,350,'θ −1,5 is reported as 500 + 100θ');
     assert.equal(r.overview.totalExams,1);
     assert.equal(r.recentAttempts[0].maxScore,null);
     assert.equal(r.recentAttempts[0].percentage,null);

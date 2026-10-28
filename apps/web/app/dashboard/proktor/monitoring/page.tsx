@@ -23,6 +23,7 @@ import { groupFolderExams, isFolderGroupId, resolveMonitoringSelection } from '@
 import { MonitoringParticipantFilters } from '@/app/components/monitoring/MonitoringParticipantFilters';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
+import { MonitoringAnalysisView } from '@/app/components/monitoring/MonitoringAnalysisView';
 import type { IrtCalibration } from '@/lib/irt-calibration';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
@@ -42,7 +43,6 @@ Calculator,
 CheckCircle2,
 Loader2,
 ShieldAlert,
-X
 } from 'lucide-react';
 import { useRouter,useSearchParams } from 'next/navigation';
 import { Suspense,useCallback,useDeferredValue,useEffect,useMemo,useRef,useState } from 'react';
@@ -443,7 +443,6 @@ function MonitoringContent() {
             {selectedExamId && (
                 <div className="space-y-4">
 
-                    {activeTab === 'analysis' && <IrtParametersPanel key={`irt-${selectedExamId}`} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}
                     <AnimatePresence mode="wait">
                         {activeTab === 'live' && <ActiveParticipantsPanel key={selectedExamId} attempts={activeAttempts} attentionOnly={onlyAttention} onViewDetails={id => router.push('/dashboard/proktor/monitoring/' + id)} onFinish={selectedExam?.canManage === true ? handleFinishAttempt : undefined} />}
 
@@ -498,6 +497,8 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="space-y-4"
                             >
+                                <MonitoringAnalysisView key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
+                                    irt={<IrtParametersPanel questions={analysis} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}>
                                 <div className="monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                                     <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
@@ -630,6 +631,7 @@ function MonitoringContent() {
                                     </div>
                                 )}
                                 </div>
+                                </MonitoringAnalysisView>
                             </motion.div>
                         )}
                     </AnimatePresence>

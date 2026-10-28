@@ -106,10 +106,10 @@ test('background failure, overlapping requests and unmount never clear or replac
     assert.equal(h.changes(), 0);
 });
 
-test('theta charts keep negative scores and have no 0–100 axis or percent labels', async () => {
+test('IRT charts use the 200–800 report scale without percent labels', async () => {
     const h = harness();
     h.respond(async () => {
-        const result = data(-1.5);
+        const result = data(350);
         result.overview.scoreType = 'irt_1pl';
         result.overview.scoreLabel = 'IRT 1PL';
         return result;
@@ -117,12 +117,14 @@ test('theta charts keep negative scores and have no 0–100 axis or percent labe
     await h.start();
     const tree = h.render();
     const chart = nodes(tree).find(node => node.type === 'line-chart');
-    assert.equal(chart.props.options.scales.y.max,undefined);
+    assert.equal(chart.props.options.scales.y.min,200);
+    assert.equal(chart.props.options.scales.y.max,800);
     assert.equal(chart.props.options.scales.y.beginAtZero,false);
-    assert.equal(chart.props.options.scales.y.ticks.callback(-1.5),'-1.5 θ');
-    assert.equal(chart.props.data.datasets[0].data[0],-1.5);
+    assert.equal(chart.props.options.scales.y.ticks.callback(350),'350');
+    assert.equal(chart.props.data.datasets[0].data[0],350);
     const bar = nodes(tree).find(node => node.type === 'bar-chart');
-    assert.equal(bar.props.options.scales.y.max,undefined);
-    assert.equal(bar.props.options.scales.y.ticks.callback(-1.5),'-1.5 θ');
+    assert.equal(bar.props.options.scales.y.min,200);
+    assert.equal(bar.props.options.scales.y.max,800);
+    assert.equal(bar.props.options.scales.y.ticks.callback(350),'350');
     h.unmount();
 });

@@ -9,6 +9,7 @@ import { MonitoringHealthPanel } from '@/app/components/MonitoringHealthPanel';
 import { AttemptHistoryModal } from '@/app/components/monitoring/AttemptHistoryModal';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
 import { IrtParametersPanel } from '@/app/components/monitoring/IrtParametersPanel';
+import { MonitoringAnalysisView } from '@/app/components/monitoring/MonitoringAnalysisView';
 import { ItemAnalysisPanel } from '@/app/components/monitoring/ItemAnalysisPanel';
 import { MonitoringResultsTable } from '@/app/components/monitoring/MonitoringResultsTable';
 import { ResetExamModal } from '@/app/components/monitoring/ResetExamModal';
@@ -311,16 +312,16 @@ export function ParticipantsWorkspace({
             <p className="text-right text-[11px] text-slate-500">Mencakup seluruh peserta {examOptions.length > 1 ? 'semua kelas pada bank soal ini' : focusLabel || 'ujian ini'}.</p>
             {analysisLoading && analysis?.examId !== analysisKey ? <Placeholder text="Memuat analisis…" />
                 : analysis?.examId === analysisKey && analysis.error ? <ErrorLine text={analysis.error} onRetry={() => void loadAnalysis(analysisKey)} />
-                : <>
-                    {examOptions.length === 1
-                        ? <IrtParametersPanel key={`irt-${analysisKey}`} calibration={analysis?.examId === analysisKey ? analysis.irt : null}
+                : <MonitoringAnalysisView key={analysisKey}
+                    hasIrt={examOptions.some(option => String(examRecords[option.exam_id]?.scoring_type || '').includes('irt')) || Boolean(analysis?.examId === analysisKey && analysis.irt)}
+                    irt={examOptions.length === 1
+                        ? <IrtParametersPanel questions={analysis?.examId === analysisKey ? analysis.items : []} calibration={analysis?.examId === analysisKey ? analysis.irt : null}
                             scoringType={examRecords[analysisKey]?.scoring_type} exportTitle={exportTitle} />
-                        : examOptions.some(option => String(examRecords[option.exam_id]?.scoring_type || '').includes('irt'))
-                            && <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                                Parameter IRT dihitung per ujian. Gabungkan ujian per kelas di tab Pengaturan Ujian pada folder agar IRT dihitung untuk seluruh peserta bank soal.
-                            </p>}
+                        : <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                            Parameter IRT dihitung per ujian. Gabungkan ujian per kelas di tab Pengaturan Ujian pada folder agar IRT dihitung untuk seluruh peserta bank soal.
+                        </p>}>
                     <ItemAnalysisPanel key={analysisKey} analysis={analysis?.examId === analysisKey ? analysis.items : []} />
-                </>}
+                </MonitoringAnalysisView>}
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />
         : activeSection === 'peserta' ? <div className="monitoring-participants-list">

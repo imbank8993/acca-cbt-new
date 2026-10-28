@@ -1,10 +1,17 @@
 """Item Response Theory (1PL/2PL/3PL) — port dari ``apps/web/app/actions/irt.ts``.
 
-Skor IRT dilaporkan sebagai estimasi kemampuan theta, tanpa konversi atau
-pembatasan ke 0–100. Nilai klasikal tetap dalam skala 0–100.
+Skor IRT dikembalikan sebagai estimasi kemampuan theta; tampilan mengubahnya ke
+skala 200–800 (500 + 100θ). Nilai klasikal tetap dalam skala 0–100.
 
-Perhitungan butir divektorkan dengan NumPy. Untuk ujian sekelas (ratusan
-peserta × ratusan butir), estimasi menggunakan tiga iterasi matriks.
+Setiap model memakai satu metrik yang konsisten untuk parameter butir dan θ:
+
+* 1PL (Rasch): metrik logistik D = 1, b = ln((1 − p) / p).
+* 2PL/3PL: metrik normal-ogive. a dan b ditaksir dari korelasi biserial butir
+  dengan skor sisa (pendekatan Lord/Urry; 3PL dikoreksi untuk tebakan), lalu
+  fungsi logistiknya memakai D = 1,7 agar mendekati ogive normal.
+
+θ ditaksir secara EAP (rata-rata posterior dengan prior normal baku), sehingga
+estimasi tetap terhingga; θ = 0 adalah titik acuan prior, bukan jaminan rerata peserta.
 """
 
 from __future__ import annotations
@@ -12,6 +19,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from statistics import NormalDist
 
 import numpy as np
 
@@ -19,8 +27,16 @@ from ..schemas.irt import AttemptScore, IrtAttempt, IrtRequest, IrtResponse, Ite
 from .answer_parser import coerce_bool
 from .grading import _unique_strings, _dedupe_options
 
-# Konstanta penskalaan logistik IRT.
+# Konstanta penskalaan logistik ke normal-ogive (2PL/3PL).
 D_CONSTANT = 1.7
+# D per model: harus sama dengan metrik tempat parameter butirnya ditaksir.
+MODEL_D = {"1pl": 1.0, "2pl": D_CONSTANT, "3pl": D_CONSTANT}
+B_BOUND = 4.0
+EXTREME_SCORE_ADJUSTMENT = 0.3
+_NORMAL = NormalDist()
+# Titik kuadratur EAP pada −5..5 dengan prior normal baku.
+_QUADRATURE = np.linspace(-5.0, 5.0, 101)
+_LOG_PRIOR = -0.5 * _QUADRATURE**2
 
 PERSONALITY_TYPES = {
     "likert",
@@ -44,8 +60,12 @@ class ItemStat:
     total: int = 0
     correct: int = 0
     p_value: float = 0.5
+    # b 1PL (Rasch, D = 1) serta b 2PL/3PL (normal-ogive, D = 1,7).
     b: float = 0.0
+    b_2pl: float = 0.0
+    b_3pl: float = 0.0
     a: float = 1.0
+    a_3pl: float = 1.0
     c: float = 0.2
 
 
@@ -173,44 +193,61 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
     return item_stats, students
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return min(max(value, low), high)
+
+
+def _correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """Korelasi Pearson; 0 bila salah satu variabel konstan."""
+    sx, sy = float(x.std()), float(y.std())
+    if sx == 0 or sy == 0:
+        return 0.0
+    return float(np.mean((x - x.mean()) * (y - y.mean())) / (sx * sy))
+
+
 def _estimate_item_parameters(
     item_stats: dict[str, ItemStat],
     students: dict[str, StudentData],
     need_discrimination: bool,
 ) -> None:
-    count = len(students)
-    if count == 0:
+    if not students:
         return
 
-    raw = np.array([s.objective_raw_score for s in students.values()], dtype=float)
-    mean_raw = float(raw.mean())
-    # Simpangan baku sampel (pembagi n-1). Nol diganti 1 agar point-biserial
-    # tidak membagi nol saat seluruh peserta memperoleh skor mentah yang sama.
-    std_raw = float(raw.std(ddof=1)) if count > 1 else 0.0
-    if not std_raw:
-        std_raw = 1.0
+    student_list = list(students.values())
+    raw = np.array([s.objective_raw_score for s in student_list], dtype=float)
 
     for item_id, stat in item_stats.items():
         p = stat.correct / stat.total if stat.total else 0.5
-        p = min(max(p, 0.01), 0.99)
+        p = _clamp(p, 0.01, 0.99)
         stat.p_value = p
-        stat.b = math.log((1 - p) / p)  # Tingkat kesulitan Rasch.
+        # 1PL (Rasch), metrik logistik D = 1: siswa dengan θ = b berpeluang 50%.
+        stat.b = math.log((1 - p) / p)
+        stat.b_2pl = stat.b_3pl = stat.b
 
         if not need_discrimination:
             continue
 
-        total_correct_raw = sum(
-            s.objective_raw_score for s in students.values() if item_id in s.correct_item_ids
-        )
-        mean_correct = total_correct_raw / stat.correct if stat.correct > 0 else 0.0
+        # 2PL/3PL, metrik normal-ogive (pendekatan Lord/Urry): a dan b diturunkan
+        # dari korelasi BISERIAL butir dengan skor sisa (skor total tanpa butir
+        # ini), supaya butir tidak ikut berkorelasi dengan dirinya sendiri.
+        u = np.array([1.0 if item_id in s.correct_item_ids else 0.0 for s in student_list])
+        r_pb = _correlation(u, raw - u)
+        gamma = _NORMAL.inv_cdf(1 - p)
+        r_bis = r_pb * math.sqrt(p * (1 - p)) / _NORMAL.pdf(gamma)
+        # r ≤ 0,1 berarti butir hampir tidak membedakan siswa (a ≈ 0,1).
+        r_bis = _clamp(r_bis, 0.1, 0.95)
+        stat.a = _clamp(r_bis / math.sqrt(1 - r_bis * r_bis), 0.1, 3.0)
+        stat.b_2pl = _clamp(gamma / r_bis, -B_BOUND, B_BOUND)
 
-        rpb = ((mean_correct - mean_raw) / std_raw) * math.sqrt(p / (1 - p))
-
-        denominator = 1 - rpb * rpb
-        a = rpb / math.sqrt(denominator) if denominator > 0 else 1.0
-        if math.isnan(a):
-            a = 1.0
-        stat.a = min(max(a, 0.1), 3.0)
+        # 3PL: a dan b ditaksir dari peluang "benar-benar tahu" p' = (p − c)/(1 − c).
+        # Tebakan meredam kovarians butir–skor dengan faktor (1 − c), sehingga
+        # korelasi biserialnya juga dikoreksi dengan faktor itu.
+        p_true = _clamp((p - stat.c) / (1 - stat.c), 0.01, 0.99)
+        gamma_true = _NORMAL.inv_cdf(1 - p_true)
+        r_true = r_pb * math.sqrt(p * (1 - p)) / ((1 - stat.c) * _NORMAL.pdf(gamma_true))
+        r_true = _clamp(r_true, 0.1, 0.95)
+        stat.a_3pl = _clamp(r_true / math.sqrt(1 - r_true * r_true), 0.1, 3.0)
+        stat.b_3pl = _clamp(gamma_true / r_true, -B_BOUND, B_BOUND)
 
 
 def _theta_score(
@@ -220,32 +257,41 @@ def _theta_score(
     a_all: np.ndarray,
     b_all: np.ndarray,
     c_all: np.ndarray,
+    informative: np.ndarray | None = None,
 ) -> float:
-    a = a_all if model in ("2pl", "3pl") else np.ones_like(a_all)
-    c = c_all if model == "3pl" else np.zeros_like(c_all)
+    """Estimasi kemampuan θ secara EAP (rata-rata posterior, prior N(0, 1)).
+
+    ``D`` mengikuti metrik parameter butir model yang sama (lihat ``MODEL_D``),
+    sehingga θ dan b berada pada skala yang sama. EAP selalu terhingga, termasuk
+    untuk skor sempurna/nol dan skor di bawah peluang tebakan 3PL, yang tidak
+    punya estimasi maksimum-likelihood. ``informative`` menandai butir yang
+    dijawab benar oleh sebagian (bukan semua/tidak satu pun) peserta; hanya butir
+    itu yang membawa informasi tentang perbedaan kemampuan.
+    """
+    d = MODEL_D[model]
     u = np.array([1.0 if i in student.correct_item_ids else 0.0 for i in item_ids])
+    if informative is None:
+        informative = np.ones(len(item_ids), dtype=bool)
 
-    # Tebakan awal theta dari log-odds proporsi benar.
-    p_score = len(student.correct_item_ids) / student.total_answered
-    p_score = min(max(p_score, 0.01), 0.99)
-    theta = math.log(p_score / (1 - p_score))
+    if not informative.any():
+        # Tidak ada butir pembeda (mis. hanya satu peserta): pakai log-odds
+        # proporsi benar, digeser 0,3 butir agar skor sempurna/nol terhingga.
+        count = len(u)
+        share = _clamp((float(u.sum()) + EXTREME_SCORE_ADJUSTMENT * (1 - 2 * float(u.mean()))) / count, 0.01, 0.99)
+        return round(math.log(share / (1 - share)) / d, 6)
 
-    for _ in range(3):
-        logit = np.exp(D_CONSTANT * a * (theta - b_all))
-        p_star = logit / (1 + logit)
-        q_star = 1 - p_star
-        p = c + (1 - c) * p_star
-        q = 1 - p
+    u = u[informative]
+    b = b_all[informative]
+    a = a_all[informative] if model in ("2pl", "3pl") else np.ones_like(b)
+    c = c_all[informative] if model == "3pl" else np.zeros_like(b)
 
-        valid = (p > 0) & (q > 0)
-        first = float(np.sum((a * (u - p) * (p_star / p))[valid]))
-        second = float(-np.sum((a * a * p_star * q_star * (u * c / (p * p) + 1))[valid]))
-
-        if abs(second) > 0.001:
-            delta = first / second
-            # Lompatan dibatasi ±1 agar iterasi tidak melempar theta ke ekstrem
-            # saat turunan keduanya sangat kecil.
-            theta -= min(max(delta, -1.0), 1.0)
+    # Peluang benar di setiap titik kuadratur: matriks titik × butir.
+    z = np.clip(d * a[None, :] * (_QUADRATURE[:, None] - b[None, :]), -35.0, 35.0)
+    p = np.clip(c + (1 - c) / (1.0 + np.exp(-z)), 1e-12, 1 - 1e-12)
+    log_likelihood = np.log(p) @ u + np.log(1 - p) @ (1 - u)
+    log_posterior = log_likelihood + _LOG_PRIOR
+    weights = np.exp(log_posterior - log_posterior.max())
+    theta = float(np.sum(weights * _QUADRATURE) / np.sum(weights))
 
     # Esai tetap masuk nilai klasikal. Poin esai tidak boleh dicampurkan dengan
     # theta karena satuannya berbeda dan esai belum dikalibrasi sebagai butir IRT.
@@ -297,8 +343,19 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
     _estimate_item_parameters(item_stats, students, need_discrimination=calc_2pl or calc_3pl)
 
     item_ids = list(item_stats.keys())
-    a_all = np.array([item_stats[i].a for i in item_ids], dtype=float)
-    b_all = np.array([item_stats[i].b for i in item_ids], dtype=float)
+    a_by_model = {
+        "2pl": np.array([item_stats[i].a for i in item_ids], dtype=float),
+        "3pl": np.array([item_stats[i].a_3pl for i in item_ids], dtype=float),
+    }
+    a_by_model["1pl"] = np.ones(len(item_ids))
+    # Butir yang dijawab benar oleh semua atau tidak satu pun peserta tidak
+    # membedakan kemampuan, jadi tidak dipakai menaksir θ.
+    informative = np.array([0 < item_stats[i].correct < item_stats[i].total for i in item_ids])
+    b_by_model = {
+        "1pl": np.array([item_stats[i].b for i in item_ids], dtype=float),
+        "2pl": np.array([item_stats[i].b_2pl for i in item_ids], dtype=float),
+        "3pl": np.array([item_stats[i].b_3pl for i in item_ids], dtype=float),
+    }
     c_all = np.array([item_stats[i].c for i in item_ids], dtype=float)
 
     results: list[AttemptScore] = []
@@ -336,11 +393,14 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
         detailed = {"classical": round(classical, 2)}
 
         if calc_1pl:
-            detailed["irt_1pl"] = _theta_score(student, "1pl", item_ids, a_all, b_all, c_all)
+            detailed["irt_1pl"] = _theta_score(
+                student, "1pl", item_ids, a_by_model["1pl"], b_by_model["1pl"], c_all, informative)
         if calc_2pl:
-            detailed["irt_2pl"] = _theta_score(student, "2pl", item_ids, a_all, b_all, c_all)
+            detailed["irt_2pl"] = _theta_score(
+                student, "2pl", item_ids, a_by_model["2pl"], b_by_model["2pl"], c_all, informative)
         if calc_3pl:
-            detailed["irt_3pl"] = _theta_score(student, "3pl", item_ids, a_all, b_all, c_all)
+            detailed["irt_3pl"] = _theta_score(
+                student, "3pl", item_ids, a_by_model["3pl"], b_by_model["3pl"], c_all, informative)
 
         # Pilih model tertinggi yang memang dikonfigurasi. Jangan memakai `or`:
         # skor sah 0,00 bersifat falsy dan dulu dapat tergantikan oleh model lain.
@@ -356,14 +416,21 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
             AttemptScore(id=attempt.id, detailed_scores=detailed, score_irt=score_irt)
         )
 
+    # Parameter yang ditampilkan mengikuti model tertinggi, sama seperti score_irt.
+    def displayed_b(stat: ItemStat) -> float:
+        return stat.b_3pl if calc_3pl else stat.b_2pl if calc_2pl else stat.b
+
+    def displayed_a(stat: ItemStat) -> float:
+        return stat.a_3pl if calc_3pl else stat.a
+
     items = [
         ItemParameter(
             item_id=item_id,
             total=stat.total,
             correct=stat.correct,
             p_value=round(stat.p_value, 4),
-            b=round(stat.b, 4),
-            a=round(stat.a, 4),
+            b=round(displayed_b(stat), 4),
+            a=round(displayed_a(stat), 4),
             c=round(stat.c, 4),
         )
         for item_id, stat in item_stats.items()

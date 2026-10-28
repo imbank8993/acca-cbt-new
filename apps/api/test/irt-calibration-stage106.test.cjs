@@ -89,6 +89,8 @@ test('IRT-P03: export Excel memuat sheet Parameter_IRT dan kolom nilai per model
     const recap = XLSX.utils.sheet_to_json(reopened.Sheets.Rekap_Hasil)[0];
     assert.equal(recap['Nilai IRT 1PL (θ)'], '-1.500000');
     assert.equal(recap['Nilai IRT 2PL (θ)'], '1.250000');
+    assert.equal(recap['Nilai IRT 1PL (200–800)'], '350.00');
+    assert.equal(recap['Nilai IRT 2PL (200–800)'], '625.00');
     assert.equal(recap['Nilai IRT'], undefined, 'kolom tunggal diganti kolom per model');
     assert.ok(reopened.SheetNames.includes('Parameter_IRT'));
     const rows = XLSX.utils.sheet_to_json(reopened.Sheets.Parameter_IRT, { header: 1 });
@@ -101,5 +103,7 @@ test('IRT-P03: export Excel memuat sheet Parameter_IRT dan kolom nilai per model
 
     const plain = await buildAnalysisWorkbook({ exam: { id: 'e', title: 'Harian' }, attempts, analysis: [], detailedAnalysis: null });
     assert.ok(!plain.SheetNames.includes('Parameter_IRT'));
-    assert.ok('Nilai IRT (θ)' in XLSX.utils.sheet_to_json(plain.Sheets.Rekap_Hasil)[0]);
+    const plainRecap = XLSX.utils.sheet_to_json(plain.Sheets.Rekap_Hasil)[0];
+    assert.ok('Nilai IRT (θ)' in plainRecap);
+    assert.equal(plainRecap['Nilai IRT (200–800)'], '350.00');
 });

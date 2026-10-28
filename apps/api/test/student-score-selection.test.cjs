@@ -2,20 +2,20 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
 require('ts-node').register({project:path.resolve(__dirname,'../tsconfig.json'),transpileOnly:true});
-const {studentScoreType,selectedStudentScore,publicStudentScores}=require('@acca-cbt/shared');
+const {studentScoreType,selectedStudentScore,publicStudentScores,irtScaledScore}=require('@acca-cbt/shared');
 const {StudentsService}=require('../src/students/students.service.ts');
 const {ExamAdminService}=require('../src/proctor/exam-admin.service.ts');
 const {fixtureDb}=require('./fixture-db.cjs');
 const {dashboardResultScore,dashboardAverageScore}=require('../../web/lib/student-dashboard-score.ts');
 const {monitoringScoreModels}=require('../../web/lib/monitoring-score-models.ts');
 const exam={id:'exam',show_results:true,scoring_type:'classical,irt_1pl',metadata:{student_score_type:'irt_1pl',show_answer_keys:false}};
-const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:81.33,metadata:{irt_score_scale:'theta'},needs_manual_grading:false,exams:exam};
+const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:0.8133,metadata:{irt_score_scale:'theta'},needs_manual_grading:false,exams:exam};
 
 test('staff analytics shows all configured score models independently of publication and without cross-model fallback',()=>{
  const staffAttempt={...attempt,exams:{...exam,show_results:false,scoring_type:'classical,irt_1pl,irt_2pl,irt_3pl'},
-  score_irt:88,detailed_scores:{irt_1pl:71.69,irt_2pl:0}};
+  score_irt:0.88,detailed_scores:{irt_1pl:0.7169,irt_2pl:0}};
  assert.deepEqual(monitoringScoreModels(staffAttempt).map(row=>[row.label,row.score]),
-  [['Klasikal',90],['IRT 1PL',71.69],['IRT 2PL',0],['IRT 3PL',88]]);
+  [['Klasikal',90],['IRT 1PL',571.69],['IRT 2PL',500],['IRT 3PL',588]]);
  assert.equal(monitoringScoreModels({...attempt,score_irt:null})[1].score,null);
  assert.equal(monitoringScoreModels({...attempt,status:'in_progress'})[1].score,null);
  assert.equal(monitoringScoreModels({...attempt,needs_manual_grading:true})[0].score,null);
@@ -41,20 +41,20 @@ test('released review includes unanswered frozen questions and ignores answers o
 test('dashboard includes published IRT in history and averages while excluding hidden and pending scores',()=>{
  const irt={...attempt,...publicStudentScores(attempt,exam)};
  assert.equal(irt.total_score,null);
- assert.equal(dashboardResultScore(irt),81.33);
- const zero={...irt,display_score:0};
+ assert.equal(dashboardResultScore(irt),581.33);
+ const lowest={...irt,display_score:200};
  const hidden={...irt,exams:{...exam,show_results:false}};
  const pending={...irt,display_score:null,total_score:90};
- assert.equal(dashboardAverageScore([irt,zero,hidden,pending]),40.665);
+ assert.equal(dashboardAverageScore([irt,lowest,hidden,pending]),390.67);
  assert.equal(dashboardResultScore(pending),null);
  assert.equal(dashboardResultScore({...irt,needs_manual_grading:true}),null);
  assert.equal(dashboardResultScore({...irt,status:'in_progress'}),null);
  assert.equal(dashboardAverageScore([hidden,pending]),null);
- assert.equal(dashboardResultScore({...attempt,total_score:null}),81.33);
+ assert.equal(dashboardResultScore({...attempt,total_score:null}),581.33);
  assert.equal(dashboardResultScore({...irt,display_score:NaN}),null);
 });
 test('public results expose only the selected score and never substitute classical for pending IRT',()=>{
- assert.deepEqual(publicStudentScores(attempt,exam),{display_score:81.33,score_type:'irt_1pl',score_label:'IRT 1PL',total_score:null,score_irt:81.33});
+ assert.deepEqual(publicStudentScores(attempt,exam),{display_score:581.33,score_type:'irt_1pl',score_label:'IRT 1PL',total_score:null,score_irt:581.33});
  assert.equal(publicStudentScores({...attempt,score_irt:null},exam).display_score,null);
  const classical={...exam,metadata:{student_score_type:'classical'}};
  assert.equal(publicStudentScores(attempt,classical).total_score,90);
@@ -65,27 +65,27 @@ test('public results expose only the selected score and never substitute classic
 test('model choice uses detailed model scores and cannot reuse another model aggregate',()=>{
  const multi={...exam,scoring_type:'irt_1pl,irt_3pl'};
  assert.equal(selectedStudentScore({...attempt,score_irt:99},multi),null);
- assert.equal(selectedStudentScore({...attempt,score_irt:99,detailed_scores:{irt_1pl:71}},multi),71);
+ assert.equal(selectedStudentScore({...attempt,score_irt:99,detailed_scores:{irt_1pl:0.71}},multi),571);
  assert.equal(studentScoreType({...multi,metadata:{}}),'irt_3pl');
  assert.equal(selectedStudentScore({...attempt,needs_manual_grading:true},exam),null);
  for(const score of [NaN,Infinity,'',true])assert.equal(selectedStudentScore({...attempt,score_irt:score},exam),null);
- for(const score of [-1,101])assert.equal(selectedStudentScore({...attempt,score_irt:score},exam),score);
+ for(const [theta,scaled] of [[-1,400],[1.5,650],[-4,200],[4,800]])assert.equal(selectedStudentScore({...attempt,score_irt:theta},exam),scaled);
  assert.equal(selectedStudentScore({...attempt,metadata:{}},exam),null, 'Legacy scores require recalculation');
- assert.equal(selectedStudentScore({...attempt,score_irt:0},exam),0);
+ assert.equal(selectedStudentScore({...attempt,score_irt:0},exam),500);
 });
-test('signed theta remains visible in public results and separate from classical averages',()=>{
+test('negative theta is reported on the 200–800 scale and kept separate from classical averages',()=>{
  const negative={...attempt,score_irt:-1.75,detailed_scores:{irt_1pl:-1.75}};
  const published={...negative,...publicStudentScores(negative,exam)};
- assert.equal(published.display_score,-1.75);
- assert.equal(dashboardResultScore(published),-1.75);
+ assert.equal(published.display_score,325);
+ assert.equal(dashboardResultScore(published),325);
  const classical={...attempt,score_type:'classical',display_score:90,exams:{...exam,scoring_type:'classical'}};
- assert.equal(dashboardAverageScore([published,classical]),-1.75);
+ assert.equal(dashboardAverageScore([published,classical]),325);
  assert.equal(dashboardAverageScore([classical,published]),90);
  assert.equal(publicStudentScores({...negative,metadata:{}},exam).display_score,null);
  assert.equal(publicStudentScores({...negative,total_score:-1},{...exam,metadata:{student_score_type:'classical'}}).display_score,null);
 });
 test('student list and detail are consistent, strip unselected scores and protect ownership',async()=>{
- const db=fixtureDb({cbt_exam_attempts:[{...attempt,detailed_scores:{classical:90,irt_1pl:81.33}}]});
+ const db=fixtureDb({cbt_exam_attempts:[{...attempt,detailed_scores:{classical:90,irt_1pl:0.8133}}]});
  const service=new StudentsService(db);
  const [listed]=await service.listResults({id:'student'});
  const detail=await service.getAttemptDetails({id:'student'},'a');
@@ -129,11 +129,19 @@ test('monitoring results expose calculated IRT scores in their own column', () =
   attempts:[{...attempt,profiles:{full_name:'Peserta'},...overrides}],hasAnyAttempts:true,onViewDetails:()=>{},
  }));
  const irtCell=html=>{const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);return cells[4];};
- assert.match(render({}),/>IRT \(θ\)<\/th>/);
- assert.match(irtCell(render({})),/81\.33/);
- assert.match(irtCell(render({score_irt:0})),/0\.00/);
+ assert.match(render({}),/>IRT \(200–800\)<\/th>/);
+ assert.match(irtCell(render({})),/581\.33/);
+ assert.match(irtCell(render({score_irt:0})),/500\.00/);
  assert.match(irtCell(render({score_irt:null})),/—/);
- const multi=irtCell(render({exams:{scoring_type:'classical,irt_1pl,irt_2pl'},detailed_scores:{irt_1pl:71.69,irt_2pl:0}}));
- assert.match(multi,/IRT 1PL/);assert.match(multi,/71\.69/);assert.match(multi,/IRT 2PL/);assert.match(multi,/0\.00/);
+ const multi=irtCell(render({exams:{scoring_type:'classical,irt_1pl,irt_2pl'},detailed_scores:{irt_1pl:0.7169,irt_2pl:0}}));
+ assert.match(multi,/IRT 1PL/);assert.match(multi,/571\.69/);assert.match(multi,/IRT 2PL/);assert.match(multi,/500\.00/);
  assert.match(irtCell(render({status:'in_progress'})),/—/);
+});
+
+test('IRT report scale is 500 + 100θ, clamped to 200–800 with two decimals',()=>{
+ assert.equal(irtScaledScore(0),500);
+ assert.equal(irtScaledScore(-2),300);
+ assert.equal(irtScaledScore(1.23456),623.46);
+ assert.equal(irtScaledScore(-3.5),200);
+ assert.equal(irtScaledScore(3.5),800);
 });

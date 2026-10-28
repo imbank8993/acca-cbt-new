@@ -9,7 +9,7 @@ import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { monitoringScoreModels } from '@/lib/monitoring-score-models';
 import { savedAnswerCount } from '@/lib/monitoring-answer-count';
 import { ParticipantRoomInfo } from './ParticipantRoomInfo';
-import { hasThetaIrtScale } from '@acca-cbt/shared';
+import { hasThetaIrtScale, irtScaledScore } from '@acca-cbt/shared';
 
 function getAttemptResultFacts(att: ExamAttemptRecord) {
     const isUnstarted = att.status === 'belum';
@@ -29,9 +29,10 @@ function getAttemptResultFacts(att: ExamAttemptRecord) {
         { type: 'irt_1pl', label: 'IRT 1PL', score: att.detailed_scores?.irt_1pl },
         { type: 'irt_2pl', label: 'IRT 2PL', score: att.detailed_scores?.irt_2pl },
         { type: 'irt_3pl', label: 'IRT 3PL', score: att.detailed_scores?.irt_3pl },
-    ].filter(item => hasThetaIrtScale(att) && item.score != null && !scoreModels.some(model => model.type === item.type));
-    if (hasThetaIrtScale(att) && att.score_irt != null && !scoreModels.some(model => model.type.startsWith('irt')) && extraIrtScores.length === 0) {
-        extraIrtScores.push({ type: 'irt', label: 'Skor IRT', score: att.score_irt });
+    ].filter(item => hasThetaIrtScale(att) && item.score != null && Number.isFinite(Number(item.score)) && !scoreModels.some(model => model.type === item.type))
+        .map(item => ({ ...item, score: irtScaledScore(Number(item.score)) }));
+    if (hasThetaIrtScale(att) && att.score_irt != null && Number.isFinite(Number(att.score_irt)) && !scoreModels.some(model => model.type.startsWith('irt')) && extraIrtScores.length === 0) {
+        extraIrtScores.push({ type: 'irt', label: 'Skor IRT', score: irtScaledScore(Number(att.score_irt)) });
     }
     const irtScores = ['submitted', 'auto_submitted'].includes(att.status)
         ? [...scoreModels.filter(model => model.type.startsWith('irt')), ...extraIrtScores]
@@ -81,7 +82,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                     <th scope="col" className="hidden px-4 py-3 sm:table-cell">Status</th>
                     <th scope="col" className="hidden px-4 py-3 text-center sm:table-cell">Soal</th>
                     <th scope="col" className="p-3 w-[115px] sm:w-auto sm:px-4 sm:py-3 sm:text-right">Skor</th>
-                    <th scope="col" className="hidden px-4 py-3 text-right sm:table-cell">IRT (θ)</th>
+                    <th scope="col" className="hidden px-4 py-3 text-right sm:table-cell">IRT (200–800)</th>
                     <th scope="col" className="hidden px-4 py-3 text-center sm:table-cell">Peringatan</th>
                     <th scope="col" className="hidden px-4 py-3 text-right sm:table-cell">Aksi</th>
                 </tr>
@@ -224,7 +225,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                 </dd>
                             </div>
                             <div className="px-2">
-                                <dt className="text-[11px] text-slate-500">IRT (θ)</dt>
+                                <dt className="text-[11px] text-slate-500">IRT (200–800)</dt>
                                 <dd className="mt-1 text-base font-bold tabular-nums text-slate-800">
                                     {selectedFacts.irtScores.length === 0 ? '—' : Number(selectedFacts.irtScores[0].score).toFixed(2)}
                                 </dd>

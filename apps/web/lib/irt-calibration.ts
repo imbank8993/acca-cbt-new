@@ -28,6 +28,18 @@ export interface IrtCalibration {
     items: IrtCalibrationItem[];
 }
 
+/** Use complete question text from the same analysis response, without changing parameters. */
+export function withIrtQuestionText(calibration: IrtCalibration, questions: readonly {
+    id: string; qText: string; options?: readonly { id?: string; option_text?: string | null }[];
+}[] = []): IrtCalibration {
+    const byId = new Map(questions.map(question => [question.id, question]));
+    return { ...calibration, items: calibration.items.map(item => {
+        const question = byId.get(item.question_id);
+        const option = item.option_id ? question?.options?.find(option => option.id === item.option_id) : undefined;
+        return { ...item, text: question?.qText || item.text, part: option?.option_text || item.part };
+    }) };
+}
+
 export function difficultyLabel(b: number): { label: string; tone: 'easy' | 'medium' | 'hard' } {
     if (b < -1) return { label: 'Mudah', tone: 'easy' };
     if (b > 1) return { label: 'Sulit', tone: 'hard' };

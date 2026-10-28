@@ -1,6 +1,7 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import { dashboardScoreSummary, dashboardResultScore } from '@/lib/student-dashboard-score';
+import { dashboardResultScore } from '@/lib/student-dashboard-score';
+import { StudentScoreAverages } from '@/app/components/student/StudentScoreAverages';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import {
     getStudentExamsResult,
@@ -17,7 +18,6 @@ import { REFRESH_INTERVAL,useAutoRefresh } from '@/lib/useAutoRefresh';
 import {
 AlertCircle,
 ArrowRight,
-Award,
 BookOpen,
 CheckCircle2,
 ChevronRight,
@@ -119,8 +119,6 @@ export default function SiswaDashboard() {
         return formatSchoolTimeRange(startStr, endStr, timeZone);
     };
 
-    const scoreSummary = dashboardScoreSummary(results);
-    const averageScore = scoreSummary.average;
 
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
     const visibleExams = dashboardExams(exams, now);
@@ -226,22 +224,7 @@ export default function SiswaDashboard() {
 
             {/* ── Stats Grid ── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Rata-rata Nilai */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xl hover:shadow-[#3083FF]/5 transition-all duration-300 relative overflow-hidden flex items-center justify-between gap-4">
-                    <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
-                    <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-[#3083FF] border border-indigo-100/50">
-                            <Award size={18} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Rata-Rata Nilai</p>
-                            <p className="text-2xl font-black text-slate-800 leading-none font-mono">
-                                {averageScore ?? '—'}
-                                <span className="text-xs text-slate-400 font-normal ml-1">{scoreSummary.type === 'classical' ? '/100' : `${scoreSummary.label} (θ)`}</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <StudentScoreAverages results={results} />
 
                 {/* Ujian Selesai */}
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xl hover:shadow-[#3083FF]/5 transition-all duration-300 relative overflow-hidden flex items-center justify-between gap-4">
@@ -338,12 +321,13 @@ export default function SiswaDashboard() {
                                             <div className="flex justify-between items-start">
                                                 <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.title || 'Ujian'}</p>
                                                 <p className="text-[10px] text-slate-400 shrink-0 leading-none">
-                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && (res.score_type?.startsWith('irt_') ? ' θ' : '/100')}
+                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && (res.score_type?.startsWith('irt_') ? ' (200–800)' : '/100')}
                                                 </p>
                                             </div>
-                                            {!res.score_type?.startsWith('irt_') && <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                <div className={`h-full rounded-full ${barColorClass}`} style={{ width: `${Math.min(100, Math.max(0, score))}%` }}></div>
-                                            </div>}
+                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                {/* Skala IRT 200–800 dipetakan ke lebar 0–100%. */}
+                                                <div className={`h-full rounded-full ${barColorClass}`} style={{ width: `${Math.min(100, Math.max(0, res.score_type?.startsWith('irt_') ? (score - 200) / 6 : score))}%` }}></div>
+                                            </div>
                                         </div>
                                     );
                                 })

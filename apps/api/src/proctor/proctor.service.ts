@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import type { AuthUser } from '@acca-cbt/shared';
+import { irtScaledScore, type AuthUser } from '@acca-cbt/shared';
 import { AuthUsersRepository } from '../auth/auth-users.repository';
 import { AuthorizationService } from '../auth/authorization.service';
 import { listOperationalSubjects } from '../common/subject-catalog';
@@ -193,7 +193,10 @@ export class ProctorService {
                 userId: r.user_id,
                 fullName: r.full_name || 'Tanpa nama',
                 identityNumber: r.identity_number,
-                score: Math.round(Number(r.total_score) * 100) / 100,
+                // Peringkat diurutkan dari θ; nilai IRT ditampilkan pada skala 200–800.
+                score: r.score_label.startsWith('IRT')
+                    ? irtScaledScore(Number(r.total_score))
+                    : Math.round(Number(r.total_score) * 100) / 100,
                 finishedAt: iso(r.finished_at),
             });
         }

@@ -5,7 +5,7 @@ require('ts-node').register({project:path.resolve(__dirname,'../tsconfig.json'),
 const {ProctorService}=require('../src/proctor/proctor.service.ts');
 test('IRT scores retain their label; a pending IRT exam has no classical fallback row',async()=>{
  const rows=[{exam_id:'irt',exam_title:'IRT ready',exam_type:'daily',score_label:'IRT 1PL',scored_count:20,participant_count:20,
-   rank:1,user_id:'s',full_name:'Student',total_score:'81.333',last_finished_at:null,finished_at:null},
+   rank:1,user_id:'s',full_name:'Student',total_score:'0.81333',last_finished_at:null,finished_at:null},
   {exam_id:'pending',exam_title:'IRT pending',exam_type:'daily',score_label:'IRT 1PL',scored_count:0,participant_count:40,
    rank:null,user_id:null,full_name:null,total_score:null,last_finished_at:null,finished_at:null}];
  let authorized=false;
@@ -13,7 +13,7 @@ test('IRT scores retain their label; a pending IRT exam has no classical fallbac
   assert.equal(authorized,true);assert.deepEqual([org,limit,perExam],['school',12,3]);return rows;
  }});
  const result=await service.getTopScorers({id:'staff'},'school',{examLimit:12,perExam:3});
- assert.equal(result[0].scoreLabel,'IRT 1PL');assert.equal(result[0].topScorers[0].score,81.33);
+ assert.equal(result[0].scoreLabel,'IRT 1PL');assert.equal(result[0].topScorers[0].score,581.33,'IRT ranking score is reported as 500 + 100θ');
  assert.equal(result[1].scoreLabel,'IRT 1PL');assert.equal(result[1].scoredCount,0);
  assert.deepEqual(result[1].topScorers,[]);assert.equal(result[1].participantCount,40);
 });
