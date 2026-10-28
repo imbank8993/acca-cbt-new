@@ -157,7 +157,7 @@ export function TopScorersCard({
                                             <p className="flex-1 min-w-0 text-xs font-medium text-slate-700 truncate">
                                                 {formatStudentName(s.fullName, 'Tanpa Nama')}
                                             </p>
-                                            <span className={`text-xs font-bold tabular-nums ${getScoreColorClass(s.score)}`}>
+                                            <span className={`text-xs font-bold tabular-nums ${exam.scoreLabel?.startsWith('IRT') ? 'text-blue-600' : getScoreColorClass(s.score)}`}>
                                                 {formatScore(s.score)}
                                             </span>
                                         </div>

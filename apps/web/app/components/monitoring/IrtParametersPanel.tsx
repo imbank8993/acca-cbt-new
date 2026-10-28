@@ -93,7 +93,7 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
                     <li><strong>Kesulitan (b)</strong>: di bawah −1 mudah, −1 s.d. 1 sedang, di atas 1 sulit. Siswa dengan kemampuan setara b berpeluang 50% menjawab benar.</li>
                     {showA && <li><strong>Daya beda (a)</strong>: makin besar, makin baik soal membedakan siswa pandai dan kurang. Di bawah 0,5 sebaiknya ditinjau.</li>}
                     {showC && <li><strong>Tebakan (c)</strong>: peluang benar karena menebak (1 ÷ jumlah opsi).</li>}
-                    <li>Nilai IRT siswa <strong>bukan</strong> penjumlahan angka ini. Angka ini dipakai untuk menaksir kemampuan siswa (θ) dari pola benar-salahnya, lalu nilai = 50 + 15 × θ (0–100).</li>
+                    <li>Skor IRT dilaporkan sebagai estimasi kemampuan siswa (θ) dari pola benar-salah, tanpa konversi ke 0–100. Nilai θ dapat negatif, nol, atau positif. Nilai klasikal tetap 0–100; poin esai masuk klasikal dan tidak dicampur dengan θ.</li>
                 </ul>
             </details>
         </div>

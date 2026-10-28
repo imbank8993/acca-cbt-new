@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -60,11 +60,12 @@ class ItemParameter(BaseModel):
 
 class AttemptScore(BaseModel):
     id: str
-    detailed_scores: dict[str, float]
-    score_irt: float
+    detailed_scores: dict[str, float | None]
+    score_irt: float | None
 
 
 class IrtResponse(BaseModel):
+    score_scale: Literal['theta'] = 'theta'
     count: int
     attempts: list[AttemptScore]
     # Parameter butir dikembalikan juga: analisis butir memakainya, dan tanpa ini

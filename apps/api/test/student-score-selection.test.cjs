@@ -9,7 +9,7 @@ const {fixtureDb}=require('./fixture-db.cjs');
 const {dashboardResultScore,dashboardAverageScore}=require('../../web/lib/student-dashboard-score.ts');
 const {monitoringScoreModels}=require('../../web/lib/monitoring-score-models.ts');
 const exam={id:'exam',show_results:true,scoring_type:'classical,irt_1pl',metadata:{student_score_type:'irt_1pl',show_answer_keys:false}};
-const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:81.33,needs_manual_grading:false,exams:exam};
+const attempt={id:'a',user_id:'student',status:'submitted',total_score:90,score_irt:81.33,metadata:{irt_score_scale:'theta'},needs_manual_grading:false,exams:exam};
 
 test('staff analytics shows all configured score models independently of publication and without cross-model fallback',()=>{
  const staffAttempt={...attempt,exams:{...exam,show_results:false,scoring_type:'classical,irt_1pl,irt_2pl,irt_3pl'},
@@ -45,7 +45,7 @@ test('dashboard includes published IRT in history and averages while excluding h
  const zero={...irt,display_score:0};
  const hidden={...irt,exams:{...exam,show_results:false}};
  const pending={...irt,display_score:null,total_score:90};
- assert.equal(dashboardAverageScore([irt,zero,hidden,pending]),41);
+ assert.equal(dashboardAverageScore([irt,zero,hidden,pending]),40.665);
  assert.equal(dashboardResultScore(pending),null);
  assert.equal(dashboardResultScore({...irt,needs_manual_grading:true}),null);
  assert.equal(dashboardResultScore({...irt,status:'in_progress'}),null);
@@ -68,8 +68,21 @@ test('model choice uses detailed model scores and cannot reuse another model agg
  assert.equal(selectedStudentScore({...attempt,score_irt:99,detailed_scores:{irt_1pl:71}},multi),71);
  assert.equal(studentScoreType({...multi,metadata:{}}),'irt_3pl');
  assert.equal(selectedStudentScore({...attempt,needs_manual_grading:true},exam),null);
- for(const score of [NaN,Infinity,'',true,101,-1])assert.equal(selectedStudentScore({...attempt,score_irt:score},exam),null);
+ for(const score of [NaN,Infinity,'',true])assert.equal(selectedStudentScore({...attempt,score_irt:score},exam),null);
+ for(const score of [-1,101])assert.equal(selectedStudentScore({...attempt,score_irt:score},exam),score);
+ assert.equal(selectedStudentScore({...attempt,metadata:{}},exam),null, 'Legacy scores require recalculation');
  assert.equal(selectedStudentScore({...attempt,score_irt:0},exam),0);
+});
+test('signed theta remains visible in public results and separate from classical averages',()=>{
+ const negative={...attempt,score_irt:-1.75,detailed_scores:{irt_1pl:-1.75}};
+ const published={...negative,...publicStudentScores(negative,exam)};
+ assert.equal(published.display_score,-1.75);
+ assert.equal(dashboardResultScore(published),-1.75);
+ const classical={...attempt,score_type:'classical',display_score:90,exams:{...exam,scoring_type:'classical'}};
+ assert.equal(dashboardAverageScore([published,classical]),-1.75);
+ assert.equal(dashboardAverageScore([classical,published]),90);
+ assert.equal(publicStudentScores({...negative,metadata:{}},exam).display_score,null);
+ assert.equal(publicStudentScores({...negative,total_score:-1},{...exam,metadata:{student_score_type:'classical'}}).display_score,null);
 });
 test('student list and detail are consistent, strip unselected scores and protect ownership',async()=>{
  const db=fixtureDb({cbt_exam_attempts:[{...attempt,detailed_scores:{classical:90,irt_1pl:81.33}}]});
@@ -116,7 +129,7 @@ test('monitoring results expose calculated IRT scores in their own column', () =
   attempts:[{...attempt,profiles:{full_name:'Peserta'},...overrides}],hasAnyAttempts:true,onViewDetails:()=>{},
  }));
  const irtCell=html=>{const cells=html.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);return cells[4];};
- assert.match(render({}),/>IRT<\/th>/);
+ assert.match(render({}),/>IRT \(θ\)<\/th>/);
  assert.match(irtCell(render({})),/81\.33/);
  assert.match(irtCell(render({score_irt:0})),/0\.00/);
  assert.match(irtCell(render({score_irt:null})),/—/);

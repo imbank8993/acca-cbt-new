@@ -15,6 +15,8 @@ import { apiGet } from './client';
 // NestJS merakit objek dengan nama bidang yang sama.
 
 export interface StudentAnalyticsOverview {
+    scoreType?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
+    scoreLabel?: string;
     totalExams: number;
     completedExams: number;
     averageScore: number;
@@ -33,8 +35,8 @@ export interface ExamAttemptSummary {
     examTitle: string;
     subjectName: string;
     score: number;
-    maxScore: number;
-    percentage: number;
+    maxScore: number | null;
+    percentage: number | null;
     startedAt: string;
     finishedAt: string;
     timeSpentSeconds: number | null;

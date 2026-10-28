@@ -39,6 +39,3 @@ export function discriminationLabel(a: number): { label: string; tone: 'low' | '
     if (a < 1) return { label: 'Cukup', tone: 'fair' };
     return { label: 'Baik', tone: 'good' };
 }
-
-/** Nilai IRT siswa berkemampuan θ: 50 + 15θ, dibatasi 0–100 (sama dengan layanan penilaian). */
-export const irtScaledScore = (theta: number) => Math.min(100, Math.max(0, 50 + 15 * theta));

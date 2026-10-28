@@ -9,6 +9,9 @@ import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import type { ItemAnalysis } from '@/lib/api/proctor';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getQuestionSnippet } from '@/lib/question-snippet';
+import { DistractorStudentNames } from './DistractorStudentNames';
+import './item-analysis.css';
+import { classicalDifficulty, classicalDifficultyIndex, ITEM_DIFFICULTY_CATEGORIES } from '@acca-cbt/shared';
 
 const QUESTION_TYPE_INDONESIAN_LABELS: Record<string, string> = {
     mcq: 'PG',
@@ -37,6 +40,15 @@ export function formatQuestionType(type?: string): string {
 
 const ANALYSIS_PAGE_SIZE = 10;
 
+function difficultyColor(label?: string) {
+    if (label === 'Sangat Sulit') return 'bg-red-100 text-red-800 border-red-300';
+    if (label === 'Sulit') return 'bg-red-50 text-red-700 border-red-200';
+    if (label === 'Sedang') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (label === 'Mudah') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (label === 'Sangat Mudah') return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    return 'bg-slate-50 text-slate-500 border-slate-200';
+}
+
 /**
  * Tab Analisis monitoring: daftar butir soal (urut % salah tertinggi, 10 per
  * halaman) dan detail butir berisi teks soal, kunci, siswa benar/salah, serta
@@ -49,12 +61,15 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
     const [search, setSearch] = useState('');
     const [difficulty, setDifficulty] = useState('');
     const query = search.trim().toLocaleLowerCase('id');
-    const filteredAnalysis = analysis.filter(item =>
+    const categorizedAnalysis = analysis.map(item => {
+        const p = classicalDifficultyIndex(item.correct, item.incorrect);
+        return { ...item, difficultyIndex: p ?? undefined, difficultyLabel: classicalDifficulty(p) || undefined };
+    });
+    const filteredAnalysis = categorizedAnalysis.filter(item =>
         (!difficulty || (item.difficultyLabel?.trim().toLocaleLowerCase('id') || 'unknown') === difficulty)
         && (!query || String(item.number) === query.replace(/^#/, '')
             || item.topic?.toLocaleLowerCase('id').includes(query)
             || getQuestionSnippet(item.qText, Number.MAX_SAFE_INTEGER).toLocaleLowerCase('id').includes(query)));
-    const difficultyOptions = [...new Set(analysis.map(item => item.difficultyLabel?.trim()).filter((label): label is string => Boolean(label)))];
     const analysisTotalPages = Math.max(1, Math.ceil(filteredAnalysis.length / ANALYSIS_PAGE_SIZE));
     const safeAnalysisPage = Math.min(analysisPage, analysisTotalPages);
     const pagedAnalysis = filteredAnalysis.slice((safeAnalysisPage - 1) * ANALYSIS_PAGE_SIZE, safeAnalysisPage * ANALYSIS_PAGE_SIZE);
@@ -67,10 +82,12 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                 label="Cari soal" placeholder="Cari teks atau nomor soal…" />
             <FilterSelect value={difficulty} onChange={value => { setDifficulty(value); setAnalysisPage(1); }}
                 label="Kesukaran" width="200px" grow={0}
-                options={[{ value: '', label: 'Semua kesukaran' },
-                    ...difficultyOptions.map(label => ({ value: label.toLocaleLowerCase('id'), label })),
-                    ...(analysis.some(item => !item.difficultyLabel?.trim()) ? [{ value: 'unknown', label: 'Belum ditentukan' }] : [])]} />
+                options={[{ value: '', label: 'Semua' },
+                    ...ITEM_DIFFICULTY_CATEGORIES.map(label => ({ value: label.toLocaleLowerCase('id'), label }))]} />
         </FilterToolbar>
+        <p className="text-[11px] leading-relaxed text-slate-500">
+            Kategori P: ≤0,10 Sangat Sulit; 0,10&lt;P≤0,30 Sulit; 0,30&lt;P≤0,70 Sedang; 0,70&lt;P≤0,90 Mudah; &gt;0,90 Sangat Mudah. P adalah proporsi benar dari respons ternilai; hasil sementara selama ujian atau koreksi berlangsung.
+        </p>
         <div className={`monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden ${className}`}>
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
                 <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
@@ -143,13 +160,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                         ) : (
                             pagedAnalysis.map((anl) => {
                                 const isCritical = anl.incorrectPercentage > 50;
-                                const diffLabel = anl.difficultyLabel?.toLowerCase() || '';
-                                const diffColor =
-                                    diffLabel === 'mudah'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : diffLabel === 'sukar'
-                                        ? 'bg-red-50 text-red-700 border-red-200'
-                                        : 'bg-amber-50 text-amber-700 border-amber-200';
+                                const diffColor = difficultyColor(anl.difficultyLabel);
 
                                 return (
                                     <tr key={anl.id} className={`border-b border-[#3083FF]/10 last:border-0 ${isCritical ? 'bg-amber-50/40' : 'hover:bg-slate-50/40'} transition-colors`}>
@@ -279,11 +290,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                     {viewQuestion.incorrectPercentage.toFixed(0)}% salah
                                 </span>
                                 {viewQuestion.difficultyLabel && (
-                                    <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                                        viewQuestion.difficultyLabel === 'Sukar' ? 'bg-red-50 text-red-700 border-red-200' :
-                                        viewQuestion.difficultyLabel === 'Sedang' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                        'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    }`}>
+                                    <span className={`px-2.5 py-0.5 border rounded-full text-[11px] font-bold uppercase tracking-wider ${difficultyColor(viewQuestion.difficultyLabel)}`}>
                                         {viewQuestion.difficultyLabel} {viewQuestion.difficultyIndex !== undefined ? `(P: ${viewQuestion.difficultyIndex.toFixed(2)})` : ''}
                                     </span>
                                 )}
@@ -435,9 +442,9 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                             Belum ada siswa yang menjawab dengan benar untuk butir soal ini.
                                         </div>
                                     ) : (
-                                        <div className="overflow-x-auto max-h-[50vh]">
-                                            <table className="w-full text-left border-collapse text-xs">
-                                                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 sticky top-0">
+                                        <div className="item-analysis-students-scroll">
+                                            <table className="item-analysis-students-table w-full text-left text-xs">
+                                                <thead className="text-slate-500 font-bold">
                                                     <tr>
                                                         <th className="p-3 w-12 text-center">No</th>
                                                         <th className="p-3">Nama Siswa</th>
@@ -455,7 +462,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                                             <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                             <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                             <td className="p-3">
-                                                                <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
                                                                     <LatexRenderer text={st.display_answer || 'Benar'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
                                                                 </div>
                                                             </td>
@@ -488,9 +495,9 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                             Luar biasa! Tidak ada siswa yang menjawab salah untuk butir soal ini.
                                         </div>
                                     ) : (
-                                        <div className="overflow-x-auto max-h-[50vh]">
-                                            <table className="w-full text-left border-collapse text-xs">
-                                                <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 sticky top-0">
+                                        <div className="item-analysis-students-scroll">
+                                            <table className="item-analysis-students-table w-full text-left text-xs">
+                                                <thead className="text-slate-500 font-bold">
                                                     <tr>
                                                         <th className="p-3 w-12 text-center">No</th>
                                                         <th className="p-3">Nama Siswa</th>
@@ -509,12 +516,12 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                                             <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                             <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
                                                             <td className="p-3">
-                                                                <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
+                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
                                                                     <LatexRenderer text={st.display_answer || '(Kosong / Salah)'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
                                                                 </div>
                                                             </td>
                                                             <td className="p-3">
-                                                                <div className="inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
+                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
                                                                     <LatexRenderer text={viewQuestion.keyDisplay || '-'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
                                                                 </div>
                                                             </td>
@@ -577,27 +584,9 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                                 </div>
 
                                                 {/* Students who selected this option */}
-                                                {dist.student_names && dist.student_names.length > 0 && (
-                                                    <div className="pt-2 border-t border-slate-100">
-                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                                            Siswa yang Memilih:
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {dist.student_names.map((nm: string, sIdx: number) => (
-                                                                <span
-                                                                    key={sIdx}
-                                                                    className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
-                                                                        dist.is_correct
-                                                                            ? 'bg-emerald-100/70 text-emerald-800'
-                                                                            : 'bg-slate-100 text-slate-700'
-                                                                    }`}
-                                                                >
-                                                                    {formatStudentName(nm, 'Tanpa Nama')}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                <DistractorStudentNames names={dist.student_names || []}
+                                                    optionLetter={dist.option_letter} questionNumber={viewQuestion.number}
+                                                    isCorrect={dist.is_correct} />
                                             </div>
                                         ))}
                                     </div>

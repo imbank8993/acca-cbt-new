@@ -186,7 +186,7 @@ export default function StudentResultDetailsPage() {
                                     <p className="text-3xl font-semibold tracking-tight text-[#3083FF] leading-none font-poppins tabular-nums">
                                         {gradingPending ? '—' : totalScore.toFixed(2)}
                                     </p>
-                                    <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">/100</p>
+                                    <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">{(attempt.score_type || studentScoreType(attempt.exams)) === 'classical' ? '/100' : 'Estimasi kemampuan θ'}</p>
                                     {gradingPending && <p className="mt-2 text-[10px] text-slate-500">{scoreLabel.startsWith('IRT') && !attempt.needs_manual_grading ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
                                 </div>
                                 {hasPengetahuan && <>

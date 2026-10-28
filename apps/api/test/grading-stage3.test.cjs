@@ -80,7 +80,7 @@ test('IRT sends every exam question and represents an unanswered question as zer
     const db = fixtureDb({
         cbt_exams: [{ id: 'exam', question_bank_id: 'bank', scoring_type: 'irt_1pl' }],
         cbt_exam_attempts: [{
-            id: 'attempt', exam_id: 'exam', status: 'submitted', needs_manual_grading: false,
+            id: 'attempt', exam_id: 'exam', status: 'submitted', needs_manual_grading: false, metadata: { retained: true },
             answers: [{ question_id: 'answered', score: 10, is_correct: true, selected_option_id: 'a' }],
         }],
         cbt_bank_questions: [
@@ -95,7 +95,7 @@ test('IRT sends every exam question and represents an unanswered question as zer
     let payload;
     const scoring = { post: async (_, body) => {
         payload = body;
-        return { count: 1, attempts: [{ id: 'attempt', detailed_scores: { irt_1pl: 50 }, score_irt: 50 }], items: [] };
+        return { score_scale: 'theta', count: 1, attempts: [{ id: 'attempt', detailed_scores: { irt_1pl: 0 }, score_irt: 0 }], items: [] };
     } };
     const authz = { assertExamStaff: async () => {} };
     const service = new GradingService(db, authz, scoring);
@@ -107,5 +107,8 @@ test('IRT sends every exam question and represents an unanswered question as zer
     assert.equal(unanswered.score, 0);
     assert.equal(unanswered.is_correct, null);
     assert.equal(unanswered.bank_questions.score_default, 10);
-    assert.equal(db.tables.cbt_exam_attempts[0].score_irt, 50);
+    assert.equal(db.tables.cbt_exam_attempts[0].score_irt, 0);
+    assert.equal(db.tables.cbt_exam_attempts[0].irt_theta, 0);
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.irt_score_scale, 'theta');
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.retained, true);
 });

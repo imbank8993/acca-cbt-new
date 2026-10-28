@@ -1,0 +1,30 @@
+.item-analysis-students-scroll {
+    max-height: 50vh;
+    max-height: 50dvh;
+    overflow: auto;
+    isolation: isolate;
+}
+
+.item-analysis-students-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Sticky cells must paint above KaTeX's positioned spans in the scrolling rows. */
+.item-analysis-students-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--muted, #f1f5f9);
+    box-shadow: 0 1px 0 var(--border, #e2e8f0);
+    white-space: nowrap;
+}
+
+/* Keep rich answers within their own cell without changing the shared renderer. */
+.item-analysis-answer {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+    overflow: auto;
+    vertical-align: middle;
+}

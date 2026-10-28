@@ -1,6 +1,7 @@
 import { ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 import { examDeadline } from './exam-deadline';
+import { hasThetaIrtScale } from '@acca-cbt/shared';
 
 /** Scores and answer keys have independent release policies. Fail closed on missing schedules. */
 export async function assertAnswerKeysReleased(db: DbService, exam: any): Promise<void> {
@@ -47,10 +48,10 @@ async function assertScoringFinalized(db: DbService, exam: any): Promise<void> {
     const usesIrt = scoringType.split(',').some(type => type.trim().startsWith('irt_'));
     if (!usesIrt) return;
     const { data: finished, error } = await db.from('cbt_exam_attempts')
-        .select('id, score_irt').eq('exam_id', exam.id).in('status', ['submitted', 'auto_submitted']);
+        .select('id, score_irt, metadata').eq('exam_id', exam.id).in('status', ['submitted', 'auto_submitted']);
     if (error) throw new InternalServerErrorException('Status nilai IRT belum dapat diperiksa.');
     const pending = (finished || []).filter((attempt: any) =>
-        attempt.score_irt === null || attempt.score_irt === undefined || !Number.isFinite(Number(attempt.score_irt)));
+        !hasThetaIrtScale(attempt) || attempt.score_irt === null || attempt.score_irt === undefined || !Number.isFinite(Number(attempt.score_irt)));
     if (pending.length) {
         throw new ForbiddenException('Pembahasan dibuka setelah nilai IRT seluruh peserta selesai dihitung.');
     }

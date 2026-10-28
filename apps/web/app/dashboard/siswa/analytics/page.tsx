@@ -176,6 +176,8 @@ export default function StudentAnalyticsPage() {
     }
 
     const { overview, subjectPerformance, difficultyPerformance, strengthsWeaknesses, studyHabits, performanceTrend } = analytics;
+    const thetaScores = overview.scoreType?.startsWith('irt_') === true;
+    const scoreUnit = thetaScores ? ' θ' : '%';
 
     // Chart data: Performance Trend
     const trendChartData = {
@@ -212,10 +214,10 @@ export default function StudentAnalyticsPage() {
         },
         scales: {
             y: {
-                beginAtZero: true,
-                max: 105,
+                beginAtZero: !thetaScores,
+                max: thetaScores ? undefined : 105,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { stepSize: 10, font: { family: chartFontFamily }, callback: (value) => Number(value) <= 100 ? `${value}%` : '' }
+                ticks: { stepSize: thetaScores ? undefined : 10, font: { family: chartFontFamily }, callback: (value) => thetaScores ? `${value} θ` : Number(value) <= 100 ? `${value}%` : '' }
             },
             x: {
                 ticks: { font: { family: chartFontFamily } },
@@ -255,9 +257,9 @@ export default function StudentAnalyticsPage() {
         scales: {
             y: {
                 beginAtZero: true,
-                max: 100,
+                max: thetaScores ? undefined : 100,
                 grid: { color: 'rgba(0,0,0,0.03)' },
-                ticks: { font: { family: chartFontFamily }, callback: (value) => `${value}%` },
+                ticks: { font: { family: chartFontFamily }, callback: (value) => `${value}${scoreUnit}` },
             },
             x: { grid: { display: false }, ticks: { font: { family: chartFontFamily } } },
         },
@@ -289,8 +291,8 @@ export default function StudentAnalyticsPage() {
                             </div>
                             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">Rata-rata</span>
                         </div>
-                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.averageScore}%</p>
-                        <p className="text-xs text-slate-400 font-medium mt-2">dari {overview.totalExams} ujian</p>
+                        <p className="text-2xl font-semibold text-slate-800 leading-none tabular-nums tracking-tight">{overview.averageScore}{scoreUnit}</p>
+                        <p className="text-xs text-slate-400 font-medium mt-2">{overview.scoreLabel || 'Klasikal'} · dari {overview.totalExams} ujian dengan model yang sama</p>
                     </motion.div>
 
                     {/* Peringkat */}
@@ -363,7 +365,7 @@ export default function StudentAnalyticsPage() {
                         </h3>
                         <div className="grid grid-cols-3 gap-6">
                             <div className="text-center">
-                                <p className="text-4xl font-semibold text-[#3083FF] tabular-nums tracking-tight">{comparison.studentAverage}%</p>
+                                <p className="text-4xl font-semibold text-[#3083FF] tabular-nums tracking-tight">{comparison.studentAverage}{scoreUnit}</p>
                                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">Skor Anda</p>
                             </div>
                             <div className="text-center flex flex-col items-center justify-center">
@@ -373,14 +375,14 @@ export default function StudentAnalyticsPage() {
                                     ) : (
                                         <ArrowDownRight size={14} />
                                     )}
-                                    <span>{Math.abs(comparison.difference)} poin</span>
+                                    <span>{Math.abs(comparison.difference)} {thetaScores ? 'θ' : 'poin'}</span>
                                 </div>
                                 <p className="text-xs text-slate-500 font-medium mt-2">
                                     {comparison.difference === 0 ? 'sama dengan' : comparison.difference > 0 ? 'di atas' : 'di bawah'} rata-rata
                                 </p>
                             </div>
                             <div className="text-center">
-                                <p className="text-4xl font-semibold text-slate-300 tabular-nums tracking-tight">{comparison.classAverage}%</p>
+                                <p className="text-4xl font-semibold text-slate-300 tabular-nums tracking-tight">{comparison.classAverage}{scoreUnit}</p>
                                 <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">{comparison.totalPeers} peserta pembanding</p>
                             </div>
                         </div>
@@ -457,7 +459,7 @@ export default function StudentAnalyticsPage() {
                                             <td className="px-6 py-4 text-center text-slate-600 tabular-nums tracking-tight font-medium text-sm">{subject.totalExams}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                                                    {subject.averageScore}%
+                                                    {subject.averageScore}{scoreUnit}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}%</td>
@@ -658,7 +660,7 @@ export default function StudentAnalyticsPage() {
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0 ml-4">
-                                            <p className="text-base font-semibold text-slate-800 tabular-nums tracking-tight leading-none">{formatScore(exam.score)}%</p>
+                                            <p className="text-base font-semibold text-slate-800 tabular-nums tracking-tight leading-none">{formatScore(exam.score)}{scoreUnit}</p>
                                             <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-wide leading-none">{formatDuration(exam.timeSpentSeconds)}</p>
                                         </div>
                                     </div>

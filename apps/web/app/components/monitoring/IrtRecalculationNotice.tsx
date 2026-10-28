@@ -18,7 +18,8 @@ export function IrtRecalculationNotice({ attempts, scoringType, canCalculate }: 
             <div className="min-w-0 flex-1 leading-snug">
                 {status.missing > 0 && (
                     <p>
-                        <strong>{status.missing} peserta belum memiliki skor IRT.</strong>{' '}
+                        <strong>{status.missing} peserta memerlukan perhitungan IRT (θ).</strong>{' '}
+                        Skor lama berskala 0–100 perlu dihitung ulang.{' '}
                         {canCalculate
                             ? 'Buka tab Hasil lalu tekan "Kalkulasi IRT".'
                             : 'Minta pengelola ujian melakukan "Kalkulasi IRT".'}

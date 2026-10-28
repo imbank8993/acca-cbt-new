@@ -363,7 +363,7 @@ export class StudentsService {
         const { data, error } = await this.db
             .from('cbt_exam_attempts')
             .select(
-                `id, total_score, score_irt, detailed_scores, finished_at, status, needs_manual_grading,
+                `id, total_score, score_irt, detailed_scores, finished_at, status, needs_manual_grading, metadata,
                  exams:cbt_exams(title, duration_minutes, show_results, scoring_type, metadata)`,
             )
             .eq('user_id', user.id)

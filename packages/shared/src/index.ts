@@ -4,3 +4,4 @@ export * from './student-score';
 export * from './exam-key';
 export * from './answer-presence';
 export * from './topic-analysis';
+export * from './item-difficulty';

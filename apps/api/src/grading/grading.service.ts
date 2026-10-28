@@ -64,8 +64,8 @@ interface GradeBatchResponse {
 
 interface IrtAttemptScore {
     id: string;
-    detailed_scores: Record<string, number>;
-    score_irt: number;
+    detailed_scores: Record<string, number | null>;
+    score_irt: number | null;
 }
 
 /**
@@ -496,6 +496,7 @@ export class GradingService {
         // FastAPI tidak punya akses database: seluruh data dikirim lewat payload,
         // dihitung di sana, lalu hasilnya ditulis kembali dari sini.
         const result = await this.scoring.post<{
+            score_scale: string;
             count: number;
             attempts: IrtAttemptScore[];
             items: unknown[];
@@ -505,6 +506,10 @@ export class GradingService {
             scoring_types: scoringTypes,
             attempts: normalizedRows,
         });
+
+        if (result.score_scale !== 'theta') {
+            throw new InternalServerErrorException('Layanan IRT belum mendukung skor theta. Perbarui layanan penskoran lalu hitung ulang.');
+        }
 
         const fingerprint = (values: any[]) => JSON.stringify(values.map(row => ({
             id: row.id, status: row.status, started_at: row.started_at, finished_at: row.finished_at,
@@ -528,7 +533,7 @@ export class GradingService {
             }
             const current = await db.from('cbt_exam_attempts').select(
                 `id, user_id, status, started_at, finished_at, needs_manual_grading,
-                 answers:cbt_answers(question_id, is_correct, score, essay_answer, selected_option_id)`,
+                 metadata, answers:cbt_answers(question_id, is_correct, score, essay_answer, selected_option_id)`,
             ).eq('exam_id', examId).in('status', FINISHED_STATUSES);
             if (current.error) throw new InternalServerErrorException('Gagal memeriksa ulang pengerjaan.');
             if (fingerprint(current.data || []) !== fingerprint(rows)) {
@@ -540,6 +545,8 @@ export class GradingService {
                 .update({
                     detailed_scores: attempt.detailed_scores,
                     score_irt: attempt.score_irt,
+                    irt_theta: attempt.score_irt,
+                    metadata: { ...(current.data.find((row: { id: string }) => row.id === attempt.id)?.metadata || {}), irt_score_scale: 'theta' },
                 })
                 .eq('id', attempt.id).select('id').maybeSingle();
                 if (saveError || !saved) throw new InternalServerErrorException('Nilai IRT gagal disimpan.');

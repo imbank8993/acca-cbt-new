@@ -8,6 +8,8 @@
  * ujian tertahan sampai IRT dihitung ulang. Helper ini membuat keadaan itu
  * terlihat oleh pengelola.
  */
+import { hasThetaIrtScale } from '@acca-cbt/shared';
+
 type IrtAttempt = {
     status?: string | null;
     score_irt?: number | string | null;
@@ -40,7 +42,7 @@ export function irtRecalculationStatus(attempts: IrtAttempt[], scoringType?: str
     const calculated = finished.some(hasIrtScore);
     return {
         calculated,
-        missing: calculated ? finished.filter(attempt => !hasIrtScore(attempt)).length : 0,
+        missing: calculated ? finished.filter(attempt => !hasIrtScore(attempt) || !hasThetaIrtScale(attempt)).length : 0,
         recovering: calculated ? attempts.filter(attempt => attempt.status === 'in_progress' &&
             typeof attempt.metadata?.proctor_recovery_until === 'string').length : 0,
     };

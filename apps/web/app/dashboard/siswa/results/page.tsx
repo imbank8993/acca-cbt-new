@@ -145,7 +145,7 @@ export default function StudentResultsPage() {
                                                 </p>
                                                 <div className="flex items-baseline justify-center gap-0.5">
                                                     <span className="text-xl font-black text-[#3083FF] font-mono">{displayedScore == null ? '—' : Number(displayedScore).toFixed(2)}</span>
-                                                    <span className="text-[9px] font-bold text-slate-400">/100</span>
+                                                    <span className="text-[9px] font-bold text-slate-400">{(attempt.score_type || studentScoreType(attempt.exams)) === 'classical' ? '/100' : 'θ'}</span>
                                                 </div>
                                                 {displayedScore == null && <p className="mt-1 text-[9px] text-slate-500">{scoreLabel.startsWith('IRT') && !attempt.needs_manual_grading ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
                                                 {attempt.needs_manual_grading && (

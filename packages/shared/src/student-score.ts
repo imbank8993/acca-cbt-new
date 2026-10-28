@@ -17,15 +17,20 @@ export function studentScoreType(exam?: ScoreExam | null): StudentScoreType {
     if (enabled.includes(requested)) return requested;
     return (['irt_3pl', 'irt_2pl', 'irt_1pl'] as StudentScoreType[]).find(type => enabled.includes(type)) || 'classical';
 }
-function finiteScore(value: unknown): number | null {
+export function hasThetaIrtScale(attempt: Pick<ScoreAttempt, 'metadata'>): boolean {
+    return attempt.metadata?.irt_score_scale === 'theta';
+}
+function finiteScore(value: unknown, classical = false): number | null {
     if (!(typeof value === 'number' || typeof value === 'string') || (typeof value === 'string' && !value.trim())) return null;
     const score = Number(value);
-    return Number.isFinite(score) && score >= 0 && score <= 100 ? score : null;
+    return Number.isFinite(score) && (!classical || (score >= 0 && score <= 100)) ? score : null;
 }
 export function selectedStudentScore(attempt: ScoreAttempt, exam?: ScoreExam | null): number | null {
     if (attempt.needs_manual_grading || attempt.metadata?.relative_scoring_pending === true) return null;
     const type = studentScoreType(exam);
-    if (type === 'classical') return finiteScore(attempt.total_score);
+    if (type === 'classical') return finiteScore(attempt.total_score, true);
+    // Legacy 0–100 scores cannot be inverted reliably (clipping/essay blending).
+    if (!hasThetaIrtScale(attempt)) return null;
     const detailed = finiteScore(attempt.detailed_scores?.[type]);
     if (detailed !== null) return detailed;
     const defaultType = studentScoreType({ scoring_type: exam?.scoring_type });

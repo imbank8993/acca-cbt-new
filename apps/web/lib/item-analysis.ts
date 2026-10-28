@@ -1,5 +1,6 @@
 import type { ExamAttemptRecord, ItemAnalysis, StudentAnswerSummary, getExamAnswersForAnalysisAction } from '@/lib/api/proctor';
 import { formatStudentName } from '@/lib/monitoring-health';
+import { classicalDifficulty, classicalDifficultyIndex } from '@acca-cbt/shared';
 
 export type ExamAnalysisData = Awaited<ReturnType<typeof getExamAnswersForAnalysisAction>>;
 
@@ -27,8 +28,8 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
             ungraded: item.total_ungraded,
             unanswered: item.total_unanswered,
             keyDisplay: item.key_display,
-            difficultyIndex: item.difficulty_index,
-            difficultyLabel: item.difficulty_label,
+            difficultyIndex: classicalDifficultyIndex(item.total_correct, item.total_incorrect) ?? undefined,
+            difficultyLabel: classicalDifficulty(classicalDifficultyIndex(item.total_correct, item.total_incorrect)) || undefined,
             discriminationIndex: item.discrimination_index,
             discriminationLabel: item.discrimination_label,
             wrongStudents: item.wrong_students || [],
@@ -94,6 +95,8 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
             correct: stat.correct,
             incorrect: stat.incorrect,
             ungraded: stat.ungraded,
+            difficultyIndex: graded > 0 ? stat.correct / graded : undefined,
+            difficultyLabel: graded > 0 ? classicalDifficulty(stat.correct / graded) || undefined : undefined,
             wrongStudents: [...stat.wrongStudents].sort((a, b) => a.student_name.localeCompare(b.student_name)),
             correctStudents: [...stat.correctStudents].sort((a, b) => a.student_name.localeCompare(b.student_name)),
             incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0,

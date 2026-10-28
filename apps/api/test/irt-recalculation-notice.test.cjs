@@ -15,7 +15,7 @@ test('IRT scores are recognised only when finite', () => {
 });
 
 test('a participant restored after IRT was calculated is reported until IRT is recalculated', () => {
-    const scored = { status: 'submitted', score_irt: 70 };
+    const scored = { status: 'submitted', score_irt: 70, metadata: { irt_score_scale: 'theta' } };
     // Selama jendela pemulihan.
     assert.deepEqual(irtRecalculationStatus([scored, { status: 'in_progress', score_irt: null,
         metadata: { proctor_recovery_until: '2026-10-24T08:00:00Z' } }], 'irt_2pl'), { calculated: true, missing: 0, recovering: 1 });
@@ -23,15 +23,22 @@ test('a participant restored after IRT was calculated is reported until IRT is r
     assert.deepEqual(irtRecalculationStatus([scored, { status: 'submitted', score_irt: null }], 'irt_2pl'),
         { calculated: true, missing: 1, recovering: 0 });
     // Sudah dihitung ulang.
-    assert.deepEqual(irtRecalculationStatus([scored, { status: 'submitted', score_irt: 55 }], 'irt_2pl'),
+    assert.deepEqual(irtRecalculationStatus([scored, { status: 'submitted', score_irt: 55, metadata: { irt_score_scale: 'theta' } }], 'irt_2pl'),
         { calculated: true, missing: 0, recovering: 0 });
 });
 
 test('no notice before IRT was ever calculated or for classical exams', () => {
     const rows = [{ status: 'submitted', score_irt: null }, { status: 'in_progress', metadata: { proctor_recovery_until: 'x' } }];
     assert.deepEqual(irtRecalculationStatus(rows, 'irt_2pl'), { calculated: false, missing: 0, recovering: 0 });
-    assert.deepEqual(irtRecalculationStatus([{ status: 'submitted', score_irt: 70 }, ...rows], 'classical'),
+    assert.deepEqual(irtRecalculationStatus([{ status: 'submitted', score_irt: 70, metadata: { irt_score_scale: 'theta' } }, ...rows], 'classical'),
         { calculated: false, missing: 0, recovering: 0 });
+});
+
+test('legacy 0–100 IRT results require recalculation while negative theta is complete', () => {
+    assert.deepEqual(irtRecalculationStatus([{ status:'submitted', score_irt:80 }], 'irt_1pl'),
+        { calculated:true, missing:1, recovering:0 });
+    assert.deepEqual(irtRecalculationStatus([{ status:'submitted', score_irt:-1.75, metadata:{irt_score_scale:'theta'} }], 'irt_1pl'),
+        { calculated:true, missing:0, recovering:0 });
 });
 
 test('reset dialog warns when the participant already has an IRT score, including bulk reset', () => {

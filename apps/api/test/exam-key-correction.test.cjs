@@ -104,7 +104,7 @@ test('grading and IRT reject results computed against an obsolete correction key
   const scoring={post:async()=>{
    f.db.tables.cbt_exams[0].metadata.answer_key_overrides={q:'b'};
    return mode==='grading' ? {items:[],total_score:1,max_possible_score:1,dimension_scores:{}}
-    : {count:2,attempts:['one','two'].map(id=>({id,detailed_scores:{irt_1pl:99},score_irt:99})),items:[],warnings:[]};
+    : {score_scale:'theta',count:2,attempts:['one','two'].map(id=>({id,detailed_scores:{irt_1pl:99},score_irt:99})),items:[],warnings:[]};
   }};
   const grading=new GradingService(f.db,{assertExamStaff:async()=>{}},scoring);
   await assert.rejects(mode==='grading'?grading.gradeAttemptFromSavedAnswers('one',false):grading.calculateIrt(user,'exam'),/Kunci ujian berubah/);

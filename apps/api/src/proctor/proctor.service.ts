@@ -102,6 +102,7 @@ export class ProctorService {
                             THEN a.finished_at - a.started_at END AS working_duration,
                        CASE WHEN a.needs_manual_grading IS TRUE THEN NULL
                             WHEN chosen.score_type = 'classical' THEN a.total_score
+                            WHEN a.metadata->>'irt_score_scale' IS DISTINCT FROM 'theta' THEN NULL
                             ELSE COALESCE((a.detailed_scores->>chosen.score_type)::numeric,
                                 CASE WHEN chosen.score_type = defaults.score_type THEN a.score_irt END) END AS ranking_score,
                        CASE WHEN chosen.score_type = 'irt_3pl' THEN 'IRT 3PL'

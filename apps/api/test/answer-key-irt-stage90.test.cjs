@@ -11,7 +11,7 @@ function fixture({ scoring = 'classical,irt_1pl', scores = [70, 80], metadata = 
         metadata: { show_answer_keys: true, ...metadata } };
     const db = fixtureDb({
         cbt_exams: [exam],
-        cbt_exam_attempts: scores.map((score_irt, index) => ({ id: `a${index}`, exam_id: 'exam', status: 'submitted', score_irt })),
+        cbt_exam_attempts: scores.map((score_irt, index) => ({ id: `a${index}`, exam_id: 'exam', status: 'submitted', score_irt, metadata: { irt_score_scale: 'theta' } })),
     }, [], { now: '2026-09-21T00:00:00Z' });
     return { db, exam };
 }

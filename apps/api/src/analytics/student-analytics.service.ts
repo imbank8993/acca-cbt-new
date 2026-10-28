@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { selectedStudentScore, type AuthUser } from '@acca-cbt/shared';
+import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS, type AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertAnswerKeysReleased } from '../common/answer-key-release';
 import { examDeadline } from '../common/exam-deadline';
@@ -14,12 +14,12 @@ const SELECT = `id, exam_id, user_id, total_score, score_irt, detailed_scores, s
 const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
 const rounded = (value: number) => Math.round(value * 100) / 100;
 
-export function calculateTrend(scores: number[]): 'up' | 'down' | 'stable' {
+export function calculateTrend(scores: number[], minChange = 5): 'up' | 'down' | 'stable' {
     const valid = scores.filter(Number.isFinite);
     if (valid.length < 2) return 'stable';
     const split = Math.floor(valid.length / 2);
     const difference = mean(valid.slice(split)) - mean(valid.slice(0, split));
-    return difference > 5 ? 'up' : difference < -5 ? 'down' : 'stable';
+    return difference > minChange + 1e-9 ? 'up' : difference < -minChange - 1e-9 ? 'down' : 'stable';
 }
 
 export function analyticsScore(attempt: any): number | null {
@@ -68,8 +68,15 @@ function subjectOf(attempt: any) {
 function historyItem(attempt: any) {
     return { id: attempt.id, examId: attempt.exams.id, examTitle: attempt.exams.title || 'Ujian',
         subjectName: subjectOf(attempt).name, examType: attempt.exams.exam_type || 'daily',
-        score: analyticsScore(attempt)!, startedAt: attempt.started_at, finishedAt: attempt.finished_at,
+        score: analyticsScore(attempt)!, scoreType: studentScoreType(attempt.exams), scoreLabel: STUDENT_SCORE_LABELS[studentScoreType(attempt.exams)],
+        startedAt: attempt.started_at, finishedAt: attempt.finished_at,
         durationMinutes: attempt.exams.duration_minutes || 0, timeSpentSeconds: analyticsDuration(attempt), status: attempt.status };
+}
+
+/** Use the latest scored model for aggregates; never combine theta with 0–100. */
+function sameScoreModel(attempts: any[]) {
+    const type = studentScoreType(attempts.at(-1)?.exams);
+    return attempts.filter(attempt => studentScoreType(attempt.exams) === type);
 }
 
 type Stats = { correct: number; total: number };
@@ -133,14 +140,17 @@ export class StudentAnalyticsService {
         return { rank, percentile, totalStudents, comparison: {
             studentAverage: rounded(ownAverage), classAverage: rounded(peerAverage),
             difference: rounded(ownAverage - peerAverage),
-            betterThanClass: peerAverage > 0 ? rounded((ownAverage - peerAverage) / peerAverage * 100) : null,
+            betterThanClass: studentScoreType(attempts[0]?.exams) === 'classical' && peerAverage > 0 ? rounded((ownAverage - peerAverage) / peerAverage * 100) : null,
             totalPeers: peers.length, scope: 'same-exams' as const,
         } };
     }
 
     async overview(user: AuthUser) {
-        const { attempts, excludedAttempts } = await this.own(user);
+        const own = await this.own(user);
+        const attempts = sameScoreModel(own.attempts);
+        const excludedAttempts = own.excludedAttempts + own.attempts.length - attempts.length;
         if (!attempts.length) return null;
+        const scoreType = studentScoreType(attempts[0].exams);
         const cohort = await this.cohort(user, attempts);
         const scores = attempts.map(attempt => analyticsScore(attempt)!);
         const durations = attempts.map(analyticsDuration).filter((value): value is number => value !== null);
@@ -218,14 +228,14 @@ export class StudentAnalyticsService {
         }
         const history = attempts.slice().reverse().map(historyItem);
         return {
-            overview: { totalExams: attempts.length, completedExams: attempts.length, averageScore: rounded(mean(scores)),
+            overview: { scoreType, scoreLabel: STUDENT_SCORE_LABELS[scoreType], totalExams: attempts.length, completedExams: attempts.length, averageScore: rounded(mean(scores)),
                 highestScore: Math.max(...scores), lowestScore: Math.min(...scores), totalStudyTime: durations.length ? totalTime : null,
                 rank: cohort.rank, totalStudents: cohort.totalStudents, percentile: cohort.percentile },
-            recentAttempts: history.slice(0, 10).map(row => ({ ...row, attemptId: row.id, percentage: row.score, maxScore: 100 })),
+            recentAttempts: history.slice(0, 10).map(row => ({ ...row, attemptId: row.id, percentage: scoreType === 'classical' ? row.score : null, maxScore: scoreType === 'classical' ? 100 : null })),
             performanceTrend: attempts.map(row => ({ date: row.finished_at, score: analyticsScore(row)!, examTitle: row.exams.title || 'Ujian' })),
             subjectPerformance: [...subjects.entries()].map(([id, group]) => ({ subjectId: id, subjectName: group.name,
                 totalExams: group.scores.length, averageScore: rounded(mean(group.scores)), highestScore: Math.max(...group.scores),
-                lowestScore: Math.min(...group.scores), trend: calculateTrend(group.scores),
+                lowestScore: Math.min(...group.scores), trend: calculateTrend(group.scores, scoreType === 'classical' ? 5 : 0),
                 questionTypeBreakdown: [...group.types.entries()].map(([type, stats]) => ({ type, ...stats, percentage: Math.round(stats.correct / stats.total * 100) })) })),
             difficultyPerformance: ['easy', 'medium', 'hard'].map(difficulty => {
                 const stats = difficulties.get(difficulty) || { correct: 0, total: 0 };
@@ -253,6 +263,6 @@ export class StudentAnalyticsService {
 
     async comparison(user: AuthUser) {
         const { attempts } = await this.own(user);
-        return (await this.cohort(user, attempts)).comparison;
+        return (await this.cohort(user, sameScoreModel(attempts))).comparison;
     }
 }

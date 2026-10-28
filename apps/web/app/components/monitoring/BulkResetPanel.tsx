@@ -18,7 +18,6 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
   const completed = useRef(new Set<string>());
   const [result, setResult] = useState('');
   const [progress, setProgress] = useState('');
-  const [listExpanded, setListExpanded] = useState(true);
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const panel = panelRef.current;
@@ -49,7 +48,7 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Pilih siswa untuk direset</h2>
-          <button type="button" aria-expanded={listExpanded} onClick={() => setListExpanded(value => !value)} className="mt-1 shrink-0 cursor-pointer text-left text-xs font-semibold text-blue-700">{listExpanded ? '▼' : '▶'} {eligible.length} tersedia · {chosen.length} terpilih</button>
+          <p className="mt-1 text-xs font-semibold text-blue-700">{eligible.length} tersedia · {chosen.length} terpilih</p>
         </div>
         <Button disabled={!chosen.length} onClick={() => {
           completed.current.clear();
@@ -59,7 +58,6 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
         }}>Reset {chosen.length} siswa terpilih</Button>
       </div>
       <div className="mt-2.5 flex min-h-0 flex-1 flex-col">
-        {listExpanded && <>
           <label className="mb-2 flex items-center gap-2.5 border-b border-slate-100 pb-2.5 text-xs sm:text-sm font-medium text-slate-700 cursor-pointer">
             <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? [] : eligible.map(a => a.id))} />
             Pilih semua siswa dalam filter
@@ -83,7 +81,6 @@ export function BulkResetPanel({ attempts, examDuration, onRefresh }: {
               </span>
             </label>)}
           </div>
-        </>}
       </div>
       </>}
       {result && <p role="status" className="mt-3 text-sm text-slate-700">{result}</p>}

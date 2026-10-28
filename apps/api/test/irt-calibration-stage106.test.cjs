@@ -50,7 +50,7 @@ test('IRT-P02: Kalkulasi IRT menyimpan parameter butir di metadata ujian tanpa m
         cbt_exam_question_snapshots: [{ exam_id: 'exam', order_number: 1, question_snapshot: { id: Q1, type: 'mcq', score_default: 10, question_text: 'Soal satu' } }],
     }, [], { now: '2026-10-26T06:00:00Z' });
     const scoring = { post: async () => ({ count: 1, warnings: ['IRT 2PL dihitung dari 1 peserta'],
-        attempts: [{ id: 'attempt', detailed_scores: { classical: 100, irt_2pl: 80 }, score_irt: 80 }],
+        score_scale: 'theta', attempts: [{ id: 'attempt', detailed_scores: { classical: 100, irt_2pl: 2 }, score_irt: 2 }],
         items: [{ item_id: Q1, total: 1, correct: 1, p_value: 0.99, b: -4.5951, a: 1, c: 0.25 }] }) };
     const service = new GradingService(db, { assertExamStaff: async () => {} }, scoring);
 
@@ -63,7 +63,13 @@ test('IRT-P02: Kalkulasi IRT menyimpan parameter butir di metadata ujian tanpa m
     assert.equal(metadata.irt_calibration.items[0].text, 'Soal satu');
     assert.deepEqual(metadata.irt_calibration.items[0].flags, ['Terlalu mudah']);
     assert.deepEqual(result.calibration, metadata.irt_calibration);
-    assert.equal(db.tables.cbt_exam_attempts[0].score_irt, 80);
+    assert.equal(db.tables.cbt_exam_attempts[0].score_irt, 2);
+    assert.equal(db.tables.cbt_exam_attempts[0].irt_theta, 2);
+    assert.equal(db.tables.cbt_exam_attempts[0].metadata.irt_score_scale, 'theta');
+    const writes = db.writes.length;
+    scoring.post = async () => ({ score_scale: 'scaled_0_100', attempts: [] });
+    await assert.rejects(service.calculateIrt({ id:'staff' }, 'exam'), /theta/);
+    assert.equal(db.writes.length, writes, 'A scoring service using the old scale cannot overwrite theta results');
 });
 
 test('IRT-P03: export Excel memuat sheet Parameter_IRT dan kolom nilai per model', async () => {
@@ -77,12 +83,12 @@ test('IRT-P03: export Excel memuat sheet Parameter_IRT dan kolom nilai per model
             p: 0.95, b: -2.944, a: 0.4, c: 0.25, flags: ['Terlalu mudah', 'Daya beda rendah'] }],
     };
     const attempts = [{ id: 'a1', status: 'submitted', total_score: 80, profiles: { full_name: 'Ani' },
-        detailed_scores: { classical: 80, irt_1pl: 61.5, irt_2pl: 63.25 }, score_irt: 63.25 }];
+        metadata: { irt_score_scale: 'theta' }, detailed_scores: { classical: 80, irt_1pl: -1.5, irt_2pl: 1.25 }, score_irt: 1.25 }];
     const workbook = await buildAnalysisWorkbook({ exam: { id: 'e', title: 'ASAS', scoring_type: 'classical,irt_1pl,irt_2pl' }, attempts, analysis: [], detailedAnalysis: null, irt, timeZone: 'Asia/Makassar' });
     const reopened = XLSX.read(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }), { type: 'buffer' });
     const recap = XLSX.utils.sheet_to_json(reopened.Sheets.Rekap_Hasil)[0];
-    assert.equal(recap['Nilai IRT 1PL'], '61.50');
-    assert.equal(recap['Nilai IRT 2PL'], '63.25');
+    assert.equal(recap['Nilai IRT 1PL (θ)'], '-1.500000');
+    assert.equal(recap['Nilai IRT 2PL (θ)'], '1.250000');
     assert.equal(recap['Nilai IRT'], undefined, 'kolom tunggal diganti kolom per model');
     assert.ok(reopened.SheetNames.includes('Parameter_IRT'));
     const rows = XLSX.utils.sheet_to_json(reopened.Sheets.Parameter_IRT, { header: 1 });
@@ -95,5 +101,5 @@ test('IRT-P03: export Excel memuat sheet Parameter_IRT dan kolom nilai per model
 
     const plain = await buildAnalysisWorkbook({ exam: { id: 'e', title: 'Harian' }, attempts, analysis: [], detailedAnalysis: null });
     assert.ok(!plain.SheetNames.includes('Parameter_IRT'));
-    assert.ok('Nilai IRT' in XLSX.utils.sheet_to_json(plain.Sheets.Rekap_Hasil)[0]);
+    assert.ok('Nilai IRT (θ)' in XLSX.utils.sheet_to_json(plain.Sheets.Rekap_Hasil)[0]);
 });

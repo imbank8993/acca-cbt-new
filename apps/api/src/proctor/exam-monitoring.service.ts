@@ -85,7 +85,7 @@ export class ExamMonitoringService {
         const { data, error } = await this.db
             .from('cbt_exam_attempts')
             .select(
-                `id, status, total_score, score_irt, irt_theta, needs_manual_grading,
+                `id, status, total_score, score_irt, irt_theta, detailed_scores, needs_manual_grading,
                  started_at, finished_at, tab_switch_count, warning_count, exam_id, user_id,
                  last_seen_at, personal_end_time, metadata, device_fingerprint,
                  profiles:cbt_profiles(full_name, identity_number)`,

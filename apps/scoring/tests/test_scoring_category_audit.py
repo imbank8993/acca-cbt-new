@@ -68,7 +68,9 @@ def test_irt_pairing_uses_same_validity_rules_as_classical(model, kind, key, sel
                                          'essay_answer': raw, 'score': classical.score}]}]}))
     assert result.items[0].correct == expected
     assert result.attempts[0].detailed_scores['classical'] == expected * 100
-    assert 0 <= result.attempts[0].detailed_scores[model] <= 100
+    theta = result.attempts[0].detailed_scores[model]
+    assert result.score_scale == 'theta'
+    assert theta > 0 if expected else theta < 0
 
 
 @pytest.mark.parametrize('value,key,expected', [('benar', True, 1), ('salah', False, 1),

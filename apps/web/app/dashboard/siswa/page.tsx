@@ -1,6 +1,6 @@
 "use client";
 import { Spinner } from '@/app/components/ui/Spinner';
-import { dashboardAverageScore, dashboardResultScore } from '@/lib/student-dashboard-score';
+import { dashboardScoreSummary, dashboardResultScore } from '@/lib/student-dashboard-score';
 import { getSetting,pickAnnouncements,type Announcement } from '@/lib/api/settings';
 import {
     getStudentExamsResult,
@@ -119,7 +119,8 @@ export default function SiswaDashboard() {
         return formatSchoolTimeRange(startStr, endStr, timeZone);
     };
 
-    const averageScore = dashboardAverageScore(results);
+    const scoreSummary = dashboardScoreSummary(results);
+    const averageScore = scoreSummary.average;
 
     const completedExamsCount = results.filter(r => r.status === 'submitted' || r.status === 'auto_submitted').length;
     const visibleExams = dashboardExams(exams, now);
@@ -236,7 +237,7 @@ export default function SiswaDashboard() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Rata-Rata Nilai</p>
                             <p className="text-2xl font-black text-slate-800 leading-none font-mono">
                                 {averageScore ?? '—'}
-                                <span className="text-xs text-slate-400 font-normal ml-1">/100</span>
+                                <span className="text-xs text-slate-400 font-normal ml-1">{scoreSummary.type === 'classical' ? '/100' : `${scoreSummary.label} (θ)`}</span>
                             </p>
                         </div>
                     </div>
@@ -337,12 +338,12 @@ export default function SiswaDashboard() {
                                             <div className="flex justify-between items-start">
                                                 <p className="font-semibold text-slate-700 text-xs truncate pr-2 leading-none">{res.exams?.title || 'Ujian'}</p>
                                                 <p className="text-[10px] text-slate-400 shrink-0 leading-none">
-                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && '/100'}
+                                                    <span className={`text-xs font-black font-mono ${textColorClass}`}>{gradingPending ? pendingLabel : score.toFixed(2)}</span>{!gradingPending && (res.score_type?.startsWith('irt_') ? ' θ' : '/100')}
                                                 </p>
                                             </div>
-                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                            {!res.score_type?.startsWith('irt_') && <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                                 <div className={`h-full rounded-full ${barColorClass}`} style={{ width: `${Math.min(100, Math.max(0, score))}%` }}></div>
-                                            </div>
+                                            </div>}
                                         </div>
                                     );
                                 })

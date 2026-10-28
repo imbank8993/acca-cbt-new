@@ -1,4 +1,5 @@
 import pytest
+from app.services.analytics import _difficulty_label
 from app.schemas.analytics import (
     DetailedAnswerInput,
     DetailedItemAnalysisRequest,
@@ -7,6 +8,26 @@ from app.schemas.analytics import (
     DetailedQuestionInput,
 )
 from app.services.analytics import build_detailed_item_analysis
+
+
+@pytest.mark.parametrize('p,label', [
+    (0,'Sangat Sulit'),(.1,'Sangat Sulit'),(.100001,'Sulit'),(.3,'Sulit'),
+    (.300001,'Sedang'),(.7,'Sedang'),(.700001,'Mudah'),(.9,'Mudah'),
+    (.900001,'Sangat Mudah'),(1,'Sangat Mudah'),(None,''),(float('nan'),''),(-.1,''),(1.1,''),
+])
+def test_nonuniform_five_difficulty_bands(p,label):
+    assert _difficulty_label(p) == label
+
+
+def test_pending_grading_does_not_make_an_item_appear_more_difficult():
+    question=DetailedQuestionInput(id='q',number=1,question_text='q',type='mcq')
+    participants=[DetailedParticipantInput(attempt_id=str(i),student_name=str(i)) for i in range(100)]
+    answers=[DetailedAnswerInput(attempt_id=str(i),question_id='q',is_correct=True if i<9 else False if i==9 else None) for i in range(100)]
+    result=build_detailed_item_analysis(DetailedItemAnalysisRequest(exam_id='e',questions=[question],participants=participants,answers=answers))
+    item=result.items[0]
+    assert item.total_ungraded == 90
+    assert item.difficulty_index == .9
+    assert item.difficulty_label == 'Mudah'
 
 
 def test_build_detailed_item_analysis_mcq():

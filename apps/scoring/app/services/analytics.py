@@ -13,6 +13,7 @@ yang diisi manual pembuat soal).
 from __future__ import annotations
 
 import json
+import math
 import re
 
 from ..schemas.analytics import (
@@ -118,13 +119,20 @@ def build_exam_analytics(request: ExamAnalyticsRequest) -> ExamAnalyticsResponse
     )
 
 
-def _difficulty_label(index: float) -> str:
-    # Kategori baku Indonesia untuk indeks kesukaran (P).
-    if index >= 0.71:
-        return "mudah"
-    if index >= 0.31:
-        return "sedang"
-    return "sukar"
+def _difficulty_label(index: float | None) -> str:
+    # Konvensi interpretasi P: 0.10/0.30/0.70/0.90. Bukan kuantil dan bukan IRT b.
+    # Tidak ada jawaban ternilai berarti belum ada estimasi, bukan sangat sulit.
+    if index is None or not math.isfinite(index) or not 0 <= index <= 1:
+        return ""
+    if index <= 0.10:
+        return "Sangat Sulit"
+    if index <= 0.30:
+        return "Sulit"
+    if index <= 0.70:
+        return "Sedang"
+    if index <= 0.90:
+        return "Mudah"
+    return "Sangat Mudah"
 
 
 def _discrimination_label(index: float) -> str:
@@ -179,7 +187,8 @@ def analyze_items(request: ItemAnalysisRequest) -> ItemAnalysisResponse:
         total = len(answers)
         correct = sum(1 for a in answers if a.is_correct is True)
 
-        difficulty = correct / total if total else 0.0
+        graded = sum(1 for a in answers if a.is_correct is not None)
+        difficulty = correct / graded if graded else 0.0
 
         upper_answers = [a for a in answers if a.attempt_id in upper]
         lower_answers = [a for a in answers if a.attempt_id in lower]
@@ -200,7 +209,7 @@ def analyze_items(request: ItemAnalysisRequest) -> ItemAnalysisResponse:
                 question_id=question.id,
                 respondents=total,
                 difficulty_index=round(difficulty, 4),
-                difficulty_label=_difficulty_label(difficulty),
+                difficulty_label=_difficulty_label(difficulty) if graded > 0 else "",
                 discrimination_index=round(discrimination, 4),
                 discrimination_label=_discrimination_label(discrimination),
             )
@@ -414,7 +423,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
         graded_total = tot_correct + tot_incorrect
 
         incorrect_pct = (tot_incorrect / graded_total * 100) if graded_total > 0 else 0.0
-        difficulty = tot_correct / total_ans if total_ans > 0 else 0.0
+        difficulty = tot_correct / graded_total if graded_total > 0 else 0.0
 
         upper_answers = [a for a in q_answers if a.attempt_id in upper]
         lower_answers = [a for a in q_answers if a.attempt_id in lower]
@@ -463,7 +472,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 total_unanswered=tot_unanswered,
                 incorrect_percentage=round(incorrect_pct, 1),
                 difficulty_index=round(difficulty, 4),
-                difficulty_label=_difficulty_label(difficulty),
+                difficulty_label=_difficulty_label(difficulty) if graded_total > 0 else "",
                 discrimination_index=round(discrimination, 4),
                 discrimination_label=_discrimination_label(discrimination),
                 correct_students=correct_students,

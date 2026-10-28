@@ -1,12 +1,10 @@
 """Item Response Theory (1PL/2PL/3PL) — port dari ``apps/web/app/actions/irt.ts``.
 
-Algoritmanya dipertahankan persis: tebakan awal theta dari log-odds skor mentah,
-tiga iterasi Newton-Raphson dengan lompatan dibatasi ±1, theta akhir dijepit ke
-[-4, 4], lalu dipetakan ke skala 0–100 (rerata 50, simpangan 15).
+Skor IRT dilaporkan sebagai estimasi kemampuan theta, tanpa konversi atau
+pembatasan ke 0–100. Nilai klasikal tetap dalam skala 0–100.
 
-Beda dengan versi TypeScript hanyalah perulangan butir yang divektorkan dengan
-NumPy. Untuk ujian sekelas (ratusan peserta × ratusan butir) itu tiga perkalian
-matriks, bukan tiga perulangan bersarang.
+Perhitungan butir divektorkan dengan NumPy. Untuk ujian sekelas (ratusan
+peserta × ratusan butir), estimasi menggunakan tiga iterasi matriks.
 """
 
 from __future__ import annotations
@@ -20,10 +18,6 @@ import numpy as np
 from ..schemas.irt import AttemptScore, IrtAttempt, IrtRequest, IrtResponse, ItemParameter
 from .answer_parser import coerce_bool
 from .grading import _unique_strings, _dedupe_options
-
-# Skala UTBK.
-SCALE_MEAN = 50.0
-SCALE_STD = 15.0
 
 # Konstanta penskalaan logistik IRT.
 D_CONSTANT = 1.7
@@ -253,22 +247,9 @@ def _theta_score(
             # saat turunan keduanya sangat kecil.
             theta -= min(max(delta, -1.0), 1.0)
 
-    theta = min(max(theta, -4.0), 4.0)
-
-    objective_scaled = min(max(SCALE_MEAN + theta * SCALE_STD, 0.0), 100.0)
-
-    essay_scaled = 0.0
-    if student.total_essay_weight > 0:
-        essay_scaled = (student.essay_score_achieved / student.total_essay_weight) * 100
-
-    total_weight = student.objective_weight + student.total_essay_weight
-    if total_weight <= 0:
-        return 0.0
-
-    final = (student.objective_weight / total_weight) * objective_scaled + (
-        student.total_essay_weight / total_weight
-    ) * essay_scaled
-    return round(final, 2)
+    # Esai tetap masuk nilai klasikal. Poin esai tidak boleh dicampurkan dengan
+    # theta karena satuannya berbeda dan esai belum dikalibrasi sebagai butir IRT.
+    return round(theta, 6)
 
 
 def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
@@ -333,14 +314,14 @@ def calculate_exam_irt(request: IrtRequest) -> IrtResponse:
 
             detailed = {"classical": essay_scaled}
             if calc_1pl:
-                detailed["irt_1pl"] = essay_scaled
+                detailed["irt_1pl"] = None
             if calc_2pl:
-                detailed["irt_2pl"] = essay_scaled
+                detailed["irt_2pl"] = None
             if calc_3pl:
-                detailed["irt_3pl"] = essay_scaled
+                detailed["irt_3pl"] = None
 
             results.append(
-                AttemptScore(id=attempt.id, detailed_scores=detailed, score_irt=essay_scaled)
+                AttemptScore(id=attempt.id, detailed_scores=detailed, score_irt=None)
             )
             continue
 

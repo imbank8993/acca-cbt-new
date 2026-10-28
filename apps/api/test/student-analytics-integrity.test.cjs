@@ -46,6 +46,19 @@ test('late upload, submit intent, recovery and invalid timestamps have honest du
     assert.equal(analyticsDuration(attempt('a','e',80,{finished_at:'2026-09-18T00:00:00Z'})),null);
     assert.equal(analyticsDuration(attempt('a','e',80,{finished_at:'2026-09-19T00:00:00Z'})),0);
 });
+
+test('analytics groups theta separately from classical and accepts signed estimates', async () => {
+    const rows = [attempt('classical','c',90,{finished_at:'2026-09-18T00:00:00Z'}),
+        attempt('theta','t',90,{score_irt:-1.5,metadata:{irt_score_scale:'theta'},
+            exams:exam('t',{scoring_type:'irt_1pl'})})];
+    const r = await new StudentAnalyticsService(fixture(rows)).overview(user);
+    assert.equal(r.overview.scoreType,'irt_1pl');
+    assert.equal(r.overview.averageScore,-1.5);
+    assert.equal(r.overview.totalExams,1);
+    assert.equal(r.recentAttempts[0].maxScore,null);
+    assert.equal(r.recentAttempts[0].percentage,null);
+    assert.equal(r.dataQuality.excludedAttempts,1);
+});
 test('competition ranking handles ties and compares complete equal exam sets only', async () => {
     const rows = [attempt('a','e1',80),attempt('b','e2',80)];
     for (const [id,score] of [['tie',80],['higher',90],['lower',50]])

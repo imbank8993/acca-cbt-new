@@ -106,3 +106,31 @@ def test_irt_rejects_exam_without_objective_items():
 
     with pytest.raises(IrtError, match="soal objektif"):
         calculate_exam_irt(request)
+
+
+@pytest.mark.parametrize("model", ["irt_1pl", "irt_2pl", "irt_3pl"])
+def test_irt_reports_signed_theta_and_preserves_classical_percentages(model):
+    attempts = [IrtAttempt(id=str(correct), answers=[
+        answer(f"q{i}", 1, float(i < correct), i < correct) for i in range(6)
+    ]) for correct in [0, 3, 6]]
+    result = calculate_exam_irt(IrtRequest(exam_id="exam", scoring_types=[model], attempts=attempts))
+    low, middle, high = result.attempts
+    assert result.score_scale == "theta"
+    assert low.score_irt < middle.score_irt < high.score_irt
+    assert low.score_irt < 0 < high.score_irt
+    assert [row.detailed_scores["classical"] for row in result.attempts] == [0, 50, 100]
+    assert all(row.score_irt == row.detailed_scores[model] for row in result.attempts)
+    assert high.score_irt > 4, "Theta must not be clipped to the old display bounds"
+
+
+def test_essay_points_are_not_blended_into_theta():
+    objective = [answer("q1", 1, 1, True), answer("q2", 1, 0, False)]
+    def calculate(essay_score):
+        essay = IrtAnswer(question_id="essay", score=essay_score,
+            bank_questions=IrtQuestion(type="essay", score_default=8))
+        return calculate_exam_irt(IrtRequest(exam_id="exam", scoring_types=["irt_1pl"],
+            attempts=[IrtAttempt(id="a", answers=[*objective, essay])])).attempts[0]
+    low, high = calculate(0), calculate(8)
+    assert low.score_irt == high.score_irt
+    assert low.detailed_scores["classical"] == 10
+    assert high.detailed_scores["classical"] == 90

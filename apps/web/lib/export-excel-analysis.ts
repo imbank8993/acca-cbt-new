@@ -9,6 +9,7 @@ import type {
 } from './api/proctor';
 import type { QuestionOptionRecord, QuestionRecord } from './api/questions';
 import { difficultyLabel, discriminationLabel, type IrtCalibration } from './irt-calibration';
+import { hasThetaIrtScale, classicalDifficulty, classicalDifficultyIndex } from '@acca-cbt/shared';
 
 interface ExportItemAnalysis {
     id: string;
@@ -226,8 +227,8 @@ export async function buildAnalysisWorkbook({
                 'Nilai Klasik': !['submitted', 'auto_submitted'].includes(a.status) ? 'Belum dikumpulkan' : a.total_score == null ? 'Menunggu penilaian' : Number(a.detailed_scores?.classical ?? a.total_score).toFixed(2),
                 // Satu kolom per model IRT yang dipakai ujian, agar jelas nilai mana yang berasal dari model apa.
                 ...Object.fromEntries(irtModels.map((model, index) => {
-                    const value = (a.detailed_scores as Record<string, number | undefined> | null | undefined)?.[model] ?? (index === irtModels.length - 1 ? a.score_irt : null);
-                    return [`Nilai ${IRT_MODEL_LABELS[model]}`, value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(2) : '-'];
+                    const value = hasThetaIrtScale(a) ? (a.detailed_scores as Record<string, number | undefined> | null | undefined)?.[model] ?? (index === irtModels.length - 1 ? a.score_irt : null) : null;
+                    return [`Nilai ${IRT_MODEL_LABELS[model]} (θ)`, value != null && Number.isFinite(Number(value)) ? Number(value).toFixed(6) : '-'];
                 })),
                 'Status Penilaian': gradingLabel(a),
                 'ID Pengerjaan': a.id,
@@ -236,7 +237,7 @@ export async function buildAnalysisWorkbook({
                 'Tenggat pribadi': date(a.deadline_at),
                 'Simpan terakhir (server)': date(a.last_answer_saved_at),
                 ...(irtModels.length ? {} : {
-                    'Nilai IRT': a.detailed_scores?.irt_1pl != null
+                    'Nilai IRT (θ)': !hasThetaIrtScale(a) ? '-' : a.detailed_scores?.irt_1pl != null
                         ? Number(a.detailed_scores.irt_1pl).toFixed(2)
                         : a.score_irt != null
                         ? Number(a.score_irt).toFixed(2)
@@ -418,6 +419,7 @@ export async function buildAnalysisWorkbook({
         );
 
         const rowsAnalisis = sortedAnalysis.map((item) => {
+            const p = classicalDifficultyIndex(item.total_correct, item.total_incorrect);
             const correctNames = (item.correct_students || [])
                 .map((s: StudentAnswerSummary | string) => {
                     const name = typeof s === 'string' ? s : (s?.student_name || '');
@@ -448,8 +450,8 @@ export async function buildAnalysisWorkbook({
                 '% Benar (peserta mulai)': item.total_participants ? (item.total_correct / item.total_participants * 100).toFixed(1) + '%' : '-',
                 '% Kosong (peserta mulai)': item.total_participants ? (item.total_unanswered / item.total_participants * 100).toFixed(1) + '%' : '-',
                 '% Salah': item.incorrect_percentage.toFixed(1) + '%',
-                'Tingkat Kesukaran': item.difficulty_label ? item.difficulty_label.toUpperCase() : '-',
-                'Indeks Kesukaran (P)': item.difficulty_index != null ? Number(item.difficulty_index).toFixed(3) : '-',
+                'Tingkat Kesukaran': classicalDifficulty(p)?.toUpperCase() || '-',
+                'Indeks Kesukaran (P)': p !== null ? p.toFixed(3) : '-',
                 'Daya Beda': item.discrimination_label ? item.discrimination_label.toUpperCase() : '-',
                 'Indeks Daya Beda (D)': item.discrimination_index != null ? Number(item.discrimination_index).toFixed(3) : '-',
                 'Daftar Siswa Benar': correctNames || '-',
