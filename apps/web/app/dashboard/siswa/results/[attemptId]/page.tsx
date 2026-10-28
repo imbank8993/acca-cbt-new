@@ -9,9 +9,16 @@ import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
-import { BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
+import { ArrowLeft,BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
+
+type AnswerFilter = 'semua' | 'benar' | 'salah' | 'kosong';
+
+function isUnanswered(answer: StudentAttemptAnswer) {
+    return !answer.selectedOptionId && (answer.essayAnswer == null ||
+        (typeof answer.essayAnswer === 'string' && !answer.essayAnswer.trim()));
+}
 
 const PERSONALITY_TYPES = ['sjt', 'likert', 'forced_choice', 'checklist', 'ranking', 'paired_comparison'];
 
@@ -62,6 +69,8 @@ export default function StudentResultDetailsPage() {
     const [details, setDetails] = useState<StudentAttemptDetails | null>(null);
     const [activeTab, setActiveTab] = useState<'pengetahuan' | 'kepribadian'>('pengetahuan');
     const [questionSearch, setQuestionSearch] = useState('');
+    const [section, setSection] = useState<'ringkasan' | 'materi' | 'pembahasan'>('ringkasan');
+    const [answerFilter, setAnswerFilter] = useState<AnswerFilter>('semua');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -137,11 +146,25 @@ export default function StudentResultDetailsPage() {
     const kepribadianAnswers = answersWithQuestions.filter((answer) => PERSONALITY_TYPES.includes(answer.question.type));
     const searchedAnswers = answersWithQuestions.map((answer, index) => ({ answer, index })).filter(({ answer, index }) =>
         matchesQuestionSearch(answer.question.question_text, index + 1, questionSearch));
-    const visiblePengetahuan = searchedAnswers.filter(({ answer }) => !PERSONALITY_TYPES.includes(answer.question.type));
+    const visiblePengetahuan = searchedAnswers.filter(({ answer }) => !PERSONALITY_TYPES.includes(answer.question.type) &&
+        (answerFilter === 'semua' || (answerFilter === 'kosong' ? isUnanswered(answer) :
+            !isUnanswered(answer) && answer.isCorrect === (answerFilter === 'benar'))));
     const visibleKepribadian = searchedAnswers.filter(({ answer }) => PERSONALITY_TYPES.includes(answer.question.type));
 
     const correctCount = pengetahuanAnswers.filter((answer) => answer.isCorrect).length;
     const totalPengetahuanCount = pengetahuanAnswers.length;
+    const unansweredCount = pengetahuanAnswers.filter(isUnanswered).length;
+    const incorrectCount = pengetahuanAnswers.filter(answer => !isUnanswered(answer) && answer.isCorrect === false).length;
+    const pendingCount = pengetahuanAnswers.filter(answer => !isUnanswered(answer) && answer.isCorrect == null).length;
+    const assessedCount = correctCount + incorrectCount + unansweredCount;
+    const accuracy = assessedCount > 0 ? Math.round(correctCount / assessedCount * 100) : null;
+    const elapsedMs = attempt.started_at && attempt.finished_at
+        ? new Date(attempt.finished_at).getTime() - new Date(attempt.started_at).getTime() : NaN;
+    const durationMinutes = Number.isFinite(elapsedMs) && elapsedMs >= 0 ? Math.round(elapsedMs / 60000) : null;
+    const durationLabel = durationMinutes == null ? '—' : durationMinutes >= 60
+        ? `${Math.floor(durationMinutes / 60)} jam${durationMinutes % 60 ? ` ${durationMinutes % 60} mnt` : ''}`
+        : `${durationMinutes} mnt`;
+
     const displayedScore = attempt.display_score !== undefined ? attempt.display_score : selectedStudentScore(attempt, attempt.exams);
     const scoreLabel = attempt.score_label || STUDENT_SCORE_LABELS[studentScoreType(attempt.exams)];
     const gradingPending = displayedScore == null;
@@ -165,101 +188,49 @@ export default function StudentResultDetailsPage() {
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            {/* Header & Score Summary Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
-                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
-                    <div className="space-y-2 text-left">
-                        <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight leading-tight uppercase">
-                            Detail Hasil Ujian
-                        </h1>
-                        <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
-                            {attempt.exams?.title}
-                        </p>
-                    </div>
-
-                    {/* Score cards */}
-                    <div className="flex flex-wrap gap-3 self-start xl:self-center shrink-0">
-                        {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && (
-                            <div className="bg-slate-50 px-5 py-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-                                <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">{scoreLabel}</p>
-                                    <p className="text-3xl font-semibold tracking-tight text-[#3083FF] leading-none font-poppins tabular-nums">
-                                        {gradingPending ? '—' : totalScore.toFixed(2)}
-                                    </p>
-                                    <p className="text-[9px] text-slate-400 font-bold mt-1 leading-none">{(attempt.score_type || studentScoreType(attempt.exams)) === 'classical' ? '/100' : 'Skala 200–800'}</p>
-                                    {gradingPending && <p className="mt-2 text-[10px] text-slate-500">{scoreLabel.startsWith('IRT') && !attempt.needs_manual_grading ? 'Menunggu perhitungan IRT' : 'Menunggu penilaian'}</p>}
-                                </div>
-                                {hasPengetahuan && <>
-                                <div className="w-px h-10 bg-slate-200" />
-                                <div className="text-center min-w-[60px]">
-                                    <p className="text-[8px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">Benar</p>
-                                    <p className="text-2xl font-semibold tracking-tight text-emerald-600 leading-none font-poppins tabular-nums mt-0.5">{gradingPending ? '—' : correctCount}</p>
-                                    <p className="text-[9px] text-slate-400 font-bold mt-1.5 leading-none">/{totalPengetahuanCount}</p>
-                                </div>
-                                </>}
-                            </div>
-                        )}
-                    </div>
+            <header className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
+                <button type="button" onClick={() => router.push('/dashboard/siswa/results')}
+                    className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600">
+                    <ArrowLeft size={16} aria-hidden="true" /> Semua hasil ujian
+                </button>
+                <p className="text-xs font-semibold text-blue-600">Hasil Ujian</p>
+                <h1 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-500">
+                    <span className="inline-flex items-center gap-2"><Clock size={14} aria-hidden="true" /> Mulai: {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}</span>
+                    <span>Selesai: {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}</span>
                 </div>
+            </header>
 
-                {/* Tab bar inside card */}
-                {tabs.length > 1 && (
-                    <div className="mt-6 pt-4 flex gap-2 border-t border-slate-100">
-                        {tabs.map(tab => {
-                            const Icon = tab.icon;
-                            const isActive = resolvedTab === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                                        isActive
-                                            ? 'bg-[#3083FF] text-white border-[#3083FF] shadow-xs'
-                                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    <Icon size={13} />
-                                    {tab.label}
-                                    {tab.count > 0 && (
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                                            {tab.count}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-
-            {/* Summary bar */}
-            <div className="flex flex-wrap gap-3 text-sm">
-                <div className="flex items-center gap-2 text-slate-500 bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
-                    <Clock size={14} className="shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Mulai:</span>
-                    <span className="font-medium">
-                        {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}
-                    </span>
+            <section aria-label="Ringkasan nilai" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {(hasPengetahuan || details.answerKeysReleased === false || !hasKepribadian) && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
+                    <p className="text-sm font-medium text-blue-700">{attempt.needs_manual_grading ? 'Nilai sementara' : 'Nilai akhir'}</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-blue-700 tabular-nums">{gradingPending ? '—' : totalScore.toFixed(2)}</p>
+                    <p className="mt-2 text-xs text-blue-600">{gradingPending ? 'Sedang diproses' : `${scoreLabel} · ${(attempt.score_type || studentScoreType(attempt.exams)) === 'classical' ? 'Skala 0–100' : 'Skala 200–800'}`}</p>
+                </div>}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <p className="text-sm font-medium text-slate-500">Jawaban benar</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-semibold text-slate-900 tabular-nums">{hasPengetahuan ? correctCount : '—'}{hasPengetahuan && <span className="ml-1 text-base font-normal text-slate-400">/ {totalPengetahuanCount}</span>}</p>
+                    <p className="mt-2 text-xs text-slate-500">{hasPengetahuan ? `${pendingCount ? `${pendingCount} menunggu koreksi` : 'Soal pengetahuan'}` : 'Belum tersedia'}</p>
                 </div>
-                <div className="flex items-center gap-2 text-slate-500 bg-white border border-slate-100 px-4 py-2.5 rounded-xl">
-                    <Clock size={14} className="shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Selesai:</span>
-                    <span className="font-medium">
-                        {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}
-                    </span>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <p className="text-sm font-medium text-slate-500">Akurasi</p>
+                    <p className="mt-3 text-3xl sm:text-4xl font-semibold text-slate-900 tabular-nums">{accuracy == null ? '—' : `${accuracy}%`}</p>
+                    <p className="mt-2 text-xs text-slate-500">{hasPengetahuan ? 'Dari soal yang sudah dinilai' : 'Belum tersedia'}</p>
                 </div>
-                {attempt.needs_manual_grading && (
-                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl">
-                        <Info size={14} />
-                        <span className="text-xs font-bold uppercase tracking-widest">Menunggu penilaian manual</span>
-                    </div>
-                )}
-            </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <p className="text-sm font-medium text-slate-500">Durasi pengerjaan</p>
+                    <p className="mt-3 text-2xl sm:text-3xl font-semibold text-slate-900 tabular-nums">{durationLabel}</p>
+                    <p className="mt-2 text-xs text-slate-500">Waktu mulai hingga selesai</p>
+                </div>
+            </section>
 
-            {gradingPending && (
-                <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    Jawaban sudah dikumpulkan. Nilai masih diproses.
-                    <button type="button" onClick={() => void load()} className="ml-2 font-bold underline">Muat ulang nilai</button>
+            {(gradingPending || attempt.needs_manual_grading) && (
+                <div role="status" className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                    <Info size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <div><p className="font-semibold">{attempt.needs_manual_grading ? 'Menunggu penilaian guru' : scoreLabel.startsWith('IRT') ? 'Skor kemampuan sedang diproses' : 'Nilai sedang diproses'}</p>
+                        <p className="mt-1 text-blue-700">{attempt.needs_manual_grading ? 'Sebagian jawaban masih memerlukan koreksi. Hasil akan diperbarui setelah penilaian selesai.' : 'Jawaban sudah dikumpulkan. Periksa kembali untuk melihat nilai terbaru.'}</p>
+                        <button type="button" onClick={() => void load()} className="mt-2 font-semibold underline underline-offset-4">Muat ulang nilai</button>
+                    </div>
                 </div>
             )}
             {details.answerKeysReleased === false && (
@@ -270,7 +241,55 @@ export default function StudentResultDetailsPage() {
                 </div>
             )}
 
-            {details.answerKeysReleased !== false && <TopicAnalysisPanel analysis={details.topicAnalysis} personal />}
+            <div role="tablist" aria-label="Tampilan hasil" className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+                {(['ringkasan', 'materi', 'pembahasan'] as const).map(value => <button key={value} type="button" role="tab"
+                    id={`result-tab-${value}`} aria-selected={section === value} aria-controls={`result-panel-${value}`}
+                    onClick={() => setSection(value)}
+                    className={`flex-1 sm:flex-none whitespace-nowrap rounded-lg px-3 sm:px-5 py-2.5 text-sm font-semibold transition-colors ${section === value ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>
+                    {value === 'ringkasan' ? 'Ringkasan' : value === 'materi' ? 'Analisis Materi' : 'Pembahasan Soal'}
+                </button>)}
+            </div>
+
+            {section === 'ringkasan' && <div role="tabpanel" id="result-panel-ringkasan" aria-labelledby="result-tab-ringkasan" className="space-y-5">
+                {hasPengetahuan && <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                    <h2 className="font-semibold text-slate-900">Ringkasan jawaban</h2>
+                    <p className="mt-1 text-sm text-slate-500">Hasil jawaban pengetahuan pada ujian ini.</p>
+                    <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                        {[{ count: correctCount, color: 'bg-emerald-500' }, { count: incorrectCount, color: 'bg-rose-400' }, { count: unansweredCount, color: 'bg-slate-300' }, { count: pendingCount, color: 'bg-amber-400' }].map(item =>
+                            <div key={item.color} className={item.color} style={{ width: `${item.count / totalPengetahuanCount * 100}%` }} />)}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                        {[{ label: 'Benar', count: correctCount, color: 'bg-emerald-500' }, { label: 'Salah', count: incorrectCount, color: 'bg-rose-400' }, { label: 'Kosong', count: unansweredCount, color: 'bg-slate-300' }, ...(pendingCount ? [{ label: 'Menunggu koreksi', count: pendingCount, color: 'bg-amber-400' }] : [])].map(item =>
+                            <span key={item.label} className="inline-flex items-center gap-2 text-slate-600"><span className={`h-2.5 w-2.5 rounded-full ${item.color}`} aria-hidden="true" />{item.label} <strong className="text-slate-900">{item.count}</strong></span>)}
+                    </div>
+                    <p className="mt-4 text-xs text-slate-500">Akurasi = benar ÷ (benar + salah + kosong). Jawaban menunggu koreksi belum dihitung.</p>
+                </section>}
+                {hasKepribadian && <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 text-sm text-indigo-800">
+                    Profil karakter tersedia di Pembahasan Soal pada bagian Kepribadian.
+                </div>}
+            </div>}
+
+            {section === 'materi' && <div role="tabpanel" id="result-panel-materi" aria-labelledby="result-tab-materi" className="space-y-5">
+                {details.answerKeysReleased === false ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Analisis materi tersedia setelah pembahasan dibuka oleh guru.</div>
+                ) : details.topicAnalysis?.topics.length ? (
+                    <TopicAnalysisPanel analysis={details.topicAnalysis} personal />
+                ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Analisis materi belum tersedia untuk ujian ini.</div>
+                )}
+            </div>}
+
+            {section === 'pembahasan' && <div role="tabpanel" id="result-panel-pembahasan" aria-labelledby="result-tab-pembahasan" className="space-y-5">
+                {details.answerKeysReleased === false && <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">{details.answerKeysMessage || 'Pembahasan belum dibuka oleh guru.'}</div>}
+                {details.answerKeysReleased !== false && <div className="flex flex-wrap items-center gap-2">
+                    {tabs.length > 1 && tabs.map(tab => <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} aria-pressed={resolvedTab === tab.id}
+                        className={`rounded-lg px-4 py-2 text-sm font-medium ${resolvedTab === tab.id ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>{tab.label}</button>)}
+                    {resolvedTab === 'pengetahuan' && <div className="flex flex-wrap gap-2" aria-label="Filter jawaban">
+                        {(['semua', 'benar', 'salah', 'kosong'] as const).map(filter => <button key={filter} type="button" onClick={() => setAnswerFilter(filter)} aria-pressed={answerFilter === filter}
+                            className={`rounded-lg border px-3 py-2 text-sm capitalize ${answerFilter === filter ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'}`}>{filter}</button>)}
+                    </div>}
+                </div>}
+
 
             {/* Tab Content */}
             {details.answerKeysReleased !== false && answersWithQuestions.length > 0 && (
@@ -293,7 +312,7 @@ export default function StudentResultDetailsPage() {
                         {visiblePengetahuan.length === 0 ? (
                             <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center">
                                 <BookOpen className="mx-auto mb-3 text-slate-300" size={36} />
-                                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">{questionSearch.trim() ? 'Tidak ada soal yang cocok dengan pencarian' : 'Tidak ada soal pengetahuan'}</p>
+                                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">{questionSearch.trim() || answerFilter !== 'semua' ? 'Tidak ada soal yang cocok dengan pencarian atau filter' : 'Tidak ada soal pengetahuan'}</p>
                             </div>
                         ) : (
                             visiblePengetahuan.map(({ answer, index }) => (
@@ -424,6 +443,7 @@ export default function StudentResultDetailsPage() {
                 )}
             </AnimatePresence>
             )}
+            </div>}
         </div>
     );
 }

@@ -385,9 +385,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
                                                             <LatexRenderer text={opt.option_text || ''} className="!text-sm !leading-relaxed" />
                                                         </div>
                                                         {opt.is_correct && (
-                                                            <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                                                                <CheckCircle2 size={13} /> Kunci Jawaban
-                                                            </span>
+                                                            <span className="sr-only">Kunci jawaban</span>
                                                         )}
                                                     </div>
                                                 ))}

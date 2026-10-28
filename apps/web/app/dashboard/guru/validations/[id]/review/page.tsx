@@ -17,7 +17,6 @@ import {
     ChevronLeft,
     ChevronRight,
     Loader2,
-    Check,
     Tag,
     FileText,
     Highlighter,
@@ -391,9 +390,7 @@ export default function ValidatorReviewPage() {
                                                         <QuestionContent content={opt.option_text || opt.text || ''} />
                                                     </div>
                                                     {isCorrect && (
-                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 flex items-center gap-1 shrink-0">
-                                                            <Check size={12} /> Kunci Jawaban
-                                                        </span>
+                                                        <span className="sr-only">Kunci jawaban</span>
                                                     )}
                                                 </div>
                                             );

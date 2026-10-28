@@ -700,7 +700,7 @@ const QuestionContentRenderer = React.memo(({
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {hasStudentMark && markIsRight && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Benar)` : 'Jawaban Siswa & Kunci'}
+                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Benar)` : 'Jawaban Siswa (Benar)'}
                                             </span>
                                         )}
                                         {hasStudentMark && !markIsRight && (
@@ -708,11 +708,11 @@ const QuestionContentRenderer = React.memo(({
                                                 <X size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Jawab: ${tfChoice} (Salah)` : 'Jawaban Siswa (Salah)'}
                                             </span>
                                         )}
-                                        {!hasStudentMark && isKey && (
+                                        {!hasStudentMark && isKey && (question.type === 'true_false' ? (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> {question.type === 'true_false' ? `Kunci: ${isCorrect ? 'benar' : 'salah'}` : 'Kunci Jawaban'}
+                                                <Check size={10} strokeWidth={3} /> Kunci: {isCorrect ? 'benar' : 'salah'}
                                             </span>
-                                        )}
+                                        ) : <span className="sr-only">Kunci jawaban</span>)}
                                     </div>
                                 )}
                                 {(hasStudentMark || isKey) && (

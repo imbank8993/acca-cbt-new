@@ -529,7 +529,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {isSelected && isCorrect && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa & Kunci
+                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa (Benar)
                                             </span>
                                         )}
                                         {isSelected && !isCorrect && (
@@ -538,9 +538,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                             </span>
                                         )}
                                         {!isSelected && isCorrect && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> Kunci Jawaban
-                                            </span>
+                                            <span className="sr-only">Kunci jawaban</span>
                                         )}
                                     </div>
                                 )}
@@ -699,7 +697,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                     <div className="shrink-0 flex flex-col items-end gap-1">
                                         {isSelected && isCorrect && (
                                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#3083FF] text-white flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa & Kunci
+                                                <Check size={10} strokeWidth={3} /> Jawaban Siswa (Benar)
                                             </span>
                                         )}
                                         {isSelected && !isCorrect && (
@@ -708,9 +706,7 @@ export const QuestionRenderer = React.memo<QuestionRendererProps>(({
                                             </span>
                                         )}
                                         {!isSelected && isCorrect && (
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                                <Check size={10} strokeWidth={3} /> Kunci Jawaban
-                                            </span>
+                                            <span className="sr-only">Kunci jawaban</span>
                                         )}
                                     </div>
                                 )}
