@@ -36,6 +36,7 @@ function harness(imageHeight = 180, blockCount = 45) {
         if (name === 'jspdf') return { jsPDF: Pdf };
         if (name === 'dompurify') return { sanitize: text => text };
         if (name === 'html2canvas') return async (...args) => { captures.push(args); return canvas(); };
+        if (name.endsWith('/irt-pdf-math')) return { renderIrtPdfMath: () => '<svg></svg>' };
         if (name.endsWith('/math-utils')) return { extractMathExpressions: () => [] };
         if (name.endsWith('/irt-calibration')) return { difficultyLabel: () => ({ label: 'Sedang' }) };
         if (name.endsWith('/school-time')) return { getSchoolTimeZone: async () => 'Asia/Makassar', getSchoolTimeZoneLabel: () => 'WITA' };
@@ -88,4 +89,31 @@ test('an indivisible oversized equation is fitted on the page rather than sliced
     const images = h.drawn.filter(call => call.type === 'image');
     assert.equal(images.length, 1);
     assert.ok(images[0].args[3] + images[0].args[5] <= 278.01);
+});
+
+
+test('PDF equations use self-contained SVG paths and readable inline fractions', () => {
+    const loadTs = filename => {
+        const source = fs.readFileSync(filename, 'utf8');
+        const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+        const mod = { exports: {} };
+        new Function('require', 'module', 'exports', code)(name => name.startsWith('./')
+            ? loadTs(path.resolve(path.dirname(filename), name + '.ts')) : require(name), mod, mod.exports);
+        return mod.exports;
+    };
+    const { renderIrtPdfMath } = loadTs(path.resolve(__dirname, '../../web/lib/irt-pdf-math.ts'));
+    const equations = [String.raw`\frac{1}{3} \leq \frac{2x+5}{5} < \frac{4}{3}`,
+        String.raw`\sqrt{x^2+\frac{1}{x+1}}`, String.raw`\int_0^1 x^2\,dx`,
+        String.raw`\begin{pmatrix}1&2\\3&4\end{pmatrix}`];
+    for (const latex of equations) {
+        const svg = renderIrtPdfMath(latex, false);
+        assert.match(svg, /^<svg\s/);
+        assert.match(svg, /<path\s/);
+        assert.match(svg, /vertical-align:/);
+        assert.doesNotMatch(svg, /<use\s|data-mml-node="merror"|<foreignObject/);
+    }
+    const fraction = renderIrtPdfMath(String.raw`\frac{1}{3}`, false);
+    const displayFraction = renderIrtPdfMath(String.raw`\dfrac{1}{3}`, false);
+    assert.equal(fraction.match(/height="([^"]+)"/)[1], displayFraction.match(/height="([^"]+)"/)[1]);
 });

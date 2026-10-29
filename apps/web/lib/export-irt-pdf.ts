@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
-import { extractMathExpressions, renderLatex } from '@/app/components/questions/math-utils';
+import { renderIrtPdfMath } from './irt-pdf-math';
+import { extractMathExpressions } from '@/app/components/questions/math-utils';
 import { difficultyLabel, type IrtCalibration, type IrtCalibrationItem } from './irt-calibration';
 import { getSchoolTimeZone, getSchoolTimeZoneLabel } from './school-time';
 
@@ -12,7 +13,7 @@ export function irtPdfFileName(title: string): string {
     return `Analisis_IRT_${safe}.pdf`;
 }
 
-/** Sanitise teacher-authored HTML before adding trusted KaTeX markup. */
+/** Sanitise teacher-authored HTML before adding self-contained equation images. */
 export function renderIrtPdfQuestion(text: string): HTMLDivElement {
     const content = document.createElement('div');
     content.innerHTML = DOMPurify.sanitize(text || '-', {
@@ -31,7 +32,17 @@ export function renderIrtPdfQuestion(text: string): HTMLDivElement {
         for (const expression of expressions) {
             fragment.append(document.createTextNode(value.slice(offset, expression.start)));
             const span = document.createElement('span');
-            span.innerHTML = renderLatex(expression.latex, expression.displayMode).html;
+            const svg = renderIrtPdfMath(expression.latex, expression.displayMode);
+            const image = document.createElement('img');
+            const svgElement = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+            image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+            image.alt = expression.latex;
+            image.className = 'irt-pdf-equation';
+            image.style.width = svgElement.getAttribute('width') || 'auto';
+            image.style.height = svgElement.getAttribute('height') || 'auto';
+            image.style.verticalAlign = svgElement.style.verticalAlign || 'middle';
+            if (expression.displayMode) span.className = 'irt-pdf-display-equation';
+            span.append(image);
             fragment.append(span);
             offset = expression.end;
         }
@@ -44,9 +55,19 @@ export function renderIrtPdfQuestion(text: string): HTMLDivElement {
 async function captureQuestion(item: IrtCalibrationItem, width: number): Promise<{ canvas: HTMLCanvasElement; breaks: number[] }> {
     const host = document.createElement('div');
     host.setAttribute('aria-hidden', 'true');
-    host.style.cssText = `position:absolute;left:-20000px;top:0;width:${width * PX_PER_MM}px;background:#fff;color:#172b45;font:13px/1.6 Arial,sans-serif;overflow-wrap:anywhere;text-align:left;color-scheme:light;`;
+    host.style.cssText = `position:absolute;left:-20000px;top:0;width:${width * PX_PER_MM}px;background:#fff;color:#172b45;font:13px/1.7 Arial,sans-serif;overflow-wrap:anywhere;text-align:left;color-scheme:light;`;
     const style = document.createElement('style');
-    style.textContent = `.irt-pdf-content,.irt-pdf-content *{box-sizing:border-box}.irt-pdf-content p{margin:0 0 5px!important}.irt-pdf-content p:last-child{margin-bottom:0!important}.irt-pdf-content img{max-width:100%!important;height:auto!important}.irt-pdf-content .katex{font-size:1.05em!important;color:#172b45!important}.irt-pdf-content .katex-display{margin:5px 0!important;overflow:visible!important}.irt-pdf-content table{width:100%;border-collapse:collapse}.irt-pdf-content td,.irt-pdf-content th{padding:3px;border:1px solid #cbd5e1}.irt-pdf-content [style]{max-width:100%}`;
+    style.textContent = `
+        .irt-pdf-content{box-sizing:border-box;font-size:13px!important;line-height:1.7!important}
+        .irt-pdf-content p{margin:0 0 8px!important}
+        .irt-pdf-content p:last-child{margin-bottom:0!important}
+        .irt-pdf-content img{max-width:100%!important}
+        .irt-pdf-content img:not(.irt-pdf-equation){height:auto!important}
+        .irt-pdf-content .irt-pdf-equation{display:inline-block;max-width:none!important}
+        .irt-pdf-display-equation{display:block;margin:8px 0;text-align:center}
+        .irt-pdf-content table{width:100%;border-collapse:collapse}
+        .irt-pdf-content td,.irt-pdf-content th{padding:4px;border:1px solid #cbd5e1}
+    `;
     host.append(style);
     const content = renderIrtPdfQuestion(item.text);
     content.className = 'irt-pdf-content';
@@ -66,8 +87,8 @@ async function captureQuestion(item: IrtCalibrationItem, width: number): Promise
             await image.decode().catch(() => undefined);
             if (!image.naturalWidth) throw new Error(`Gambar pada soal ${item.number} belum dapat dimuat. Coba ekspor kembali.`);
         }));
-        // Rich-text paragraphs and table rows are safe page boundaries. KaTeX's
-        // internal font/strut boxes cannot be used as visible equation bounds.
+        // Rich-text paragraphs and table rows are safe page boundaries.
+        // Equations are indivisible images, including fractions and radicals.
         const top = host.getBoundingClientRect().top;
         const blocks = Array.from(host.querySelectorAll('p,li,tr,figure'))
             .filter(element => !element.querySelector('p,li,tr,figure'))
@@ -186,16 +207,16 @@ export async function buildIrtParametersPdf(irt: IrtCalibration, title: string, 
             }
             pdf.addImage(image.toDataURL('image/png'), 'PNG', xs[1] + 2.5, y + 3, imageWidth, pixels * mmPerPixel);
             pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(18, 38, 63);
-            pdf.text(String(item.number || '-'), xs[0] + 2, y + 5);
+            pdf.text(String(item.number || '-'), xs[0] + 2, y + 6);
             pdf.setFont('helvetica', 'normal');
             const values = [`${(item.p * 100).toFixed(1)}%`, item.b.toFixed(2), ...(showA ? [item.a.toFixed(2)] : []), ...(showC ? [item.c.toFixed(2)] : [])];
-            values.forEach((value, index) => pdf.text(value, xs[index + 2] + 2, y + 5));
+            values.forEach((value, index) => pdf.text(value, xs[index + 2] + 2, y + 6));
             pdf.setFontSize(6.5); pdf.setTextColor(100, 116, 139);
-            pdf.text(`${item.correct}/${item.total}`, xs[2] + 2, y + 9);
-            pdf.text(difficultyLabel(item.b).label, xs[3] + 2, y + 9);
+            pdf.text(`${item.correct}/${item.total}`, xs[2] + 2, y + 10.5);
+            pdf.text(difficultyLabel(item.b).label, xs[3] + 2, y + 10.5);
             if (offset) pdf.text('lanj.', xs[0] + 1, y + 9);
             pdf.setFontSize(7); pdf.setTextColor(item.flags.length ? 146 : 100, item.flags.length ? 86 : 116, item.flags.length ? 18 : 139);
-            pdf.text(noteLines, xs[xs.length - 1] + 2, y + 5, { lineHeightFactor: 1.35 });
+            pdf.text(noteLines, xs[xs.length - 1] + 2, y + 6, { lineHeightFactor: 1.35 });
             pdf.setDrawColor(224, 231, 240); pdf.setLineWidth(0.18); pdf.line(MARGIN, y + height, 196, y + height);
             y += height;
             offset += pixels;
