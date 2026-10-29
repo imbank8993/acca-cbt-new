@@ -55,13 +55,13 @@ export function renderIrtPdfQuestion(text: string): HTMLDivElement {
 async function captureQuestion(item: IrtCalibrationItem, width: number): Promise<{ canvas: HTMLCanvasElement; breaks: number[] }> {
     const host = document.createElement('div');
     host.setAttribute('aria-hidden', 'true');
-    host.style.cssText = `position:absolute;left:-20000px;top:0;width:${width * PX_PER_MM}px;background:#fff;color:#172b45;font:13px/1.7 Arial,sans-serif;overflow-wrap:anywhere;text-align:left;color-scheme:light;`;
+    host.style.cssText = `position:absolute;left:-20000px;top:0;width:${width * PX_PER_MM}px;background:#fff;color:#172b45;font:13px/1.8 Arial,sans-serif;overflow-wrap:anywhere;text-align:left;color-scheme:light;`;
     const style = document.createElement('style');
     style.textContent = `
-        .irt-pdf-content{box-sizing:border-box;font-size:13px!important;line-height:1.7!important}
+        .irt-pdf-content{box-sizing:border-box;font-size:13px!important;line-height:1.8!important}
         .irt-pdf-content p{margin:0 0 8px!important}
         .irt-pdf-content p:last-child{margin-bottom:0!important}
-        .irt-pdf-content img{max-width:100%!important}
+        .irt-pdf-content img{max-width:100%!important;vertical-align:middle!important}
         .irt-pdf-content img:not(.irt-pdf-equation){height:auto!important}
         .irt-pdf-content .irt-pdf-equation{display:inline-block;max-width:none!important}
         .irt-pdf-display-equation{display:block;margin:8px 0;text-align:center}
@@ -205,18 +205,19 @@ export async function buildIrtParametersPdf(irt: IrtCalibration, title: string, 
                 if (!context) throw new Error('Rumus soal belum dapat dirender ke PDF.');
                 context.drawImage(canvas, 0, offset, canvas.width, pixels, 0, 0, canvas.width, pixels);
             }
-            pdf.addImage(image.toDataURL('image/png'), 'PNG', xs[1] + 2.5, y + 3, imageWidth, pixels * mmPerPixel);
+            pdf.addImage(image.toDataURL('image/png'), 'PNG', xs[1] + 2.5, y + (height - pixels * mmPerPixel) / 2, imageWidth, pixels * mmPerPixel);
+            const centerY = y + height / 2;
             pdf.setFont('helvetica', 'bold'); pdf.setFontSize(8); pdf.setTextColor(18, 38, 63);
-            pdf.text(String(item.number || '-'), xs[0] + 2, y + 6);
+            pdf.text(String(item.number || '-'), xs[0] + 2, centerY - (offset ? 2 : 0), { baseline: 'middle' });
             pdf.setFont('helvetica', 'normal');
             const values = [`${(item.p * 100).toFixed(1)}%`, item.b.toFixed(2), ...(showA ? [item.a.toFixed(2)] : []), ...(showC ? [item.c.toFixed(2)] : [])];
-            values.forEach((value, index) => pdf.text(value, xs[index + 2] + 2, y + 6));
+            values.forEach((value, index) => pdf.text(value, xs[index + 2] + 2, centerY - (index < 2 ? 2.1 : 0), { baseline: 'middle' }));
             pdf.setFontSize(6.5); pdf.setTextColor(100, 116, 139);
-            pdf.text(`${item.correct}/${item.total}`, xs[2] + 2, y + 10.5);
-            pdf.text(difficultyLabel(item.b).label, xs[3] + 2, y + 10.5);
-            if (offset) pdf.text('lanj.', xs[0] + 1, y + 9);
+            pdf.text(`${item.correct}/${item.total}`, xs[2] + 2, centerY + 2.1, { baseline: 'middle' });
+            pdf.text(difficultyLabel(item.b).label, xs[3] + 2, centerY + 2.1, { baseline: 'middle' });
+            if (offset) pdf.text('lanj.', xs[0] + 1, centerY + 2, { baseline: 'middle' });
             pdf.setFontSize(7); pdf.setTextColor(item.flags.length ? 146 : 100, item.flags.length ? 86 : 116, item.flags.length ? 18 : 139);
-            pdf.text(noteLines, xs[xs.length - 1] + 2, y + 6, { lineHeightFactor: 1.35 });
+            pdf.text(noteLines, xs[xs.length - 1] + 2, centerY - (noteLines.length - 1) * 3.334 / 2, { lineHeightFactor: 1.35, baseline: 'middle' });
             pdf.setDrawColor(224, 231, 240); pdf.setLineWidth(0.18); pdf.line(MARGIN, y + height, 196, y + height);
             y += height;
             offset += pixels;

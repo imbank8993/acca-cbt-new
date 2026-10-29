@@ -14,7 +14,7 @@ function harness(imageHeight = 180, blockCount = 45) {
         setPage(page) { this.page = page; }
         splitTextToSize(text) { return [text]; }
         rect(x, y, w, h) { drawn.push({ type: 'rect', page: this.page, x, y, w, h }); }
-        text(text, x, y) { drawn.push({ type: 'text', page: this.page, text, x, y }); }
+        text(text, x, y, options = {}) { drawn.push({ type: 'text', page: this.page, text, x, y, options }); }
         addImage(...args) { drawn.push({ type: 'image', page: this.page, args }); }
         save(name) { this.saved = name; }
         setFillColor() {} setDrawColor() {} setTextColor() {} setFont() {} setFontSize() {} setLineWidth() {} line() {} roundedRect() {}
@@ -116,4 +116,26 @@ test('PDF equations use self-contained SVG paths and readable inline fractions',
     const fraction = renderIrtPdfMath(String.raw`\frac{1}{3}`, false);
     const displayFraction = renderIrtPdfMath(String.raw`\dfrac{1}{3}`, false);
     assert.equal(fraction.match(/height="([^"]+)"/)[1], displayFraction.match(/height="([^"]+)"/)[1]);
+});
+
+
+test('short and multiline PDF rows center question, number, notes, and parameter groups vertically', async () => {
+    for (const imageHeight of [90, 600]) {
+        const h = harness(imageHeight), data = irt(['irt_1pl', 'irt_2pl', 'irt_3pl']);
+        data.items = data.items.slice(0, 1);
+        await h.buildIrtParametersPdf(data, 'Perataan vertikal', 'Asia/Makassar');
+        const image = h.drawn.find(call => call.type === 'image');
+        const row = h.drawn.filter(call => call.type === 'rect' && call.w === 182 && call.h >= 16).at(-1);
+        const center = row.y + row.h / 2;
+        assert.ok(Math.abs(image.args[3] + image.args[5] / 2 - center) < 0.001);
+        const cell = text => h.drawn.find(call => call.type === 'text' && call.text === text && call.y >= row.y);
+        for (const text of ['1', '0.75', '0.25']) {
+            assert.equal(cell(text).y, center);
+            assert.equal(cell(text).options.baseline, 'middle');
+        }
+        assert.ok(Math.abs((cell('80.0%').y + cell('165/206').y) / 2 - center) < 0.001);
+        assert.ok(Math.abs((cell('-1.23').y + cell('Sedang').y) / 2 - center) < 0.001);
+        const note = h.drawn.find(call => call.type === 'text' && Array.isArray(call.text) && call.text[0] === 'Terlalu mudah');
+        assert.equal(note.y, center);
+    }
 });
