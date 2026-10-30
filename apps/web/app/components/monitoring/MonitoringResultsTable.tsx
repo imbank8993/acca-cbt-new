@@ -154,7 +154,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                 </div>
                             </td>
                         </tr>
-                        {expanded && <tr id={`result-detail-${att.id}`} className="hidden border-b border-slate-200 bg-slate-50/70 sm:table-row"><td colSpan={7} className="px-4 py-4">
+                        {expanded && <tr id={`result-detail-${att.id}`} className="monitoring-result-detail hidden border-b border-slate-200 bg-slate-50/70 sm:table-row"><td colSpan={7} className="px-4 py-4">
                             <dl className="grid gap-x-8 gap-y-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
                                 <div><dt className="text-slate-500">Durasi</dt><dd className="mt-1 font-semibold text-slate-800">{durationMinutes === null ? '—' : `${Math.floor(durationMinutes / 60)}j ${durationMinutes % 60}m`}</dd></div>
                                 <div><dt className="text-slate-500">Mulai</dt><dd className="mt-1 font-semibold text-slate-800">{att.started_at ? new Date(att.started_at).toLocaleString('id-ID') : '—'}</dd></div>

@@ -5,6 +5,7 @@ import { AlertTriangle, Download, Info, Sigma } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import { alertDialog } from '@/lib/confirm-dialog';
+import { getQuestionSnippet } from '@/lib/question-snippet';
 import { difficultyLabel, discriminationLabel, withIrtQuestionText, type IrtCalibration } from '@/lib/irt-calibration';
 
 const PAGE_SIZE = 15;
@@ -111,9 +112,9 @@ export function IrtParametersPanel({ calibration, scoringType, title = 'Paramete
                             <td className="px-4 py-2.5 font-bold tabular-nums text-slate-700">{item.number || '-'}</td>
                             <td className="min-w-[220px] max-w-[360px] px-3 py-2.5 text-slate-700">
                                 <div className="max-w-[360px] overflow-x-auto py-1">
-                                <LatexRenderer text={item.text || '—'} className="!text-xs !leading-relaxed" />
+                                <LatexRenderer text={getQuestionSnippet(item.text, 160) || '—'} className="!text-xs !leading-relaxed line-clamp-3" />
                                 {item.part && <div className="mt-1 text-[11px] text-slate-500">Pernyataan:
-                                    <LatexRenderer text={item.part} className="!text-[11px] !leading-relaxed" />
+                                    <LatexRenderer text={getQuestionSnippet(item.part, 90)} className="!text-[11px] !leading-relaxed line-clamp-2" />
                                 </div>}
                                 </div>
                             </td>

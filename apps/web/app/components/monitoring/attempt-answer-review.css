@@ -1,0 +1,21 @@
+.dark .attempt-answer-review {
+  background: #172235 !important;
+  border-color: #334155 !important;
+}
+
+.dark .attempt-answer-review > .border-b {
+  border-color: #334155 !important;
+}
+
+.dark .attempt-answer-review > .border-b .text-slate-500,
+.dark .attempt-answer-review > .border-b .text-slate-400 {
+  color: #b0bfd2 !important;
+}
+
+.dark .attempt-answer-review .opacity-60 {
+  opacity: 1;
+}
+
+.dark .attempt-answer-review [class~="dark:text-slate-500"] {
+  color: #b0bfd2 !important;
+}

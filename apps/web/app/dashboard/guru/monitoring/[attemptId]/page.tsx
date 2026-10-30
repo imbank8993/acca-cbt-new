@@ -8,6 +8,7 @@ import { AttemptAnalyticsHeader } from '@/app/components/AttemptAnalyticsHeader'
 import { ParticipantRoomInfo } from '@/app/components/monitoring/ParticipantRoomInfo';
 import { AttemptScoreCard } from '@/app/components/AttemptScoreCard';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
+import '@/app/components/monitoring/attempt-answer-review.css';
 import { isAnswerUnanswered, matchesAnswerOutcome, summarizeAnswerOutcomes, type AnswerOutcomeFilter } from '@/lib/answer-stats';
 import { AttemptFullDetails,getAttemptFullDetailsAction } from '@/lib/api/proctor';
 import { submitEssayGrades } from '@/lib/api/teachers';
@@ -299,7 +300,7 @@ export default function AttemptAnalyticsPage() {
                                             </div>
 
                                             {/* Card Content */}
-                                            <div className="flex-1 bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4 hover:border-[#3083FF]/30 transition-colors">
+                                            <div className="attempt-answer-review flex-1 bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4 hover:border-[#3083FF]/30 transition-colors">
                                                 <div className="flex flex-wrap gap-2 justify-between items-center mb-3 pb-2.5 border-b border-slate-200">
                                                     <div className="flex gap-2">
                                                         <span className="px-2.5 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-500">

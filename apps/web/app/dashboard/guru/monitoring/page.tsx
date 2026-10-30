@@ -565,7 +565,7 @@ function MonitoringContent() {
                                                             <td className="p-4">
                                                                 <div className="min-w-0">
                                                                     <div className="relative max-h-[3.5rem] overflow-hidden font-medium text-slate-700 [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
-                                                                        <LatexRenderer text={anl.qText} className="!text-[12px] !leading-relaxed" />
+                                                                        <LatexRenderer text={getQuestionSnippet(anl.qText, 160)} className="!text-[12px] !leading-relaxed line-clamp-3" />
                                                                     </div>
                                                                     {isCritical && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Mayoritas salah</span>}
                                                                     <button
