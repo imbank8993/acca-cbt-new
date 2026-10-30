@@ -60,6 +60,10 @@ jobs:
     name: Deploy to VPS
     needs: verify
     runs-on: ubuntu-latest
+    # main and master deploy to the same VPS; do not interrupt a live rollout.
+    concurrency:
+      group: acca-cbt-production-vps
+      cancel-in-progress: false
     permissions:
       contents: read
     steps:
@@ -83,6 +87,19 @@ jobs:
             echo "🚀 Menghubungkan ke VPS..."
             TARGET_DIR="${{ secrets.VPS_APP_DIR || '/www/wwwroot/acca-cbt-new' }}"
             REPOSITORY_URL="https://github.com/$DEPLOY_REPOSITORY.git"
+
+            # Also serialize remote scripts that outlive their Actions runner.
+            # Lock before fetching: concurrent resets/builds share this checkout.
+            command -v flock >/dev/null 2>&1 || {
+              echo "flock diperlukan untuk mengunci proses deployment di VPS."
+              exit 1
+            }
+            exec 9>/var/lock/acca-cbt-production-deploy.lock
+            echo "⏳ Menunggu deployment lain selesai..."
+            flock -w 1500 9 || {
+              echo "Deployment lain masih berjalan; tidak ada kontainer yang diubah."
+              exit 1
+            }
 
             # Supply the job's read-only token only while fetching source.
             # The helper contains no token and is removed before the Docker build.
