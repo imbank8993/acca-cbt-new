@@ -46,6 +46,14 @@
   line-height: 20px;
 }
 
+.option-content-editor .ProseMirror p {
+  margin-block: 0 4px;
+}
+
+.option-content-editor .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
 .option-content-editor .ProseMirror img {
   max-width: 100%;
   height: auto;

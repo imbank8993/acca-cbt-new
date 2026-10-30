@@ -35,6 +35,22 @@
 }
 
 .question-bank-import:hover { background: #eff6ff; }
+.question-bank-import__label { display: none; }
+
+@media (min-width: 1024px) {
+  .question-bank-import {
+    flex-basis: auto;
+    width: auto;
+    gap: 8px;
+    padding-inline: 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .question-bank-import__label { display: inline; }
+}
+
 .question-bank-import:focus-visible { outline: 2px solid #3083ff; outline-offset: 3px; }
 .dark .question-bank-import { background: #172235; border-color: #334155; color: #60a5fa; }
 .dark .question-bank-import:hover { background: #193e6b; }

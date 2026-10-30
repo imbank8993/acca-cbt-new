@@ -725,7 +725,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         {canManage && <>
                             <button type="button" onClick={() => setIsImportModalOpen(true)}
                                 className="question-bank-import" aria-label="Import soal" title="Import soal">
-                                <Upload size={18} />
+                                <Upload size={18} /><span className="question-bank-import__label">Import</span>
                             </button>
                             <Button type="button" variant="primary" size="sm" className="question-bank-add"
                                 onClick={() => handleOpenEditor()} leftIcon={<Plus size={16} />}>Tambah Soal</Button>
