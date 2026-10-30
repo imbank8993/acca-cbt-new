@@ -520,6 +520,11 @@ html.dark .ftb-backBtn:hover {
     transform: translateX(16px);
 }
 
+.ftb-toggle input:focus-visible + .ftb-toggle-track {
+    outline: 2px solid #60a5fa;
+    outline-offset: 3px;
+}
+
 /* ===================== Desktop / Mobile Layout ===================== */
 
 .ftb-desktop-wrap {
@@ -1657,11 +1662,18 @@ html.dark .ftb-backBtn:hover {
 }
 
 .dark .ftb-toggle-track {
-    background: #1e293b;
+    background: #475569;
+    box-shadow: inset 0 0 0 1px #94a3b8;
 }
 
 .dark .ftb-toggle input:checked + .ftb-toggle-track {
-    background: #1a73e8;
+    background: #3083ff;
+    box-shadow: inset 0 0 0 1px #60a5fa;
+}
+
+.dark .ftb-toggle:has(input:checked) {
+    border-color: #60a5fa;
+    background-color: #193354;
 }
 
 .dark .ftb-mobile-filter-btn {

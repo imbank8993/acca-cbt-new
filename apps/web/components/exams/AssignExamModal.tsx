@@ -1,5 +1,7 @@
 'use client';
 
+import './assign-exam-modal.css';
+
 import React, { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import {
     Globe,
@@ -490,7 +492,7 @@ export const AssignExamModal: React.FC<AssignExamModalProps> = ({
                     )}
                 </span>
             }
-            className="md:h-[620px] max-h-[92vh] flex flex-col"
+            className="assign-exam-modal md:h-[620px] max-h-[92vh] flex flex-col"
             overlayClassName={overlayClassName}
         >
             {/* ─── Modal Body with 2-Column Split Master-Detail ─── */}

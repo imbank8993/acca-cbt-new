@@ -1,0 +1,54 @@
+/* Keep participant selection surfaces opaque and readable in dark mode. */
+.dark .assign-exam-modal .mdl-head__titleText {
+  background: none;
+  color: #f1f5f9;
+  -webkit-text-fill-color: currentColor;
+}
+
+.dark .assign-exam-modal [class~="bg-slate-50/40"] {
+  background: #111a2b !important;
+}
+
+.dark .assign-exam-modal [class~="bg-white"],
+.dark .assign-exam-modal [class~="bg-slate-50/50"],
+.dark .assign-exam-modal [class~="bg-slate-50"] {
+  background: #172235 !important;
+}
+
+.dark .assign-exam-modal [class~="bg-blue-50/60"],
+.dark .assign-exam-modal [class~="bg-blue-50/70"] {
+  background: #193354 !important;
+  border-color: #4388e8 !important;
+}
+
+.dark .assign-exam-modal [class~="border-slate-200/80"],
+.dark .assign-exam-modal [class~="border-slate-200/70"],
+.dark .assign-exam-modal [class~="border-slate-100"] {
+  border-color: #334155 !important;
+}
+
+.dark .assign-exam-modal [class~="divide-slate-100"] > :not(:last-child) {
+  border-color: #334155 !important;
+}
+
+.dark .assign-exam-modal [class~="text-slate-400"],
+.dark .assign-exam-modal [class~="text-slate-500"] {
+  color: #a8b7cb !important;
+}
+
+.dark .assign-exam-modal [class~="text-[#3083FF]"] {
+  color: #60a5fa !important;
+}
+
+.dark .assign-exam-modal [class~="opacity-70"] {
+  opacity: 1;
+}
+
+.dark .assign-exam-modal [class*="cursor-pointer"]:hover {
+  border-color: #60a5fa !important;
+}
+
+.dark .assign-exam-modal input[type="checkbox"] {
+  color-scheme: dark;
+  accent-color: #3083ff;
+}
