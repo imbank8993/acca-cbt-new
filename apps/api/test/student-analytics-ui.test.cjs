@@ -32,6 +32,8 @@ function harness() {
     }).outputText;
     const module = { exports: {} };
     const req = name => {
+        if (name.endsWith('.css')) return {};
+        if (name.endsWith('/ui/inlineselect')) return { InlineSelect: 'inline-select' };
         if (name === 'react') return React;
         if (name === 'chart.js') return { Chart: { register() {} } };
         if (name === 'react-chartjs-2') return { Line: 'line-chart', Bar: 'bar-chart' };
