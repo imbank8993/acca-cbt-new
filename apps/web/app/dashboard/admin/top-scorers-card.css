@@ -1,0 +1,28 @@
+.dark .top-scorers-list > button {
+  border-color: #334155;
+}
+
+.dark .top-scorers-list [data-rank="1"] {
+  background: #30291c !important;
+  border-color: #594524 !important;
+}
+
+.dark .top-scorers-list [data-rank="2"] {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+.dark .top-scorers-list [data-rank="3"] {
+  background: #30231f !important;
+  border-color: #654232 !important;
+}
+
+.dark .top-scorers-list [data-rank] > p {
+  color: #f1f5f9 !important;
+}
+
+.dark .top-scorers-list [data-rank="2"] > span:first-child {
+  background: #334155 !important;
+  color: #cbd5e1 !important;
+  border-color: #64748b !important;
+}

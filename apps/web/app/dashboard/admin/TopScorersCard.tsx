@@ -1,5 +1,7 @@
 'use client';
 
+import './top-scorers-card.css';
+
 import { getTopScorers, type ExamTopScorers } from '@/lib/api/proctor';
 import { formatStudentName, getScoreColorClass } from '@/lib/monitoring-health';
 import { ChevronLeft, ChevronRight, Medal, Trophy, Users } from 'lucide-react';
@@ -118,7 +120,7 @@ export function TopScorersCard({
                     <p className="text-xs text-slate-500">Belum ada ujian yang selesai dinilai</p>
                 </div>
             ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="top-scorers-list divide-y divide-slate-100">
                     {visibleExams.map((exam) => (
                         <button
                             key={exam.examId}
@@ -147,6 +149,7 @@ export function TopScorersCard({
                                     return (
                                         <div
                                             key={s.userId}
+                                            data-rank={s.rank}
                                             className={`flex items-center gap-2 rounded-md border px-2.5 py-1 ${style.row}`}
                                         >
                                             <span className={`w-5 h-5 shrink-0 rounded-full border flex items-center justify-center ${style.badge}`}>
