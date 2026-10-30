@@ -1,9 +1,11 @@
 "use client";
 import './question-dark-surfaces.css';
+import './question-bank-layout.css';
+import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 import { collectQuestionGroups, questionGroupLabel } from '@/lib/question-groups';
 
 import { getBankValidationFeedback } from '@/lib/api/validations';
-import { FilterToolbar, FilterSearch, FilterActions } from '@/components/ui/filtertoolbar';
+import { FilterSearch } from '@/components/ui/filtertoolbar';
 import { Button } from '@/components/ui/button';
 import { InlineSelectIndicator } from '@/components/ui/InlineSelect';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
@@ -314,6 +316,13 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
         }
         setIsEditorOpen(true);
     }, [canManage, setCategories, setOptions]);
+
+    useEffect(() => {
+        if (!canManage || activeTab !== 'questions') return;
+        const token = {};
+        registerPageFab(token, { label: 'Tambah Soal', icon: 'plus', run: () => handleOpenEditor() });
+        return () => unregisterPageFab(token);
+    }, [canManage, activeTab, handleOpenEditor]);
 
     useEffect(() => {
         // Skip SSR/hydration: only run after component mounts (second render)
@@ -709,42 +718,29 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         </div>
 
                 {/* Search & Actions */}
-                <FilterToolbar>
-                    <FilterSearch
-                        label="Cari soal"
-                        placeholder="Cari soal..."
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                        icon={<Search size={16} />}
-                        grow={1}
-                    />
-                    {canManage && <FilterActions>
-                        {filteredQuestions.length > 0 && (
-                            <Button type="button" variant="outline" size="sm"
-                                onClick={toggleSelectAll}
-                                aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'}
-                                aria-pressed={selectedQuestions.size === filteredQuestions.length}
-                                leftIcon={selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={16} /> : <Square size={16} />}>
-                                Semua
-                            </Button>
-                        )}
-                        {selectedQuestions.size > 0 && (
-                            <Button type="button" variant="danger" size="sm"
-                                onClick={requestBulkDelete} isLoading={isBulkDeleting}
-                                leftIcon={<Trash2 size={16} />}>
-                                Hapus ({selectedQuestions.size})
-                            </Button>
-                        )}
-                        <Button type="button" variant="outline" size="sm"
-                            onClick={() => setIsImportModalOpen(true)} leftIcon={<Upload size={16} />}>
-                            Import
-                        </Button>
-                        <Button type="button" variant="primary" size="sm"
-                            onClick={() => handleOpenEditor()} leftIcon={<Plus size={16} />}>
-                            Tambah
-                        </Button>
-                    </FilterActions>}
-                </FilterToolbar>
+                <div className="question-bank-tools">
+                    <div className="question-bank-tools__search-row">
+                        <FilterSearch label="Cari soal" placeholder="Cari soal..." value={searchQuery}
+                            onChange={setSearchQuery} icon={<Search size={16} />} grow={1} />
+                        {canManage && <>
+                            <button type="button" onClick={() => setIsImportModalOpen(true)}
+                                className="question-bank-import" aria-label="Import soal" title="Import soal">
+                                <Upload size={18} />
+                            </button>
+                            <Button type="button" variant="primary" size="sm" className="question-bank-add"
+                                onClick={() => handleOpenEditor()} leftIcon={<Plus size={16} />}>Tambah Soal</Button>
+                        </>}
+                    </div>
+                    {canManage && selectedQuestions.size > 0 && <div className="question-bank-tools__selection" role="group" aria-label="Aksi soal terpilih">
+                        <span className="text-xs font-semibold text-slate-600">{selectedQuestions.size} dipilih</span>
+                        <Button type="button" variant="outline" size="sm" onClick={toggleSelectAll}
+                            aria-label={selectedQuestions.size === filteredQuestions.length ? 'Batalkan pilihan semua soal' : 'Pilih semua soal'}
+                            aria-pressed={selectedQuestions.size === filteredQuestions.length}
+                            leftIcon={selectedQuestions.size === filteredQuestions.length ? <CheckSquare size={16} /> : <Square size={16} />}>Semua</Button>
+                        <Button type="button" variant="danger" size="sm" onClick={requestBulkDelete} isLoading={isBulkDeleting}
+                            leftIcon={<Trash2 size={16} />}>Hapus ({selectedQuestions.size})</Button>
+                    </div>}
+                </div>
 
                 {/* Question List */}
                 {isLoading ? (
@@ -774,14 +770,14 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
                             return (
                                 <div key={q.id} className="bg-white rounded-lg border border-slate-100 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-100 gap-3 sm:gap-0">
+                                    <div className="question-card-header flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-100 gap-3 sm:gap-0">
                                         {/* Kiri (Desktop) / Baris Atas (Mobile) */}
-                                        <div className="flex items-center justify-between w-full sm:w-auto">
-                                            <div className="flex items-center gap-3">
+                                        <div className="question-card-identity flex items-center justify-between w-full sm:w-auto">
+                                            <div className="question-card-summary flex items-center gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={() => toggleSelectQuestion(q.id)}
-                                                    className={`w-10 h-10 rounded flex items-center justify-center shrink-0 relative transition-all duration-200 cursor-pointer ${
+                                                    className={`question-card-number w-10 h-10 rounded flex items-center justify-center shrink-0 relative transition-all duration-200 cursor-pointer ${
                                                         selectedQuestions.has(q.id)
                                                             ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                                                             : 'bg-primary/10 text-primary hover:bg-primary/20'
@@ -794,9 +790,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                         </div>
                                                     )}
                                                 </button>
-                                                <div className="min-w-0">
-                                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                                        <span className="text-xs font-medium text-slate-500">{getQuestionTypeLabel(q.type)}</span>
+                                                <div className="question-card-meta min-w-0">
+                                                    <span className="question-card-type text-xs font-medium text-slate-500">{getQuestionTypeLabel(q.type)}</span>
+                                                    <div className="question-card-tags flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                         {groupLabel && <span title={groupLabel} className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
                                                             <Layers size={11} className="shrink-0" /><span className="truncate">{groupLabel}</span>
                                                         </span>}
@@ -829,7 +825,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                             </div>
                                             
                                             {/* Panah Naik Turun (Khusus Mobile di Pojok Kanan Atas) */}
-                                            <div className="flex sm:hidden items-center gap-1 shrink-0 ml-3">
+                                            <div className="question-card-mobile-order flex sm:hidden items-center gap-1 shrink-0 ml-3">
                                                 {filteredQuestions.length > 1 && (
                                                     <>
                                                         {canManage && (<button onClick={() => handleMoveQuestion(idx, 'up')} disabled={idx === 0} className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg disabled:opacity-30"><ChevronUp size={16} /></button>)}
@@ -840,7 +836,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                         </div>
 
                                         {/* Kanan (Desktop) / Baris Bawah (Mobile) */}
-                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-1 mt-2.5 sm:mt-0 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-slate-100">
+                                        <div className="question-card-actions flex items-center justify-between sm:justify-end gap-2 sm:gap-1 mt-2.5 sm:mt-0 w-full sm:w-auto shrink-0 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-slate-100">
                                             {/* Panah Naik Turun (Khusus Desktop) */}
                                             <div className="hidden sm:flex items-center justify-center gap-1 sm:w-[60px] shrink-0">
                                                 {filteredQuestions.length > 1 && (
@@ -853,15 +849,6 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
 
                                             {/* Desktop Buttons */}
                                             <div className="hidden sm:flex items-center gap-1 shrink-0">
-                                                {hasInstruction && (
-                                                    <button title="Petunjuk" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"><BookOpen size={14} /></button>
-                                                )}
-                                                {hasStimulus && (
-                                                    <button title="Stimulus" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><FileText size={14} /></button>
-                                                )}
-                                                {hasKisi && (
-                                                    <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className="question-blueprint-action p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><FileSearch size={14} /></button>
-                                                )}
                                                 <button title="Lihat" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Eye size={14} /></button>
                                                 {canManage && (<button title="Edit" onClick={() => handleOpenEditor(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Edit3 size={14} /></button>)}
                                                 {canManage && (<button title="Hapus" onClick={() => requestDelete(q.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>)}
@@ -1242,16 +1229,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                 )}
             </AnimatePresence>
 
-            {/* Mobile Floating Action Button (FAB) for Tambah Soal */}
-            {canManage && (activeTab === 'questions') && (<button
-                    type="button"
-                    onClick={() => handleOpenEditor()}
-                    className="sm:hidden fixed right-4 bottom-6 z-40 bg-primary hover:bg-primary/95 text-white shadow-xl shadow-primary/30 rounded-full h-12 px-4 flex items-center gap-2 font-semibold text-xs transition-transform active:scale-95"
-                    aria-label="Tambah Soal"
-                >
-                    <Plus size={18} strokeWidth={2.5} />
-                    <span>Tambah Soal</span>
-                </button>)}
+
         </div>
     );
 }
