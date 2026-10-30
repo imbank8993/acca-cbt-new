@@ -154,11 +154,11 @@ export function TimeField({
             if (e.key === 'Escape') setOpen(false);
         }
         if (open) {
-            document.addEventListener('mousedown', onDocClick);
+            document.addEventListener('pointerdown', onDocClick, true);
             document.addEventListener('keydown', onEsc);
         }
         return () => {
-            document.removeEventListener('mousedown', onDocClick);
+            document.removeEventListener('pointerdown', onDocClick, true);
             document.removeEventListener('keydown', onEsc);
         };
     }, [open]);

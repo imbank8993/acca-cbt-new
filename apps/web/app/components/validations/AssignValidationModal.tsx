@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Calendar,
     UserCheck,
@@ -43,6 +43,25 @@ export function AssignValidationModal({
 
     const [bankSearchQuery, setBankSearchQuery] = useState('');
     const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
+    const bankPickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen || !isBankDropdownOpen) return;
+        const closeOutside = (event: PointerEvent) => {
+            if (bankPickerRef.current && !bankPickerRef.current.contains(event.target as Node)) {
+                setIsBankDropdownOpen(false);
+            }
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsBankDropdownOpen(false);
+        };
+        document.addEventListener('pointerdown', closeOutside, true);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('pointerdown', closeOutside, true);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [isOpen, isBankDropdownOpen]);
     const [existingTitles, setExistingTitles] = useState<string[]>([]);
 
     const [staffList, setStaffList] = useState<PASStaffMember[]>([]);
@@ -184,7 +203,7 @@ export function AssignValidationModal({
                 )}
 
                 {/* Bank Soal Selection (Searchable) */}
-                <div>
+                <div ref={bankPickerRef}>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         Bank Soal yang Divalidasi <span className="text-red-500">*</span>
                     </label>
@@ -230,6 +249,7 @@ export function AssignValidationModal({
                                     type="text"
                                     value={bankSearchQuery}
                                     onFocus={() => setIsBankDropdownOpen(true)}
+                                    onClick={() => setIsBankDropdownOpen(true)}
                                     onChange={e => {
                                         setBankSearchQuery(e.target.value);
                                         setIsBankDropdownOpen(true);
@@ -289,23 +309,6 @@ export function AssignValidationModal({
                         ))}
                     </datalist>
 
-                    {/* Rekomendasi Judul Sebelumnya */}
-                    {existingTitles.length > 0 && (
-                        <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto pb-1">
-                            <span className="text-[10px] text-slate-400 font-semibold shrink-0">Gunakan judul sebelumnya:</span>
-                            {existingTitles.slice(0, 3).map(t => (
-                                <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => setTitle(t)}
-                                    className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary rounded text-[10px] text-slate-600 dark:text-slate-300 font-medium transition-colors shrink-0 truncate max-w-[200px]"
-                                    title={t}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-                    )}
                 </div>
 
                 {/* Pilih Guru Validator (Dapat di-search) */}

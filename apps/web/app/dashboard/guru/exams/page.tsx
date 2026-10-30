@@ -1,6 +1,7 @@
 "use client";
 
 import { ExamMobileActions } from '@/app/components/ExamMobileActions';
+import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
 import '@/components/exams/exams-mobile.css';
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
@@ -120,6 +121,17 @@ const ExamsPage = () => {
     const [publishingId, setPublishingId] = useState<string | null>(null);
     // Modals
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    useEffect(() => {
+        const token = {};
+        registerPageFab(token, {
+            label: 'Tambah Ujian',
+            icon: 'plus',
+            run: () => setIsAddModalOpen(true),
+        });
+        return () => unregisterPageFab(token);
+    }, []);
+
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);

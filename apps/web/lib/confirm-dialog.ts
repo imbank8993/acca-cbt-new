@@ -36,7 +36,7 @@ const variantStyles = {
     icon: 'question' as SweetAlertIcon,
   },
   success: {
-    confirmBtn: '#10b981',
+    confirmBtn: '#3083FF',
     icon: 'success' as SweetAlertIcon,
   },
 };
@@ -119,6 +119,7 @@ export async function alertDialog({
     text,
     icon: icon || style.icon,
     confirmButtonColor: style.confirmBtn,
+    iconColor: (icon || style.icon) === 'success' ? '#3083FF' : undefined,
     confirmButtonText: confirmText,
     buttonsStyling: false,
     customClass: {

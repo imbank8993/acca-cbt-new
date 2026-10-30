@@ -160,11 +160,11 @@ export function MultiSelectDropdown<T extends string | number = string>({
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('pointerdown', handleClickOutside, true);
         document.addEventListener('keydown', handleKeyDown);
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('pointerdown', handleClickOutside, true);
             document.removeEventListener('keydown', handleKeyDown);
         };
     }, [isOpen]);

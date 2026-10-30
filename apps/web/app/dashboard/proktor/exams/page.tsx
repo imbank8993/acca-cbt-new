@@ -1,6 +1,7 @@
 "use client";
 
 import { ExamMobileActions } from '@/app/components/ExamMobileActions';
+import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 import { CollaborationButton } from '@/app/components/CollaborationButton';
 import '@/components/exams/exams-mobile.css';
 import { AssignExamModal } from '@/components/exams/AssignExamModal';
@@ -91,6 +92,17 @@ const ExamsPage = () => {
     const [publishingId, setPublishingId] = useState<string | null>(null);
     // Modals
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    useEffect(() => {
+        const token = {};
+        registerPageFab(token, {
+            label: 'Tambah Ujian',
+            icon: 'plus',
+            run: () => setIsAddModalOpen(true),
+        });
+        return () => unregisterPageFab(token);
+    }, []);
+
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedExam, setSelectedExam] = useState<OrganizationExam | null>(null);
@@ -483,7 +495,7 @@ const ExamsPage = () => {
                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                                                     isDraft
                                                         ? 'bg-red-50 text-red-600 border border-red-200'
-                                                        : 'bg-blue-50 text-[#1E40AF] border border-blue-200'
+                                                        : 'bg-blue-50 text-[#1E40AF] dark:text-[#60a5fa] border border-blue-200'
                                                 }`}>
                                                     {semesterAssessmentLabel(period.type)} • {period.semester === 'ganjil' ? 'GANJIL' : 'GENAP'}
                                                 </span>

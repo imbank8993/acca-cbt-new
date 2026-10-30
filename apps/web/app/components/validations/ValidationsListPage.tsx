@@ -9,6 +9,7 @@ import {
     Plus,
     Calendar,
     CheckCircle2,
+    AlertCircle,
     Clock,
     UserCheck,
     ChevronRight,
@@ -147,8 +148,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                 );
             case 'revision_needed':
                 return (
-                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                        Perlu Revisi
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        <AlertCircle size={12} aria-hidden="true" /> Perlu Revisi
                     </span>
                 );
             case 'approved':

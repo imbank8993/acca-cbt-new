@@ -2529,15 +2529,16 @@ html.dark,
   border-color: rgba(132, 204, 22, 0.25) !important;
 }
 
+/* SearchableSelect draws its frame and focus state on the outer trigger. */
 /* Form inputs & select dropdowns */
-.dark input:not(.bg-transparent),
+.dark input:not(.bg-transparent):not(.ss__mainInput),
 .dark select:not(.bg-transparent),
 .dark textarea:not(.bg-transparent) {
   background-color: #1c2439 !important;
   border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
   color: #e8edf5 !important;
 }
-.dark input:focus:not(.bg-transparent),
+.dark input:focus:not(.bg-transparent):not(.ss__mainInput),
 .dark select:focus:not(.bg-transparent),
 .dark textarea:focus:not(.bg-transparent) {
   border-color: #4f8ef7 !important;

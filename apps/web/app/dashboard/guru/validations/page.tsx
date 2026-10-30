@@ -90,19 +90,19 @@ export default function GuruValidationTasksPage() {
             case 'approved':
                 return {
                     label: 'Disetujui',
-                    className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+                    className: 'text-emerald-700 dark:text-emerald-300',
                     icon: <CheckCircle2 size={12} />
                 };
             case 'revision_needed':
                 return {
                     label: 'Perlu Revisi',
-                    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                    className: 'text-amber-700 dark:text-amber-300',
                     icon: <AlertCircle size={12} />
                 };
             case 'rejected':
                 return {
                     label: 'Ditolak',
-                    className: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                    className: 'text-rose-700 dark:text-rose-300',
                     icon: <XCircle size={12} />
                 };
             default:
@@ -113,20 +113,20 @@ export default function GuruValidationTasksPage() {
     const getStatusBadge = (status: string) => {
         if (status === 'submitted') {
             return (
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center gap-1.5 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                     <CheckCircle2 size={12} /> Validasi Selesai
                 </span>
             );
         }
         if (status === 'in_progress') {
             return (
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center gap-1.5 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
                     <Clock size={12} /> Sedang Dikerjakan
                 </span>
             );
         }
         return (
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center gap-1.5 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
                 <AlertCircle size={12} /> Belum Dikerjakan
             </span>
         );
@@ -247,7 +247,7 @@ export default function GuruValidationTasksPage() {
                                             {/* Rekomendasi Anda */}
                                             <td className="py-3.5 px-4 whitespace-nowrap">
                                                 {recInfo ? (
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${recInfo.className}`}>
+                                                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${recInfo.className}`}>
                                                         {recInfo.icon} {recInfo.label}
                                                     </span>
                                                 ) : (

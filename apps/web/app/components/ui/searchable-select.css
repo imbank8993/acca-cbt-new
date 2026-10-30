@@ -86,6 +86,19 @@
   padding: 2px 0;
 }
 
+/* The trigger owns the field frame; modal form rules must not add an inner box.
+   Match their input exclusions so this reset also wins over important rules. */
+.ss .ss__trigger > input.ss__mainInput:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]) {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 2px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .ss__mainInput::placeholder {
   color: #64748b;
   font-weight: 400;

@@ -169,10 +169,10 @@ export function SearchableSelect({
         setIsOpen(false);
       }
     }
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside, true);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('pointerdown', handleClickOutside, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
