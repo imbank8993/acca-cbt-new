@@ -104,7 +104,7 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(({
     // Media HTML needs a visual editor; a textarea exposes the image data URL.
     if (/<(?:img|video|audio|iframe)\b/i.test(value)) {
         return <div className="w-full min-w-0" onFocusCapture={onFocus} onBlurCapture={onBlur}>
-            <TipTapEditor content={value} onChange={onChange} placeholder={placeholder} minHeight="72px" />
+            <TipTapEditor compact content={value} onChange={onChange} placeholder={placeholder} minHeight="72px" />
         </div>;
     }
 

@@ -9,6 +9,7 @@ interface TipTapEditorProps {
   onImageUpload?: (file: File) => Promise<string>;
   onAudioUpload?: (file: File) => Promise<string>;
   minHeight?: string;
+  compact?: boolean;
 }
 
 export function TipTapEditor(props: TipTapEditorProps) {

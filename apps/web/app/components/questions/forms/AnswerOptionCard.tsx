@@ -2,13 +2,12 @@
 /**
  * AnswerOptionCard — Elegant MCQ option editor with insert toolbar.
  */
-import { uploadToHosting } from '@/lib/uploader';
-import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload } from 'lucide-react';
+import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload,Mic,Video,Link as LinkIcon,Sigma,Table as TableIcon } from 'lucide-react';
 import type { MathfieldElement } from 'mathlive';
-import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import React,{ useEffect,useMemo,useRef,useState } from 'react';
 import { MathToolbar } from '../MathToolbar';
 import { renderLatex,sanitizeLatex } from '../math-utils';
-import { RichInput } from './RichInput';
+import TipTapEditorCore, { type TipTapEditorControls, type OptionInsertAction } from '../TipTapEditorCore';
 
 // ─── Equation Dialog (with MathToolbar) ────────────────────────────────────
 
@@ -373,11 +372,8 @@ export const AnswerOptionCard = React.memo(({
     hideRichTools = false,
 }: AnswerOptionCardProps) => {
     const [isFocused, setIsFocused] = useState(false);
-    const [showEquation, setShowEquation] = useState(false);
-    const [showTable, setShowTable] = useState(false);
-    const [imageUploading, setImageUploading] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
+    const editorControls = useRef<TipTapEditorControls>(null);
 
     // Menutup menu saat klik di luar
     useEffect(() => {
@@ -388,75 +384,20 @@ export const AnswerOptionCard = React.memo(({
         }
     }, [showToolsMenu]);
 
-    const insertAtCursor = useCallback((text: string) => {
-        const ta = inputRef.current;
-        if (!ta) { onChange(value + text); return; }
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const newValue = value.slice(0, start) + text + value.slice(end);
-        onChange(newValue);
-        // Set cursor position after insert
-        setTimeout(() => {
-            ta.selectionStart = ta.selectionEnd = start + text.length;
-            ta.focus();
-        }, 0);
-    }, [onChange, value]);
-
-    const handleImageUpload = async (file: File) => {
-        setImageUploading(true);
-        try {
-            const res = await uploadToHosting(file, 'questions');
-            const url = res.success ? res.url : '';
-            if (url) {
-                insertAtCursor(`\n<img src="${url}" alt="${file.name}" style="max-width:100%;height:auto;border-radius:8px;display:block;margin:4px 0;" />\n`);
-            }
-        } catch (err) {
-            console.error('Image upload failed:', err);
-        } finally {
-            setImageUploading(false);
-        }
-    };
-
-    const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-        const items = e.clipboardData?.items;
-        if (!items) return;
-        for (const item of Array.from(items)) {
-            if (item.type.startsWith('image/')) {
-                e.preventDefault();
-                const file = item.getAsFile();
-                if (file) {
-                    setImageUploading(true);
-                    try {
-                        const res = await uploadToHosting(file, 'questions');
-                        const url = res.success ? res.url : '';
-                        if (url) {
-                            insertAtCursor(`\n<img src="${url}" alt="Pasted image" style="max-width:100%;height:auto;border-radius:8px;display:block;margin:4px 0;" />\n`);
-                        }
-                    } catch (err) {
-                        console.error('Paste image upload failed:', err);
-                    } finally {
-                        setImageUploading(false);
-                    }
-                }
-                break;
-            }
-        }
-    }, [insertAtCursor]);
-
-    const handleInsertEquation = (latex: string) => {
-        insertAtCursor(`$${latex}$`);
-    };
-
-    const handleInsertTable = (rows: number, cols: number) => {
-        let table = '\n';
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                table += (c > 0 ? '\t' : '') + `Cell ${r + 1},${c + 1}`;
-            }
-            table += '\n';
-        }
-        insertAtCursor(table);
-    };
+    const insertTools = (
+        <div className="option-insert-menu grid grid-cols-3 gap-1 p-1.5 rounded-xl border border-slate-200 shadow-xl bg-white"
+            role="group" aria-label="Sisipkan ke opsi jawaban" onClick={event => event.stopPropagation()}>
+            {([
+                ['image', 'Gambar', ImageIcon], ['math', 'Rumus', Sigma], ['table', 'Tabel', TableIcon],
+                ['audio', 'Audio', Mic], ['video', 'Video', Video], ['link', 'Tautan', LinkIcon],
+            ] as const).map(([action, label, Icon]) => <button key={action} type="button" title={`Sisipkan ${label}`} aria-label={`Sisipkan ${label}`}
+                className="option-insert-action flex flex-col items-center justify-center gap-1 min-w-14 min-h-12 px-2 py-1.5 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+                onMouseDown={event => event.preventDefault()}
+                onClick={() => { editorControls.current?.openInsert(action as OptionInsertAction); setShowToolsMenu(false); }}>
+                <Icon size={16} /><span className="text-[10px] font-medium">{label}</span>
+            </button>)}
+        </div>
+    );
 
     return (
         <div className={`group relative ${className}`} suppressHydrationWarning>
@@ -509,25 +450,8 @@ export const AnswerOptionCard = React.memo(({
                                 <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                             </button>
 
-                            {/* Dropdown Menu on Mobile */}
-                            {showToolsMenu && (
-                                <div 
-                                    className="absolute right-0 top-full mt-1.5 p-1 bg-white border border-slate-200 shadow-xl rounded-lg flex items-center gap-1 z-50 animate-in fade-in"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <label className={`w-8 h-8 flex items-center justify-center rounded-md cursor-pointer transition-all ${imageUploading ? 'opacity-50 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}`} title="Unggah Gambar">
-                                        {imageUploading ? <span className="animate-spin text-sm">⟳</span> : <ImageIcon size={14} />}
-                                        <input type="file" accept="image/*" className="hidden" disabled={imageUploading}
-                                            onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleImageUpload(f); setShowToolsMenu(false); } e.target.value = ''; }} />
-                                    </label>
-                                    <button type="button" onClick={() => { setShowEquation(true); setShowToolsMenu(false); }} className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50" title="Sisipkan Rumus">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/></svg>
-                                    </button>
-                                    <button type="button" onClick={() => { setShowTable(true); setShowToolsMenu(false); }} className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-blue-600 hover:bg-blue-50" title="Sisipkan Tabel">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-                                    </button>
-                                </div>
-                            )}
+                            {showToolsMenu && <div className="absolute right-0 top-full mt-2 z-50">{insertTools}</div>}
+
                         </div>
                     )}
 
@@ -576,16 +500,9 @@ export const AnswerOptionCard = React.memo(({
                 `}>
                     {/* Text Input Wrapper */}
                     <div className="flex flex-1 min-w-0">
-                        <div className="flex-1 min-w-0">
-                            <RichInput
-                            inputRef={inputRef}
-                            value={value}
-                            onChange={onChange}
-                            onFocus={() => setIsFocused(true)}
-                            onBlur={() => setIsFocused(false)}
-                            onPaste={handlePaste}
-                            placeholder={placeholder}
-                        />
+                        <div className="flex-1 min-w-0" onFocusCapture={() => setIsFocused(true)} onBlurCapture={() => setIsFocused(false)}>
+                            <TipTapEditorCore compact controlsRef={editorControls} content={value} onChange={onChange}
+                                placeholder={placeholder} minHeight="32px" />
                         </div>
                     </div>
 
@@ -602,49 +519,8 @@ export const AnswerOptionCard = React.memo(({
                             <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                         </button>
 
-                        {/* Dropdown Menu on Desktop */}
-                        {showToolsMenu && (
-                            <div 
-                                className="absolute right-2 sm:right-auto sm:left-2 top-full mt-1 p-1 bg-white border border-slate-200 shadow-xl rounded-lg flex items-center gap-1 z-50 animate-in fade-in slide-in-from-top-2"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {/* Image Upload */}
-                                <label className={`
-                                    w-8 h-8 flex items-center justify-center rounded-md cursor-pointer transition-all
-                                    ${imageUploading ? 'opacity-50 cursor-not-allowed' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50'}
-                                `} title="Unggah Gambar">
-                                    {imageUploading ? (
-                                        <span className="animate-spin text-sm">⟳</span>
-                                    ) : (
-                                        <ImageIcon size={14} />
-                                    )}
-                                    <input type="file" accept="image/*" className="hidden" disabled={imageUploading}
-                                        onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleImageUpload(f); setShowToolsMenu(false); } e.target.value = ''; }} />
-                                </label>
+                        {showToolsMenu && <div className="absolute right-0 top-full mt-2 z-50">{insertTools}</div>}
 
-                                {/* Equation */}
-                                <button type="button"
-                                    onClick={() => { setShowEquation(true); setShowToolsMenu(false); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition-all"
-                                    title="Sisipkan Rumus">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/>
-                                    </svg>
-                                </button>
-
-                                {/* Table */}
-                                <button type="button"
-                                    onClick={() => { setShowTable(true); setShowToolsMenu(false); }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-md text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                                    title="Sisipkan Tabel">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                        <line x1="3" y1="9" x2="21" y2="9"/>
-                                        <line x1="9" y1="3" x2="9" y2="21"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
                     </div>
                     )}
                 </div>
@@ -688,17 +564,7 @@ export const AnswerOptionCard = React.memo(({
                 )}
             </div>
 
-            {/* Dialogs */}
-            <EquationDialog
-                isOpen={showEquation}
-                onClose={() => setShowEquation(false)}
-                onInsert={handleInsertEquation}
-            />
-            <TableDialog
-                isOpen={showTable}
-                onClose={() => setShowTable(false)}
-                onInsert={handleInsertTable}
-            />
+
         </div>
     );
 });

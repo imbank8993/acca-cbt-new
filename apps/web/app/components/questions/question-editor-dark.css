@@ -1,3 +1,40 @@
+.option-content-editor .ProseMirror {
+  min-height: 32px;
+  padding: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.option-content-editor .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+}
+
+.dark .option-insert-menu {
+  background: #172235 !important;
+  border-color: #334155 !important;
+}
+
+.dark .option-insert-menu .option-insert-action {
+  color: #cbd5e1 !important;
+  background: transparent !important;
+}
+
+.dark .option-insert-menu .option-insert-action:hover,
+.dark .option-insert-menu .option-insert-action:focus-visible {
+  background: #193e6b !important;
+  color: #93c5fd !important;
+}
+
+.dark .editor-toolbar .toolbar-group button[class*="bg-white/"] {
+  background: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .editor-toolbar .toolbar-group button[class*="bg-white/"]:hover {
+  background: #334155 !important;
+}
+
 .insertion-modal .insertion-title-icon {
   background: #3083ff26 !important;
   border-color: #3083ff59 !important;

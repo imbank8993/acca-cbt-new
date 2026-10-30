@@ -57,7 +57,7 @@ Underline as UnderlineIcon,
 Undo2,
 Video,
 } from 'lucide-react';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { useCallback,useEffect,useRef,useState,useImperativeHandle, type Ref } from 'react';
 import { normalizeHtmlStorageUrls, resolveStorageUrl } from '@/lib/safe-url';
 import { uploadToHosting } from '@/lib/uploader';
 import InlineSelect from '@/components/ui/InlineSelect';
@@ -269,6 +269,9 @@ const CustomKeyboardShortcuts = Extension.create({
   },
 });
 
+export type OptionInsertAction = 'image' | 'math' | 'table' | 'audio' | 'video' | 'link';
+export interface TipTapEditorControls { openInsert: (action: OptionInsertAction) => void }
+
 interface TipTapEditorCoreProps {
   content: string;
   onChange: (html: string) => void;
@@ -277,6 +280,8 @@ interface TipTapEditorCoreProps {
   onImageUpload?: (file: File) => Promise<string>;
   onAudioUpload?: (file: File) => Promise<string>;
   minHeight?: string;
+  compact?: boolean;
+  controlsRef?: Ref<TipTapEditorControls>;
 }
 
 export default function TipTapEditorCore({
@@ -287,9 +292,12 @@ export default function TipTapEditorCore({
   onImageUpload,
   onAudioUpload,
   minHeight = '200px',
+  compact = false,
+  controlsRef,
 }: TipTapEditorCoreProps) {
   const lastContent = useRef('');
   const editorWrapRef = useRef<HTMLDivElement>(null);
+  const optionImageInputRef = useRef<HTMLInputElement>(null);
 
   const [linkDialog, setLinkDialog] = useState<{ url: string; editing: boolean } | null>(null);
   const [linkError, setLinkError] = useState('');
@@ -801,6 +809,21 @@ export default function TipTapEditorCore({
     };
   }, [editor, handleImageUpload]);
 
+  useImperativeHandle(controlsRef, () => ({
+    openInsert(action) {
+      if (!editor) return;
+      if (action === 'image') optionImageInputRef.current?.click();
+      if (action === 'math') { setMathInput(''); setIsMathBlock(false); setShowMathModal(true); }
+      if (action === 'table') setShowTableModal(true);
+      if (action === 'audio') setShowAudioModal(true);
+      if (action === 'video') setVideoModal({ isOpen: true, mode: 'insert', url: '', width: '100%', pos: null });
+      if (action === 'link') {
+        setLinkError('');
+        setLinkDialog({ url: editor.getAttributes('link').href || '', editing: editor.isActive('link') });
+      }
+    },
+  }), [editor]);
+
   if (!editor) {
     return <div className="border border-slate-200 rounded-lg animate-pulse bg-slate-50" style={{ minHeight }} />;
   }
@@ -832,9 +855,11 @@ export default function TipTapEditorCore({
   };
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs" ref={editorWrapRef}>
+    <div className={compact ? 'option-content-editor min-w-0 w-full' : 'border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs'} ref={editorWrapRef}>
+      <input ref={optionImageInputRef} type="file" accept="image/*" multiple className="hidden" aria-label="Pilih gambar opsi jawaban"
+        onChange={event => { if (event.target.files?.length) handleImageUpload(event.target.files); event.target.value = ''; }} />
       {/* Sleek Pure-Icon Unified Segmented Toolbar */}
-      {editable && (
+      {editable && !compact && (
         <div className="editor-toolbar flex w-full items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-slate-50/80 border-b border-slate-200/80 select-none overflow-x-auto sm:flex-wrap scrollbar-hide">
           {/* Cluster 1: History (Undo / Redo) */}
           <div className="toolbar-group">
