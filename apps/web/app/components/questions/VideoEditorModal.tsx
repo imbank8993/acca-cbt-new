@@ -1,4 +1,7 @@
 "use client";
+import './question-editor-dark.css';
+import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Check,Monitor,Play,Trash2,X,Youtube } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
@@ -122,7 +125,7 @@ function VideoEditorModalContent({
     const activePlaySrc = playSrc || (parsed ? parsed.embedUrl : url);
     return (
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+        className="insertion-modal fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
         onClick={onClose}
       >
         <div
@@ -132,7 +135,7 @@ function VideoEditorModalContent({
           {/* Header */}
           <div className="px-6 py-4 flex items-center justify-between border-b border-white/10 bg-slate-950/70">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center">
+              <div className="insertion-title-icon w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center">
                 <Youtube size={18} />
               </div>
               <div>
@@ -181,39 +184,11 @@ function VideoEditorModalContent({
   const isEdit = mode === 'edit';
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 transition-all">
-        {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-[#3083FF] to-[#020826] text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
-              <Youtube size={18} />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm tracking-wide">
-                {isEdit ? 'Edit Pengaturan Video' : 'Sisipkan Video'}
-              </h3>
-              <p className="text-[11px] text-slate-300">
-                Mendukung tautan YouTube dan Vimeo
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="Tutup (Esc)"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="lg" className="insertion-modal flex flex-col max-h-[92vh]"
+      title={isEdit ? 'Edit Pengaturan Video' : 'Sisipkan Video'} subtitle="Mendukung tautan YouTube dan Vimeo"
+      icon={<Youtube size={18} />}>
         {/* Body */}
-        <div className="p-6 space-y-5">
+        <ModalBody className="overflow-y-auto space-y-5">
           {/* URL Input */}
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">
@@ -335,12 +310,12 @@ function VideoEditorModalContent({
               </p>
             </div>
           </div>
-        </div>
+        </ModalBody>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+        <ModalFooter align="between">
           {isEdit && onDelete ? (
-            <button
+            <Button
               type="button"
               onClick={async () => {
                 if (await deleteConfirmDialog('Hapus Video?', 'Hapus video ini dari naskah soal?')) {
@@ -348,34 +323,33 @@ function VideoEditorModalContent({
                   onClose();
                 }
               }}
-              className="py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              variant="danger" size="sm"
             >
               <Trash2 size={14} /> Hapus
-            </button>
+            </Button>
           ) : (
             <div />
           )}
 
           <div className="flex items-center gap-2.5">
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-semibold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
+              variant="cancel"
             >
               Batal
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleSubmit}
               disabled={!url.trim()}
-              className="px-5 py-2.5 bg-[#3083FF] hover:bg-[#0a1a6e] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+              variant="primary"
             >
               <Check size={15} />
               {isEdit ? 'Simpan Perubahan' : 'Sisipkan Video'}
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+    </Modal>
   );
 }

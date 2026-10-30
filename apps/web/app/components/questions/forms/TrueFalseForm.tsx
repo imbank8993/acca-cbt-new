@@ -119,7 +119,7 @@ const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorre
       {/* Number Badge */}
       <div className={`
         shrink-0 flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-black select-none transition-all duration-200
-        ${isBenar ? 'bg-emerald-500 text-white' : isSalah ? 'bg-rose-500 text-white' : isFocused ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}
+        ${isBenar ? 'bg-[#3083FF] text-white' : isSalah ? 'bg-rose-500 text-white' : isFocused ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}
       `}>
         {index}.
       </div>
@@ -129,7 +129,7 @@ const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorre
         flex-1 flex items-center rounded-lg border-2 transition-all duration-200
         ${isFocused
             ? 'border-slate-800 bg-white shadow-sm'
-            : isBenar ? 'border-emerald-300 bg-emerald-50/50'
+            : isBenar ? 'border-blue-300 bg-blue-50/50'
             : isSalah ? 'border-rose-300 bg-rose-50/50'
             : 'border-slate-200 bg-white hover:border-slate-300'
         }
@@ -137,7 +137,7 @@ const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorre
         {/* Left accent */}
         <div className={`
             w-1 h-full shrink-0 rounded-l transition-all duration-200
-            ${isBenar ? 'bg-emerald-500' : isSalah ? 'bg-rose-500' : isFocused ? 'bg-slate-800' : 'bg-transparent'}
+            ${isBenar ? 'bg-[#3083FF]' : isSalah ? 'bg-rose-500' : isFocused ? 'bg-slate-800' : 'bg-transparent'}
         `} />
 
         {/* Text Input */}
@@ -179,7 +179,7 @@ const TrueFalseRow = React.memo(({ index, value, isCorrect, onChange, onSetCorre
 
         {/* BENAR */}
         <button type="button" onClick={() => onSetCorrect(true)}
-          className={`shrink-0 mr-1 flex items-center justify-center w-7 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isBenar ? 'bg-emerald-500 text-white' : 'border border-slate-200 text-transparent group-hover:border-emerald-400 group-hover:text-emerald-500 bg-white'}`}>
+          className={`shrink-0 mr-1 flex items-center justify-center w-7 h-7 rounded text-[10px] font-black uppercase transition-all duration-200 ${isBenar ? 'bg-[#3083FF] text-white' : 'border border-slate-200 text-transparent group-hover:border-blue-400 group-hover:text-blue-500 bg-white'}`}>
           B
         </button>
 

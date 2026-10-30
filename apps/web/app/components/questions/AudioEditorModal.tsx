@@ -1,5 +1,8 @@
 "use client";
-import { Check,Link as LinkIcon,Loader2,Mic,Music,RotateCcw,Square,UploadCloud,Volume2,X } from 'lucide-react';
+import './question-editor-dark.css';
+import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
+import { Check,Link as LinkIcon,Mic,Music,RotateCcw,Square,UploadCloud,Volume2,X } from 'lucide-react';
 import { useEffect,useRef,useState } from 'react';
 import { resolveStorageUrl } from '@/lib/safe-url';
 import { uploadToHosting } from '@/lib/uploader';
@@ -225,38 +228,10 @@ function AudioEditorModalContent({
     (activeTab === 'url' && directUrl.trim().length > 0);
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isRecording && !isUploading) onClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100 transition-all">
-        {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-[#3083FF] to-[#020826] text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <Mic size={18} />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm tracking-wide">
-                Sisipkan Audio & Rekaman Suara
-              </h3>
-              <p className="text-[11px] text-slate-300">
-                Mendukung upload file MP3 atau rekam suara langsung
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={isRecording || isUploading}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="Tutup (Esc)"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal open onClose={() => { if (!isRecording && !isUploading) onClose(); }} size="lg"
+      className="insertion-modal flex flex-col max-h-[92vh]" closeOnOverlayClick={!isRecording && !isUploading}
+      title="Sisipkan Audio & Rekaman Suara" subtitle="Unggah audio, rekam suara, atau gunakan tautan URL"
+      icon={<Mic size={18} />}>
         {/* Tab Navigation */}
         <div className="flex border-b border-slate-100 bg-slate-50/70 p-1.5 gap-1">
           <button
@@ -298,7 +273,7 @@ function AudioEditorModalContent({
         </div>
 
         {/* Body Content */}
-        <div className="p-6">
+        <ModalBody className="overflow-y-auto">
           {/* TAB 1: FILE UPLOAD */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
@@ -482,38 +457,13 @@ function AudioEditorModalContent({
               {uploadError}
             </p>
           )}
-        </div>
+        </ModalBody>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isUploading}
-            className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-semibold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            Batal
-          </button>
-          <button
-            type="button"
-            onClick={handleInsertAudio}
-            disabled={!canInsert || isUploading}
-            className="px-5 py-2.5 bg-[#3083FF] hover:bg-[#0a1a6e] disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 size={15} className="animate-spin" />
-                <span>Mengunggah...</span>
-              </>
-            ) : (
-              <>
-                <Check size={15} />
-                <span>Sisipkan Audio</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+        <ModalFooter>
+          <Button type="button" variant="cancel" onClick={onClose} disabled={isRecording || isUploading}>Batal</Button>
+          <Button type="button" variant="primary" onClick={handleInsertAudio} disabled={!canInsert || isUploading}
+            isLoading={isUploading} leftIcon={<Check size={15} />}>{isUploading ? 'Mengunggah...' : 'Sisipkan Audio'}</Button>
+        </ModalFooter>
+    </Modal>
   );
 }

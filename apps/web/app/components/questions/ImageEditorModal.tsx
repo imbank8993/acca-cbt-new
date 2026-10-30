@@ -1,4 +1,5 @@
 "use client";
+import './question-editor-dark.css';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import {
 AlignCenter,
@@ -35,7 +36,7 @@ export default function ImageEditorModal(props: ImageEditorModalProps) {
 function ImageEditorModalContent({
   onClose,
   imageSrc,
-  initialWidth = '100%',
+  initialWidth = 'original',
   initialAlign = 'center',
   onApply,
   onUpload,
@@ -44,7 +45,7 @@ function ImageEditorModalContent({
   const normalizedSrc = resolveStorageUrl(imageSrc);
   const originalImageSrc = normalizedSrc;
   const [currentImageSrc, setCurrentImageSrc] = useState(normalizedSrc);
-  const [imgWidth, setImgWidth] = useState(initialWidth || '100%');
+  const [imgWidth, setImgWidth] = useState(initialWidth || 'original');
   const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>(initialAlign || 'center');
 
   // Crop Modal state
@@ -229,7 +230,7 @@ function ImageEditorModalContent({
     <>
       {/* 1. Modal Utama: Pengaturan Gambar */}
       <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+        className="insertion-modal fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onClose();
@@ -280,7 +281,7 @@ function ImageEditorModalContent({
                     alt="Pratinjau gambar soal"
                     className="rounded-lg border border-slate-200 transition-all duration-150 object-contain"
                     style={{
-                      width: imgWidth === 'original' ? '100%' : imgWidth,
+                      width: imgWidth === 'original' ? 'auto' : imgWidth,
                       maxWidth: '100%',
                       maxHeight: '100%',
                       height: 'auto',
@@ -440,7 +441,7 @@ function ImageEditorModalContent({
       {/* 2. Modal Khusus: Pemotongan Gambar (Crop) */}
       {showCropModal && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
+          className="insertion-modal fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowCropModal(false);
@@ -454,7 +455,7 @@ function ImageEditorModalContent({
             {/* Header */}
             <div className="px-5 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
+                <div className="insertion-title-icon w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
                   <Crop size={16} className="text-blue-400" />
                 </div>
                 <div>

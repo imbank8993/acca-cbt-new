@@ -5,6 +5,7 @@
  */
 import React,{ forwardRef,useCallback,useEffect,useImperativeHandle,useRef,useState } from 'react';
 import { extractMathExpressions,renderLatex } from '../math-utils';
+import { TipTapEditor } from '../TipTapEditor';
 
 export interface RichInputHandle {
     focus: () => void;
@@ -99,6 +100,13 @@ export const RichInput = forwardRef<RichInputHandle, RichInputProps>(({
 
     const hasMath = value && value.match(/\$|\\\[|\\begin/);
     const showPreview = !isFocused && !editing && hasMath;
+
+    // Media HTML needs a visual editor; a textarea exposes the image data URL.
+    if (/<(?:img|video|audio|iframe)\b/i.test(value)) {
+        return <div className="w-full min-w-0" onFocusCapture={onFocus} onBlurCapture={onBlur}>
+            <TipTapEditor content={value} onChange={onChange} placeholder={placeholder} minHeight="72px" />
+        </div>;
+    }
 
     return (
         <div className="w-full relative">

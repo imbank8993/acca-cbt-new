@@ -151,7 +151,7 @@ const PairingRow = React.memo(({ leftLabel, leftFallback, selectedMatches, right
       <Link2 size={11} className="shrink-0 text-slate-300" />
       <div className="relative flex-1 min-w-0">
         <button type="button" onClick={() => setOpen(o => !o)}
-          className={`w-full flex items-center justify-between gap-1 px-1.5 py-1 rounded border text-[11px] transition-all ${hasMatch ? 'border-emerald-200 bg-emerald-50 text-emerald-700 font-medium' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-white'}`}>
+          className={`w-full flex items-center justify-between gap-1 px-1.5 py-1 rounded border text-[11px] transition-all ${hasMatch ? 'border-blue-200 bg-blue-50 text-blue-700 font-medium' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-slate-300 hover:bg-white'}`}>
           <span className="truncate">
             {hasMatch
               ? selectedMatches.map((m, i) => (
@@ -171,8 +171,8 @@ const PairingRow = React.memo(({ leftLabel, leftFallback, selectedMatches, right
               return (
                 <button key={i} type="button"
                   onClick={() => { onToggle(item); setOpen(false); }}
-                  className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-slate-50 ${isSelected ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-slate-700'}`}>
-                  <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                  className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-slate-50 ${isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-700'}`}>
+                  <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#3083FF] border-blue-500' : 'border-slate-300'}`}>
                     {isSelected && <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><polyline points="20 6 9 17 4 12" /></svg>}
                   </span>
                   <InlineMathLabel text={item} fallback={`Item ${i + 1}`} />

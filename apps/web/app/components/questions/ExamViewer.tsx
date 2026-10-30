@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence,motion } from 'framer-motion';
-import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,Eye,FileText,Flag,Grid3X3,Loader2,Maximize2,Rows3,ShieldAlert,User,X } from 'lucide-react';
+import { BookOpen,Check,CheckCircle2,ChevronLeft,ChevronRight,Clock,Columns2,FileText,Flag,Grid3X3,Loader2,Maximize2,Rows3,ShieldAlert,User,X } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 import type { AnswerValue,Question } from '@/app/types';
 import { formatStudentName } from '@/lib/monitoring-health';
@@ -600,9 +600,9 @@ export function ExamViewer({
                                 <X size={16} className="text-slate-400" />
                             </button>
                         ) : null}
-                        <div className="w-9 h-9 rounded-lg bg-slate-800 items-center justify-center hidden lg:flex">
-                            {mode === 'preview' ? <Eye size={15} className="text-white" /> : <User size={15} className="text-white" />}
-                        </div>
+                        {mode === 'exam' && <div className="w-9 h-9 rounded-lg bg-slate-800 items-center justify-center hidden lg:flex">
+                            <User size={15} className="text-white" />
+                        </div>}
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                 <User size={14} className="text-slate-500 dark:text-slate-400" />

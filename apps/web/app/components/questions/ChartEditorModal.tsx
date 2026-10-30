@@ -1,5 +1,8 @@
 "use client";
-import { BarChart2,Check,LineChart,PieChart,Plus,Trash2,X } from 'lucide-react';
+import './question-editor-dark.css';
+import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
+import { BarChart2,Check,LineChart,PieChart,Plus,Trash2 } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 import type { QuestionChartType } from './chart-embed';
 
@@ -95,39 +98,10 @@ function ChartEditorModalContent({
   const maxVal = Math.max(1, ...chartData.datasets[0].data);
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center border border-indigo-500/30">
-              <BarChart2 size={16} className="text-indigo-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white leading-tight">Sisipkan Grafik</h2>
-              <p className="text-[11px] text-slate-400 leading-tight">Buat visualisasi data grafik sederhana untuk soal</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Tutup"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="lg" className="insertion-modal flex flex-col max-h-[92vh]"
+      title="Sisipkan Grafik" subtitle="Buat visualisasi data grafik sederhana untuk soal" icon={<BarChart2 size={18} />}>
         {/* Body */}
-        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+        <ModalBody className="overflow-y-auto">
           {/* Tipe Grafik */}
           <div>
             <label className="text-xs font-bold text-slate-700 mb-2 block">Tipe Tampilan Grafik</label>
@@ -271,26 +245,25 @@ function ChartEditorModalContent({
               </div>
             </div>
           </div>
-        </div>
+        </ModalBody>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 bg-white">
-          <button
+        <ModalFooter>
+          <Button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 rounded-lg transition-colors cursor-pointer font-medium"
+            variant="cancel"
           >
             Batal
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleInsert}
-            className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            variant="primary"
           >
             <Check size={16} /> Sisipkan Grafik
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </ModalFooter>
+    </Modal>
   );
 }

@@ -27,7 +27,7 @@ const CATEGORY_COLORS = [
   { bg: 'bg-violet-500', light: 'bg-violet-100', border: 'border-violet-200', text: 'text-violet-600', ring: 'ring-violet-400' },
   { bg: 'bg-blue-500', light: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-600', ring: 'ring-blue-400' },
   { bg: 'bg-teal-500', light: 'bg-teal-100', border: 'border-teal-200', text: 'text-teal-600', ring: 'ring-teal-400' },
-  { bg: 'bg-emerald-500', light: 'bg-emerald-100', border: 'border-emerald-200', text: 'text-emerald-600', ring: 'ring-emerald-400' },
+  { bg: 'bg-[#3083FF]', light: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-600', ring: 'ring-blue-400' },
   { bg: 'bg-amber-500', light: 'bg-amber-100', border: 'border-amber-200', text: 'text-amber-600', ring: 'ring-amber-400' },
   { bg: 'bg-rose-500', light: 'bg-rose-100', border: 'border-rose-200', text: 'text-rose-600', ring: 'ring-rose-400' },
   { bg: 'bg-indigo-500', light: 'bg-indigo-100', border: 'border-indigo-200', text: 'text-indigo-600', ring: 'ring-indigo-400' },
@@ -499,7 +499,7 @@ const CategorizationItemRow = React.memo(({ index, value, onChange }: Categoriza
                 <button
                   type="button"
                   onClick={() => { setShowTable(true); setShowToolbar(false); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 transition-all text-left"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all text-left"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
                   <span className="text-[11px] font-bold">Tabel</span>

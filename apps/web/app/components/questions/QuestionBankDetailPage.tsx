@@ -664,9 +664,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         onEditQuestion={handleOpenEditor}
                     />
                 ) : (
-                    <>
+                    <div className="question-bank-workspace flex flex-col gap-4 sm:gap-5">
                         {/* Stats */}
-                        <div className="flex overflow-x-auto sm:flex-wrap gap-2 sm:gap-3 w-full pb-2 pt-1 scrollbar-hide">
+                        <div className="flex overflow-x-auto sm:flex-wrap gap-2 sm:gap-3 w-full scrollbar-hide">
                             <div 
                                 onClick={() => setFilterType('all')}
                                 className={`rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 shadow-sm text-center shrink-0 min-w-[105px] sm:w-[140px] cursor-pointer transition-all ${filterType === 'all' ? 'bg-blue-100 border-2 border-blue-400' : 'bg-blue-50 border border-blue-200 hover:bg-blue-100'}`}
@@ -1082,7 +1082,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                         )}
                     </div>
                 )}
-                    </>
+                    </div>
                 )}
             </div>
 

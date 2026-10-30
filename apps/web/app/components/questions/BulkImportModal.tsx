@@ -1,4 +1,5 @@
 "use client";
+import './question-dark-surfaces.css';
 import { getErrorMessage } from '@/lib/errors';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { QUESTION_TYPE_LABELS } from '@/app/types/question';
@@ -491,9 +492,6 @@ export default function BulkImportModal({
                                                     <p className="text-lg font-semibold text-slate-700">
                                                         Seret file di sini atau klik untuk memilih
                                                     </p>
-                                                    <div className="text-sm text-slate-500 mt-1">
-                                                        Format: Word template dengan Kolom (No | Tipe | Soal | Kunci | Poin)
-                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -507,23 +505,21 @@ export default function BulkImportModal({
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
-                                                onClick={() => window.open('/template_soal_pengetahuan.docx?v=20261001', '_blank')}
+                                                onClick={() => window.open('/template_soal_pengetahuan.docx?v=20261030', '_blank')}
                                                 className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-left"
                                             >
                                                 <FileText className="w-4 h-4 text-blue-500 shrink-0" />
                                                 <div>
-                                                    <p className="text-xs font-bold text-blue-700">Pengetahuan</p>
-                                                    <p className="text-[10px] text-blue-500">mcq, essay, ordering...</p>
+                                                    <p className="text-xs font-bold text-blue-700">Template Soal Pengetahuan</p>
                                                 </div>
                                             </button>
                                             <button
-                                                onClick={() => window.open('/template_soal_kepribadian.docx?v=20261001', '_blank')}
+                                                onClick={() => window.open('/template_soal_kepribadian.docx?v=20261030', '_blank')}
                                                 className="flex items-center gap-2 px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors text-left"
                                             >
                                                 <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
                                                 <div>
-                                                    <p className="text-xs font-bold text-indigo-700">Kepribadian</p>
-                                                    <p className="text-[10px] text-indigo-500">sjt, likert, ranking...</p>
+                                                    <p className="text-xs font-bold text-indigo-700">Template Soal Kepribadian</p>
                                                 </div>
                                             </button>
                                         </div>
@@ -609,9 +605,9 @@ export default function BulkImportModal({
                                                                     <span className="text-xs text-slate-400">{sq.bank_question_options?.length ?? 0} opsi</span>
                                                                 )}
                                                             </div>
-                                                            <p className="text-sm text-slate-700 line-clamp-2">
-                                                                {sq.question_text.replace(/<[^>]*>/g, '').substring(0, 120)}
-                                                            </p>
+                                                            <div className="text-sm text-slate-700 max-h-16 overflow-hidden">
+                                                                <LatexRenderer text={sq.question_text} className="!text-sm !leading-relaxed line-clamp-2" />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -699,9 +695,9 @@ export default function BulkImportModal({
                                                                 {QUESTION_TYPE_LABELS[q.type] || q.type}
                                                             </span>
                                                         </div>
-                                                        <p className="text-sm text-slate-700 line-clamp-2">
-                                                            {q.question_text.replace(/<[^>]*>/g, '').substring(0, 150)}
-                                                        </p>
+                                                        <div className="text-sm text-slate-700 max-h-16 overflow-hidden">
+                                                            <LatexRenderer text={q.question_text} className="!text-sm !leading-relaxed line-clamp-2" />
+                                                        </div>
                                                         {(q.metadata?.import_stimulus || q.metadata?.import_instruction || q.metadata?.kisi_kisi) && (
                                                             <div className="mt-2 space-y-1.5">
                                                                 {q.metadata.import_stimulus && (
@@ -836,7 +832,7 @@ export default function BulkImportModal({
                                     <button
                                         onClick={handleParseFile}
                                         disabled={!selectedFile || isProcessing}
-                                        className={`px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
+                                        className={`bulk-import-submit px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
                                             !selectedFile || isProcessing ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25'
                                         }`}
                                     >
@@ -851,7 +847,7 @@ export default function BulkImportModal({
                                     <button
                                         onClick={handleStartCrossImport}
                                         disabled={selectedCrossQuestions.size === 0 || sourceLoading}
-                                        className={`px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
+                                        className={`bulk-import-submit px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
                                             selectedCrossQuestions.size === 0 || sourceLoading ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25'
                                         }`}
                                     >
@@ -868,7 +864,7 @@ export default function BulkImportModal({
                                     <button
                                         onClick={handleStartImport}
                                         disabled={selectedQuestions.size === 0 || isProcessing || !!parseResult?.errors.length}
-                                        className={`px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
+                                        className={`bulk-import-submit px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-all flex items-center gap-2 ${
                                             selectedQuestions.size === 0 || isProcessing ? 'bg-slate-300 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25'
                                         }`}
                                     >

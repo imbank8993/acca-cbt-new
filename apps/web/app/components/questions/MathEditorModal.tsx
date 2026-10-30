@@ -1,5 +1,8 @@
 "use client";
-import { FunctionSquare,X } from 'lucide-react';
+import { FunctionSquare } from 'lucide-react';
+import { Modal, ModalFooter } from '@/app/components/ui/modal';
+import './question-editor-dark.css';
+import { Button } from '@/app/components/ui/button';
 import React,{ useEffect,useState } from 'react';
 import { MathRenderer } from './MathRenderer';
 import { MathToolbar } from './MathToolbar';
@@ -56,37 +59,9 @@ function MathEditorModalContent({
   }, [mathInput, isMathBlock, onInsert, onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[620px] max-h-[92vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center border border-amber-500/30">
-              <FunctionSquare size={16} className="text-amber-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white leading-tight">Sisipkan Rumus Matematika</h2>
-              <p className="text-[11px] text-slate-400 leading-tight">Pilih struktur rumus dari toolbar atau tulis kode LaTeX</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Tutup"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="xl" className="insertion-modal h-[620px] max-h-[92vh] flex flex-col"
+      title="Sisipkan Rumus Matematika" subtitle="Pilih struktur rumus dari toolbar atau tulis kode LaTeX"
+      icon={<FunctionSquare size={18} />}>
         {/* Body */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* Left: Templates Toolbar */}
@@ -242,15 +217,15 @@ function MathEditorModalContent({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 bg-white">
-          <button
+        <ModalFooter>
+          <Button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 rounded-lg transition-colors cursor-pointer font-medium"
+            variant="cancel"
           >
             Batal
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => {
               if (mathInput.trim()) {
@@ -259,12 +234,11 @@ function MathEditorModalContent({
               }
             }}
             disabled={!mathInput.trim()}
-            className="px-5 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs cursor-pointer"
+            variant="primary"
           >
             Sisipkan Rumus
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </ModalFooter>
+    </Modal>
   );
 }

@@ -1,0 +1,80 @@
+.insertion-modal .insertion-title-icon {
+  background: #3083ff26 !important;
+  border-color: #3083ff59 !important;
+  color: #3083ff !important;
+}
+
+.insertion-modal .insertion-title-icon > svg {
+  color: #3083ff !important;
+}
+
+.dark .insertion-modal [class~="bg-slate-50/40"],
+.dark .insertion-modal [class~="bg-slate-50/50"],
+.dark .insertion-modal [class~="bg-slate-50/70"],
+.dark .insertion-modal [class~="bg-slate-200/70"] {
+  background: #172235 !important;
+  border-color: #334155 !important;
+}
+
+.dark .insertion-modal [class~="bg-amber-50"] {
+  background: #193e6b !important;
+  border-color: #4388e8 !important;
+  color: #93c5fd !important;
+}
+
+.dark .insertion-modal math-field {
+  background: #0d1627;
+  color: #f1f5f9;
+  color-scheme: dark;
+  --caret-color: #60a5fa;
+  --selection-background-color: #3083ff40;
+  --contains-highlight-background-color: #3083ff26;
+}
+
+.dark .insertion-modal #mf-editor-modal::part(prompt),
+.dark .insertion-modal #mf-editor-modal::part(placeholder) {
+  background: #24324f !important;
+  border-color: #94a3b8 !important;
+  color: #f1f5f9;
+}
+
+.dark .question-editor-canvas {
+  background: #111a2b !important;
+}
+
+.dark .editor-toolbar .toolbar-group {
+  background: #1e293b !important;
+  border-color: #3b4b63 !important;
+}
+
+.dark .editor-toolbar .toolbar-group button,
+.dark .editor-toolbar .toolbar-group label {
+  color: #cbd5e1 !important;
+}
+
+.dark .editor-toolbar .toolbar-group button:disabled {
+  color: #64748b !important;
+  opacity: 0.6;
+}
+
+.dark .editor-toolbar .toolbar-group button:not(:disabled):hover,
+.dark .editor-toolbar .toolbar-group label:hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+}
+
+.dark .editor-toolbar .toolbar-group button[class*="bg-white"] {
+  background: #193e6b !important;
+  color: #93c5fd !important;
+}
+
+.dark .editor-toolbar .toolbar-group button[class*="bg-amber-300"] {
+  background: #614517 !important;
+  color: #fde68a !important;
+}
+
+.dark .editor-toolbar .toolbar-group button:focus-visible,
+.dark .editor-toolbar .toolbar-group label:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}

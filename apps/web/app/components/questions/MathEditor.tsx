@@ -1,4 +1,5 @@
 "use client";
+import './question-editor-dark.css';
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { renderLatex,sanitizeLatex } from './math-utils';
 
@@ -170,7 +171,7 @@ export function MathEditor({ isOpen, onClose, onInsert, initialLatex = '' }: Mat
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 p-4"
+      className="insertion-modal fixed inset-0 z-[999] flex items-center justify-center bg-black/60 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -180,7 +181,7 @@ export function MathEditor({ isOpen, onClose, onInsert, initialLatex = '' }: Mat
       >
         <div className="px-6 py-4 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-amber-500/20 rounded-lg flex items-center justify-center border border-amber-500/30">
+            <div className="insertion-title-icon w-9 h-9 bg-amber-500/20 rounded-lg flex items-center justify-center border border-amber-500/30">
               <span className="text-amber-400 font-bold text-sm">fx</span>
             </div>
             <div>
@@ -292,7 +293,7 @@ export function MathEditor({ isOpen, onClose, onInsert, initialLatex = '' }: Mat
           <button
             onClick={handleInsert}
             disabled={!input.trim() || previewError}
-            className="px-5 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow flex items-center gap-2"
+            className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#256fe0] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow flex items-center gap-2"
           >
             Sisipkan Rumus
           </button>

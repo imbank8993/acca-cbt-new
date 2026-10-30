@@ -1,4 +1,6 @@
 "use client";
+import './question-editor-dark.css';
+import { hasQuestionContent } from '@/lib/question-content';
 import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
 import { useToast } from '@/app/components/ui/Toast';
 import InlineSelect from '@/components/ui/InlineSelect';
@@ -196,6 +198,8 @@ export default function QuestionEditorModal({
     );
 
     const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [validatedContent, setValidatedContent] = useState('');
+    const currentContent = JSON.stringify([questionText, options, selectedType, metadata]);
     const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
 
     const [latexEditorOpen, setLatexEditorOpen] = useState(false);
@@ -231,12 +235,11 @@ export default function QuestionEditorModal({
     };
 
     const isEmptyHtml = (text: string) => {
-        if (!text) return true;
-        const stripped = text.replace(/<[^>]*>/g, '').trim();
-        return stripped === '' || stripped === '\u00a0';
+        return !hasQuestionContent(text);
     };
 
     const validateQuestion = (): boolean => {
+        setValidatedContent(currentContent);
         const errors: string[] = [];
 
         if (isEmptyHtml(questionText)) {
@@ -569,7 +572,7 @@ export default function QuestionEditorModal({
                             <button
                                 onClick={handleSave}
                                 disabled={isSubmitting}
-                                className="flex items-center justify-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-50 shrink-0"
+                                className="flex items-center justify-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#256fe0] shadow-sm transition-all disabled:opacity-50 shrink-0"
                             >
                                 {isSubmitting ? (
                                     <>
@@ -591,7 +594,7 @@ export default function QuestionEditorModal({
 
             {/* ── Validation Errors ── */}
             <AnimatePresence>
-                {validationErrors.length > 0 && (
+                {validationErrors.length > 0 && validatedContent === currentContent && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -863,7 +866,7 @@ export default function QuestionEditorModal({
                 </aside>
 
                 {/* Editor */}
-                <main className="flex-1 min-w-0 overflow-y-visible xl:overflow-y-auto bg-slate-50/50">
+                <main className="question-editor-canvas flex-1 min-w-0 overflow-y-visible xl:overflow-y-auto bg-slate-50/50">
                     <div className="max-w-[210mm] mx-auto w-full px-3 sm:px-4 md:px-5 py-6 space-y-5">
                         {/* Card: Pertanyaan */}
                         <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
@@ -1016,7 +1019,7 @@ export default function QuestionEditorModal({
                                                     </div>
                                                     <button 
                                                         onClick={() => addOption()}
-                                                        className="px-4 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-2"
+                                                        className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-2"
                                                     >
                                                         <span className="text-lg leading-none">+</span> Tambah Topik
                                                     </button>
@@ -1032,7 +1035,7 @@ export default function QuestionEditorModal({
                                                                     value={opt.text}
                                                                     onChange={(e) => updateOption(idx, { text: e.target.value })}
                                                                     placeholder="Masukkan judul/deskripsi topik..."
-                                                                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                                                    className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                                 />
                                                             </div>
                                                             <button 
@@ -1155,7 +1158,7 @@ export default function QuestionEditorModal({
                         {/* Header */}
                         <div className="px-6 pt-5 pb-0 flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-500 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                <div className="w-10 h-10 bg-[#3083FF] rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                                         <path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/>
                                     </svg>
@@ -1198,8 +1201,8 @@ export default function QuestionEditorModal({
                                 {/* Input */}
                                 <div className="bg-white rounded-lg border border-slate-100 p-4 flex flex-col gap-2">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center">
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2">
+                                        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3083FF" strokeWidth="2">
                                                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                                             </svg>
                                         </div>
@@ -1267,7 +1270,7 @@ export default function QuestionEditorModal({
                             </button>
                             <button
                                 onClick={saveLatexToOption}
-                                className="px-5 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                                className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#256fe0] transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                     <path d="M12 5v14M5 12l7 7 7-7"/>

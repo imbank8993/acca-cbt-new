@@ -1,6 +1,9 @@
 "use client";
+import './question-editor-dark.css';
+import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
-import { Check,Minus,Plus,Table as TableIcon,Trash2,X } from 'lucide-react';
+import { Check,Minus,Plus,Table as TableIcon,Trash2 } from 'lucide-react';
 import { useCallback,useEffect,useState } from 'react';
 
 export type TableWidthPreset = 'auto' | '100%' | '75%' | '50%';
@@ -82,43 +85,12 @@ function TableEditorModalContent({
   ];
 
   return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center border border-blue-500/30">
-              <TableIcon size={16} className="text-blue-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white leading-tight">
-                {isInTable && !insertAfterActiveTable ? 'Kelola & Edit Tabel' : 'Sisipkan Tabel Baru'}
-              </h2>
-              <p className="text-[11px] text-slate-400 leading-tight">
-                {isInTable && !insertAfterActiveTable ? 'Ubah tabel aktif atau sisipkan tabel berdampingan' : 'Atur jumlah baris, kolom, dan baris header'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Tutup"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+    <Modal open onClose={onClose} size="xl" className="insertion-modal flex flex-col max-h-[92vh]"
+      title={isInTable && !insertAfterActiveTable ? 'Kelola & Edit Tabel' : 'Sisipkan Tabel Baru'}
+      subtitle={isInTable && !insertAfterActiveTable ? 'Ubah tabel aktif atau sisipkan tabel berdampingan' : 'Atur jumlah baris, kolom, dan baris header'}
+      icon={<TableIcon size={18} />}>
         {/* Body */}
-        <div className="p-5 max-h-[75vh] overflow-y-auto">
+        <ModalBody className="overflow-y-auto">
           {!isInTable || insertAfterActiveTable ? (
             /* Mode 1: Buat Tabel Baru */
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
@@ -425,28 +397,27 @@ function TableEditorModalContent({
               </div>
             </div>
           )}
-        </div>
+        </ModalBody>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 bg-white">
-          <button
+        <ModalFooter>
+          <Button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 rounded-lg transition-colors cursor-pointer font-medium"
+            variant="cancel"
           >
             {isInTable ? 'Tutup' : 'Batal'}
-          </button>
+          </Button>
           {!isInTable && (
-            <button
+            <Button
               type="button"
               onClick={handleInsert}
-              className="px-5 py-2 text-sm font-semibold bg-[#3083FF] text-white rounded-lg hover:bg-[#0a1a6e] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              variant="primary"
             >
               <Check size={16} /> Sisipkan Tabel
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+    </Modal>
   );
 }

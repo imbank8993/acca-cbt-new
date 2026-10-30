@@ -8,6 +8,8 @@ import { DOMParser as XMLDOMParser,XMLSerializer as XMLXMLSerializer } from '@xm
 import * as JSZip from 'jszip';
 import { readQuestionArchive } from './question-archive';
 import { normalizeImportedOptionText } from './import-text';
+import { preserveWordImageSizes, restoreWordImageSizes } from './docx-image-size';
+import { hasQuestionContent } from './question-content';
 import omml2mathml from 'omml2mathml';
 
 const getDOMParser = () => {
@@ -136,6 +138,7 @@ async function preprocessDocx(file: File): Promise<ArrayBuffer> {
         }
     }
     
+    preserveWordImageSizes(doc);
     const serializer = getXMLSerializer();
     const updatedDocXml = serializer.serializeToString(doc);
     
@@ -362,7 +365,7 @@ async function extractTablesFromDocx(file: File): Promise<{ tables: RowData[][];
         ? { buffer: Buffer.from(preprocessedBuffer) }
         : { arrayBuffer: preprocessedBuffer };
     const result = await mammoth.convertToHtml(mammothOptions);
-    const html = result.value;
+    const html = restoreWordImageSizes(result.value);
 
     const parser = getDOMParser();
     const wrappedHtml = typeof window === 'undefined' ? `<div id="root">${html}</div>` : html;
@@ -931,7 +934,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
             ? { buffer: Buffer.from(preprocessedBuffer) }
             : { arrayBuffer: preprocessedBuffer };
         const result = await mammoth.convertToHtml(mammothOptions);
-        const html = result.value;
+        const html = restoreWordImageSizes(result.value);
 
         const parser = getDOMParser();
         const wrappedHtml = typeof window === 'undefined' ? `<div id="root">${html}</div>` : html;
@@ -1033,9 +1036,7 @@ export async function parseDocxToStimuliOrInstructions(file: File, kind?: 'stimu
                 // Clean title tag wrap
                 title = title.replace(/<[^>]*>/g, '').trim();
                 // Strip empty content
-                const contentText = content.replace(/<[^>]*>/g, '').trim();
-
-                if (contentText) {
+                if (hasQuestionContent(content)) {
                     items.push({ title, content });
                 }
             }

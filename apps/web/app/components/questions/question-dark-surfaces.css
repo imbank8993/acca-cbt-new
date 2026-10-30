@@ -1,10 +1,31 @@
+.dark .matching-rest {
+  background: #0d1221 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .matching-rest:hover:not(:disabled) {
+  background: #172235 !important;
+  border-color: #60a5fa !important;
+}
+
+.question-bank-workspace > .ftb-toolbar {
+  margin-block: 0 !important;
+}
+
+.dark .bulk-import-submit:disabled {
+  background: #263449 !important;
+  color: #a8b7cb !important;
+  border: 1px solid #475569;
+  box-shadow: none;
+  opacity: 1;
+}
+
 .dark .question-stimulus {
   border-color: #334155;
 }
 
 .dark .question-stimulus > div {
-  background: #172235 !important;
-  border-color: #334155 !important;
   color: #e2e8f0 !important;
 }
 

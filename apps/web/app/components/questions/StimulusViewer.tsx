@@ -11,7 +11,7 @@ export const StimulusViewer = ({ stimulus }: { stimulus: QuestionStimulus }) => 
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3083FF]" /> Stimulus
             </h3>
-            <div className="text-xs sm:text-sm leading-relaxed text-slate-700 bg-slate-50/60 p-2.5 sm:p-3 rounded-lg border border-slate-200/80 [&_img]:max-w-full [&_img]:rounded-md [&_img]:mx-auto">
+            <div className="text-xs sm:text-sm leading-relaxed text-slate-700 [&_img]:max-w-full [&_img]:rounded-md [&_img]:mx-auto">
                 <LatexRenderer text={stimulus.content} />
             </div>
         </div>

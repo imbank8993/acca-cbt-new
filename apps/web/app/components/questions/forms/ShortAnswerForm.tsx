@@ -155,13 +155,13 @@ const ShortAnswerRow = React.memo(({
             {variations.map((v) => (
               <span
                 key={v}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-emerald-50 text-emerald-600 rounded-full border border-emerald-200 font-medium"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-blue-50 text-blue-600 rounded-full border border-blue-200 font-medium"
               >
                 {v}
                 <button
                   type="button"
                   onClick={() => onVariationsChange(variations.filter((x) => x !== v))}
-                  className="hover:text-emerald-800 ml-0.5 font-bold"
+                  className="hover:text-blue-800 ml-0.5 font-bold"
                 >
                   ×
                 </button>
@@ -184,7 +184,7 @@ const ShortAnswerRow = React.memo(({
             type="button"
             onClick={handleAdd}
             disabled={!inputVal.trim()}
-            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 disabled:text-slate-300 disabled:cursor-not-allowed transition-colors"
+            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 disabled:text-slate-300 disabled:cursor-not-allowed transition-colors"
           >
             <Plus size={14} />
           </button>

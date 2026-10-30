@@ -6,6 +6,7 @@ import { CheckCircle2,Sparkles,Trash2 } from "lucide-react";
 import { useMemo,useState } from "react";
 import Xarrow,{ Xwrapper } from "react-xarrows";
 import { LatexRenderer } from "./LatexRenderer";
+import './question-dark-surfaces.css';
 
 // Deterministic seeded shuffle so the order is randomized ONCE per participant
 // (stable across re-renders / re-mounts / question navigation) instead of on every render.
@@ -211,7 +212,7 @@ export const InteractiveMatching = ({
                       onClick={() => onSelectLeft(isSelected ? null : opt.id)}
                       className={`
                         flex-1 min-h-[40px] sm:min-h-[48px] flex items-center px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg border-2 text-left text-[11px] sm:text-sm
-                        font-medium transition-all duration-200 leading-snug
+                        font-medium transition-all duration-200 leading-snug ${!isSelected && !isConnected ? 'matching-rest' : ''}
                         ${isSelected
                           ? "border-amber-400 bg-amber-50 shadow-md shadow-amber-100"
                           : showFeedback && isConnected
@@ -222,7 +223,7 @@ export const InteractiveMatching = ({
                               })()
                             : isConnected
                               ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200"
-                              : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#1a233a] hover:border-indigo-300 dark:hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 text-slate-700 dark:text-slate-200"
+                              : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0d1221] hover:border-indigo-300 dark:hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/30 text-slate-700 dark:text-slate-200"
                         }
                       `}
                       style={{ wordBreak: 'normal' }}
@@ -280,12 +281,12 @@ export const InteractiveMatching = ({
                       onClick={() => selectedLeft && onAnswerChange(selectedLeft, item)}
                       className={`
                         flex-1 min-h-[40px] sm:min-h-[48px] flex items-center px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg border-2 text-left text-[11px] sm:text-sm
-                        font-medium transition-all duration-200 leading-snug
+                        font-medium transition-all duration-200 leading-snug ${!isLinked && !selectedLeft ? 'matching-rest' : ''}
                         ${isLinked
                           ? "border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200"
                           : selectedLeft
                             ? "border-indigo-200 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 hover:border-indigo-400 hover:bg-indigo-50 text-slate-700 dark:text-slate-200"
-                            : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#1a233a] text-slate-700 dark:text-slate-200"
+                            : "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-[#0d1221] text-slate-700 dark:text-slate-200"
                         }
                       `}
                       style={{ wordBreak: 'normal' }}

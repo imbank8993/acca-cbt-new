@@ -1,4 +1,7 @@
 "use client";
+import './question-editor-dark.css';
+import { Modal, ModalBody, ModalFooter, ModalField } from '@/app/components/ui/modal';
+import { Button } from '@/app/components/ui/button';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { Extension, Node, type Editor, type JSONContent } from '@tiptap/core';
 import BulletList from '@tiptap/extension-bullet-list';
@@ -288,11 +291,14 @@ export default function TipTapEditorCore({
   const lastContent = useRef('');
   const editorWrapRef = useRef<HTMLDivElement>(null);
 
+  const [linkDialog, setLinkDialog] = useState<{ url: string; editing: boolean } | null>(null);
+  const [linkError, setLinkError] = useState('');
+
   // Modal States
   const [showImageModal, setShowImageModal] = useState(false);
   const [localImageSrc, setLocalImageSrc] = useState('');
   const [editingImagePos, setEditingImagePos] = useState<number | null>(null);
-  const [imgWidth, setImgWidth] = useState('100%');
+  const [imgWidth, setImgWidth] = useState('original');
   const [imgAlign, setImgAlign] = useState<'left' | 'center' | 'right'>('center');
   const pendingImageFiles = useRef<File[]>([]);
   const uploadedImageNodes = useRef<JSONContent[]>([]);
@@ -404,6 +410,14 @@ export default function TipTapEditorCore({
         addAttributes() {
           return {
             ...this.parent?.(),
+            width: {
+              default: null,
+              parseHTML: (element: HTMLElement) => element.getAttribute('width'),
+            },
+            height: {
+              default: null,
+              parseHTML: (element: HTMLElement) => element.getAttribute('height'),
+            },
             style: {
               default: null,
               parseHTML: (element: HTMLElement) => element.getAttribute('style'),
@@ -600,10 +614,9 @@ export default function TipTapEditorCore({
           } catch {}
           setEditingImagePos(pos);
           setLocalImageSrc(resolveStorageUrl(src));
-          const widthMatch = style.match(/width:\s*([^;]+)/);
-          if (widthMatch) {
-            setImgWidth(widthMatch[1].trim());
-          }
+          const widthMatch = style.match(/(?:^|;)\s*width:\s*([^;]+)/);
+          const savedWidth = widthMatch?.[1]?.trim() || target.getAttribute('width');
+          setImgWidth(!savedWidth || savedWidth === 'auto' ? 'original' : /^\d+(?:\.\d+)?$/.test(savedWidth) ? `${savedWidth}px` : savedWidth);
           setShowImageModal(true);
         }
         return;
@@ -659,7 +672,7 @@ export default function TipTapEditorCore({
       if (e.target?.result) {
         const src = e.target.result as string;
         setLocalImageSrc(src);
-        setImgWidth(isImageBatch.current ? '48%' : '100%');
+        setImgWidth('original');
         setImgAlign(isImageBatch.current ? 'left' : 'center');
         setShowImageModal(true);
       }
@@ -699,7 +712,7 @@ export default function TipTapEditorCore({
       }
 
       const layoutStyle = isImageBatch.current
-        ? `display:inline-block;vertical-align:top;width:${width};max-width:100%;height:auto;margin:0.5rem 1%;border-radius:0.5rem`
+        ? `display:inline-block;vertical-align:top;width:${width === 'original' ? 'auto' : width};max-width:100%;height:auto;margin:0.5rem 1%;border-radius:0.5rem`
         : `display:block;vertical-align:top;width:${width === 'original' ? 'auto' : width};max-width:100%;height:auto;margin:${align === 'left' ? '0.5rem auto 0.5rem 0' : align === 'right' ? '0.5rem 0 0.5rem auto' : '0.5rem auto'};border-radius:0.5rem`;
       uploadedImageNodes.current.push({
         type: 'image',
@@ -743,8 +756,7 @@ export default function TipTapEditorCore({
       const image = uploadedImageNodes.current[0];
       image.attrs = {
         ...image.attrs,
-        width: '100%',
-        style: 'display:block;vertical-align:top;width:100%;max-width:100%;height:auto;margin:0.5rem auto;border-radius:0.5rem',
+        style: String(image.attrs?.style || '').replace('display:inline-block', 'display:block'),
       };
     }
     if (editor && uploadedImageNodes.current.length > 0) {
@@ -1028,7 +1040,7 @@ export default function TipTapEditorCore({
               onClick={toggleDirection}
               className={`flex items-center justify-center gap-1 px-2 h-7 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
                 isRtlMode
-                  ? 'bg-emerald-100 text-emerald-700 shadow-xs border border-emerald-200'
+                  ? 'bg-blue-100 text-blue-700 shadow-xs border border-blue-200'
                   : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'
               }`}
               title={isRtlMode
@@ -1194,26 +1206,8 @@ export default function TipTapEditorCore({
             <button
               type="button"
               onClick={() => {
-                const isCurrentlyLink = editor.isActive('link');
-                if (isCurrentlyLink) {
-                  const currentHref = editor.getAttributes('link').href || '';
-                  const choice = window.prompt('Ubah URL tautan (kosongkan untuk menghapus tautan):', currentHref);
-                  if (choice === null) return;
-                  if (choice.trim() === '') {
-                    editor.chain().focus().unsetLink().run();
-                  } else {
-                    editor.chain().focus().setLink({ href: choice.trim() }).run();
-                  }
-                } else {
-                  const url = window.prompt('Masukkan URL tautan:');
-                  if (!url || !url.trim()) return;
-                  const trimmedUrl = url.trim();
-                  if (editor.state.selection.empty) {
-                    editor.chain().focus().insertContent(`<a href="${trimmedUrl}">${trimmedUrl}</a> `).run();
-                  } else {
-                    editor.chain().focus().setLink({ href: trimmedUrl }).run();
-                  }
-                }
+                setLinkError('');
+                setLinkDialog({ url: editor.getAttributes('link').href || '', editing: editor.isActive('link') });
               }}
               className={`w-7 h-7 flex items-center justify-center rounded-md text-xs transition-all cursor-pointer ${
                 editor.isActive('link')
@@ -1275,6 +1269,45 @@ export default function TipTapEditorCore({
 
       {/* Editor Content Area */}
       <EditorContent editor={editor} />
+
+      <Modal open={Boolean(linkDialog)} onClose={() => setLinkDialog(null)} size="sm"
+        title={linkDialog?.editing ? 'Edit Tautan' : 'Sisipkan Tautan'} icon={<LinkIcon size={18} />}>
+        <form onSubmit={event => {
+          event.preventDefault();
+          if (!linkDialog) return;
+          const url = linkDialog.url.trim();
+          if (!url && linkDialog.editing) {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+          } else {
+            if (!/^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i.test(url)) {
+              setLinkError('Gunakan URL https://, http://, email, atau tautan halaman yang valid.');
+              return;
+            }
+            if (editor.state.selection.empty && !linkDialog.editing) {
+              editor.chain().focus().insertContent([
+                { type: 'text', text: url, marks: [{ type: 'link', attrs: { href: url } }] },
+                { type: 'text', text: ' ' },
+              ]).run();
+            } else {
+              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+            }
+          }
+          setLinkDialog(null);
+        }}>
+          <ModalBody>
+            <ModalField label="URL tautan">
+              <input autoFocus type="text" value={linkDialog?.url || ''} placeholder="https://contoh.com"
+                onChange={event => { setLinkError(''); setLinkDialog(current => current ? { ...current, url: event.target.value } : null); }} />
+            </ModalField>
+            {linkDialog?.editing && <p className="text-xs text-slate-500">Kosongkan URL untuk menghapus tautan.</p>}
+            {linkError && <p role="alert" className="text-xs text-red-500">{linkError}</p>}
+          </ModalBody>
+          <ModalFooter>
+            <Button type="button" variant="cancel" onClick={() => setLinkDialog(null)}>Batal</Button>
+            <Button type="submit" variant="primary">{linkDialog?.editing ? 'Simpan' : 'Sisipkan Tautan'}</Button>
+          </ModalFooter>
+        </form>
+      </Modal>
 
       {/* Standalone Image Editor & Crop Modal */}
       <ImageEditorModal
@@ -1581,7 +1614,7 @@ export default function TipTapEditorCore({
         .ProseMirror ul[data-bullet-style="arrow"]     { list-style-type: none !important; padding-left: 1.5rem !important; }
         .ProseMirror ul[data-bullet-style="arrow"] > li::before { content: "▸ "; }
         .ProseMirror ul[data-bullet-style="checkmark"] { list-style-type: none !important; padding-left: 1.5rem !important; }
-        .ProseMirror ul[data-bullet-style="checkmark"] > li::before { content: "✓ "; color: #059669; font-weight: bold; }
+        .ProseMirror ul[data-bullet-style="checkmark"] > li::before { content: "✓ "; color: #3083FF; font-weight: bold; }
         .ProseMirror ul[data-bullet-style="circle"]   { list-style-type: circle !important; }
         .ProseMirror ul[data-bullet-style="diamond"]  { list-style-type: none !important; padding-left: 1.5rem !important; }
         .ProseMirror ul[data-bullet-style="diamond"] > li::before { content: "◆ "; }

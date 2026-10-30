@@ -354,11 +354,11 @@ export function ValidationReportModal({
                                                     </td>
                                                     <td className="border border-slate-400 px-2 py-1 space-y-1">
                                                         {note.selected_text && (
-                                                            <div className="bg-slate-50 p-1 rounded border border-slate-200 text-slate-600 italic">
+                                                            <div className="validation-report-quote bg-slate-50 p-1 rounded border border-slate-200 text-slate-600 italic">
                                                                 &quot;{note.selected_text}&quot;
                                                             </div>
                                                         )}
-                                                        <div className="font-medium text-slate-900">
+                                                        <div className="validation-report-comment font-medium text-slate-900">
                                                             {note.comment}
                                                         </div>
                                                     </td>
@@ -414,6 +414,16 @@ export function ValidationReportModal({
                 }
                 #validation-report-print-sheet [class*="bg-"] { background: #fff !important; }
                 #validation-report-print-sheet th { background: #f1f5f9 !important; }
+                #validation-report-print-sheet .validation-report-quote {
+                    color: #334155 !important;
+                    -webkit-text-fill-color: #334155 !important;
+                    opacity: 1;
+                }
+                #validation-report-print-sheet .validation-report-comment {
+                    color: #0f172a !important;
+                    -webkit-text-fill-color: #0f172a !important;
+                    opacity: 1;
+                }
                 #validation-report-print-sheet td { background: #fff !important; }
                 #validation-report-print-sheet :is(td, th, [class*="border-"]) { border-color: #cbd5e1 !important; }
                 #validation-report-print-sheet .validation-letterhead {

@@ -8,6 +8,32 @@ const { fixtureDb } = require('./fixture-db.cjs');
 const { QuestionsService, assertQuestionStructure } = require('../src/questions/questions.service.ts');
 const { syncLiveExamQuestion, LIVE_QUESTION_HISTORY_LIMIT } = require('../src/common/live-exam-question-updates.ts');
 const { SaveQuestionDto } = require('../src/questions/dto/questions.dto.ts');
+const { hasQuestionContent } = require('../../web/lib/question-content.ts');
+const { preserveWordImageSizes, restoreWordImageSizes } = require('../../web/lib/docx-image-size.ts');
+
+test('Word image dimensions survive HTML conversion, including repeated images at different sizes', () => {
+    const { DOMParser } = require('@xmldom/xmldom');
+    const doc = new DOMParser().parseFromString('<root xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:inline><wp:extent cx="952500" cy="476250"/><wp:docPr descr="Diagram"/></wp:inline><wp:anchor><wp:extent cx="1905000" cy="952500"/><wp:docPr title="Diagram"/></wp:anchor></root>', 'application/xml');
+    preserveWordImageSizes(doc);
+    const props = doc.getElementsByTagName('wp:docPr');
+    const html = Array.from(props).map(node => `<img src="same.png" alt="${node.getAttribute('descr')}" />`).join('');
+    const restored = restoreWordImageSizes(html);
+    assert.match(restored, /width="100.00" height="50.00"/);
+    assert.match(restored, /width="200.00" height="100.00"/);
+    assert.match(restored, /alt="Diagram"/);
+    assert.match(restored, /max-width:100%;height:auto/);
+    assert.doesNotMatch(restored, /CBT_IMG_SIZE/);
+    assert.equal(restoreWordImageSizes('<img src="natural.png" />'), '<img src="natural.png" />');
+});
+
+test('editor accepts image-only questions and options while rejecting empty markup', () => {
+    for (const value of ['', '<p><br></p>', '<p>&nbsp;\u200b</p>', '<img src="">', '<script>alert(1)</script>']) {
+        assert.equal(hasQuestionContent(value), false, value);
+    }
+    for (const value of ['Soal', '$x+2$', '<img src="data:image/png;base64,aGVsbG8=">', '<p><img src="/image.png"></p>', '<video src="/clip.mp4"></video>']) {
+        assert.equal(hasQuestionContent(value), true, value);
+    }
+});
 
 const teacher = { id: 'teacher' };
 const auth = { assertBankAccess: async () => 'school' };
