@@ -1,5 +1,6 @@
 "use client";
 import './student-analytics.css';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { useSchoolTimeZone } from "@/lib/useSchoolTimeZone";
 import { formatSchoolDate } from "@/lib/school-time";
 import type {
@@ -283,9 +284,9 @@ export default function StudentAnalyticsPage() {
             <div className="space-y-6">
                 {analytics.scoringModels && <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 border border-slate-100">
                     <label htmlFor="scoring-model" className="text-sm font-semibold text-slate-700">Model penskoran</label>
-                    <select id="scoring-model" value={selectedModel || analytics.overview.scoreType} onChange={event => setSelectedModel(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        {analytics.scoringModels.map(model => <option key={model.scoreType} value={model.scoreType}>{model.scoreLabel}</option>)}
-                    </select>
+                    <InlineSelect id="scoring-model" value={selectedModel || analytics.overview.scoreType}
+                        onChange={setSelectedModel} height="38px" minWidth="130px"
+                        options={analytics.scoringModels.map(model => ({ value: model.scoreType, label: model.scoreLabel }))} />
                 </div>}
                 {/* Overview Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

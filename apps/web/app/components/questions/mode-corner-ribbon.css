@@ -1,0 +1,24 @@
+.mode-corner-ribbon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  overflow: hidden;
+  pointer-events: none;
+  background: #3083ff;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  z-index: 2;
+}
+
+.mode-corner-ribbon > span {
+  position: absolute;
+  top: 23px;
+  right: -23px;
+  width: 112px;
+  text-align: center;
+  transform: rotate(45deg);
+  color: #fff;
+  font: 700 9px/1.5 sans-serif;
+  letter-spacing: .6px;
+}

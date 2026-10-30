@@ -1,0 +1,15 @@
+.dark .question-stimulus {
+  border-color: #334155;
+}
+
+.dark .question-stimulus > div {
+  background: #172235 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .question-blueprint-action:hover,
+.dark .question-blueprint-action:focus-visible {
+  background: #302447 !important;
+  color: #d8b4fe !important;
+}

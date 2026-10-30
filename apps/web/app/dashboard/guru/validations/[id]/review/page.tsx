@@ -1,5 +1,6 @@
 "use client";
 import { confirmDialog } from '@/lib/confirm-dialog';
+import { ModeCornerRibbon } from '@/app/components/questions/ModeCornerRibbon';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -265,8 +266,9 @@ export default function ValidatorReviewPage() {
     return (
         <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 dark:bg-[#020718] font-sans overflow-hidden">
             {/* Top Navigation Bar */}
-            <header className="h-14 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
+            <header className="relative min-h-20 bg-white dark:bg-[#0d1221] border-b border-slate-200 dark:border-slate-800 pl-4 pr-24 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <ModeCornerRibbon mode="validation" />
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
                         onClick={() => router.push('/dashboard/guru/validations')}
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -274,16 +276,13 @@ export default function ValidatorReviewPage() {
                     >
                         <ArrowLeft size={18} />
                     </button>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 bg-primary/10 text-primary font-bold text-[10px] rounded uppercase">
-                                Mode Validasi Soal
-                            </span>
-                            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate max-w-[200px] sm:max-w-md">
+                    <div className="min-w-0">
+                        <div>
+                            <h2 title={validation.title} className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100 truncate">
                                 {validation.title}
                             </h2>
                         </div>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {validation.bank?.subject} • {validation.bank?.class_level}
                         </p>
                     </div>

@@ -1,4 +1,5 @@
 "use client";
+import './question-dark-surfaces.css';
 
 import { getBankValidationFeedback } from '@/lib/api/validations';
 import { FilterToolbar, FilterSearch, FilterActions } from '@/components/ui/filtertoolbar';
@@ -852,7 +853,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                     <button title="Stimulus" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><FileText size={14} /></button>
                                                 )}
                                                 {hasKisi && (
-                                                    <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><FileSearch size={14} /></button>
+                                                    <button title="Kisi-kisi" onClick={() => handleOpenView(q)} className="question-blueprint-action p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><FileSearch size={14} /></button>
                                                 )}
                                                 <button title="Lihat" onClick={() => handleOpenView(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Eye size={14} /></button>
                                                 {canManage && (<button title="Edit" onClick={() => handleOpenEditor(q)} className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors"><Edit3 size={14} /></button>)}
