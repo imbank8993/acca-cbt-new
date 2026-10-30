@@ -1,3 +1,44 @@
+.option-insert-popover {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 216px;
+  max-width: calc(100vw - 32px);
+  margin-top: 8px;
+  z-index: 50;
+}
+
+.option-insert-menu {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.option-insert-menu .option-insert-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 56px;
+  box-sizing: border-box;
+}
+
+.option-insert-action > svg {
+  flex-shrink: 0;
+}
+
+.option-insert-action > span {
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
 .option-content-editor .ProseMirror {
   min-height: 32px;
   padding: 8px;

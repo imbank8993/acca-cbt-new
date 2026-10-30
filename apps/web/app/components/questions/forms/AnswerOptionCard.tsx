@@ -450,7 +450,7 @@ export const AnswerOptionCard = React.memo(({
                                 <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                             </button>
 
-                            {showToolsMenu && <div className="absolute right-0 top-full mt-2 z-50">{insertTools}</div>}
+                            {showToolsMenu && <div className="option-insert-popover">{insertTools}</div>}
 
                         </div>
                     )}
@@ -519,7 +519,7 @@ export const AnswerOptionCard = React.memo(({
                             <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                         </button>
 
-                        {showToolsMenu && <div className="absolute right-0 top-full mt-2 z-50">{insertTools}</div>}
+                        {showToolsMenu && <div className="option-insert-popover">{insertTools}</div>}
 
                     </div>
                     )}
