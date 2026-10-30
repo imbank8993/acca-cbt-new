@@ -1,0 +1,18 @@
+.dark .student-answer-analysis {
+  background: #172235 !important;
+  border-color: #334155 !important;
+}
+
+.dark .student-answer-analysis > div:first-child {
+  color: #b0bfd2 !important;
+  border-color: #334155 !important;
+}
+
+/* Unchosen options remain readable alongside correct and incorrect answers. */
+.dark .student-answer-analysis .opacity-60 {
+  opacity: 1;
+}
+
+.dark .student-answer-analysis [class~="dark:text-slate-500"] {
+  color: #b0bfd2 !important;
+}

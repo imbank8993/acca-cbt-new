@@ -1,0 +1,22 @@
+.dark .student-analytics-page [class~="from-emerald-50/50"] {
+  background: #112a2b !important;
+  border-color: #27504a !important;
+}
+
+.dark .student-analytics-page [class~="from-amber-50/50"] {
+  background: #2a251b !important;
+  border-color: #53452b !important;
+}
+
+.dark .student-analytics-page [class~="bg-slate-50/50"] {
+  background: #172235 !important;
+  border-color: #334155 !important;
+}
+
+.dark .student-analytics-page [class~="bg-emerald-100/60"] {
+  background: #143b35 !important;
+}
+
+.dark .student-analytics-page [class~="bg-amber-100/60"] {
+  background: #42341a !important;
+}

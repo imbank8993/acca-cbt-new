@@ -1,4 +1,5 @@
 "use client";
+import './student-result.css';
 import { ResultImagePreview } from '@/app/components/questions/ResultImagePreview';
 import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
@@ -39,7 +40,7 @@ function StudentAnswerAnalysis({ answer, index }: {
     const unanswered = !answer.selectedOptionId &&
         (answer.essayAnswer == null || (typeof answer.essayAnswer === 'string' && !answer.essayAnswer.trim()));
     return (
-        <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4">
+        <div className="student-answer-analysis bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-200 text-xs text-slate-500">
                 <span className="font-semibold">Soal {index + 1} · Bobot {question.score_default ?? 1} poin</span>
                 {unanswered && <span className="text-slate-500">Belum dijawab</span>}

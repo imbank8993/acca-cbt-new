@@ -1,4 +1,5 @@
 "use client";
+import './student-analytics.css';
 import { useSchoolTimeZone } from "@/lib/useSchoolTimeZone";
 import { formatSchoolDate } from "@/lib/school-time";
 import type {
@@ -275,7 +276,7 @@ export default function StudentAnalyticsPage() {
     const weaknessData = strengthsWeaknesses.filter(s => s.type === 'weakness');
 
     return (
-        <div className="font-poppins max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
+        <div className="student-analytics-page font-poppins max-w-7xl mx-auto pb-24 space-y-6 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{timeZoneError}</div>}
 
             {loadError && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Data terakhir tetap ditampilkan. {loadError}</div>}
