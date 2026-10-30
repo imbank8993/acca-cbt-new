@@ -284,7 +284,7 @@ export default function StudentAnalyticsPage() {
             <div className="space-y-6">
                 {analytics.scoringModels && <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 border border-slate-100">
                     <label htmlFor="scoring-model" className="text-sm font-semibold text-slate-700">Model penskoran</label>
-                    <InlineSelect id="scoring-model" value={selectedModel || analytics.overview.scoreType}
+                    <InlineSelect id="scoring-model" value={selectedModel || analytics.overview.scoreType || analytics.scoringModels[0]?.scoreType || ''}
                         onChange={setSelectedModel} height="38px" minWidth="130px"
                         options={analytics.scoringModels.map(model => ({ value: model.scoreType, label: model.scoreLabel }))} />
                 </div>}
