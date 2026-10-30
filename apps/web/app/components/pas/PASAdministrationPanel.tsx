@@ -62,6 +62,7 @@ export interface PASAdministrationPanelProps {
         start_date?: string | null;
         end_date?: string | null;
         is_locked?: boolean;
+        canManage?: boolean;
         committee_chair_name?: string | null;
         committee_chair_nip?: string | null;
         profil_sekolah?: ProfilSekolah | null;
@@ -1390,7 +1391,7 @@ ${KOP_AND_A4_CSS}
                             {slot?.committee_chair?.committee_chair_name || period.committee_chair_name || 'Belum diatur'}
                         </p>
                     </div>
-                    {!period.is_locked && <Button type="button" variant="ghost" size="sm" onClick={openChairModal}>Atur</Button>}
+                    {!period.is_locked && period.canManage !== false && <Button type="button" variant="ghost" size="sm" onClick={openChairModal}>Atur</Button>}
                 </div>
             </div>
 
@@ -1746,7 +1747,7 @@ ${KOP_AND_A4_CSS}
                                     </div>
                                 </div>
 
-                                {resolvedRole !== 'pengawas' && (slot.report.status !== 'approved' || slot.report.signature_version < 3) && (
+                                {resolvedRole !== 'pengawas' && period.canManage !== false && (slot.report.status !== 'approved' || slot.report.signature_version < 3) && (
                                     <div className="flex items-center gap-2 shrink-0 flex-wrap">
                                         {slot.report.status === 'submitted' && (
                                             <Button variant="outline" size="sm" onClick={() => handleOpenRejectModal()}

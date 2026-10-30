@@ -32,7 +32,7 @@ function fixture(role) {
         examRequestGenerationRef: { current: 0 }, loadingExamIdsRef: { current: new Map() }, lastRequestedExamIdRef: { current: '' },
         setIsRefreshing: value => { state.refreshing = value; },
         setAttempts: value => { state.attempts = value; }, setLoadError: value => { state.error = value; },
-        setAnalysis() {}, setDetailedAnalysis() {}, setTopicAnalysis() {}, setIrtCalibration() {}, setAnalysisPage() {},
+        setAnalysis() {}, setDetailedAnalysis() {}, setTopicAnalysis(value) { state.topicAnalysis = value; }, setIrtCalibration() {}, setAnalysisPage() {},
         formatStudentName: name => name, buildItemAnalysis: () => [], console: { error() {} },
         window: { setTimeout(callback) { callback(); return 1; }, clearTimeout() {} },
     };
@@ -90,3 +90,18 @@ for (const role of ['admin', 'proktor', 'guru']) {
         assert.equal(f.state.error, 'network failure');
     });
 }
+
+
+for (const role of ['admin', 'proktor', 'guru']) test(`${role}: topic analysis follows the selected exam and ignores obsolete responses`, async () => {
+    const f = fixture(role), topics = { old: { participantCount: 1, topics: [] }, new: { participantCount: 66, topics: [] } };
+    f.env.activeTab = 'analysis';
+    f.env.getExamAnswersForAnalysisAction = async examId => ({ questions: [], answers: [], detailed: null, irt: null, topicAnalysis: topics[examId] });
+    const old = f.load('old');
+    const current = f.load('new');
+    f.pending[1].resolve([]);
+    await current;
+    assert.deepEqual(f.state.topicAnalysis, { examId: 'new', data: topics.new });
+    f.pending[0].resolve([]);
+    await old;
+    assert.deepEqual(f.state.topicAnalysis, { examId: 'new', data: topics.new });
+});

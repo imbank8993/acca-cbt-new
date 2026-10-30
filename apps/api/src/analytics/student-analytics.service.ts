@@ -147,7 +147,17 @@ export class StudentAnalyticsService {
 
     async overview(user: AuthUser) {
         const own = await this.own(user);
-        const attempts = sameScoreModel(own.attempts);
+        const models = [...new Set(own.attempts.map(row => studentScoreType(row.exams)))];
+        const analyses = await Promise.all(models.map(model => this.modelOverview(user, own, model)));
+        const latestModel = studentScoreType(own.attempts.at(-1)?.exams);
+        const latest = analyses[models.indexOf(latestModel)];
+        return latest ? { ...latest, scoringModels: analyses.map((analysis, index) => ({
+            scoreType: models[index], scoreLabel: STUDENT_SCORE_LABELS[models[index]], analytics: analysis,
+        })) } : null;
+    }
+
+    private async modelOverview(user: AuthUser, own: { attempts: any[]; excludedAttempts: number }, model: string) {
+        const attempts = own.attempts.filter(row => studentScoreType(row.exams) === model);
         const excludedAttempts = own.excludedAttempts + own.attempts.length - attempts.length;
         if (!attempts.length) return null;
         const scoreType = studentScoreType(attempts[0].exams);
@@ -174,8 +184,9 @@ export class StudentAnalyticsService {
             answeredWithTime = answered.size;
         }
         const subjects = new Map<string, { name: string; scores: number[]; types: Map<string, Stats> }>();
-        for (const attempt of attempts) {
-            const subject = subjectOf(attempt), group = subjects.get(subject.id) || { name: subject.name, scores: [] as number[], types: new Map<string, Stats>() };
+        for (const attempt of own.attempts) {
+            const resolved = subjectOf(attempt), model = studentScoreType(attempt.exams);
+            const subject = { id: `${resolved.id}:${model}`, name: resolved.name }, group = subjects.get(subject.id) || { name: subject.name, scores: [] as number[], types: new Map<string, Stats>() };
             group.scores.push(analyticsScore(attempt)!); subjects.set(subject.id, group);
         }
         const released: any[] = [];
@@ -211,7 +222,7 @@ export class StudentAnalyticsService {
                     if (typeof answer?.is_correct !== 'boolean' && (answered || essay)) { unknownGrades++; continue; }
                     const correct = answer?.is_correct === true;
                     addStat(types, type, correct);
-                    addStat(subjects.get(subjectOf(attempt).id)!.types, type, correct);
+                    addStat(subjects.get(`${subjectOf(attempt).id}:${studentScoreType(attempt.exams)}`)!.types, type, correct);
                     if (['easy', 'medium', 'hard'].includes(question.difficulty)) addStat(difficulties, question.difficulty, correct);
                 }
             }
@@ -235,7 +246,7 @@ export class StudentAnalyticsService {
             performanceTrend: attempts.map(row => ({ date: row.finished_at, score: analyticsScore(row)!, examTitle: row.exams.title || 'Ujian' })),
             subjectPerformance: [...subjects.entries()].map(([id, group]) => ({ subjectId: id, subjectName: group.name,
                 totalExams: group.scores.length, averageScore: rounded(mean(group.scores)), highestScore: Math.max(...group.scores),
-                lowestScore: Math.min(...group.scores), trend: calculateTrend(group.scores, scoreType === 'classical' ? 5 : 0),
+                lowestScore: Math.min(...group.scores), trend: calculateTrend(group.scores, id.endsWith(':classical') ? 5 : 0),
                 questionTypeBreakdown: [...group.types.entries()].map(([type, stats]) => ({ type, ...stats, percentage: Math.round(stats.correct / stats.total * 100) })) })),
             difficultyPerformance: ['easy', 'medium', 'hard'].map(difficulty => {
                 const stats = difficulties.get(difficulty) || { correct: 0, total: 0 };

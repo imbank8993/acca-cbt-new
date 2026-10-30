@@ -76,9 +76,9 @@ export class QuestionBanksService {
             !user.isPlatformAdmin && !user.resolved?.superadmin && !await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
         const grants = await collaborationGrants(this.db, 'bank', user.id);
         const sharedIds = [...grants.keys()];
-        const collaboration = await this.authz.collaborationListContext(user, organizationId);
+        const collaboration = await this.authz.collaborationListContext(user, organizationId, 'bank');
         const sharedClause = sharedIds.length ? `,id.in.(${sharedIds.join(',')})` : '';
-        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true${sharedClause}`);
+        if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
         else if (!elevated) {
             query = sharedIds.length ? query.or(`created_by.eq.${user.id}${sharedClause}`) : query.eq('created_by', user.id);
         }
@@ -90,7 +90,7 @@ export class QuestionBanksService {
             return [];
         }
 
-        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true || sharedIds.includes(bank.id));
+        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true);
         const counts = await collaboratorCounts(this.db, 'bank', banks.map(bank => bank.id));
 
         // Nama pembuat ditampilkan pada kartu bank. Profil bisa belum terisi —

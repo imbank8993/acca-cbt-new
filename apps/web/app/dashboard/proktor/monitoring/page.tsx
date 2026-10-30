@@ -1,4 +1,5 @@
 "use client";
+import type { TopicAnalysis } from '@acca-cbt/shared';
 
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
@@ -86,6 +87,7 @@ function MonitoringContent() {
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
     const [irtCalibration, setIrtCalibration] = useState<IrtCalibration | null>(null);
+    const [topicAnalysis, setTopicAnalysis] = useState<{ examId: string; data: TopicAnalysis | null } | null>(null);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('proktor_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'results' | 'answers' | 'analysis' | 'reset' | 'administration' | 'screen'>('activeTab', 'live');
@@ -138,7 +140,7 @@ function MonitoringContent() {
                     setLoadError(null);
                     return rows;
                 }),
-                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null })
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null, topicAnalysis: undefined })
             ]);
             // Nama siswa per attempt utk rincian "siapa yang salah" di Analisis
             const studentByAttempt = new Map<string, string>();
@@ -182,7 +184,10 @@ function MonitoringContent() {
             if (generation !== examRequestGenerationRef.current) return;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
-            if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
+            if (activeTab === 'analysis') {
+                setIrtCalibration(analysisData.irt ?? null);
+                setTopicAnalysis({ examId, data: analysisData.topicAnalysis ?? null });
+            }
             setAnalysis(analysisArray);
         } catch (error) {
             console.error('[Monitoring] Load error:', error);
@@ -497,7 +502,7 @@ function MonitoringContent() {
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                                 className="space-y-4"
                             >
-                                <MonitoringAnalysisView key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
+                                <MonitoringAnalysisView topicAnalysis={topicAnalysis?.examId === selectedExamId ? topicAnalysis.data : null} key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
                                     irt={<IrtParametersPanel questions={analysis} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}>
                                 <div className="monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">

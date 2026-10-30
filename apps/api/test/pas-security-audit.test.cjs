@@ -14,6 +14,7 @@ function fixture(type = 'pas') {
     const db = fixtureDb(createFixtures(), [], { now: '2026-10-17T01:00:00Z' });
     db.tables.cbt_pas_periods[0].type = type;
     db.tables.cbt_profiles.push({ id: 'other-proctor', full_name: 'Proktor Pemberi ACC', nis: '2345' });
+    db.tables.cbt_pas_period_collaborators = [{ period_id: 'period-1', user_id: 'other-proctor', permission: 'editor', granted_by: 'proctor-creator-1' }];
     const roleByUser = { 'proctor-creator-1': 'Proktor', 'other-proctor': 'Proktor', 'pengawas-1': 'Pengawas', 'unassigned-guard': 'Pengawas', student: 'Siswa' };
     const roles = { hasOrgRole: async (user, org, allowed) => org === 'org-1' && allowed.includes(roleByUser[user]) };
     const auth = new AuthorizationService(db, roles, { assertSchoolId: async id => {
@@ -30,14 +31,14 @@ for (const type of ['pas', 'pat', 'am']) {
     test(`${type}: private foreign bank is denied through schedule, generation, and activation`, async () => {
         const f = fixture(type);
         Object.assign(f.db.tables.cbt_question_banks[0], { created_by: 'teacher-owner', is_published: false });
-        await assert.rejects(f.auth.assertBankAccess(manager, 'bank-math', 'read'), /bank soal/);
+        await assert.rejects(f.auth.assertBankAccess(manager, 'bank-math', 'read'), /bank soal/i);
         await assert.rejects(f.schedules.addSchedule(manager, {
             clientRequestId: '00000000-0000-4000-8000-000000000123', pas_period_id: 'period-1', bank_id: 'bank-math',
             class_id: 'class-10a', session_id: 'session-1', scheduled_date: '2026-10-17', duration_override: 90,
-        }), /bank soal/);
+        }), /bank soal/i);
         f.db.tables.cbt_pas_class_schedules[0].exam_id = null;
         assert.equal((await f.schedules.generate(manager, ['sched-1'])).created, 0);
-        await assert.rejects(f.schedules.setActivation(manager, 'sched-1', true), /bank soal/);
+        await assert.rejects(f.schedules.setActivation(manager, 'sched-1', true), /bank soal/i);
         assert.equal(f.db.writes.length, 0);
         for (const allowedBank of [{ created_by: manager.id, is_published: false }, { created_by: 'teacher-owner', is_published: true }]) {
             const permitted = fixture(type);

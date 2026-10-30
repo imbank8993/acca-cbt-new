@@ -65,6 +65,7 @@ ChartJS.register(
 export default function StudentAnalyticsPage() {
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [loading, setLoading] = useState(true);
+    const [selectedModel, setSelectedModel] = useState<string | null>(null);
     const [analytics, setAnalytics] = useState<StudentAnalyticsData | null>(null);
     const [loadError, setLoadError] = useState('');
     const requestVersion = useRef(0);
@@ -81,8 +82,9 @@ export default function StudentAnalyticsPage() {
 
     const inFlight = useRef<number | null>(null);
     const lastSnapshot = useRef<string | undefined>(undefined);
-    const examHistory = analytics?.examHistory || [];
-    const comparison = analytics?.comparison || null;
+    const activeAnalytics = analytics?.scoringModels?.find(model => model.scoreType === selectedModel)?.analytics || analytics;
+    const examHistory = activeAnalytics?.examHistory || [];
+    const comparison = activeAnalytics?.comparison || null;
 
     const loadData = useCallback(async () => {
         if (inFlight.current !== null) return;
@@ -175,7 +177,7 @@ export default function StudentAnalyticsPage() {
         );
     }
 
-    const { overview, subjectPerformance, difficultyPerformance, strengthsWeaknesses, studyHabits, performanceTrend } = analytics;
+    const { overview, subjectPerformance, difficultyPerformance, strengthsWeaknesses, studyHabits, performanceTrend } = (analytics.scoringModels?.find(model => model.scoreType === selectedModel)?.analytics || analytics);
     // Nilai IRT dilaporkan pada skala 200–800 (500 + 100θ), tanpa satuan persen.
     const irtScores = overview.scoreType?.startsWith('irt_') === true;
     const scoreUnit = irtScores ? '' : '%';
@@ -278,6 +280,12 @@ export default function StudentAnalyticsPage() {
 
             {loadError && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Data terakhir tetap ditampilkan. {loadError}</div>}
             <div className="space-y-6">
+                {analytics.scoringModels && <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 border border-slate-100">
+                    <label htmlFor="scoring-model" className="text-sm font-semibold text-slate-700">Model penskoran</label>
+                    <select id="scoring-model" value={selectedModel || analytics.overview.scoreType} onChange={event => setSelectedModel(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        {analytics.scoringModels.map(model => <option key={model.scoreType} value={model.scoreType}>{model.scoreLabel}</option>)}
+                    </select>
+                </div>}
                 {/* Overview Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Rata-rata */}
@@ -457,18 +465,18 @@ export default function StudentAnalyticsPage() {
                                     return (
                                         <tr key={subject.subjectId} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
-                                                <span className="font-semibold text-slate-800">{subject.subjectName}</span>
+                                                <span className="font-semibold text-slate-800">{subject.subjectName}</span><span className="block text-xs text-slate-400">{subject.subjectId.endsWith(':classical') ? 'Klasikal' : 'IRT'}</span>
                                             </td>
                                             <td className="px-6 py-4 text-center text-slate-600 tabular-nums tracking-tight font-medium text-sm">{subject.totalExams}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                                                    {subject.averageScore}{scoreUnit}
+                                                    {formatScore(subject.averageScore)}{subject.subjectId.endsWith(':classical') ? '%' : ''}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}{scoreUnit}</td>
-                                            <td className="px-6 py-4 text-center text-rose-500 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.lowestScore)}{scoreUnit}</td>
+                                            <td className="px-6 py-4 text-center text-emerald-600 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.highestScore)}{subject.subjectId.endsWith(':classical') ? '%' : ''}</td>
+                                            <td className="px-6 py-4 text-center text-rose-500 font-bold tabular-nums tracking-tight text-sm">{formatScore(subject.lowestScore)}{subject.subjectId.endsWith(':classical') ? '%' : ''}</td>
                                             <td className="px-6 py-4 text-center">
-                                                {subject.totalExams < 2 ? <span className="text-xs text-slate-400">Belum cukup data</span> : (
+                                                {subject.totalExams < 2 ? <span className="text-xs text-slate-400">Belum ada data</span> : (
                                                 <div className={`flex items-center justify-center gap-1.5 ${getTrendColor(subject.trend)}`}>
                                                     {getTrendIcon(subject.trend)}
                                                     <span className="text-xs font-bold uppercase tracking-wider">{subject.trend === 'up' ? 'Naik' : subject.trend === 'down' ? 'Turun' : 'Stabil'}</span>
@@ -495,7 +503,7 @@ export default function StudentAnalyticsPage() {
                         <div className="absolute left-0 top-0 h-full w-1.5 bg-[#3083FF]" />
                         <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2">
                             <Brain size={16} className="text-[#3083FF]" />
-                            Kesulitan Soal
+                            Analisis tingkat kesulitan
                         </h3>
                         <div className="space-y-4">
                             {difficultyPerformance.map((diff) => {
@@ -532,7 +540,7 @@ export default function StudentAnalyticsPage() {
                     >
                         <h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2">
                             <Star size={16} />
-                            Kelebihan Belajar
+                            Analisis Jenis Soal (+)
                         </h3>
                         {strengthData.length > 0 ? (
                             <div className="space-y-3.5">
@@ -569,7 +577,7 @@ export default function StudentAnalyticsPage() {
                     >
                         <h3 className="font-bold text-amber-800 mb-4 flex items-center gap-2">
                             <AlertTriangle size={16} />
-                            Area Pengembangan
+                            Analisis Jenis Soal (-)
                         </h3>
                         {weaknessData.length > 0 ? (
                             <div className="space-y-3.5">

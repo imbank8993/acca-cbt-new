@@ -25,7 +25,7 @@ import numpy as np
 
 from ..schemas.irt import AttemptScore, IrtAttempt, IrtRequest, IrtResponse, ItemParameter
 from .answer_parser import coerce_bool
-from .grading import _unique_strings, _dedupe_options
+from .grading import STATEMENT_TYPES, _dedupe_options, _unique_strings, uses_proportional_scoring
 
 # Konstanta penskalaan logistik ke normal-ogive (2PL/3PL).
 D_CONSTANT = 1.7
@@ -48,7 +48,63 @@ PERSONALITY_TYPES = {
 }
 ESSAY_TYPES = {"essay", "esay", "uraian"}
 # Tipe yang satu soalnya dipecah menjadi beberapa butir IRT, satu per opsi.
+# Benar-Salah dan Kategorisasi hanya dipecah pada ujian beraturan lama
+# (proporsional); pada aturan resmi satu soal = satu butir — lihat
+# ``_is_unfolded``.
 UNFOLDED_TYPES = {"true_false", "matching", "categorization"}
+
+
+def _is_unfolded(qtype: str, question) -> bool:
+    if qtype not in UNFOLDED_TYPES:
+        return False
+    return qtype not in STATEMENT_TYPES or uses_proportional_scoring(question)
+
+
+def _statement_guess_probability(qtype: str, options) -> float:
+    """Peluang menebak SELURUH pernyataan dengan benar (parameter c 3PL).
+
+    B/S: 0,5 per pernyataan. Kategorisasi: 1/k per pernyataan, k = banyak
+    kategori berbeda pada kunci (minimal 2).
+    """
+    count = len(options)
+    if count == 0:
+        return 0.0
+    if qtype == "true_false":
+        per_statement = 0.5
+    else:
+        categories: set[str] = set()
+        for option in options:
+            metadata = option.metadata or {}
+            names = metadata.get("category_names") or (
+                [metadata["category_name"]] if metadata.get("category_name") else []
+            )
+            categories.update(str(name) for name in names if isinstance(name, str))
+        per_statement = 1 / max(len(categories), 2)
+    return per_statement**count
+
+
+def _guess_probability(qtype: str, question) -> float:
+    """Parameter c 3PL: peluang menjawab benar dengan menebak acak.
+
+    * PG: 1/n opsi.
+    * PG Kompleks: 1/(2ⁿ − 1) — benar hanya bila himpunan pilihan persis kunci.
+    * Isian singkat: 0 — tidak ada opsi untuk ditebak.
+    * Urutan: 1/n! — benar hanya bila seluruh urutan tepat.
+
+    Ujian beraturan lama memakai rumus lama (1/n opsi, atau 0,2 tanpa opsi)
+    supaya Kalkulasi IRT ulang tidak menggeser nilainya.
+    """
+    raw_options = question.bank_question_options
+    if uses_proportional_scoring(question):
+        return 1 / len(raw_options) if raw_options else 0.2
+    count = len(_dedupe_options(raw_options))
+    if qtype == "short_answer":
+        return 0.0
+    if qtype == "mcq_complex":
+        return 1 / (2**count - 1) if count else 0.0
+    if qtype == "ordering":
+        return 1 / math.factorial(count) if count else 0.0
+    return 1 / count if count else 0.2
 
 
 class IrtError(ValueError):
@@ -153,7 +209,26 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
                 max(float(answer.score or 0), 0.0), weight
             )
 
-            if qtype in UNFOLDED_TYPES:
+            if qtype in STATEMENT_TYPES and not _is_unfolded(qtype, question):
+                # Aturan resmi: satu soal B/S/Kategorisasi = SATU butir, benar
+                # bila seluruh pernyataan benar. Skor setengah (soal > 5
+                # pernyataan) tetap masuk skor klasik lewat ``answer.score``,
+                # tetapi butir IRT-nya dikotomus.
+                parsed = _loads(answer.essay_answer)
+                options = _dedupe_options(question.bank_question_options)
+                item_id = answer.question_id
+                student.total_answered += 1
+                if item_id not in item_stats:
+                    item_stats[item_id] = ItemStat(c=_statement_guess_probability(qtype, options))
+                stat = item_stats[item_id]
+                stat.total += 1
+                if options and all(_is_sub_item_correct(qtype, option, parsed) for option in options):
+                    stat.correct += 1
+                    student.correct_item_ids.add(item_id)
+                    student.objective_raw_score += 1
+                continue
+
+            if _is_unfolded(qtype, question):
                 # Tipe kompleks menyimpan JSON di essay_answer — tidak ada kolom
                 # raw_answer di cbt_answers.
                 parsed = _loads(answer.essay_answer)
@@ -176,10 +251,7 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
             student.total_answered += 1
 
             if item_id not in item_stats:
-                # Tebakan semu (c) mengikuti jumlah opsi; default 0,2.
-                options = question.bank_question_options
-                c_value = 1 / len(options) if options else 0.2
-                item_stats[item_id] = ItemStat(c=c_value)
+                item_stats[item_id] = ItemStat(c=_guess_probability(qtype, question))
 
             stat = item_stats[item_id]
             stat.total += 1

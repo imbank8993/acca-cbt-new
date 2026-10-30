@@ -18,7 +18,12 @@ from pathlib import Path
 import pytest
 
 from app.schemas.grading import Question
-from app.services.grading import calculate_single_answer_score
+from app.services.grading import (
+    COMPLEX_SCORING_FLAG,
+    PROPORTIONAL_SCORING,
+    STATEMENT_TYPES,
+    calculate_single_answer_score,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -46,6 +51,19 @@ JS_FALSY_QUIRK_INDEXES = {1}
 INTENTIONAL_SCORE_OVERRIDES = {29: 5.0}
 
 
+def _legacy_question(question: dict) -> Question:
+    """Versi TypeScript menilai B/S dan Kategorisasi secara proporsional.
+
+    Aturan itu kini hanya berlaku untuk ujian lama yang ditandai
+    ``complex_scoring = "proportional"``. Paritas diuji pada aturan lama itu;
+    aturan resmi diuji tersendiri di ``test_statement_scoring.py``.
+    """
+    if question.get("type") in STATEMENT_TYPES:
+        metadata = {**(question.get("metadata") or {}), COMPLEX_SCORING_FLAG: PROPORTIONAL_SCORING}
+        question = {**question, "metadata": metadata}
+    return Question(**question)
+
+
 def _normalize_js(value):
     """Petakan nilai falsy ala JavaScript ke None, seperti yang dilakukan pemanggil."""
     if value is True or value is False:
@@ -58,7 +76,7 @@ def test_grading_matches_typescript(index: int) -> None:
     case = CASES[index]
     expected = EXPECTED[index]
 
-    result = calculate_single_answer_score(Question(**case["question"]), case["raw_answer"])
+    result = calculate_single_answer_score(_legacy_question(case["question"]), case["raw_answer"])
 
     expected_score = INTENTIONAL_SCORE_OVERRIDES.get(index, expected["score"])
     assert result.score == pytest.approx(expected_score), (

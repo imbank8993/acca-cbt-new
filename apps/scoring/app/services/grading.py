@@ -28,6 +28,54 @@ PERSONALITY_TYPES = {
     "paired_comparison",
 }
 
+# ── Aturan penskoran Benar-Salah & Kategorisasi ─────────────────────────────
+#
+# Satu soal B/S atau Kategorisasi adalah SATU soal, bukan sekumpulan soal kecil
+# per pernyataan (Kepdirjen Pendis 781/2021 tentang Juknis Soal HOTS Madrasah;
+# Desain Pengembangan Soal AKM 2020):
+#
+#   * ≤ 5 pernyataan : semua benar → skor penuh; ada yang salah → 0.
+#   * > 5 pernyataan : semua benar → skor penuh; salah 1–2 → setengah;
+#                      salah > 2 → 0.
+#
+# Pernyataan yang tidak dijawab dihitung salah. Ujian yang sudah berjalan
+# sebelum aturan ini tetap dinilai proporsional (benar ÷ jumlah pernyataan):
+# NestJS menandai salinan soalnya dengan ``metadata.complex_scoring =
+# "proportional"`` supaya nilai lama tidak bergeser bila dinilai ulang.
+STATEMENT_TYPES = {"true_false", "categorization"}
+COMPLEX_SCORING_FLAG = "complex_scoring"
+PROPORTIONAL_SCORING = "proportional"
+DICHOTOMOUS_STATEMENT_LIMIT = 5
+HALF_CREDIT_MAX_WRONG = 2
+
+
+def uses_proportional_scoring(question: Any) -> bool:
+    """Apakah soal ini berasal dari ujian beraturan lama.
+
+    Untuk B/S dan Kategorisasi berarti skor proporsional per pernyataan; untuk
+    PG Kompleks, Isian, dan Urutan berarti parameter tebakan IRT 3PL lama.
+    """
+    metadata = getattr(question, "metadata", None) or {}
+    return isinstance(metadata, dict) and metadata.get(COMPLEX_SCORING_FLAG) == PROPORTIONAL_SCORING
+
+
+def statement_score_fraction(total: int, correct: int) -> float:
+    """Bagian skor soal B/S atau Kategorisasi menurut aturan di atas (0, 0,5, atau 1)."""
+    if total <= 0:
+        return 0.0
+    wrong = total - correct
+    if wrong <= 0:
+        return 1.0
+    if total > DICHOTOMOUS_STATEMENT_LIMIT and wrong <= HALF_CREDIT_MAX_WRONG:
+        return 0.5
+    return 0.0
+
+
+def _statement_fraction(question: Question, total: int, correct: int) -> float:
+    if uses_proportional_scoring(question):
+        return correct / total if total else 0.0
+    return statement_score_fraction(total, correct)
+
 
 def _dedupe_options(options: list[QuestionOption]) -> list[QuestionOption]:
     """Buang baris opsi yang benar-benar kembar (id sama, hasil join berlapis).
@@ -122,9 +170,9 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
         correct_count = sum(
             1 for o in options if o.is_correct is not None and coerce_bool(answers.get(o.id)) == o.is_correct
         )
-        ratio = correct_count / len(options) if options else 0
-        score_earned = ratio * default_score
-        is_correct = ratio == 1
+        total = len(options)
+        score_earned = _statement_fraction(question, total, correct_count) * default_score
+        is_correct = total > 0 and correct_count == total
 
     elif qtype == "categorization":
         student = _loads(raw_answer, {})
@@ -140,9 +188,9 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
                 correct_cats = [single] if single else []
             if correct_cats and _unique_strings(selected) and set(selected) == set(correct_cats):
                 correct_count += 1
-        ratio = correct_count / len(options) if options else 0
-        score_earned = ratio * default_score
-        is_correct = ratio == 1
+        total = len(options)
+        score_earned = _statement_fraction(question, total, correct_count) * default_score
+        is_correct = total > 0 and correct_count == total
 
     elif qtype == "matching":
         pairs = _loads(raw_answer, {})

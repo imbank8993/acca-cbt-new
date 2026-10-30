@@ -17,7 +17,7 @@ interface CollaborationData { ownerId: string; ownerName: string; canShare: bool
 const labels = { viewer: 'Pembaca', editor: 'Editor', manager: 'Pengelola' };
 
 export function CollaborationButton({ type, resourceId, collaboratorCount = 0, onChanged, className, mobileIconOnly = false }: {
-    type: 'bank' | 'exam'; resourceId: string; collaboratorCount: number | undefined; onChanged?: () => void; className?: string; mobileIconOnly?: boolean;
+    type: 'bank' | 'exam' | 'period'; resourceId: string; collaboratorCount: number | undefined; onChanged?: () => void; className?: string; mobileIconOnly?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [data, setData] = useState<CollaborationData | null>(null);
@@ -71,12 +71,12 @@ export function CollaborationButton({ type, resourceId, collaboratorCount = 0, o
             Kolaborator
             {count > 0 && <span aria-hidden="true" className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-bold leading-none tabular-nums text-white">{count}</span>}
         </Button>
-        <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Kolaborator ${type === 'bank' ? 'Bank Soal' : 'Ujian'}`} size="lg">
+        <Modal open={open} onClose={() => { if (!busy) setOpen(false); }} title={`Kolaborator ${type === 'bank' ? 'Bank Soal' : type === 'period' ? 'Folder Ujian' : 'Ujian'}`} size="lg">
             <ModalBody>
                 {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
                 {!data && !error && <p className="text-sm text-slate-500">Memuat kolaborator…</p>}
                 {data && <>
-                    <p className="text-sm text-slate-600">Pembuat: <strong>{data.ownerName}</strong>. Akses ini hanya berlaku untuk {type === 'bank' ? 'bank soal ini' : 'ujian ini'}.</p>
+                    <p className="text-sm text-slate-600">Pembuat: <strong>{data.ownerName}</strong>. Akses ini hanya berlaku untuk {type === 'bank' ? 'bank soal ini' : type === 'period' ? 'folder ujian ini' : 'ujian ini'}.</p>
                     <div className="space-y-2">
                         {data.collaborators.filter(row => !row.revoked_at).map(row => {
                             const expired = !!row.expires_at && Date.parse(row.expires_at) <= observedAt;
@@ -103,7 +103,7 @@ export function CollaborationButton({ type, resourceId, collaboratorCount = 0, o
                                 options={Object.entries(labels).filter(([value]) => value !== 'manager' || data.canGrantPrivileged).map(([value, label]) => ({ value, label }))} /></ModalField>
                             <ModalField label="Batas akses (opsional)"><DatePicker value={expires} onChange={setExpires} disabled={busy} /></ModalField>
                         </div>
-                        <p className="text-xs leading-5 text-slate-500">Pembaca dapat melihat isi. Editor dapat menyunting. Pengelola juga dapat mengatur kolaborator. Menghapus bank/ujian tetap hanya untuk pembuat atau Admin.</p>
+                        <p className="text-xs leading-5 text-slate-500">Pembaca dapat melihat isi. Editor dapat menyunting. Pengelola juga dapat mengatur kolaborator. Menghapus bank/ujian/folder tetap hanya untuk pembuat atau Admin.</p>
                         {!data.canGrantPrivileged && <p className="text-xs leading-5 text-amber-700">Sebagai pengelola, batas akses yang Anda berikan tidak boleh melewati batas akses Anda sendiri. Hak reset yang masih aktif tetap dipertahankan. Hanya pembuat atau Admin yang dapat memberikan atau memperpanjang hak reset.</p>}
                         {data.canGrantPrivileged && type === 'exam' && permission !== 'viewer' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={canReset} onChange={event => setCanReset(event.target.checked)} disabled={busy} />Izinkan reset, pemulihan, dan ujian susulan peserta</label>}
                         <Button type="button" disabled={!selected || busy} onClick={() => void mutate(selected, false)}>Simpan akses</Button>

@@ -6,6 +6,7 @@ import type { PASClassSchedule, PASPeriod, PASSession } from '@/app/types/pas';
 import type { PASRoom } from '@/lib/api/pas';
 import { formatSchoolDate, getSchoolTimeZoneLabel } from '@/lib/school-time';
 import { semesterAssessmentLabel } from '@/lib/exam-types';
+import { CollaborationButton } from '@/app/components/CollaborationButton';
 import { Button } from '@/app/components/ui/button';
 import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
@@ -23,6 +24,7 @@ interface HeaderProps {
     onSettings: () => void;
     onAddSchedule: () => void;
     onBulkSchedule: () => void;
+    onAccessChanged?: () => void;
 }
 
 export const COMPACT_PERIOD_TABS = [
@@ -30,7 +32,7 @@ export const COMPACT_PERIOD_TABS = [
 ] as const;
 
 /** Kepala folder ASAS/AM: judul & aksi utama, kartu ringkasan 4 kolom, lalu satu baris tab. */
-export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabChange, formatDate, onSettings, onAddSchedule, onBulkSchedule }: HeaderProps) {
+export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabChange, formatDate, onSettings, onAddSchedule, onBulkSchedule, onAccessChanged }: HeaderProps) {
     const ready = schedules.filter(isPASScheduleReady).length;
     const active = schedules.filter(schedule => schedule.is_activated === true).length;
     const pending = schedules.length - ready;
@@ -50,8 +52,9 @@ export function CompactExamPeriodHeader({ period, schedules, activeTab, onTabCha
                 </div>
             </div>
             <div className="cp-heading-actions">
-                <Button variant="outline" size="sm" disabled={period.is_locked} onClick={onSettings} leftIcon={<Settings2 size={15} />}>Pengaturan periode</Button>
-                {!period.is_locked && <>
+                {period.canShare && <CollaborationButton type="period" resourceId={period.id} collaboratorCount={period.collaboratorCount} onChanged={onAccessChanged} />}
+                <Button variant="outline" size="sm" disabled={(period.is_locked || period.canManage === false)} onClick={onSettings} leftIcon={<Settings2 size={15} />}>Pengaturan periode</Button>
+                {!(period.is_locked || period.canManage === false) && <>
                     <Button variant="outline" size="sm" onClick={onBulkSchedule} leftIcon={<Layers size={15} />}>Jadwal massal</Button>
                     <Button icon="add" size="sm" onClick={onAddSchedule}>Tambah jadwal</Button>
                 </>}
@@ -135,7 +138,7 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
     const currentPage = Math.min(page, pages);
     const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
     const chosen = schedules.filter(schedule => selectedIds.includes(schedule.id));
-    const readyIds = chosen.filter(schedule => !period.is_locked && schedule.is_activated === false && isPASScheduleReady(schedule)).map(schedule => schedule.id);
+    const readyIds = chosen.filter(schedule => !(period.is_locked || period.canManage === false) && schedule.is_activated === false && isPASScheduleReady(schedule)).map(schedule => schedule.id);
     const activeIds = chosen.filter(schedule => schedule.is_activated === true).map(schedule => schedule.id);
     const allVisibleSelected = visible.length > 0 && visible.every(schedule => selectedIds.includes(schedule.id));
     const someVisibleSelected = visible.some(schedule => selectedIds.includes(schedule.id));
@@ -150,6 +153,7 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
     const changeFilter = (setter: (value: string) => void, value: string) => { setter(value); setPage(1); setSelectedIds([]); };
     const resetFilters = () => { setSearch(''); setDateFilter(ALL); setClassFilter(ALL); setReadinessFilter(ALL); setAccessFilter(ALL); setPage(1); setSelectedIds([]); };
     const changeActivation = async (ids: string[], active: boolean) => {
+        if (period.canManage === false) return;
         const completed = await onActivation(ids, active);
         if (completed === true) setSelectedIds([]);
     };
@@ -175,15 +179,15 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
             <span>{chosen.length} jadwal dipilih</span>
             <div className="cp-selection-actions">
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => setSelectedIds([])}>Batalkan pilihan</Button>
-                {activeIds.length > 0 && <Button variant="outline" size="sm" disabled={busy} onClick={() => void changeActivation(activeIds, false)}>Nonaktifkan ({activeIds.length})</Button>}
-                {!period.is_locked && <Button variant="primary" size="sm" disabled={busy || !readyIds.length} onClick={() => void changeActivation(readyIds, true)}>Aktifkan ({readyIds.length})</Button>}
+                {period.canManage !== false && activeIds.length > 0 && <Button variant="outline" size="sm" disabled={busy} onClick={() => void changeActivation(activeIds, false)}>Nonaktifkan ({activeIds.length})</Button>}
+                {!(period.is_locked || period.canManage === false) && <Button variant="primary" size="sm" disabled={busy || !readyIds.length} onClick={() => void changeActivation(readyIds, true)}>Aktifkan ({readyIds.length})</Button>}
             </div>
         </div>}
 
         <div className="cp-table-surface">
             <div className="cp-table-scroll" role="region" aria-label="Tabel jadwal, geser untuk melihat seluruh kolom" tabIndex={0}>
                 <table className="cp-table">
-                    <thead><tr><th><input type="checkbox" aria-label="Pilih semua jadwal di halaman ini" checked={allVisibleSelected} disabled={busy || !visible.length}
+                    <thead><tr><th><input type="checkbox" aria-label="Pilih semua jadwal di halaman ini" checked={allVisibleSelected} disabled={busy || period.canManage === false || !visible.length}
                         ref={input => { if (input) input.indeterminate = someVisibleSelected && !allVisibleSelected; }}
                         onChange={() => setSelectedIds(ids => allVisibleSelected ? ids.filter(id => !visible.some(schedule => schedule.id === id)) : [...new Set([...ids, ...visible.map(schedule => schedule.id)])])} /></th>
                         {['Bank soal / kelas', 'Tanggal & sesi', 'Ruang', 'Kesiapan', 'Akses', ''].map((label, index) => <th key={index} scope="col">{label || <span className="sr-only">Tindakan</span>}</th>)}
@@ -195,7 +199,7 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                         const title = bankTitle(schedule.bank_id, schedule);
                         const ready = isPASScheduleReady(schedule);
                         return <tr key={schedule.id} data-selected={selectedIds.includes(schedule.id)}>
-                            <td><input type="checkbox" aria-label={`Pilih ${title} ${className(schedule)}`} checked={selectedIds.includes(schedule.id)} disabled={busy}
+                            <td><input type="checkbox" aria-label={`Pilih ${title} ${className(schedule)}`} checked={selectedIds.includes(schedule.id)} disabled={busy || period.canManage === false}
                                 onChange={event => setSelectedIds(ids => event.target.checked ? [...new Set([...ids, schedule.id])] : ids.filter(id => id !== schedule.id))} /></td>
                             <td className="cp-bank"><strong>{title}</strong><span>{className(schedule)}</span>
                                 <div className="cp-mobile-schedule-meta">
@@ -220,7 +224,7 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
                             <td><div className="cp-row-actions">
                                 <Button variant="ghost" size="sm" aria-label={`Detail ${title} ${className(schedule)}`} onClick={() => setDetailId(schedule.id)}>Detail</Button>
                                 <PASScheduleActions compact active={schedule.is_activated} busy={busy}
-                                    canActivate={!period.is_locked && schedule.is_activated === false && ready} canDelete={!period.is_locked}
+                                    canDeactivate={period.canManage !== false} canActivate={!(period.is_locked || period.canManage === false) && schedule.is_activated === false && ready} canDelete={!(period.is_locked || period.canManage === false)}
                                     monitoringHref={schedule.exam_id ? monitoringHref(schedule.exam_id) : undefined}
                                     onActivate={() => void changeActivation([schedule.id], schedule.is_activated !== true)} onDelete={() => onDelete(schedule.id)} />
                             </div></td>
@@ -263,7 +267,7 @@ export function CompactExamPeriodSchedules({ period, classes, sessions, rooms, t
             </ModalBody>
             <ModalFooter>
                 <Button variant="ghost" onClick={() => setDetailId(null)}>Tutup</Button>
-                {detail && !period.is_locked && <Button variant="outline" onClick={manageRooms}>Atur ruang & pengawas</Button>}
+                {detail && !(period.is_locked || period.canManage === false) && <Button variant="outline" onClick={manageRooms}>Atur ruang & pengawas</Button>}
                 {detail?.exam_id && <a className="ui-btn ui-btn--primary ui-btn--md" href={monitoringHref(detail.exam_id)}><span className="ui-btn__label">Buka monitoring</span></a>}
             </ModalFooter>
         </Modal>

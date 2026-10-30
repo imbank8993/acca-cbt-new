@@ -59,6 +59,21 @@ test('analytics groups theta separately from classical and accepts signed estima
     assert.equal(r.recentAttempts[0].percentage,null);
     assert.equal(r.dataQuality.excludedAttempts,1);
 });
+test('overview defaults to the latest exam model even when that model appeared before another model', async () => {
+    const rows = [attempt('old-classical', 'c1', 80, { finished_at: '2026-09-17T00:00:00Z' }),
+        attempt('irt', 'i', 90, { finished_at: '2026-09-18T00:00:00Z', score_irt: -1.5,
+            metadata: { irt_score_scale: 'theta' }, exams: exam('i', { scoring_type: 'irt_1pl' }) }),
+        attempt('latest-classical', 'c2', 100)];
+    const result = await new StudentAnalyticsService(fixture(rows)).overview(user);
+    assert.equal(result.overview.scoreType, 'classical');
+    assert.equal(result.overview.averageScore, 90);
+    assert.equal(result.overview.totalExams, 2);
+    assert.equal(result.scoringModels.length, 2);
+    const irt = result.scoringModels.find(model => model.scoreType === 'irt_1pl').analytics;
+    assert.equal(irt.overview.averageScore, 350);
+    assert.equal(irt.overview.totalExams, 1);
+});
+
 test('competition ranking handles ties and compares complete equal exam sets only', async () => {
     const rows = [attempt('a','e1',80),attempt('b','e2',80)];
     for (const [id,score] of [['tie',80],['higher',90],['lower',50]])

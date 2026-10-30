@@ -4,6 +4,7 @@ import type { DbService, DbSession } from '../prisma/prisma-db-adapter';
 import { loadExamQuestions } from './exam-question-sources';
 import { advisoryTransactionLock } from './transaction-lock';
 import { markScoreExcluded } from './score-exclusion';
+import { applyComplexScoringRule, examComplexScoringRule } from './complex-scoring';
 
 /** Seluruh data yang dapat memengaruhi tampilan, urutan, dan nilai. */
 export const EXAM_QUESTION_SNAPSHOT_SELECT = `
@@ -34,7 +35,17 @@ interface SnapshotRow {
 export async function readExamQuestionVersion(db: DbSession, examId: string): Promise<FrozenExamQuestion[]> {
   const snapshots = await readSnapshots(db, examId);
   if (snapshots.length) return applyCorrections(db, examId, snapshots.map(row => row.question_snapshot));
-  return loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT) as Promise<FrozenExamQuestion[]>;
+  return withExamScoringRule(db, examId,
+    await loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT) as FrozenExamQuestion[]);
+}
+
+/** Cap aturan penskoran B/S/Kategorisasi ujian pada salinan soal. */
+async function withExamScoringRule(db: DbSession, examId: string, questions: FrozenExamQuestion[]): Promise<FrozenExamQuestion[]> {
+  if (questions.length === 0) return questions;
+  const { data, error } = await db.from('cbt_exams').select('metadata').eq('id', examId).maybeSingle();
+  if (error) throw new BadRequestException('Aturan penilaian ujian belum dapat dibaca.');
+  const rule = examComplexScoringRule(data?.metadata);
+  return questions.map(question => applyComplexScoringRule(question, rule));
 }
 
 async function applyCorrections(db: DbSession, examId: string, questions: FrozenExamQuestion[]): Promise<FrozenExamQuestion[]> {
@@ -42,11 +53,13 @@ async function applyCorrections(db: DbSession, examId: string, questions: Frozen
   if (error) throw new BadRequestException('Revisi kunci ujian belum dapat dibaca.');
   const keys = data?.metadata?.answer_key_overrides || {};
   const voided = data?.metadata?.voided_questions || {};
+  const rule = examComplexScoringRule(data?.metadata);
   return questions.map(question => {
     const keyed = typeof keys[question.id] === 'string'
       ? applyExamQuestionKey(question as KeyQuestion, keys[question.id]) as FrozenExamQuestion : question;
     // Soal dibatalkan: tetap ada dalam ujian, tetapi tidak dinilai.
-    return voided[question.id] ? markScoreExcluded(keyed) : keyed;
+    const marked = voided[question.id] ? markScoreExcluded(keyed) : keyed;
+    return applyComplexScoringRule(marked, rule);
   });
 }
 
@@ -106,7 +119,7 @@ export async function ensureExamQuestionSnapshotsInTransaction(
     })),
   );
   if (error) throw new BadRequestException('Snapshot soal ujian gagal dibuat.');
-  return snapshots;
+  return withExamScoringRule(db, examId, snapshots);
 }
 
 /** Ambil snapshot yang sudah ada, atau bekukan bank saat pertama kali dipakai. */
@@ -130,12 +143,12 @@ export async function loadFrozenExamQuestions(
     .maybeSingle();
   if (error) throw new BadRequestException('Riwayat ujian belum dapat diperiksa.');
   if (historicalAttempt) {
-    return loadExamQuestions(
+    return withExamScoringRule(db, examId, await loadExamQuestions(
       db,
       examId,
       EXAM_QUESTION_SNAPSHOT_SELECT,
       knownDirectBankId,
-    ) as Promise<FrozenExamQuestion[]>;
+    ) as FrozenExamQuestion[]);
   }
 
   return db.transaction(transaction =>

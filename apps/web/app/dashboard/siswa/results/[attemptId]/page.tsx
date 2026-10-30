@@ -1,4 +1,5 @@
 "use client";
+import { ResultImagePreview } from '@/app/components/questions/ResultImagePreview';
 import { selectedStudentScore, studentScoreType, STUDENT_SCORE_LABELS } from '@acca-cbt/shared';
 import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { QuestionRenderer } from '@/app/components/questions/QuestionRenderer';
@@ -9,7 +10,7 @@ import { formatSchoolDateTime } from '@/lib/school-time';
 import { getSessionUser } from '@/lib/session';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import { AnimatePresence,motion } from 'framer-motion';
-import { ArrowLeft,BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
+import { BarChart3,BookOpen,Brain,Clock,Info,Loader2 } from 'lucide-react';
 import { useParams,useRouter } from 'next/navigation';
 import { useCallback,useEffect,useState } from 'react';
 
@@ -186,16 +187,11 @@ export default function StudentResultDetailsPage() {
     const resolvedTab = tabs.find(t => t.id === activeTab) ? activeTab : (tabs[0]?.id ?? 'pengetahuan');
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
+        <ResultImagePreview className="max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700">
             {timeZoneError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{timeZoneError}</div>}
-            <header className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
-                <button type="button" onClick={() => router.push('/dashboard/siswa/results')}
-                    className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600">
-                    <ArrowLeft size={16} aria-hidden="true" /> Semua hasil ujian
-                </button>
-                <p className="text-xs font-semibold text-blue-600">Hasil Ujian</p>
-                <h1 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs sm:text-sm text-slate-500">
+            <header className="rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 shadow-xs">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{attempt.exams?.title || 'Detail hasil ujian'}</h1>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs sm:text-sm text-slate-500">
                     <span className="inline-flex items-center gap-2"><Clock size={14} aria-hidden="true" /> Mulai: {attempt.started_at ? formatUTCDateTime(attempt.started_at) : 'Belum tersedia'}</span>
                     <span>Selesai: {attempt.finished_at ? formatUTCDateTime(attempt.finished_at) : 'Belum tersedia'}</span>
                 </div>
@@ -444,6 +440,6 @@ export default function StudentResultDetailsPage() {
             </AnimatePresence>
             )}
             </div>}
-        </div>
+        </ResultImagePreview>
     );
 }

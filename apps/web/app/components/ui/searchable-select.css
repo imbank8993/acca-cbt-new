@@ -363,3 +363,21 @@
 .dark .ss__quickDivider {
   color: rgba(255, 255, 255, 0.2) !important;
 }
+
+
+.ss__optionBadge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 6px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #eaf2ff;
+  color: #2563eb;
+  font-size: 10px;
+  line-height: 1.6;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.dark .ss__optionBadge { background: #1e3a5f; color: #93c5fd; }

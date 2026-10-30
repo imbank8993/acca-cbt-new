@@ -5,8 +5,6 @@ import { RefreshCw } from 'lucide-react';
 import type { ExamAttemptRecord, OrganizationExam } from '@/lib/api/proctor';
 import { activeMonitoringRows } from '@/lib/active-monitoring';
 import { hasMonitoringAdministration } from '@/lib/monitoring-tabs';
-import { formatSchoolDateTime } from '@/lib/school-time';
-import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import MonitoringExamPicker from './MonitoringExamPicker';
 import './monitoring.css';
 
@@ -32,8 +30,6 @@ export function MonitoringWorkspaceHeader({
     exams, now, value, onExamChange, onRefresh, refreshing, attempts,
     activeTab, onTabChange, tabs, hideDetails = false, headerAction, children,
 }: MonitoringWorkspaceHeaderProps) {
-    const { timeZone, error } = useSchoolTimeZone();
-    const selected = exams.find(exam => exam.id === value);
     const selectedAttempts = attempts.filter(attempt => attempt.exam_id === value);
     const sample = selectedAttempts[0]?.server_now;
     const [clock, setClock] = useState<{ sample?: string; elapsed: number }>({ elapsed: 0 });
@@ -55,11 +51,6 @@ export function MonitoringWorkspaceHeader({
         }
     }, [activeTab]);
 
-    const duration = selected?.duration_minutes ?? selected?.duration;
-    const schedule = [
-        selected?.start_time && !error ? formatSchoolDateTime(selected.start_time, timeZone) : '',
-        typeof duration === 'number' && duration > 0 ? `${duration} menit` : '',
-    ].filter(Boolean).join(' · ');
     const stats = [
         { label: 'Total peserta', value: selectedAttempts.length },
         { label: 'Mengerjakan', value: selectedAttempts.filter(attempt => attempt.status === 'in_progress').length },
@@ -83,7 +74,7 @@ export function MonitoringWorkspaceHeader({
                             }
                             onExamChange(nextId);
                         }}
-                        hideContext
+                        compactContext
                         action={
                             <button type="button" className="monitoring-refresh" onClick={onRefresh}
                                 disabled={refreshing || !value} aria-label="Perbarui data monitoring" title="Perbarui data monitoring">
@@ -91,7 +82,6 @@ export function MonitoringWorkspaceHeader({
                             </button>
                         }
                     />
-                    {schedule && <p className="monitoring-workspace__schedule">{schedule}</p>}
                 </div>
                 {headerAction && <div className="monitoring-workspace__action">{headerAction}</div>}
             </header>

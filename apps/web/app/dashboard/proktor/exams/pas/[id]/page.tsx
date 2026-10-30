@@ -191,6 +191,7 @@ export default function ProctorPASDetailPage() {
     };
 
     const handleActivation = async (ids: string[], active: boolean) => {
+        if (period?.canManage === false) return false;
         if (!ids.length || isGenerating) return false;
         if (!await confirmDialog({ title: active ? 'Aktifkan Ujian?' : 'Nonaktifkan Ujian?',
             text: active ? `Aktifkan ${ids.length} jadwal? Kelengkapan diperiksa kembali sebelum aktivasi.`
@@ -301,7 +302,7 @@ export default function ProctorPASDetailPage() {
     const schedules = period.pas_class_schedules || [];
     const isCompactPeriod = isSemesterAssessmentType(period.type);
     const openAddSchedule = () => {
-        if (period.is_locked) return;
+        if (period.is_locked || period.canManage === false) return;
         setScheduleForm(prev => ({
             ...prev,
             scheduled_date: prev.scheduled_date || period.start_date?.split('T')[0] || '',
@@ -312,7 +313,7 @@ export default function ProctorPASDetailPage() {
     const uniqueBankCount = new Set(schedules.map((sc) => sc.bank_id).filter(Boolean)).size;
     const readySchedulesCount = schedules.filter(isPASScheduleReady).length;
     const readyInactiveIds = schedules.filter(sc => sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
-    const selectedReadyIds = schedules.filter(sc => selectedScheduleIds.includes(sc.id) && !period.is_locked && sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
+    const selectedReadyIds = schedules.filter(sc => selectedScheduleIds.includes(sc.id) && !(period.is_locked || period.canManage === false) && sc.is_activated === false && isPASScheduleReady(sc)).map(sc => sc.id);
     const selectedActiveIds = schedules.filter(sc => selectedScheduleIds.includes(sc.id) && sc.is_activated === true).map(sc => sc.id);
 
     // Live Today filter
@@ -349,6 +350,7 @@ export default function ProctorPASDetailPage() {
 
     return (
         <div className="exam-period-page max-w-7xl mx-auto space-y-5 pb-24">
+            {period.canManage === false && <p role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">Mode lihat saja. Folder ini hanya dapat diubah oleh pembuat atau kolaborator dengan izin edit.</p>}
             {timeZoneError && (
                 <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {timeZoneError}
@@ -357,6 +359,7 @@ export default function ProctorPASDetailPage() {
 
             {isCompactPeriod ? (
                 <CompactExamPeriodHeader
+                    onAccessChanged={() => void loadData()}
                     period={period}
                     schedules={schedules}
                     activeTab={activeTab === 'rooms_sessions' ? (logisticsSubTab === 'sessions' ? 'sessions' : 'rooms') : activeTab}
@@ -393,7 +396,7 @@ export default function ProctorPASDetailPage() {
                                 <span className="flex items-center gap-1.5 text-slate-600">
                                     <UserCheck size={12} className="text-slate-400" />
                                     Ketua Panitia: <strong className="text-slate-700">{period.committee_chair_name || 'Belum diatur'}</strong>
-                                    {!period.is_locked && (
+                                    {!(period.is_locked || period.canManage === false) && (
                                         <button
                                             type="button"
                                             onClick={() => setIsEditModalOpen(true)}
@@ -486,7 +489,7 @@ export default function ProctorPASDetailPage() {
                         <Settings2 size={13} />
                         Pengaturan Ujian
                     </button>
-                    {!period.is_locked && (
+                    {!(period.is_locked || period.canManage === false) && (
                         <button type="button" onClick={() => setActiveTab('bulk')}
                             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                                 activeTab === 'bulk' ? 'bg-white text-[#3083FF] shadow-xs' : 'text-slate-500 hover:text-slate-700'
@@ -497,7 +500,7 @@ export default function ProctorPASDetailPage() {
                     )}
                 </div>
 
-                {!period.is_locked && activeTab === 'schedules' && (
+                {!(period.is_locked || period.canManage === false) && activeTab === 'schedules' && (
                     <div className="flex items-center gap-2 flex-wrap">
                         {readyInactiveIds.length > 0 && (
                             <Button
@@ -562,7 +565,7 @@ export default function ProctorPASDetailPage() {
                 />
             )}
 
-            {activeTab === 'bulk' && !period.is_locked && (
+            {activeTab === 'bulk' && !(period.is_locked || period.canManage === false) && (
                 <BulkScheduleGrid
                     periodId={periodId}
                     period={period}
@@ -690,7 +693,7 @@ export default function ProctorPASDetailPage() {
                             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                                 Jadwalkan bank soal ke kelas tujuan untuk memulai periode ujian ini.
                             </p>
-                            {!period.is_locked && (
+                            {!(period.is_locked || period.canManage === false) && (
                                 <div className="mt-4 flex items-center justify-center gap-2.5">
                                     <Button
                                         variant="primary"
@@ -763,7 +766,7 @@ export default function ProctorPASDetailPage() {
                                     <div className="flex items-center gap-2.5">
                                         <input
                                             type="checkbox"
-                                            checked={isAllDaySelected}
+                                            checked={isAllDaySelected} disabled={period.canManage === false}
                                             ref={(el) => {
                                                 if (el) el.indeterminate = isSomeDaySelected;
                                             }}
@@ -827,7 +830,7 @@ export default function ProctorPASDetailPage() {
                                                                 <input
                                                                     type="checkbox"
                                                                     aria-label={`Pilih jadwal ${bankTitle}`}
-                                                                    checked={isSelected}
+                                                                    checked={isSelected} disabled={period.canManage === false}
                                                                     onChange={() => toggleScheduleSelect(sc.id)}
                                                                     className="w-4 h-4 rounded text-[#3083FF] focus:ring-[#3083FF]/20 cursor-pointer"
                                                                 />
@@ -854,9 +857,9 @@ export default function ProctorPASDetailPage() {
                                                                 <PASScheduleStatus schedule={sc} />
                                                             </td>
                                                             <td className="py-3 px-3 text-right">
-                                                                <PASScheduleActions active={sc.is_activated} busy={isGenerating}
-                                                                    canActivate={isPASScheduleReady(sc) && sc.is_activated === false && !period.is_locked}
-                                                                    canDelete={!period.is_locked} monitoringHref={sc.exam_id ? `/dashboard/proktor/monitoring?exam=${sc.exam_id}` : undefined}
+                                                                <PASScheduleActions canDeactivate={period.canManage !== false} active={sc.is_activated} busy={isGenerating}
+                                                                    canActivate={isPASScheduleReady(sc) && sc.is_activated === false && !(period.is_locked || period.canManage === false)}
+                                                                    canDelete={!(period.is_locked || period.canManage === false)} monitoringHref={sc.exam_id ? `/dashboard/proktor/monitoring?exam=${sc.exam_id}` : undefined}
                                                                     onActivate={() => void handleActivation([sc.id], sc.is_activated !== true)}
                                                                     onDelete={() => void handleRemoveSchedule(sc.id)} />
                                                             </td>
@@ -872,7 +875,7 @@ export default function ProctorPASDetailPage() {
                     })}
 
                     {/* ── Floating Action Bar for Selected Schedules ── */}
-                    {selectedScheduleIds.length > 0 && (
+                    {period.canManage !== false && selectedScheduleIds.length > 0 && (
                         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-200 shadow-2xl rounded-2xl px-5 py-3 flex flex-wrap items-center gap-4 max-w-xl w-[92%] sm:w-auto">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#3083FF] flex items-center justify-center shrink-0">
                                 <Zap size={16} />
@@ -914,7 +917,7 @@ export default function ProctorPASDetailPage() {
 
             {/* ─── ADD SCHEDULE MODAL ─── */}
             <AnimatePresence>
-                {isAddScheduleOpen && (
+                {isAddScheduleOpen && period.canManage !== false && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="pas-add-schedule-title">
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-xs" onClick={() => setIsAddScheduleOpen(false)} />
                         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white w-full max-w-lg rounded-2xl p-6 relative z-10 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
@@ -1049,7 +1052,7 @@ export default function ProctorPASDetailPage() {
                 )}
             </AnimatePresence>
 
-            {isEditModalOpen && period && (
+            {isEditModalOpen && period && period.canManage !== false && (
                 <EditPASPeriodModal
                     isOpen={isEditModalOpen}
                     period={period}

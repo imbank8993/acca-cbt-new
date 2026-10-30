@@ -13,6 +13,7 @@ const { normalizeSqlTime, dateTimeToUtc } = require('../src/common/school-time.t
 
 const user = { id: 'proctor-1', isPlatformAdmin: false };
 const authz = {
+    collaborationPermissions: async () => ({ owner: true, admin: false, canShare: true, canDelete: true, grant: null }),
     assertBankAccess: async () => {},
     assertStaffByRecord: async () => {},
     assertProktor: async () => {},
@@ -207,8 +208,8 @@ test('SESSION-08: UI Admin dan Proktor menyembunyikan mutasi saat terkunci', () 
         );
         assert.match(source, /if \(period\.is_locked\) return/);
         assert.match(source, /Periode terkunci/i);
-        assert.match(source, /!period\.is_locked && isCreatingSession/);
-        assert.match(source, /!period\.is_locked && \(/);
+        assert.match(source, /!period\.is_locked && !readOnly && isCreatingSession/);
+        assert.match(source, /!period\.is_locked && !readOnly && \(/);
         assert.doesNotMatch(source, /Lihat jadwal/);
     }
 });

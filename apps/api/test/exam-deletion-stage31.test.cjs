@@ -17,6 +17,7 @@ const authz = {
     assertResourceOwner: async () => {},
     assertExamStaff: async () => {},
     assertProktorByRecord: async () => {},
+    assertPasPeriodManage: async () => {},
     assertProktorByParent: async () => {},
 };
 

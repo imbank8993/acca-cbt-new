@@ -1,4 +1,5 @@
 "use client";
+import { ResultImagePreview } from '@/app/components/questions/ResultImagePreview';
 import { TopicAnalysisPanel } from '@/app/components/monitoring/TopicAnalysisPanel';
 import { getErrorMessage } from '@/lib/errors';
 import { InlineMath } from '@/app/components/questions/InlineMath';
@@ -195,7 +196,7 @@ export default function ExamReviewPage() {
     const gradeInfo = getGradeFromPercentage(summary.percentage);
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
+        <ResultImagePreview className="min-h-screen bg-slate-50 flex flex-col">
             {/* Header */}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
                 <div className="max-w-4xl mx-auto px-4 py-4">
@@ -393,7 +394,7 @@ export default function ExamReviewPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </ResultImagePreview>
     );
 }
 

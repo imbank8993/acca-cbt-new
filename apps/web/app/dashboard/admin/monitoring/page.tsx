@@ -1,4 +1,5 @@
 "use client";
+import type { TopicAnalysis } from '@acca-cbt/shared';
 
 import { useMonitoringFilterState } from '@/lib/useMonitoringFilterState';
 import '@/app/components/monitoring/monitoring.css';
@@ -75,6 +76,7 @@ function MonitoringContent() {
     const [attempts, setAttempts] = useMemoryState<ExamAttemptRecord[]>('proktor_monitoring_attempts', []);
     const [analysis, setAnalysis] = useMemoryState<ItemAnalysis[]>('proktor_monitoring_analysis', []);
     const [irtCalibration, setIrtCalibration] = useState<IrtCalibration | null>(null);
+    const [topicAnalysis, setTopicAnalysis] = useState<{ examId: string; data: TopicAnalysis | null } | null>(null);
     const [, setDetailedAnalysis] = useMemoryState<DetailedItemAnalysisResponse | null>('admin_monitoring_detailedAnalysis', null);
 
     const [activeTab, setActiveTab] = useMonitoringFilterState<'live' | 'answers' | 'results' | 'analysis' | 'reset' | 'admin' | 'screen'>('activeTab', 'live');
@@ -128,7 +130,7 @@ function MonitoringContent() {
                     }
                     return result;
                 }),
-                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null })
+                activeTab === 'analysis' ? getExamAnswersForAnalysisAction(examId) : Promise.resolve({ questions: [], answers: [], detailed: null, irt: null, topicAnalysis: undefined })
             ]);
             if (generation !== examRequestGenerationRef.current) return;
             if (!attemptsResult.success) {
@@ -138,7 +140,10 @@ function MonitoringContent() {
             const attData = attemptsResult.attempts;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
-            if (activeTab === 'analysis') setIrtCalibration(analysisData.irt ?? null);
+            if (activeTab === 'analysis') {
+                setIrtCalibration(analysisData.irt ?? null);
+                setTopicAnalysis({ examId, data: analysisData.topicAnalysis ?? null });
+            }
 
             setAnalysis(buildItemAnalysis(analysisData, attData));
             setLoadError(null);
@@ -448,9 +453,9 @@ function MonitoringContent() {
                                 key="analysis"
                                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                             >
-                                <MonitoringAnalysisView key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
+                                <MonitoringAnalysisView topicAnalysis={topicAnalysis?.examId === selectedExamId ? topicAnalysis.data : null} key={selectedExamId} hasIrt={hasIRTScoring || Boolean(irtCalibration)}
                                     irt={<IrtParametersPanel questions={analysis} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}>
-                                    <ItemAnalysisPanel key={selectedExamId} analysis={analysis} />
+                                    {analysisSelector => <ItemAnalysisPanel key={selectedExamId} analysis={analysis} analysisSelector={analysisSelector} />}
                                 </MonitoringAnalysisView>
                             </motion.div>
                         )}

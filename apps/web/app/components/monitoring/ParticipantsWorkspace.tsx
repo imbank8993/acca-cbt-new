@@ -1,4 +1,5 @@
 'use client';
+import type { TopicAnalysis } from '@acca-cbt/shared';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
@@ -119,7 +120,7 @@ export function ParticipantsWorkspace({
     const [onlyIncomplete, setOnlyIncomplete] = useState(false);
     const [onlyAttention, setOnlyAttention] = useState(false);
     const [attentionCount, setAttentionCount] = useState(0);
-    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; irt: IrtCalibration | null; error?: string } | null>(null);
+    const [analysis, setAnalysis] = useState<{ examId: string; items: ItemAnalysis[]; irt: IrtCalibration | null; topicAnalysis?: TopicAnalysis | null; error?: string } | null>(null);
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [resetAttempt, setResetAttempt] = useState<ExamAttemptRecord | null>(null);
@@ -188,7 +189,7 @@ export function ParticipantsWorkspace({
                 getExamAnswersForAnalysisAction(first, others),
                 Promise.all([first, ...others].map(examKey => getExamAttemptsAction(examKey))),
             ]);
-            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, attemptLists.flat()), irt: data.irt ?? null });
+            if (id === analysisRequest.current) setAnalysis({ examId, items: buildItemAnalysis(data, attemptLists.flat()), irt: data.irt ?? null, topicAnalysis: data.topicAnalysis ?? null });
         } catch (loadError) {
             if (id === analysisRequest.current) setAnalysis({ examId, items: [], irt: null, error: loadError instanceof Error ? loadError.message : 'Analisis belum dapat dimuat.' });
         } finally {
@@ -312,7 +313,7 @@ export function ParticipantsWorkspace({
             <p className="text-right text-[11px] text-slate-500">Mencakup seluruh peserta {examOptions.length > 1 ? 'semua kelas pada bank soal ini' : focusLabel || 'ujian ini'}.</p>
             {analysisLoading && analysis?.examId !== analysisKey ? <Placeholder text="Memuat analisis…" />
                 : analysis?.examId === analysisKey && analysis.error ? <ErrorLine text={analysis.error} onRetry={() => void loadAnalysis(analysisKey)} />
-                : <MonitoringAnalysisView key={analysisKey}
+                : <MonitoringAnalysisView topicAnalysis={analysis?.examId === analysisKey ? analysis.topicAnalysis : null} key={analysisKey}
                     hasIrt={examOptions.some(option => String(examRecords[option.exam_id]?.scoring_type || '').includes('irt')) || Boolean(analysis?.examId === analysisKey && analysis.irt)}
                     irt={examOptions.length === 1
                         ? <IrtParametersPanel questions={analysis?.examId === analysisKey ? analysis.items : []} calibration={analysis?.examId === analysisKey ? analysis.irt : null}
@@ -320,7 +321,7 @@ export function ParticipantsWorkspace({
                         : <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
                             Parameter IRT dihitung per ujian. Gabungkan ujian per kelas di tab Pengaturan Ujian pada folder agar IRT dihitung untuk seluruh peserta bank soal.
                         </p>}>
-                    <ItemAnalysisPanel key={analysisKey} analysis={analysis?.examId === analysisKey ? analysis.items : []} />
+                    {analysisSelector => <ItemAnalysisPanel key={analysisKey} analysis={analysis?.examId === analysisKey ? analysis.items : []} analysisSelector={analysisSelector} />}
                 </MonitoringAnalysisView>}
         </div>
         : loading && !attempts.length ? <Placeholder text="Memuat peserta…" />

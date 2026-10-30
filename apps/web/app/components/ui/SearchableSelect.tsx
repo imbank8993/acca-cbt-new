@@ -8,6 +8,7 @@ export interface Option {
   label: string;
   subLabel?: string;
   statusDot?: string;
+  badge?: string;
 }
 
 export type SearchableSelectOption = Option;
@@ -310,6 +311,7 @@ export function SearchableSelect({
           <span className="ss__statusDot" role="img" aria-label={selectedOptions[0].statusDot} title={selectedOptions[0].statusDot} />
         )}
 
+        {!multiple && !isOpen && !search && selectedOptions[0]?.badge && <span className="ss__optionBadge">{selectedOptions[0].badge}</span>}
         <input
           ref={inputRef}
           type="text"
@@ -410,6 +412,7 @@ export function SearchableSelect({
                     <div className="ss__itemContent">
                       <span className="ss__itemMain">
                         {opt.statusDot && <span className="ss__statusDot" role="img" aria-label={opt.statusDot} title={opt.statusDot} />}
+                        {opt.badge && <span className="ss__optionBadge">{opt.badge}</span>}
                         {opt.label}
                       </span>
                       {opt.subLabel && <span className="ss__itemSub">{opt.subLabel}</span>}

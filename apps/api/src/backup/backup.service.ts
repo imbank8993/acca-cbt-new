@@ -156,10 +156,11 @@ export class BackupService {
         // dipulihkan, karena UUID pengguna tidak dipertahankan antar lingkungan.
         const emails = await this.authUsers.emailMap(memberUserIds);
 
-        const [bankCollaborators, examCollaborators, collaborationEvents] = await Promise.all([
+        const [bankCollaborators, examCollaborators, periodCollaborators, collaborationEvents] = await Promise.all([
             this.byIds('cbt_bank_collaborators', 'bank_id', bankIds),
             this.byIds('cbt_exam_collaborators', 'exam_id', examIds),
-            this.byIds('cbt_collaboration_events', 'resource_id', [...bankIds, ...examIds]),
+            this.byIds('cbt_pas_period_collaborators', 'period_id', periodIds),
+            this.byIds('cbt_collaboration_events', 'resource_id', [...bankIds, ...examIds, ...periodIds]),
         ]);
         const knownMembers = new Set(memberUserIds);
 
@@ -216,6 +217,7 @@ export class BackupService {
                 organization_labels: organizationLabels,
                 bank_collaborators: bankCollaborators.filter(row => knownMembers.has(row.user_id)),
                 exam_collaborators: examCollaborators.filter(row => knownMembers.has(row.user_id)),
+                period_collaborators: periodCollaborators.filter(row => knownMembers.has(row.user_id)),
                 collaboration_events: collaborationEvents,
             },
         };
@@ -294,6 +296,7 @@ export class BackupService {
                 await this.insert('cbt_exam_question_sources', plain(data.exam_question_sources), db);
                 await this.insert('cbt_exam_question_snapshots', plain(data.exam_question_snapshots), db);
                 await this.insert('cbt_pas_periods', withOrg(data.pas_periods), db);
+                await this.insert('cbt_pas_period_collaborators', withUser(data.period_collaborators), db);
                 await this.insert('cbt_pas_sessions', plain(data.pas_sessions), db);
                 await this.insert('cbt_pas_rooms', plain(data.pas_rooms), db);
                 await this.insert('cbt_pas_class_schedules', plain(data.pas_class_schedules), db);
@@ -409,6 +412,7 @@ export class BackupService {
             ['exam_question_sources', 'exam_id', examIds],
             ['exam_question_sources', 'bank_id', bankIds],
             ['bank_collaborators', 'bank_id', bankIds], ['bank_collaborators', 'user_id', userIds],
+            ['period_collaborators', 'period_id', periodIds], ['period_collaborators', 'user_id', userIds],
             ['exam_collaborators', 'exam_id', examIds], ['exam_collaborators', 'user_id', userIds],
             ['exam_question_snapshots', 'exam_id', examIds],
             ['exam_question_snapshots', 'question_id', questionIds, true],
@@ -436,7 +440,7 @@ export class BackupService {
                 }
             }
         }
-        for (const table of ['bank_collaborators', 'exam_collaborators']) {
+        for (const table of ['bank_collaborators', 'exam_collaborators', 'period_collaborators']) {
             for (const row of rows(table)) {
                 if (!['viewer', 'editor', 'manager'].includes(row.permission) ||
                     row.expires_at && !Number.isFinite(Date.parse(row.expires_at)) ||

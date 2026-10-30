@@ -1,7 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { DbService } from '../prisma/prisma-db-adapter';
 
-export type CollaborativeResource = 'bank' | 'exam';
+export type CollaborativeResource = 'bank' | 'exam' | 'period';
 export interface CollaborationGrant {
     user_id: string;
     permission: 'viewer' | 'editor' | 'manager';
@@ -10,8 +10,8 @@ export interface CollaborationGrant {
     revoked_at?: string | null;
     [key: string]: unknown;
 }
-export const collaborationTable = (type: CollaborativeResource) => type === 'bank' ? 'cbt_bank_collaborators' : 'cbt_exam_collaborators';
-export const collaborationKey = (type: CollaborativeResource) => type === 'bank' ? 'bank_id' : 'exam_id';
+export const collaborationTable = (type: CollaborativeResource) => type === 'bank' ? 'cbt_bank_collaborators' : type === 'period' ? 'cbt_pas_period_collaborators' : 'cbt_exam_collaborators';
+export const collaborationKey = (type: CollaborativeResource) => type === 'bank' ? 'bank_id' : type === 'period' ? 'period_id' : 'exam_id';
 export function activeCollaboration(grant: CollaborationGrant, now = Date.now()): boolean {
     return !grant.revoked_at && ['viewer', 'editor', 'manager'].includes(grant.permission) &&
         (!grant.expires_at || Date.parse(grant.expires_at) > now);
@@ -52,3 +52,5 @@ export async function collaboratorCounts(db: Pick<DbService, 'from'>, type: Coll
     }
     return counts;
 }
+
+export const collaborationResourceTable = (type: CollaborativeResource) => type === 'bank' ? 'cbt_question_banks' : type === 'period' ? 'cbt_pas_periods' : 'cbt_exams';

@@ -328,7 +328,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                             Buka Folder <ChevronRight size={14} />
                                         </button>
 
-                                        {!period.is_locked && (
+                                        {!period.is_locked && period.canManage === true && (
                                             <button
                                                 onClick={() => setEditingPeriod(period)}
                                                 className="p-2 text-slate-400 hover:text-[#3083FF] hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
@@ -337,7 +337,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                             </button>
                                         )}
 
-                                        {!period.is_locked && (
+                                        {!period.is_locked && period.canManage === true && (
                                             <button
                                                 onClick={() => handleToggleLock(period.id, false)}
                                                 className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
@@ -346,7 +346,7 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                             </button>
                                         )}
 
-                                        {period.is_locked && (
+                                        {period.is_locked && period.canManage === true && (
                                             <button
                                                 onClick={() => handleToggleLock(period.id, true)}
                                                 className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
@@ -355,11 +355,11 @@ export default function ProctorPASPage({ activeTab = 'all', typeFilter = 'all', 
                                             </button>
                                         )}
 
-                                        {!period.is_locked && (
+                                        {!period.is_locked && period.canManage === true && (
                                             <button
                                                 onClick={() => handleDeletePeriod(period.id)}
                                                 className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                                title="Hapus Folder">
+                                                disabled={period.canDelete !== true} title="Hapus Folder">
                                                 <Trash2 size={15} />
                                             </button>
                                         )}

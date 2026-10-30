@@ -144,6 +144,8 @@ export interface OrganizationExam {
     scoring_type?: string | null;
     updated_at?: string;
     creatorName?: string | null;
+    examCreatorName?: string | null;
+    questionCreatorNames?: string[];
     metadata?: {
         show_answer_keys?: boolean;
         assignment_description?: string;

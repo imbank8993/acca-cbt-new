@@ -141,6 +141,7 @@ export class PasAdministrationService {
         await this.authz.assertOrgMonitoring(user, organizationId);
 
         const isManager = await this.isProktorOrAdmin(user, organizationId);
+        if (isManager && mode === 'write') await this.authz.assertPasPeriodManage(user, periodId);
         // Pengawas bergilir per hari: pengawas hanya boleh membuka slot pada
         // tanggal ia bertugas. Proktor/Admin melihat semua tanggal (null).
         let assignedDates: string[] | null = null;
@@ -818,7 +819,7 @@ export class PasAdministrationService {
 
         const liveSlot = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate }, true);
         if (!liveSlot.schedules.length) throw new BadRequestException('Tidak ada jadwal ujian untuk ruang, sesi, dan tanggal ini.');
-        if (dto.action === 'approve') await this.authz.assertProktor(user, organizationId);
+        if (dto.action === 'approve') await this.authz.assertPasPeriodManage(user, period.id);
         await this.db.transaction(async (db) => {
             await writablePasPeriod(db, period.id);
             await advisoryTransactionLock(db, 'pas-room-students:' + period.id);
@@ -1094,7 +1095,7 @@ export class PasAdministrationService {
             throw new BadRequestException('Format tanggal pelaksanaan harus YYYY-MM-DD.');
         }
 
-        const { period, room, session, organizationId } = await this.assertSlotAccess(
+        const { period, room, session } = await this.assertSlotAccess(
             user,
             dto.pas_period_id,
             dto.pas_room_id,
@@ -1102,7 +1103,7 @@ export class PasAdministrationService {
             examDate,
         );
 
-        await this.authz.assertProktor(user, organizationId);
+        await this.authz.assertPasPeriodManage(user, period.id);
 
         const current = await this.getAdministrationSlot(user, { periodId: period.id, roomId: room.id, sessionId: session.id, examDate });
         await this.db.transaction(async db => {
@@ -1141,8 +1142,8 @@ export class PasAdministrationService {
 
     async rejectAdministrationSlot(user: AuthUser, dto: RejectPASAdministrationDto) {
         const examDate = pasDate(dto.exam_date);
-        const { period, room, session, organizationId } = await this.assertSlotAccess(user, dto.pas_period_id, dto.pas_room_id, dto.session_id, examDate);
-        await this.authz.assertProktor(user, organizationId);
+        const { period, room, session } = await this.assertSlotAccess(user, dto.pas_period_id, dto.pas_room_id, dto.session_id, examDate);
+        await this.authz.assertPasPeriodManage(user, period.id);
         await this.db.transaction(async db => {
             await writablePasPeriod(db, period.id);
             await advisoryTransactionLock(db, 'pas-room-students:' + period.id);

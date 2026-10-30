@@ -99,7 +99,7 @@
 .monitoring-workspace__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .monitoring-workspace__schedule { color: var(--monitoring-muted); font-size: 12px; line-height: 1.6; margin: 6px 0 0 2px; text-align: left; }
 .monitoring-workspace__action { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; min-height: 42px; }
-.monitoring-workspace__picker { width: min(64%, 720px); min-width: 0; }
+.monitoring-workspace__picker { flex: 1; width: 100%; min-width: 0; }
 .monitoring-workspace__picker .ss__trigger { border: 1px solid var(--monitoring-line); border-radius: 8px; background: var(--monitoring-surface); box-shadow: none; }
 .monitoring-refresh { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 42px; height: 42px; color: var(--monitoring-muted); background: var(--monitoring-surface); border: 1px solid var(--monitoring-line); border-radius: 8px; cursor: pointer; }
 .monitoring-refresh:hover { background: var(--monitoring-control); color: var(--primary, #3083ff); }

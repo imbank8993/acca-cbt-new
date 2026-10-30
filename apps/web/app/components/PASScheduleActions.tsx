@@ -4,10 +4,10 @@ import { createPortal } from 'react-dom';
 import { MoreHorizontal, Monitor, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 
-export function PASScheduleActions({ active, canActivate, busy, monitoringHref, canDelete, onActivate, onDelete, compact = false }: {
+export function PASScheduleActions({ active, canActivate, busy, monitoringHref, canDelete, onActivate, onDelete, compact = false, canDeactivate = true }: {
     active?: boolean | null; canActivate: boolean; busy: boolean; monitoringHref?: string;
     canDelete: boolean; onActivate: () => void; onDelete: () => void;
-    compact?: boolean;
+    compact?: boolean; canDeactivate?: boolean;
 }) {
     const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -34,7 +34,7 @@ export function PASScheduleActions({ active, canActivate, busy, monitoringHref, 
         };
     }, [position]);
     return <div className="pas-schedule-actions">
-        {!compact && <Button type="button" size="sm" variant={active === true ? 'outline' : 'primary'} disabled={busy || (active !== true && !canActivate)} onClick={onActivate}
+        {!compact && <Button type="button" size="sm" variant={active === true ? 'outline' : 'primary'} disabled={busy || (active === true ? !canDeactivate : !canActivate)} onClick={onActivate}
             title={active === true ? 'Nonaktifkan ujian' : canActivate ? 'Aktifkan ujian' : 'Lengkapi kebutuhan ujian terlebih dahulu'}>
             {busy ? 'Memproses…' : active === true ? 'Nonaktifkan' : 'Aktifkan'}
         </Button>}
@@ -58,7 +58,7 @@ export function PASScheduleActions({ active, canActivate, busy, monitoringHref, 
                 const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
                 items[next]?.focus();
             }}>
-            {compact && <button type="button" role="menuitem" disabled={busy || (active !== true && !canActivate)}
+            {compact && <button type="button" role="menuitem" disabled={busy || (active === true ? !canDeactivate : !canActivate)}
                 title={active === true ? 'Nonaktifkan ujian' : canActivate ? 'Aktifkan ujian' : 'Lengkapi kebutuhan ujian terlebih dahulu'}
                 onClick={() => { setPosition(null); trigger.current?.focus(); onActivate(); }}>{active === true ? 'Nonaktifkan' : 'Aktifkan'}</button>}
             {monitoringHref && <a role="menuitem" href={monitoringHref} onClick={() => setPosition(null)}><Monitor size={15} />Monitoring</a>}

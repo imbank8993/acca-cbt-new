@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { examComplexScoringRule, type ComplexScoringRule } from './complex-scoring';
 
 /**
  * Pengaturan ujian folder ASAS/ASAT/AM.
@@ -22,7 +23,15 @@ export interface PasExamSettings {
     screenshot_enabled: boolean;
     /** Model nilai siswa. IRT dihitung dari seluruh peserta satu ujian (satu bank soal × sesi). */
     scoring: PasScoringModel;
+    /**
+     * Aturan skor Benar-Salah & Kategorisasi (lihat `complex-scoring.ts`):
+     * `official` = satu soal dinilai utuh (≤ 5 pernyataan semua-atau-nol,
+     * > 5 pernyataan penuh/setengah/nol); `proportional` = benar ÷ jumlah pernyataan.
+     */
+    complex_scoring: ComplexScoringRule;
 }
+
+export const COMPLEX_SCORING_RULES = ['official', 'proportional'] as const;
 
 export const PAS_SCORING_MODELS = ['classical', 'irt_1pl', 'irt_2pl', 'irt_3pl'] as const;
 export type PasScoringModel = typeof PAS_SCORING_MODELS[number];
@@ -42,12 +51,13 @@ export const PAS_EXAM_SETTING_DEFAULTS: PasExamSettings = {
     max_violations: 3,
     screenshot_enabled: false,
     scoring: 'classical',
+    complex_scoring: 'official',
 };
 
 const BOOLEAN_KEYS = ['randomize_questions', 'randomize_options', 'show_results', 'show_answer_keys', 'is_safe_mode', 'screenshot_enabled'] as const;
 
 /** Bidang yang ikut membentuk pengalaman siswa selama mengerjakan; dikunci setelah ada siswa yang mulai. */
-export const PAS_LOCKED_AFTER_START = ['randomize_questions', 'randomize_options', 'is_safe_mode', 'max_violations', 'screenshot_enabled'] as const;
+export const PAS_LOCKED_AFTER_START = ['randomize_questions', 'randomize_options', 'is_safe_mode', 'max_violations', 'screenshot_enabled', 'complex_scoring'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -77,6 +87,12 @@ function readSettings(value: unknown, label: string): Partial<PasExamSettings> {
             throw new BadRequestException(`${label}: model penilaian harus Klasik atau IRT 1PL/2PL/3PL.`);
         }
         result.scoring = value.scoring as PasScoringModel;
+    }
+    if (value.complex_scoring !== undefined) {
+        if (!COMPLEX_SCORING_RULES.includes(value.complex_scoring as ComplexScoringRule)) {
+            throw new BadRequestException(`${label}: aturan Benar-Salah/Kategorisasi harus resmi atau proporsional.`);
+        }
+        result.complex_scoring = value.complex_scoring as ComplexScoringRule;
     }
     return result;
 }
@@ -147,6 +163,7 @@ export function pasExamSettingsColumns(settings: PasExamSettings) {
             max_violations: settings.max_violations,
             screenshot_enabled: settings.screenshot_enabled,
             student_score_type: settings.scoring,
+            complex_scoring_rule: settings.complex_scoring,
         },
     };
 }
@@ -167,6 +184,9 @@ export interface PasExamRow {
  *   kunci berjalan (rilis menunggu penilaian ulang selesai).
  * - Pengacakan dan keamanan tidak diubah bila siswa sudah mulai mengerjakan,
  *   supaya peserta dalam satu ujian tidak mendapat aturan berbeda.
+ * - Aturan skor Benar-Salah/Kategorisasi juga dikunci setelah ada pengerjaan:
+ *   mengubahnya akan membuat nilai tersimpan dan nilai hasil penilaian ulang
+ *   memakai aturan berbeda.
  */
 export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSettings, started: boolean) {
     const { columns, metadata } = pasExamSettingsColumns(settings);
@@ -191,6 +211,7 @@ export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSetting
         (meta.max_violations === undefined ? 3 : meta.max_violations) !== metadata.max_violations ||
         (meta.screenshot_enabled === true) !== metadata.screenshot_enabled;
     const securityLocked = started && securityChanged;
+    const scoringRuleLocked = started && examComplexScoringRule(meta) !== metadata.complex_scoring_rule;
     if (!started) {
         update.randomize_questions = columns.randomize_questions;
         update.randomize_options = columns.randomize_options;
@@ -198,9 +219,10 @@ export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSetting
             is_safe_mode: metadata.is_safe_mode,
             max_violations: metadata.max_violations,
             screenshot_enabled: metadata.screenshot_enabled,
+            complex_scoring_rule: metadata.complex_scoring_rule,
         });
     }
-    return { update: { ...update, metadata: meta }, resultsLocked, securityLocked };
+    return { update: { ...update, metadata: meta }, resultsLocked, securityLocked, scoringRuleLocked };
 }
 
 /** Label singkat ujian folder untuk pesan: "Bank • Kelas XII A, XII B". */

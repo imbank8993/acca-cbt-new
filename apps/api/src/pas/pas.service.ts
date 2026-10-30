@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { AuthorizationService } from '../auth/authorization.service';
+import { collaborationGrants, collaboratorCounts } from '../common/collaboration-access';
 import { DbService } from '../prisma/prisma-db-adapter';
 import { assertExamsHaveNoHistory, lockExamsForDeletion } from '../common/exam-deletion';
 import { insertIdempotently } from '../common/idempotent-create';
@@ -72,7 +73,11 @@ export class PasService {
             return [];
         }
 
+        const access = await this.authz.collaborationListContext(user, organizationId, 'period');
+        const grants = await collaborationGrants(this.db, 'period', user.id);
+        const counts = await collaboratorCounts(this.db, 'period', ((data as any[]) || []).map(period => period.id));
         return ((data as any[]) || []).map(({ schedules, ...period }) => {
+            const permissions = access.access(period, grants.get(period.id));
             const scheduleRows = Array.isArray(schedules) ? schedules : [];
             const rawCount = Array.isArray(period._count)
                 ? period._count[0]?.count
@@ -83,6 +88,8 @@ export class PasService {
             ).size;
             return {
                 ...period,
+                canManage: permissions.owner || permissions.admin || ['editor', 'manager'].includes(permissions.grant?.permission || ''),
+                canShare: permissions.canShare, canDelete: permissions.canDelete, collaboratorCount: counts.get(period.id) || 0,
                 _count: {
                     pas_subjects: uniqueBankCount,
                     pas_class_schedules: scheduleCount,
@@ -119,7 +126,12 @@ export class PasService {
         if (schedulesError) throw new BadRequestException('Daftar jadwal belum dapat dibaca.');
         const readiness = await loadPasReadiness(this.db, period, schedules || []);
 
-        return { ...(period as object), exam_settings: storedPasExamSettings(period as { exam_settings?: unknown; screenshot_enabled?: boolean }), profil_sekolah: {
+        const permissions = await this.authz.collaborationPermissions(user, 'period', periodId);
+        const counts = await collaboratorCounts(this.db, 'period', [periodId]);
+        return { ...(period as object),
+            canManage: permissions.owner || permissions.admin || ['editor', 'manager'].includes(permissions.grant?.permission || ''),
+            canShare: permissions.canShare, canDelete: permissions.canDelete, collaboratorCount: counts.get(periodId) || 0,
+            exam_settings: storedPasExamSettings(period as { exam_settings?: unknown; screenshot_enabled?: boolean }), profil_sekolah: {
             ...(schoolProfile || {}),
             nama: schoolProfile?.nama || organization?.name || 'MADRASAH',
             logo_url: schoolProfile?.logo_url || organization?.logo_url || null,
@@ -234,7 +246,8 @@ export class PasService {
             if (saveError) throw new BadRequestException('Pengaturan ujian belum berhasil disimpan.');
 
             const examIds = [...new Set(schedules.map(row => row.exam_id).filter((id): id is string => Boolean(id)))];
-            const result = { exam_settings: config, updated: 0, security_locked: [] as string[], results_locked: [] as string[] };
+            const result = { exam_settings: config, updated: 0, security_locked: [] as string[], results_locked: [] as string[],
+                scoring_rule_locked: [] as string[] };
             if (!examIds.length) return result;
 
             // Serialize with new attempts and other exam updates before checking
@@ -256,6 +269,7 @@ export class PasService {
                 const change = pasExamSettingsUpdate(exam, resolvePasExamSettings(config, bankByExam.get(exam.id)), started.has(exam.id));
                 if (change.resultsLocked) result.results_locked.push(label);
                 if (change.securityLocked) result.security_locked.push(label);
+                if (change.scoringRuleLocked) result.scoring_rule_locked.push(label);
                 const { error } = await db.from('cbt_exams').update({ ...change.update, updated_at: now }).eq('id', exam.id);
                 if (error) throw new BadRequestException(`Pengaturan ${label} belum berhasil diterapkan.`);
                 result.updated += 1;
@@ -283,7 +297,7 @@ export class PasService {
     }
 
     async removePeriod(user: AuthUser, periodId: string) {
-        await this.authz.assertProktorByRecord(user, 'cbt_pas_periods', periodId);
+        await this.authz.assertPasPeriodManage(user, periodId, 'delete');
 
         return this.db.transaction(async (db) => {
             await advisoryTransactionLock(db, `pas-period:${periodId}`);

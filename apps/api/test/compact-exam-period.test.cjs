@@ -76,6 +76,7 @@ function harness() {
     const examTypes = load('lib/exam-types.ts');
     const workspace = load('app/components/pas/CompactExamPeriodWorkspace.tsx', {
         '@/app/components/ui/button': ui.button,
+        '@/app/components/CollaborationButton': { CollaborationButton: () => null },
         '@/app/components/ui/filtertoolbar': ui.filters,
         '@/app/components/ui/modal': ui.modal,
         '@/lib/school-time': { formatSchoolDate: value => value.split('T')[0], getSchoolTimeZoneLabel: () => 'WITA' },
@@ -272,4 +273,22 @@ test('both routes enable the compact workspace for ASAS/ASAT (pas, legacy pat) a
         for (const type of ['pas', 'pat', 'am']) assert.equal(isCompact({ type }), true, `${role}: ${type}`);
         for (const type of ['pts', 'pkn', 'daily']) assert.equal(isCompact({ type }), false, `${role}: ${type}`);
     }
+});
+
+
+test('read-only folder keeps schedule details and monitoring available without activation or deletion rights', () => {
+    const h = harness();
+    const input = props([schedule({ id: 'active', is_activated: true }), schedule({ id: 'inactive' })]);
+    input.period.canManage = false;
+    const tree = h.render(h.workspace.CompactExamPeriodSchedules, input);
+    const actions = nodes(tree).filter(node => node.type === 'schedule-actions');
+    assert.equal(actions.length, 2);
+    for (const action of actions) {
+        assert.equal(action.props.canActivate, false);
+        assert.equal(action.props.canDeactivate, false);
+        assert.equal(action.props.canDelete, false);
+    }
+    assert.ok(nodes(tree).some(node => node.props?.['aria-label']?.startsWith('Detail ')));
+    const selectAll = find(tree, node => node.props?.['aria-label'] === 'Pilih semua jadwal di halaman ini');
+    assert.equal(selectAll.props.disabled, true);
 });

@@ -10,6 +10,7 @@ import type { PASPeriod } from '@/app/types/pas';
 import { mergePASExamsAction, updatePASExamSettingsAction } from '@/lib/api/pas';
 import {
     bankOverride,
+    COMPLEX_SCORING_CHOICES,
     describePASExamSettings,
     mergeableExamGroups,
     ORDER_CHOICES,
@@ -25,6 +26,7 @@ import {
     withResultsChoice,
     withSafetyChoice,
     type OrderChoice,
+    type PASComplexScoringRule,
     type PASExamSettings,
     type PASExamSettingsConfig,
     type PASExamSettingsSaveResult,
@@ -61,7 +63,7 @@ export function folderBanks(period: Pick<PASPeriod, 'pas_class_schedules'>): Ban
         .sort((a, b) => a.title.localeCompare(b.title, 'id', { numeric: true }));
 }
 
-/** Lima baris pengaturan, sama untuk bawaan folder dan pengaturan khusus bank soal. */
+/** Enam baris pengaturan, sama untuk bawaan folder dan pengaturan khusus bank soal. */
 export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
     idPrefix: string; value: PASExamSettings; onChange: (next: PASExamSettings) => void; disabled?: boolean;
 }) {
@@ -72,6 +74,12 @@ export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
             <InlineSelect id={`${idPrefix}-scoring`} value={value.scoring} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, scoring: next as PASScoringModel })}
                 options={SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
+        </SettingsRow>
+        <SettingsRow htmlFor={`${idPrefix}-complex`} title="Skor Benar-Salah & Kategorisasi"
+            description="Utuh: ≤ 5 pernyataan harus benar semua; > 5 pernyataan salah 1–2 dapat setengah skor. Terkunci setelah ada siswa yang mengerjakan.">
+            <InlineSelect id={`${idPrefix}-complex`} value={value.complex_scoring} disabled={disabled} minWidth="220px"
+                onChange={next => onChange({ ...value, complex_scoring: next as PASComplexScoringRule })}
+                options={COMPLEX_SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-results`} title="Hasil untuk siswa"
             description="Pembahasan terbuka setelah semua sesi selesai dan nilai final.">
@@ -128,7 +136,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
     const [merging, setMerging] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState<{ title: string; lines: string[] } | null>(null);
-    const locked = period.is_locked;
+    const locked = (period.is_locked || period.canManage === false);
 
     const payload = useMemo(() => ({
         defaults: config.defaults,
@@ -168,6 +176,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
             title: result.updated ? `Tersimpan dan diterapkan ke ${result.updated} ujian.` : 'Tersimpan. Ujian yang dibangkitkan berikutnya memakai pengaturan ini.',
             lines: [
                 ...(result.security_locked.length ? [`Urutan dan keamanan tidak diubah pada ujian yang sudah dikerjakan: ${result.security_locked.join('; ')}.`] : []),
+                ...(result.scoring_rule_locked?.length ? [`Aturan skor Benar-Salah/Kategorisasi tidak diubah pada ujian yang sudah dikerjakan: ${result.scoring_rule_locked.join('; ')}.`] : []),
                 ...(result.results_locked.length ? [`Hasil dan penilaian belum diubah karena koreksi kunci masih berjalan: ${result.results_locked.join('; ')}.`] : []),
             ],
         });
@@ -213,7 +222,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
 
     return <div className="pas-exam-settings space-y-4">
         {locked && <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-            <Lock size={14} className="mt-0.5 shrink-0" />Folder terkunci. Buka kunci folder untuk mengubah pengaturan ujian.
+            <Lock size={14} className="mt-0.5 shrink-0" />{period.canManage === false ? 'Mode lihat saja. Anda tidak memiliki izin mengubah pengaturan folder ini.' : 'Folder terkunci. Buka kunci folder untuk mengubah pengaturan ujian.'}
         </div>}
 
         {mergeable > 0 && !locked && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">

@@ -1,3 +1,4 @@
+import { isUUID } from 'class-validator';
 import { collaborationGrants, collaboratorCounts } from '../common/collaboration-access';
 import {
     BadRequestException,
@@ -114,19 +115,33 @@ export class ExamAdminService {
                 (teacher && (exam.created_by === user.id || ownedIds.has(exam.question_bank_id))));
         }
         const ownedBankIds = new Set<string>();
-        let examSources: Array<{ exam_id: string; bank_id: string }> = [];
-        if (restrictedProctor) {
-            const [owned, sources] = await Promise.all([
-                this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id),
-                this.db.from('cbt_exam_question_sources').select('exam_id, bank_id').in('exam_id', exams.map(exam => exam.id)),
-            ]);
-            if (owned.error || sources.error) throw new BadRequestException('Izin koreksi kunci belum dapat diperiksa.');
-            for (const bank of owned.data || []) ownedBankIds.add(bank.id);
-            examSources = sources.data || [];
-        }
-        const creatorIds = [
-            ...new Set(exams.map((e) => e.created_by).filter(Boolean) as string[]),
-        ];
+        const [sources, owned] = await Promise.all([
+            exams.length ? this.db.from('cbt_exam_question_sources').select('exam_id, bank_id').in('exam_id', exams.map(exam => exam.id)) : Promise.resolve({ data: [], error: null }),
+            restrictedProctor ? this.db.from('cbt_question_banks').select('id').eq('organization_id', organizationId).eq('created_by', user.id) : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (sources.error || owned.error) throw new BadRequestException('Sumber bank soal belum dapat diperiksa.');
+        const examSources: Array<{ exam_id: string; bank_id: string }> = sources.data || [];
+        for (const bank of owned.data || []) ownedBankIds.add(bank.id);
+        const bankIdsForExam = (exam: { id: string; question_bank_id?: string | null }): string[] => [...new Set([
+            ...(exam.question_bank_id ? [exam.question_bank_id] : []),
+            ...examSources.filter(source => source.exam_id === exam.id).map(source => source.bank_id).sort(),
+        ])];
+        const bankIds = [...new Set(exams.flatMap(bankIdsForExam))];
+        const periodIds = [...new Set(exams.map(exam => exam.metadata?.pas_period_id).filter((id): id is string => typeof id === 'string' && isUUID(id)))];
+        const [banks, periods] = await Promise.all([
+            bankIds.length ? this.db.from('cbt_question_banks').select('id, title, created_by').eq('organization_id', organizationId).in('id', bankIds) : Promise.resolve({ data: [], error: null }),
+            periodIds.length ? this.db.from('cbt_pas_periods').select('id, created_by').eq('organization_id', organizationId).in('id', periodIds) : Promise.resolve({ data: [], error: null }),
+        ]);
+        if (banks.error || periods.error) throw new BadRequestException('Informasi pembuat soal dan ujian belum dapat dimuat.');
+        const bankRows = (banks.data || []) as Array<{ id: string; title?: string; created_by?: string | null }>;
+        const periodRows = (periods.data || []) as Array<{ id: string; created_by?: string | null }>;
+        const banksById = new Map(bankRows.map(bank => [bank.id, bank]));
+        const periodsById = new Map(periodRows.map(period => [period.id, period]));
+        const creatorIds = [...new Set([
+            ...exams.map(exam => exam.created_by),
+            ...bankRows.map(bank => bank.created_by),
+            ...periodRows.map(period => period.created_by),
+        ].filter(Boolean) as string[])];
 
         const creatorNames = new Map<string, string>();
         if (creatorIds.length > 0) {
@@ -158,6 +173,9 @@ export class ExamAdminService {
             // Ujian dari jadwal ASAS/ASAT/AM dibuat sistem (tanpa pembuat): tampilkan
             // jenis & kelasnya, bukan "Tidak diketahui".
             creatorName: creatorNames.get(exam.created_by) || semesterAssessmentSourceLabel(exam) || 'Tidak diketahui',
+            examCreatorName: creatorNames.get(exam.created_by || periodsById.get(exam.metadata?.pas_period_id)?.created_by || '') || null,
+            questionCreatorNames: [...new Set(bankIdsForExam(exam).map(bankId => creatorNames.get(banksById.get(bankId)?.created_by || '') || 'Belum tercatat'))],
+            question_bank_title: exam.question_bank_title || banksById.get(exam.question_bank_id)?.title || null,
             canManage: await this.authz.canManageExam(user, exam, 'manage', undefined, grant),
             canResetParticipants: await this.authz.canManageExam(user, exam, 'reset', assignedStudents, grant),
             canCorrectKeys: !restrictedProctor || (() => {

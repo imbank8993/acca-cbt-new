@@ -55,3 +55,20 @@ export function sortMonitoringExams(exams: OrganizationExam[], now = Date.now())
         monitoringExamLabel(a).localeCompare(monitoringExamLabel(b), 'id', { sensitivity: 'base', numeric: true }) ||
         a.id.localeCompare(b.id));
 }
+
+
+export type MonitoringExamCategory = 'all' | 'assessment' | 'other';
+
+/** Canonical and legacy assessment types share one filter and a visible label. */
+export function monitoringExamBadge(exam: OrganizationExam): string | null {
+    const type = (exam.exam_type || '').trim().toLowerCase();
+    if (type === 'am') return 'AM';
+    if (['pas', 'pat', 'asas_asat'].includes(type)) return 'ASAS/ASAT';
+    // Old generated rows may have no type; a known folder still identifies the source.
+    if (!type && (exam.metadata?.is_pas_exam === true || typeof exam.metadata?.pas_period_id === 'string')) return 'ASAS/AM';
+    return null;
+}
+
+export function filterMonitoringExams(exams: OrganizationExam[], category: MonitoringExamCategory): OrganizationExam[] {
+    return exams.filter(exam => category === 'all' || Boolean(monitoringExamBadge(exam)) === (category === 'assessment'));
+}

@@ -91,6 +91,7 @@ export interface StudyHabitStats {
 }
 
 export interface StudentAnalyticsData {
+    scoringModels?: { scoreType: string; scoreLabel: string; analytics: StudentAnalyticsData }[];
     overview: StudentAnalyticsOverview;
     recentAttempts: ExamAttemptSummary[];
     performanceTrend: PerformanceTrend[];

@@ -45,6 +45,7 @@ test('SET-01: folder lama tanpa pengaturan tetap memakai perilaku sebelumnya; sc
     assert.deepEqual(PAS_EXAM_SETTING_DEFAULTS, {
         randomize_questions: true, randomize_options: true, show_results: false, show_answer_keys: false,
         is_safe_mode: true, max_violations: 3, screenshot_enabled: false, scoring: 'classical',
+        complex_scoring: 'official',
     });
     assert.equal(storedPasExamSettings({ exam_settings: null, screenshot_enabled: true }).defaults.screenshot_enabled, true);
     const stored = storedPasExamSettings({ exam_settings: {

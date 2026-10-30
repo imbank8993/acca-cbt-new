@@ -1,9 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import SearchableSelect from '@/components/ui/SearchableSelect';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 import type { OrganizationExam } from '@/lib/api/proctor';
-import { isMonitoringExamActive, monitoringExamLabel, monitoringExamDetails, sortMonitoringExams } from '@/lib/monitoring-exams';
+import { isMonitoringExamActive, monitoringExamLabel, monitoringExamDetails, sortMonitoringExams,
+    monitoringExamBadge, filterMonitoringExams, type MonitoringExamCategory } from '@/lib/monitoring-exams';
 import { formatSchoolDateTime } from '@/lib/school-time';
 import { useSchoolTimeZone } from '@/lib/useSchoolTimeZone';
 import './monitoring-exam-picker.css';
@@ -19,6 +21,8 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
     onChange: (value: unknown) => void;
 }) {
     const { timeZone, error } = useSchoolTimeZone();
+    const [category, setCategory] = useState<MonitoringExamCategory>('all');
+    const visible = sortMonitoringExams(filterMonitoringExams(exams, category), now);
     const selected = exams.find(exam => exam.id === value);
     const schedule = (exam: OrganizationExam) => {
         const duration = exam.duration_minutes ?? exam.duration;
@@ -27,47 +31,51 @@ export default function MonitoringExamPicker({ exams, now, value, onChange, comp
             typeof duration === 'number' && duration > 0 ? `${duration} menit` : '',
         ].filter(Boolean).join(' · ');
     };
-    return (
-        <div className={`monitoring-exam-picker ${detailsOnRight ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start' : ''}`}>
-            <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">
+    const changeCategory = (next: string) => {
+        const nextCategory = next as MonitoringExamCategory;
+        setCategory(nextCategory);
+        const filtered = sortMonitoringExams(filterMonitoringExams(exams, nextCategory), now);
+        if (value && !filtered.some(exam => exam.id === value)) onChange(filtered[0]?.id || '');
+    };
+    const badge = selected ? monitoringExamBadge(selected) : null;
+    const questionCreators = selected?.questionCreatorNames?.length ? selected.questionCreatorNames.join(', ') : 'Belum tercatat';
+    const examCreator = selected?.examCreatorName || (!badge ? selected?.creatorName : null) || 'Belum tercatat';
+
+    return <div className={`monitoring-exam-picker ${detailsOnRight ? 'monitoring-exam-picker--aside' : ''}`}>
+        <div className={`monitoring-exam-picker__controls ${action ? 'has-action' : ''}`}>
             <SearchableSelect
                 className="w-full"
-                placeholder="Cari atau pilih ujian..."
+                placeholder={visible.length ? 'Cari atau pilih ujian...' : 'Tidak ada ujian pada kategori ini'}
                 searchPlaceholder="Cari ujian, bank soal, kelas, atau periode..."
-                options={sortMonitoringExams(exams, now).map(exam => ({
+                options={visible.map(exam => ({
                     value: exam.id,
                     label: monitoringExamLabel(exam),
+                    badge: monitoringExamBadge(exam) || undefined,
                     subLabel: [monitoringExamDetails(exam), schedule(exam)].filter(Boolean).join(' · '),
                     statusDot: isMonitoringExamActive(exam, now) ? 'Ujian aktif' : undefined,
                 }))}
                 value={value}
                 onChange={onChange}
             />
-            </div>
+            <InlineSelect aria-label="Kategori ujian" value={category} onChange={changeCategory} minWidth="0" height="42px"
+                options={[{ value: 'all', label: 'Semua ujian' }, { value: 'assessment', label: 'ASAS/AM' }, { value: 'other', label: 'Lainnya' }]} />
             {action}
-            </div>
-            {selected && !hideContext && detailsOnRight && (
-                <dl aria-live="polite" className="grid min-w-0 grid-cols-2 gap-2">
-                    {[
-                        ['Detail ujian', monitoringExamDetails(selected) || '—'],
-                        ['Jadwal', selected.start_time && !error ? formatSchoolDateTime(selected.start_time, timeZone) : 'Belum tersedia'],
-                        ['Durasi', (selected.duration_minutes ?? selected.duration) ? `${selected.duration_minutes ?? selected.duration} menit` : '—'],
-                    ].map(([label, detail], index) => (
-                        <div key={label} className={`min-w-0 rounded-lg border border-slate-200/70 bg-slate-50/60 px-3 py-2.5 ${index === 0 ? 'col-span-2' : ''}`}>
-                            <dt className="text-[11px] text-slate-500">{label}</dt>
-                            <dd className="mt-1 break-words text-xs font-medium leading-relaxed text-slate-700">{detail}</dd>
-                        </div>
-                    ))}
-                </dl>
-            )}
-            {selected && !hideContext && !detailsOnRight && (
-                <div className="monitoring-exam-picker__context" aria-live="polite">
-                    {!compactContext && <p className="font-semibold text-slate-700 dark:text-slate-200">{monitoringExamLabel(selected)}</p>}
-                    {monitoringExamDetails(selected) && <p>{monitoringExamDetails(selected)}</p>}
-                    {schedule(selected) && <p>{schedule(selected)}</p>}
-                </div>
-            )}
         </div>
-    );
+        {selected && !hideContext && <div className="monitoring-exam-picker__context" aria-live="polite">
+            <div className="monitoring-exam-picker__identity">
+                {badge && <span className="monitoring-exam-picker__kind">{badge}</span>}
+                <strong className={compactContext ? 'monitoring-exam-picker__mobile-title' : undefined}>{monitoringExamLabel(selected)}</strong>
+                {monitoringExamDetails(selected) && <span className="monitoring-exam-picker__description">{monitoringExamDetails(selected)}</span>}
+            </div>
+            <dl className="monitoring-exam-picker__metadata">
+                {[
+                    ['Jadwal', schedule(selected) || 'Belum tersedia'],
+                    ['Pembuat soal', questionCreators],
+                    ['Pembuat ujian', examCreator],
+                ].map(([label, detail]) => <div key={label}>
+                    <dt>{label}</dt><dd>{detail}</dd>
+                </div>)}
+            </dl>
+        </div>}
+    </div>;
 }

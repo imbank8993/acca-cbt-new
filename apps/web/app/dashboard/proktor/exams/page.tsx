@@ -518,6 +518,7 @@ const ExamsPage = () => {
                                         </div>
                                     </div>
                                     <div className="exam-folder-actions flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        {period.canShare && <CollaborationButton type="period" resourceId={period.id} collaboratorCount={period.collaboratorCount} onChanged={() => void loadData()} mobileIconOnly />}
                                         <button
                                             onClick={() => router.push('/dashboard/proktor/exams/pas/' + period.id)}
                                             className="px-3.5 py-2 text-xs bg-[#3083FF] text-white hover:bg-[#2563EB] rounded-lg transition-all font-semibold flex items-center gap-1.5 shadow-sm shadow-[#3083FF]/20 cursor-pointer"
@@ -529,6 +530,7 @@ const ExamsPage = () => {
                                             type="button"
                                             onClick={() => setPeriodToEdit(period as unknown as PASPeriod)}
                                             className="p-2 text-slate-500 hover:text-[#3083FF] hover:bg-blue-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                            disabled={period.canManage !== true}
                                             title="Edit Folder & Ketua Panitia"
                                         >
                                             <Edit3 size={15} />
@@ -553,6 +555,7 @@ const ExamsPage = () => {
                                                 }
                                             }}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                                            disabled={period.canDelete !== true}
                                             title="Hapus Folder Ujian"
                                         >
                                             <Trash2 size={14} />

@@ -71,6 +71,7 @@ interface RoomManagementPanelProps {
 }
 
 export default function RoomManagementPanel({ period, view, onViewChange, onChange, hideNav = false }: RoomManagementPanelProps) {
+    const readOnly = period.canManage === false;
     const { timeZone, error: timeZoneError } = useSchoolTimeZone();
     const [internalTab, setInternalTab] = useState<'rooms' | 'sessions' | 'invigilators'>(view || 'rooms');
     // Ruang dan pengawas berada di satu tampilan; "invigilators" lama diarahkan ke sana.
@@ -263,7 +264,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
 
     /** Salin seluruh pengawas (semua ruang & sesi) dari tanggal sebelumnya ke tanggal terpilih. */
     const handleCopyPreviousProctors = async () => {
-        if (!previousProctorDate || !selectedProctorDate || isSaving || period.is_locked) return;
+        if (!previousProctorDate || !selectedProctorDate || isSaving || (period.is_locked || readOnly)) return;
         const targetHasAssignments = rooms.some(room => (room.pas_room_invigilators || [])
             .some(member => pasDay(member.exam_date) === selectedProctorDate));
         if (targetHasAssignments && !await confirmDialog({
@@ -387,7 +388,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
     // ── Tambah pengawas (modal) ──
     const [assignTarget, setAssignTarget] = useState<{ roomId: string; teacherId: string } | null>(null);
     const canShowProctors = Boolean(selectedProctorSessionId && selectedProctorDate);
-    const canAssignProctor = canShowProctors && rooms.length > 0 && !period.is_locked && !isSaving;
+    const canAssignProctor = canShowProctors && rooms.length > 0 && !period.is_locked && !readOnly && !isSaving;
     const openAssignProctor = (roomId: string) => setAssignTarget({ roomId, teacherId: '' });
     const assignRoom = rooms.find(room => room.id === assignTarget?.roomId) || null;
     const assignableTeachers = assignRoom ? (() => {
@@ -496,6 +497,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
 
     const handleCreateSession = async () => {
         if (period.is_locked) return;
+        if (readOnly) return;
         if (!newSessionName.trim() || !newSessionStart || !newSessionEnd || isSaving) return;
         if (newSessionEnd <= newSessionStart) {
             setSessionError('Jam selesai harus setelah jam mulai.');
@@ -521,6 +523,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
 
     const handleDeleteSession = async (sessionId: string) => {
         if (period.is_locked) return;
+        if (readOnly) return;
         if (isSaving) return;
         if (!await deleteConfirmDialog('Hapus Sesi Ujian?', 'Hapus sesi ini?')) return;
         setIsSaving(true);
@@ -610,7 +613,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
             {activeTab === 'rooms' && (
                 <div className="space-y-4">
                     {/* Form Tambah Ruang Baru */}
-                    {!period.is_locked && isCreatingRoom && (
+                    {!period.is_locked && !readOnly && isCreatingRoom && (
                         <Modal open title="Tambah Ruang" subtitle={period.name} icon="door-open"
                             onClose={() => { if (!isSaving) setIsCreatingRoom(false); }} size="md" className="pas-room-management">
                             <ModalBody className="space-y-4 p-4 sm:p-6">
@@ -631,7 +634,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                             id="pas-room-capacity"
                                             type="number"
                                             min="1"
-                                            disabled={isSaving}
+                                            disabled={isSaving || readOnly}
                                             value={newRoomCapacity}
                                             onChange={e => setNewRoomCapacity(parseInt(e.target.value) || 0)}
                                             className="w-full h-[40px] px-3.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:border-[#3083FF] focus:ring-1 focus:ring-[#3083FF]/20"
@@ -645,7 +648,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     type="button"
                                     variant="cancel"
                                     size="sm"
-                                    disabled={isSaving}
+                                    disabled={isSaving || readOnly}
                                     onClick={() => setIsCreatingRoom(false)}
                                 >
                                     Batal
@@ -670,7 +673,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                             <h3 className="text-sm font-semibold text-slate-900">Ruang dan Pengawas</h3>
                             <p className="mt-0.5 text-xs text-slate-500">Atur peserta setiap ruang, lalu tugaskan pengawas per tanggal dan sesi. Pengawas bergilir setiap hari.</p>
                         </div>
-                        {period.is_locked ? <span className="flex items-center gap-1.5 text-xs text-slate-500"><Lock size={13} /> Periode terkunci</span>
+                        {(period.is_locked || readOnly) ? <span className="flex items-center gap-1.5 text-xs text-slate-500"><Lock size={13} /> {readOnly ? 'Mode lihat saja' : 'Periode terkunci'}</span>
                             : <div className="flex flex-wrap items-center gap-2">
                                 <Button variant="outline" size="sm" icon="add" onClick={() => setIsCreatingRoom(true)}>Tambah ruang</Button>
                                 <Button variant="primary" size="sm" leftIcon={<UserPlus size={15} />} disabled={!canAssignProctor}
@@ -713,7 +716,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     </button>;
                                 })}
                             </div>
-                            {!period.is_locked && <Button type="button" variant="ghost" size="sm" className="sm:ml-auto" disabled={!previousProctorDate || isSaving}
+                            {!period.is_locked && !readOnly && <Button type="button" variant="ghost" size="sm" className="sm:ml-auto" disabled={!previousProctorDate || isSaving}
                                 onClick={() => void handleCopyPreviousProctors()}
                                 title={previousProctorDate ? `Salin seluruh pengawas ${formatProctorDate(previousProctorDate)} ke ${formatProctorDate(selectedProctorDate)}` : 'Tidak ada tanggal sebelumnya'}>
                                 {isCopyingProctors ? 'Menyalin…' : 'Salin dari hari sebelumnya'}
@@ -731,7 +734,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                             <DoorOpen size={34} className="mx-auto mb-2.5 text-slate-300" />
                             <p className="text-sm font-semibold text-slate-800">Belum ada ruang ujian</p>
                             <p className="mx-auto mt-0.5 max-w-sm text-xs text-slate-400">Tambah ruang untuk mulai menempatkan peserta dan menugaskan pengawas.</p>
-                            {!period.is_locked && <Button className="mt-4" variant="outline" size="sm" icon="add" onClick={() => setIsCreatingRoom(true)}>Tambah ruang</Button>}
+                            {!period.is_locked && !readOnly && <Button className="mt-4" variant="outline" size="sm" icon="add" onClick={() => setIsCreatingRoom(true)}>Tambah ruang</Button>}
                         </div>
                     ) : (
                         <div className="pas-room-list overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -767,7 +770,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                                                 return <span key={inv.user_id} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-2.5 pr-1 text-[11px] font-medium text-slate-700">
                                                                     <ShieldCheck size={12} className="text-blue-600" aria-hidden="true" />{name}
                                                                     {otherRooms.length > 0 && <span className="rounded bg-amber-100 px-1 text-[10px] font-normal text-amber-800">juga di {otherRooms.join(', ')}</span>}
-                                                                    {!period.is_locked && <button type="button" disabled={isSaving} onClick={() => handleRemoveRoomProctor(room, inv.user_id)}
+                                                                    {!period.is_locked && !readOnly && <button type="button" disabled={isSaving || readOnly} onClick={() => handleRemoveRoomProctor(room, inv.user_id)}
                                                                         className="rounded-full p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Hapus ${name} dari ${room.name}`}><X size={12} /></button>}
                                                                 </span>;
                                                             })}
@@ -776,10 +779,10 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                                 </td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {!period.is_locked && <Button type="button" variant="ghost" size="sm" disabled={!canAssignProctor}
+                                                        {!period.is_locked && !readOnly && <Button type="button" variant="ghost" size="sm" disabled={!canAssignProctor}
                                                             leftIcon={<UserPlus size={14} />} onClick={() => openAssignProctor(room.id)} aria-label={`Tambah pengawas ${room.name}`}>Pengawas</Button>}
-                                                        <Button variant="outline" size="sm" disabled={isSaving} onClick={() => openRoom(room.id)}>Atur peserta</Button>
-                                                        {!period.is_locked && <Button type="button" variant="ghost" size="sm" disabled={isSaving}
+                                                        <Button variant="outline" size="sm" disabled={isSaving} onClick={() => openRoom(room.id)}>{readOnly ? 'Lihat peserta' : 'Atur peserta'}</Button>
+                                                        {!period.is_locked && !readOnly && <Button type="button" variant="ghost" size="sm" disabled={isSaving || readOnly}
                                                             onClick={() => void handleDeleteRoom(room.id)} className="text-slate-500 hover:text-red-600"
                                                             aria-label={`Hapus ruang ${room.name}`} title="Hapus ruang" leftIcon={<Trash2 size={15} />} />}
                                                     </div>
@@ -908,7 +911,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-sm font-semibold text-slate-900">{addingStudents ? 'Tambah peserta' : `Peserta ruangan (${assignedStudentIds.size})`}</h3>
                                     <div className="flex items-center gap-2">
-                                        <Button variant={addingStudents ? 'outline' : 'primary'} size="sm" disabled={isSaving}
+                                        <Button variant={addingStudents ? 'outline' : 'primary'} size="sm" disabled={isSaving || readOnly}
                                             onClick={() => { setAddingStudents(!addingStudents); setStudentSearch(''); setSelectedStudentIds([]); }}>
                                             {addingStudents ? 'Kembali ke daftar' : 'Tambah Peserta'}
                                         </Button>
@@ -916,7 +919,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 </div>
 
                                 {addingStudents && <div className="space-y-3">
-                                    <InlineSelect value={selectedClassId} disabled={isSaving} onChange={val => void handleLoadClassStudents(val)}
+                                    <InlineSelect value={selectedClassId} disabled={isSaving || readOnly} onChange={val => void handleLoadClassStudents(val)}
                                         minWidth="100%" height="40px" title="Kelas asal peserta"
                                         options={[{ value: '', label: 'Pilih kelas asal' }, ...classes.map(c => ({ value: c.id, label: c.name.replace(/^kelas\s+/i, '') }))]} />
                                     <p className="text-xs text-slate-500">Centang peserta yang akan ditempatkan di ruangan ini. Satu siswa hanya boleh di satu ruang; siswa yang sudah di ruang lain dapat dipindahkan lewat tombol Pindahkan.</p>
@@ -934,7 +937,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     : !selectedClassId ? <p className="py-8 text-center text-sm text-slate-500">Pilih kelas untuk melihat peserta.</p>
                                     : <>
                                         {selectableStudents.length > 0 && <label className="flex items-center gap-3 px-2 text-sm text-slate-600">
-                                            <input type="checkbox" disabled={isSaving}
+                                            <input type="checkbox" disabled={isSaving || readOnly}
                                                 checked={selectableStudents.every(student => selectedStudentIds.includes(student.id))}
                                                 onChange={e => setSelectedStudentIds(previous => e.target.checked
                                                     ? [...new Set([...previous, ...selectableStudents.map(student => student.id)])]
@@ -979,7 +982,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                     {visibleRoomStudents.map((student, idx) => <div key={student.user_id} className="flex items-center gap-3 py-3 px-2 text-sm">
                                         <span className="w-6 shrink-0 text-xs text-slate-400">{idx + 1}</span>
                                         <span className="min-w-0 flex-1 font-medium text-slate-800">{formatStudentName(student.profiles?.full_name, 'Tanpa Nama')}</span>
-                                        <Button type="button" variant="ghost" size="sm" className="shrink-0 text-slate-500 hover:text-red-600" disabled={isSaving}
+                                        <Button type="button" variant="ghost" size="sm" className="shrink-0 text-slate-500 hover:text-red-600" disabled={isSaving || readOnly}
                                             onClick={() => void handleRemoveStudent(student.user_id)}
                                             aria-label={`Keluarkan ${formatStudentName(student.profiles?.full_name, 'peserta')} dari ruang`}>Keluarkan</Button>
                                     </div>)}
@@ -988,12 +991,12 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                         </ModalBody>
                         <ModalFooter>
                             {addingStudents ? <>
-                                <Button variant="outline" disabled={isSaving} onClick={() => { setAddingStudents(false); setSelectedStudentIds([]); }}>Batal</Button>
+                                <Button variant="outline" disabled={isSaving || readOnly} onClick={() => { setAddingStudents(false); setSelectedStudentIds([]); }}>Batal</Button>
                                 <Button variant="primary" disabled={!selectedStudentIds.length || exceedsCapacity || isSaving || isClassLoading}
                                     isLoading={isSaving} onClick={() => void handleAddStudentsToRoom()}>
                                     Simpan Penempatan{selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ''}
                                 </Button>
-                            </> : <Button variant="outline" disabled={isSaving} onClick={() => setSelectedRoomId(null)}>Selesai</Button>}
+                            </> : <Button variant="outline" disabled={isSaving || readOnly} onClick={() => setSelectedRoomId(null)}>Selesai</Button>}
                         </ModalFooter>
                         </Modal>
                     )}
@@ -1010,36 +1013,36 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                             <h3 className="font-semibold text-sm text-slate-900">Sesi Ujian ({sessions.length})</h3>
                             <p className="mt-1 text-xs text-slate-500">Jam pelaksanaan dalam zona waktu {tzLabel}.</p>
                         </div>
-                        {period.is_locked ? <span className="flex items-center gap-1.5 text-xs text-slate-500"><Lock size={13} /> Periode terkunci</span>
-                        : !period.is_locked && (
-                            <Button variant="primary" size="sm" icon="add" disabled={isSaving}
+                        {(period.is_locked || readOnly) ? <span className="flex items-center gap-1.5 text-xs text-slate-500"><Lock size={13} /> {readOnly ? 'Mode lihat saja' : 'Periode terkunci'}</span>
+                        : !period.is_locked && !readOnly && (
+                            <Button variant="primary" size="sm" icon="add" disabled={isSaving || readOnly}
                                 onClick={() => { setSessionError(''); setIsCreatingSession(true); }}>
                                 Tambah Sesi
                             </Button>
                         )}
                     </div>
 
-                    {!period.is_locked && isCreatingSession && (
+                    {!period.is_locked && !readOnly && isCreatingSession && (
                         <Modal open title="Tambah Sesi Ujian" subtitle={`Jam pelaksanaan (${tzLabel})`} icon="clock" size="sm"
                             className="pas-room-management" onClose={() => { if (!isSaving) setIsCreatingSession(false); }}>
                             <ModalBody className="space-y-4 p-4 sm:p-6">
                                 {sessionError && <p role="alert" className="text-sm text-red-600">{sessionError}</p>}
                                 <div>
                                     <label htmlFor="pas-session-name" className="mb-1.5 block text-sm font-medium text-slate-700">Nama sesi</label>
-                                    <input id="pas-session-name" type="text" value={newSessionName} disabled={isSaving}
+                                    <input id="pas-session-name" type="text" value={newSessionName} disabled={isSaving || readOnly}
                                         onChange={e => setNewSessionName(e.target.value)} placeholder="Contoh: Sesi 1"
                                         className="pas-session-input w-full rounded-lg px-3 py-2.5 text-sm" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label htmlFor="pas-session-start" className="mb-1.5 block text-sm font-medium text-slate-700">Jam mulai</label>
-                                        <input id="pas-session-start" type="time" value={newSessionStart} disabled={isSaving}
+                                        <input id="pas-session-start" type="time" value={newSessionStart} disabled={isSaving || readOnly}
                                             onChange={e => setNewSessionStart(e.target.value)}
                                             className="pas-session-input w-full min-w-0 rounded-lg px-3 py-2.5 text-sm" />
                                     </div>
                                     <div>
                                         <label htmlFor="pas-session-end" className="mb-1.5 block text-sm font-medium text-slate-700">Jam selesai</label>
-                                        <input id="pas-session-end" type="time" value={newSessionEnd} disabled={isSaving}
+                                        <input id="pas-session-end" type="time" value={newSessionEnd} disabled={isSaving || readOnly}
                                             onChange={e => setNewSessionEnd(e.target.value)}
                                             className="pas-session-input w-full min-w-0 rounded-lg px-3 py-2.5 text-sm" />
                                     </div>
@@ -1047,7 +1050,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                 <p className="text-xs text-slate-500">Tanggal ujian ditentukan saat menjadwalkan bank soal, sesuai periode folder.</p>
                             </ModalBody>
                             <ModalFooter>
-                                <Button variant="outline" size="sm" disabled={isSaving} onClick={() => setIsCreatingSession(false)}>Batal</Button>
+                                <Button variant="outline" size="sm" disabled={isSaving || readOnly} onClick={() => setIsCreatingSession(false)}>Batal</Button>
                                 <Button variant="primary" size="sm" onClick={() => void handleCreateSession()}
                                     disabled={!newSessionName.trim() || !newSessionStart || !newSessionEnd || isSaving} isLoading={isSaving}>Simpan Sesi</Button>
                             </ModalFooter>
@@ -1068,7 +1071,7 @@ export default function RoomManagementPanel({ period, view, onViewChange, onChan
                                         <h4 className="break-words text-sm font-semibold text-slate-900">{session.name}</h4>
                                         <p className="mt-1 text-sm text-slate-600 tabular-nums">{session.start_time.slice(0, 5)} – {session.end_time.slice(0, 5)} {tzLabel}</p>
                                     </div>
-                                    {!period.is_locked && (
+                                    {!period.is_locked && !readOnly && (
                                         <Button type="button" variant="ghost" size="sm" className="shrink-0 text-slate-500 hover:text-red-600"
                                             onClick={() => void handleDeleteSession(session.id)}
                                             disabled={isSaving || isSessionInUse} aria-label={`Hapus sesi ${session.name}`}

@@ -136,6 +136,11 @@ function createAuthzMock(proktorIds = ['proctor-creator-1']) {
         assertOrgStaff: async () => {},
         assertOrgMonitoring: async () => {},
         assertProktorByRecord: async () => {},
+        assertPasPeriodManage: async (user) => {
+            if (!user.isPlatformAdmin && !proktorIds.includes(user.id)) {
+                const err = new Error('Forbidden'); err.status = 403; throw err;
+            }
+        },
         assertProktor: async (user) => {
             if (!user.isPlatformAdmin && !proktorIds.includes(user.id)) {
                 const err = new Error('Forbidden');

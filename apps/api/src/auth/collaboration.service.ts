@@ -40,7 +40,7 @@ export class CollaborationService {
             .eq('organization_id', context.resource.organization_id).eq('is_active', true);
         if (error) throw new ServiceUnavailableException('Daftar guru belum dapat dibaca.');
         return (data || []).filter((member: any) => member.user_id !== context.resource.created_by &&
-            (member.member_roles || []).some((role: any) => ['GURU', 'PROKTOR', 'ADMIN'].includes(String(role.roles?.name).toUpperCase())))
+            (member.member_roles || []).some((role: any) => (type === 'period' ? ['PROKTOR', 'ADMIN'] : ['GURU', 'PROKTOR', 'ADMIN']).includes(String(role.roles?.name).toUpperCase())))
             .map((member: any) => ({ id: member.user_id, name: member.profiles?.full_name || 'Tanpa nama', nip: member.profiles?.identity_number || '' }))
             .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'id'));
     }
@@ -48,7 +48,7 @@ export class CollaborationService {
     async save(user: AuthUser, type: CollaborativeResource, id: string, targetId: string, input: {
         permission: 'viewer' | 'editor' | 'manager'; can_reset?: boolean; expires_at?: string | null;
     }) {
-        if (type === 'bank' && input.can_reset) throw new BadRequestException('Izin reset hanya tersedia untuk ujian.');
+        if (type !== 'exam' && input.can_reset) throw new BadRequestException('Izin reset hanya tersedia untuk ujian.');
         if (input.permission === 'viewer' && input.can_reset) throw new BadRequestException('Pembaca tidak dapat diberi izin reset.');
         const expires = input.expires_at ? Date.parse(input.expires_at) : null;
         if (expires !== null && (!Number.isFinite(expires) || expires <= Date.now())) throw new BadRequestException('Batas akses harus berupa waktu mendatang yang valid.');

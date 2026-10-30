@@ -3,6 +3,8 @@
  * Bawaan folder berlaku untuk semua bank soal; satu bank soal dapat menimpa sebagian bidang.
  */
 export type PASScoringModel = 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
+/** Aturan skor Benar-Salah & Kategorisasi (cermin `apps/api/src/common/complex-scoring.ts`). */
+export type PASComplexScoringRule = 'official' | 'proportional';
 
 export interface PASExamSettings {
     randomize_questions: boolean;
@@ -15,6 +17,8 @@ export interface PASExamSettings {
     screenshot_enabled: boolean;
     /** Model nilai siswa; IRT dihitung dari seluruh peserta ujian bank soal itu. */
     scoring: PASScoringModel;
+    /** Skor soal Benar-Salah & Kategorisasi; dikunci setelah ada siswa yang mengerjakan. */
+    complex_scoring: PASComplexScoringRule;
 }
 
 export interface PASExamSettingsConfig {
@@ -27,6 +31,8 @@ export interface PASExamSettingsSaveResult {
     updated: number;
     security_locked: string[];
     results_locked: string[];
+    /** Ujian yang aturan Benar-Salah/Kategorisasinya tidak diubah karena sudah dikerjakan. */
+    scoring_rule_locked?: string[];
 }
 
 export const PAS_EXAM_SETTING_DEFAULTS: PASExamSettings = {
@@ -38,6 +44,7 @@ export const PAS_EXAM_SETTING_DEFAULTS: PASExamSettings = {
     max_violations: 3,
     screenshot_enabled: false,
     scoring: 'classical',
+    complex_scoring: 'official',
 };
 
 export const PAS_EXAM_SETTING_KEYS = Object.keys(PAS_EXAM_SETTING_DEFAULTS) as Array<keyof PASExamSettings>;
@@ -77,6 +84,11 @@ export const SCORING_CHOICES: Array<{ value: PASScoringModel; label: string; sho
     { value: 'irt_1pl', label: 'IRT Rasch (1PL)', short: 'IRT 1PL' },
     { value: 'irt_2pl', label: 'IRT 2PL', short: 'IRT 2PL' },
     { value: 'irt_3pl', label: 'IRT 3PL', short: 'IRT 3PL' },
+];
+
+export const COMPLEX_SCORING_CHOICES: Array<{ value: PASComplexScoringRule; label: string; short: string }> = [
+    { value: 'official', label: 'Utuh per soal (juknis)', short: 'B/S utuh per soal' },
+    { value: 'proportional', label: 'Proporsional per pernyataan', short: 'B/S proporsional' },
 ];
 
 export type ResultsChoice = 'hidden' | 'score' | 'review';
@@ -119,6 +131,7 @@ export function describePASExamSettings(settings: PASExamSettings): string[] {
     const safety = safetyChoice(settings);
     return [
         SCORING_CHOICES.find(choice => choice.value === settings.scoring)?.short || 'Klasik',
+        ...(settings.complex_scoring === 'proportional' ? ['B/S proporsional'] : []),
         RESULTS_CHOICES.find(choice => choice.value === resultsChoice(settings))!.short,
         safety === 'off' ? 'Tanpa mode aman' : safety === 'record' ? 'Mode aman (catat saja)' : `Mode aman (${settings.max_violations}×)`,
         ORDER_CHOICES.find(choice => choice.value === orderChoice(settings))!.short,

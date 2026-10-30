@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Eye, PieChart, UserCheck, UserX } from 'lucide-react';
 import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Button } from '@/app/components/ui/button';
@@ -54,7 +54,7 @@ function difficultyColor(label?: string) {
  * halaman) dan detail butir berisi teks soal, kunci, siswa benar/salah, serta
  * sebaran pengecoh. Dipakai monitoring ujian biasa dan monitoring ruang ASAS/AM.
  */
-export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: ItemAnalysis[]; className?: string }) {
+export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }: { analysis: ItemAnalysis[]; className?: string; analysisSelector?: ReactNode }) {
     const [analysisPage, setAnalysisPage] = useState(1);
     const [viewQuestion, setViewQuestion] = useState<ItemAnalysis | null>(null);
     const [modalActiveTab, setModalActiveTab] = useState<'soal' | 'benar' | 'salah' | 'distraktor'>('soal');
@@ -77,7 +77,7 @@ export function ItemAnalysisPanel({ analysis, className = '' }: { analysis: Item
 
     return (
         <div className="monitoring-analysis-panel flex flex-col gap-4">
-        <FilterToolbar>
+        <FilterToolbar leading={analysisSelector}>
             <FilterSearch value={search} onChange={value => { setSearch(value); setAnalysisPage(1); }}
                 label="Cari soal" placeholder="Cari teks atau nomor soal…" />
             <FilterSelect value={difficulty} onChange={value => { setDifficulty(value); setAnalysisPage(1); }}

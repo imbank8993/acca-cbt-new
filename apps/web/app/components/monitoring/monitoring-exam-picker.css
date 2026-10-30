@@ -37,3 +37,35 @@
 }
 .monitoring-exam-picker__context p { margin: 0; }
 .dark .monitoring-exam-picker__context { color: #94a3b8; }
+
+
+.monitoring-exam-picker__controls { display: grid; grid-template-columns: minmax(0, 1fr) 180px; align-items: start; gap: 8px; width: 100%; }
+.monitoring-exam-picker__controls.has-action { grid-template-columns: minmax(0, 1fr) 180px 42px; }
+.monitoring-exam-picker__controls > .uisel { width: 100%; }
+.monitoring-exam-picker__identity { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.monitoring-exam-picker__identity:empty { display: none; }
+.monitoring-exam-picker__kind { display: inline-flex; padding: 2px 8px; border-radius: 5px; background: #eaf2ff; color: #2563eb; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.monitoring-exam-picker__metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 20px; margin: 10px 0 0; padding: 0; }
+.monitoring-exam-picker__metadata > div { min-width: 0; }
+.monitoring-exam-picker__metadata dt { color: #94a3b8; font-size: 11px; font-weight: 500; margin: 0 0 2px; }
+.monitoring-exam-picker__metadata dd { color: #475569; font-size: 12px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.dark .monitoring-exam-picker__kind { background: #1e3a5f; color: #93c5fd; }
+.dark .monitoring-exam-picker__metadata dd { color: #cbd5e1; }
+@media (max-width: 639px) {
+    .monitoring-exam-picker__controls { grid-template-columns: minmax(0, 1fr) 120px; }
+    .monitoring-exam-picker__controls.has-action { grid-template-columns: minmax(0, 1fr) 120px 44px; }
+    .monitoring-exam-picker__controls .uisel { --uisel-h: 44px !important; }
+    .monitoring-exam-picker__controls .uisel-input { padding-left: 8px; font-size: 12px; }
+    .monitoring-exam-picker__metadata { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+    .monitoring-exam-picker__metadata > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+    .monitoring-exam-picker__metadata dt { margin: 0; }
+    .monitoring-exam-picker__context { font-size: 11px; }
+    .monitoring-exam-picker .ss__trigger > .ss__optionBadge { display: none; }
+}
+
+.monitoring-exam-picker__mobile-title { display: none; }
+@media (max-width: 639px) {
+    .monitoring-exam-picker__mobile-title { display: inline; color: #334155; font-size: 12px; }
+    .monitoring-exam-picker__description { flex-basis: 100%; }
+    .dark .monitoring-exam-picker__mobile-title { color: #e2e8f0; }
+}

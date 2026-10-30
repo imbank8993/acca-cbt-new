@@ -8,7 +8,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CollaborationService } from './collaboration.service';
 import type { CollaborativeResource } from '../common/collaboration-access';
 
-const RESOURCE = { bank: 'bank', exam: 'exam' };
+const RESOURCE = { bank: 'bank', exam: 'exam', period: 'period' };
 class GrantDto {
     @IsIn(['viewer', 'editor', 'manager']) permission!: 'viewer' | 'editor' | 'manager';
     @IsOptional() @IsBoolean() can_reset?: boolean;

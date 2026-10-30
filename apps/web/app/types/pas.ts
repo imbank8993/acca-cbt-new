@@ -20,6 +20,10 @@ export interface Subject {
 }
 
 export interface PASPeriod {
+  canManage?: boolean;
+  canShare?: boolean;
+  canDelete?: boolean;
+  collaboratorCount?: number;
   screenshot_enabled?: boolean;
   /** Pengaturan ujian folder (bawaan + per bank soal). */
   exam_settings?: PASExamSettingsConfig | null;

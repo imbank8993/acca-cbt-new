@@ -25,7 +25,7 @@ function mount(canShare=true,canGrantPrivileged=true,options={}) {
  return{render,requests,reads};
 }
 test('collaboration dialog saves selected staff and revokes the exact participant through the API',async()=>{
- const f=mount();let tree=f.render();nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator')).props.onClick();
+ const f=mount();let tree=f.render();nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator')).props.onClick();
  f.render();await new Promise(resolve=>setImmediate(resolve));tree=f.render();
  nodes(tree).find(n=>n.type==='SearchableSelect').props.onChange('b');tree=f.render();
  nodes(tree).find(n=>n.type==='Button'&&text(n)==='Simpan akses').props.onClick();
@@ -37,39 +37,39 @@ test('collaboration dialog saves selected staff and revokes the exact participan
 });
 
 test('bank and exam buttons show the active count before opening and follow refreshed list data',()=>{
- for(const type of ['bank','exam']){
+ for(const type of ['bank','exam','period']){
   const f=mount(true,true,{type,count:3});
-  let button=nodes(f.render()).find(n=>n.type==='button'&&text(n).includes('Kolaborator'));
+  let button=nodes(f.render()).find(n=>n.type==='Button'&&text(n).includes('Kolaborator'));
   assert.equal(text(button).trim(),'Kolaborator3');
   assert.match(button.props['aria-label'],/3 kolaborator aktif/);
-  assert.match(button.props.className,/border-blue-300/);
+  assert.equal(button.props.variant,'outline');
   assert.deepEqual(f.reads,[]);
-  button=nodes(f.render({collaboratorCount:0})).find(n=>n.type==='button'&&text(n).includes('Kolaborator'));
+  button=nodes(f.render({collaboratorCount:0})).find(n=>n.type==='Button'&&text(n).includes('Kolaborator'));
   assert.equal(text(button).trim(),'Kolaborator');
   assert.match(button.props.title,/Belum ada kolaborator aktif/);
-  assert.match(button.props.className,/border-slate-200/);
+  assert.equal(button.props.variant,'outline');
  }
 });
 
 test('granting and revoking update the badge immediately and keep it correct after closing',async()=>{
- for(const type of ['bank','exam']){
+ for(const type of ['bank','exam','period']){
   const f=mount(true,true,{type,count:0});let tree=f.render();
-  nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator')).props.onClick();f.render();
+  nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator')).props.onClick();f.render();
   await new Promise(resolve=>setImmediate(resolve));tree=f.render();
   nodes(tree).find(n=>n.type==='SearchableSelect').props.onChange('b');tree=f.render();
   nodes(tree).find(n=>n.type==='Button'&&text(n)==='Simpan akses').props.onClick();
   await new Promise(resolve=>setImmediate(resolve));tree=f.render();
-  assert.match(nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator')).props['aria-label'],/1 kolaborator aktif/);
+  assert.match(nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator')).props['aria-label'],/1 kolaborator aktif/);
   nodes(tree).find(n=>n.type==='button'&&text(n)==='Cabut akses').props.onClick();
   await new Promise(resolve=>setImmediate(resolve));tree=f.render();
-  assert.equal(text(nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator'))).trim(),'Kolaborator');
+  assert.equal(text(nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator'))).trim(),'Kolaborator');
   nodes(tree).find(n=>n.type==='Button'&&text(n)==='Tutup').props.onClick();tree=f.render();
-  assert.match(nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator')).props.title,/Belum ada kolaborator aktif/);
+  assert.match(nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator')).props.title,/Belum ada kolaborator aktif/);
  }
 });
 test('readers have no access editing controls and delegated managers cannot grant privileged access',async()=>{
  for(const mode of [[false,false],[true,false]]){
-  const f=mount(...mode);let tree=f.render();nodes(tree).find(n=>n.type==='button'&&text(n).includes('Kolaborator')).props.onClick();f.render();
+  const f=mount(...mode);let tree=f.render();nodes(tree).find(n=>n.type==='Button'&&text(n).includes('Kolaborator')).props.onClick();f.render();
   await new Promise(resolve=>setImmediate(resolve));tree=f.render();
   if(!mode[0]) assert.equal(nodes(tree).some(n=>n.type==='Button'&&text(n)==='Simpan akses'),false);
   else {

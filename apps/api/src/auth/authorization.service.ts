@@ -1,4 +1,4 @@
-import { collaborationGrant, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
+import { collaborationResourceTable, collaborationGrant, type CollaborationGrant, type CollaborativeResource } from '../common/collaboration-access';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '@acca-cbt/shared';
 import { DbService } from '../prisma/prisma-db-adapter';
@@ -112,6 +112,7 @@ export class AuthorizationService {
     }
 
     assertProktorByRecord(user: AuthUser, table: string, id: string, column = 'organization_id') {
+        if (table === 'cbt_pas_periods') return this.assertPasPeriodManage(user, id);
         return this.assertRoleByRecord(user, table, id, ['Proktor', 'Admin'], 'Proktor/Admin', column);
     }
 
@@ -147,6 +148,9 @@ export class AuthorizationService {
         user: AuthUser, table: string, id: string, foreignKey: string,
         parentTable: string, parentColumn = 'organization_id',
     ) {
+        if (parentTable === 'cbt_pas_periods') {
+            return this.assertPasPeriodChildManage(user, table, id, foreignKey);
+        }
         return this.assertByParent(
             user, table, id, foreignKey, parentTable,
             ['Proktor', 'Admin'], 'Proktor/Admin', parentColumn,
@@ -197,13 +201,20 @@ export class AuthorizationService {
             this.isElevatedGlobally(user) ||
             (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']));
 
+        // Proctor access to somebody else's bank is publication-gated and read-only.
+        // Bank collaboration must not bypass this boundary (including legacy editor grants).
+        if (!elevated && bank.created_by !== user.id &&
+            await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor'])) {
+            if (access === 'read' && bank.is_published === true) return bank.organization_id;
+            throw new ForbiddenException(access === 'read'
+                ? 'Bank soal ini belum dipublikasikan oleh pembuatnya.'
+                : 'Proktor hanya dapat mengelola bank soal buatan sendiri.');
+        }
+
         if (!elevated && bank.created_by !== user.id && access !== 'delete') {
             const grant = await collaborationGrant(db, 'bank', bankId, user.id);
             if (grant && (access === 'read' || ['editor', 'manager'].includes(grant.permission))) return bank.organization_id;
         }
-
-        if (!elevated && bank.created_by !== user.id && access === 'read' && bank.is_published === true &&
-            await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor'])) return bank.organization_id;
 
         if (!elevated && bank.created_by !== user.id) {
             throw new ForbiddenException(
@@ -215,15 +226,17 @@ export class AuthorizationService {
     }
 
     async collaborationPermissions(user: AuthUser, type: CollaborativeResource, resourceId: string) {
-        const { data: resource, error } = await this.db.from(type === 'bank' ? 'cbt_question_banks' : 'cbt_exams')
-            .select('id, organization_id, created_by').eq('id', resourceId).maybeSingle();
+        const { data: resource, error } = await this.db.from(collaborationResourceTable(type))
+            .select(type === 'bank' ? 'id, organization_id, created_by, is_published' : 'id, organization_id, created_by').eq('id', resourceId).maybeSingle();
         if (error || !resource) throw new NotFoundException('Data kolaborasi tidak ditemukan.');
         if (type === 'exam') await this.assertOrgMonitoring(user, resource.organization_id);
         else await this.assertOrgStaff(user, resource.organization_id);
-        const staff = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, ['Guru', 'Proktor', 'Admin']);
+        const staff = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, type === 'period' ? ['Proktor', 'Admin'] : ['Guru', 'Proktor', 'Admin']);
         const admin = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, resource.organization_id, ['Admin']);
         const owner = staff && resource.created_by === user.id;
-        const grant = staff && !admin && !owner ? await collaborationGrant(this.db, type, resourceId, user.id) : null;
+        const readOnlyBank = type === 'bank' && !admin && await this.roles.hasOrgRole(user.id, resource.organization_id, ['Proktor']);
+        if (readOnlyBank && !owner && resource.is_published !== true) throw new ForbiddenException('Bank soal ini belum dipublikasikan oleh pembuatnya.');
+        const grant = staff && !admin && !owner && !readOnlyBank ? await collaborationGrant(this.db, type, resourceId, user.id) : null;
         return { resource, owner, admin, grant, canShare: admin || owner || grant?.permission === 'manager', canDelete: admin || owner };
     }
 
@@ -231,14 +244,15 @@ export class AuthorizationService {
      * Daftar bank/ujian: hasil sama dengan collaborationPermissions, tetapi peran
      * dan grant dihitung sekali per halaman, bukan beberapa kueri per baris.
      */
-    async collaborationListContext(user: AuthUser, organizationId: string) {
+    async collaborationListContext(user: AuthUser, organizationId: string, type: CollaborativeResource = 'exam') {
         const admin = this.isElevatedGlobally(user) || await this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
-        const staff = admin || await this.roles.hasOrgRole(user.id, organizationId, ['Guru', 'Proktor', 'Admin']);
+        const staff = admin || await this.roles.hasOrgRole(user.id, organizationId, type === 'period' ? ['Proktor', 'Admin'] : ['Guru', 'Proktor', 'Admin']);
+        const readOnlyBank = type === 'bank' && !admin && await this.roles.hasOrgRole(user.id, organizationId, ['Proktor']);
         return {
             admin, staff,
             access: (resource: { created_by?: string | null }, grant: CollaborationGrant | null | undefined) => {
                 const owner = staff && resource.created_by === user.id;
-                const effective = staff && !admin && !owner ? grant || null : null;
+                const effective = staff && !admin && !owner && !readOnlyBank ? grant || null : null;
                 return { owner, admin, grant: effective, canShare: admin || owner || effective?.permission === 'manager', canDelete: admin || owner };
             },
         };
@@ -247,6 +261,22 @@ export class AuthorizationService {
     async assertResourceOwner(user: AuthUser, type: CollaborativeResource, resourceId: string) {
         const permissions = await this.collaborationPermissions(user, type, resourceId);
         if (!permissions.canDelete) throw new ForbiddenException('Hanya pembuat atau Admin yang dapat menghapus data ini.');
+    }
+
+    /** Folder ownership is independent of bank/exam collaboration inside it. */
+    async assertPasPeriodManage(user: AuthUser, periodId: string, operation: 'write' | 'delete' = 'write'): Promise<void> {
+        const access = await this.collaborationPermissions(user, 'period', periodId);
+        await this.assertProktor(user, access.resource.organization_id);
+        if (access.owner || access.admin) return;
+        if (operation === 'delete') throw new ForbiddenException('Folder ujian hanya dapat dihapus oleh pembuat atau Admin.');
+        if (operation === 'write' && access.grant && ['editor', 'manager'].includes(access.grant.permission)) return;
+        throw new ForbiddenException('Folder ujian ini hanya dapat diubah oleh pembuat, Admin, atau kolaborator dengan izin edit.');
+    }
+
+    private async assertPasPeriodChildManage(user: AuthUser, table: string, id: string, foreignKey: string): Promise<void> {
+        const { data, error } = await this.db.from(table).select(foreignKey).eq('id', id).maybeSingle();
+        if (error || !data?.[foreignKey]) throw new NotFoundException('Data folder ujian tidak ditemukan.');
+        await this.assertPasPeriodManage(user, data[foreignKey]);
     }
 
     /**
