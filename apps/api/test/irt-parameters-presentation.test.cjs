@@ -5,6 +5,7 @@ const path = require('node:path');
 const ts = require('typescript');
 require('ts-node').register({ project: path.resolve(__dirname, '../tsconfig.json'), transpileOnly: true });
 const calibrationUtils = require('../../web/lib/irt-calibration.ts');
+const { getQuestionSnippet } = require('../../web/lib/question-snippet.ts');
 const item = { item_id: 'q1_opt1', question_id: 'q1', option_id: 'opt1', number: 1, part: 'Truncated...', type: 'true_false',
     text: 'Truncated...', total: 206, correct: 100, p: 0.4854, a: 1.25, b: -1.234, c: 0.25, flags: ['Perlu ditinjau'] };
 const irt = { calculated_at: '2026-10-28T14:16:00Z', participant_count: 206, models: ['irt_1pl', 'irt_3pl'], warnings: [],
@@ -36,6 +37,7 @@ function harness() {
     new Function('require', 'module', 'exports', 'React', code)(name => {
         if (name === 'react') return React;
         if (name.endsWith('/irt-calibration')) return calibrationUtils;
+        if (name.endsWith('/question-snippet')) return { getQuestionSnippet };
         if (name.endsWith('/export-irt-pdf')) return { exportIrtParametersToPdf: async (...args) => { exports.push(args); } };
         return new Proxy({}, { get: (_, key) => key });
     }, mod, mod.exports, React);
@@ -45,13 +47,17 @@ function harness() {
     return { render, nodes, text, exports };
 }
 
-test('IRT panel renders question and statement maths and omits the lengthy explanation', () => {
+test('IRT panel renders compact question and statement previews and omits the lengthy explanation', () => {
     const h = harness(), tree = h.render();
     assert.ok(!h.nodes(tree).some(node => node.type === 'details'));
     const maths = h.nodes(tree).filter(node => node.type === 'LatexRenderer');
-    assert.equal(maths.length, 30, '15 visible items, with their full question and statement');
-    assert.equal(maths[0].props.text, fullQuestion);
+    assert.equal(maths.length, 30, '15 visible items, with question and statement previews');
+    assert.equal(maths[0].props.text, getQuestionSnippet(fullQuestion, 160));
+    assert.ok(maths[0].props.text.length < fullQuestion.length);
+    assert.ok(maths[0].props.text.endsWith('…'));
+    assert.match(maths[0].props.className, /line-clamp-3/);
     assert.equal(maths[1].props.text, '$x+2$');
+    assert.match(maths[1].props.className, /line-clamp-2/);
     assert.doesNotMatch(h.text(tree), /Cara membaca angka ini|Kemampuan siswa/);
 });
 
