@@ -1591,6 +1591,8 @@ export default function TipTapEditorCore({
           font-family: 'Merriweather', 'Source Serif 4', Georgia, serif;
           font-size: 15px;
           line-height: 1.85;
+          letter-spacing: 0.01em;
+          word-spacing: 0.08em;
           color: #1e293b;
           text-rendering: optimizeLegibility;
           -webkit-font-smoothing: antialiased;
@@ -1603,6 +1605,10 @@ export default function TipTapEditorCore({
         }
         .ProseMirror p:last-child {
           margin-bottom: 0;
+        }
+        .ProseMirror .katex {
+          letter-spacing: normal;
+          word-spacing: normal;
         }
         .ProseMirror h1 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem 0; color: #0f172a; }
         .ProseMirror h2 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem 0; color: #0f172a; }

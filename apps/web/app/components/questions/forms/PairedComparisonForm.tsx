@@ -34,7 +34,7 @@ const PairedComparisonOptionCard = React.memo(({
                     canDelete={false}
                     placeholder="Tulis pernyataan..."
                     hideCorrectToggle={true}
-                    hideRichTools={true}
+                    hideRichTools={false}
                     className="!mb-0"
                 />
             </div>

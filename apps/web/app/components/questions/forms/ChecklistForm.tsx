@@ -41,7 +41,7 @@ const ChecklistOptionCard = React.memo(({
                     canDelete={canDelete}
                     placeholder="Tulis pernyataan..."
                     hideCorrectToggle={true}
-                    hideRichTools={true}
+                    hideRichTools={false}
                     className="!mb-0"
                 />
             </div>

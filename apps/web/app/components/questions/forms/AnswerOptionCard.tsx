@@ -2,13 +2,13 @@
 /**
  * AnswerOptionCard — Elegant MCQ option editor with insert toolbar.
  */
-import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload,Mic,Video,Link as LinkIcon,Sigma,Table as TableIcon } from 'lucide-react';
+import { Check,Minus,Plus,Trash2,Upload } from 'lucide-react';
 import type { MathfieldElement } from 'mathlive';
-import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
-import { createPortal } from 'react-dom';
+import React,{ useEffect,useMemo,useState } from 'react';
+import { useOptionInsertMenu } from './OptionRichInput';
 import { MathToolbar } from '../MathToolbar';
 import { renderLatex,sanitizeLatex } from '../math-utils';
-import TipTapEditorCore, { type TipTapEditorControls, type OptionInsertAction } from '../TipTapEditorCore';
+import TipTapEditorCore from '../TipTapEditorCore';
 
 // ─── Equation Dialog (with MathToolbar) ────────────────────────────────────
 
@@ -373,72 +373,7 @@ export const AnswerOptionCard = React.memo(({
     hideRichTools = false,
 }: AnswerOptionCardProps) => {
     const [isFocused, setIsFocused] = useState(false);
-    const [showToolsMenu, setShowToolsMenu] = useState(false);
-    const editorControls = useRef<TipTapEditorControls>(null);
-    const insertTriggerRef = useRef<HTMLButtonElement | null>(null);
-    const insertMenuRef = useRef<HTMLDivElement>(null);
-    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 216, upward: false });
-
-    const updateMenuPosition = useCallback(() => {
-        const trigger = insertTriggerRef.current;
-        if (!trigger) return;
-        const rect = trigger.getBoundingClientRect();
-        const width = Math.min(216, window.innerWidth - 16);
-        const below = window.innerHeight - rect.bottom;
-        const upward = below < 140 && rect.top > below;
-        setMenuPosition({
-            top: upward ? rect.top - 8 : rect.bottom + 8,
-            left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
-            width,
-            upward,
-        });
-    }, []);
-
-    const toggleInsertMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        insertTriggerRef.current = event.currentTarget;
-        updateMenuPosition();
-        setShowToolsMenu(open => !open);
-    };
-
-    // Menutup menu saat klik di luar
-    useEffect(() => {
-        if (!showToolsMenu) return;
-        const handleClickOutside = (event: PointerEvent) => {
-            const target = event.target as Node;
-            if (!insertMenuRef.current?.contains(target) && !insertTriggerRef.current?.contains(target)) setShowToolsMenu(false);
-        };
-        const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setShowToolsMenu(false); };
-        const handleViewportChange = (event: Event) => {
-            if (event.target instanceof Node && insertMenuRef.current?.contains(event.target)) return;
-            updateMenuPosition();
-        };
-        document.addEventListener('pointerdown', handleClickOutside, true);
-        document.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('scroll', handleViewportChange, true);
-        window.addEventListener('resize', handleViewportChange);
-        return () => {
-            document.removeEventListener('pointerdown', handleClickOutside, true);
-            document.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('scroll', handleViewportChange, true);
-            window.removeEventListener('resize', handleViewportChange);
-        };
-    }, [showToolsMenu, updateMenuPosition]);
-
-    const insertTools = (
-        <div className="option-insert-menu grid grid-cols-3 gap-1 p-1.5 rounded-xl border border-slate-200 shadow-xl bg-white"
-            role="group" aria-label="Sisipkan ke opsi jawaban" onClick={event => event.stopPropagation()}>
-            {([
-                ['image', 'Gambar', ImageIcon], ['math', 'Rumus', Sigma], ['table', 'Tabel', TableIcon],
-                ['audio', 'Audio', Mic], ['video', 'Video', Video], ['link', 'Tautan', LinkIcon],
-            ] as const).map(([action, label, Icon]) => <button key={action} type="button" title={`Sisipkan ${label}`} aria-label={`Sisipkan ${label}`}
-                className="option-insert-action flex flex-col items-center justify-center gap-1 min-w-14 min-h-12 px-2 py-1.5 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600"
-                onMouseDown={event => event.preventDefault()}
-                onClick={() => { editorControls.current?.openInsert(action as OptionInsertAction); setShowToolsMenu(false); }}>
-                <Icon size={16} /><span className="text-[10px] font-medium">{label}</span>
-            </button>)}
-        </div>
-    );
+    const { editorControls, showToolsMenu, toggleInsertMenu, menu } = useOptionInsertMenu();
 
     return (
         <div className={`group relative ${className}`} suppressHydrationWarning>
@@ -459,19 +394,21 @@ export const AnswerOptionCard = React.memo(({
                         {label}
                     </div>
 
-                    {/* Mobile Correct Toggle Chip */}
+                    {/* Mobile Correct Toggle */}
                     {!hideCorrectToggle && (
                         <button
                             type="button"
                             onClick={onCorrectToggle}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                            aria-pressed={isCorrect}
+                            aria-label={isCorrect ? `Opsi ${label}: kunci jawaban` : `Jadikan opsi ${label} kunci jawaban`}
+                            title={isCorrect ? 'Kunci jawaban' : 'Jadikan kunci jawaban'}
+                            className={`w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border transition-all ${
                                 isCorrect
-                                    ? 'bg-[#3083FF] text-white shadow-sm shadow-blue-500/20'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
+                                    ? 'bg-[#3083FF] border-[#3083FF] text-white shadow-sm shadow-blue-500/20'
+                                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600'
                             }`}
                         >
-                            <Check size={12} strokeWidth={isCorrect ? 3 : 2} />
-                            <span>{isCorrect ? 'Kunci Benar' : 'Jadikan Kunci'}</span>
+                            <Check size={16} strokeWidth={isCorrect ? 3 : 2} aria-hidden="true" />
                         </button>
                     )}
                 </div>
@@ -543,13 +480,13 @@ export const AnswerOptionCard = React.memo(({
                     <div className="flex flex-1 min-w-0">
                         <div className="flex-1 min-w-0" onFocusCapture={() => setIsFocused(true)} onBlurCapture={() => setIsFocused(false)}>
                             <TipTapEditorCore compact controlsRef={editorControls} content={value} onChange={onChange}
-                                placeholder={placeholder} minHeight="32px" />
+                                placeholder={placeholder} minHeight="28px" />
                         </div>
                     </div>
 
                     {/* Desktop Toolbar - Inside card */}
                     {!hideRichTools && (
-                    <div className="hidden sm:flex relative shrink-0 px-2 py-1.5 sm:py-2 items-center justify-end sm:justify-start">
+                    <div className="hidden sm:flex relative shrink-0 px-2 items-center justify-end sm:justify-start">
                         {/* Toggle Button */}
                         <button
                             type="button"
@@ -605,14 +542,7 @@ export const AnswerOptionCard = React.memo(({
                 )}
             </div>
 
-            {showToolsMenu && typeof document !== 'undefined' && createPortal(
-                <div ref={insertMenuRef} className="option-insert-popover" style={{
-                    top: menuPosition.top,
-                    left: menuPosition.left,
-                    width: menuPosition.width,
-                    transform: menuPosition.upward ? 'translateY(-100%)' : undefined,
-                }}>{insertTools}</div>, document.body,
-            )}
+            {menu}
         </div>
     );
 });

@@ -59,6 +59,11 @@
 }
 
 @media (max-width: 639px) {
+  .question-bank-header-actions {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+
   .question-card-header {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr) auto;
@@ -78,12 +83,17 @@
   .question-card-tags {
     grid-column: 1 / -1;
     grid-row: 2;
+    flex-wrap: nowrap;
     gap: 6px;
     min-width: 0;
+    overflow-x: auto;
+    padding-block: 3px;
+    scrollbar-width: none;
   }
 
+  .question-card-tags::-webkit-scrollbar { display: none; }
   .question-card-tags:empty { display: none; }
-  .question-card-tags > * { max-width: 100%; }
+  .question-card-tags > * { flex-shrink: 0; max-width: 100%; white-space: nowrap; }
 
   .question-card-actions {
     grid-column: 1 / -1;

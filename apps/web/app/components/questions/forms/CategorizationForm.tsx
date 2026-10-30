@@ -3,13 +3,12 @@
  * CategorizationForm — Kategorisasi
  * Clean table-style editor for assigning items to categories.
  */
-import { uploadToHosting } from '@/lib/uploader';
 import { AnimatePresence,motion } from 'framer-motion';
-import { Image as ImageIcon,Plus,Trash2 } from 'lucide-react';
-import React,{ useEffect,useRef,useState } from 'react';
+import { Plus,Trash2 } from 'lucide-react';
+import React,{ useState } from 'react';
 import { BaseOption } from '../schema';
-import { BulkAddModal,EquationDialog,TableDialog } from './AnswerOptionCard';
-import { RichInput } from './RichInput';
+import { BulkAddModal } from './AnswerOptionCard';
+import { OptionRichInput } from './OptionRichInput';
 
 interface CategorizationFormProps {
   options: BaseOption[];
@@ -352,68 +351,6 @@ interface CategorizationItemRowProps {
 
 const CategorizationItemRow = React.memo(({ index, value, onChange }: CategorizationItemRowProps) => {
   const [isFocused, setIsFocused] = useState(false);
-  const [showEquation, setShowEquation] = useState(false);
-  const [showTable, setShowTable] = useState(false);
-  const [showToolbar, setShowToolbar] = useState(false);
-  const [imageUploading, setImageUploading] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const toolbarRef = useRef<HTMLDivElement>(null);
-
-  // Close toolbar on outside click
-  useEffect(() => {
-    if (!showToolbar) return;
-    const handleClick = (e: MouseEvent) => {
-      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
-        setShowToolbar(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showToolbar]);
-
-  const insertAtCursor = (text: string) => {
-    const ta = inputRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const newValue = value.slice(0, start) + text + value.slice(end);
-    onChange(newValue);
-    setTimeout(() => {
-      ta.selectionStart = ta.selectionEnd = start + text.length;
-      ta.focus();
-    }, 0);
-  };
-
-  const handleImageUpload = async (file: File) => {
-    setImageUploading(true);
-    setShowToolbar(false);
-    try {
-      const res = await uploadToHosting(file, 'questions');
-      const url = res.success ? res.url : '';
-      if (url) {
-        insertAtCursor(`\n<img src="${url}" alt="${file.name}" style="max-width:100%;height:auto;border-radius:8px;display:block;margin:4px 0;" />\n`);
-      }
-    } catch (err) {
-      console.error('Image upload failed:', err);
-    } finally {
-      setImageUploading(false);
-    }
-  };
-
-  const handleInsertEquation = (latex: string) => {
-    insertAtCursor(`$${latex}$`);
-  };
-
-  const handleInsertTable = (rows: number, cols: number) => {
-    let table = '\n';
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        table += (c > 0 ? '\t' : '') + `Cell ${r + 1},${c + 1}`;
-      }
-      table += '\n';
-    }
-    insertAtCursor(table);
-  };
 
   return (
     <div className="group/item relative">
@@ -431,8 +368,7 @@ const CategorizationItemRow = React.memo(({ index, value, onChange }: Categoriza
         </div>
 
         <div className="flex-1 min-w-0">
-          <RichInput
-            inputRef={inputRef}
+          <OptionRichInput
             value={value}
             onChange={onChange}
             onFocus={() => setIsFocused(true)}
@@ -442,77 +378,10 @@ const CategorizationItemRow = React.memo(({ index, value, onChange }: Categoriza
           />
         </div>
 
-        {/* 3-in-1 Toolbar Button */}
-        <div className="relative" ref={toolbarRef}>
-          <button
-            type="button"
-            onClick={() => setShowToolbar(!showToolbar)}
-            className={`
-              w-7 h-7 flex items-center justify-center rounded-lg transition-all
-              ${showToolbar ? 'bg-primary text-white' : 'text-slate-300 hover:text-primary hover:bg-primary/5'}
-              ${imageUploading ? 'animate-pulse' : ''}
-            `}
-            title="Sisipkan Media"
-          >
-            {imageUploading ? <span className="animate-spin text-[10px]">⟳</span> : <Plus size={16} strokeWidth={3} />}
-          </button>
 
-          {/* Popover Menu */}
-          <AnimatePresence>
-            {showToolbar && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-slate-100 p-1 flex flex-col min-w-[120px] z-[100]"
-              >
-                {/* Image */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (event: Event) => {
-                      const f = (event.target as HTMLInputElement | null)?.files?.[0];
-                      if (f) handleImageUpload(f);
-                    };
-                    input.click();
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all text-left w-full"
-                >
-                  <ImageIcon size={14} />
-                  <span className="text-[11px] font-bold">Gambar</span>
-                </button>
-
-                {/* Equation */}
-                <button
-                  type="button"
-                  onClick={() => { setShowEquation(true); setShowToolbar(false); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-amber-50 hover:text-amber-600 transition-all text-left w-full"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/></svg>
-                  <span className="text-[11px] font-bold">Rumus</span>
-                </button>
-
-                {/* Table */}
-                <button
-                  type="button"
-                  onClick={() => { setShowTable(true); setShowToolbar(false); }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all text-left"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-                  <span className="text-[11px] font-bold">Tabel</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
 
-      {/* Dialogs */}
-      <EquationDialog isOpen={showEquation} onClose={() => setShowEquation(false)} onInsert={handleInsertEquation} />
-      <TableDialog isOpen={showTable} onClose={() => setShowTable(false)} onInsert={handleInsertTable} />
+
     </div>
   );
 });

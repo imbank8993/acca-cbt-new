@@ -908,7 +908,7 @@ export default function QuestionEditorModal({
                             <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <CheckCircle2 size={15} className="text-slate-400" />
-                                    <span className="text-sm font-semibold text-slate-700">Opsi Jawaban</span>
+                                    <span className="text-sm font-semibold text-slate-700">Jawaban</span>
                                 </div>
                                 {(selectedType === 'true_false' || selectedType === 'matching' || selectedType === 'categorization') && (
                                     <button

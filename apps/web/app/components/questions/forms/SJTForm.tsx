@@ -80,7 +80,7 @@ const OptionCardSJT = React.memo(({
               onDelete={stableOnDelete}
               canDelete={canDelete}
               placeholder={`Opsi ${letters[idx] || idx + 1}...`}
-              hideRichTools={true}
+              hideRichTools={false}
               className="!mb-0" // override default AnswerOptionCard margin if any
             />
           </div>
@@ -129,7 +129,7 @@ export const SJTForm = React.memo(({
       <OptionList
         onAdd={options.length < maxOptions ? onAddOption : undefined}
         onBulkAdd={options.length < maxOptions ? onBulkAdd : undefined}
-        addLabel="Tambah Opsi (Bawah)"
+        addLabel="Tambah"
         maxItems={maxOptions}
       >
         {options.map((opt, idx) => (

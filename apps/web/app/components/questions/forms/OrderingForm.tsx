@@ -5,8 +5,9 @@
  * Tabel dengan 2 kolom: kolom kiri = pernyataan, kolom kanan = urutan.
  */
 import { Plus,Trash2 } from 'lucide-react';
-import React,{ useEffect,useRef,useState } from 'react';
+import React,{ useState } from 'react';
 import { BaseOption } from '../schema';
+import { OptionRichInput } from './OptionRichInput';
 
 interface OrderingFormProps {
   options: BaseOption[];
@@ -126,14 +127,6 @@ const OrderingItemRow = React.memo(({
   onMove, onRemove, onUpdate,
 }: OrderingItemRowProps) => {
   const [isFocused, setIsFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [opt.text]);
 
   return (
     <div
@@ -157,15 +150,12 @@ const OrderingItemRow = React.memo(({
 
       {/* Text input */}
       <div className="flex-1 min-w-0">
-        <textarea
-          ref={textareaRef}
+        <OptionRichInput
           value={opt.text}
-          onChange={(e) => onUpdate({ text: e.target.value })}
+          onChange={(text) => onUpdate({ text })}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           placeholder={`Pernyataan P${idx + 1}...`}
-          rows={1}
-          className="w-full p-2 text-sm font-medium text-slate-700 bg-transparent outline-none resize-none overflow-hidden placeholder:text-slate-300 border border-transparent rounded focus:border-slate-200 focus:bg-slate-50 transition-colors"
         />
       </div>
 

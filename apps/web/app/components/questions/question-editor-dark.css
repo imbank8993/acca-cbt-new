@@ -39,10 +39,11 @@
 }
 
 .option-content-editor .ProseMirror {
-  min-height: 32px;
-  padding: 8px;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px 8px;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 20px;
 }
 
 .option-content-editor .ProseMirror img {

@@ -41,7 +41,7 @@ const ForcedChoiceOptionCard = React.memo(({
                     canDelete={canDelete}
                     placeholder="Tulis pernyataan..."
                     hideCorrectToggle={true}
-                    hideRichTools={true}
+                    hideRichTools={false}
                 />
             </div>
             {/* Divider */}

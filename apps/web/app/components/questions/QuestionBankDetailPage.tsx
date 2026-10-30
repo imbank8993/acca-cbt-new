@@ -544,7 +544,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                 <h1 className="text-sm font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-xs">{bankInfo?.title || 'Bank Soal'}</h1>
                             </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                        <div className="question-bank-header-actions flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
                             {(bankInfo?.canShare || bankInfo?.collaborationPermission) && <CollaborationButton mobileIconOnly type="bank" resourceId={bankId} collaboratorCount={bankInfo?.collaboratorCount} onChanged={() => void loadData()} />}
                             {/* Export Dropdown */}
                             <div className="relative" ref={exportDropdownRef}>

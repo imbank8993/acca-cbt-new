@@ -118,7 +118,7 @@ export const MCQForm = React.memo(({
     <OptionList
       onAdd={options.length < maxOptions ? onAddOption : undefined}
       onBulkAdd={options.length < maxOptions ? onBulkAdd : undefined}
-      addLabel="Tambah Opsi (Bawah)"
+      addLabel="Tambah"
       maxItems={maxOptions}
     >
       {options.map((opt, idx) => (

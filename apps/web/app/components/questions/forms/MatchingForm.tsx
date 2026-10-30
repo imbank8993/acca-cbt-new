@@ -4,11 +4,10 @@
  * Clean card-style columns.
  */
 import { ChevronDown,Link2,Trash2 } from 'lucide-react';
-import React,{ useEffect,useRef,useState } from 'react';
+import React,{ useEffect,useState } from 'react';
 import { extractMathExpressions,renderLatex } from '../math-utils';
 import { BaseOption } from '../schema';
-import { EquationDialog,TableDialog } from './AnswerOptionCard';
-import { RichInput } from './RichInput';
+import { OptionRichInput } from './OptionRichInput';
 
 /* ─── Inline math label: renders $...$ as KaTeX for the pairing UI ───
  * The KaTeX markup comes from our own renderLatex; the surrounding text
@@ -239,37 +238,6 @@ interface MatchingItemRowProps {
 
 const MatchingItemRow = React.memo(({ index, value, onChange, onDelete }: MatchingItemRowProps) => {
   const [isFocused, setIsFocused] = useState(false);
-  const [showEquation, setShowEquation] = useState(false);
-  const [showTable, setShowTable] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const insertAtCursor = (text: string) => {
-    const ta = inputRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const newValue = value.slice(0, start) + text + value.slice(end);
-    onChange(newValue);
-    setTimeout(() => {
-      ta.selectionStart = ta.selectionEnd = start + text.length;
-      ta.focus();
-    }, 0);
-  };
-
-  const handleInsertEquation = (latex: string) => {
-    insertAtCursor(`$${latex}$`);
-  };
-
-  const handleInsertTable = (rows: number, cols: number) => {
-    let table = '\n';
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        table += (c > 0 ? '\t' : '') + `Cell ${r + 1},${c + 1}`;
-      }
-      table += '\n';
-    }
-    insertAtCursor(table);
-  };
 
   return (
     <div className="group relative flex items-center gap-1.5">
@@ -294,8 +262,7 @@ const MatchingItemRow = React.memo(({ index, value, onChange, onDelete }: Matchi
 
         {/* Text Input */}
         <div className="flex-1 min-w-0 px-2 py-1.5">
-          <RichInput
-            inputRef={inputRef}
+          <OptionRichInput
             value={value}
             onChange={onChange}
             onFocus={() => setIsFocused(true)}
@@ -304,30 +271,7 @@ const MatchingItemRow = React.memo(({ index, value, onChange, onDelete }: Matchi
           />
         </div>
 
-        {/* Toolbar */}
-        <div className="shrink-0 px-2 py-2 flex items-center gap-1">
-          {/* Equation */}
-          <button type="button"
-              onClick={(e) => { e.stopPropagation(); setShowEquation(true); }}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
-              title="Sisipkan Rumus">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 14v3h3"/>
-              </svg>
-          </button>
 
-          {/* Table */}
-          <button type="button"
-              onClick={(e) => { e.stopPropagation(); setShowTable(true); }}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
-              title="Sisipkan Tabel">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <line x1="3" y1="9" x2="21" y2="9"/>
-                  <line x1="9" y1="3" x2="9" y2="21"/>
-              </svg>
-          </button>
-        </div>
       </div>
 
       {/* Delete - Outside */}
@@ -344,17 +288,7 @@ const MatchingItemRow = React.memo(({ index, value, onChange, onDelete }: Matchi
         </button>
       )}
 
-      {/* Dialogs */}
-      <EquationDialog
-        isOpen={showEquation}
-        onClose={() => setShowEquation(false)}
-        onInsert={handleInsertEquation}
-      />
-      <TableDialog
-        isOpen={showTable}
-        onClose={() => setShowTable(false)}
-        onInsert={handleInsertTable}
-      />
+
     </div>
   );
 });
