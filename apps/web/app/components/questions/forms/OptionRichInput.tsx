@@ -95,7 +95,7 @@ export function OptionRichInput({ value, onChange, placeholder = '', onFocus, on
     const { editorControls, showToolsMenu, toggleInsertMenu, menu } = useOptionInsertMenu();
     return <div className={`flex items-center w-full min-w-0 ${className}`} onFocusCapture={onFocus} onBlurCapture={onBlur}>
         <div className="flex-1 min-w-0">
-            <TipTapEditorCore compact controlsRef={editorControls} content={value} onChange={onChange} placeholder={placeholder} minHeight="28px" />
+            <TipTapEditorCore compact controlsRef={editorControls} content={value} onChange={onChange} placeholder={placeholder} minHeight="32px" />
         </div>
         <button type="button" onClick={toggleInsertMenu} aria-expanded={showToolsMenu}
             aria-label="Sisipkan media / rumus" title="Sisipkan media / rumus"

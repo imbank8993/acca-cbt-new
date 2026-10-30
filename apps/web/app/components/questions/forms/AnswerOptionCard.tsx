@@ -480,7 +480,7 @@ export const AnswerOptionCard = React.memo(({
                     <div className="flex flex-1 min-w-0">
                         <div className="flex-1 min-w-0" onFocusCapture={() => setIsFocused(true)} onBlurCapture={() => setIsFocused(false)}>
                             <TipTapEditorCore compact controlsRef={editorControls} content={value} onChange={onChange}
-                                placeholder={placeholder} minHeight="28px" />
+                                placeholder={placeholder} minHeight="32px" />
                         </div>
                     </div>
 
