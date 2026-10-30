@@ -4,7 +4,8 @@
  */
 import { Check,Image as ImageIcon,Minus,Plus,Trash2,Upload,Mic,Video,Link as LinkIcon,Sigma,Table as TableIcon } from 'lucide-react';
 import type { MathfieldElement } from 'mathlive';
-import React,{ useEffect,useMemo,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MathToolbar } from '../MathToolbar';
 import { renderLatex,sanitizeLatex } from '../math-utils';
 import TipTapEditorCore, { type TipTapEditorControls, type OptionInsertAction } from '../TipTapEditorCore';
@@ -374,15 +375,55 @@ export const AnswerOptionCard = React.memo(({
     const [isFocused, setIsFocused] = useState(false);
     const [showToolsMenu, setShowToolsMenu] = useState(false);
     const editorControls = useRef<TipTapEditorControls>(null);
+    const insertTriggerRef = useRef<HTMLButtonElement | null>(null);
+    const insertMenuRef = useRef<HTMLDivElement>(null);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 216, upward: false });
+
+    const updateMenuPosition = useCallback(() => {
+        const trigger = insertTriggerRef.current;
+        if (!trigger) return;
+        const rect = trigger.getBoundingClientRect();
+        const width = Math.min(216, window.innerWidth - 16);
+        const below = window.innerHeight - rect.bottom;
+        const upward = below < 140 && rect.top > below;
+        setMenuPosition({
+            top: upward ? rect.top - 8 : rect.bottom + 8,
+            left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+            width,
+            upward,
+        });
+    }, []);
+
+    const toggleInsertMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        insertTriggerRef.current = event.currentTarget;
+        updateMenuPosition();
+        setShowToolsMenu(open => !open);
+    };
 
     // Menutup menu saat klik di luar
     useEffect(() => {
-        const handleClickOutside = () => setShowToolsMenu(false);
-        if (showToolsMenu) {
-            document.addEventListener('click', handleClickOutside);
-            return () => document.removeEventListener('click', handleClickOutside);
-        }
-    }, [showToolsMenu]);
+        if (!showToolsMenu) return;
+        const handleClickOutside = (event: PointerEvent) => {
+            const target = event.target as Node;
+            if (!insertMenuRef.current?.contains(target) && !insertTriggerRef.current?.contains(target)) setShowToolsMenu(false);
+        };
+        const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setShowToolsMenu(false); };
+        const handleViewportChange = (event: Event) => {
+            if (event.target instanceof Node && insertMenuRef.current?.contains(event.target)) return;
+            updateMenuPosition();
+        };
+        document.addEventListener('pointerdown', handleClickOutside, true);
+        document.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('scroll', handleViewportChange, true);
+        window.addEventListener('resize', handleViewportChange);
+        return () => {
+            document.removeEventListener('pointerdown', handleClickOutside, true);
+            document.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('scroll', handleViewportChange, true);
+            window.removeEventListener('resize', handleViewportChange);
+        };
+    }, [showToolsMenu, updateMenuPosition]);
 
     const insertTools = (
         <div className="option-insert-menu grid grid-cols-3 gap-1 p-1.5 rounded-xl border border-slate-200 shadow-xl bg-white"
@@ -441,7 +482,8 @@ export const AnswerOptionCard = React.memo(({
                         <div className="relative">
                             <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); setShowToolsMenu(!showToolsMenu); }}
+                                onClick={toggleInsertMenu}
+                                aria-expanded={showToolsMenu}
                                 className={`w-8 h-8 flex items-center justify-center rounded-lg border text-xs transition-all ${
                                     showToolsMenu ? 'bg-slate-800 text-white border-slate-800' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                                 }`}
@@ -450,7 +492,6 @@ export const AnswerOptionCard = React.memo(({
                                 <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                             </button>
 
-                            {showToolsMenu && <div className="option-insert-popover">{insertTools}</div>}
 
                         </div>
                     )}
@@ -512,14 +553,14 @@ export const AnswerOptionCard = React.memo(({
                         {/* Toggle Button */}
                         <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); setShowToolsMenu(!showToolsMenu); }}
+                            onClick={toggleInsertMenu}
+                            aria-expanded={showToolsMenu}
                             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${showToolsMenu ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
                             title="Sisipkan media / rumus"
                         >
                             <Plus size={14} className={`transition-transform duration-200 ${showToolsMenu ? 'rotate-45' : ''}`} />
                         </button>
 
-                        {showToolsMenu && <div className="option-insert-popover">{insertTools}</div>}
 
                     </div>
                     )}
@@ -564,7 +605,14 @@ export const AnswerOptionCard = React.memo(({
                 )}
             </div>
 
-
+            {showToolsMenu && typeof document !== 'undefined' && createPortal(
+                <div ref={insertMenuRef} className="option-insert-popover" style={{
+                    top: menuPosition.top,
+                    left: menuPosition.left,
+                    width: menuPosition.width,
+                    transform: menuPosition.upward ? 'translateY(-100%)' : undefined,
+                }}>{insertTools}</div>, document.body,
+            )}
         </div>
     );
 });

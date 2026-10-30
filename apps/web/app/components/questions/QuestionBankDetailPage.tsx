@@ -1,5 +1,6 @@
 "use client";
 import './question-dark-surfaces.css';
+import { collectQuestionGroups, questionGroupLabel } from '@/lib/question-groups';
 
 import { getBankValidationFeedback } from '@/lib/api/validations';
 import { FilterToolbar, FilterSearch, FilterActions } from '@/components/ui/filtertoolbar';
@@ -24,6 +25,7 @@ import type { BankTextItem,DimensionItem,KisiKisiItem,QuestionBank,QuestionMetad
 import { AnimatePresence,motion } from 'framer-motion';
 import {
 BookOpen,
+Layers,
 Check,
 CheckSquare,
 ChevronDown,
@@ -43,7 +45,7 @@ Square,Target,
 Trash2,
 Upload
 } from 'lucide-react';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { useCallback,useEffect,useRef,useState,useMemo } from 'react';
 // docx is lazy-loaded inside export handlers
 import DimensionManager from '@/app/components/questions/DimensionManager';
 import KisiKisiTab from '@/app/components/questions/KisiKisiTab';
@@ -78,6 +80,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
     const questionsBasePath = `/dashboard/${role}/questions`;
 
     const [questions, setQuestions] = useMemoryState<QuestionRecord[]>(`${cachePrefix}_questions`, []);
+    const questionGroups = useMemo(() => collectQuestionGroups(questions), [questions]);
     const [isLoading, setIsLoading] = useMemoryState(`${cachePrefix}_isLoading`, true);
     const [org, setOrg] = useState<ProctorOrganization | null>(null);
     const [bankInfo, setBankInfo] = useState<QuestionBank | null>(null);
@@ -757,6 +760,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     <div className="space-y-3">
                         {filteredQuestions.map((q, idx) => {
                             const meta = q.metadata || {};
+                            const groupLabel = questionGroupLabel(q, questions, questionGroups);
                             
                             const stim = q.stimulus;
                             const hasStimulus = !!(stim?.content || meta.import_stimulus);
@@ -793,6 +797,9 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                 <div className="min-w-0">
                                                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                                         <span className="text-xs font-medium text-slate-500">{getQuestionTypeLabel(q.type)}</span>
+                                                        {groupLabel && <span title={groupLabel} className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                                                            <Layers size={11} className="shrink-0" /><span className="truncate">{groupLabel}</span>
+                                                        </span>}
                                                         {q.score_default > 1 && (
                                                             <span className="text-xs bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full whitespace-nowrap">{q.score_default} poin</span>
                                                         )}
@@ -1093,6 +1100,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                     isOpen={isEditorOpen}
                     editingQuestion={editingQuestion}
                     bankId={bankId}
+                    existingGroups={questionGroups}
                     org={org}
                     onSaveSuccess={loadData}
                     onNavigate={navigateEditor}

@@ -1,11 +1,10 @@
 .option-insert-popover {
-  position: absolute;
-  right: 0;
-  top: 100%;
+  position: fixed;
   width: 216px;
   max-width: calc(100vw - 32px);
-  margin-top: 8px;
-  z-index: 50;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  z-index: 10020;
 }
 
 .option-insert-menu {

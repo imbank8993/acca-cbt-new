@@ -9,6 +9,23 @@ const {
     questionGroupKey,
     examUsesQuestionGroups,
 } = require('../src/common/question-order.ts');
+const { collectQuestionGroups, questionGroupLabel } = require('../../web/lib/question-groups.ts');
+
+test('existing group choices combine case variants and retain the saved display name', () => {
+    const questions = [{ metadata: { group_key: ' h1 ' } }, { metadata: { group_key: 'H1' } }, { metadata: { group_key: '' } }];
+    const groups = collectQuestionGroups(questions);
+    assert.deepEqual(groups, [{ name: 'h1', count: 2 }]);
+    assert.equal(questionGroupLabel(questions[1], questions, groups), 'Grup h1 · 2 soal');
+    assert.equal(questionGroupLabel(questions[2], questions, groups), null);
+});
+
+test('automatic stimulus badge excludes questions assigned to a manual group', () => {
+    const questions = [{ stimulus_id: 's1' }, { stimulus: { id: 's1' } }, { stimulus_id: 's1', metadata: { group_key: 'h2' } }, { stimulus_id: 's2' }];
+    const groups = collectQuestionGroups(questions);
+    assert.equal(questionGroupLabel(questions[0], questions, groups), 'Grup stimulus · 2 soal');
+    assert.equal(questionGroupLabel(questions[2], questions, groups), 'Grup h2 · 1 soal');
+    assert.equal(questionGroupLabel(questions[3], questions, groups), null);
+});
 
 const opts = (userId, extra = {}) => ({ userId, examId: 'exam-1', randomize: true, ...extra });
 

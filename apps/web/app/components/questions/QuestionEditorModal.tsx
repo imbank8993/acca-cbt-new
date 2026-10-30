@@ -1,6 +1,8 @@
 "use client";
 import './question-editor-dark.css';
 import { hasQuestionContent } from '@/lib/question-content';
+import { QuestionGroupPicker } from './QuestionGroupPicker';
+import type { QuestionGroupOption } from '@/lib/question-groups';
 import { getInstructionsByBank,getStimuliByBank,QuestionType,saveQuestionAction } from '@/lib/api/questions';
 import { useToast } from '@/app/components/ui/Toast';
 import InlineSelect from '@/components/ui/InlineSelect';
@@ -55,6 +57,7 @@ import { ShortAnswerForm } from './forms/ShortAnswerForm';
 import { TrueFalseForm } from './forms/TrueFalseForm';
 
 interface QuestionEditorModalProps {
+    existingGroups?: QuestionGroupOption[];
     isOpen: boolean;
     onClose: () => void;
     editingQuestion: QuestionRecord | null;
@@ -164,7 +167,8 @@ export default function QuestionEditorModal({
     kisiKisiId,
     setKisiKisiId,
     kisiKisiList,
-    isBulkImportPreview
+    isBulkImportPreview,
+    existingGroups = [],
 }: QuestionEditorModalProps) {
     const toast = useToast();
     useEffect(() => {
@@ -755,22 +759,16 @@ export default function QuestionEditorModal({
                         {/* ── Grup Soal (both) ── */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Layers size={11}/> Grup Soal</label>
-                            <input
-                                type="text"
+                            <QuestionGroupPicker
                                 value={typeof metadata?.group_key === 'string' ? metadata.group_key : ''}
-                                onChange={(e) => {
-                                    const value = e.target.value.slice(0, 50);
+                                groups={existingGroups}
+                                onChange={value => {
                                     const next = { ...metadata };
-                                    if (value.trim()) next.group_key = value;
+                                    if (value.trim()) next.group_key = value.trim();
                                     else delete next.group_key;
                                     setMetadata(next);
                                 }}
-                                placeholder={stimulusId ? 'Otomatis: grup stimulus' : 'Mis. A, Soal-5'}
-                                className="w-full px-4 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all"
                             />
-                            <p className="text-[10px] leading-snug text-slate-400">
-                                Soal dengan grup (atau stimulus) yang sama tetap berdampingan saat diacak; urutan di dalam grup ikut diacak.
-                            </p>
                         </div>
 
                         {/* ── Petunjuk (both) ── */}
