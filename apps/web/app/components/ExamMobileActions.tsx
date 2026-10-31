@@ -29,9 +29,9 @@ export function ExamMobileActions({ exam, busy, canPublish, onPublish, onMonitor
         <div className="exam-mobile-action-row px-4 pb-4 sm:hidden">
             <Button className="exam-mobile-publish" aria-label={exam.is_published ? 'Unpublish' : 'Publish'} type="button" size="sm" variant={exam.is_published ? 'unpublish' : 'primary'}
                 isLoading={busy}
-                disabled={!exam.canManage || exam.status === 'archived' || (!exam.is_published && !canPublish)}
+                disabled={!exam.canManage || exam.status === 'archived'}
                 leftIcon={exam.is_published ? <CloudOff size={16} /> : <CloudUpload size={16} />}
-                title={!exam.is_published && !canPublish ? 'Tugaskan ke kelas terlebih dahulu sebelum mempublish' : undefined}
+                title={!exam.is_published && !canPublish ? 'Pilih peserta dan penugasan sebelum mempublish' : undefined}
                 onClick={onPublish}>{exam.is_published ? 'Unpublish' : 'Publish'}</Button>
             <Button className="exam-mobile-monitor" aria-label="Monitor ujian" title="Monitor ujian" type="button" size="sm" variant="primary" leftIcon={<Activity size={16} aria-hidden="true" />} onClick={onMonitor}>Monitor</Button>
             {canShare && <CollaborationButton mobileIconOnly className="min-w-0" type="exam" resourceId={exam.id} collaboratorCount={exam.collaboratorCount} onChanged={onChanged} />}

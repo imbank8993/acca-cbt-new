@@ -158,7 +158,9 @@ const ExamsPage = () => {
                     // Fetch existing exam assignments via SERVER ACTION — query
                     // langsung dari client memakai anon key sehingga RLS memblokir
                     // cbt_exam_targets/participants dan status selalu "belum ditugaskan".
-                    const examIds = examList.map((exam) => exam.id);
+                    // Monitoring access does not grant access to assignment details.
+                    // One read-only exam would otherwise reject this entire batch.
+                    const examIds = examList.filter((exam) => exam.canManage || exam.collaborationPermission).map((exam) => exam.id);
                     const { targets: targetRows, participants: participantRows } =
                         await listExamAssignmentsAction(examIds);
 
