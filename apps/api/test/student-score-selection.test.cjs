@@ -124,7 +124,7 @@ test('monitoring results expose calculated IRT scores in their own column', () =
   '@/lib/monitoring-answer-count':{savedAnswerCount:()=>1},
   './ParticipantRoomInfo':{ParticipantRoomInfo:()=>null},
  };
- new Function('require','module','exports',code)(name=>dependencies[name]||require(name),loaded,loaded.exports);
+ new Function('require','module','exports',code)(name=>name.endsWith('.css')?{}:dependencies[name]||require(name),loaded,loaded.exports);
  const render=overrides=>renderToStaticMarkup(React.createElement(loaded.exports.MonitoringResultsTable,{
   attempts:[{...attempt,profiles:{full_name:'Peserta'},...overrides}],hasAnyAttempts:true,onViewDetails:()=>{},
  }));

@@ -17,11 +17,12 @@ export default function BankValidationSummary({ bankId, questions, onOpenFeedbac
         catch (err) { setError(err instanceof Error ? err.message : 'Catatan validasi gagal dimuat.'); }
     }, [bankId]);
     useEffect(() => {
-        void load();
+        const initialLoad = setTimeout(() => { void load(); }, 0);
         const refresh = () => { if (!document.hidden) void load(); };
         window.addEventListener('focus', refresh);
         window.addEventListener('validation-feedback-updated', refresh);
         return () => {
+            clearTimeout(initialLoad);
             window.removeEventListener('focus', refresh);
             window.removeEventListener('validation-feedback-updated', refresh);
         };
@@ -39,6 +40,8 @@ export default function BankValidationSummary({ bankId, questions, onOpenFeedbac
             return <div key={session.id} className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <p><span className="font-semibold">{session.title}</span> · {notes.length} catatan perlu perbaikan pada {questionIds.size} soal</p>
+                    {notes.length === 0 && (session.status === 'revision_needed' || session.status === 'rejected') && <p className="w-full text-xs text-violet-800">Semua catatan sudah ditandai diperbaiki. Ajukan telaah ulang dari tab Catatan Validasi agar validator memeriksa perbaikannya.</p>}
+                    {session.status === 'resubmitted' && <p className="w-full text-xs text-violet-800">Perbaikan sedang ditelaah ulang validator.</p>}
                     <button type="button" onClick={() => onOpenFeedback(session.id)} className="font-semibold text-blue-700 underline">Lihat catatan & hasil validasi</button>
                 </div>
                 {notes.map(note => {

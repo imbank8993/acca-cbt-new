@@ -1,4 +1,5 @@
 "use client";
+import '@/app/components/questions/bank-folder-menu.css';
 
 import { CollaborationButton } from '@/app/components/CollaborationButton';
 import { confirmDialog } from '@/lib/confirm-dialog';
@@ -33,6 +34,7 @@ Trash2
 import Link from 'next/link';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { CreateBankModal } from '@/components/questions/CreateBankModal';
+import { ValidationBadge } from '@/app/components/validations/ValidationBadge';
 import { QuestionBankCover } from '@/app/components/questions/QuestionBankCover';
 import { registerPageFab, unregisterPageFab } from '@/app/components/mobile/page-fab';
 
@@ -452,6 +454,7 @@ export default function ProktorQuestionBankPage() {
                         <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
                             {bank.is_published ? 'Published' : 'Draft'}
                         </span>
+                        <ValidationBadge summary={bank.validation_summary} />
                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
                         {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
                     </div>
@@ -656,6 +659,7 @@ export default function ProktorQuestionBankPage() {
                                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold ${bank.is_published ? 'bg-[#3083FF]/10 text-[#3083FF] border border-[#3083FF]/30' : 'bg-red-50 text-red-600 border border-red-200'}`}>
                                             {bank.is_published ? 'Published' : 'Draft'}
                                         </span>
+                                        <ValidationBadge summary={bank.validation_summary} />
                                         {bank.subject && <span className="text-xs text-slate-400">{bank.subject}</span>}
                                         {bank.class_level && <span className="text-xs text-slate-400">• {bank.class_level}</span>}
                                     </div>
@@ -757,14 +761,16 @@ export default function ProktorQuestionBankPage() {
                                         </button>
                                         <div className="relative">
                                             <button
+                                                aria-label={`Menu folder ${folder.name}`}
+                                                aria-expanded={folderMenuId === folder.id}
                                                 onClick={() => setFolderMenuId(folderMenuId === folder.id ? null : folder.id)}
                                                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
                                             >
                                                 <MoreHorizontal size={14} />
                                             </button>
                                             {folderMenuId === folder.id && (
-                                                <div className="absolute right-0 top-full mt-1 bg-white border border-[#3083FF]/30 rounded-lg shadow-lg py-1 z-20 min-w-[160px]">
-                                                    <div className="px-3 py-1 text-[10px] text-slate-400 font-medium uppercase">Tambah Bank Soal</div>
+                                                <div className="bank-folder-menu absolute right-0 top-full mt-1 bg-white border border-[#3083FF]/30 rounded-lg shadow-lg py-1 z-20 min-w-[160px]">
+                                                    <div className="bank-folder-menu__heading px-3 py-1 text-[10px] text-slate-400 font-medium uppercase">Tambah Bank Soal</div>
                                                     <button
                                                         onClick={() => {
                                                             setEditingBank(null);
@@ -784,7 +790,7 @@ export default function ProktorQuestionBankPage() {
                                                     </button>
                                                     {folderBanks.length > 0 && (
                                                         <>
-                                                            <div className="border-t border-[#3083FF]/20 my-1"></div>
+                                                            <div className="bank-folder-menu__separator border-t border-[#3083FF]/20 my-1"></div>
                                                             <button
                                                                 onClick={() => {
                                                                     setBulkMode(true);
@@ -801,7 +807,7 @@ export default function ProktorQuestionBankPage() {
                                                     {/* Ganti nama/visibilitas dan hapus: hanya pembuat folder atau Admin. */}
                                                     {folder.canManage === true && (
                                                         <>
-                                                            <div className="border-t border-[#3083FF]/20 my-1"></div>
+                                                            <div className="bank-folder-menu__separator border-t border-[#3083FF]/20 my-1"></div>
                                                             <button
                                                                 onClick={() => handleOpenEditFolder(folder)}
                                                                 className="w-full text-left px-3 py-2 text-xs text-slate-600 hover:bg-[#3083FF]/5 flex items-center gap-2"
@@ -810,7 +816,7 @@ export default function ProktorQuestionBankPage() {
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDeleteFolder(folder)}
-                                                                className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2"
+                                                                className="bank-folder-menu__danger w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2"
                                                             >
                                                                 <Trash2 size={12} /> Hapus Folder
                                                             </button>

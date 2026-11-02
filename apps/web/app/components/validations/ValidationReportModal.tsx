@@ -93,6 +93,8 @@ export function ValidationReportModal({
                 return 'Ditolak';
             case 'in_progress':
                 return 'Sedang Divalidasi';
+            case 'resubmitted':
+                return 'Menunggu Telaah Ulang';
             default:
                 return 'Menunggu';
         }

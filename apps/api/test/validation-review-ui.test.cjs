@@ -25,7 +25,7 @@ test('Bank summary exposes existing corrections and opens the affected question 
     const render = () => { cursor = 0; const tree = module.exports.default({ bankId: 'bank', questions, onEditQuestion: q => opened.push(q), onOpenFeedback: id => opened.push(id) }); initial = false; return tree; };
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
     const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
-    render(); effects.forEach(fn => fn()); await new Promise(resolve => setImmediate(resolve));
+    render(); effects.forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 0));
     const tree = render();
     assert.match(text(tree), /1 catatan perlu perbaikan pada 1 soal/);
     assert.match(text(tree), /Soal 2 · Pilihan jawaban/);
@@ -67,7 +67,7 @@ test('Question navigation isolates and restores drafts and option targets', asyn
     const find = (tree, predicate) => { const result = nodes(tree).find(predicate); assert.ok(result, 'UI target exists'); return result; };
     let tree = render();
     effects.forEach(effect => effect());
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setTimeout(resolve, 0));
     tree = render();
     find(tree, n => n.type === 'div' && n.props.onClick && nodes(n).some(child => child.props?.content === 'Option')).props.onClick();
     tree = render();
@@ -114,7 +114,7 @@ test('Author editor panel selects history, scopes notes and exposes resolve fail
     const render = () => { cursor = 0; const tree = module.exports.ValidationNotesPanel({ bankId: 'bank', questionId: 'q1' }); initial = false; return tree; };
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
     const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
-    render(); effects.forEach(fn => fn()); await new Promise(resolve => setImmediate(resolve));
+    render(); effects.forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 0));
     let tree = render(); assert.match(text(tree), /new correction/); assert.doesNotMatch(text(tree), /other question/);
     nodes(tree).find(n => n.type === 'select').props.onChange({ target: { value: 'old' } });
     tree = render(); assert.match(text(tree), /old correction/);
@@ -147,7 +147,7 @@ function loadReviewPage(reviewData, apiOverrides = {}) {
     const nodes = root => !root || typeof root !== 'object' ? [] : Array.isArray(root) ? root.flatMap(nodes) : [root, ...nodes(root.children)];
     const text = root => root == null || typeof root === 'boolean' ? '' : typeof root !== 'object' ? String(root) : Array.isArray(root) ? root.map(text).join('') : text(root.children);
     const render = () => { cursor = 0; const tree = module.exports.default(); firstRender = false; return tree; };
-    const start = async () => { render(); effects.forEach(effect => effect()); await new Promise(resolve => setImmediate(resolve)); return render(); };
+    const start = async () => { render(); effects.forEach(effect => effect()); await new Promise(resolve => setTimeout(resolve, 0)); return render(); };
     return { render, start, nodes, text };
 }
 const reviewQuestions = [{ id: 'q1', question_text: 'First', bank_question_options: [{ id: 'o1', option_text: 'Option' }] }];
@@ -172,14 +172,24 @@ test('Review page is read-only for non-validators and after the deadline', async
     }
 });
 
+test('Submitted reviews are locked until reopened', async () => {
+    const page = loadReviewPage(
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'submitted' }, notes: reviewNotes, questions: reviewQuestions },
+    );
+    const tree = await page.start();
+    assert.match(page.text(tree), /Buka Kembali untuk Diubah/);
+    assert.equal(page.nodes(tree).some(n => n.type === 'textarea'), false);
+    assert.equal(deleteButtons(page, tree).length, 0);
+});
+
 test('Validators can delete only their own unresolved notes and see delete failures', async () => {
     let fail = true; const deleted = [];
     const page = loadReviewPage(
-        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'submitted' }, notes: reviewNotes, questions: reviewQuestions },
+        { validation: { id: 's', title: 'Test' }, myValidatorStatus: { validator_id: 'v', status: 'in_progress' }, notes: reviewNotes, questions: reviewQuestions },
         { deleteValidationNote: async (_, id) => { deleted.push(id); return fail ? { success: false, error: 'Catatan tidak dapat dihapus' } : { success: true, id, deleted: true }; } },
     );
     let tree = await page.start();
-    assert.match(page.text(tree), /Perbarui Hasil Validasi/);
+    assert.match(page.text(tree), /Selesaikan Validasi/);
     assert.equal(deleteButtons(page, tree).length, 1);
     await deleteButtons(page, tree)[0].props.onClick();
     tree = page.render();
@@ -199,6 +209,12 @@ test('Final submission failure stays in the modal with the server message', asyn
     );
     let tree = await page.start();
     page.nodes(tree).find(n => n.type === 'Button' && /Selesaikan Validasi/.test(page.text(n))).props.onClick();
+    tree = page.render();
+    // Tanpa rekomendasi yang dipilih, pengiriman ditahan di sisi klien.
+    await page.nodes(tree).find(n => n.type === 'Button' && /Kirim Hasil Validasi/.test(page.text(n))).props.onClick();
+    tree = page.render();
+    assert.match(page.text(tree), /Pilih rekomendasi/);
+    page.nodes(tree).find(n => n.type === 'button' && page.text(n) === 'Perlu Revisi').props.onClick();
     tree = page.render();
     await page.nodes(tree).find(n => n.type === 'Button' && /Kirim Hasil Validasi/.test(page.text(n))).props.onClick();
     tree = page.render();

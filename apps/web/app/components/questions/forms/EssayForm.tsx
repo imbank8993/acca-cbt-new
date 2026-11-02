@@ -1,4 +1,5 @@
 "use client";
+import './essay-form.css';
 /**
  * EssayForm — Essay / Uraian
  * Minimal UI — essay answers are written by students, not pre-defined by teacher.
@@ -18,9 +19,9 @@ export const EssayForm = React.memo(({ metadata, onUpdateMetadata }: EssayFormPr
   const isMultiTopic = metadata?.is_multi_topic || false;
 
   return (
-    <div className="p-5 bg-slate-50/50 rounded-lg border-2 border-slate-100 space-y-4">
+    <div className="essay-form p-5 bg-slate-50/50 rounded-lg border-2 border-slate-100 space-y-4">
       <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-lg bg-[#3083FF] flex items-center justify-center shadow-sm shadow-blue-200">
+        <div className="essay-form__icon w-10 h-10 rounded-lg bg-[#3083FF] flex items-center justify-center shadow-sm shadow-blue-200">
           <FileText size={16} className="text-white" />
         </div>
         <div>
@@ -29,7 +30,7 @@ export const EssayForm = React.memo(({ metadata, onUpdateMetadata }: EssayFormPr
         </div>
       </div>
       
-      <div className="flex items-start gap-3 p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
+      <div className="essay-form__notice flex items-start gap-3 p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
         <Info size={15} className="text-blue-500 shrink-0 mt-0.5" />
         <div>
           <p className="text-xs text-blue-700 font-medium">
@@ -38,10 +39,10 @@ export const EssayForm = React.memo(({ metadata, onUpdateMetadata }: EssayFormPr
         </div>
       </div>
 
-      <div className="pt-2 border-t border-slate-200 space-y-3">
+      <div className="essay-form__settings pt-2 border-t border-slate-200 space-y-3">
         <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Pengaturan Tambahan</p>
         
-        <label className="flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+        <label className="essay-form__setting flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
           <div className="pt-0.5">
             <input 
               type="checkbox" 
@@ -59,7 +60,7 @@ export const EssayForm = React.memo(({ metadata, onUpdateMetadata }: EssayFormPr
           </div>
         </label>
 
-        <label className="flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+        <label className="essay-form__setting flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
           <div className="pt-0.5">
             <input 
               type="checkbox" 
@@ -77,7 +78,7 @@ export const EssayForm = React.memo(({ metadata, onUpdateMetadata }: EssayFormPr
           </div>
         </label>
 
-        <label className="flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+        <label className="essay-form__setting flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
           <div className="pt-0.5">
             <input 
               type="checkbox" 

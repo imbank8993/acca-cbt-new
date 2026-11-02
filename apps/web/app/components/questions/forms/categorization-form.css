@@ -1,0 +1,52 @@
+.dark .category-editor {
+  background-color: #0d1627 !important;
+  border-color: #34445e !important;
+  color: #e2e8f0;
+}
+
+.dark .category-editor .category-editor__header,
+.dark .category-editor .category-editor__footer {
+  background-color: #172235 !important;
+  border-color: #34445e !important;
+}
+
+.dark .category-editor .category-editor__input {
+  background-color: #121c2e !important;
+  border-color: #3b4b63 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .category-editor .category-editor__input:focus {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 2px rgb(96 165 250 / 15%) !important;
+}
+
+.dark .category-editor .category-editor__input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.dark .category-editor .category-editor__cancel,
+.dark .category-editor .category-editor__close {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .category-editor .category-editor__cancel:hover,
+.dark .category-editor .category-editor__close:hover {
+  background-color: #263b57 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .category-editor .category-editor__save {
+  background-color: #2563eb !important;
+  color: #fff !important;
+}
+
+.dark .category-editor .category-editor__save:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.category-editor button:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}

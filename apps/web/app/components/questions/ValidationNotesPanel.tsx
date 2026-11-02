@@ -33,7 +33,10 @@ export function ValidationNotesPanel({ bankId, questionId }: { bankId: string; q
             {note.selected_text && <blockquote className="border-l-2 border-amber-300 pl-2 text-xs text-slate-600 whitespace-pre-wrap">{note.selected_text}</blockquote>}
             <p className="whitespace-pre-wrap break-words">{note.comment}</p>
             <p className="text-xs text-slate-500">{note.validator?.full_name || 'Validator'}</p>
-            <button type="button" disabled={!!busy} className="text-xs font-semibold text-blue-700 disabled:opacity-50" onClick={async () => {
+            {note.verification === 'accepted' && <p className="text-xs font-semibold text-emerald-700">✓ Perbaikan diterima validator</p>}
+            {note.verification === 'not_fixed' && !note.is_resolved && <p className="text-xs font-semibold text-rose-600">Validator menilai perbaikan belum sesuai.</p>}
+            {session?.status === 'resubmitted' && <p className="text-xs text-violet-700">Sedang ditelaah ulang validator; tanda perbaikan dikunci.</p>}
+            <button type="button" disabled={!!busy || session?.status === 'resubmitted' || note.verification === 'accepted'} className="text-xs font-semibold text-blue-700 disabled:opacity-50" onClick={async () => {
                 setBusy(note.id); setError('');
                 try {
                     const result = await resolveValidationNote(note.id, !note.is_resolved);

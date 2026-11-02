@@ -9,6 +9,7 @@ import {
     ParseUUIDPipe,
     Patch,
     Post,
+    Put,
     Query,
     UseGuards,
 } from '@nestjs/common';
@@ -23,7 +24,11 @@ import {
     DecideValidationDto,
     ResolveNoteDto,
     SaveValidationNoteDto,
+    SetItemStatusDto,
     SubmitValidationDto,
+    UpdateValidationDto,
+    UpdateValidationNoteDto,
+    VerifyNoteDto,
 } from './dto/validations.dto';
 import { ValidationsService } from './validations.service';
 
@@ -71,6 +76,80 @@ export class ValidationsController {
         @Param('id', ParseUUIDPipe) id: string,
     ) {
         return this.validations.getDetail(user, id);
+    }
+
+    @Patch(':id')
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Ubah judul, instruksi, batas waktu, atau validator sesi' })
+    updateSession(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() dto: UpdateValidationDto,
+    ) {
+        return this.validations.updateSession(user, id, dto);
+    }
+
+    @Delete(':id')
+    @Roles('ADMIN', 'PROKTOR')
+    @ApiOperation({ summary: 'Hapus sesi validasi (pembuat sesi atau Admin)' })
+    removeSession(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
+        return this.validations.removeSession(user, id);
+    }
+
+    @Post(':id/reopen')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Validator membuka kembali hasil yang sudah dikirim untuk diubah' })
+    reopen(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
+        return this.validations.reopen(user, id);
+    }
+
+    @Post(':id/resubmit')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Pembuat soal mengajukan telaah ulang setelah memperbaiki catatan' })
+    resubmit(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+    ) {
+        return this.validations.resubmit(user, id);
+    }
+
+    @Put(':id/items/:questionId')
+    @ApiOperation({ summary: 'Validator menetapkan kelayakan satu butir soal' })
+    setItemStatus(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('questionId', ParseUUIDPipe) questionId: string,
+        @Body() dto: SetItemStatusDto,
+    ) {
+        return this.validations.setItemStatus(user, id, questionId, dto.status);
+    }
+
+    @Patch(':id/notes/:noteId')
+    @ApiOperation({ summary: 'Validator mengubah catatan miliknya' })
+    updateNote(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('noteId', ParseUUIDPipe) noteId: string,
+        @Body() dto: UpdateValidationNoteDto,
+    ) {
+        return this.validations.updateNote(user, id, noteId, dto);
+    }
+
+    @Patch(':id/notes/:noteId/verify')
+    @ApiOperation({ summary: 'Validator menilai perbaikan atas catatannya (Diterima/Belum sesuai)' })
+    verifyNote(
+        @CurrentUser() user: AuthUser,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Param('noteId', ParseUUIDPipe) noteId: string,
+        @Body() dto: VerifyNoteDto,
+    ) {
+        return this.validations.verifyNote(user, id, noteId, dto.verification);
     }
 
     @Get(':id/review')
@@ -132,6 +211,6 @@ export class ValidationsController {
         @Param('noteId', ParseUUIDPipe) noteId: string,
         @Body() dto: ResolveNoteDto,
     ) {
-        return this.validations.resolveNote(user, noteId, dto.resolved);
+        return this.validations.resolveNote(user, noteId, dto.resolved, dto.response);
     }
 }

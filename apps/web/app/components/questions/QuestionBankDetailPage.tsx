@@ -55,6 +55,7 @@ import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getQuestionTypeLabel } from '@/app/types/question';
+import { ValidationBadge } from '@/app/components/validations/ValidationBadge';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams,useRouter,useSearchParams } from 'next/navigation';
@@ -542,6 +543,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                     <BookOpen size={13} className="text-white" />
                                 </div>
                                 <h1 className="text-sm font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-xs">{bankInfo?.title || 'Bank Soal'}</h1>
+                                <ValidationBadge summary={bankInfo?.validation_summary} className="hidden sm:inline-flex" />
                             </div>
                         </div>
                         <div className="question-bank-header-actions flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">

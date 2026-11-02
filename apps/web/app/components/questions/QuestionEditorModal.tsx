@@ -904,7 +904,7 @@ export default function QuestionEditorModal({
                         </div>
 
                         {/* Card: Opsi Jawaban */}
-                        <div className="bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="question-answer-card bg-white rounded-lg border border-slate-100 shadow-sm overflow-hidden">
                             <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <CheckCircle2 size={15} className="text-slate-400" />

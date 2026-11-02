@@ -9,11 +9,11 @@ import { ActivityDto, CreateMaterialDto, UpdateMaterialDto } from './learning.dt
 
 export interface MaterialRow {
     id: string; organization_id: string; created_by: string; title: string; description: string;
-    cover_data?: string; subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
+    subtopic_order?: number; cover_data?: string; subject: string; grade_level: string; topic: string; subtopic: string; status: 'draft' | 'published'; format: string; content_html: string;
     rendered_pdf_key: string | null; conversion_notes: string; file_key: string | null; file_name: string | null; file_size: number | null;
     revision: number; content_version: number; created_at: string; updated_at: string; published_at: string | null;
 }
-const LIST_COLUMNS = 'cover_data, id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
+const LIST_COLUMNS = 'subtopic_order, cover_data, id, organization_id, created_by, title, description, subject, grade_level, topic, subtopic, status, format, file_name, file_size, revision, content_version, created_at, updated_at, published_at';
 
 @Injectable()
 export class LearningService {
@@ -81,7 +81,7 @@ export class LearningService {
             if (existing.organization_id !== org || existing.created_by !== user.id) throw new ConflictException('ID draf sudah digunakan.');
             return { material: this.publicRow(existing) };
         }
-        const { data, error } = await this.db.from('cbt_learning_materials').insert({ id: dto.id, organization_id: org, created_by: user.id, title: dto.title.trim() }).select('*').single();
+        const { data, error } = await this.db.from('cbt_learning_materials').insert({ id: dto.id, organization_id: org, created_by: user.id, title: dto.title.trim(), grade_level: dto.gradeLevel || '', subject: (dto.subject || '').trim(), topic: (dto.topic || '').trim(), subtopic: (dto.subtopic || dto.title).trim(), subtopic_order: dto.subtopicOrder || 0 }).select('*').single();
         if (error || !data) throw new InternalServerErrorException('Gagal membuat draf bahan ajar.');
         return { material: this.publicRow(data) };
     }
@@ -93,6 +93,7 @@ export class LearningService {
         if (dto.status === 'published' && !dto.contentHtml.trim() && !row.file_key) throw new BadRequestException('Unggah berkas atau isi materi sebelum menerbitkan.');
         const { data, error } = await this.db.from('cbt_learning_materials').update({
             cover_data: dto.coverData ?? row.cover_data ?? '',
+            subtopic_order: dto.subtopicOrder ?? row.subtopic_order ?? 0,
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(), status: dto.status,
             format: dto.format, content_html: dto.contentHtml, conversion_notes: dto.conversionNotes,
@@ -129,6 +130,7 @@ export class LearningService {
         const { data, error } = await this.db.from('cbt_learning_materials').update({ file_key: key, file_name: name,
             file_size: file.size, rendered_pdf_key: pdfKey, content_html: content.contentHtml, conversion_notes: content.conversionNotes, format: content.format,
             cover_data: dto.coverData ?? row.cover_data ?? '',
+            subtopic_order: dto.subtopicOrder ?? row.subtopic_order ?? 0,
             grade_level: dto.gradeLevel ?? row.grade_level ?? '', topic: (dto.topic ?? row.topic ?? '').trim(), subtopic: (dto.subtopic ?? row.subtopic ?? '').trim(),
             title: dto.title.trim(), description: dto.description.trim(), subject: dto.subject.trim(),
             status: dto.status || row.status,

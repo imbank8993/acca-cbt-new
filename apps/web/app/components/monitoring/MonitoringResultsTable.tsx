@@ -1,4 +1,5 @@
 'use client';
+import './participant-detail.css';
 
 import { Fragment, useState } from 'react';
 import { ChevronDown, Eye, FileSpreadsheet, RotateCcw } from 'lucide-react';
@@ -177,6 +178,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
             size="lg"
             variant="default"
             labelledBy="result-detail-modal-title"
+            className="participant-detail-modal"
         >
             <ModalHeader
                 id="result-detail-modal-title"
@@ -187,9 +189,9 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
             {selectedAttempt && selectedFacts && (
                 <>
                     <ModalBody className="space-y-3.5 text-xs">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="participant-detail-surface rounded-xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between gap-3 text-xs">
                             <div className="min-w-0 flex-1">
-                                <p className="font-bold text-slate-800 truncate">{formatStudentName(selectedAttempt.profiles?.full_name, 'Tanpa Nama')}</p>
+                                <p className="participant-detail-name font-bold text-slate-800 truncate">{formatStudentName(selectedAttempt.profiles?.full_name, 'Tanpa Nama')}</p>
                                 <p className="mt-0.5 text-slate-500 truncate">
                                     {selectedAttempt.profiles?.identity_number ? `${selectedAttempt.profiles.identity_number} · ` : ''}{selectedAttempt.kelas_name || 'Tanpa kelas'}
                                 </p>
@@ -203,7 +205,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                                         setSelectedId(null);
                                         void onRecover(target);
                                     }}
-                                    className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                    className="participant-detail-recover ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
                                 >
                                     <RotateCcw size={13} />
                                     {selectedAttempt.status === 'in_progress' ? 'Reset sesi' : selectedAttempt.status === 'belum' ? 'Susulan' : 'Susulan / Pulihkan'}
@@ -211,7 +213,7 @@ export function MonitoringResultsTable({ attempts, hasAnyAttempts, onViewDetails
                             )}
                         </div>
 
-                        <dl className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200 bg-slate-50/60 py-3 text-center">
+                        <dl className="participant-detail-surface grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200 bg-slate-50/60 py-3 text-center">
                             <div className="px-2">
                                 <dt className="text-[11px] text-slate-500">Soal Terjawab</dt>
                                 <dd className="mt-1 text-base font-bold tabular-nums text-slate-800">

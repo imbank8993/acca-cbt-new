@@ -1,0 +1,49 @@
+.dark .essay-form {
+  background-color: #172235 !important;
+  border: 1px solid #334155 !important;
+  color: #e2e8f0;
+}
+
+.dark .essay-form .essay-form__icon {
+  box-shadow: none;
+}
+
+.dark .essay-form .essay-form__notice {
+  background-color: #142b46 !important;
+  border-color: #315176 !important;
+}
+
+.dark .essay-form .essay-form__notice p {
+  color: #bfdbfe !important;
+}
+
+.dark .essay-form .essay-form__settings {
+  border-color: #334155 !important;
+}
+
+.dark .essay-form .essay-form__setting {
+  background-color: #0f192b !important;
+  border-color: #34445e !important;
+}
+
+.dark .essay-form .essay-form__setting:hover,
+.dark .essay-form .essay-form__setting:focus-within,
+.dark .essay-form .essay-form__setting:has(input:checked) {
+  background-color: #172d49 !important;
+  border-color: #60a5fa !important;
+}
+
+.dark .essay-form .font-bold {
+  color: #f1f5f9 !important;
+}
+
+.dark .essay-form .essay-form__settings > p,
+.dark .essay-form .text-slate-400,
+.dark .essay-form .text-slate-500 {
+  color: #a8b7cb !important;
+}
+
+.dark .essay-form input[type="checkbox"] {
+  color-scheme: dark;
+  accent-color: #60a5fa;
+}

@@ -7,6 +7,11 @@
   z-index: 10020;
 }
 
+.dark .question-answer-card,
+.dark .question-answer-card > .border-b {
+  border-color: #2d3a50 !important;
+}
+
 .option-insert-menu {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

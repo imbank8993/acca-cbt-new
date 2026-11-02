@@ -296,3 +296,215 @@ test('Validation letterhead falls back to its own organization logo', async () =
     assert.equal(review.profil_sekolah.nama, 'Own school');
     assert.equal(review.profil_sekolah.logo_url, 'https://school.example/logo.png');
 });
+
+// ── Putaran telaah ulang, independensi, status per butir & kelola sesi ──
+const resolveAll = db => db.tables.cbt_question_validation_notes.forEach(row => { row.is_resolved = true; });
+const sessionRow = db => db.tables.cbt_question_bank_validations[0];
+const withValidation = db => db.tables.cbt_question_validation_notes.forEach(row => {
+    // Fixture tidak menelusuri relasi; isi seperti hasil join PostgREST.
+    row.validation = { bank_id: 'bank', organization_id: 'school', status: sessionRow(db).status };
+});
+
+test('Re-review does not require fixing notes that already marked the item valid', async () => {
+    const { db, service } = setup();
+    Object.assign(sessionRow(db), { round: 2, status: 'resubmitted' });
+    db.tables.cbt_question_validation_notes.push({
+        id: 'positive', validation_id: 'session', question_id: 'q1', validator_id: 'a',
+        round: 1, status_item: 'valid', is_resolved: false, verification: null,
+    });
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    assert.equal(sessionRow(db).status, 'approved');
+});
+
+test('Owner correction rechecks session status after acquiring the validation lock', async () => {
+    const { db, service } = setup();
+    const saved = await service.saveNote(user('a'), 'session', note());
+    withValidation(db);
+    const raw = db.raw.bind(db);
+    db.raw = async (sql, ...args) => {
+        if (/pg_advisory_xact_lock/.test(sql)) sessionRow(db).status = 'resubmitted';
+        return raw(sql, ...args);
+    };
+    await assert.rejects(service.resolveNote(user('owner'), saved.id, true), /ditelaah ulang/);
+    assert.notEqual(db.tables.cbt_question_validation_notes.find(row => row.id === saved.id).is_resolved, true);
+});
+
+test('Assigned validators are notified with a link to their review sheet', async () => {
+    const { db, service } = setup();
+    const created = await service.create(user('admin'), createDto({ deadline: '2999-01-01T00:00:00Z' }));
+    const sent = db.tables.cbt_notifications.filter(n => n.data?.validationId === created.id);
+    assert.deepEqual(sent.map(n => n.user_id).sort(), ['a', 'b']);
+    assert.match(sent[0].action_url, new RegExp(`/dashboard/guru/validations/${created.id}/review`));
+});
+
+test('Validators see only their own notes and recommendations until they submit', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_question_validation_notes.push(
+        { id: 'mine', validation_id: 'session', question_id: 'q1', validator_id: 'a', is_resolved: false },
+        { id: 'theirs', validation_id: 'session', question_id: 'q1', validator_id: 'b', is_resolved: false },
+    );
+    db.tables.cbt_question_validation_items = [
+        { id: 'i1', validation_id: 'session', question_id: 'q1', validator_id: 'a', status: 'valid' },
+        { id: 'i2', validation_id: 'session', question_id: 'q1', validator_id: 'b', status: 'rejected' },
+    ];
+    Object.assign(db.tables.cbt_question_bank_validators[1], { status: 'submitted', general_recommendation: 'rejected', general_comment: 'Tolak' });
+    let review = await service.getReviewData(user('a'), 'session');
+    assert.deepEqual(review.notes.map(n => n.id), ['mine']);
+    assert.deepEqual(review.items.map(i => i.id), ['i1']);
+    assert.equal((await service.getReviewData(user('owner'), 'session')).notes.length, 2);
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    review = await service.getReviewData(user('a'), 'session');
+    assert.deepEqual(review.notes.map(n => n.id).sort(), ['mine', 'theirs']);
+});
+
+test('Notes lock after submission; reopening recomputes status and the next submission notifies the owner', async () => {
+    const { db, service } = setup();
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    assert.equal(sessionRow(db).status, 'approved');
+    await assert.rejects(service.saveNote(user('a'), 'session', note()), /Buka kembali/);
+    await assert.rejects(service.setItemStatus(user('a'), 'session', 'q1', 'valid'), /Buka kembali/);
+    await service.reopen(user('a'), 'session');
+    assert.equal(db.tables.cbt_question_bank_validators[0].status, 'in_progress');
+    assert.equal(sessionRow(db).status, 'in_progress');
+    await service.saveNote(user('a'), 'session', note());
+    const before = db.tables.cbt_notifications.length;
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    assert.equal(db.tables.cbt_notifications.length, before + 1);
+    await assert.rejects(service.reopen(user('owner'), 'session'), ForbiddenException);
+});
+
+test('Item status is stored once per validator and question, and rejects foreign questions', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_bank_questions.find(q => q.id === 'q1').revision = 4;
+    await service.setItemStatus(user('a'), 'session', 'q1', 'revision');
+    await service.setItemStatus(user('a'), 'session', 'q1', 'valid');
+    const items = db.tables.cbt_question_validation_items;
+    assert.equal(items.length, 1);
+    assert.equal(items[0].status, 'valid');
+    assert.equal(items[0].question_revision, 4);
+    assert.equal(db.tables.cbt_question_bank_validators[0].status, 'in_progress');
+    await assert.rejects(service.setItemStatus(user('a'), 'session', 'foreign', 'valid'), /tidak ditemukan/);
+    await assert.rejects(service.setItemStatus(user('owner'), 'session', 'q1', 'valid'), ForbiddenException);
+});
+
+test('Notes record the question revision and round they were written against', async () => {
+    const { db, service } = setup();
+    db.tables.cbt_bank_questions.find(q => q.id === 'q1').revision = 7;
+    const saved = await service.saveNote(user('a'), 'session', note());
+    assert.equal(saved.question_revision, 7);
+    assert.equal(saved.round, 1);
+    const edited = await service.updateNote(user('a'), 'session', saved.id, { comment: 'Teks baru', statusItem: 'rejected' });
+    assert.equal(edited.comment, 'Teks baru');
+    assert.equal(edited.status_item, 'rejected');
+    await assert.rejects(service.updateNote(user('b'), 'session', saved.id, { comment: 'x' }), ForbiddenException);
+});
+
+test('Owner resubmits after fixing every note; validators re-review and verify fixes', async () => {
+    const { db, service } = setup('unanimous');
+    await service.saveNote(user('a'), 'session', note());
+    await service.saveNote(user('b'), 'session', note({ questionId: 'q2' }));
+    for (const id of ['a', 'b']) await service.submitReview(user(id), 'session', recommendation('revision_needed'));
+    assert.equal(sessionRow(db).status, 'revision_needed');
+    await assert.rejects(service.resubmit(user('owner'), 'session'), /belum ditandai diperbaiki/);
+    await assert.rejects(service.resubmit(user('a'), 'session'));
+    resolveAll(db);
+    sessionRow(db).deadline = '2020-01-01T00:00:00Z';
+    const before = db.tables.cbt_notifications.length;
+    assert.deepEqual(await service.resubmit(user('owner'), 'session'), { round: 2, status: 'resubmitted' });
+    assert.equal(sessionRow(db).status, 'resubmitted');
+    assert.equal(sessionRow(db).deadline, null);
+    assert.ok(db.tables.cbt_question_bank_validators.every(v => v.status === 'assigned' && v.general_recommendation === null));
+    assert.deepEqual(db.tables.cbt_notifications.slice(before).map(n => n.user_id).sort(), ['a', 'b']);
+
+    // Pembuat soal tidak boleh mengubah tanda selama telaah ulang.
+    withValidation(db);
+    await assert.rejects(service.resolveNote(user('owner'), db.tables.cbt_question_validation_notes[0].id, false), /ditelaah ulang/);
+
+    // Transaksi yang gagal memulihkan tabel dari salinan, jadi baca ulang per id.
+    const [idA, idB] = db.tables.cbt_question_validation_notes.map(row => row.id);
+    const byId = id => db.tables.cbt_question_validation_notes.find(row => row.id === id);
+    await assert.rejects(service.submitReview(user('a'), 'session', recommendation('approved')), /Nilai dulu 1 perbaikan/);
+    await assert.rejects(service.deleteNote(user('a'), 'session', idA));
+    await assert.rejects(service.verifyNote(user('b'), 'session', idA, 'accepted'), ForbiddenException);
+    await service.verifyNote(user('a'), 'session', idA, 'not_fixed');
+    assert.equal(byId(idA).is_resolved, false);
+    assert.equal(byId(idA).verification, 'not_fixed');
+    await service.verifyNote(user('b'), 'session', idB, 'accepted');
+    assert.equal(byId(idB).verification, 'accepted');
+    await service.submitReview(user('a'), 'session', recommendation('revision_needed'));
+    assert.equal(sessionRow(db).status, 'resubmitted');
+    await service.submitReview(user('b'), 'session', recommendation('approved'));
+    assert.equal(sessionRow(db).status, 'revision_needed');
+
+    // Putaran 3: hanya catatan yang dibuka kembali yang perlu diperbaiki lagi.
+    withValidation(db);
+    await service.resolveNote(user('owner'), idA, true, 'Pilihan B sudah diganti');
+    assert.equal(byId(idA).owner_response, 'Pilihan B sudah diganti');
+    assert.equal(byId(idA).verification, null);
+    assert.equal((await service.resubmit(user('owner'), 'session')).round, 3);
+});
+
+test('Verification needs a fix from a later round and a resolved note to accept', async () => {
+    const { db, service } = setup();
+    const saved = await service.saveNote(user('a'), 'session', note());
+    await assert.rejects(service.verifyNote(user('a'), 'session', saved.id, 'accepted'), /belum melalui/);
+    Object.assign(sessionRow(db), { round: 2, status: 'resubmitted' });
+    await assert.rejects(service.verifyNote(user('a'), 'session', saved.id, 'accepted'), /belum menandai/);
+});
+
+test('Admin edits deadline and validators; started validators cannot be removed', async () => {
+    const { db, authz, service } = setup('unanimous');
+    withRoles(authz, id => (id === 'c' ? true : undefined));
+    await assert.rejects(service.updateSession(user('a'), 'session', { deadline: '2999-01-01T00:00:00Z' }), ForbiddenException);
+    await assert.rejects(service.updateSession(user('admin'), 'session', { deadline: '2020-01-01T00:00:00Z' }), /masa depan/);
+    await service.updateSession(user('admin'), 'session', { deadline: '2999-01-01T00:00:00Z', instructions: '  Fokus kunci  ' });
+    assert.equal(sessionRow(db).instructions, 'Fokus kunci');
+    await service.updateSession(user('admin'), 'session', { deadline: null });
+    assert.equal(sessionRow(db).deadline, null);
+
+    await assert.rejects(service.updateSession(user('admin'), 'session', { addValidatorIds: ['owner'] }), /Pembuat bank soal/);
+    await service.updateSession(user('admin'), 'session', { addValidatorIds: ['c'] });
+    assert.ok(db.tables.cbt_question_bank_validators.some(v => v.validator_id === 'c' && v.status === 'assigned'));
+    assert.ok(db.tables.cbt_notifications.some(n => n.user_id === 'c'));
+
+    await service.saveNote(user('a'), 'session', note());
+    await assert.rejects(service.updateSession(user('admin'), 'session', { removeValidatorIds: ['a'] }), /sudah mulai/);
+    await assert.rejects(service.updateSession(user('admin'), 'session', { removeValidatorIds: ['a', 'b', 'c'] }));
+    // Mengeluarkan validator terakhir yang belum mengirim menyelesaikan sesi.
+    await service.submitReview(user('a'), 'session', recommendation('approved'));
+    await service.submitReview(user('b'), 'session', recommendation('approved'));
+    assert.equal(sessionRow(db).status, 'in_progress');
+    await service.updateSession(user('admin'), 'session', { removeValidatorIds: ['c'] });
+    assert.equal(sessionRow(db).status, 'approved');
+    await assert.rejects(service.updateSession(user('admin'), 'session', { addValidatorIds: ['c'] }), /masih berjalan/);
+});
+
+test('Only the session creator or an admin deletes a session', async () => {
+    const { db, authz, service } = setup();
+    withRoles(authz, (id, org, roles) => (id === 'proktor' ? org === 'school' && roles.includes('Proktor') : undefined));
+    const proktor = { id: 'proktor', organizationId: 'school', roles: ['PROKTOR'], isPlatformAdmin: false };
+    sessionRow(db).created_by = 'someone-else';
+    db.tables.cbt_question_banks[0].is_published = true;
+    await assert.rejects(service.removeSession(user('a'), 'session'), ForbiddenException);
+    await assert.rejects(service.removeSession(proktor, 'session'), /pembuat sesi atau Admin/);
+    assert.deepEqual(await service.removeSession(user('admin'), 'session'), { id: 'session', deleted: true });
+    assert.equal(db.tables.cbt_question_bank_validations.length, 0);
+});
+
+test('Bank cards summarise the latest validation without blocking the list on read errors', async () => {
+    const { db, authz } = setup();
+    const banks = new QuestionBanksService(db, authz);
+    db.tables.cbt_question_bank_validations = [
+        { id: 'latest', bank_id: 'bank', status: 'revision_needed', round: 2, notes: [
+            { status_item: 'revision', is_resolved: false },
+            { status_item: 'rejected', is_resolved: true, verification: null },
+            { status_item: 'revision', is_resolved: true, verification: 'accepted' },
+            { status_item: 'valid', is_resolved: false },
+        ] },
+        { id: 'older', bank_id: 'bank', status: 'approved', round: 1, notes: [] },
+    ];
+    const summary = (await banks['validationSummaries'](['bank'])).get('bank');
+    assert.deepEqual(summary, { id: 'latest', status: 'revision_needed', round: 2, openNotes: 1, fixedNotes: 1 });
+    const failing = new QuestionBanksService(fixtureDb({}, ['cbt_question_bank_validations']), authz);
+    assert.equal((await failing['validationSummaries'](['bank'])).size, 0);
+});

@@ -12,10 +12,12 @@ import { confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { fetchSessionUser } from '@/lib/session';
 import { ActivityResults } from '@/app/components/learning/ActivityResults';
 import '@/app/components/learning/learning.css';
+import { learningGrades, learningKey } from '@/lib/learning-catalog';
 
 export default function MaterialEditor() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
+    const [catalog, setCatalog] = useState<LearningMaterial[]>([]);
     const [material, setMaterial] = useState<LearningMaterial | null>(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
@@ -41,6 +43,7 @@ export default function MaterialEditor() {
             const result = await learningRequest<{ material: LearningMaterial; canEdit: boolean }>(`/${id}`);
             if (!result.canEdit) { setDenied(true); return; }
             setMaterial(result.material); setPreview(result.material); setDirty(false);
+            void learningRequest<{ materials: LearningMaterial[] }>('?manage=1').then(data => setCatalog(data.materials)).catch(() => undefined);
             try {
                 const saved = JSON.parse(localStorage.getItem(draftKey.current) || 'null') as LearningMaterial | null;
                 if (saved?.id === id) {
@@ -116,7 +119,7 @@ export default function MaterialEditor() {
             setBusy('Mengunggah berkas asli…');
             const data = new FormData(); data.append('file', file);
             for (const [key, value] of Object.entries({ revision: material.revision, title: material.title, description: material.description,
-                coverData: material.cover_data || '', subject: material.subject, gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || '', status: material.status, format: converted.format, contentHtml: converted.html, conversionNotes: converted.notes.join('\n') })) data.append(key, String(value));
+                coverData: material.cover_data || '', subject: material.subject, gradeLevel: material.grade_level || '', topic: material.topic || '', subtopic: material.subtopic || material.title, subtopicOrder: material.subtopic_order || 0, status: material.status, format: converted.format, contentHtml: converted.html, conversionNotes: converted.notes.join('\n') })) data.append(key, String(value));
             const uploaded = await learningRequest<{ material: LearningMaterial }>(`/${id}/file`, { method: 'POST', body: data });
             setMaterial(uploaded.material); setPreview(uploaded.material); setDirty(false); clearDraft();
             setNotice(uploaded.material.status === 'published' ? 'Berkas baru berhasil diunggah dan materi diperbarui.' : 'Dokumen dan hasil konversi tersimpan bersama sebagai draf.');
@@ -161,15 +164,17 @@ export default function MaterialEditor() {
         </div>
         {error && <div className="learn-error" role="alert">{error}{!material && <button onClick={() => void load()}>Coba lagi</button>}</div>}
         {recovery && material && <div className="learn-notes">Versi server telah berubah. Pemulihan mengganti isi editor dengan salinan lokal, lalu perlu disimpan.
-            <button disabled={!!busy} onClick={() => { const next = { ...material, cover_data: recovery.cover_data || '', title: recovery.title, description: recovery.description, subject: recovery.subject, grade_level: recovery.grade_level || '', topic: recovery.topic || '', subtopic: recovery.subtopic || '', content_html: recovery.content_html, format: recovery.format, conversion_notes: recovery.conversion_notes }; keepDraft(next); setMaterial(next); setPreview(next); setDirty(true); setRecovery(null); }}>Pulihkan isi lokal</button>
+            <button disabled={!!busy} onClick={() => { const next = { ...material, cover_data: recovery.cover_data || '', title: recovery.title, description: recovery.description, subject: recovery.subject, grade_level: recovery.grade_level || '', topic: recovery.topic || '', subtopic: recovery.subtopic || '', subtopic_order: recovery.subtopic_order || 0, content_html: recovery.content_html, format: recovery.format, conversion_notes: recovery.conversion_notes }; keepDraft(next); setMaterial(next); setPreview(next); setDirty(true); setRecovery(null); }}>Pulihkan isi lokal</button>
             <button disabled={!!busy} onClick={() => { clearDraft(); setRecovery(null); }}>Gunakan versi server</button>
         </div>}
         {denied ? <div className="learn-empty"><h2>Akses pengelolaan tidak tersedia</h2><p>Materi ini hanya dapat diubah oleh pembuatnya atau admin.</p></div> : !material ? !error && <div className="learn-loading">Memuat draf…</div> : <div className="learn-editor">
-            <aside><section className="learn-panel"><h2>Informasi bahan ajar</h2><div className="learn-field"><label htmlFor="material-title">Judul</label><input id="material-title" maxLength={200} value={material.title} onChange={event => edit({ title: event.target.value })} /></div>
+            <aside><section className="learn-panel"><h2>Susunan subbab</h2><div className="learn-field"><label htmlFor="material-title">Judul subbab</label><input id="material-title" maxLength={200} value={material.subtopic || material.title} onChange={event => edit({ title: event.target.value, subtopic: event.target.value })} /></div>
                 <div className="learn-field"><label htmlFor="material-subject">Mata pelajaran</label><input id="material-subject" placeholder="Contoh: Matematika" maxLength={100} value={material.subject} onChange={event => edit({ subject: event.target.value })} /></div>
-                <div className="learn-field"><label htmlFor="material-grade">Tingkatan kelas</label><select id="material-grade" value={material.grade_level || ''} onChange={event => edit({ grade_level: event.target.value })}><option value="">Semua tingkatan</option>{Array.from({ length: 12 }, (_, i) => String(i + 1)).map(grade => <option key={grade} value={grade}>Kelas {grade}</option>)}</select></div>
-                <div className="learn-field"><label htmlFor="material-topic">Materi</label><input id="material-topic" placeholder="Contoh: Persamaan kuadrat" maxLength={200} value={material.topic || ''} onChange={event => edit({ topic: event.target.value })} /></div>
-                <div className="learn-field"><label htmlFor="material-subtopic">Submateri</label><input id="material-subtopic" placeholder="Contoh: Menentukan akar persamaan" maxLength={200} value={material.subtopic || ''} onChange={event => edit({ subtopic: event.target.value })} /></div>
+                <div className="learn-field"><label htmlFor="material-grade">Tingkatan kelas</label><select id="material-grade" value={material.grade_level || ''} onChange={event => edit({ grade_level: event.target.value })}><option value="">Umum</option>{learningGrades.filter(item => item.value).map(item => <option key={item.value} value={item.value}>{item.label}</option>)}{material.grade_level && !learningGrades.some(item => item.value === material.grade_level) && <option value={material.grade_level}>Kelas {material.grade_level}</option>}</select></div>
+                <div className="learn-field"><label htmlFor="material-topic">BAB</label><input id="material-topic" list="material-chapters" placeholder="Pilih BAB atau ketik nama baru" maxLength={200} value={material.topic || ''} onChange={event => edit({ topic: event.target.value })} /></div>
+                <datalist id="material-chapters">{[...new Set(catalog.filter(item => item.grade_level === material.grade_level && learningKey(item.subject) === learningKey(material.subject)).map(item => item.topic).filter(Boolean))].map(topic => <option key={topic} value={topic} />)}</datalist>
+                <div className="learn-field"><label htmlFor="material-order">Urutan subbab</label><input id="material-order" type="number" min={1} max={9999} value={material.subtopic_order || ""} placeholder="Contoh: 1" onChange={event => edit({ subtopic_order: Number(event.target.value) || 0 })} /></div>
+                <p>Pilih BAB yang sama untuk menggabungkan beberapa subbab. Satu file mewakili satu subbab.</p>
                 <div className="learn-field"><label htmlFor="material-description">Deskripsi singkat</label><textarea id="material-description" placeholder="Apa yang akan dipelajari siswa?" maxLength={4000} value={material.description} onChange={event => edit({ description: event.target.value })} /></div>
                 <span className={`learn-status ${material.status}`}>{material.status === 'published' ? 'Terbit · semua siswa' : 'Draf · belum dibagikan'}</span>{dirty && <small style={{ marginLeft: 8 }}>Belum disimpan</small>}
             </section><section className="learn-panel"><h2>Cover bahan ajar</h2>
@@ -180,7 +185,7 @@ export default function MaterialEditor() {
                 </>}
                 <div className="learn-field"><label htmlFor="material-cover">Unggah cover</label><input id="material-cover" type="file" accept="image/jpeg,image/png,image/webp" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void uploadCover(file); }} /></div>
                 <p>JPG, PNG, atau WebP, maksimal 5 MB. Cover ditampilkan dengan rasio 16:9. Simpan draf atau terbitkan untuk menyimpan perubahan.</p>
-            </section><section className="learn-panel"><h2>Dokumen sumber</h2><label className="learn-upload"><FileUp size={28} /><span>Pilih berkas bahan ajar</span><input aria-label="Unggah bahan ajar" type="file" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} /></label>
+            </section><section className="learn-panel"><h2>File subbab</h2><label className="learn-upload"><FileUp size={28} /><span>Unggah satu file subbab</span><input aria-label="Unggah bahan ajar" type="file" disabled={!!busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void upload(file); }} /></label>
                 <p style={{ fontSize: 12, marginTop: 12 }}>Word (.docx/.dotx), LaTeX (.tex atau .zip dengan main.tex), HTML, PDF, gambar, media, atau lampiran lain. Maksimum 25 MB (TeX: 500 KB).</p><p style={{ fontSize: 12 }}>Untuk proyek bergambar, unggah ZIP berisi main.tex di folder teratas. Sertakan folder gambar sesuai lokasi yang dirujuk dalam TeX.</p>
                 {material.status === 'published' && <p style={{ fontSize: 12, marginTop: 10, color: '#2563EB', fontWeight: 500 }}>Unggah berkas baru untuk langsung memperbarui materi ini.</p>}
                 {material.hasRenderedPdf && <a className="learn-button" href={`/api/learning/${id}/pdf`} download>Unduh PDF hasil LaTeX</a>}

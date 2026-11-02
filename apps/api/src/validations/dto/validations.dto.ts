@@ -21,6 +21,7 @@ export const VALIDATION_TEXT_LIMITS = {
     selectedText: 2000,
     comment: 5000,
     generalComment: 10000,
+    ownerResponse: 2000,
     validators: 50,
 } as const;
 
@@ -136,6 +137,79 @@ export class ResolveNoteDto {
     @ApiProperty({ description: 'Status apakah catatan sudah diperbaiki' })
     @IsBoolean()
     resolved: boolean;
+
+    @ApiPropertyOptional({ description: 'Tanggapan pembuat soal, mis. alasan bila soal tidak diubah' })
+    @IsOptional()
+    @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.ownerResponse)
+    response?: string;
+}
+
+export class UpdateValidationNoteDto {
+    @ApiPropertyOptional({ description: 'Isi catatan baru' })
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(VALIDATION_TEXT_LIMITS.comment)
+    comment?: string;
+
+    @ApiPropertyOptional({ enum: ['typo', 'materi', 'kunci_jawaban', 'konstruksi', 'bahasa', 'lainnya'] })
+    @IsOptional()
+    @IsIn(['typo', 'materi', 'kunci_jawaban', 'konstruksi', 'bahasa', 'lainnya'])
+    category?: 'typo' | 'materi' | 'kunci_jawaban' | 'konstruksi' | 'bahasa' | 'lainnya';
+
+    @ApiPropertyOptional({ enum: ['valid', 'revision', 'rejected'] })
+    @IsOptional()
+    @IsIn(['valid', 'revision', 'rejected'])
+    statusItem?: 'valid' | 'revision' | 'rejected';
+}
+
+export class VerifyNoteDto {
+    @ApiProperty({ enum: ['accepted', 'not_fixed'], description: 'Hasil pemeriksaan validator atas perbaikan' })
+    @IsIn(['accepted', 'not_fixed'])
+    verification: 'accepted' | 'not_fixed';
+}
+
+export class SetItemStatusDto {
+    @ApiProperty({ enum: ['valid', 'revision', 'rejected'], description: 'Kelayakan butir menurut validator' })
+    @IsIn(['valid', 'revision', 'rejected'])
+    status: 'valid' | 'revision' | 'rejected';
+}
+
+export class UpdateValidationDto {
+    @ApiPropertyOptional({ description: 'Judul tugas validasi' })
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(VALIDATION_TEXT_LIMITS.title)
+    title?: string;
+
+    @ApiPropertyOptional({ description: 'Instruksi untuk validator' })
+    @IsOptional()
+    @IsString()
+    @MaxLength(VALIDATION_TEXT_LIMITS.instructions)
+    instructions?: string;
+
+    @ApiPropertyOptional({ description: 'Batas waktu baru (ISO datetime); null menghapus batas waktu', nullable: true })
+    @IsOptional()
+    @IsISO8601({ strict: true })
+    deadline?: string | null;
+
+    @ApiPropertyOptional({ type: [String], description: 'Validator yang ditambahkan' })
+    @IsOptional()
+    @IsArray()
+    @ArrayMaxSize(VALIDATION_TEXT_LIMITS.validators)
+    @ArrayUnique()
+    @IsUUID('4', { each: true })
+    addValidatorIds?: string[];
+
+    @ApiPropertyOptional({ type: [String], description: 'Validator yang dikeluarkan (hanya yang belum mulai)' })
+    @IsOptional()
+    @IsArray()
+    @ArrayMaxSize(VALIDATION_TEXT_LIMITS.validators)
+    @ArrayUnique()
+    @IsUUID('4', { each: true })
+    removeValidatorIds?: string[];
 }
 
 export class DecideValidationDto {

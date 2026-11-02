@@ -25,6 +25,22 @@ import { listMyValidationTasks, type ValidationTask } from '@/lib/api/validation
 import { getSessionUser } from '@/lib/session';
 import type { AuthUser } from '@acca-cbt/shared';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Sama dengan aturan server: tanggal lama 00:00 UTC berlaku sampai akhir hari. */
+function isDeadlinePassed(deadline?: string | null): boolean {
+    if (!deadline) return false;
+    let time = new Date(deadline).getTime();
+    if (!Number.isFinite(time)) return false;
+    if (time % DAY_MS === 0) time += DAY_MS - 1;
+    return time < Date.now();
+}
+
+/** Tugas telaah ulang: pembuat soal sudah memperbaiki dan validator belum mengirim hasil putaran ini. */
+function isReReview(task: ValidationTask): boolean {
+    return (task.validation.round ?? 1) > 1 && task.status !== 'submitted';
+}
+
 export default function GuruValidationTasksPage() {
     const [tasks, setTasks] = useState<ValidationTask[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,8 +96,10 @@ export default function GuruValidationTasksPage() {
         if (!matchesSearch) return false;
         if (statusFilter === 'all') return true;
         if (statusFilter === 'submitted') return task.status === 'submitted';
-        if (statusFilter === 'in_progress') return task.status === 'in_progress';
-        if (statusFilter === 'assigned') return task.status === 'assigned';
+        if (statusFilter === 're_review') return isReReview(task);
+        if (statusFilter === 'overdue') return task.status !== 'submitted' && isDeadlinePassed(val.deadline);
+        if (statusFilter === 'in_progress') return task.status === 'in_progress' && !isReReview(task);
+        if (statusFilter === 'assigned') return task.status === 'assigned' && !isReReview(task);
         return true;
     });
 
@@ -110,7 +128,22 @@ export default function GuruValidationTasksPage() {
         }
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (task: ValidationTask) => {
+        const status = task.status;
+        if (status !== 'submitted' && isDeadlinePassed(task.validation.deadline)) {
+            return (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                    <XCircle size={12} /> Batas Waktu Terlewat
+                </span>
+            );
+        }
+        if (isReReview(task)) {
+            return (
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 whitespace-nowrap">
+                    <RefreshCw size={12} /> Perlu Ditelaah Ulang
+                </span>
+            );
+        }
         if (status === 'submitted') {
             return (
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
@@ -152,6 +185,8 @@ export default function GuruValidationTasksPage() {
                     options={[
                         { value: 'all', label: 'Semua Status' },
                         { value: 'assigned', label: 'Belum Dikerjakan' },
+                        { value: 're_review', label: 'Perlu Ditelaah Ulang' },
+                        { value: 'overdue', label: 'Batas Waktu Terlewat' },
                         { value: 'in_progress', label: 'Sedang Dikerjakan' },
                         { value: 'submitted', label: 'Validasi Selesai' },
                     ]}
@@ -212,6 +247,8 @@ export default function GuruValidationTasksPage() {
                                 {filtered.map(task => {
                                     const val = task.validation;
                                     const isSubmitted = task.status === 'submitted';
+                                    const overdue = !isSubmitted && isDeadlinePassed(val.deadline);
+                                    const reReview = isReReview(task);
                                     const creatorName = val.bank?.creator_name || (val.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
                                     const recInfo = getRecommendationInfo(task.general_recommendation);
 
@@ -241,7 +278,7 @@ export default function GuruValidationTasksPage() {
 
                                             {/* Status Tugas */}
                                             <td className="py-3.5 px-4 whitespace-nowrap">
-                                                {getStatusBadge(task.status)}
+                                                {getStatusBadge(task)}
                                             </td>
 
                                             {/* Rekomendasi Anda */}
@@ -258,9 +295,9 @@ export default function GuruValidationTasksPage() {
                                             {/* Batas Waktu */}
                                             <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
                                                 {val.deadline ? (
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar size={12} className="text-slate-400" />
-                                                        {new Date(val.deadline).toLocaleDateString('id-ID')}
+                                                    <span className={`flex items-center gap-1 ${overdue ? 'text-rose-600 dark:text-rose-400 font-semibold' : ''}`}>
+                                                        <Calendar size={12} className={overdue ? '' : 'text-slate-400'} />
+                                                        {new Date(val.deadline).toLocaleDateString('id-ID')}{overdue ? ' (terlewat)' : ''}
                                                     </span>
                                                 ) : (
                                                     <span className="text-slate-400">Tanpa batas</span>
@@ -272,13 +309,13 @@ export default function GuruValidationTasksPage() {
                                                 <Link
                                                     href={`/dashboard/guru/validations/${val.id}/review`}
                                                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                                                        isSubmitted
+                                                        isSubmitted || overdue
                                                             ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
                                                             : 'bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20'
                                                     }`}
                                                 >
-                                                    <Play size={12} className={isSubmitted ? '' : 'fill-white'} />
-                                                    {isSubmitted ? 'Buka Hasil Validasi' : 'Mulai Validasi'}
+                                                    <Play size={12} className={isSubmitted || overdue ? '' : 'fill-white'} />
+                                                    {isSubmitted ? 'Buka Hasil Validasi' : overdue ? 'Lihat Lembar Validasi' : reReview ? 'Mulai Telaah Ulang' : 'Mulai Validasi'}
                                                 </Link>
                                             </td>
                                         </tr>

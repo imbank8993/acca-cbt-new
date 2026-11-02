@@ -2,11 +2,12 @@ import type { ProfilSekolah } from '@/lib/pas/print-kop';
 import { apiCreate, apiGet, apiSend } from './client';
 import type { QuestionBank, QuestionRecord } from './questions';
 
-export type ValidationStatus = 'pending' | 'in_progress' | 'revision_needed' | 'approved' | 'rejected';
+export type ValidationStatus = 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected';
 export type ValidatorStatus = 'assigned' | 'in_progress' | 'submitted';
 export type ApprovalRule = 'unanimous' | 'any' | 'admin_decides';
 export type NoteCategory = 'typo' | 'materi' | 'kunci_jawaban' | 'konstruksi' | 'bahasa' | 'lainnya';
 export type NoteStatusItem = 'valid' | 'revision' | 'rejected';
+export type NoteVerification = 'accepted' | 'not_fixed';
 
 export interface ValidationValidator {
     id: string;
@@ -37,9 +38,29 @@ export interface ValidationNote {
     resolved_by?: string | null;
     resolved_at?: string | null;
     created_at: string;
+    /** Putaran saat catatan dibuat. */
+    round?: number | null;
+    /** Versi soal saat catatan dibuat; dibandingkan dengan `revision` soal sekarang. */
+    question_revision?: number | null;
+    /** Penilaian validator atas perbaikan pada putaran berikutnya. */
+    verification?: NoteVerification | null;
+    verified_at?: string | null;
+    /** Tanggapan pembuat soal, mis. alasan bila soal tidak diubah. */
+    owner_response?: string | null;
     validator?: {
         full_name: string;
     } | null;
+}
+
+/** Kelayakan satu butir menurut satu validator. */
+export interface ValidationItem {
+    id: string;
+    validation_id: string;
+    question_id: string;
+    validator_id: string;
+    status: NoteStatusItem;
+    round?: number | null;
+    question_revision?: number | null;
 }
 
 export interface ValidationSession {
@@ -51,6 +72,8 @@ export interface ValidationSession {
     deadline?: string | null;
     approval_rule: ApprovalRule;
     status: ValidationStatus;
+    round?: number | null;
+    resubmitted_at?: string | null;
     allow_edit_during_exam?: boolean;
     created_at: string;
     updated_at: string;
@@ -77,6 +100,7 @@ export interface ValidationTask {
         deadline?: string | null;
         approval_rule: ApprovalRule;
         status: ValidationStatus;
+        round?: number | null;
         created_at: string;
         bank?: QuestionBank | null;
         assigned_by?: {
@@ -103,6 +127,20 @@ export interface SaveValidationNoteInput {
     comment: string;
     category?: NoteCategory;
     statusItem?: NoteStatusItem;
+}
+
+export interface UpdateValidationNoteInput {
+    comment?: string;
+    category?: NoteCategory;
+    statusItem?: NoteStatusItem;
+}
+
+export interface UpdateValidationInput {
+    title?: string;
+    instructions?: string;
+    deadline?: string | null;
+    addValidatorIds?: string[];
+    removeValidatorIds?: string[];
 }
 
 export interface SubmitValidationReviewInput {
@@ -143,6 +181,7 @@ export async function getValidationReviewData(validationId: string): Promise<{
     myValidatorStatus: ValidationValidator | null;
     questions: QuestionRecord[];
     notes: ValidationNote[];
+    items?: ValidationItem[];
 } | null> {
     const res = await apiGet<{
         profil_sekolah?: ProfilSekolah;
@@ -150,6 +189,7 @@ export async function getValidationReviewData(validationId: string): Promise<{
         myValidatorStatus: ValidationValidator | null;
         questions: QuestionRecord[];
         notes: ValidationNote[];
+        items?: ValidationItem[];
     }>(`/api/validations/${encodeURIComponent(validationId)}/review`);
 
     // Teruskan pesan server (akses ditolak, tidak ditemukan, gangguan jaringan)
@@ -170,6 +210,46 @@ export function deleteValidationNote(validationId: string, noteId: string) {
     );
 }
 
+export function updateValidationNote(validationId: string, noteId: string, input: UpdateValidationNoteInput) {
+    return apiSend<ValidationNote>(
+        `/api/validations/${encodeURIComponent(validationId)}/notes/${encodeURIComponent(noteId)}`,
+        input,
+        'PATCH',
+    );
+}
+
+export function verifyValidationNote(validationId: string, noteId: string, verification: NoteVerification) {
+    return apiSend<ValidationNote>(
+        `/api/validations/${encodeURIComponent(validationId)}/notes/${encodeURIComponent(noteId)}/verify`,
+        { verification },
+        'PATCH',
+    );
+}
+
+export function setValidationItemStatus(validationId: string, questionId: string, status: NoteStatusItem) {
+    return apiSend<ValidationItem>(
+        `/api/validations/${encodeURIComponent(validationId)}/items/${encodeURIComponent(questionId)}`,
+        { status },
+        'PUT',
+    );
+}
+
+export function reopenValidationReview(validationId: string) {
+    return apiSend<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/reopen`, {}, 'POST');
+}
+
+export function resubmitValidation(validationId: string) {
+    return apiSend<{ round: number; status: ValidationStatus }>(`/api/validations/${encodeURIComponent(validationId)}/resubmit`, {}, 'POST');
+}
+
+export function updateValidation(validationId: string, input: UpdateValidationInput) {
+    return apiSend<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}`, input, 'PATCH');
+}
+
+export function deleteValidation(validationId: string) {
+    return apiSend<{ id: string; deleted: boolean }>(`/api/validations/${encodeURIComponent(validationId)}`, undefined, 'DELETE');
+}
+
 export function submitValidationReview(validationId: string, input: SubmitValidationReviewInput) {
     return apiCreate<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/submit`, input);
 }
@@ -178,10 +258,10 @@ export function decideValidation(validationId: string, status: 'approved' | 'rev
     return apiCreate<{ success: boolean }>(`/api/validations/${encodeURIComponent(validationId)}/decision`, { status });
 }
 
-export function resolveValidationNote(noteId: string, resolved: boolean) {
+export function resolveValidationNote(noteId: string, resolved: boolean, response?: string) {
     return apiSend<ValidationNote>(
         `/api/validations/notes/${encodeURIComponent(noteId)}/resolve`,
-        { resolved },
+        response === undefined ? { resolved } : { resolved, response },
         'PATCH',
     );
 }

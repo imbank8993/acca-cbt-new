@@ -1,4 +1,5 @@
 "use client";
+import './categorization-form.css';
 /**
  * CategorizationForm — Kategorisasi
  * Clean table-style editor for assigning items to categories.
@@ -50,9 +51,12 @@ function CategoryEditModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        className="bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-editor-title"
+        className="category-editor bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
       >
-        <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+        <div className="category-editor__header px-6 py-4 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -60,11 +64,11 @@ function CategoryEditModal({
               </svg>
             </div>
             <div>
-              <h3 className="text-[15px] font-black text-primary uppercase tracking-tight">Edit Kategori</h3>
+              <h3 id="category-editor-title" className="text-[15px] font-black text-primary uppercase tracking-tight">Edit Kategori</h3>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pisahkan dengan koma</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-400 transition-colors">
+          <button type="button" aria-label="Tutup edit kategori" onClick={onClose} className="category-editor__close w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-400 transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -72,11 +76,12 @@ function CategoryEditModal({
         </div>
         <div className="p-6 space-y-4">
           <textarea
+            aria-label="Daftar kategori"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Kategori 1, Kategori 2, Kategori 3..."
             rows={3}
-            className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-lg text-sm text-slate-700 outline-none focus:border-primary/30 focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all resize-none"
+            className="category-editor__input w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-lg text-sm text-slate-700 outline-none focus:border-primary/30 focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all resize-none"
           />
           {draft.trim() && (
             <div className="flex flex-wrap gap-1.5 pt-2">
@@ -91,16 +96,17 @@ function CategoryEditModal({
             </div>
           )}
         </div>
-        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
-          <button onClick={onClose} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/5">
+        <div className="category-editor__footer px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+          <button type="button" onClick={onClose} className="category-editor__cancel px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-primary transition-colors rounded-lg hover:bg-primary/5">
             Batal
           </button>
           <button
+            type="button"
             onClick={() => {
               onSave(draft.split(',').map(s => s.trim()).filter(Boolean));
               onClose();
             }}
-            className="px-6 py-2.5 text-xs font-black bg-primary text-white rounded-lg hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+            className="category-editor__save px-6 py-2.5 text-xs font-black bg-primary text-white rounded-lg hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
           >
             Simpan Kategori
           </button>

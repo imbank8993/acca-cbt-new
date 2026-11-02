@@ -36,6 +36,8 @@ const FILES = [
     '20260927_07_pas_session_integrity.sql',
     '20260927_08_subject_catalog_bridge.sql',
     '20261102_01_bank_folder_visibility.sql',
+    '20261102_02_validation_review_rounds.sql',
+    '20261102_03_learning_subchapters.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
@@ -80,6 +82,13 @@ const EXPECTED_COLUMNS = [
     ['school_years', 'client_request_id'],
     ['bank_folders', 'client_request_id'],
     ['bank_folders', 'is_public'],
+    ['cbt_learning_materials', 'subtopic_order'],
+    ['cbt_question_bank_validations', 'round'],
+    ['cbt_question_validation_notes', 'round'],
+    ['cbt_question_validation_notes', 'question_revision'],
+    ['cbt_question_validation_notes', 'verification'],
+    ['cbt_question_validation_notes', 'owner_response'],
+    ['cbt_question_validation_items', 'status'],
     ['cbt_organization_labels', 'client_request_id'],
     ['cbt_pas_sessions', 'client_request_id'],
     ['cbt_pas_rooms', 'client_request_id'],

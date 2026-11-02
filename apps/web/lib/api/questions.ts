@@ -66,9 +66,21 @@ export interface DimensionInterpretationItem {
     interpretation?: string | null;
 }
 
+/** Ringkasan sesi validasi terbaru sebuah bank soal (hanya informasi). */
+export interface BankValidationSummary {
+    id: string;
+    status: 'pending' | 'in_progress' | 'revision_needed' | 'resubmitted' | 'approved' | 'rejected';
+    round: number;
+    /** Catatan Revisi/Tolak yang belum ditandai diperbaiki. */
+    openNotes: number;
+    /** Catatan yang sudah ditandai diperbaiki tetapi belum diterima validator. */
+    fixedNotes: number;
+}
+
 export interface QuestionBank {
     canRead?: boolean;
     validationId?: string | null;
+    validation_summary?: BankValidationSummary | null;
     canManage?: boolean;
     isOwner?: boolean;
     canShare?: boolean;

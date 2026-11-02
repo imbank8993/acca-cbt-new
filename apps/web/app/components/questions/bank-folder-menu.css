@@ -1,0 +1,56 @@
+.bank-folder-menu {
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.bank-folder-menu button {
+  border-radius: 6px;
+  background: transparent;
+}
+
+.bank-folder-menu__separator {
+  height: 1px;
+  border: 0 !important;
+  background: #e2e8f0;
+  margin: 5px 0;
+}
+
+.bank-folder-menu button:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: -2px;
+}
+
+.dark .bank-folder-menu {
+  background-color: #121c2e !important;
+  border-color: #34445e !important;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 30%);
+}
+
+.dark .bank-folder-menu .bank-folder-menu__heading {
+  color: #94a3b8 !important;
+}
+
+.dark .bank-folder-menu button {
+  background-color: transparent !important;
+  color: #dbe5f3 !important;
+}
+
+.dark .bank-folder-menu button:hover,
+.dark .bank-folder-menu button:focus-visible {
+  background-color: #20324b !important;
+  color: #f1f5f9 !important;
+}
+
+.dark .bank-folder-menu .bank-folder-menu__separator {
+  background-color: #2d3a50;
+}
+
+.dark .bank-folder-menu button.bank-folder-menu__danger {
+  color: #fb7185 !important;
+}
+
+.dark .bank-folder-menu button.bank-folder-menu__danger:hover,
+.dark .bank-folder-menu button.bank-folder-menu__danger:focus-visible {
+  background-color: #3a1d2b !important;
+  color: #fda4af !important;
+}

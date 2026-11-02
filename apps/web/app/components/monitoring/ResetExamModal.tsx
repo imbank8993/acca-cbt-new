@@ -1,4 +1,5 @@
 'use client';
+import './participant-detail.css';
 
 import React, { useState } from 'react';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
@@ -201,6 +202,7 @@ function ResetExamForm({
       size="lg"
       variant="default"
       labelledBy="reset-exam-modal-title"
+      className="participant-detail-modal"
     >
       <ModalHeader
         id="reset-exam-modal-title"
@@ -219,9 +221,9 @@ function ResetExamForm({
 
           {/* Student Info Summary Card (Compact, without avatar) */}
           {!participantSummary && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
+            <div className="participant-detail-surface flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-slate-800 truncate">{studentName}</p>
+                <p className="participant-detail-name font-bold text-slate-800 truncate">{studentName}</p>
                 <p className="mt-0.5 text-slate-500 truncate">
                   {nis !== '—' ? `${nis} · ` : ''}{className}
                 </p>
@@ -244,7 +246,7 @@ function ResetExamForm({
           )}
 
           {irtScored > 0 && (
-            <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <div role="note" className="participant-recovery-warning rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <p className="font-semibold">
                 <AlertTriangle size={13} className="mr-1 inline text-amber-600" />
                 Skor IRT sudah dihitung
@@ -256,7 +258,7 @@ function ResetExamForm({
           )}
 
           {!participantSummary && offlineNotes.length > 0 && (
-            <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <div role="note" className="participant-recovery-warning rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               <p className="font-semibold">Catatan sesi offline:</p>
               <p className="mt-0.5 text-amber-800">{offlineNotes.join(' ')}</p>
             </div>
@@ -264,7 +266,7 @@ function ResetExamForm({
 
           {/* Perangkat lain mencoba membuka ujian */}
           {!participantSummary && !notStarted && offline?.other_device_attempts && (
-            <div role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 space-y-1">
+            <div role="note" className="participant-recovery-warning rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 space-y-1">
               <p className="font-bold flex items-center gap-1.5">
                 <AlertTriangle size={13} className="shrink-0" /> Ujian dibuka dari lebih dari satu perangkat
               </p>
@@ -286,7 +288,8 @@ function ResetExamForm({
               <button
                 type="button"
                 onClick={() => handleModeSelect('PULIHKAN')}
-                className={`rounded-xl border p-2.5 text-left transition-all ${
+                aria-pressed={mode === 'PULIHKAN'}
+                className={`participant-recovery-mode rounded-xl border p-2.5 text-left transition-all ${
                   mode === 'PULIHKAN'
                     ? 'border-[#3083FF] bg-[#3083FF]/5 ring-1 ring-[#3083FF]/30'
                     : 'border-slate-200 bg-white hover:border-slate-300'
@@ -299,7 +302,9 @@ function ResetExamForm({
               <button
                 type="button"
                 onClick={() => handleModeSelect('SUSULAN')}
-                className={`rounded-xl border p-2.5 text-left transition-all ${
+                aria-pressed={mode === 'SUSULAN'}
+                data-mode="makeup"
+                className={`participant-recovery-mode rounded-xl border p-2.5 text-left transition-all ${
                   mode === 'SUSULAN'
                     ? 'border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/30'
                     : 'border-slate-200 bg-white hover:border-slate-300'
@@ -328,7 +333,7 @@ function ResetExamForm({
                   const digitsOnly = e.target.value.replace(/[^0-9]/g, '');
                   setDurationInput(digitsOnly);
                 }}
-                className="h-9 w-24 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-800 outline-none focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
+                className="participant-recovery-field h-9 w-24 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-800 outline-none focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15"
               />
               {quickDurations.map((mins) => (
                 <button
@@ -365,7 +370,7 @@ function ResetExamForm({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Tuliskan alasan singkat (min. 5 karakter)..."
-              className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15 placeholder:text-slate-400"
+              className="participant-recovery-field w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-800 outline-none focus:border-[#3083FF] focus:ring-2 focus:ring-[#3083FF]/15 placeholder:text-slate-400"
             />
             <div className="mt-1.5 flex flex-wrap gap-1">
               {PRESET_REASONS.map((preset) => (
@@ -383,7 +388,7 @@ function ResetExamForm({
 
           {/* Panel Opsi Sesuai Mode (Tinggi Konsisten) */}
           {mode === 'PULIHKAN' && (
-            <div className="min-h-[148px] flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 space-y-2">
+            <div className="participant-detail-surface min-h-[148px] flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 space-y-2">
               {!(releaseDevice && !participantSummary) && (
                 <div className="space-y-1.5">
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -438,7 +443,7 @@ function ResetExamForm({
           )}
 
           {mode === 'SUSULAN' && !notStarted && (
-            <div className="min-h-[148px] flex flex-col justify-between rounded-xl border border-amber-300 bg-amber-50/70 p-3 text-xs text-amber-900">
+            <div className="participant-recovery-warning min-h-[148px] flex flex-col justify-between rounded-xl border border-amber-300 bg-amber-50/70 p-3 text-xs text-amber-900">
               <div>
                 <p className="font-semibold text-amber-900">Konfirmasi Ujian Susulan</p>
                 <p className="mt-1 text-[11px] text-amber-800 leading-relaxed">
