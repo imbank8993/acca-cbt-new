@@ -21,6 +21,7 @@ import {
     Trash2,
     UserPlus,
     UserMinus,
+    FolderPlus,
 } from 'lucide-react';
 import { confirmDialog } from '@/lib/confirm-dialog';
 import { DatePicker } from '@/app/components/ui/DatePicker';
@@ -37,7 +38,6 @@ import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import {
     listValidations,
     decideValidation,
-    listMyValidationTasks,
     updateValidation,
     deleteValidation,
     listValidationFolders,
@@ -49,7 +49,6 @@ import { listQuestionBanks, type QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { AssignValidationModal } from './AssignValidationModal';
 import { ValidationReportModal } from './ValidationReportModal';
-import { ValidationTabs } from './ValidationTabs';
 import { ValidationFolders } from './ValidationFolders';
 
 const VALIDATOR_ROLES = ['Guru', 'Proktor', 'Admin'];
@@ -71,25 +70,31 @@ interface ValidationsListPageProps {
 export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [validations, setValidations] = useState<ValidationSession[]>([]);
     const [folders, setFolders] = useState<ValidationFolder[]>([]);
-    const [folderFilter, setFolderFilter] = useState('all');
+    const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+    const [targetFolderId, setTargetFolderId] = useState<string>();
     const [banks, setBanks] = useState<QuestionBank[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [taskFilter, setTaskFilter] = useState('all');
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedDetailVal, setSelectedDetailVal] = useState<ValidationSession | null>(null);
     const [reportValId, setReportValId] = useState<string | null>(null);
     const [decision, setDecision] = useState<'approved' | 'revision_needed' | 'rejected'>('approved');
     const [savingDecision, setSavingDecision] = useState(false);
     const [decisionError, setDecisionError] = useState<string | null>(null);
-    const [myTasksCount, setMyTasksCount] = useState<number>();
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [editDeadline, setEditDeadline] = useState('');
     const [staffList, setStaffList] = useState<PASStaffMember[]>([]);
     const [addValidatorId, setAddValidatorId] = useState('');
     const [managing, setManaging] = useState(false);
     const [manageError, setManageError] = useState<string | null>(null);
+
+    const openAssignment = (folderId?: string) => {
+        setTargetFolderId(folderId);
+        setIsAssignModalOpen(true);
+    };
 
     const openDetail = (item: ValidationSession) => {
         setSelectedDetailVal(item);
@@ -149,7 +154,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         registerPageFab(token, {
             label: 'Tambah Validasi',
             icon: 'plus',
-            run: () => setIsAssignModalOpen(true),
+            run: () => { setTargetFolderId(undefined); setIsAssignModalOpen(true); },
         });
         return () => unregisterPageFab(token);
     }, []);
@@ -171,14 +176,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     };
 
     const loadData = useCallback(async () => {
-        setLoading(true);
         setLoadError(null);
         try {
-            const [valList, bankList, sessionUser, myTasks, folderList] = await Promise.all([
+            const [valList, bankList, sessionUser, folderList] = await Promise.all([
                 listValidations(),
                 listQuestionBanks(),
                 getSessionUser(),
-                listMyValidationTasks().catch(() => []),
                 listValidationFolders(),
             ]);
             setValidations(valList);
@@ -187,7 +190,6 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
             if (sessionUser) {
                 setCurrentUserId(sessionUser.id);
             }
-            setMyTasksCount(myTasks.length);
         } catch (e) {
             console.error('Failed to load validations', e);
             setLoadError(e instanceof Error ? e.message : 'Daftar validasi belum dapat dimuat.');
@@ -203,19 +205,16 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const myAssignedCount = validations.filter(v => v.validators?.some(val => val.validator_id === currentUserId)).length;
 
     const filtered = validations.filter(v => {
-        if (folderFilter === 'none' && v.folder_id) return false;
-        if (folderFilter !== 'all' && folderFilter !== 'none' && v.folder_id !== folderFilter) return false;
+        if (taskFilter === 'mine' && !v.validators?.some(val => val.validator_id === currentUserId)) return false;
         const matchesSearch =
             v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.bank?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.bank?.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            v.folder?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.validators?.some(val => val.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()));
 
         if (!matchesSearch) return false;
         if (statusFilter === 'all') return true;
-        if (statusFilter === 'my_tasks') {
-            return v.validators?.some(val => val.validator_id === currentUserId);
-        }
         return v.status === statusFilter;
     });
 
@@ -260,12 +259,114 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         }
     };
 
+    const renderSessions = (items: ValidationSession[]) => (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <th className="py-3 px-4">Bank Soal</th>
+                            <th className="py-3 px-4">Tim Guru Validator</th>
+                            <th className="py-3 px-4">Status Validasi</th>
+                            <th className="py-3 px-4">Batas Waktu</th>
+                            <th className="py-3 px-4 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                        {items.map(item => {
+                            const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
+                            const totalValidators = item.validators?.length || 0;
+                            const creatorName = item.bank?.creator_name || (item.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
+
+                            return (
+                                <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                                    {/* Bank Soal */}
+                                    <td className="py-3.5 px-4 max-w-xs">
+                                        <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
+                                            {item.title}
+                                        </p>
+                                        {item.folder && <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-300">{item.folder.name}</p>}
+                                        <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                            <Layers size={11} />
+                                            {item.bank?.subject || 'Mapel Umum'} • {creatorName}
+                                        </p>
+                                    </td>
+
+                                    {/* Tim Validator */}
+                                    <td className="py-3.5 px-4">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                                <UserCheck size={12} className="text-primary" />
+                                                <span>{submittedCount} / {totalValidators} Selesai</span>
+                                            </div>
+                                            <div className="flex flex-col gap-1 max-w-xs">
+                                                {item.validators?.map(v => (
+                                                    <span
+                                                        key={v.id}
+                                                        className="text-[11px] text-[#3083FF] dark:!text-blue-400"
+                                                    >
+                                                        {v.profile?.full_name || 'Validator'}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    {/* Status Validasi */}
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                        {getStatusBadge(item.status)}
+                                        {(item.round ?? 1) > 1 && <p className="mt-1 text-[10px] text-slate-400">Putaran {item.round}</p>}
+                                    </td>
+
+                                    {/* Batas Waktu */}
+                                    <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
+                                        {item.deadline ? (
+                                            <span className="flex items-center gap-1">
+                                                <Calendar size={12} className="text-slate-400" />
+                                                {new Date(item.deadline).toLocaleDateString('id-ID')}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400">Tanpa batas</span>
+                                        )}
+                                    </td>
+
+                                    {/* Aksi */}
+                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setReportValId(item.id)}
+                                                className="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-primary font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
+                                                title="Cetak Laporan Validasi"
+                                            >
+                                                <Printer size={13} /> Laporan
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => openDetail(item)}
+                                                className="text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
+                                            >
+                                                Rincian <ChevronRight size={13} />
+                                            </button>
+                                            <Link
+                                                href={`/dashboard/guru/validations/${item.id}/review`}
+                                                className="px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0"
+                                            >
+                                                <Play size={12} className="fill-white" /> Validasi
+                                            </Link>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="flex flex-col gap-4 sm:gap-6">
-            <ValidationTabs activeTab="manage" manageRole={role} tasksCount={myTasksCount} />
-
-            <ValidationFolders folders={folders} folderIds={validations.map(item => item.folder_id)} value={folderFilter} onChange={setFolderFilter} onRefresh={loadData} />
-
+        <div className="flex flex-col gap-4 sm:gap-6" aria-label={`Validasi soal ${role}`}>
             {/* Filter Toolbar (Standardized) */}
             <FilterToolbar className="validation-toolbar">
                 <FilterSearch
@@ -275,12 +376,17 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     width={320}
                 />
                 <FilterSelect
+                    label="Tampilan"
+                    value={taskFilter}
+                    onChange={setTaskFilter}
+                    options={[{ value: 'all', label: 'Semua Sesi' }, { value: 'mine', label: `Tugas Saya (${myAssignedCount})` }]}
+                />
+                <FilterSelect
                     label="Status"
                     value={statusFilter}
                     onChange={setStatusFilter}
                     options={[
                         { value: 'all', label: 'Semua Status' },
-                        ...(myAssignedCount > 0 ? [{ value: 'my_tasks', label: `Tugas Saya (${myAssignedCount})` }] : []),
                         { value: 'pending', label: 'Menunggu' },
                         { value: 'in_progress', label: 'Sedang Divalidasi' },
                         { value: 'revision_needed', label: 'Perlu Revisi' },
@@ -290,9 +396,12 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     ]}
                 />
                 <FilterActions className="validation-create-actions">
+                    <Button className="validation-folder-create" variant="outline" onClick={() => setIsFolderModalOpen(true)} disabled={loading}>
+                        <FolderPlus size={15} /> Buat Folder
+                    </Button>
                     <Button
-                        onClick={() => setIsAssignModalOpen(true)}
-                        className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-md shadow-primary/20"
+                        onClick={() => openAssignment()}
+                        className="validation-create-action bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-md shadow-primary/20"
                     >
                         <Plus size={15} /> Tambah Validasi
                     </Button>
@@ -311,8 +420,18 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     <Spinner size={32} />
                     <p className="text-xs text-slate-400 font-medium">Memuat data validasi bank soal...</p>
                 </div>
-            ) : filtered.length === 0 ? (
-                <div className="py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center p-6">
+            ) : (
+                <ValidationFolders
+                    folders={folders}
+                    items={filtered}
+                    renderItems={renderSessions}
+                    onRefresh={loadData}
+                    filterActive={!!searchQuery.trim() || statusFilter !== 'all' || taskFilter !== 'all'}
+                    createOpen={isFolderModalOpen}
+                    onCloseCreate={() => setIsFolderModalOpen(false)}
+                    onCreateValidation={openAssignment}
+                    onCreated={() => { setSearchQuery(''); setStatusFilter('all'); setTaskFilter('all'); }}
+                    empty={<div className="py-16 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center p-6">
                     <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-primary">
                         <ShieldCheck size={28} />
                     </div>
@@ -320,119 +439,15 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         {validations.length === 0 ? 'Belum Ada Penugasan Validasi' : 'Tidak Ada Validasi di Tampilan Ini'}
                     </h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                        {folderFilter !== 'all' ? 'Tambahkan validasi ke folder ini, atau pindahkan sesi yang sudah ada melalui Rincian.' : 'Tugaskan guru sebagai validator untuk memeriksa kualitas soal, kunci jawaban, dan stimulus sebelum ujian dimulai.'}
+                        {validations.length === 0 ? 'Tugaskan guru sebagai validator untuk memeriksa kualitas soal, kunci jawaban, dan stimulus sebelum ujian dimulai.' : 'Tidak ada validasi yang sesuai dengan pencarian dan filter.'}
                     </p>
                     <Button
-                        onClick={() => setIsAssignModalOpen(true)}
+                        onClick={() => openAssignment()}
                         className="validation-create-action bg-primary text-white font-bold text-xs"
                     >
                         <Plus size={14} className="mr-1.5" /> Tambah Validasi
                     </Button>
-                </div>
-            ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                    <th className="py-3 px-4">Bank Soal</th>
-                                    <th className="py-3 px-4">Tim Guru Validator</th>
-                                    <th className="py-3 px-4">Status Validasi</th>
-                                    <th className="py-3 px-4">Batas Waktu</th>
-                                    <th className="py-3 px-4 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                                {filtered.map(item => {
-                                    const submittedCount = item.validators?.filter(v => v.status === 'submitted').length || 0;
-                                    const totalValidators = item.validators?.length || 0;
-                                    const creatorName = item.bank?.creator_name || (item.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || 'Guru Mapel';
-
-                                    return (
-                                        <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                                            {/* Bank Soal */}
-                                            <td className="py-3.5 px-4 max-w-xs">
-                                                <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
-                                                    {item.title}
-                                                </p>
-                                                {item.folder && <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-300">{item.folder.name}</p>}
-                                                <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                                                    <Layers size={11} />
-                                                    {item.bank?.subject || 'Mapel Umum'} • {creatorName}
-                                                </p>
-                                            </td>
-
-                                            {/* Tim Validator */}
-                                            <td className="py-3.5 px-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                                                        <UserCheck size={12} className="text-primary" />
-                                                        <span>{submittedCount} / {totalValidators} Selesai</span>
-                                                    </div>
-                                                    <div className="flex flex-col gap-1 max-w-xs">
-                                                        {item.validators?.map(v => (
-                                                            <span
-                                                                key={v.id}
-                                                                className="text-[11px] text-[#3083FF] dark:!text-blue-400"
-                                                            >
-                                                                {v.profile?.full_name || 'Validator'}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Status Validasi */}
-                                            <td className="py-3.5 px-4 whitespace-nowrap">
-                                                {getStatusBadge(item.status)}
-                                                {(item.round ?? 1) > 1 && <p className="mt-1 text-[10px] text-slate-400">Putaran {item.round}</p>}
-                                            </td>
-
-                                            {/* Batas Waktu */}
-                                            <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-400 font-medium text-[11px]">
-                                                {item.deadline ? (
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar size={12} className="text-slate-400" />
-                                                        {new Date(item.deadline).toLocaleDateString('id-ID')}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-400">Tanpa batas</span>
-                                                )}
-                                            </td>
-
-                                            {/* Aksi */}
-                                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setReportValId(item.id)}
-                                                        className="text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-primary font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
-                                                        title="Cetak Laporan Validasi"
-                                                    >
-                                                        <Printer size={13} /> Laporan
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openDetail(item)}
-                                                        className="text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 font-semibold flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-slate-200 dark:border-slate-700"
-                                                    >
-                                                        Rincian <ChevronRight size={13} />
-                                                    </button>
-                                                    <Link
-                                                        href={`/dashboard/guru/validations/${item.id}/review`}
-                                                        className="px-3 py-1.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl flex items-center gap-1.5 text-xs shadow-sm shadow-primary/20 transition-all shrink-0"
-                                                    >
-                                                        <Play size={12} className="fill-white" /> Validasi
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                </div>} />
             )}
 
             {/* Modal Assign */}
@@ -442,7 +457,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                 banks={banks}
                 onSuccess={loadData}
                 folders={folders}
-                initialFolderId={folderFilter !== 'all' && folderFilter !== 'none' ? folderFilter : undefined}
+                initialFolderId={targetFolderId}
             />
 
             {/* Modal Cetak Laporan Validasi */}
