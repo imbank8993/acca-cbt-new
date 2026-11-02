@@ -67,6 +67,8 @@ export interface DimensionInterpretationItem {
 }
 
 export interface QuestionBank {
+    canRead?: boolean;
+    validationId?: string | null;
     canManage?: boolean;
     isOwner?: boolean;
     canShare?: boolean;
@@ -97,6 +99,13 @@ export interface BankFolder {
     id: string;
     name: string;
     order?: number;
+    /** Folder publik terlihat oleh seluruh staf; selain itu hanya pembuat dan Admin. */
+    is_public?: boolean;
+    created_by?: string | null;
+    isOwner?: boolean;
+    /** Ganti nama, ubah status publik, dan hapus: pembuat atau Admin. */
+    canManage?: boolean;
+    creator_name?: string | null;
 }
 
 export interface OrganizationLabel {
@@ -183,9 +192,10 @@ export interface QuestionRecord {
 
 // ── Bank soal ────────────────────────────────────────────────────────────────
 
-export async function listQuestionBanks(onlyPublished?: boolean): Promise<QuestionBank[]> {
+export async function listQuestionBanks(onlyPublished?: boolean, catalog = false): Promise<QuestionBank[]> {
     const query = new URLSearchParams();
     if (onlyPublished) query.set('onlyPublished', 'true');
+    if (catalog) query.set('catalog', 'true');
 
     const res = await apiGet<{ banks: QuestionBank[] }>(`/api/question-banks?${query.toString()}`);
     return res.success ? res.banks : [];
@@ -264,14 +274,14 @@ export async function listBankFolders(): Promise<BankFolder[]> {
     return res.success ? res.folders : [];
 }
 
-export function createBankFolder(name: string) {
-    return apiCreate<{ id: string }>('/api/question-banks/folders', { name });
+export function createBankFolder(name: string, isPublic = false) {
+    return apiCreate<{ id: string }>('/api/question-banks/folders', { name, isPublic });
 }
 
-export function updateBankFolder(folderId: string, name: string) {
+export function updateBankFolder(folderId: string, name: string, isPublic?: boolean) {
     return apiSend<{ id: string }>(
         `/api/question-banks/folders/${encodeURIComponent(folderId)}`,
-        { name },
+        { name, isPublic },
         'PATCH',
     );
 }

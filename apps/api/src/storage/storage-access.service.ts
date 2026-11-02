@@ -59,7 +59,7 @@ export class StorageAccessService {
             (user.roles || []).some(role => ['ADMIN', 'PROKTOR', 'GURU'].includes(role.toUpperCase()));
         if (staff) {
             const { data: banks, error } = await this.db.from('cbt_question_banks')
-                .select('id, metadata, image_url').eq('organization_id', audience.organizationId);
+                .select('id, image_url').eq('organization_id', audience.organizationId);
             if (error) throw new ForbiddenException('Izin berkas belum dapat diperiksa.');
             for (const bank of banks || []) {
                 try { await this.authz.assertBankAccess(user, bank.id, 'read'); }

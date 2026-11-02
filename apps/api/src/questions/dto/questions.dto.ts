@@ -243,6 +243,11 @@ export class SaveFolderDto {
     @IsString()
     @IsNotEmpty({ message: 'Nama folder wajib diisi.' })
     name!: string;
+
+    @ApiPropertyOptional({ description: 'true: folder terlihat oleh seluruh staf. Bawaan pribadi (hanya pembuat dan Admin).' })
+    @IsOptional()
+    @IsBoolean()
+    isPublic?: boolean;
 }
 
 export class CreateFolderDto extends SaveFolderDto {

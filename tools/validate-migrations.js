@@ -35,6 +35,7 @@ const FILES = [
     '20260927_06_exam_participant_class_source.sql',
     '20260927_07_pas_session_integrity.sql',
     '20260927_08_subject_catalog_bridge.sql',
+    '20261102_01_bank_folder_visibility.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
@@ -78,6 +79,7 @@ const EXPECTED_COLUMNS = [
     ['cbt_question_banks', 'client_request_id'],
     ['school_years', 'client_request_id'],
     ['bank_folders', 'client_request_id'],
+    ['bank_folders', 'is_public'],
     ['cbt_organization_labels', 'client_request_id'],
     ['cbt_pas_sessions', 'client_request_id'],
     ['cbt_pas_rooms', 'client_request_id'],
@@ -110,6 +112,7 @@ const EXPECTED_INDEXES = [
     'cbt_question_banks_client_request_unique',
     'school_years_client_request_unique',
     'bank_folders_client_request_unique',
+    'bank_folders_org_creator_idx',
     'cbt_organization_labels_client_request_unique',
     'cbt_pas_sessions_client_request_unique',
     'cbt_pas_rooms_client_request_unique',

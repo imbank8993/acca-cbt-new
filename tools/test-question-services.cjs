@@ -56,7 +56,7 @@ const schoolScope={assertSchoolId:async id=>{
 }};
 const base=()=>new MemoryDb({
     cbt_question_banks:[{id:'bank',organization_id:'org-1',created_by:'teacher'},{id:'other',organization_id:'org-1',created_by:'someone'}],
-    bank_folders:[{id:'folder',organization_id:'org-1'},{id:'foreign',organization_id:'org-2'}],
+    bank_folders:[{id:'folder',organization_id:'org-1',created_by:'teacher'},{id:'foreign',organization_id:'org-2'}],
     cbt_answers:[],cbt_exam_attempt_questions:[],cbt_exam_question_sources:[],cbt_exams:[],cbt_exam_attempts:[],
 });
 let count=0;
@@ -82,6 +82,40 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         for(const work of [()=>svc.create(user,'org-1',{title:'x',folderId:'foreign'}),()=>svc.update(user,'bank',{folderId:'foreign'}),()=>svc.moveToFolder(user,['bank'],'foreign')])await assert.rejects(work);
         assert.equal(db.state.cbt_question_banks.length,2);assert.equal(db.state.cbt_question_banks[0].folder_id,undefined);
         await svc.moveToFolder(user,['bank'],'folder');assert.equal(db.state.cbt_question_banks[0].folder_id,'folder');
+    });
+    await test('Bank folders are private unless public; only creator or admin renames or deletes',async()=>{
+        const role={teacher:'Guru',teacher2:'Guru',proctor:'Proktor',admin:'Admin'};
+        const folderRoles={hasOrgRole:async(id,org,wanted)=>org==='org-1'&&wanted.includes(role[id])};
+        const db=base(),auth=new AuthorizationService(db,folderRoles,schoolScope),svc=new QuestionBanksService(db,auth,folderRoles,{emailMap:async()=>new Map()});
+        const t1={id:'teacher'},t2={id:'teacher2'},pr={id:'proctor'},ad={id:'admin'};
+        const priv=await svc.createFolder(t1,'org-1','Pribadi',randomUUID());
+        const pub=await svc.createFolder(t1,'org-1','Bersama',randomUUID(),true);
+        const own=await svc.createFolder(pr,'org-1','Milik Proktor',randomUUID());
+        const label={[priv.id]:'priv',[pub.id]:'pub',[own.id]:'proktor',folder:'folder'};
+        const seen=async u=>(await svc.listFolders(u,'org-1')).map(f=>label[f.id]).sort();
+        assert.deepEqual(await seen(t1),['folder','priv','pub']);
+        assert.deepEqual(await seen(t2),['pub']);
+        assert.deepEqual(await seen(pr),['proktor','pub']);
+        assert.deepEqual(await seen(ad),['folder','priv','proktor','pub']);
+        const forT2=(await svc.listFolders(t2,'org-1'))[0];
+        assert.equal(forT2.is_public,true);assert.equal(forT2.canManage,false);assert.equal(forT2.isOwner,false);
+        assert.equal((await svc.listFolders(ad,'org-1')).every(f=>f.canManage),true);
+        // Hanya pembuat atau Admin yang boleh mengubah atau menghapus.
+        await assert.rejects(svc.removeFolder(t2,pub.id),/pembuatnya atau Admin/);
+        await assert.rejects(svc.removeFolder(pr,pub.id),/pembuatnya atau Admin/);
+        await assert.rejects(svc.updateFolder(t2,pub.id,{name:'Ganti',isPublic:false}),/pembuatnya atau Admin/);
+        await assert.rejects(svc.removeFolder(t2,priv.id),/tidak ditemukan/);
+        await svc.updateFolder(t1,priv.id,{name:'Pribadi Baru',isPublic:true});
+        assert.equal(db.state.bank_folders.find(f=>f.id===priv.id).is_public,true);
+        await svc.updateFolder(t1,priv.id,{name:'Pribadi Baru',isPublic:false});
+        // Bank hanya boleh dimasukkan ke folder yang terlihat.
+        db.state.cbt_question_banks.push({id:'t2-bank',organization_id:'org-1',created_by:'teacher2'});
+        await assert.rejects(svc.moveToFolder(t2,['t2-bank'],priv.id));
+        await assert.rejects(svc.create(t2,'org-1',{title:'x',folderId:priv.id,clientRequestId:randomUUID()}));
+        await svc.moveToFolder(t2,['t2-bank'],pub.id);
+        assert.equal(db.state.cbt_question_banks.find(b=>b.id==='t2-bank').folder_id,pub.id);
+        await svc.removeFolder(ad,priv.id);await svc.removeFolder(t1,pub.id);await svc.removeFolder(pr,own.id);
+        assert.deepEqual(await seen(ad),['folder']);
     });
     await test('Save retains identical texts with different weights; [] removes all options',async()=>{
         const db=base(),svc=new QuestionsService(db,new AuthorizationService(db,roles,schoolScope),{regradeExamAttemptsByQuestion:async()=>{}});

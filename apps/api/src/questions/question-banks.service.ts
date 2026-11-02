@@ -23,6 +23,14 @@ export interface BankInput {
     folderId?: string | null;
 }
 
+interface BankFolderRow {
+    id: string;
+    organization_id: string;
+    created_by?: string | null;
+    is_public?: boolean | null;
+    [column: string]: unknown;
+}
+
 /**
  * Bank soal beserta folder dan labelnya.
  *
@@ -57,8 +65,10 @@ export class QuestionBanksService {
      *
      * Guru melihat bank buatannya sendiri. Proktor juga dapat membaca bank orang
      * lain yang dipublikasikan; Admin dan admin platform melihat seluruh bank.
+     * Katalog guru juga memuat kartu terkunci dari folder publik dan tautan tugas
+     * validasi. Daftar pilihan impor/ujian tetap hanya berisi bank yang dapat dibaca.
      */
-    async list(user: AuthUser, organizationId: string, onlyPublished = false) {
+    async list(user: AuthUser, organizationId: string, onlyPublished = false, catalog = false) {
         await this.authz.assertOrgStaff(user, organizationId);
 
         let query = this.db
@@ -77,10 +87,34 @@ export class QuestionBanksService {
         const grants = await collaborationGrants(this.db, 'bank', user.id);
         const sharedIds = [...grants.keys()];
         const collaboration = await this.authz.collaborationListContext(user, organizationId, 'bank');
-        const sharedClause = sharedIds.length ? `,id.in.(${sharedIds.join(',')})` : '';
+        const publicFolderIds: string[] = [];
+        const validationByBank = new Map<string, string>();
+        if (!elevated && catalog) {
+            const { data: folders, error: folderError } = await this.db.from('bank_folders')
+                .select('id').eq('organization_id', organizationId).eq('is_public', true);
+            if (folderError) throw new BadRequestException('Folder publik belum dapat dibaca.');
+            publicFolderIds.push(...(folders || []).map((folder: { id: string }) => folder.id));
+            const { data: assignments, error: assignmentError } = await this.db.from('cbt_question_bank_validators')
+                .select('validation_id').eq('validator_id', user.id);
+            if (assignmentError) throw new BadRequestException('Penugasan validasi belum dapat dibaca.');
+            if (assignments?.length) {
+                const { data: sessions, error: sessionError } = await this.db.from('cbt_question_bank_validations')
+                    .select('id, bank_id').eq('organization_id', organizationId)
+                    .in('id', assignments.map((assignment: { validation_id: string }) => assignment.validation_id))
+                    .order('created_at', { ascending: false });
+                if (sessionError) throw new BadRequestException('Sesi validasi belum dapat dibaca.');
+                for (const session of sessions || []) {
+                    if (!validationByBank.has(session.bank_id)) validationByBank.set(session.bank_id, session.id);
+                }
+            }
+        }
         if (restrictedProctor) query = query.or(`created_by.eq.${user.id},is_published.eq.true`);
         else if (!elevated) {
-            query = sharedIds.length ? query.or(`created_by.eq.${user.id}${sharedClause}`) : query.eq('created_by', user.id);
+            const clauses = [`created_by.eq.${user.id}`];
+            if (sharedIds.length) clauses.push(`id.in.(${sharedIds.join(',')})`);
+            if (publicFolderIds.length) clauses.push(`folder_id.in.(${publicFolderIds.join(',')})`);
+            if (validationByBank.size) clauses.push(`id.in.(${[...validationByBank.keys()].join(',')})`);
+            query = clauses.length > 1 ? query.or(clauses.join(',')) : query.eq('created_by', user.id);
         }
 
         const { data, error } = await query.order('created_at', { ascending: false });
@@ -90,7 +124,10 @@ export class QuestionBanksService {
             return [];
         }
 
-        const banks = ((data as any[]) || []).filter(bank => !restrictedProctor || bank.created_by === user.id || bank.is_published === true);
+        const banks = ((data as any[]) || []).filter(bank => restrictedProctor
+            ? bank.created_by === user.id || bank.is_published === true
+            : elevated || bank.created_by === user.id || grants.has(bank.id) ||
+                publicFolderIds.includes(bank.folder_id) || validationByBank.has(bank.id));
         const counts = await collaboratorCounts(this.db, 'bank', banks.map(bank => bank.id));
 
         // Nama pembuat ditampilkan pada kartu bank. Profil bisa belum terisi —
@@ -111,8 +148,17 @@ export class QuestionBanksService {
 
             const access = collaboration.access(bank, grants.get(bank.id));
             const grant = access.grant;
+            const canRead = access.owner || access.admin || !!grant || restrictedProctor && bank.is_published === true;
+            // A public folder exposes a catalogue card, never question metadata or rich content.
+            const visibleBank = canRead ? bank : {
+                id: bank.id, title: bank.title, subject: bank.subject, class_level: bank.class_level,
+                created_by: bank.created_by, created_at: bank.created_at, folder_id: bank.folder_id,
+                is_published: bank.is_published, tags: bank.tags,
+            };
             return {
-                ...bank,
+                ...visibleBank,
+                canRead,
+                validationId: validationByBank.get(bank.id) || null,
                 canManage: access.owner || access.admin || !!grant && ['editor', 'manager'].includes(grant.permission),
                 isOwner: access.owner, canShare: access.canShare, canDelete: access.canDelete,
                 collaborationPermission: grant?.permission || null,
@@ -147,7 +193,7 @@ export class QuestionBanksService {
 
     async create(user: AuthUser, organizationId: string, input: BankInput) {
         const resolved = await this.resolveOrganizationId(user, organizationId);
-        await this.assertFolderOrganization(input.folderId, resolved);
+        await this.assertFolderUsable(user, input.folderId, resolved);
 
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'cbt_question_banks',
@@ -177,7 +223,17 @@ export class QuestionBanksService {
 
     async update(user: AuthUser, bankId: string, input: BankInput) {
         const organizationId = await this.authz.assertBankAccess(user, bankId);
-        await this.assertFolderOrganization(input.folderId, organizationId);
+        if (input.folderId !== undefined) {
+            // Form edit selalu mengirim folder bank saat ini. Kolaborator boleh
+            // menyimpan bank yang berada di folder pribadi pemiliknya selama
+            // foldernya tidak diganti.
+            const { data: currentBank } = await this.db
+                .from('cbt_question_banks').select('folder_id').eq('id', bankId).maybeSingle();
+            const currentFolderId = (currentBank as { folder_id?: string | null } | null)?.folder_id ?? null;
+            if ((input.folderId || null) !== currentFolderId) {
+                await this.assertFolderUsable(user, input.folderId, organizationId);
+            }
+        }
 
         const payload: Record<string, unknown> = {};
         if (input.title !== undefined) payload.title = input.title;
@@ -275,9 +331,12 @@ export class QuestionBanksService {
      * guru lain di antara bank milik pemanggil.
      */
     async moveToFolder(user: AuthUser, bankIds: string[], folderId: string | null) {
+        const organizations = new Set<string>();
         for (const bankId of bankIds) {
-            const organizationId = await this.authz.assertBankAccess(user, bankId);
-            await this.assertFolderOrganization(folderId, organizationId);
+            organizations.add(await this.authz.assertBankAccess(user, bankId));
+        }
+        for (const organizationId of organizations) {
+            await this.assertFolderUsable(user, folderId, organizationId);
         }
 
         const { error } = await this.db
@@ -291,9 +350,16 @@ export class QuestionBanksService {
     }
 
     // ── Folder ───────────────────────────────────────────────────────────────
+    //
+    // Folder bersifat pribadi secara bawaan: hanya pembuatnya yang melihat dan
+    // memakainya. Pembuat dapat menandainya publik agar terlihat oleh staf lain
+    // (Guru maupun Proktor). Admin melihat seluruh folder. Mengganti nama,
+    // mengubah status publik, dan menghapus folder hanya boleh oleh pembuat
+    // atau Admin.
 
     async listFolders(user: AuthUser, organizationId: string) {
         await this.authz.assertOrgStaff(user, organizationId);
+        const admin = await this.isOrgAdmin(user, organizationId);
 
         const query = this.db.from('bank_folders').select('*').eq('organization_id', organizationId);
 
@@ -303,28 +369,62 @@ export class QuestionBanksService {
             this.logger.error(`Gagal membaca daftar folder: ${error.message}`);
             return [];
         }
-        return (data as any[]) || [];
+
+        const folders = ((data as BankFolderRow[]) || []).filter((folder) => this.canSeeFolder(folder, user, admin));
+        const creatorNames = await this.creatorNames(
+            folders.map((folder) => folder.created_by).filter((id): id is string => !!id),
+        );
+
+        return folders.map((folder) => {
+            const isOwner = !!folder.created_by && folder.created_by === user.id;
+            return {
+                ...folder,
+                is_public: folder.is_public === true,
+                isOwner,
+                canManage: isOwner || admin,
+                creator_name: folder.created_by ? creatorNames.get(folder.created_by) ?? 'Tidak diketahui' : null,
+            };
+        });
     }
 
-    async createFolder(user: AuthUser, organizationId: string, name: string, clientRequestId: string) {
+    async createFolder(
+        user: AuthUser,
+        organizationId: string,
+        name: string,
+        clientRequestId: string,
+        isPublic = false,
+    ) {
         const resolved = await this.resolveOrganizationId(user, organizationId);
 
         const data = await insertIdempotently<{ id: string }>(this.db, {
             table: 'bank_folders', organizationId: resolved, clientRequestId,
-            fingerprint: { name }, select: 'id',
-            payload: { organization_id: resolved, created_by: user.id, name: name.trim() },
+            // `undefined` diabaikan saat hash dihitung, jadi folder pribadi
+            // tetap memakai sidik yang sama dengan sebelum fitur publik ada.
+            fingerprint: { name, isPublic: isPublic === true ? true : undefined }, select: 'id',
+            payload: {
+                organization_id: resolved,
+                created_by: user.id,
+                name: name.trim(),
+                is_public: isPublic === true,
+            },
             mapError: (error) => this.describeWriteError(error, 'Folder'),
         });
 
         return { id: data.id };
     }
 
-    async updateFolder(user: AuthUser, folderId: string, name: string) {
-        await this.assertFolderAccess(user, folderId);
+    async updateFolder(user: AuthUser, folderId: string, input: { name: string; isPublic?: boolean }) {
+        await this.assertFolderOwner(user, folderId, 'write');
+
+        const payload: Record<string, unknown> = {
+            name: input.name.trim(),
+            updated_at: new Date().toISOString(),
+        };
+        if (input.isPublic !== undefined) payload.is_public = input.isPublic === true;
 
         const { error } = await this.db
             .from('bank_folders')
-            .update({ name: name.trim(), updated_at: new Date().toISOString() })
+            .update(payload)
             .eq('id', folderId);
 
         if (error) throw this.describeWriteError(error, 'Folder');
@@ -333,7 +433,7 @@ export class QuestionBanksService {
     }
 
     async removeFolder(user: AuthUser, folderId: string) {
-        await this.assertFolderAccess(user, folderId);
+        await this.assertFolderOwner(user, folderId, 'delete');
 
         // Bank di dalamnya tidak ikut terhapus: relasinya ON DELETE SET NULL,
         // jadi banknya kembali ke akar.
@@ -403,15 +503,70 @@ export class QuestionBanksService {
         return organizationId;
     }
 
-    private assertFolderAccess(user: AuthUser, folderId: string): Promise<void> {
-        return this.authz.assertStaffByRecord(user, 'bank_folders', folderId);
+    /** Admin sekolah dan admin platform; Proktor tidak termasuk. */
+    private async isOrgAdmin(user: AuthUser, organizationId: string): Promise<boolean> {
+        if (user.isPlatformAdmin || user.resolved?.superadmin === true) return true;
+        return this.roles.hasOrgRole(user.id, organizationId, ['Admin']);
     }
 
-    private async assertFolderOrganization(folderId: string | null | undefined, organizationId: string) {
+    private canSeeFolder(folder: BankFolderRow, user: AuthUser, admin: boolean): boolean {
+        return admin || folder.is_public === true || (!!folder.created_by && folder.created_by === user.id);
+    }
+
+    /**
+     * Ganti nama, ubah status publik, dan hapus: hanya pembuat atau Admin.
+     * Folder pribadi orang lain dilaporkan tidak ada agar keberadaannya tidak bocor.
+     */
+    private async assertFolderOwner(user: AuthUser, folderId: string, operation: 'write' | 'delete') {
+        const { data, error } = await this.db.from('bank_folders')
+            .select('id, organization_id, created_by, is_public').eq('id', folderId).maybeSingle();
+        if (error) throw new BadRequestException('Folder belum dapat dibaca.');
+        if (!data) throw new NotFoundException('Folder tidak ditemukan.');
+
+        const folder = data as BankFolderRow;
+        await this.authz.assertOrgStaff(user, folder.organization_id);
+        const admin = await this.isOrgAdmin(user, folder.organization_id);
+        if (admin || (!!folder.created_by && folder.created_by === user.id)) return;
+        if (!this.canSeeFolder(folder, user, admin)) throw new NotFoundException('Folder tidak ditemukan.');
+        throw new ForbiddenException(operation === 'delete'
+            ? 'Folder hanya dapat dihapus oleh pembuatnya atau Admin.'
+            : 'Folder hanya dapat diubah oleh pembuatnya atau Admin.');
+    }
+
+    /** Bank hanya boleh dimasukkan ke folder satu organisasi yang terlihat oleh pemanggil. */
+    private async assertFolderUsable(user: AuthUser, folderId: string | null | undefined, organizationId: string) {
         if (!folderId) return;
         const { data, error } = await this.db.from('bank_folders')
-            .select('id').eq('id', folderId).eq('organization_id', organizationId).maybeSingle();
+            .select('id, organization_id, created_by, is_public')
+            .eq('id', folderId).eq('organization_id', organizationId).maybeSingle();
         if (error || !data) throw new BadRequestException('Folder harus berasal dari organisasi bank soal yang sama.');
+        const admin = await this.isOrgAdmin(user, organizationId);
+        if (!this.canSeeFolder(data as BankFolderRow, user, admin)) {
+            throw new BadRequestException('Folder tujuan tidak ditemukan atau bersifat pribadi.');
+        }
+    }
+
+    /** Nama tampilan pembuat; awalan email bila profil belum berisi nama. */
+    private async creatorNames(userIds: string[]): Promise<Map<string, string>> {
+        const ids = [...new Set(userIds)];
+        const names = new Map<string, string>();
+        if (ids.length === 0) return names;
+
+        const { data } = await this.db.from('cbt_profiles').select('id, full_name').in('id', ids);
+        for (const profile of (data as Array<{ id: string; full_name?: string | null }>) || []) {
+            const name = profile.full_name?.trim();
+            if (name && name !== 'Unknown User' && name !== 'Unknown') names.set(profile.id, name);
+        }
+
+        const missing = ids.filter((id) => !names.has(id));
+        if (missing.length) {
+            const emails = await this.authUsers.emailMap(missing);
+            for (const id of missing) {
+                const prefix = emails.get(id)?.split('@')[0];
+                if (prefix) names.set(id, prefix);
+            }
+        }
+        return names;
     }
 
     /**

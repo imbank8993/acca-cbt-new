@@ -162,3 +162,37 @@ test('private attachment links render without allowing arbitrary relative or scr
         assert.equal(safeExternalUrl(link), '');
     }
 });
+
+test('admin can read another uploader image referenced by a bank with the deployed bank schema', async () => {
+    const { db, storage } = fixture();
+    const admin = { id: 'admin', roles: ['ADMIN'] };
+    db.tables.cbt_organization_members.push({ user_id: admin.id, organization_id: 'school', is_active: true });
+    db.tables.cbt_question_banks = [{ id: 'bank', organization_id: 'school', image_url: null }];
+    // Unlike question rows, bank rows have no metadata column in PostgreSQL.
+    const from = db.from.bind(db);
+    db.from = table => {
+        const query = from(table);
+        if (table !== 'cbt_question_banks') return query;
+        return new Proxy(query, { get(target, method) {
+            if (method !== 'select') return target[method];
+            return columns => {
+                if (columns.split(',').some(column => column.trim() === 'metadata')) {
+                    throw new Error('column cbt_question_banks.metadata does not exist');
+                }
+                return target.select(columns);
+            };
+        } });
+    };
+    let checked = 0;
+    const access = new StorageAccessService(db, {
+        assertBankAccess: async (caller, bankId, permission) => {
+            assert.equal(caller.id, admin.id);
+            assert.equal(bankId, 'bank');
+            assert.equal(permission, 'read');
+            checked++;
+        },
+    }, storage);
+    await access.assertRead(admin, image);
+    assert.equal(checked, 1);
+    await assert.rejects(access.assertRead(admin, 'users/teacher/questions/unreferenced.png'), denied);
+});

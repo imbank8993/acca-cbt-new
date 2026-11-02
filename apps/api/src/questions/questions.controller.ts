@@ -73,9 +73,10 @@ export class QuestionsController {
         @CurrentUser() user: AuthUser,
         @CurrentSchoolId() organizationId: string,
         @Query('onlyPublished') onlyPublished?: string,
+        @Query('catalog') catalog?: string,
     ) {
         return {
-            banks: await this.banks.list(user, organizationId, onlyPublished === 'true'),
+            banks: await this.banks.list(user, organizationId, onlyPublished === 'true', catalog === 'true'),
         };
     }
 
@@ -108,22 +109,22 @@ export class QuestionsController {
         @CurrentSchoolId() organizationId: string,
         @Body() dto: CreateFolderDto,
     ) {
-        return this.banks.createFolder(user, organizationId, dto.name, dto.clientRequestId);
+        return this.banks.createFolder(user, organizationId, dto.name, dto.clientRequestId, dto.isPublic === true);
     }
 
     @Patch('folders/:folderId')
-    @ApiOperation({ summary: 'Ganti nama folder' })
+    @ApiOperation({ summary: 'Ganti nama atau status publik folder (pembuat/Admin)' })
     updateFolder(
         @CurrentUser() user: AuthUser,
         @Param('folderId', ParseUUIDPipe) folderId: string,
         @Body() dto: SaveFolderDto,
     ) {
-        return this.banks.updateFolder(user, folderId, dto.name);
+        return this.banks.updateFolder(user, folderId, { name: dto.name, isPublic: dto.isPublic });
     }
 
     @Delete('folders/:folderId')
     @ApiOperation({
-        summary: 'Hapus folder',
+        summary: 'Hapus folder (pembuat/Admin)',
         description: 'Bank di dalamnya tidak ikut terhapus; keduanya kembali ke akar.',
     })
     removeFolder(
