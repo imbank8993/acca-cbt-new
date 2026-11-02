@@ -23,7 +23,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Underline from '@tiptap/extension-underline';
 import type { QuestionChartData } from './ChartEditorModal';
 import { ChartEmbed } from './chart-embed';
-import { DOMSerializer } from '@tiptap/pm/model';
+import { DOMSerializer, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
 import { Decoration,DecorationSet } from '@tiptap/pm/view';
 import { EditorContent,useEditor } from '@tiptap/react';
@@ -137,6 +137,29 @@ function normalizeTabs(html: string): string {
   return html.replace(/\t/g, '<span class="cbt-tab" style="white-space:pre;tab-size:8">&#9;</span>');
 }
 
+const MATH_PATTERN = /\$\$([\s\S]*?)\$\$|\$([^$\n]+?)\$/g;
+type MathRange = { from: number; to: number; raw: string };
+
+/** Semua rumus `$…$`/`$$…$$` di blok teks yang memuat posisi `pos`. */
+function mathRangesAround(doc: ProseMirrorNode, pos: number): MathRange[] {
+  if (pos < 0 || pos > doc.content.size) return [];
+  const $pos = doc.resolve(pos);
+  const parent = $pos.parent;
+  if (!parent.inlineContent) return [];
+  const base = $pos.start();
+  const ranges: MathRange[] = [];
+  parent.forEach((child, offset) => {
+    if (!child.isText || !child.text) return;
+    const regex = new RegExp(MATH_PATTERN.source, 'g');
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(child.text)) !== null) {
+      const from = base + offset + match.index;
+      ranges.push({ from, to: from + match[0].length, raw: match[0] });
+    }
+  });
+  return ranges;
+}
+
 // ProseMirror plugin to highlight math text matches ($...$ and $$...$$) on the fly
 const MathHighlighter = Extension.create({
   name: 'mathHighlighter',
@@ -144,6 +167,28 @@ const MathHighlighter = Extension.create({
     return [
       new Plugin({
         props: {
+          // Teks asli rumus disembunyikan, jadi kursor bisa terselip di dalamnya. Backspace/Delete
+          // di tepi atau di dalam rumus menghapus satu rumus utuh, bukan satu karakter tersembunyi.
+          handleKeyDown(view, event) {
+            if (event.key !== 'Backspace' && event.key !== 'Delete') return false;
+            const { selection } = view.state;
+            if (!selection.empty) return false;
+            const pos = selection.from;
+            const hit = mathRangesAround(view.state.doc, pos).find(range => event.key === 'Backspace'
+              ? range.from < pos && pos <= range.to
+              : range.from <= pos && pos < range.to);
+            if (!hit) return false;
+            view.dispatch(view.state.tr.delete(hit.from, hit.to).scrollIntoView());
+            return true;
+          },
+          // Ketikan saat kursor terselip di dalam teks rumus diletakkan setelah rumus, agar rumus tidak rusak.
+          handleTextInput(view, from, to, text) {
+            if (from !== to) return false;
+            const inside = mathRangesAround(view.state.doc, from).find(range => range.from < from && from < range.to);
+            if (!inside) return false;
+            view.dispatch(view.state.tr.insertText(text, inside.to).scrollIntoView());
+            return true;
+          },
           decorations(state) {
             const decorations: Decoration[] = [];
             const doc = state.doc;
@@ -316,6 +361,9 @@ export default function TipTapEditorCore({
   const [showMathModal, setShowMathModal] = useState(false);
   const [mathInput, setMathInput] = useState('');
   const [isMathBlock, setIsMathBlock] = useState(false);
+  /** Rumus yang sedang diedit (diklik); null = sisipkan rumus baru di posisi kursor. */
+  const editingMath = useRef<MathRange | null>(null);
+  const [editingMathOpen, setEditingMathOpen] = useState(false);
 
   const [showChartModal, setShowChartModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
@@ -588,11 +636,39 @@ export default function TipTapEditorCore({
     };
   }, [showTableModal, editor, activeTableHTML]);
 
-  // Insert math string with delimiters at current cursor position
+  const closeMathModal = useCallback(() => {
+    editingMath.current = null;
+    setEditingMathOpen(false);
+    setShowMathModal(false);
+  }, []);
+
+  /** Rumus yang diedit masih ada di posisi yang sama (dokumen bisa berubah selama modal terbuka). */
+  const currentEditingMath = useCallback((): MathRange | null => {
+    const target = editingMath.current;
+    if (!editor || !target) return null;
+    const { doc } = editor.state;
+    if (target.to <= doc.content.size && doc.textBetween(target.from, target.to) === target.raw) return target;
+    // Cari ulang rumus yang sama di sekitar posisi lama.
+    return mathRangesAround(doc, Math.min(target.from, doc.content.size)).find(range => range.raw === target.raw) ?? null;
+  }, [editor]);
+
+  const deleteEditingMath = useCallback(() => {
+    const target = currentEditingMath();
+    if (editor && target) editor.chain().focus().deleteRange({ from: target.from, to: target.to }).run();
+    closeMathModal();
+  }, [editor, currentEditingMath, closeMathModal]);
+
+  // Insert math string with delimiters at current cursor position, or replace the clicked formula
   const insertMath = useCallback((latex: string, isBlock: boolean) => {
     if (!editor) return;
+    const target = currentEditingMath();
+    editingMath.current = null;
     const trimmed = latex.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      // Mengosongkan rumus yang diedit = menghapusnya.
+      if (target) editor.chain().focus().deleteRange({ from: target.from, to: target.to }).run();
+      return;
+    }
     const clean = trimmed
       .replace(/\\placeholder(?:\[[^\]]*\])?\{([^}]*)\}/g, (_, inner) => {
         const t = inner.trim();
@@ -601,8 +677,15 @@ export default function TipTapEditorCore({
       .replace(/\\placeholder(?:\[[^\]]*\])?/g, '\\dots')
       .replace(/#\?/g, '\\dots');
     const formatted = isBlock ? `$$${clean}$$` : `$${clean}$`;
-    editor.chain().focus().insertContent(formatted).run();
-  }, [editor]);
+    // Disisipkan sebagai teks murni: LaTeX berisi `<`/`>` tidak boleh ditafsirkan sebagai HTML.
+    const content = { type: 'text', text: formatted };
+    if (target) {
+      // Ganti rumus lama, jangan menambah rumus kedua.
+      editor.chain().focus().insertContentAt({ from: target.from, to: target.to }, content).run();
+      return;
+    }
+    editor.chain().focus().insertContent(content).run();
+  }, [editor, currentEditingMath]);
 
   // Detect clicks on images, video embeds, and math nodes inside the editor
   useEffect(() => {
@@ -658,6 +741,20 @@ export default function TipTapEditorCore({
         const raw = mathWrapper.dataset.latex || '';
         const isBlock = raw.startsWith('$$');
         const latex = isBlock ? raw.slice(2, -2) : raw.slice(1, -1);
+        // Catat posisi rumus yang diklik agar penyimpanan menggantinya, bukan menyisipkan rumus baru.
+        let range: MathRange | null = null;
+        try {
+          const pos = editor.view.posAtDOM(mathWrapper, 0);
+          const ranges = mathRangesAround(editor.state.doc, pos);
+          range = ranges.find(item => item.raw === raw && item.from === pos) ?? ranges.find(item => item.raw === raw) ?? null;
+        } catch { /* Posisi tidak diketahui: modal tetap bisa menyisipkan rumus baru. */ }
+        if (!range) {
+          const from = Number(mathWrapper.dataset.start);
+          const to = Number(mathWrapper.dataset.end);
+          if (Number.isInteger(from) && Number.isInteger(to) && to <= editor.state.doc.content.size && editor.state.doc.textBetween(from, to) === raw) range = { from, to, raw };
+        }
+        editingMath.current = range;
+        setEditingMathOpen(!!range);
         setMathInput(latex);
         setIsMathBlock(isBlock);
         setShowMathModal(true);
@@ -813,7 +910,7 @@ export default function TipTapEditorCore({
     openInsert(action) {
       if (!editor) return;
       if (action === 'image') optionImageInputRef.current?.click();
-      if (action === 'math') { setMathInput(''); setIsMathBlock(false); setShowMathModal(true); }
+      if (action === 'math') { editingMath.current = null; setEditingMathOpen(false); setMathInput(''); setIsMathBlock(false); setShowMathModal(true); }
       if (action === 'table') setShowTableModal(true);
       if (action === 'audio') setShowAudioModal(true);
       if (action === 'video') setVideoModal({ isOpen: true, mode: 'insert', url: '', width: '100%', pos: null });
@@ -1213,6 +1310,8 @@ export default function TipTapEditorCore({
             <button
               type="button"
               onClick={() => {
+                editingMath.current = null;
+                setEditingMathOpen(false);
                 setMathInput('');
                 setIsMathBlock(false);
                 setShowMathModal(true);
@@ -1349,13 +1448,14 @@ export default function TipTapEditorCore({
       {/* Standalone Math / LaTeX Equation Modal */}
       <MathEditorModal
         isOpen={showMathModal}
-        onClose={() => setShowMathModal(false)}
+        onClose={closeMathModal}
         initialLatex={mathInput}
         initialIsBlock={isMathBlock}
         onInsert={(latex, isBlock) => {
           insertMath(latex, isBlock);
-          setShowMathModal(false);
+          closeMathModal();
         }}
+        onDelete={editingMathOpen ? deleteEditingMath : undefined}
       />
 
       {/* Standalone Chart Modal */}

@@ -52,6 +52,7 @@ import { useCallback,useEffect,useRef,useState,useMemo } from 'react';
 import DimensionManager from '@/app/components/questions/DimensionManager';
 import KisiKisiTab from '@/app/components/questions/KisiKisiTab';
 import { QuestionContent } from '@/app/components/questions/QuestionRenderer';
+import { InlineMath } from '@/app/components/questions/InlineMath';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
 import { getQuestionTypeLabel } from '@/app/types/question';
@@ -905,7 +906,7 @@ export default function QuestionBankDetailPage({ role }: QuestionBankDetailPageP
                                                             <span className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold leading-none pt-[1px] bg-primary text-white">{String.fromCharCode(65 + oIdx)}</span>
                                                             <span className="flex-1"><QuestionContent content={opt.option_text || opt.text || ''} /></span>
                                                             <span className="text-slate-400 text-[10px]">→</span>
-                                                            <span className="text-primary font-medium">{matches.join(', ') || '-'}</span>
+                                                            <span className="text-primary font-medium"><InlineMath text={matches.join(', ')} fallback="-" /></span>
                                                         </div>
                                                     );
                                                 })}

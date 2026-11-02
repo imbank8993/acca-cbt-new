@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, FileText, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, ChevronDown, Code2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { deleteMaterial, learningRequest, type LearningMaterial } from '@/lib/learning-api';
 import { groupLearningChapters, learningGradeLabel, learningGrades, learningKey, type LearningChapter } from '@/lib/learning-catalog';
 import { deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { CreateSubchapterModal } from '@/app/components/learning/CreateSubchapterModal';
+import { HTML_EDITABLE_FORMATS, HtmlSourceEditorModal } from '@/app/components/learning/HtmlSourceEditorModal';
+import { InlineSelect } from '@/app/components/ui/inlineselect';
 import '@/app/components/learning/learning.css';
 
 /** Singkatan mata pelajaran yang umum; mapel lain memakai inisial kata atau tiga huruf pertama. */
@@ -54,6 +56,7 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
     const [creating, setCreating] = useState<{ chapter?: LearningChapter } | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [htmlEditing, setHtmlEditing] = useState<{ id: string; title: string } | null>(null);
     const load = useCallback(async () => {
         request.current?.abort();
         const controller = new AbortController(); request.current = controller;
@@ -127,7 +130,8 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
             })}</nav>
             <div className="lc-filters">
                 <label className="lc-search"><Search size={16} aria-hidden="true" /><input aria-label="Cari BAB atau subbab" placeholder="Cari BAB, subbab, atau mata pelajaran…" value={query} onChange={event => setQuery(event.target.value)} /></label>
-                <select className="lc-select" aria-label="Mata pelajaran" value={subject} onChange={event => setSubject(event.target.value)}><option value="">Semua mata pelajaran</option>{subjects.map(item => <option key={item} value={item}>{item}</option>)}</select>
+                <InlineSelect className="lc-select" aria-label="Mata pelajaran" value={subject} onChange={setSubject} minWidth="240px" height="40px"
+                    options={[{ value: '', label: 'Semua mata pelajaran' }, ...subjects.map(item => ({ value: item, label: item }))]} />
             </div>
         </div>
 
@@ -165,12 +169,22 @@ function LearningLibraryContent({ manage, setManage }: { manage: boolean; setMan
                     </div>
                     {isOpen && <ol className="learn-subchapter-list" id={listId}>{chapter.items.map((item, index) => <li key={item.id}>
                         <span className={`learn-subchapter-number ${item.completed ? 'is-complete' : ''}`}>{item.completed ? <CheckCircle2 size={14} /> : item.subtopic_order || index + 1}</span>
-                        <Link className="learn-subchapter-link" href={`/dashboard/learning/${item.id}${manage ? '/edit' : ''}`}><strong>{item.subtopic || item.title}</strong><span><FileText size={12} />{item.format.toUpperCase()}{manage ? ` · ${item.status === 'published' ? 'Terbit' : 'Draf'}` : item.materialUpdated ? ' · Diperbarui' : item.completed ? ' · Selesai dipelajari' : ''}</span></Link>
-                        {manage ? <button type="button" className="learn-btn-icon-danger" aria-label={`Hapus subbab ${item.subtopic || item.title}`} disabled={deletingId === item.id} onClick={() => void remove(item)}><Trash2 size={14} /></button> : <ArrowRight size={15} />}
+                        <Link className="learn-subchapter-link" href={`/dashboard/learning/${item.id}${manage && item.canEdit ? '/edit' : ''}`}>
+                            <strong>{item.subtopic || item.title}</strong>
+                            {(manage || item.materialUpdated || item.completed) && <span>{manage ? (item.status === 'published' ? 'Terbit' : 'Draf') : item.materialUpdated ? 'Diperbarui' : 'Selesai dipelajari'}</span>}
+                        </Link>
+                        {manage ? item.canEdit ? <span className="lc-row-actions">
+                            {HTML_EDITABLE_FORMATS.includes(item.format) && <button type="button" className="lc-icon-btn" aria-label={`Edit HTML subbab ${item.subtopic || item.title}`} title="Edit HTML di halaman ini"
+                                onClick={() => setHtmlEditing({ id: item.id, title: item.subtopic || item.title })}><Code2 size={14} /></button>}
+                            <Link className="lc-icon-btn" href={`/dashboard/learning/${item.id}/edit`} aria-label={`Edit subbab ${item.subtopic || item.title}`} title="Edit subbab"><Pencil size={14} /></Link>
+                            <button type="button" className="learn-btn-icon-danger" aria-label={`Hapus subbab ${item.subtopic || item.title}`} title="Hapus subbab" disabled={deletingId === item.id} onClick={() => void remove(item)}><Trash2 size={14} /></button>
+                        </span> : <span className="lc-row-note">Milik guru lain</span> : <ArrowRight size={15} />}
                     </li>)}</ol>}
                 </article>;
             })}</div>
         </section>) : !error && <div className="learn-empty"><BookOpen size={36} /><h2>{query || subject ? 'BAB tidak ditemukan' : 'Belum ada BAB untuk kelas ini'}</h2><p>{manage ? 'Tambahkan subbab pertama, lalu pilih nama BAB-nya.' : 'BAB dan subbab yang diterbitkan guru akan muncul di sini.'}</p>{query || subject ? <button type="button" onClick={() => { setQuery(''); setSubject(''); }}>Hapus pencarian</button> : null}</div>}
-        {creating && <CreateSubchapterModal materials={materials} chapter={creating.chapter} initialGrade={grade === 'all' ? '10' : grade} onClose={() => setCreating(null)} />}
+        {htmlEditing && <HtmlSourceEditorModal materialId={htmlEditing.id} title={htmlEditing.title} onClose={() => setHtmlEditing(null)}
+            onSaved={saved => setMaterials(previous => previous.map(row => row.id === saved.id ? { ...row, ...saved, canEdit: row.canEdit, completed: row.completed } : row))} />}
+        {creating && <CreateSubchapterModal materials={materials} chapter={creating.chapter} initialGrade={grade === 'all' ? '10' : grade} onClose={() => setCreating(null)} onUploaded={() => void load()} />}
     </main>;
 }

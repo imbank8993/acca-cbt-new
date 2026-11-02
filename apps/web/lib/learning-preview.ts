@@ -263,3 +263,26 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     }
     return '<!doctype html>' + document.documentElement.outerHTML;
 }
+
+const escapeAttribute = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Buka materi HTML di tab baru TANPA memberinya origin aplikasi.
+ *
+ * URL `blob:` mewarisi origin aplikasi, jadi skrip guru tidak boleh berada
+ * langsung di dokumen blob: ia akan dapat membaca penyimpanan aplikasi dan
+ * mengendalikan tab asal lewat `window.opener`. Dokumen blob di sini hanya
+ * pembungkus tanpa skrip; isi materi berjalan di iframe sandbox ber-origin
+ * opaque, sama seperti pratinjau di dalam aplikasi.
+ */
+export function openLearningHtmlInNewTab(html: string, title: string): void {
+    const doc = learningPreviewDocument(html, true);
+    const wrapper = '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        + `<title>${escapeAttribute(title || 'Bahan ajar')}</title>`
+        + '<style>html,body{margin:0;height:100%;background:#fff}iframe{display:block;width:100%;height:100%;border:0}</style></head><body>'
+        + `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" title="${escapeAttribute(title || 'Bahan ajar')}" srcdoc="${escapeAttribute(doc)}"></iframe>`
+        + '</body></html>';
+    const url = URL.createObjectURL(new Blob([wrapper], { type: 'text/html;charset=utf-8' }));
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

@@ -7,7 +7,7 @@ import { MaterialPreview } from '@/app/components/learning/MaterialPreview';
 import { deleteMaterial, learningRequest, saveMaterial, type LearningMaterial } from '@/lib/learning-api';
 import { convertLearningFile } from '@/lib/learning-converter';
 import { downloadLearningTemplate } from '@/lib/learning-templates';
-import { learningPreviewDocument } from '@/lib/learning-preview';
+import { openLearningHtmlInNewTab } from '@/lib/learning-preview';
 import { confirmDialog, deleteConfirmDialog } from '@/lib/confirm-dialog';
 import { fetchSessionUser } from '@/lib/session';
 import { ActivityResults } from '@/app/components/learning/ActivityResults';
@@ -143,11 +143,7 @@ export default function MaterialEditor() {
         try { await downloadLearningTemplate(format); } catch { setError('Template gagal dibuat. Silakan coba lagi.'); }
     };
     const openDirectly = () => {
-        if (!material?.content_html) return;
-        const doc = learningPreviewDocument(material.content_html, true);
-        const blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
+        if (material?.content_html) openLearningHtmlInNewTab(material.content_html, material.title);
     };
     return <main className="learning">
         <div className="learn-editor-topbar">

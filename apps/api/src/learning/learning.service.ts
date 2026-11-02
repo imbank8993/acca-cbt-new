@@ -47,9 +47,10 @@ export class LearningService {
         await this.reader(user, org);
         const canManage = await this.allowed(user, org, ['Guru', 'Admin']);
         if (manage) await this.manager(user, org);
+        const isAdmin = canManage && await this.allowed(user, org, ['Admin']);
         let query = this.db.from('cbt_learning_materials').select(LIST_COLUMNS).eq('organization_id', org);
         if (!manage) query = query.eq('status', 'published');
-        else if (!await this.allowed(user, org, ['Admin'])) query = query.eq('created_by', user.id);
+        else if (!isAdmin) query = query.eq('created_by', user.id);
         const { data, error } = await query.order('updated_at', { ascending: false });
         if (error) throw new InternalServerErrorException('Gagal membaca materi. Pastikan migrasi LMS sudah diterapkan.');
         const rows = (data || []) as MaterialRow[];
@@ -59,7 +60,9 @@ export class LearningService {
         return { materials: rows.map(row => {
             const p = (progress.data || []).find((item: { material_id: string }) => item.material_id === row.id);
             const updated = !!p?.completed && (p.completed_version || 1) !== (row.content_version || 1);
-            return { ...row, completed: !!p?.completed && !updated, materialUpdated: updated };
+            // Sama dengan `editable()`: guru hanya pemilik materinya; Admin boleh semua.
+            const canEdit = canManage && (row.created_by === user.id || isAdmin);
+            return { ...row, completed: !!p?.completed && !updated, materialUpdated: updated, canEdit };
         }), canManage };
     }
     async detail(user: AuthUser, org: string, id: string) {
@@ -136,7 +139,7 @@ export class LearningService {
             status: dto.status || row.status,
             content_version: (row.content_version || 1) + 1,
             revision: revision + 1, updated_at: new Date().toISOString(),
-        }).eq('id', id).eq('revision', revision).select('*').maybeSingle();
+        }).eq('id', id).eq('organization_id', org).eq('revision', revision).select('*').maybeSingle();
         if (error || !data) {
             await this.storage.deleteObject(key);
             if (pdfKey) await this.storage.deleteObject(pdfKey);

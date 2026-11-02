@@ -19,6 +19,9 @@ const { chromium } = require('playwright');
         Editor: 'apps/web/app/dashboard/learning/[id]/edit/page.tsx',
         '@/lib/learning-catalog': 'apps/web/lib/learning-catalog.ts',
         '@/app/components/learning/CreateSubchapterModal': 'apps/web/app/components/learning/CreateSubchapterModal.tsx',
+        '@/app/components/learning/HtmlSourceEditorModal': 'apps/web/app/components/learning/HtmlSourceEditorModal.tsx',
+        '@/lib/learning-bulk': 'apps/web/lib/learning-bulk.ts',
+        '@/app/components/ui/inlineselect': 'apps/web/app/components/ui/inlineselect.tsx',
         '@/app/components/ui/modal': 'apps/web/app/components/ui/modal.tsx',
         '@/app/components/ui/button': 'apps/web/app/components/ui/button.tsx',
     })) modules[name] = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: {
@@ -30,6 +33,7 @@ const { chromium } = require('playwright');
     const browser = await chromium.launch({ executablePath, headless: true });
     try {
         const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+        page.setDefaultTimeout(10_000);
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
         await page.route('http://catalog.test/**', route => route.fulfill({ contentType: 'text/html', body: '<html></html>' }));
@@ -48,7 +52,7 @@ const { chromium } = require('playwright');
             const cache = {};
             let React;
             const base = { title: 'Definisi fungsi', grade_level: '10', subject: 'Matematika', topic: 'Fungsi', subtopic: 'Definisi fungsi', subtopic_order: 1,
-                status: 'published', format: 'html', description: '', updated_at: '2026-11-02T00:00:00Z' };
+                status: 'published', format: 'html', description: '', canEdit: true, updated_at: '2026-11-02T00:00:00Z' };
             const state = window.catalogFixture = { manager: true, route: '', created: null, materials: [
                 { ...base, id: 'first', completed: true }, { ...base, id: 'second', subtopic: 'Daerah asal', title: 'Daerah asal', subtopic_order: 2 },
                 { ...base, id: 'grade11', grade_level: '11' }, { ...base, id: 'general', grade_level: '', subject: 'Literasi', topic: 'Membaca efektif' },
@@ -67,11 +71,12 @@ const { chromium } = require('playwright');
                 'next/link': { __esModule: true, default: props => React.createElement('a', props, props.children) },
                 'next/navigation': { useParams: () => ({ id: 'first' }), useRouter: () => ({ push: route => { state.route = route; } }) },
                 '@/lib/learning-api': { learningRequest: api, deleteMaterial: async () => ({ success: true }), saveMaterial: async material => { state.saved = material; return { material }; } },
+                '@/lib/api/proctor': { listSubjects: async () => [{ id: 'math', name: 'Matematika' }, { id: 'literacy', name: 'Literasi' }] },
                 '@/lib/confirm-dialog': { confirmDialog: async () => true, deleteConfirmDialog: async () => true },
                 '@/lib/session': { fetchSessionUser: async () => ({ id: 'teacher' }) },
                 '@/lib/learning-converter': { convertLearningFile: async () => ({ format: 'html', html: '<h1>Daerah asal</h1>', notes: [] }) },
                 '@/lib/learning-templates': { downloadLearningTemplate: async () => {} },
-                '@/lib/learning-preview': { learningPreviewDocument: html => html },
+                '@/lib/learning-preview': { learningPreviewDocument: html => html, openLearningHtmlInNewTab: () => {} },
                 '@/app/components/learning/MaterialPreview': { MaterialPreview: () => React.createElement('div', null, 'Pratinjau subbab') },
                 '@/app/components/learning/ActivityResults': { ActivityResults: () => null },
                 '@/hooks/useClientMounted': { useClientMounted: () => true },
@@ -81,6 +86,9 @@ const { chromium } = require('playwright');
             const require = name => {
                 if (name.endsWith('.css')) return {};
                 if (name === './button') name = '@/app/components/ui/button';
+                if (name === './learning-converter') name = '@/lib/learning-converter';
+                if (name === './learning-api') name = '@/lib/learning-api';
+                if (name === './MaterialPreview') name = '@/app/components/learning/MaterialPreview';
                 if (stubs[name]) return stubs[name];
                 if (!modules[name]) throw new Error('Unexpected module: ' + name);
                 if (!cache[name]) {
@@ -97,21 +105,22 @@ const { chromium } = require('playwright');
             window.mountCatalogue();
         }, modules);
         await page.getByRole('heading', { name: 'Fungsi', exact: true }).first().waitFor();
-        assert.equal(await page.locator('.learn-chapter-card').count(), 3);
+        assert.equal(await page.locator('.lc-card').count(), 3);
         await page.getByRole('button', { name: /^Kelas X\s/ }).click();
-        assert.equal(await page.locator('.learn-chapter-card').count(), 1);
-        await page.getByRole('button', { name: 'Fungsi', exact: true }).click();
+        assert.equal(await page.locator('.lc-card').count(), 1);
+        await page.getByRole('button', { name: 'Daftar subbab', exact: true }).click();
         assert.deepEqual(await page.locator('.learn-subchapter-link strong').allTextContents(), ['Definisi fungsi', 'Daerah asal']);
         assert.equal(await page.getByRole('link', { name: /Daerah asal/ }).getAttribute('href'), '/dashboard/learning/second');
+        assert.doesNotMatch(await page.locator('.learn-subchapter-list').innerText(), /HTML/);
         await page.screenshot({ path: path.join(output, 'learning-chapters-light.png'), fullPage: true });
         await page.evaluate(() => document.documentElement.classList.add('dark'));
-        await page.waitForFunction(() => getComputedStyle(document.querySelector('.learn-grade-tabs button:not([aria-pressed=true])')).backgroundColor === 'rgb(18, 28, 46)');
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('.lc-card')).backgroundColor !== 'rgb(255, 255, 255)');
         const inactive = await page.getByRole('button', { name: /^Kelas XI\s/ }).evaluate(el => {
             const style = getComputedStyle(el);
             return { background: style.backgroundColor, color: style.color, opacity: style.opacity };
         });
         console.log('Inactive grade theme: ' + JSON.stringify(inactive));
-        assert.equal(inactive.background, 'rgb(18, 28, 46)');
+        assert.equal(inactive.opacity, '1');
         await page.screenshot({ path: path.join(output, 'learning-chapters-dark.png'), fullPage: true });
         await page.setViewportSize({ width: 390, height: 844 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -122,7 +131,7 @@ const { chromium } = require('playwright');
         await page.getByRole('button', { name: /^Kelas X\s/ }).click();
         await page.getByRole('button', { name: 'Subbab', exact: true }).click();
         assert.equal(await page.getByLabel('BAB', { exact: true }).inputValue(), 'Fungsi');
-        assert.equal(await page.getByLabel('Urutan', { exact: true }).inputValue(), '4');
+        assert.equal(await page.getByRole('spinbutton').inputValue(), '4');
         await page.getByLabel('Judul subbab').fill('Komposisi fungsi');
         await page.screenshot({ path: path.join(output, 'learning-add-subchapter.png'), fullPage: true });
         await page.getByRole('button', { name: 'Lanjut unggah file' }).click();

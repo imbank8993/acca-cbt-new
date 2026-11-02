@@ -6,7 +6,15 @@ import { learningPreviewDocument } from '@/lib/learning-preview';
 import { learningNavigationBridge, readHtmlMenu, type HtmlNavigationProps } from '@/lib/learning-navigation-bridge';
 import { PdfPreview } from './PdfPreview';
 
-export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage, onMenuChange, navigationRequest }: HtmlNavigationProps & { material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void }) {
+export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage, onMenuChange, navigationRequest, onReady, restoring = false }: HtmlNavigationProps & {
+    material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void;
+    /** Dipanggil setelah isi siap ditampilkan (iframe selesai dimuat / berkas selesai diambil), untuk transisi tanpa layar kosong. */
+    onReady?: () => void;
+    /** Tahan klik di dalam materi sementara jawaban tersimpan dipulihkan. */
+    restoring?: boolean;
+}) {
+    const ready = useRef(onReady);
+    useEffect(() => { ready.current = onReady; }, [onReady]);
     const frame = useRef<HTMLIFrameElement>(null);
     const [menuChannel] = useState(() => crypto.randomUUID());
     // The menu bridge is injected only when the host shows the HTML menu; otherwise the
@@ -33,17 +41,23 @@ export function MaterialPreview({ material, fullPage = false, bridge, onActivity
     }, [onActivityMessage, onMenuChange, menuChannel]);
     const document = useMemo(() => typeof window !== 'undefined' && material.content_html
         ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge || undefined) : '', [material.content_html, material.format, combinedBridge]);
-    return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}`}>
+    const usesFrame = !(material.format === 'latex' && material.hasRenderedPdf) && !!document;
+    const usesFile = !usesFrame && (material.format === 'latex' && material.hasRenderedPdf || (material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)));
+    // Tampilan tanpa iframe/berkas langsung siap.
+    useEffect(() => { if (!usesFrame && !usesFile) ready.current?.(); }, [usesFrame, usesFile]);
+    return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}${restoring ? ' is-restoring' : ''}`}>
         {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
-        {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} />
-            : document ? <iframe onLoad={() => frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-request' }, '*')} ref={frame} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" srcDoc={document} />
+        {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} onReady={() => ready.current?.()} />
+            : document ? <iframe onLoad={() => { frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-request' }, '*'); ready.current?.(); }} ref={frame} inert={restoring || undefined} title={`Isi bahan ajar: ${material.title}`} className="learn-frame" sandbox={material.format === 'html' ? 'allow-scripts' : ''} allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; clipboard-read 'none'; clipboard-write 'none'" referrerPolicy="no-referrer" srcDoc={document} />
             : material.hasFile && ['pdf', 'image', 'audio', 'video'].includes(material.format)
-                ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} />
+                ? <FilePreview key={`${material.id}:${material.revision}:${material.format}`} material={material} onReady={() => ready.current?.()} />
                 : <div className="learn-media"><div><FileDown size={40} style={{ margin: '0 auto 14px' }} /><p>{material.hasFile ? 'Berkas ini dapat dibaca melalui unduhan.' : 'Unggah dokumen untuk melihat hasil konversi di sini.'}</p></div></div>}
     </div>;
 }
 
-function FilePreview({ material }: { material: LearningMaterial }) {
+function FilePreview({ material, onReady }: { material: LearningMaterial; onReady?: () => void }) {
+    const ready = useRef(onReady);
+    useEffect(() => { ready.current = onReady; }, [onReady]);
     const [media, setMedia] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
@@ -59,7 +73,7 @@ function FilePreview({ material }: { material: LearningMaterial }) {
                 const types: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg', mp4: 'video/mp4', webm: 'video/webm' };
                 url = URL.createObjectURL(new Blob([bytes], { type: types[extension] || 'application/octet-stream' })); setMedia(url);
             } catch (err) { if (!abort.signal.aborted) setError((err as Error).message); }
-            finally { if (!abort.signal.aborted) setLoading(false); }
+            finally { if (!abort.signal.aborted) { setLoading(false); ready.current?.(); } }
         })();
         return () => { abort.abort(); if (url) URL.revokeObjectURL(url); };
     }, [material.id, material.file_name, material.format, material.hasRenderedPdf]);

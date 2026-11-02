@@ -7,6 +7,8 @@ export interface LearningMaterial {
     id: string; title: string; description: string; subject: string; status: 'draft' | 'published';
     format: MaterialFormat; content_html: string; conversion_notes: string; hasFile: boolean; hasRenderedPdf?: boolean;
     file_name: string | null; file_size: number | null; revision: number; content_version: number; updated_at: string; completed?: boolean; materialUpdated?: boolean;
+    /** Dari daftar: pemanggil boleh mengubah/menghapus (pemilik materi atau Admin). */
+    canEdit?: boolean; created_by?: string;
 }
 export class LearningRequestError extends Error { constructor(message: string, public status: number) { super(message); } }
 export async function learningRequest<T>(path = '', init: RequestInit = {}): Promise<T> {

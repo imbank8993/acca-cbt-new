@@ -13,6 +13,8 @@ export interface MathEditorModalProps {
   onInsert: (latex: string, isBlock: boolean) => void;
   initialLatex?: string;
   initialIsBlock?: boolean;
+  /** Ada = mengedit rumus yang sudah ada: tombol "Hapus rumus" tampil dan isi kosong berarti menghapus. */
+  onDelete?: () => void;
 }
 
 interface MathfieldTarget extends HTMLElement {
@@ -31,7 +33,9 @@ function MathEditorModalContent({
   onInsert,
   initialLatex = '',
   initialIsBlock = false,
+  onDelete,
 }: MathEditorModalProps) {
+  const editing = !!onDelete;
   const [mathEditorMode, setMathEditorMode] = useState<'visual' | 'latex'>('visual');
   const [mathInput, setMathInput] = useState(initialLatex);
   const [isMathBlock, setIsMathBlock] = useState(initialIsBlock);
@@ -48,7 +52,7 @@ function MathEditorModalContent({
       }
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        if (mathInput.trim()) {
+        if (mathInput.trim() || editing) {
           onInsert(mathInput, isMathBlock);
           onClose();
         }
@@ -56,11 +60,11 @@ function MathEditorModalContent({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [mathInput, isMathBlock, onInsert, onClose]);
+  }, [mathInput, isMathBlock, onInsert, onClose, editing]);
 
   return (
     <Modal open onClose={onClose} size="xl" className="insertion-modal h-[620px] max-h-[92vh] flex flex-col"
-      title="Sisipkan Rumus Matematika" subtitle="Pilih struktur rumus dari toolbar atau tulis kode LaTeX"
+      title={editing ? 'Edit Rumus Matematika' : 'Sisipkan Rumus Matematika'} subtitle={editing ? 'Perubahan menggantikan rumus yang diklik. Kosongkan isi atau klik “Hapus rumus” untuk menghapusnya.' : 'Pilih struktur rumus dari toolbar atau tulis kode LaTeX'}
       icon={<FunctionSquare size={18} />}>
         {/* Body */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
@@ -217,27 +221,34 @@ function MathEditorModalContent({
         </div>
 
         {/* Footer */}
-        <ModalFooter>
-          <Button
-            type="button"
-            onClick={onClose}
-            variant="cancel"
-          >
-            Batal
-          </Button>
-          <Button
-            type="button"
-            onClick={() => {
-              if (mathInput.trim()) {
-                onInsert(mathInput, isMathBlock);
-                onClose();
-              }
-            }}
-            disabled={!mathInput.trim()}
-            variant="primary"
-          >
-            Sisipkan Rumus
-          </Button>
+        <ModalFooter align={editing ? 'between' : 'end'}>
+          {editing && (
+            <Button type="button" onClick={onDelete} variant="danger">
+              Hapus rumus
+            </Button>
+          )}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={onClose}
+              variant="cancel"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (mathInput.trim() || editing) {
+                  onInsert(mathInput, isMathBlock);
+                  onClose();
+                }
+              }}
+              disabled={!mathInput.trim() && !editing}
+              variant={editing && !mathInput.trim() ? 'danger' : 'primary'}
+            >
+              {editing ? (mathInput.trim() ? 'Perbarui Rumus' : 'Hapus Rumus') : 'Sisipkan Rumus'}
+            </Button>
+          </div>
         </ModalFooter>
     </Modal>
   );

@@ -11,9 +11,12 @@ import { learningStateKey } from '@/lib/learning-state';
 type State = Record<string, unknown>;
 interface Activity { state: State; revision: number; userId: string; contentVersion: number }
 interface Pending { state: State; baseRevision: number; savedAt?: number }
-export function ActivityPlayer({ material, ...navigation }: HtmlNavigationProps & { material: LearningMaterial }) {
+export function ActivityPlayer({ material, onReady, ...navigation }: HtmlNavigationProps & { material: LearningMaterial; onReady?: () => void }) {
     const [activity, setActivity] = useState<Activity | null>(null);
-    const [status, setStatus] = useState('Memuat jawaban tersimpan…');
+    // Materi tampil seketika; pesan pemuatan hanya muncul bila jawaban tersimpan lambat dimuat.
+    const [status, setStatus] = useState('');
+    /** Iframe yang meminta pemulihan sebelum jawaban server tersedia. */
+    const waiting = useRef<Window | null>(null);
     const [conflict, setConflict] = useState(false);
     const [channel] = useState(() => crypto.randomUUID());
     const bridge = useMemo(() => learningActivityBridge(channel), [channel]);
@@ -81,19 +84,24 @@ export function ActivityPlayer({ material, ...navigation }: HtmlNavigationProps 
                 }
             } catch { /* Server copy still available when local storage is disabled. */ }
             session.current = result;
-            setActivity({ ...result, state: pending.current?.state || result.state });
+            const restored = { ...result, state: pending.current?.state || result.state };
+            setActivity(restored);
+            waiting.current?.postMessage({ type: 'lms-restore', channel, state: restored.state }, '*');
+            waiting.current = null;
             setStatus(blocked.current ? 'Ada jawaban lokal dan versi server yang berbeda. Salinan lokal dipertahankan.' : pending.current ? 'Jawaban lokal dipulihkan; menunggu pengiriman…' : 'Jawaban tersimpan');
             void sync();
         }).catch(error => { if (!controller.signal.aborted) setStatus((error as Error).message); });
+        const slow = window.setTimeout(() => { if (!session.current && !stopped.current) setStatus('Memuat jawaban tersimpan…'); }, 1500);
         const online = () => { void sync(); };
         const beforeUnload = (event: BeforeUnloadEvent) => { if (localFailed.current && pending.current) { event.preventDefault(); event.returnValue = ''; } };
         const interval = window.setInterval(online, 5000);
         window.addEventListener('online', online);
         window.addEventListener('beforeunload', beforeUnload);
-        return () => { stopped.current = true; controller.abort(); clearInterval(interval); window.removeEventListener('online', online); window.removeEventListener('beforeunload', beforeUnload); };
+        return () => { stopped.current = true; controller.abort(); clearTimeout(slow); clearInterval(interval); window.removeEventListener('online', online); window.removeEventListener('beforeunload', beforeUnload); };
     }, [material.id, material.content_version, sync, channel]);
     const receive = useCallback((event: MessageEvent) => {
-        if (event.data?.channel !== channel || !activity) return;
+        if (event.data?.channel !== channel) return;
+        if (!activity) { if (event.data.type === 'lms-ready') waiting.current = event.source as Window; return; }
         if (event.data.type === 'lms-ready') {
             (event.source as Window).postMessage({ type: 'lms-restore', channel, state: pending.current?.state || activity.state }, '*'); return;
         }
@@ -110,8 +118,8 @@ export function ActivityPlayer({ material, ...navigation }: HtmlNavigationProps 
         const url = URL.createObjectURL(new Blob([JSON.stringify(pending.current?.state || session.current?.state, null, 2)], { type: 'application/json' }));
         const link = document.createElement('a'); link.href = url; link.download = 'salinan-jawaban.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
-    return <>{status !== 'Jawaban tersimpan' && <div className="learn-activity-status" role="status">{status}
+    return <>{status && status !== 'Jawaban tersimpan' && <div className="learn-activity-status" role="status">{status}
         {conflict && <><button onClick={downloadLocal}>Unduh salinan lokal</button><button onClick={async () => { if (await confirmDialog({ title: 'Gunakan Versi Server?', text: 'Gunakan jawaban server? Unduh salinan lokal dahulu jika diperlukan.', confirmText: 'Gunakan Versi Server', variant: 'warning' })) { try { localStorage.removeItem(storageKey.current); sessionStorage.setItem(`lms-server:lms-activity:${activity?.userId}:${material.id}:${material.content_version}`, '1'); window.location.reload(); } catch { setStatus('Tidak dapat menghapus salinan lokal. Unduh jawaban terlebih dahulu.'); } } }}>Gunakan versi server</button></>}
         {!activity && <button onClick={() => window.location.reload()}>Muat ulang</button>}
-    </div>}{activity && <MaterialPreview {...navigation} material={material} fullPage bridge={bridge} onActivityMessage={receive} />}</>;
+    </div>}<MaterialPreview {...navigation} material={material} fullPage bridge={bridge} onActivityMessage={receive} onReady={onReady} restoring={!activity} /></>;
 }
