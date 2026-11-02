@@ -443,16 +443,16 @@ export default function ProktorQuestionBankPage() {
 
     // Render bank card for desktop
     const renderBankCard = (bank: QuestionBank) => (
-        <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 flex items-center justify-between hover:border-[#3083FF] transition-all">
+        <div key={bank.id} className="bank-library-card bg-white border border-[#3083FF]/30 rounded-lg p-4 flex items-center justify-between hover:border-[#3083FF] transition-all">
             <div className="flex items-center gap-4 min-w-0">
                 <input
                     type="checkbox"
                     disabled={bank.canManage !== true}
                     checked={selectedBankIds.has(bank.id)}
                     onChange={() => toggleSelectBank(bank.id)}
-                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
+                    className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                 />
-                <div className={`w-12 h-12 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
+                <div className={`bank-library-cover w-12 h-12 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center ${
                     bank.is_published
                         ? 'border-[#3083FF]/40 bg-[#3083FF]/10 text-[#3083FF]'
                         : 'border-red-200 bg-red-50 text-red-600'
@@ -524,7 +524,7 @@ export default function ProktorQuestionBankPage() {
     );
 
     return (
-        <div className="max-w-7xl mx-auto pb-24">
+        <div className="bank-library max-w-7xl mx-auto pb-24">
 
             {/* ── Hero Header — Navy Gradient ── */}
             {/* ── Stats Grid ── */}
@@ -655,14 +655,14 @@ export default function ProktorQuestionBankPage() {
                     </div>
                 ) : (
                     paginatedBanks.map((bank) => (
-                        <div key={bank.id} className="bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
+                        <div key={bank.id} className="bank-library-card bg-white border border-[#3083FF]/30 rounded-lg p-4 shadow-sm">
                             <div className="flex items-start gap-3 mb-3">
                                 <input
                                     type="checkbox"
                                     disabled={bank.canManage !== true}
                     checked={selectedBankIds.has(bank.id)}
                                     onChange={() => toggleSelectBank(bank.id)}
-                                    className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
+                                    className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -737,12 +737,12 @@ export default function ProktorQuestionBankPage() {
                             const movableBanks = folderBanks.filter(bank => bank.canManage === true);
                             const isExpanded = expandedFolders.has(folder.id);
                             return (
-                                <div key={folder.id}>
+                                <div key={folder.id} className="bank-folder-group">
                                     {/* Folder header */}
-                                    <div className="flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
+                                    <div data-expanded={isExpanded} className="bank-folder-row flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
                                         <button
                                             onClick={() => toggleFolderExpand(folder.id)}
-                                            className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#3083FF] transition-all"
+                                            className="bank-folder-toggle flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#3083FF] transition-all"
                                         >
                                             <input
                                                 type="checkbox"
@@ -750,7 +750,7 @@ export default function ProktorQuestionBankPage() {
                                                 checked={movableBanks.length > 0 && movableBanks.every(b => selectedBankIds.has(b.id))}
                                                 onChange={() => toggleSelectAllInFolder(folderBanks)}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 cursor-pointer shrink-0"
+                                                className="bank-checkbox bg-transparent w-4 h-4 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 cursor-pointer shrink-0"
                                             />
                                             {isExpanded ? <ChevronRight size={16} className="text-slate-400 rotate-90" /> : <ChevronRight size={16} className="text-slate-400" />}
                                             <Folder size={16} className="text-[#3083FF]" />
@@ -846,7 +846,7 @@ export default function ProktorQuestionBankPage() {
                                     </div>
                                     {/* Folder banks */}
                                     {isExpanded && folderBanks.length > 0 && (
-                                        <div className="pl-6 space-y-2">
+                                        <div className="bank-folder-contents pl-6 space-y-2">
                                             {folderBanks.map(bank => renderBankCard(bank))}
                                         </div>
                                     )}
@@ -944,7 +944,7 @@ export default function ProktorQuestionBankPage() {
                                 type="checkbox"
                                 checked={newFolderPublic}
                                 onChange={e => setNewFolderPublic(e.target.checked)}
-                                className="w-4 h-4 mt-0.5 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
+                                className="bank-checkbox bg-transparent w-4 h-4 mt-0.5 text-[#3083FF] border-[#3083FF]/30 rounded focus:ring-2 focus:ring-[#3083FF]/20 shrink-0 cursor-pointer"
                             />
                             <span className="min-w-0">
                                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
@@ -1060,7 +1060,7 @@ export default function ProktorQuestionBankPage() {
                                         type="checkbox"
                                         checked={selectedAddToFolderIds.has(bank.id)}
                                         onChange={() => {}}
-                                        className="w-4 h-4 text-primary border-slate-300 rounded"
+                                        className="bank-checkbox bg-transparent w-4 h-4 text-primary border-slate-300 rounded"
                                     />
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-slate-800 text-sm truncate">{bank.title}</p>

@@ -89,3 +89,111 @@
   background-color: #3a1d2b !important;
   color: #fda4af !important;
 }
+
+input.bank-checkbox[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid #a8b7cc;
+  border-radius: 3px;
+  background-color: transparent !important;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+input.bank-checkbox[type="checkbox"]:checked,
+input.bank-checkbox[type="checkbox"]:indeterminate {
+  border-color: #60a5fa;
+  background-color: #3083ff !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3.5 8 3 3 6-6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+input.bank-checkbox[type="checkbox"]:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+input.bank-checkbox[type="checkbox"]:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+input.bank-checkbox[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.dark input.bank-checkbox[type="checkbox"] {
+  border-color: #8294af;
+}
+
+.dark input.bank-checkbox[type="checkbox"]:checked,
+.dark input.bank-checkbox[type="checkbox"]:indeterminate {
+  border-color: #60a5fa;
+}
+
+html:not(.dark) .bank-library .bank-folder-row {
+  background: #fff !important;
+  border-color: #dbe4ef !important;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgb(30 55 90 / 3%);
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
+}
+
+html:not(.dark) .bank-library .bank-folder-row:hover {
+  background: #fafcff !important;
+  border-color: #b8cfea !important;
+}
+
+html:not(.dark) .bank-library .bank-folder-row[data-expanded="true"] {
+  background: #f6faff !important;
+  border-color: #b7d2f5 !important;
+}
+
+html:not(.dark) .bank-library .bank-folder-toggle {
+  gap: 10px;
+}
+
+html:not(.dark) .bank-library .bank-folder-toggle > svg {
+  flex-shrink: 0;
+  color: #4b85ce;
+}
+
+html:not(.dark) .bank-library .bank-folder-title > :first-child {
+  color: #263b56;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+html:not(.dark) .bank-library .bank-folder-title > :last-child,
+html:not(.dark) .bank-library .bank-folder-meta {
+  color: #7b8da5;
+}
+
+html:not(.dark) .bank-library .bank-library-card {
+  background: #fff !important;
+  border-color: #e1e8f1 !important;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgb(30 55 90 / 3%);
+}
+
+html:not(.dark) .bank-library .bank-library-card:hover {
+  border-color: #bfd3ed !important;
+  box-shadow: 0 4px 12px rgb(30 55 90 / 5%);
+}
+
+html:not(.dark) .bank-library .bank-library-cover {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  border-radius: 10px;
+}
+
+@media (forced-colors: active) {
+  input.bank-checkbox[type="checkbox"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+    background: revert !important;
+    border: revert;
+  }
+}
