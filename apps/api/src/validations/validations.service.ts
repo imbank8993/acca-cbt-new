@@ -1,5 +1,6 @@
 import {
     BadRequestException,
+    ConflictException,
     ForbiddenException,
     Injectable,
     Logger,
@@ -87,6 +88,98 @@ export class ValidationsService {
         private readonly db: DbService,
         private readonly authz: AuthorizationService,
     ) {}
+
+    /** School-wide containers; they do not grant access to the validations inside. */
+    async listFolders(user: AuthUser) {
+        await this.authz.assertProktor(user, user.organizationId);
+        const { data, error } = await this.db.from('cbt_validation_folders').select('*')
+            .eq('organization_id', user.organizationId).order('name', { ascending: true });
+        if (error) throw new BadRequestException('Folder validasi belum dapat dimuat.');
+        const folders = (data || []) as Array<{ id: string; name: string; created_by: string | null }>;
+        if (!folders.length) return [];
+        const { data: sessions, error: contentsError } = await this.db.from('cbt_question_bank_validations')
+            .select('folder_id').in('folder_id', folders.map(folder => folder.id));
+        if (contentsError) throw new BadRequestException('Isi folder validasi belum dapat diperiksa.');
+        const occupied = new Set((sessions || []).map((row: { folder_id: string }) => row.folder_id));
+        const admin = !await this.authz.isRestrictedProctor(user, user.organizationId!);
+        return folders.map(folder => ({ ...folder,
+            canManage: admin || folder.created_by === user.id,
+            canDelete: (admin || folder.created_by === user.id) && !occupied.has(folder.id),
+        }));
+    }
+
+    private folderName(name: string) {
+        const value = name.trim();
+        if (!value || value.length > 120) throw new BadRequestException('Nama folder wajib diisi, maksimal 120 karakter.');
+        return value;
+    }
+
+    async createFolder(user: AuthUser, name: string) {
+        await this.authz.assertProktor(user, user.organizationId);
+        const { data, error } = await this.db.from('cbt_validation_folders').insert({
+            organization_id: user.organizationId, created_by: user.id, name: this.folderName(name),
+        }).select('id').single();
+        if (error?.code === '23505') throw new ConflictException('Nama folder validasi sudah digunakan.');
+        if (error || !data) throw new BadRequestException('Folder validasi gagal dibuat.');
+        return { id: data.id };
+    }
+
+    private async managedFolder(tx: DbSession, user: AuthUser, folderId: string) {
+        await this.authz.assertProktor(user, user.organizationId);
+        await tx.raw('SELECT id FROM public.cbt_validation_folders WHERE id = $1::uuid AND organization_id = $2::uuid FOR UPDATE', folderId, user.organizationId);
+        const { data: folder, error } = await tx.from('cbt_validation_folders').select('*')
+            .eq('id', folderId).eq('organization_id', user.organizationId).maybeSingle();
+        if (error) throw new BadRequestException('Folder validasi belum dapat dibaca.');
+        if (!folder) throw new NotFoundException('Folder validasi tidak ditemukan.');
+        if (folder.created_by !== user.id && await this.authz.isRestrictedProctor(user, user.organizationId!)) {
+            throw new ForbiddenException('Folder validasi hanya dapat diubah atau dihapus oleh pembuat folder atau Admin.');
+        }
+    }
+
+    async updateFolder(user: AuthUser, folderId: string, name: string) {
+        const value = this.folderName(name);
+        await this.db.transaction(async tx => {
+            await this.managedFolder(tx, user, folderId);
+            const { error } = await tx.from('cbt_validation_folders').update({ name: value, updated_at: new Date().toISOString() }).eq('id', folderId);
+            if (error?.code === '23505') throw new ConflictException('Nama folder validasi sudah digunakan.');
+            if (error) throw new BadRequestException('Folder validasi gagal diperbarui.');
+        });
+        return { id: folderId };
+    }
+
+    async removeFolder(user: AuthUser, folderId: string) {
+        await this.db.transaction(async tx => {
+            await this.managedFolder(tx, user, folderId);
+            const { data, error } = await tx.from('cbt_question_bank_validations').select('id').eq('folder_id', folderId).limit(1);
+            if (error) throw new BadRequestException('Isi folder validasi belum dapat diperiksa.');
+            if (data?.length) throw new BadRequestException('Folder masih berisi sesi validasi. Pindahkan seluruh sesi keluar sebelum menghapus folder.');
+            const { error: deleteError } = await tx.from('cbt_validation_folders').delete().eq('id', folderId);
+            if (deleteError) throw new BadRequestException('Folder validasi gagal dihapus.');
+        });
+        return { id: folderId };
+    }
+
+    private async assertFolderUsable(tx: DbSession, folderId: string | null | undefined, organizationId: string) {
+        if (!folderId) return;
+        // Share-lock with concurrent creates/moves, exclusive with deleting a folder.
+        await tx.raw('SELECT id FROM public.cbt_validation_folders WHERE id = $1::uuid AND organization_id = $2::uuid FOR KEY SHARE', folderId, organizationId);
+        const { data, error } = await tx.from('cbt_validation_folders').select('id')
+            .eq('id', folderId).eq('organization_id', organizationId).maybeSingle();
+        if (error || !data) throw new BadRequestException('Folder validasi tujuan tidak ditemukan di sekolah ini.');
+    }
+
+    /** Hydrate only already-authorized rows; the adapter's joins use single-column FKs. */
+    private async withFolders(rows: any[], organizationId: string, tasks = false) {
+        const ids = [...new Set(rows.map(row => (tasks ? row.validation : row)?.folder_id).filter(Boolean))];
+        if (!ids.length) return rows;
+        const { data, error } = await this.db.from('cbt_validation_folders').select('id, name')
+            .in('id', ids).eq('organization_id', organizationId);
+        if (error) throw new BadRequestException('Nama folder validasi belum dapat dimuat.');
+        const names = new Map((data || []).map((folder: { id: string; name: string }) => [folder.id, { id: folder.id, name: folder.name }]));
+        return rows.map(row => tasks
+            ? { ...row, validation: { ...row.validation, folder: names.get(row.validation?.folder_id) || null } }
+            : { ...row, folder: names.get(row.folder_id) || null });
+    }
 
     /**
      * Validator tidak boleh mengubah catatan/rekomendasi setelah batas waktu
@@ -272,11 +365,13 @@ export class ValidationsService {
         const title = dto.title?.trim() || `Validasi: ${(bank as { title: string }).title}`;
 
         const validation = await this.db.transaction(async (tx) => {
+            await this.assertFolderUsable(tx, dto.folderId, organizationId);
             const { data: valRow, error: valErr } = await tx
                 .from('cbt_question_bank_validations')
                 .insert({
                     organization_id: organizationId,
                     bank_id: dto.bankId,
+                    folder_id: dto.folderId || null,
                     created_by: user.id,
                     title,
                     instructions: dto.instructions?.trim() || '',
@@ -332,7 +427,7 @@ export class ValidationsService {
         let query = this.db
             .from('cbt_question_bank_validations')
             .select(
-                `id, bank_id, title, instructions, deadline, approval_rule, status, round, resubmitted_at, allow_edit_during_exam, created_at, updated_at,
+                `id, bank_id, folder_id, title, instructions, deadline, approval_rule, status, round, resubmitted_at, allow_edit_during_exam, created_at, updated_at,
                  bank:cbt_question_banks(id, title, subject, class_level, is_published, created_by, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name, email)),
                  creator:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name),
                  validators:cbt_question_bank_validators(id, validator_id, status, general_recommendation, general_comment, profile:cbt_profiles(full_name, email))`,
@@ -351,8 +446,9 @@ export class ValidationsService {
         }
 
         const rows = (data as any[]) || [];
-        if (!await this.authz.isRestrictedProctor(user, user.organizationId!)) return rows;
-        return rows.filter(row => row.bank?.created_by === user.id || row.bank?.is_published === true);
+        const visible = await this.authz.isRestrictedProctor(user, user.organizationId!)
+            ? rows.filter(row => row.bank?.created_by === user.id || row.bank?.is_published === true) : rows;
+        return this.withFolders(visible, user.organizationId!);
     }
 
     /**
@@ -405,7 +501,7 @@ export class ValidationsService {
             .select(
                 `id, status, general_recommendation, general_comment, submitted_at, created_at,
                  validation:cbt_question_bank_validations(
-                    id, organization_id, title, instructions, deadline, approval_rule, status, round, created_at,
+                    id, organization_id, folder_id, title, instructions, deadline, approval_rule, status, round, created_at,
                     bank:cbt_question_banks(id, title, subject, class_level, created_by, is_published, creator:cbt_profiles!cbt_question_banks_created_by_fkey(full_name)),
                     assigned_by:cbt_profiles!cbt_question_bank_validations_created_by_fkey(full_name)
                  )`,
@@ -421,8 +517,9 @@ export class ValidationsService {
         // Hanya tugas dari sekolah user sendiri; penugasan lintas sekolah tidak ditampilkan.
         const rows = ((data as any[]) || [])
             .filter(row => user.isPlatformAdmin || row.validation?.organization_id === user.organizationId);
-        if (!await this.authz.isRestrictedProctor(user, user.organizationId!)) return rows;
-        return rows.filter(row => row.validation?.bank?.created_by === user.id || row.validation?.bank?.is_published === true);
+        const visible = await this.authz.isRestrictedProctor(user, user.organizationId!)
+            ? rows.filter(row => row.validation?.bank?.created_by === user.id || row.validation?.bank?.is_published === true) : rows;
+        return this.withFolders(visible, user.organizationId!, true);
     }
 
     /**
@@ -832,6 +929,10 @@ export class ValidationsService {
             }
             const now = new Date().toISOString();
             const payload: Record<string, unknown> = {};
+            if (dto.folderId !== undefined) {
+                await this.assertFolderUsable(tx, dto.folderId, session.organization_id);
+                payload.folder_id = dto.folderId || null;
+            }
             if (dto.title !== undefined) {
                 if (!dto.title.trim()) throw new BadRequestException('Judul validasi tidak boleh kosong.');
                 payload.title = dto.title.trim();

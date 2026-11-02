@@ -1,0 +1,31 @@
+.validation-folders { display: grid; gap: 14px; }
+.validation-folders__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.validation-folders__heading h2 { font-size: 14px; font-weight: 700; color: #1e293b; }
+.validation-folders__heading p { margin-top: 3px; font-size: 12px; color: #64748b; }
+.validation-folders__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
+.validation-folder { display: flex; align-items: center; min-width: 0; border: 1px solid #dbe3ee; border-radius: 14px; background: #fff; transition: border-color .15s; }
+.validation-folder--active { border-color: #3083ff; background: #eff6ff; }
+.validation-folder__open { display: flex; gap: 12px; align-items: center; flex: 1; min-width: 0; padding: 15px; text-align: left; color: #3083ff; border-radius: 14px; }
+.validation-folder__open > svg { flex-shrink: 0; }
+.validation-folder__open span { min-width: 0; }
+.validation-folder__open strong { display: block; font-size: 13px; line-height: 19px; color: #334155; overflow-wrap: anywhere; }
+.validation-folder__open small { display: block; margin-top: 3px; font-size: 11px; color: #64748b; }
+.validation-folder__actions { display: flex; padding-right: 10px; }
+.validation-folder__actions button { padding: 7px; color: #64748b; border-radius: 7px; }
+.validation-folder__actions button:disabled { opacity: .35; cursor: not-allowed; }
+.validation-folder__actions button:not(:disabled):hover { background: #e2e8f0; }
+.validation-folder button:focus-visible { outline: 2px solid #3083ff; outline-offset: 2px; }
+.validation-folder-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 10px; padding: 11px 12px; background: #fff; color: #1e293b; font-size: 14px; }
+.dark .validation-folders__heading h2, .dark .validation-folder__open strong { color: #e2e8f0 !important; }
+.dark .validation-folders__heading p, .dark .validation-folder__open small { color: #94a3b8 !important; }
+.dark .validation-folders .validation-folder { background: #111c2e !important; border-color: #2e405a !important; }
+.dark .validation-folders .validation-folder--active { background: #152d50 !important; border-color: #4c98ff !important; }
+.dark .validation-folders__heading button { background: #15243a !important; color: #dbeafe !important; border-color: #3d506c !important; }
+.dark .validation-folder__actions button { color: #94a3b8; }
+.dark .validation-folder__actions button:not(:disabled):hover { background: #263850 !important; }
+.dark .validation-folder-input { background: #172337 !important; border-color: #3d506c !important; color: #e2e8f0 !important; }
+@media (max-width: 560px) {
+  .validation-folders__heading { align-items: flex-start; }
+  .validation-folders__heading p { max-width: 210px; }
+  .validation-folders__grid { grid-template-columns: 1fr; }
+}

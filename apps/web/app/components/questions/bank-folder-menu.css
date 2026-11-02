@@ -1,3 +1,33 @@
+.bank-folder-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  text-align: left;
+}
+
+.bank-folder-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bank-folder-title > :last-child {
+  flex-shrink: 0;
+}
+
+.bank-folder-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
 .bank-folder-menu {
   padding: 4px;
   border-radius: 12px;
@@ -6,6 +36,11 @@
 .bank-folder-menu button {
   border-radius: 6px;
   background: transparent;
+}
+
+.bank-folder-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .bank-folder-menu__separator {
@@ -35,7 +70,7 @@
   color: #dbe5f3 !important;
 }
 
-.dark .bank-folder-menu button:hover,
+.dark .bank-folder-menu button:not(:disabled):hover,
 .dark .bank-folder-menu button:focus-visible {
   background-color: #20324b !important;
   color: #f1f5f9 !important;
@@ -49,7 +84,7 @@
   color: #fb7185 !important;
 }
 
-.dark .bank-folder-menu button.bank-folder-menu__danger:hover,
+.dark .bank-folder-menu button.bank-folder-menu__danger:not(:disabled):hover,
 .dark .bank-folder-menu button.bank-folder-menu__danger:focus-visible {
   background-color: #3a1d2b !important;
   color: #fda4af !important;

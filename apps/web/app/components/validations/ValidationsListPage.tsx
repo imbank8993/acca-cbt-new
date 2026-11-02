@@ -40,6 +40,8 @@ import {
     listMyValidationTasks,
     updateValidation,
     deleteValidation,
+    listValidationFolders,
+    type ValidationFolder,
     type ValidationSession,
     type ValidationStatus,
 } from '@/lib/api/validations';
@@ -48,6 +50,7 @@ import { getSessionUser } from '@/lib/session';
 import { AssignValidationModal } from './AssignValidationModal';
 import { ValidationReportModal } from './ValidationReportModal';
 import { ValidationTabs } from './ValidationTabs';
+import { ValidationFolders } from './ValidationFolders';
 
 const VALIDATOR_ROLES = ['Guru', 'Proktor', 'Admin'];
 const RUNNING_STATUSES: ValidationStatus[] = ['pending', 'in_progress', 'resubmitted'];
@@ -67,6 +70,8 @@ interface ValidationsListPageProps {
 
 export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const [validations, setValidations] = useState<ValidationSession[]>([]);
+    const [folders, setFolders] = useState<ValidationFolder[]>([]);
+    const [folderFilter, setFolderFilter] = useState('all');
     const [banks, setBanks] = useState<QuestionBank[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -106,8 +111,9 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         try {
             const result = await work();
             if (!result.success) throw new Error(result.error || fallback);
-            const fresh = await listValidations();
+            const [fresh, freshFolders] = await Promise.all([listValidations(), listValidationFolders()]);
             setValidations(fresh);
+            setFolders(freshFolders);
             const next = closeAfter ? null : fresh.find(v => v.id === id) || null;
             setSelectedDetailVal(next);
             if (next) setEditDeadline(toDateInput(next.deadline));
@@ -168,13 +174,15 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         setLoading(true);
         setLoadError(null);
         try {
-            const [valList, bankList, sessionUser, myTasks] = await Promise.all([
+            const [valList, bankList, sessionUser, myTasks, folderList] = await Promise.all([
                 listValidations(),
                 listQuestionBanks(),
                 getSessionUser(),
                 listMyValidationTasks().catch(() => []),
+                listValidationFolders(),
             ]);
             setValidations(valList);
+            setFolders(folderList);
             setBanks(bankList);
             if (sessionUser) {
                 setCurrentUserId(sessionUser.id);
@@ -195,6 +203,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
     const myAssignedCount = validations.filter(v => v.validators?.some(val => val.validator_id === currentUserId)).length;
 
     const filtered = validations.filter(v => {
+        if (folderFilter === 'none' && v.folder_id) return false;
+        if (folderFilter !== 'all' && folderFilter !== 'none' && v.folder_id !== folderFilter) return false;
         const matchesSearch =
             v.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             v.bank?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -254,6 +264,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
         <div className="flex flex-col gap-4 sm:gap-6">
             <ValidationTabs activeTab="manage" manageRole={role} tasksCount={myTasksCount} />
 
+            <ValidationFolders folders={folders} folderIds={validations.map(item => item.folder_id)} value={folderFilter} onChange={setFolderFilter} onRefresh={loadData} />
+
             {/* Filter Toolbar (Standardized) */}
             <FilterToolbar className="validation-toolbar">
                 <FilterSearch
@@ -305,10 +317,10 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                         <ShieldCheck size={28} />
                     </div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                        Belum Ada Penugasan Validasi
+                        {validations.length === 0 ? 'Belum Ada Penugasan Validasi' : 'Tidak Ada Validasi di Tampilan Ini'}
                     </h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                        Tugaskan guru sebagai validator untuk memeriksa kualitas soal, kunci jawaban, dan stimulus sebelum ujian dimulai.
+                        {folderFilter !== 'all' ? 'Tambahkan validasi ke folder ini, atau pindahkan sesi yang sudah ada melalui Rincian.' : 'Tugaskan guru sebagai validator untuk memeriksa kualitas soal, kunci jawaban, dan stimulus sebelum ujian dimulai.'}
                     </p>
                     <Button
                         onClick={() => setIsAssignModalOpen(true)}
@@ -343,6 +355,7 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                                                 <p className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1" title={item.title}>
                                                     {item.title}
                                                 </p>
+                                                {item.folder && <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-300">{item.folder.name}</p>}
                                                 <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                                                     <Layers size={11} />
                                                     {item.bank?.subject || 'Mapel Umum'} • {creatorName}
@@ -428,6 +441,8 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                 onClose={() => setIsAssignModalOpen(false)}
                 banks={banks}
                 onSuccess={loadData}
+                folders={folders}
+                initialFolderId={folderFilter !== 'all' && folderFilter !== 'none' ? folderFilter : undefined}
             />
 
             {/* Modal Cetak Laporan Validasi */}
@@ -448,6 +463,15 @@ export function ValidationsListPage({ role }: ValidationsListPageProps) {
                     icon={<ShieldCheck size={20} />}
                 >
                     <ModalBody className="space-y-4">
+                        <label className="block text-xs font-semibold space-y-2">
+                            <span>Folder Validasi</span>
+                            <select aria-label="Pindahkan sesi ke folder" value={selectedDetailVal.folder_id || ''} disabled={managing}
+                                onChange={event => { void runManage(() => updateValidation(selectedDetailVal.id, { folderId: event.target.value || null }), 'Sesi gagal dipindahkan.'); }}
+                                className="validation-folder-input">
+                                <option value="">Tanpa Folder</option>
+                                {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                            </select>
+                        </label>
                         {selectedDetailVal.approval_rule === 'admin_decides' && (
                             <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-xs">
                                 <label htmlFor="validation-decision" className="font-bold">Keputusan akhir Admin/Proktor</label>

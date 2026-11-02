@@ -38,12 +38,14 @@ const FILES = [
     '20261102_01_bank_folder_visibility.sql',
     '20261102_02_validation_review_rounds.sql',
     '20261102_03_learning_subchapters.sql',
+    '20261102_04_validation_folders.sql',
 ];
 
 /** Tabel yang harus ada setelah migrasi pertama. */
 const EXPECTED_TABLES = [
     'platform_admins', 'acca_settings', 'school_years', 'bank_categories',
     'exam_classes', 'exam_configs', 'exam_config_banks', 'exam_config_exams',
+    'cbt_validation_folders',
 ];
 
 /** Tabel yang harus SUDAH TIDAK ADA setelah migrasi ketiga. */
@@ -84,6 +86,7 @@ const EXPECTED_COLUMNS = [
     ['bank_folders', 'is_public'],
     ['cbt_learning_materials', 'subtopic_order'],
     ['cbt_question_bank_validations', 'round'],
+    ['cbt_question_bank_validations', 'folder_id'],
     ['cbt_question_validation_notes', 'round'],
     ['cbt_question_validation_notes', 'question_revision'],
     ['cbt_question_validation_notes', 'verification'],

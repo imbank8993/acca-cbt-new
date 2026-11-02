@@ -122,7 +122,9 @@ test('LMS interactive preview preserves local behavior but blocks arbitrary exte
     });
     const html = exports.learningPreviewDocument('<script>location="https://example.invalid"</script><script src="https://example.invalid/a.js"></script><input name="answer" oninput="fetch(value)"><a href="https://example.invalid">Link</a><iframe src="https://example.invalid"></iframe>', true, '/* trusted bridge */');
     const doc = new window.DOMParser().parseFromString(html, 'text/html');
-    assert.equal(doc.querySelectorAll('script').length, 4);
+    // Author script, menu bridge, KaTeX, math runtime, and the same-document fragment link handler.
+    assert.equal(doc.querySelectorAll('script').length, 5);
+    assert.equal([...doc.querySelectorAll('script')].filter(script => script.textContent.includes('a[href^="#"]') && script.textContent.includes('scrollIntoView')).length, 1);
     assert.equal(doc.querySelector('script[src]').getAttribute('src'), 'https://school.example/learning/katex.min.js');
     assert.equal([...doc.querySelectorAll('script')].filter(script => !script.src && script.textContent === '/* trusted bridge */').length, 1);
     assert.equal(doc.querySelector('input').hasAttribute('oninput'), true);

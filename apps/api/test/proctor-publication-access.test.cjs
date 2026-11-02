@@ -146,3 +146,28 @@ test('proctors keep their own draft banks and administrators retain full school 
  f.roles.hasOrgRole=async(id,school,allowed)=>id==='proctor'&&school==='school'&&allowed.includes('Guru')||await original(id,school,allowed);
  await assert.rejects(f.auth.assertBankAccess(user('proctor'),'public','write'),denied);
 });
+
+test('proctors cannot delete even their own banks; all permission responses agree',async()=>{
+ const f=fixture();
+ // Use an unlinked bank so the role rule is the only deletion barrier.
+ f.db.tables.cbt_exams=[];
+ for(const id of ['own','draft','public']) {
+  await assert.rejects(f.auth.assertBankAccess(user('proctor'),id,'delete'),denied);
+  await assert.rejects(f.banks.remove(user('proctor'),id),denied);
+ }
+ await assert.rejects(f.auth.assertResourceOwner(user('proctor'),'bank','own'),denied);
+ assert.equal((await f.banks.get(user('proctor'),'own')).canDelete,false);
+ assert.ok((await f.banks.list(user('proctor'),'school')).every(bank=>bank.canDelete===false));
+ assert.equal(f.db.writes.length,0);
+ assert.equal(f.db.tables.cbt_question_banks.length,4);
+ // A simultaneous Guru role must not bypass a Proktor restriction.
+ const original=f.roles.hasOrgRole;
+ f.roles.hasOrgRole=async(id,school,allowed)=>id==='proctor'&&school==='school'&&allowed.includes('Guru')||await original(id,school,allowed);
+ await assert.rejects(f.banks.remove(user('proctor'),'own'),denied);
+ // Admin + Proktor retains the administrator's deletion permission.
+ assert.equal((await f.banks.get(user('admin'),'own')).canDelete,true);
+ assert.equal((await f.banks.list(user('admin'),'school')).find(bank=>bank.id==='own').canDelete,true);
+ await f.banks.remove(user('admin'),'own');
+ await f.banks.remove(user('teacher'),'draft');
+ assert.deepEqual(f.db.tables.cbt_question_banks.map(bank=>bank.id),['public','foreign']);
+});

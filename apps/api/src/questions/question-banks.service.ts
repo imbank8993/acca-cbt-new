@@ -408,6 +408,15 @@ export class QuestionBanksService {
         const creatorNames = await this.creatorNames(
             folders.map((folder) => folder.created_by).filter((id): id is string => !!id),
         );
+        const managedFolderIds = folders.filter((folder) => admin || folder.created_by === user.id).map((folder) => folder.id);
+        const occupiedFolders = new Set<string>();
+        if (managedFolderIds.length > 0) {
+            // Include banks hidden from the caller as well: only truly empty folders may be deleted.
+            const { data: banks, error: banksError } = await this.db.from('cbt_question_banks')
+                .select('folder_id').in('folder_id', managedFolderIds);
+            if (banksError) throw new BadRequestException('Isi folder belum dapat diperiksa.');
+            for (const bank of (banks as Array<{ folder_id: string }>) || []) occupiedFolders.add(bank.folder_id);
+        }
 
         return folders.map((folder) => {
             const isOwner = !!folder.created_by && folder.created_by === user.id;
@@ -416,6 +425,7 @@ export class QuestionBanksService {
                 is_public: folder.is_public === true,
                 isOwner,
                 canManage: isOwner || admin,
+                canDelete: (isOwner || admin) && !occupiedFolders.has(folder.id),
                 creator_name: folder.created_by ? creatorNames.get(folder.created_by) ?? 'Tidak diketahui' : null,
             };
         });
@@ -467,12 +477,20 @@ export class QuestionBanksService {
     }
 
     async removeFolder(user: AuthUser, folderId: string) {
-        await this.assertFolderOwner(user, folderId, 'delete');
-
-        // Bank di dalamnya tidak ikut terhapus: relasinya ON DELETE SET NULL,
-        // jadi banknya kembali ke akar.
-        const { error } = await this.db.from('bank_folders').delete().eq('id', folderId);
-        if (error) throw new BadRequestException(error.message);
+        await this.db.transaction(async (tx) => {
+            // The FK takes a key-share lock when a bank enters this folder.
+            // Lock before checking its contents so a concurrent move cannot be unassigned by deletion.
+            await tx.raw('SELECT id FROM public.bank_folders WHERE id = $1::uuid FOR UPDATE', folderId);
+            await this.assertFolderOwner(user, folderId, 'delete', tx);
+            const { data: banks, error: banksError } = await tx.from('cbt_question_banks')
+                .select('id').eq('folder_id', folderId).limit(1);
+            if (banksError) throw new BadRequestException('Isi folder belum dapat diperiksa.');
+            if ((banks as unknown[] | null)?.length) {
+                throw new BadRequestException('Folder masih berisi bank soal. Pindahkan semua bank soal keluar dari folder sebelum menghapusnya.');
+            }
+            const { error } = await tx.from('bank_folders').delete().eq('id', folderId);
+            if (error) throw new BadRequestException(error.message);
+        });
 
         return { id: folderId };
     }
@@ -551,8 +569,8 @@ export class QuestionBanksService {
      * Ganti nama, ubah status publik, dan hapus: hanya pembuat atau Admin.
      * Folder pribadi orang lain dilaporkan tidak ada agar keberadaannya tidak bocor.
      */
-    private async assertFolderOwner(user: AuthUser, folderId: string, operation: 'write' | 'delete') {
-        const { data, error } = await this.db.from('bank_folders')
+    private async assertFolderOwner(user: AuthUser, folderId: string, operation: 'write' | 'delete', db: Pick<DbService, 'from'> = this.db) {
+        const { data, error } = await db.from('bank_folders')
             .select('id, organization_id, created_by, is_public').eq('id', folderId).maybeSingle();
         if (error) throw new BadRequestException('Folder belum dapat dibaca.');
         if (!data) throw new NotFoundException('Folder tidak ditemukan.');

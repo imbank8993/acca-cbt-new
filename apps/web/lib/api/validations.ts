@@ -9,6 +9,13 @@ export type NoteCategory = 'typo' | 'materi' | 'kunci_jawaban' | 'konstruksi' | 
 export type NoteStatusItem = 'valid' | 'revision' | 'rejected';
 export type NoteVerification = 'accepted' | 'not_fixed';
 
+export interface ValidationFolder {
+    id: string;
+    name: string;
+    canManage?: boolean;
+    canDelete?: boolean;
+}
+
 export interface ValidationValidator {
     id: string;
     validator_id: string;
@@ -64,6 +71,8 @@ export interface ValidationItem {
 }
 
 export interface ValidationSession {
+    folder_id?: string | null;
+    folder?: Pick<ValidationFolder, 'id' | 'name'> | null;
     id: string;
     organization_id?: string;
     bank_id: string;
@@ -94,6 +103,8 @@ export interface ValidationTask {
     submitted_at?: string | null;
     created_at: string;
     validation: {
+        folder_id?: string | null;
+        folder?: Pick<ValidationFolder, 'id' | 'name'> | null;
         id: string;
         title: string;
         instructions?: string;
@@ -110,6 +121,7 @@ export interface ValidationTask {
 }
 
 export interface CreateValidationInput {
+    folderId?: string | null;
     bankId: string;
     validatorIds: string[];
     title?: string;
@@ -136,6 +148,7 @@ export interface UpdateValidationNoteInput {
 }
 
 export interface UpdateValidationInput {
+    folderId?: string | null;
     title?: string;
     instructions?: string;
     deadline?: string | null;
@@ -149,6 +162,24 @@ export interface SubmitValidationReviewInput {
 }
 
 // ── Client Functions ─────────────────────────────────────────────────────────
+
+export async function listValidationFolders(): Promise<ValidationFolder[]> {
+    const res = await apiGet<{ data?: ValidationFolder[] }>('/api/validations/folders');
+    if (!res.success) throw new Error(res.error || 'Folder validasi belum dapat dimuat.');
+    return res.data || [];
+}
+
+export function createValidationFolder(name: string) {
+    return apiCreate<{ id: string }>('/api/validations/folders', { name });
+}
+
+export function updateValidationFolder(id: string, name: string) {
+    return apiSend<{ id: string }>(`/api/validations/folders/${encodeURIComponent(id)}`, { name }, 'PATCH');
+}
+
+export function deleteValidationFolder(id: string) {
+    return apiSend<{ id: string }>(`/api/validations/folders/${encodeURIComponent(id)}`, undefined, 'DELETE');
+}
 
 export async function listValidations(bankId?: string): Promise<ValidationSession[]> {
     const query = bankId ? `?bankId=${encodeURIComponent(bankId)}` : '';

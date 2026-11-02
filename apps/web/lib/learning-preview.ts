@@ -104,6 +104,23 @@ function renderLearningMath(doc: Document): void {
     flush();
 }
 
+// A srcdoc document resolves "#bagian" against the app URL, so a plain fragment
+// link would load the whole application inside the sandbox (and crash there).
+// Keep fragment links in the same document; author handlers run first.
+const HASH_LINK_SCRIPT = String.raw`(() => {
+    document.addEventListener('click', event => {
+        if (event.defaultPrevented || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+        if (!link) return;
+        event.preventDefault();
+        let id = '';
+        try { id = decodeURIComponent((link.getAttribute('href') || '').slice(1)); } catch { return; }
+        const target = id ? document.getElementById(id) || document.getElementsByName(id)[0] : null;
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else if (!id || id === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+})();`;
+
 // Interactive materials often insert quiz questions after the initial HTML has
 // been parsed. Keep the renderer inside the opaque iframe and touch only text
 // nodes, so event handlers and answer state owned by the activity survive.
@@ -198,6 +215,13 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
         headings.forEach((heading, index) => { heading.id = `materi-bagian-${index}`; const li = document.createElement('li'); const link = document.createElement('a'); link.href = `#${heading.id}`; link.textContent = heading.textContent; li.append(link); list.append(li); });
         nav.append(list); document.body.prepend(nav);
     }
+    if (!interactive) {
+        // Without scripts, an explicit srcdoc URL keeps fragment navigation in this document.
+        document.querySelectorAll('a[href^="#"]').forEach(node => {
+            const href = node.getAttribute('href') || '';
+            if (href.length > 1) node.setAttribute('href', `about:srcdoc${href}`);
+        });
+    }
     const csp = document.createElement('meta'); csp.httpEquiv = 'Content-Security-Policy';
     csp.content = interactive
         ? `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND}${mathAssetUrl ? ` ${mathAssetUrl}` : ''}; style-src 'unsafe-inline' ${ICON_CSS}; font-src data: ${ICON_FONTS}; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`
@@ -226,6 +250,10 @@ export function learningPreviewDocument(html: string, interactive = false, bridg
     if (interactive && bridge) {
         const script = document.createElement('script'); script.textContent = bridge;
         csp.after(script);
+    }
+    if (interactive) {
+        const links = document.createElement('script'); links.textContent = HASH_LINK_SCRIPT;
+        csp.after(links);
     }
     if (mathAssetUrl) {
         const library = document.createElement('script'); library.src = mathAssetUrl;

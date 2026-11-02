@@ -26,6 +26,11 @@ export const VALIDATION_TEXT_LIMITS = {
 } as const;
 
 export class CreateValidationDto {
+    @ApiPropertyOptional({ description: 'Folder pengelompokan validasi', nullable: true })
+    @IsOptional()
+    @IsUUID('4')
+    folderId?: string | null;
+
     @ApiProperty({ description: 'ID bank soal yang divalidasi' })
     @IsUUID('4')
     @IsNotEmpty()
@@ -177,6 +182,11 @@ export class SetItemStatusDto {
 }
 
 export class UpdateValidationDto {
+    @ApiPropertyOptional({ description: 'Folder tujuan; null mengeluarkan sesi dari folder', nullable: true })
+    @IsOptional()
+    @IsUUID('4')
+    folderId?: string | null;
+
     @ApiPropertyOptional({ description: 'Judul tugas validasi' })
     @IsOptional()
     @IsString()
@@ -216,4 +226,12 @@ export class DecideValidationDto {
     @ApiProperty({ enum: ['approved', 'revision_needed', 'rejected'] })
     @IsIn(['approved', 'revision_needed', 'rejected'])
     status: 'approved' | 'revision_needed' | 'rejected';
+}
+
+export class SaveValidationFolderDto {
+    @ApiProperty({ description: 'Nama folder, misalnya ASAS 2026' })
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(120)
+    name: string;
 }

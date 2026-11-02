@@ -117,6 +117,8 @@ export interface BankFolder {
     isOwner?: boolean;
     /** Ganti nama, ubah status publik, dan hapus: pembuat atau Admin. */
     canManage?: boolean;
+    /** Hanya pembuat/Admin dan folder yang benar-benar kosong. */
+    canDelete?: boolean;
     creator_name?: string | null;
 }
 

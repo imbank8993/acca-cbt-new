@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Calendar,
-    UserCheck,
     ShieldCheck,
     Loader2,
     Search,
@@ -14,7 +13,7 @@ import { Modal, ModalBody, ModalFooter } from '@/app/components/ui/modal';
 import { InlineSelect } from '@/app/components/ui/inlineselect';
 import { DatePicker } from '@/app/components/ui/DatePicker';
 import { listTeachersAndInvigilators, type PASStaffMember } from '@/lib/api/pas';
-import { listValidations, createValidation, type ApprovalRule } from '@/lib/api/validations';
+import { listValidations, createValidation, listValidationFolders, type ValidationFolder, type ApprovalRule } from '@/lib/api/validations';
 import type { QuestionBank } from '@/lib/api/questions';
 
 const VALIDATOR_ROLES = ['Guru', 'Proktor', 'Admin'];
@@ -25,6 +24,8 @@ interface AssignValidationModalProps {
     banks: QuestionBank[];
     selectedBank?: QuestionBank | null;
     onSuccess: () => void;
+    folders?: ValidationFolder[];
+    initialFolderId?: string;
 }
 
 export function AssignValidationModal({
@@ -33,7 +34,12 @@ export function AssignValidationModal({
     banks,
     selectedBank,
     onSuccess,
+    folders,
+    initialFolderId,
 }: AssignValidationModalProps) {
+    const [folderId, setFolderId] = useState(initialFolderId || '');
+    const [availableFolders, setAvailableFolders] = useState<ValidationFolder[]>(folders || []);
+    const [folderReady, setFolderReady] = useState(false);
     const [targetBankId, setTargetBankId] = useState<string>(selectedBank?.id || '');
     const [title, setTitle] = useState('');
     const [instructions, setInstructions] = useState('');
@@ -71,26 +77,41 @@ export function AssignValidationModal({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
-        if (selectedBank) {
+        if (!selectedBank) return;
+        const timer = window.setTimeout(() => {
             setTargetBankId(selectedBank.id);
             setTitle(prev => prev || `Validasi Soal: ${selectedBank.title}`);
-        }
+        }, 0);
+        return () => window.clearTimeout(timer);
     }, [selectedBank]);
 
     useEffect(() => {
         if (!isOpen) return;
-        setStaffLoading(true);
-        Promise.all([
+        let cancelled = false;
+        const timer = window.setTimeout(() => {
+            setStaffLoading(true);
+            setFolderReady(false);
+            setErrorMessage(null);
+            Promise.all([
             listTeachersAndInvigilators().catch(() => []),
             listValidations().catch(() => []),
-        ]).then(([staffRes, valRes]) => {
+            folders ? Promise.resolve(folders) : listValidationFolders(),
+        ]).then(([staffRes, valRes, folderRes]) => {
+            if (cancelled) return;
+            setAvailableFolders(folderRes);
+            setFolderId(initialFolderId || '');
+            setFolderReady(true);
             setStaffList(staffRes);
             const titles = Array.from(
                 new Set(valRes.map(v => v.title).filter((t): t is string => Boolean(t && t.trim())))
             );
             setExistingTitles(titles);
-        }).finally(() => setStaffLoading(false));
-    }, [isOpen]);
+        }).catch(error => {
+            if (!cancelled) setErrorMessage(error instanceof Error ? error.message : 'Folder validasi belum dapat dimuat.');
+        }).finally(() => { if (!cancelled) setStaffLoading(false); });
+        }, 0);
+        return () => { cancelled = true; window.clearTimeout(timer); };
+    }, [isOpen, folders, initialFolderId]);
 
     const toggleValidator = (id: string) => {
         setSelectedValidatorIds(prev =>
@@ -159,6 +180,7 @@ export function AssignValidationModal({
         setIsSubmitting(true);
         try {
             const res = await createValidation({
+                folderId: folderId || null,
                 bankId: targetBankId,
                 validatorIds,
                 title: title.trim(),
@@ -173,8 +195,8 @@ export function AssignValidationModal({
             } else {
                 setErrorMessage(res.error || 'Gagal membuat tugas validasi.');
             }
-        } catch (err: any) {
-            setErrorMessage(err.message || 'Terjadi kesalahan sistem.');
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : 'Terjadi kesalahan sistem.');
         } finally {
             setIsSubmitting(false);
         }
@@ -203,6 +225,14 @@ export function AssignValidationModal({
                 )}
 
                 {/* Bank Soal Selection (Searchable) */}
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Folder Validasi
+                    <select aria-label="Folder untuk validasi baru" value={folderId} onChange={event => setFolderId(event.target.value)} disabled={isSubmitting || staffLoading}
+                        className="mt-1.5 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 text-sm font-normal">
+                        <option value="">Tanpa Folder</option>
+                        {availableFolders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                    </select>
+                </label>
                 <div ref={bankPickerRef}>
                     <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                         Bank Soal yang Divalidasi <span className="text-red-500">*</span>
@@ -431,7 +461,7 @@ export function AssignValidationModal({
                 </Button>
                 <Button
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !targetBankId || selectedValidatorIds.length === 0}
+                    disabled={isSubmitting || staffLoading || !folderReady || !targetBankId || selectedValidatorIds.length === 0}
                     className="bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-1.5 text-xs shadow-sm"
                     size="sm"
                 >

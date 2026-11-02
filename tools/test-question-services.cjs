@@ -114,6 +114,12 @@ async function test(name,fn){await fn();console.log('PASS',name);count++;}
         await assert.rejects(svc.create(t2,'org-1',{title:'x',folderId:priv.id,clientRequestId:randomUUID()}));
         await svc.moveToFolder(t2,['t2-bank'],pub.id);
         assert.equal(db.state.cbt_question_banks.find(b=>b.id==='t2-bank').folder_id,pub.id);
+        await assert.rejects(svc.removeFolder(t1,pub.id),/Folder masih berisi bank soal/);
+        await assert.rejects(svc.removeFolder(ad,pub.id),/Folder masih berisi bank soal/);
+        assert.equal((await svc.listFolders(t1,'org-1')).find(f=>f.id===pub.id).canDelete,false);
+        assert.equal(db.state.cbt_question_banks.find(b=>b.id==='t2-bank').folder_id,pub.id);
+        await svc.moveToFolder(t2,['t2-bank'],null);
+        assert.equal((await svc.listFolders(t1,'org-1')).find(f=>f.id===pub.id).canDelete,true);
         await svc.removeFolder(ad,priv.id);await svc.removeFolder(t1,pub.id);await svc.removeFolder(pr,own.id);
         assert.deepEqual(await seen(ad),['folder']);
     });

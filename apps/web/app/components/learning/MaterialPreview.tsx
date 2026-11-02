@@ -9,7 +9,11 @@ import { PdfPreview } from './PdfPreview';
 export function MaterialPreview({ material, fullPage = false, bridge, onActivityMessage, onMenuChange, navigationRequest }: HtmlNavigationProps & { material: LearningMaterial; fullPage?: boolean; bridge?: string; onActivityMessage?: (event: MessageEvent) => void }) {
     const frame = useRef<HTMLIFrameElement>(null);
     const [menuChannel] = useState(() => crypto.randomUUID());
-    const combinedBridge = useMemo(() => `${learningNavigationBridge(menuChannel)};${bridge || ''}`, [menuChannel, bridge]);
+    // The menu bridge is injected only when the host shows the HTML menu; otherwise the
+    // material keeps its own in-page navigation visible.
+    const showsMenu = !!onMenuChange;
+    const combinedBridge = useMemo(() => [showsMenu ? learningNavigationBridge(menuChannel) : '', bridge || ''].filter(Boolean).join(';'),
+        [menuChannel, bridge, showsMenu]);
     useEffect(() => {
         if (navigationRequest) frame.current?.contentWindow?.postMessage({ channel: menuChannel, type: 'html-menu-select', id: navigationRequest.id }, '*');
     }, [navigationRequest, menuChannel]);
@@ -28,7 +32,7 @@ export function MaterialPreview({ material, fullPage = false, bridge, onActivity
         window.addEventListener('message', receive); return () => window.removeEventListener('message', receive);
     }, [onActivityMessage, onMenuChange, menuChannel]);
     const document = useMemo(() => typeof window !== 'undefined' && material.content_html
-        ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge) : '', [material.content_html, material.format, combinedBridge]);
+        ? learningPreviewDocument(material.content_html, material.format === 'html', combinedBridge || undefined) : '', [material.content_html, material.format, combinedBridge]);
     return <div className={`learn-preview${fullPage ? ' learn-preview-fullpage' : ''}`}>
         {!fullPage && <div className="learn-preview-bar"><span>{material.content_html ? 'Halaman baca' : 'Pratinjau berkas'}</span><span>{material.format.toUpperCase()}</span></div>}
         {material.format === 'latex' && material.hasRenderedPdf ? <FilePreview key={`${material.id}:${material.revision}:latex`} material={material} />

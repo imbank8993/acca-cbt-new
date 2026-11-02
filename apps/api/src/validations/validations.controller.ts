@@ -29,6 +29,7 @@ import {
     UpdateValidationDto,
     UpdateValidationNoteDto,
     VerifyNoteDto,
+    SaveValidationFolderDto,
 } from './dto/validations.dto';
 import { ValidationsService } from './validations.service';
 
@@ -39,6 +40,30 @@ import { ValidationsService } from './validations.service';
 @Roles('ADMIN', 'PROKTOR', 'GURU')
 export class ValidationsController {
     constructor(private readonly validations: ValidationsService) {}
+
+    @Get('folders')
+    @Roles('ADMIN', 'PROKTOR')
+    listFolders(@CurrentUser() user: AuthUser) {
+        return this.validations.listFolders(user);
+    }
+
+    @Post('folders')
+    @Roles('ADMIN', 'PROKTOR')
+    createFolder(@CurrentUser() user: AuthUser, @Body() dto: SaveValidationFolderDto) {
+        return this.validations.createFolder(user, dto.name);
+    }
+
+    @Patch('folders/:folderId')
+    @Roles('ADMIN', 'PROKTOR')
+    updateFolder(@CurrentUser() user: AuthUser, @Param('folderId', ParseUUIDPipe) folderId: string, @Body() dto: SaveValidationFolderDto) {
+        return this.validations.updateFolder(user, folderId, dto.name);
+    }
+
+    @Delete('folders/:folderId')
+    @Roles('ADMIN', 'PROKTOR')
+    removeFolder(@CurrentUser() user: AuthUser, @Param('folderId', ParseUUIDPipe) folderId: string) {
+        return this.validations.removeFolder(user, folderId);
+    }
 
     @Post()
     @Roles('ADMIN', 'PROKTOR')

@@ -15,6 +15,7 @@ import {
 import { Button } from '@/app/components/ui/button';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { ValidationTabs } from '@/app/components/validations/ValidationTabs';
+import { ValidationFolders } from '@/app/components/validations/ValidationFolders';
 import {
     FilterToolbar,
     FilterSearch,
@@ -47,6 +48,7 @@ export default function GuruValidationTasksPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [folderFilter, setFolderFilter] = useState('all');
     const [user, setUser] = useState<AuthUser | null>(null);
     const [sessionLoading, setSessionLoading] = useState(true);
     const [tasksCount, setTasksCount] = useState<number>();
@@ -85,8 +87,11 @@ export default function GuruValidationTasksPage() {
 
     const canManage = Boolean(user?.resolved?.admin || user?.resolved?.proktor || user?.resolved?.superadmin);
     const manageRoleLabel = user?.resolved?.admin || user?.resolved?.superadmin ? 'Admin' : 'Proktor';
+    const taskFolders = Array.from(new Map(tasks.filter(task => task.validation.folder).map(task => [task.validation.folder!.id, task.validation.folder!])).values());
     const filtered = tasks.filter(task => {
         const val = task.validation;
+        if (folderFilter === 'none' && val.folder_id) return false;
+        if (folderFilter !== 'all' && folderFilter !== 'none' && val.folder_id !== folderFilter) return false;
         const title = val.title || '';
         const subject = val.bank?.subject || '';
         const creator = val.bank?.creator_name || (val.bank as { creator?: { full_name?: string } } | null)?.creator?.full_name || '';
@@ -169,6 +174,8 @@ export default function GuruValidationTasksPage() {
         <div className="flex flex-col gap-4 sm:gap-6">
             <ValidationTabs activeTab="tasks" manageRole={canManage ? manageRoleLabel : undefined}
                 tasksCount={tasksCount} sessionLoading={sessionLoading} />
+
+            <ValidationFolders folders={taskFolders} folderIds={tasks.map(task => task.validation.folder_id)} value={folderFilter} onChange={setFolderFilter} />
 
             {/* Filter Toolbar (Standardized ACCA Design) */}
             <FilterToolbar className="validation-toolbar">

@@ -15,6 +15,7 @@ import { bulkMoveBanksToFolder,createBankFolder,createQuestionBank,deleteBankFol
 import type { BankFolder,OrganizationLabel,QuestionBank } from '@/lib/api/questions';
 import { getSessionUser } from '@/lib/session';
 import { useMemoryState } from '@/lib/useMemoryState';
+import { useBankFolderMenu } from '@/lib/useBankFolderMenu';
 import {
 ArrowRight,
 CloudUpload,
@@ -141,7 +142,7 @@ export default function ProktorQuestionBankPage() {
     const [newFolderPublic, setNewFolderPublic] = useState(false);
     const [] = useState<string | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [folderMenuId, setFolderMenuId] = useState<string | null>(null);
+    const { folderMenuId, setFolderMenuId, folderMenuRef } = useBankFolderMenu();
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
     const [bankToMove, setBankToMove] = useState<QuestionBank | null>(null);
 
@@ -276,6 +277,11 @@ export default function ProktorQuestionBankPage() {
 
     const handleDeleteFolder = async (folder: BankFolder) => {
         if (!org) return;
+        setFolderMenuId(null);
+        if (folder.canDelete !== true) {
+            alert('Folder masih berisi bank soal. Pindahkan semua bank soal keluar dari folder sebelum menghapusnya.');
+            return;
+        }
         setIsSubmitting(true);
         try {
             const result = await deleteBankFolder(folder.id);
@@ -736,7 +742,7 @@ export default function ProktorQuestionBankPage() {
                                     <div className="flex items-center gap-2 px-4 py-3 bg-[#3083FF]/5 border border-[#3083FF]/30 rounded-lg mb-2">
                                         <button
                                             onClick={() => toggleFolderExpand(folder.id)}
-                                            className="flex items-center gap-2 flex-1 hover:text-[#3083FF] transition-all"
+                                            className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-[#3083FF] transition-all"
                                         >
                                             <input
                                                 type="checkbox"
@@ -748,22 +754,28 @@ export default function ProktorQuestionBankPage() {
                                             />
                                             {isExpanded ? <ChevronRight size={16} className="text-slate-400 rotate-90" /> : <ChevronRight size={16} className="text-slate-400" />}
                                             <Folder size={16} className="text-[#3083FF]" />
-                                            <span className="font-semibold text-slate-700">{folder.name}</span>
-                                            <span className="text-xs text-slate-400">({folderBanks.length})</span>
-                                            {folder.is_public ? (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200" title="Terlihat oleh semua guru dan proktor">
-                                                    <Globe size={10} /> Publik
+                                            <span className="bank-folder-identity">
+                                                <span className="bank-folder-title">
+                                                    <span className="font-semibold text-slate-700">{folder.name}</span>
+                                                    <span className="text-xs text-slate-400">({folderBanks.length})</span>
                                                 </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200" title="Hanya terlihat oleh pembuat dan Admin">
-                                                    <Lock size={10} /> Pribadi
+                                                <span className="bank-folder-meta">
+                                                    {folder.is_public ? (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200" title="Terlihat oleh semua guru dan proktor">
+                                                            <Globe size={10} /> Publik
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200" title="Hanya terlihat oleh pembuat dan Admin">
+                                                            <Lock size={10} /> Pribadi
+                                                        </span>
+                                                    )}
+                                                    {!folder.isOwner && folder.creator_name && (
+                                                        <span className="text-[10px] text-slate-400">oleh {folder.creator_name}</span>
+                                                    )}
                                                 </span>
-                                            )}
-                                            {!folder.isOwner && folder.creator_name && (
-                                                <span className="text-[10px] text-slate-400">oleh {folder.creator_name}</span>
-                                            )}
+                                            </span>
                                         </button>
-                                        <div className="relative">
+                                        <div className="relative" ref={folderMenuId === folder.id ? folderMenuRef : undefined}>
                                             <button
                                                 aria-label={`Menu folder ${folder.name}`}
                                                 aria-expanded={folderMenuId === folder.id}
@@ -820,6 +832,8 @@ export default function ProktorQuestionBankPage() {
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDeleteFolder(folder)}
+                                                                disabled={folder.canDelete !== true || isSubmitting}
+                                                                title={folder.canDelete !== true ? 'Pindahkan semua bank soal keluar dari folder sebelum menghapusnya' : 'Hapus folder kosong'}
                                                                 className="bank-folder-menu__danger w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 flex items-center gap-2"
                                                             >
                                                                 <Trash2 size={12} /> Hapus Folder

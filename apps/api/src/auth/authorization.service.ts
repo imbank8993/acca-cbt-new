@@ -200,11 +200,15 @@ export class AuthorizationService {
         const elevated =
             this.isElevatedGlobally(user) ||
             (await this.roles.hasOrgRole(user.id, bank.organization_id, ['Admin']));
+        const restrictedProctor = !elevated && await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor']);
+
+        if (access === 'delete' && restrictedProctor) {
+            throw new ForbiddenException('Proktor tidak dapat menghapus bank soal, termasuk bank soal buatan sendiri.');
+        }
 
         // Proctor access to somebody else's bank is publication-gated and read-only.
         // Bank collaboration must not bypass this boundary (including legacy editor grants).
-        if (!elevated && bank.created_by !== user.id &&
-            await this.roles.hasOrgRole(user.id, bank.organization_id, ['Proktor'])) {
+        if (restrictedProctor && bank.created_by !== user.id) {
             if (access === 'read' && bank.is_published === true) return bank.organization_id;
             throw new ForbiddenException(access === 'read'
                 ? 'Bank soal ini belum dipublikasikan oleh pembuatnya.'
@@ -237,7 +241,7 @@ export class AuthorizationService {
         const readOnlyBank = type === 'bank' && !admin && await this.roles.hasOrgRole(user.id, resource.organization_id, ['Proktor']);
         if (readOnlyBank && !owner && resource.is_published !== true) throw new ForbiddenException('Bank soal ini belum dipublikasikan oleh pembuatnya.');
         const grant = staff && !admin && !owner && !readOnlyBank ? await collaborationGrant(this.db, type, resourceId, user.id) : null;
-        return { resource, owner, admin, grant, canShare: admin || owner || grant?.permission === 'manager', canDelete: admin || owner };
+        return { resource, owner, admin, grant, canShare: admin || owner || grant?.permission === 'manager', canDelete: admin || (owner && !readOnlyBank) };
     }
 
     /**
@@ -253,7 +257,7 @@ export class AuthorizationService {
             access: (resource: { created_by?: string | null }, grant: CollaborationGrant | null | undefined) => {
                 const owner = staff && resource.created_by === user.id;
                 const effective = staff && !admin && !owner && !readOnlyBank ? grant || null : null;
-                return { owner, admin, grant: effective, canShare: admin || owner || effective?.permission === 'manager', canDelete: admin || owner };
+                return { owner, admin, grant: effective, canShare: admin || owner || effective?.permission === 'manager', canDelete: admin || (owner && !readOnlyBank) };
             },
         };
     }
