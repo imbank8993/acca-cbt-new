@@ -9,6 +9,7 @@ import { CreateExamModal } from '@/components/exams/CreateExamModal';
 import { DeleteExamModal } from '@/components/exams/DeleteExamModal';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { LIST_PAGE_SIZE, ListPagination } from '@/app/components/ui/list-pagination';
 import { addExamConfigBankAction,addExamConfigExamAction,createExamConfigAction,getExamConfig,listExamConfigs } from '@/lib/api/exam-configs';
 import { setExamArchived } from '@/lib/api/exams';
 import type { ExamConfig,ExamConfigBank } from '@/app/types/pas';
@@ -316,6 +317,17 @@ const ExamsPage = () => {
             e.title?.toLowerCase().includes(searchQuery.toLowerCase())
         )
     );
+
+    // Pagination daftar (sama dengan halaman bank soal); kembali ke halaman 1 saat filter berubah.
+    const [currentPage, setCurrentPage] = useState(1);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setCurrentPage(1), 0);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, searchQuery, typeFilter, sortBy]);
+    const listItemCount = filteredExams.length;
+    const listPage = Math.min(currentPage, Math.max(1, Math.ceil(listItemCount / LIST_PAGE_SIZE)));
+    const listStart = (listPage - 1) * LIST_PAGE_SIZE;
+    const pagedExams = filteredExams.slice(listStart, listStart + LIST_PAGE_SIZE);
 
     const tabs: { id: TabId; label: string; icon: LucideIcon; color: string }[] = [
         { id: 'all', label: 'Semua', icon: FolderOpen, color: 'text-slate-500' },
@@ -878,8 +890,9 @@ const ExamsPage = () => {
                     <p className="text-sm mt-1">Klik &quot;Buat Ujian Baru&quot; untuk memulai</p>
                 </div>
             ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                    {filteredExams.map((exam) => {
+                    {pagedExams.map((exam) => {
                         const bank = qBanks.find(b => b.id === exam.question_bank_id);
                         const assignment = examAssignments[exam.id] || { classCount: 0, studentCount: 0 };
                         const isAssigned = assignment.classCount > 0 || assignment.studentCount > 0;
@@ -1069,6 +1082,8 @@ const ExamsPage = () => {
                         );
                     })}
                 </div>
+                <ListPagination page={listPage} totalItems={listItemCount} onPageChange={setCurrentPage} />
+                </>
             ))}
 
             {/* ─────────────── CREATE MODAL ─────────────── */}

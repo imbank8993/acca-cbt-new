@@ -9,6 +9,7 @@ import { CreateExamModal } from '@/components/exams/CreateExamModal';
 import { DeleteExamModal } from '@/components/exams/DeleteExamModal';
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { LIST_PAGE_SIZE, ListPagination } from '@/app/components/ui/list-pagination';
 import { FilterActions, FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Button } from '@/app/components/ui/button';
 import { setExamArchived } from '@/lib/api/exams';
@@ -316,6 +317,22 @@ const ExamsPage = () => {
           )
         : [];
 
+    // Pagination daftar (sama dengan halaman bank soal); kembali ke halaman 1 saat filter berubah.
+    const [currentPage, setCurrentPage] = useState(1);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setCurrentPage(1), 0);
+        return () => window.clearTimeout(timer);
+    }, [activeTab, searchQuery, typeFilter, sortBy]);
+    const listItemCount = filteredPasFolders.length + filteredExams.length;
+    const listPage = Math.min(currentPage, Math.max(1, Math.ceil(listItemCount / LIST_PAGE_SIZE)));
+    const listStart = (listPage - 1) * LIST_PAGE_SIZE;
+    // Folder ASAS/ASAT/AM tampil lebih dulu, lalu ujian; keduanya dibagi ke halaman yang sama.
+    const pagedPasFolders = filteredPasFolders.slice(listStart, listStart + LIST_PAGE_SIZE);
+    const pagedExams = filteredExams.slice(
+        Math.max(0, listStart - filteredPasFolders.length),
+        Math.max(0, listStart + LIST_PAGE_SIZE - filteredPasFolders.length),
+    );
+
     const tabs: { id: TabId; label: string; icon: LucideIcon; color: string }[] = [
         { id: 'all', label: 'Semua', icon: FolderOpen, color: 'text-slate-500' },
         { id: 'draft', label: 'Draft', icon: AlertCircle, color: 'text-red-500' },
@@ -464,8 +481,9 @@ const ExamsPage = () => {
                     <p className="text-sm mt-1">Klik &quot;Buat Ujian Baru&quot; untuk memulai</p>
                 </div>
             ) : (
+                <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                    {filteredPasFolders.map((period) => {
+                    {pagedPasFolders.map((period) => {
                         const bankCount = period._count?.pas_subjects || 0;
                         const scheduleCount = period._count?.pas_class_schedules || 0;
                         const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -579,7 +597,7 @@ const ExamsPage = () => {
                             </div>
                         );
                     })}
-                    {filteredExams.map((exam) => {
+                    {pagedExams.map((exam) => {
                         const bank = qBanks.find(b => b.id === exam.question_bank_id);
                         const assignment = examAssignments[exam.id] || { classCount: 0, studentCount: 0 };
                         const isAssigned = assignment.classCount > 0 || assignment.studentCount > 0;
@@ -772,6 +790,8 @@ const ExamsPage = () => {
                         );
                     })}
                 </div>
+                <ListPagination page={listPage} totalItems={listItemCount} onPageChange={setCurrentPage} />
+                </>
             ))}
 
             {/* ─────────────── CREATE MODAL ─────────────── */}

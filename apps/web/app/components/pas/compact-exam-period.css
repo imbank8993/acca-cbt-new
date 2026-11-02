@@ -24,7 +24,8 @@
   background: linear-gradient(135deg, var(--cp-blue), color-mix(in srgb, var(--cp-blue) 70%, #1e3a8a)); box-shadow: 0 6px 16px color-mix(in srgb, var(--cp-blue) 28%, transparent); }
 .cp-title { min-width: 0; flex: 1; }
 .cp-title h1 { margin: 0 0 10px; font-size: 22px; line-height: 1.3; font-weight: 650; letter-spacing: -.5px; overflow-wrap: anywhere; }
-.cp-context { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 12px; color: var(--cp-muted); font-size: 12px; overflow-x: auto; scrollbar-width: thin; }
+/* Keterangan folder turun ke baris berikutnya bila tidak muat, tanpa scroll ke samping. */
+.cp-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--cp-muted); font-size: 12px; min-width: 0; }
 .cp-context > * { flex-shrink: 0; }
 .cp-type { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 600; letter-spacing: .2px;
   color: var(--cp-blue); background: color-mix(in srgb, var(--cp-blue) 12%, var(--cp-panel)); }

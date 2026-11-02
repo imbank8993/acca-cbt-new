@@ -9,6 +9,7 @@ import { Button } from '@/app/components/ui/button';
 import { FilterActions,FilterSearch,FilterSelect,FilterToolbar } from '@/app/components/ui/filtertoolbar';
 import { Modal,ModalBody,ModalField,ModalFooter } from '@/app/components/ui/modal';
 import { Spinner } from '@/app/components/ui/Spinner';
+import { LIST_PAGE_SIZE, ListPagination } from '@/app/components/ui/list-pagination';
 import { getProctorOrganization,hasUserDualRole,isUserProctor,listSubjects } from '@/lib/api/proctor';
 import type { ProctorOrganization,SchoolSubject } from '@/lib/api/proctor';
 import { bulkMoveBanksToFolder,createBankFolder,createQuestionBank,deleteBankFolder,deleteQuestionBank,listBankFolders,listOrganizationLabels,listQuestionBanks,moveBankToFolder,toggleQuestionBankPublishAction,updateBankFolder } from '@/lib/api/questions';
@@ -21,7 +22,7 @@ CloudUpload,
 CloudOff,
 Eye,
 BookOpen,
-Check,ChevronDown,
+Check,
 ChevronRight,
 Edit3,
 Folder,
@@ -78,7 +79,7 @@ export default function GuruQuestionBankPage() {
     const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
     const [activeSubjectFilter, setActiveSubjectFilter] = useState<string | null>(null);
     const [activeCreatorFilter, setActiveCreatorFilter] = useState<string | null>(null);
-    const PAGE_SIZE = 20;
+    const PAGE_SIZE = LIST_PAGE_SIZE;
     const [currentPage, setCurrentPage] = useState(1);
 
     const [labels, setLabels] = useMemoryState<OrganizationLabel[]>('guru_questions_labels', []);
@@ -886,38 +887,7 @@ export default function GuruQuestionBankPage() {
                 )}
 
                 {/* Pagination */}
-                {filteredBanks.length > PAGE_SIZE && (
-                    <div className="flex items-center justify-between pt-3">
-                        <p className="text-xs text-slate-400">
-                            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredBanks.length)} of {filteredBanks.length}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={safePage === 1}
-                                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronDown size={14} className="rotate-90" />
-                            </button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                <button
-                                    key={page}
-                                    onClick={() => setCurrentPage(page)}
-                                    className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${safePage === page ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'}`}
-                                >
-                                    {page}
-                                </button>
-                            ))}
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={safePage === totalPages}
-                                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                            >
-                                <ChevronDown size={14} className="-rotate-90" />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <ListPagination page={safePage} totalItems={filteredBanks.length} pageSize={PAGE_SIZE} onPageChange={setCurrentPage} />
             </div>
 
             {/* Folder Modal */}
