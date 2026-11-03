@@ -1,4 +1,5 @@
 import type { ExamAttemptRecord, ItemAnalysis, StudentAnswerSummary, getExamAnswersForAnalysisAction } from '@/lib/api/proctor';
+import { compareItemAnalysisDifficulty } from '@/lib/item-analysis-order';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { classicalDifficulty, classicalDifficultyIndex } from '@acca-cbt/shared';
 
@@ -8,12 +9,9 @@ export type ExamAnalysisData = Awaited<ReturnType<typeof getExamAnswersForAnalys
  * Analisis butir soal untuk tab Analisis monitoring.
  *
  * Memakai analisis rinci dari layanan penilaian bila tersedia; bila belum,
- * dihitung dari jawaban mentah. Hasil diurutkan dari % salah tertinggi.
+ * dihitung dari jawaban mentah. Soal tersulit didahulukan; jika sama, jumlah salah terbanyak diutamakan.
  */
 export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptRecord[]): ItemAnalysis[] {
-    const byIncorrect = (a: ItemAnalysis, b: ItemAnalysis) =>
-        (b.incorrectPercentage - a.incorrectPercentage) || ((a.number || 0) - (b.number || 0));
-
     if (data.detailed?.items?.length) {
         return data.detailed.items.map((item): ItemAnalysis => ({
             id: item.id,
@@ -40,7 +38,7 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
             keyParts: item.key_parts || [],
             responseDistribution: item.response_distribution || [],
             incorrectPercentage: item.incorrect_percentage,
-        })).sort(byIncorrect);
+        })).sort(compareItemAnalysisDifficulty);
     }
 
     // Cadangan bila layanan analisis belum mengembalikan data rinci.
@@ -103,5 +101,5 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
             correctStudents: [...stat.correctStudents].sort((a, b) => a.student_name.localeCompare(b.student_name)),
             incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0,
         };
-    }).sort(byIncorrect);
+    }).sort(compareItemAnalysisDifficulty);
 }

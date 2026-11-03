@@ -45,7 +45,7 @@ export function ResponseDistributionView({ groups }: { groups: ResponseGroup[] }
             <ul className="rd-choices">
                 {group.choices.map(choice => <li key={`${choice.value}:${choice.text}`} className={`rd-choice${choice.is_key ? ' is-key' : ''}`}>
                     <div className="rd-choice__main">
-                        <span className="rd-choice__value" title={choice.value}>{choice.value}</span>
+                        <span className="rd-choice__value" title={choice.value}><LatexRenderer text={choice.value} className="ia-inline-math" /></span>
                         {choice.text && group.kind !== 'statement' && <span className="rd-choice__text">
                             <LatexRenderer text={getQuestionSnippet(choice.text, 90)} className={latexInline} />
                         </span>}

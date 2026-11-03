@@ -25,6 +25,7 @@ function loadWeb(file, overrides={}){
  new Function('require','module','exports','React',code)(name=>{
   if(name in overrides)return overrides[name];
   if(name==='@acca-cbt/shared')return require(name);
+  if(name==='@/lib/item-analysis-order')return loadWeb('lib/item-analysis-order.ts');
   if(name.endsWith('.css'))return {};
   if(name.endsWith('monitoring-health'))return {formatStudentName:name=>name||'Tanpa Nama'};
   if(name.endsWith('question-snippet'))return {getQuestionSnippet:text=>text};
@@ -77,4 +78,24 @@ test('bulk reset immediately lists only eligible students and preserves select-a
  assert.ok(nodes(tree).filter(node=>node.type==='input').every(node=>node.props.checked));
  assert.equal(nodes(tree).find(node=>node.type==='Button').props.disabled,false);
  assert.match(text(tree),/2 tersedia · 2 terpilih/);
+});
+
+
+test('difficulty ranking prioritizes three wrong responses over one, then uses question number',()=>{
+ const {compareItemAnalysisDifficulty:compare}=loadWeb('lib/item-analysis-order.ts');
+ const items=[{number:1,correct:0,incorrect:1},{number:3,correct:0,incorrect:3},
+  {number:2,correct:0,incorrect:3},{number:4,correct:2,incorrect:8},
+  {number:5,correct:1,incorrect:1},{number:6,correct:0,incorrect:0}];
+ assert.deepEqual([...items].sort(compare).map(x=>x.number),[2,3,1,4,5,6]);
+ assert.deepEqual(items.map(x=>x.number),[1,3,2,4,5,6],'sorting a copy preserves the source');
+});
+
+test('detailed and fallback analyses use counts rather than rounded percentages',()=>{
+ const {buildItemAnalysis}=loadWeb('lib/item-analysis.ts');
+ const questions=[{id:'one',number:1},{id:'three',number:2}];
+ const answers=[{question_id:'one',attempt_id:'a',is_correct:false},
+  ...['a','b','c'].map(attempt_id=>({question_id:'three',attempt_id,is_correct:false}))];
+ assert.deepEqual(buildItemAnalysis({questions,answers},[]).map(x=>x.id),['three','one']);
+ const items=questions.map(q=>({...q,total_correct:0,total_incorrect:q.id==='one'?1:3,incorrect_percentage:100}));
+ assert.deepEqual(buildItemAnalysis({questions,answers:[],detailed:{items}},[]).map(x=>x.id),['three','one']);
 });

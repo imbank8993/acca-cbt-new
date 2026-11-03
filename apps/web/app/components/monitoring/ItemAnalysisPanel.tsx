@@ -7,6 +7,7 @@ import { Button } from '@/app/components/ui/button';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
 import type { AnswerPart, ItemAnalysis, StudentAnswerSummary } from '@/lib/api/proctor';
+import { compareItemAnalysisDifficulty } from '@/lib/item-analysis-order';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getQuestionSnippet } from '@/lib/question-snippet';
 import { DistractorStudentNames } from './DistractorStudentNames';
@@ -58,7 +59,7 @@ function AnswerParts({ parts, texts }: { parts: AnswerPart[]; texts: Map<string,
     return <div className="ia-parts">
         <div className="ia-parts__chips">{parts.map(part => <span key={part.label} className={`ia-chip ${partTone(part)}`}
             title={[`Pernyataan ${part.label}`, texts.get(part.label), `Jawaban: ${part.value === '-' ? 'tidak dijawab' : part.value}`].filter(Boolean).join(' — ')}>
-            <b>{part.label}</b>{part.value === '-' ? '–' : part.value}
+            <b>{part.label}</b><LatexRenderer text={part.value === '-' ? '–' : part.value} className="ia-inline-math" />
         </span>)}</div>
         <span className="ia-parts__score">{right}/{parts.length} tepat</span>
     </div>;
@@ -79,7 +80,7 @@ function KeyStrip({ item }: { item: ItemAnalysis }) {
     return <div className="ia-key">
         <span className="ia-key__label">Kunci</span>
         {item.keyParts?.length
-            ? <div className="ia-key__chips">{item.keyParts.map(key => <span key={key.label} className="ia-chip is-key" title={key.text ? `${key.label}. ${key.text}` : undefined}><b>{key.label}</b>{key.value}</span>)}</div>
+            ? <div className="ia-key__chips">{item.keyParts.map(key => <span key={key.label} className="ia-chip is-key" title={key.text ? `${key.label}. ${key.text}` : undefined}><b>{key.label}</b><LatexRenderer text={key.value} className="ia-inline-math" /></span>)}</div>
             : <div className="ia-key__value"><LatexRenderer text={item.keyDisplay || '-'} className="!font-sans !text-xs !leading-normal [&_p]:!m-0 [&_p]:inline" /></div>}
     </div>;
 }
@@ -99,7 +100,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
     const categorizedAnalysis = analysis.map(item => {
         const p = classicalDifficultyIndex(item.correct, item.incorrect);
         return { ...item, difficultyIndex: p ?? undefined, difficultyLabel: classicalDifficulty(p) || undefined };
-    });
+    }).sort(compareItemAnalysisDifficulty);
     const filteredAnalysis = categorizedAnalysis.filter(item =>
         (!difficulty || (item.difficultyLabel?.trim().toLocaleLowerCase('id') || 'unknown') === difficulty)
         && (!query || String(item.number) === query.replace(/^#/, '')
@@ -125,7 +126,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
         </p>
         <div className={`monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden ${className}`}>
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
-                <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
+                <span className="font-semibold text-slate-700 truncate">Urut dari soal tersulit</span>
                 {analysis.some(item => item.incorrectPercentage > 50) && (
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
                         {analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau
@@ -217,7 +218,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                     }}
                                                     className="mt-2"
                                                 >
-                                                    Detail Jawaban
+                                                    Detail
                                                 </Button>
                                             </div>
                                         </td>
@@ -426,7 +427,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                             <LatexRenderer text={opt.option_text || ''} className="!text-sm !leading-relaxed" />
                                                         </div>
                                                         {statementKey ? (
-                                                            <span className="ia-chip is-key shrink-0" aria-label={`Kunci pernyataan ${statementKey.label}: ${statementKey.value}`}>{statementKey.value}</span>
+                                                            <span className="ia-chip is-key shrink-0" aria-label={`Kunci pernyataan ${statementKey.label}: ${statementKey.value}`}><LatexRenderer text={statementKey.value} className="ia-inline-math" /></span>
                                                         ) : opt.is_correct && (
                                                             <span className="sr-only">Kunci jawaban</span>
                                                         )}

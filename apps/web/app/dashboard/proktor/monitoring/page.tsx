@@ -15,6 +15,7 @@ import { MonitoringPASAdministrationPanel } from '@/app/components/monitoring/Mo
 import { alertDialog, confirmDialog } from '@/lib/confirm-dialog';
 import { ResetExamModal } from '@/app/components/monitoring';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
+import { compareItemAnalysisDifficulty } from '@/lib/item-analysis-order';
 import { getQuestionSnippet } from '@/lib/question-snippet';
 import { IrtRecalculationNotice } from '@/app/components/monitoring/IrtRecalculationNotice';
 import { BulkResetPanel } from '@/app/components/monitoring/BulkResetPanel';
@@ -180,7 +181,7 @@ function MonitoringContent() {
                     correctStudents: [...stat.correctStudents].sort((a, b) => a.localeCompare(b)),
                     incorrectPercentage: graded > 0 ? (stat.incorrect / graded) * 100 : 0
                 };
-            }).sort((a, b) => (b.incorrectPercentage - a.incorrectPercentage) || (a.number - b.number));
+            }).sort(compareItemAnalysisDifficulty);
             if (generation !== examRequestGenerationRef.current) return;
             setAttempts(attData);
             setDetailedAnalysis(analysisData.detailed || null);
@@ -506,7 +507,7 @@ function MonitoringContent() {
                                     irt={<IrtParametersPanel questions={analysis} calibration={irtCalibration} scoringType={selectedExam?.scoring_type} exportTitle={selectedExam ? monitoringExamLabel(selectedExam) : undefined} />}>
                                 <div className="monitoring-analysis bg-white border border-[#3083FF]/30 rounded-lg shadow-sm overflow-hidden">
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs">
-                                    <span className="font-semibold text-slate-700 truncate">Urut % salah tertinggi</span>
+                                    <span className="font-semibold text-slate-700 truncate">Urut dari soal tersulit</span>
                                     {analysis.some(item => item.incorrectPercentage > 50) && (
                                         <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
                                             {analysis.filter(item => item.incorrectPercentage > 50).length} perlu ditinjau
@@ -589,7 +590,7 @@ function MonitoringContent() {
                                                                         onClick={() => { setViewQuestion(anl); setViewQuestionFilter('salah'); }}
                                                                         className="mt-2"
                                                                     >
-                                                                        Detail Jawaban
+                                                                        Detail
                                                                     </Button>
                                                                 </div>
                                                             </td>
