@@ -19,6 +19,7 @@ export interface PASExamSettings {
     scoring: PASScoringModel;
     /** Skor soal Benar-Salah & Kategorisasi; dikunci setelah ada siswa yang mengerjakan. */
     complex_scoring: PASComplexScoringRule;
+    matching_scoring: PASComplexScoringRule;
 }
 
 export interface PASExamSettingsConfig {
@@ -45,6 +46,7 @@ export const PAS_EXAM_SETTING_DEFAULTS: PASExamSettings = {
     screenshot_enabled: false,
     scoring: 'classical',
     complex_scoring: 'official',
+    matching_scoring: 'proportional',
 };
 
 export const PAS_EXAM_SETTING_KEYS = Object.keys(PAS_EXAM_SETTING_DEFAULTS) as Array<keyof PASExamSettings>;
@@ -98,6 +100,13 @@ export const COMPLEX_SCORING_CHOICES: Array<{ value: PASComplexScoringRule; labe
         hint: 'setiap pernyataan yang benar mendapat bagian skor. Contoh: benar 3 dari 4 pernyataan mendapat ¾ skor soal.' },
 ];
 
+export const MATCHING_SCORING_CHOICES: Array<{ value: PASComplexScoringRule; label: string; short: string; hint: string }> = [
+    { value: 'official', label: 'Utuh per soal', short: 'Menjodohkan utuh',
+        hint: 'untuk 5 pasangan atau kurang, skor penuh hanya jika seluruh pasangan tepat. Untuk lebih dari 5 pasangan, semua tepat mendapat skor penuh, salah 1–2 mendapat setengah skor, dan selebihnya nol. Pasangan kosong dihitung salah.' },
+    { value: 'proportional', label: 'Proporsional per pasangan', short: 'Menjodohkan proporsional',
+        hint: 'setiap pasangan yang tepat mendapat bagian skor. Contoh: tepat 4 dari 5 pasangan mendapat ⅘ bobot soal. Pasangan kosong tidak mendapat skor.' },
+];
+
 export type ResultsChoice = 'hidden' | 'score' | 'review';
 export const RESULTS_CHOICES: Array<{ value: ResultsChoice; label: string; short: string; hint: string }> = [
     { value: 'hidden', label: 'Tertutup', short: 'Hasil tertutup',
@@ -149,6 +158,7 @@ export function describePASExamSettings(settings: PASExamSettings): string[] {
     return [
         SCORING_CHOICES.find(choice => choice.value === settings.scoring)?.short || 'Klasik',
         ...(settings.complex_scoring === 'proportional' ? ['B/S proporsional'] : []),
+        ...(settings.matching_scoring === 'official' ? ['Menjodohkan utuh'] : []),
         RESULTS_CHOICES.find(choice => choice.value === resultsChoice(settings))!.short,
         safety === 'off' ? 'Tanpa mode aman' : safety === 'record' ? 'Mode aman (catat saja)' : `Mode aman (${settings.max_violations}×)`,
         ORDER_CHOICES.find(choice => choice.value === orderChoice(settings))!.short,

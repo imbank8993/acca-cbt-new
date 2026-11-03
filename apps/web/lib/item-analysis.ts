@@ -37,6 +37,8 @@ export function buildItemAnalysis(data: ExamAnalysisData, attempts: ExamAttemptR
             ungradedStudents: item.ungraded_students || [],
             unansweredStudents: item.unanswered_students || [],
             distractorDistribution: item.distractor_distribution || [],
+            keyParts: item.key_parts || [],
+            responseDistribution: item.response_distribution || [],
             incorrectPercentage: item.incorrect_percentage,
         })).sort(byIncorrect);
     }

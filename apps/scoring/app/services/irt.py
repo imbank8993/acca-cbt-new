@@ -25,7 +25,7 @@ import numpy as np
 
 from ..schemas.irt import AttemptScore, IrtAttempt, IrtRequest, IrtResponse, ItemParameter
 from .answer_parser import coerce_bool
-from .grading import STATEMENT_TYPES, _dedupe_options, _unique_strings, uses_proportional_scoring
+from .grading import _dedupe_options, _unique_strings, uses_proportional_scoring
 
 # Konstanta penskalaan logistik ke normal-ogive (2PL/3PL).
 D_CONSTANT = 1.7
@@ -48,8 +48,8 @@ PERSONALITY_TYPES = {
 }
 ESSAY_TYPES = {"essay", "esay", "uraian"}
 # Tipe yang satu soalnya dipecah menjadi beberapa butir IRT, satu per opsi.
-# Benar-Salah dan Kategorisasi hanya dipecah pada ujian beraturan lama
-# (proporsional); pada aturan resmi satu soal = satu butir — lihat
+# Benar-Salah, Kategorisasi, dan Menjodohkan dipecah pada mode
+# proporsional; pada mode utuh satu soal = satu butir — lihat
 # ``_is_unfolded``.
 UNFOLDED_TYPES = {"true_false", "matching", "categorization"}
 
@@ -57,7 +57,9 @@ UNFOLDED_TYPES = {"true_false", "matching", "categorization"}
 def _is_unfolded(qtype: str, question) -> bool:
     if qtype not in UNFOLDED_TYPES:
         return False
-    return qtype not in STATEMENT_TYPES or uses_proportional_scoring(question)
+    if qtype == "matching":
+        return (question.metadata or {}).get("matching_scoring") != "official"
+    return uses_proportional_scoring(question)
 
 
 def _statement_guess_probability(qtype: str, options) -> float:
@@ -68,6 +70,10 @@ def _statement_guess_probability(qtype: str, options) -> float:
     """
     count = len(options)
     if count == 0:
+        return 0.0
+    if qtype == "matching":
+        # Tidak mengasumsikan jumlah opsi kanan, pemakaian ulang, atau pemetaan
+        # satu-ke-satu dari kunci saja. Tanpa model tebakan terdefinisi, c = 0.
         return 0.0
     if qtype == "true_false":
         per_statement = 0.5
@@ -209,8 +215,8 @@ def _collect(attempts: list[IrtAttempt]) -> tuple[dict[str, ItemStat], dict[str,
                 max(float(answer.score or 0), 0.0), weight
             )
 
-            if qtype in STATEMENT_TYPES and not _is_unfolded(qtype, question):
-                # Aturan resmi: satu soal B/S/Kategorisasi = SATU butir, benar
+            if qtype in UNFOLDED_TYPES and not _is_unfolded(qtype, question):
+                # Mode utuh: satu soal B/S/Kategorisasi/Menjodohkan = SATU butir, benar
                 # bila seluruh pernyataan benar. Skor setengah (soal > 5
                 # pernyataan) tetap masuk skor klasik lewat ``answer.score``,
                 # tetapi butir IRT-nya dikotomus.

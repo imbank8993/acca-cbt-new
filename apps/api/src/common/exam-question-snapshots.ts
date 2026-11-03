@@ -4,7 +4,7 @@ import type { DbService, DbSession } from '../prisma/prisma-db-adapter';
 import { loadExamQuestions } from './exam-question-sources';
 import { advisoryTransactionLock } from './transaction-lock';
 import { markScoreExcluded } from './score-exclusion';
-import { applyComplexScoringRule, examComplexScoringRule } from './complex-scoring';
+import { applyComplexScoringRule, examComplexScoringRule, applyMatchingScoringRule, examMatchingScoringRule } from './complex-scoring';
 
 /** Seluruh data yang dapat memengaruhi tampilan, urutan, dan nilai. */
 export const EXAM_QUESTION_SNAPSHOT_SELECT = `
@@ -39,13 +39,14 @@ export async function readExamQuestionVersion(db: DbSession, examId: string): Pr
     await loadExamQuestions(db, examId, EXAM_QUESTION_SNAPSHOT_SELECT) as FrozenExamQuestion[]);
 }
 
-/** Cap aturan penskoran B/S/Kategorisasi ujian pada salinan soal. */
+/** Cap aturan B/S/Kategorisasi dan Menjodohkan pada salinan soal. */
 async function withExamScoringRule(db: DbSession, examId: string, questions: FrozenExamQuestion[]): Promise<FrozenExamQuestion[]> {
   if (questions.length === 0) return questions;
   const { data, error } = await db.from('cbt_exams').select('metadata').eq('id', examId).maybeSingle();
   if (error) throw new BadRequestException('Aturan penilaian ujian belum dapat dibaca.');
   const rule = examComplexScoringRule(data?.metadata);
-  return questions.map(question => applyComplexScoringRule(question, rule));
+  const matchingRule = examMatchingScoringRule(data?.metadata);
+  return questions.map(question => applyMatchingScoringRule(applyComplexScoringRule(question, rule), matchingRule));
 }
 
 async function applyCorrections(db: DbSession, examId: string, questions: FrozenExamQuestion[]): Promise<FrozenExamQuestion[]> {
@@ -54,12 +55,13 @@ async function applyCorrections(db: DbSession, examId: string, questions: Frozen
   const keys = data?.metadata?.answer_key_overrides || {};
   const voided = data?.metadata?.voided_questions || {};
   const rule = examComplexScoringRule(data?.metadata);
+  const matchingRule = examMatchingScoringRule(data?.metadata);
   return questions.map(question => {
     const keyed = typeof keys[question.id] === 'string'
       ? applyExamQuestionKey(question as KeyQuestion, keys[question.id]) as FrozenExamQuestion : question;
     // Soal dibatalkan: tetap ada dalam ujian, tetapi tidak dinilai.
     const marked = voided[question.id] ? markScoreExcluded(keyed) : keyed;
-    return applyComplexScoringRule(marked, rule);
+    return applyMatchingScoringRule(applyComplexScoringRule(marked, rule), matchingRule);
   });
 }
 

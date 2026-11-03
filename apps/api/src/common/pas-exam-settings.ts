@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { examComplexScoringRule, type ComplexScoringRule } from './complex-scoring';
+import { examComplexScoringRule, examMatchingScoringRule, type ComplexScoringRule } from './complex-scoring';
 
 /**
  * Pengaturan ujian folder ASAS/ASAT/AM.
@@ -29,6 +29,8 @@ export interface PasExamSettings {
      * > 5 pernyataan penuh/setengah/nol); `proportional` = benar ÷ jumlah pernyataan.
      */
     complex_scoring: ComplexScoringRule;
+    /** Menjodohkan: aturan terpisah, bawaan proporsional demi kompatibilitas nilai lama. */
+    matching_scoring: ComplexScoringRule;
 }
 
 export const COMPLEX_SCORING_RULES = ['official', 'proportional'] as const;
@@ -52,12 +54,13 @@ export const PAS_EXAM_SETTING_DEFAULTS: PasExamSettings = {
     screenshot_enabled: false,
     scoring: 'classical',
     complex_scoring: 'official',
+    matching_scoring: 'proportional',
 };
 
 const BOOLEAN_KEYS = ['randomize_questions', 'randomize_options', 'show_results', 'show_answer_keys', 'is_safe_mode', 'screenshot_enabled'] as const;
 
 /** Bidang yang ikut membentuk pengalaman siswa selama mengerjakan; dikunci setelah ada siswa yang mulai. */
-export const PAS_LOCKED_AFTER_START = ['randomize_questions', 'randomize_options', 'is_safe_mode', 'max_violations', 'screenshot_enabled', 'complex_scoring'] as const;
+export const PAS_LOCKED_AFTER_START = ['randomize_questions', 'randomize_options', 'is_safe_mode', 'max_violations', 'screenshot_enabled', 'complex_scoring', 'matching_scoring'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -93,6 +96,12 @@ function readSettings(value: unknown, label: string): Partial<PasExamSettings> {
             throw new BadRequestException(`${label}: aturan Benar-Salah/Kategorisasi harus resmi atau proporsional.`);
         }
         result.complex_scoring = value.complex_scoring as ComplexScoringRule;
+    }
+    if (value.matching_scoring !== undefined) {
+        if (!COMPLEX_SCORING_RULES.includes(value.matching_scoring as ComplexScoringRule)) {
+            throw new BadRequestException(`${label}: aturan Menjodohkan harus utuh per soal atau proporsional.`);
+        }
+        result.matching_scoring = value.matching_scoring as ComplexScoringRule;
     }
     return result;
 }
@@ -164,6 +173,7 @@ export function pasExamSettingsColumns(settings: PasExamSettings) {
             screenshot_enabled: settings.screenshot_enabled,
             student_score_type: settings.scoring,
             complex_scoring_rule: settings.complex_scoring,
+            matching_scoring_rule: settings.matching_scoring,
         },
     };
 }
@@ -211,7 +221,8 @@ export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSetting
         (meta.max_violations === undefined ? 3 : meta.max_violations) !== metadata.max_violations ||
         (meta.screenshot_enabled === true) !== metadata.screenshot_enabled;
     const securityLocked = started && securityChanged;
-    const scoringRuleLocked = started && examComplexScoringRule(meta) !== metadata.complex_scoring_rule;
+    const scoringRuleLocked = started && (examComplexScoringRule(meta) !== metadata.complex_scoring_rule ||
+        examMatchingScoringRule(meta) !== metadata.matching_scoring_rule);
     if (!started) {
         update.randomize_questions = columns.randomize_questions;
         update.randomize_options = columns.randomize_options;
@@ -220,6 +231,7 @@ export function pasExamSettingsUpdate(exam: PasExamRow, settings: PasExamSetting
             max_violations: metadata.max_violations,
             screenshot_enabled: metadata.screenshot_enabled,
             complex_scoring_rule: metadata.complex_scoring_rule,
+            matching_scoring_rule: metadata.matching_scoring_rule,
         });
     }
     return { update: { ...update, metadata: meta }, resultsLocked, securityLocked, scoringRuleLocked };

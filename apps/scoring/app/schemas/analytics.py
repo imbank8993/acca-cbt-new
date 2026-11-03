@@ -101,6 +101,8 @@ class DetailedOptionInput(BaseModel):
     option_text: str | None = None
     is_correct: bool = False
     order: int | None = 0
+    # Kunci Kategorisasi/Menjodohkan (category_names, match_texts) ada di sini.
+    metadata: dict[str, Any] | None = None
 
 
 class DetailedQuestionInput(BaseModel):
@@ -110,6 +112,8 @@ class DetailedQuestionInput(BaseModel):
     type: str | None = "mcq"
     score_default: float | None = 1.0
     options: list[DetailedOptionInput] = Field(default_factory=list)
+    # Kunci Isian (blanks) dan Urutan (correct_order).
+    metadata: dict[str, Any] | None = None
 
 
 class DetailedParticipantInput(BaseModel):
@@ -139,6 +143,53 @@ class DetailedItemAnalysisRequest(BaseModel):
     group_fraction: float = 0.27
 
 
+class AnswerPart(BaseModel):
+    """Jawaban siswa untuk satu pernyataan (B/S, Kategorisasi, Menjodohkan)."""
+
+    label: str
+    value: str = "-"
+    # None = belum dapat dinilai (kunci tidak tersedia).
+    correct: bool | None = None
+
+
+class KeyPart(BaseModel):
+    """Kunci satu pernyataan, ditampilkan sekali di atas daftar siswa."""
+
+    label: str
+    text: str = ""
+    value: str = "-"
+
+
+class ResponseChoice(BaseModel):
+    """Satu kemungkinan jawaban dalam sebaran: opsi, Benar/Salah, kategori, atau isian siswa."""
+
+    value: str
+    text: str = ""
+    is_key: bool = False
+    count: int = 0
+    percentage: float = 0.0
+    # Proporsi kelompok atas dikurangi kelompok bawah (27%) yang memilih jawaban ini.
+    # Kunci seharusnya positif, pengecoh negatif. None bila kelompok terlalu kecil.
+    discrimination: float | None = None
+    # "nonfunctional" (pengecoh dipilih < 5%), "attracts_upper" (pengecoh disukai kelompok atas),
+    # "key_negative" (kunci lebih banyak dipilih kelompok bawah — periksa kemungkinan salah kunci).
+    flags: list[str] = Field(default_factory=list)
+    students: list[str] = Field(default_factory=list)
+
+
+class ResponseGroup(BaseModel):
+    """Sebaran jawaban untuk satu bagian soal: seluruh soal (PG/PGK), satu pernyataan,
+    satu posisi urutan, atau satu isian."""
+
+    id: str
+    kind: str  # single | multi | statement | position | free
+    label: str = ""
+    text: str = ""
+    correct_percentage: float = 0.0
+    empty: int = 0
+    choices: list[ResponseChoice] = Field(default_factory=list)
+
+
 class StudentAnswerSummary(BaseModel):
     attempt_id: str
     student_name: str
@@ -147,6 +198,7 @@ class StudentAnswerSummary(BaseModel):
     score: float = 0.0
     display_answer: str = "-"
     is_correct: bool | None = None
+    answer_parts: list[AnswerPart] = Field(default_factory=list)
 
 
 class DistractorOptionStat(BaseModel):
@@ -183,6 +235,8 @@ class DetailedItemResult(BaseModel):
     ungraded_students: list[StudentAnswerSummary] = Field(default_factory=list)
     unanswered_students: list[StudentAnswerSummary] = Field(default_factory=list)
     distractor_distribution: list[DistractorOptionStat] = Field(default_factory=list)
+    key_parts: list[KeyPart] = Field(default_factory=list)
+    response_distribution: list[ResponseGroup] = Field(default_factory=list)
 
 
 class StudentItemCell(BaseModel):

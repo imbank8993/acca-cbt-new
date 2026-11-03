@@ -563,6 +563,7 @@ export interface ExamInput {
     showAnswerKeys?: boolean;
     /** Skor Benar-Salah & Kategorisasi; terkunci setelah ada siswa yang mengerjakan. */
     complexScoringRule?: 'official' | 'proportional';
+    matchingScoringRule?: 'official' | 'proportional';
     isSafeMode?: boolean;
     screenshotEnabled?: boolean;
     maxViolations?: number | null;
@@ -686,6 +687,24 @@ export async function getRecentViolationsAction(
     return res.success ? res.violations : [];
 }
 
+/** Jawaban siswa untuk satu pernyataan B/S, Kategorisasi, atau Menjodohkan. */
+export interface AnswerPart { label: string; value: string; correct: boolean | null }
+/** Kunci satu pernyataan. */
+export interface KeyPart { label: string; text: string; value: string }
+/** Satu kemungkinan jawaban dalam sebaran (opsi, Benar/Salah, kategori, atau isian siswa). */
+export interface ResponseChoice {
+    value: string; text: string; is_key: boolean; count: number; percentage: number;
+    /** Proporsi kelompok atas − kelompok bawah yang memilih; null bila kelompok terlalu kecil. */
+    discrimination: number | null;
+    flags: Array<'nonfunctional' | 'attracts_upper' | 'key_negative'>;
+    students: string[];
+}
+/** Sebaran jawaban satu bagian soal: seluruh soal (PG/PGK), pernyataan, posisi urutan, atau isian. */
+export interface ResponseGroup {
+    id: string; kind: 'single' | 'multi' | 'statement' | 'position' | 'free';
+    label: string; text: string; correct_percentage: number; empty: number; choices: ResponseChoice[];
+}
+
 export interface StudentAnswerSummary {
     attempt_id: string;
     student_name: string;
@@ -696,6 +715,7 @@ export interface StudentAnswerSummary {
     display_answer: string;
     submitted_answer?: string;
     is_correct: boolean | null;
+    answer_parts?: AnswerPart[];
 }
 
 export interface DistractorOptionStat {
@@ -734,6 +754,8 @@ export interface DetailedItemResult {
     ungraded_students: StudentAnswerSummary[];
     unanswered_students: StudentAnswerSummary[];
     distractor_distribution: DistractorOptionStat[];
+    key_parts?: KeyPart[];
+    response_distribution?: ResponseGroup[];
 }
 
 export interface StudentItemCell {
@@ -788,6 +810,8 @@ export interface ItemAnalysis {
     ungradedStudents?: StudentAnswerSummary[];
     unansweredStudents?: StudentAnswerSummary[];
     distractorDistribution?: DistractorOptionStat[];
+    keyParts?: KeyPart[];
+    responseDistribution?: ResponseGroup[];
     incorrectPercentage: number;
 }
 

@@ -206,9 +206,15 @@ def calculate_single_answer_score(question: Question, raw_answer: str | None) ->
                 correct_matches = [single] if single else []
             if correct_matches and _unique_strings(matches) and set(matches) == set(correct_matches):
                 correct_count += 1
-        ratio = correct_count / len(options) if options else 0
+        total = len(options)
+        metadata = question.metadata or {}
+        if metadata.get("matching_scoring") == "official":
+            ratio = statement_score_fraction(total, correct_count)
+        else:
+            # Tanpa penanda tetap memakai aturan lama, termasuk saat dinilai ulang.
+            ratio = correct_count / total if total else 0
         score_earned = ratio * default_score
-        is_correct = ratio == 1
+        is_correct = total > 0 and correct_count == total
 
     elif qtype == "short_answer":
         inputs = _loads(raw_answer, None)

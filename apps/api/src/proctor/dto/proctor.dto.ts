@@ -94,6 +94,12 @@ class ExamFieldsDto {
     @IsIn(['official', 'proportional'])
     complexScoringRule?: 'official' | 'proportional';
 
+    @ApiPropertyOptional({ enum: ['official', 'proportional'], default: 'proportional',
+        description: 'Skor Menjodohkan: utuh per soal atau proporsional per pasangan.' })
+    @IsOptional()
+    @IsIn(['official', 'proportional'])
+    matchingScoringRule?: 'official' | 'proportional';
+
     @ApiPropertyOptional({ default: true })
     @IsOptional()
     @IsBoolean()

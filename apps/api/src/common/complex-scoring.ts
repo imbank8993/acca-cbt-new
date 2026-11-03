@@ -44,3 +44,24 @@ export function applyComplexScoringRule<T extends { type?: unknown; metadata?: u
         ? question.metadata as Record<string, unknown> : {};
     return { ...question, metadata: { ...metadata, [COMPLEX_SCORING_FLAG]: 'proportional' } };
 }
+
+/** Menjodohkan diatur terpisah; tanpa penanda tetap proporsional seperti ujian lama. */
+export const MATCHING_SCORING_RULE_KEY = 'matching_scoring_rule';
+export const MATCHING_SCORING_FLAG = 'matching_scoring';
+
+export function examMatchingScoringRule(examMetadata: unknown): ComplexScoringRule {
+    return !!examMetadata && typeof examMetadata === 'object' &&
+        (examMetadata as Record<string, unknown>)[MATCHING_SCORING_RULE_KEY] === 'official'
+        ? 'official' : 'proportional';
+}
+
+/** Aturan ujian mengalahkan penanda bank/snapshot, tanpa menulis ulang snapshot. */
+export function applyMatchingScoringRule<T extends { type?: unknown; metadata?: unknown }>(
+    question: T, rule: ComplexScoringRule,
+): T {
+    if (String(question.type || '').toLowerCase() !== 'matching') return question;
+    const metadata = question.metadata && typeof question.metadata === 'object'
+        ? question.metadata as Record<string, unknown> : {};
+    if (rule === 'proportional' && metadata[MATCHING_SCORING_FLAG] !== 'official') return question;
+    return { ...question, metadata: { ...metadata, [MATCHING_SCORING_FLAG]: rule } };
+}

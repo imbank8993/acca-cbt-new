@@ -6,10 +6,11 @@ import { FilterSearch, FilterSelect, FilterToolbar } from '@/app/components/ui/f
 import { Button } from '@/app/components/ui/button';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/app/components/ui/modal';
 import { LatexRenderer } from '@/app/components/questions/LatexRenderer';
-import type { ItemAnalysis } from '@/lib/api/proctor';
+import type { AnswerPart, ItemAnalysis, StudentAnswerSummary } from '@/lib/api/proctor';
 import { formatStudentName } from '@/lib/monitoring-health';
 import { getQuestionSnippet } from '@/lib/question-snippet';
 import { DistractorStudentNames } from './DistractorStudentNames';
+import { ResponseDistributionView } from './ResponseDistributionView';
 import './item-analysis.css';
 import { classicalDifficulty, classicalDifficultyIndex, ITEM_DIFFICULTY_CATEGORIES } from '@acca-cbt/shared';
 
@@ -47,6 +48,40 @@ function difficultyColor(label?: string) {
     if (label === 'Mudah') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (label === 'Sangat Mudah') return 'bg-emerald-100 text-emerald-800 border-emerald-300';
     return 'bg-slate-50 text-slate-500 border-slate-200';
+}
+
+const partTone = (part: AnswerPart) => part.value === '-' ? 'is-empty' : part.correct === true ? 'is-right' : part.correct === false ? 'is-wrong' : '';
+
+/** Jawaban per pernyataan (B/S, Kategorisasi, Menjodohkan) sebagai deretan chip berhuruf. */
+function AnswerParts({ parts, texts }: { parts: AnswerPart[]; texts: Map<string, string> }) {
+    const right = parts.filter(part => part.correct === true).length;
+    return <div className="ia-parts">
+        <div className="ia-parts__chips">{parts.map(part => <span key={part.label} className={`ia-chip ${partTone(part)}`}
+            title={[`Pernyataan ${part.label}`, texts.get(part.label), `Jawaban: ${part.value === '-' ? 'tidak dijawab' : part.value}`].filter(Boolean).join(' — ')}>
+            <b>{part.label}</b>{part.value === '-' ? '–' : part.value}
+        </span>)}</div>
+        <span className="ia-parts__score">{right}/{parts.length} tepat</span>
+    </div>;
+}
+
+function StudentAnswer({ student, item, tone }: { student: StudentAnswerSummary; item: ItemAnalysis; tone: 'right' | 'wrong' }) {
+    if (student.answer_parts?.length) {
+        return <AnswerParts parts={student.answer_parts} texts={new Map((item.keyParts || []).map(key => [key.label, key.text]))} />;
+    }
+    return <div className={`item-analysis-answer ia-answer ia-answer--${tone}`}>
+        <LatexRenderer text={student.display_answer || (tone === 'right' ? 'Benar' : '(Kosong / Salah)')} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
+    </div>;
+}
+
+/** Kunci ditampilkan sekali di atas daftar siswa, bukan diulang di setiap baris. */
+function KeyStrip({ item }: { item: ItemAnalysis }) {
+    if (!item.keyParts?.length && !item.keyDisplay) return null;
+    return <div className="ia-key">
+        <span className="ia-key__label">Kunci</span>
+        {item.keyParts?.length
+            ? <div className="ia-key__chips">{item.keyParts.map(key => <span key={key.label} className="ia-chip is-key" title={key.text ? `${key.label}. ${key.text}` : undefined}><b>{key.label}</b>{key.value}</span>)}</div>
+            : <div className="ia-key__value"><LatexRenderer text={item.keyDisplay || '-'} className="!font-sans !text-xs !leading-normal [&_p]:!m-0 [&_p]:inline" /></div>}
+    </div>;
 }
 
 /**
@@ -339,7 +374,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                     {viewQuestion.wrongStudents?.length ?? viewQuestion.incorrect}
                                 </span>
                             </button>
-                            {(viewQuestion.distractorDistribution?.length ?? 0) > 0 && (
+                            {((viewQuestion.distractorDistribution?.length ?? 0) > 0 || (viewQuestion.responseDistribution?.length ?? 0) > 0) && (
                                 <button
                                     onClick={() => setModalActiveTab('distraktor')}
                                     className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap ${
@@ -349,7 +384,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                     }`}
                                 >
                                     <PieChart size={14} className="text-purple-500" />
-                                    Sebaran Pengecoh
+                                    {viewQuestion.responseDistribution?.length ? 'Sebaran Jawaban' : 'Sebaran Pengecoh'}
                                 </button>
                             )}
                         </div>
@@ -365,35 +400,41 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
 
                                     {(viewQuestion.options?.length ?? 0) > 0 && (
                                         <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
-                                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Pilihan Opsi & Kunci Jawaban</div>
+                                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">{viewQuestion.keyParts?.length ? 'Pernyataan & Kunci' : 'Pilihan Opsi & Kunci Jawaban'}</div>
                                             <div className="space-y-2">
-                                                {viewQuestion.options.map((opt, i) => (
+                                                {viewQuestion.options.map((opt, i) => {
+                                                    // Soal berpernyataan: tiap pernyataan punya kuncinya sendiri (mis. Benar/Salah).
+                                                    const statementKey = viewQuestion.keyParts?.[i];
+                                                    return (
                                                     <div
                                                         key={opt.id || i}
                                                         className={`flex items-start gap-3 p-3 rounded-lg border text-sm transition-colors ${
-                                                            opt.is_correct
+                                                            !statementKey && opt.is_correct
                                                                 ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300'
                                                                 : 'bg-slate-50 border-slate-200/70'
                                                         }`}
                                                     >
                                                         <span className={`w-6 h-6 flex items-center justify-center rounded font-bold text-xs shrink-0 ${
-                                                            opt.is_correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                                                            !statementKey && opt.is_correct ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
                                                         }`}>
                                                             {String.fromCharCode(65 + i)}
                                                         </span>
                                                         <div className="flex-1 min-w-0 pt-0.5">
                                                             <LatexRenderer text={opt.option_text || ''} className="!text-sm !leading-relaxed" />
                                                         </div>
-                                                        {opt.is_correct && (
+                                                        {statementKey ? (
+                                                            <span className="ia-chip is-key shrink-0" aria-label={`Kunci pernyataan ${statementKey.label}: ${statementKey.value}`}>{statementKey.value}</span>
+                                                        ) : opt.is_correct && (
                                                             <span className="sr-only">Kunci jawaban</span>
                                                         )}
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
 
-                                    {viewQuestion.keyDisplay && (
+                                    {viewQuestion.keyDisplay && !viewQuestion.keyParts?.length && (
                                         <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 flex items-center justify-between text-xs text-blue-900">
                                             <span className="font-semibold">Kunci Jawaban Resmi:</span>
                                             <div className="font-bold bg-white px-3 py-1 rounded border border-blue-200">
@@ -434,6 +475,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </div>
                                         <span className="text-xs text-emerald-700 font-medium">Nilai Poin Diperoleh Penuh</span>
                                     </div>
+                                    <KeyStrip item={viewQuestion} />
 
                                     {(!viewQuestion.correctStudents || viewQuestion.correctStudents.length === 0) ? (
                                         <div className="p-8 text-center text-slate-400 text-sm">
@@ -459,11 +501,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                             <td className="p-3 font-medium text-slate-800">{formatStudentName(st.student_name, 'Tanpa Nama')}</td>
                                                             <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                             <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
-                                                            <td className="p-3">
-                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
-                                                                    <LatexRenderer text={st.display_answer || 'Benar'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
-                                                                </div>
-                                                            </td>
+                                                            <td className="p-3"><StudentAnswer student={st} item={viewQuestion} tone="right" /></td>
                                                             <td className="p-3 text-right font-bold text-emerald-600">
                                                                 +{st.score !== undefined ? st.score : 1}
                                                             </td>
@@ -487,6 +525,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                         </div>
                                         <span className="text-xs text-red-700 font-medium">Perlu Perhatian & Remedial</span>
                                     </div>
+                                    <KeyStrip item={viewQuestion} />
 
                                     {(!viewQuestion.wrongStudents || viewQuestion.wrongStudents.length === 0) ? (
                                         <div className="p-8 text-center text-emerald-600 font-medium text-sm">
@@ -502,7 +541,6 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                         <th className="p-3">Kelas</th>
                                                         <th className="p-3">NISN / Identitas</th>
                                                         <th className="p-3">Jawaban Siswa</th>
-                                                        <th className="p-3">Kunci Jawaban</th>
                                                         <th className="p-3 text-right">Skor</th>
                                                     </tr>
                                                 </thead>
@@ -513,16 +551,7 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                             <td className="p-3 font-medium text-slate-800">{formatStudentName(st.student_name, 'Tanpa Nama')}</td>
                                                             <td className="p-3 text-slate-600">{st.class_name || '-'}</td>
                                                             <td className="p-3 text-slate-500 font-mono text-[11px]">{st.student_nis || '-'}</td>
-                                                            <td className="p-3">
-                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[11px]">
-                                                                    <LatexRenderer text={st.display_answer || '(Kosong / Salah)'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-3">
-                                                                <div className="item-analysis-answer inline-block max-w-xs px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold text-[11px]">
-                                                                    <LatexRenderer text={viewQuestion.keyDisplay || '-'} className="!font-sans !text-[11px] !leading-normal [&_p]:!m-0 [&_p]:inline" />
-                                                                </div>
-                                                            </td>
+                                                            <td className="p-3"><StudentAnswer student={st} item={viewQuestion} tone="wrong" /></td>
                                                             <td className="p-3 text-right font-bold text-red-500">
                                                                 {st.score !== undefined ? st.score : 0}
                                                             </td>
@@ -535,7 +564,11 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                 </div>
                             )}
 
-                            {modalActiveTab === 'distraktor' && (
+                            {modalActiveTab === 'distraktor' && (viewQuestion.responseDistribution?.length ?? 0) > 0 && (
+                                <ResponseDistributionView groups={viewQuestion.responseDistribution || []} />
+                            )}
+
+                            {modalActiveTab === 'distraktor' && !(viewQuestion.responseDistribution?.length) && (
                                 <div className="space-y-4">
                                     <div className="p-4 bg-purple-50/60 rounded-xl border border-purple-200 flex items-center justify-between text-xs text-purple-900">
                                         <span className="font-semibold">Analisis Distribusi Pemilihan Opsi (Pengecoh / Distractor):</span>
@@ -559,11 +592,6 @@ export function ItemAnalysisPanel({ analysis, className = '', analysisSelector }
                                                                 <LatexRenderer text={getQuestionSnippet(dist.option_text, 80)} className="!font-sans !text-xs !leading-normal !text-left truncate [&_p]:!m-0 [&_p]:inline" />
                                                             ) : ''}
                                                         </div>
-                                                        {dist.is_correct && (
-                                                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                                                                KUNCI
-                                                            </span>
-                                                        )}
                                                     </div>
                                                     <div className="text-right shrink-0">
                                                         <span className="font-bold text-sm text-slate-800">{dist.count} siswa</span>

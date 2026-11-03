@@ -16,7 +16,10 @@ import json
 import math
 import re
 
+from typing import Any
+
 from ..schemas.analytics import (
+    AnswerPart,
     DetailedAnswerInput,
     DetailedItemAnalysisRequest,
     DetailedItemAnalysisResponse,
@@ -30,6 +33,7 @@ from ..schemas.analytics import (
     ItemAnalysisRequest,
     ItemAnalysisResponse,
     ItemStatistic,
+    KeyPart,
     QuestionAnalytics,
     ScoreDistributionBucket,
     ScoreStats,
@@ -37,7 +41,13 @@ from ..schemas.analytics import (
     StudentItemCell,
     StudentItemMatrixRow,
 )
-from .answer_parser import parse_mcq_complex_answer
+from .answer_parser import coerce_bool, parse_mcq_complex_answer
+from .grading import _unique_strings
+from .response_distribution import build_response_distribution
+
+# Soal berpernyataan: jawaban disimpan sebagai {id_pernyataan: nilai}. ID itu UUID internal,
+# jadi tampilannya selalu memakai huruf pernyataan (A, B, …), bukan ID.
+STATEMENT_ANSWER_TYPES = {"true_false", "categorization", "matching"}
 
 DISTRIBUTION_BUCKETS = [
     ("0-20", 0, 20),
@@ -233,16 +243,87 @@ def _strip_html(text: str | None) -> str:
     )
 
 
+def _parse_mapping(raw_val: Any) -> dict:
+    if isinstance(raw_val, dict):
+        return raw_val
+    if isinstance(raw_val, str) and raw_val.strip():
+        try:
+            parsed = json.loads(raw_val)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _as_texts(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    values = value if isinstance(value, list) else [value]
+    return [_strip_html(str(v)) for v in values if v is not None and str(v).strip() != ""]
+
+
+def _bool_label(value: bool | None) -> str:
+    return "Benar" if value is True else "Salah" if value is False else "-"
+
+
+def _statement_key(q_type: str, option: DetailedOptionInput) -> list[str] | bool | None:
+    """Kunci satu pernyataan, mengikuti aturan penilaian di ``grading.py``."""
+    if q_type == "true_false":
+        return bool(option.is_correct)
+    meta = option.metadata or {}
+    plural, single = ("category_names", "category_name") if q_type == "categorization" else ("match_texts", "match_text")
+    keys = meta.get(plural) or ([meta.get(single)] if meta.get(single) else [])
+    return [str(k) for k in keys if k is not None and str(k) != ""] or None
+
+
+def _key_value(q_type: str, option: DetailedOptionInput) -> str:
+    key = _statement_key(q_type, option)
+    if isinstance(key, bool):
+        return _bool_label(key)
+    return ", ".join(_strip_html(k) for k in key) if key else "-"
+
+
+def _statement_parts(
+    q_type: str,
+    raw_val: Any,
+    options: list[DetailedOptionInput],
+    option_letters: dict[str, str],
+) -> list[AnswerPart]:
+    """Jawaban per pernyataan. Pernyataan kosong dihitung salah, sama seperti penilaian."""
+    answers = _parse_mapping(raw_val)
+    parts: list[AnswerPart] = []
+    for option in options:
+        label = option_letters.get(option.id, "-")
+        given = answers.get(option.id)
+        key = _statement_key(q_type, option)
+        if q_type == "true_false":
+            value = coerce_bool(given)
+            parts.append(AnswerPart(label=label, value=_bool_label(value), correct=value is not None and value == key))
+            continue
+        chosen = given if isinstance(given, list) else ([given] if given not in (None, "") else [])
+        texts = _as_texts(chosen)
+        correct = None if not key else _unique_strings(given) and set(given) == set(key)
+        parts.append(AnswerPart(label=label, value=", ".join(texts) or "-", correct=correct))
+    return parts
+
+
+def _parts_text(parts: list[AnswerPart]) -> str:
+    return ", ".join(f"{part.label}: {part.value}" for part in parts) or "-"
+
+
 def _format_student_answer(
     q_type: str,
     raw_val: Any,
     option_letters: dict[str, str],
     option_texts: dict[str, str],
+    options: list[DetailedOptionInput] | None = None,
 ) -> str:
     if raw_val is None or raw_val == "":
         return "-"
 
     q_type = q_type.lower()
+    if q_type in STATEMENT_ANSWER_TYPES and options:
+        return _parts_text(_statement_parts(q_type, raw_val, options, option_letters))
     if q_type == "mcq":
         opt_id = str(raw_val)
         letter = option_letters.get(opt_id)
@@ -256,18 +337,12 @@ def _format_student_answer(
         letters = [option_letters.get(o, o) for o in opts]
         return ", ".join(letters) if letters else "-"
 
-    if q_type in ("true_false", "matching", "categorization"):
-        if isinstance(raw_val, dict):
-            parts = [f"{k}: {v}" for k, v in raw_val.items()]
-            return "; ".join(parts)[:120]
-        if isinstance(raw_val, str):
-            try:
-                parsed = json.loads(raw_val)
-                if isinstance(parsed, dict):
-                    return "; ".join(f"{k}: {v}" for k, v in parsed.items())[:120]
-            except Exception:
-                pass
-            return str(raw_val)[:120]
+    if q_type in STATEMENT_ANSWER_TYPES:
+        # Tanpa daftar pernyataan, ID internal tetap tidak ditampilkan; ganti dengan huruf bila dikenal.
+        mapping = _parse_mapping(raw_val)
+        if mapping:
+            return ", ".join(f"{option_letters.get(str(k), '?')}: {', '.join(_as_texts(v)) or '-'}" for k, v in mapping.items())
+        return "-"
 
     return str(raw_val).strip()
 
@@ -294,6 +369,10 @@ def _build_key_display(
 
     if q_type in ("essay", "esay", "uraian"):
         return "Rubrik / Koreksi Manual"
+
+    if q_type in STATEMENT_ANSWER_TYPES:
+        options = sorted(q.options, key=lambda o: o.order or 0)
+        return ", ".join(f"{option_letters.get(o.id, '-')}: {_key_value(q_type, o)}" for o in options) or "-"
 
     if q_type == "short_answer":
         correct_texts = [_strip_html(o.option_text or "") for o in q.options if o.option_text]
@@ -349,6 +428,12 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
             option_texts[opt.id] = opt.option_text or ""
 
         key_display = _build_key_display(q, option_letters, option_texts)
+        q_type = (q.type or "mcq").lower()
+        is_statement = q_type in STATEMENT_ANSWER_TYPES
+        key_parts = [
+            KeyPart(label=option_letters.get(o.id, "-"), text=_strip_html(o.option_text or "")[:160], value=_key_value(q_type, o))
+            for o in q_options
+        ] if is_statement else []
         q_answers = by_question.get(q.id, [])
         answered_attempt_ids = set()
 
@@ -371,7 +456,8 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 if (ans.essay_answer is not None and ans.essay_answer != "")
                 else ans.selected_option_id
             )
-            disp_ans = _format_student_answer(q.type or "mcq", raw_val, option_letters, option_texts)
+            answer_parts = _statement_parts(q_type, raw_val, q_options, option_letters) if is_statement else []
+            disp_ans = _parts_text(answer_parts) if is_statement else _format_student_answer(q.type or "mcq", raw_val, option_letters, option_texts)
 
             if (q.type or "mcq").lower() == "mcq" and ans.selected_option_id:
                 if ans.selected_option_id in option_counts:
@@ -387,6 +473,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 else (float(q.score_default if q.score_default is not None else 1.0) if ans.is_correct else 0.0),
                 display_answer=disp_ans,
                 is_correct=ans.is_correct,
+                answer_parts=answer_parts,
             )
 
             if ans.is_correct is True:
@@ -455,6 +542,12 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 )
             )
 
+        response_distribution = build_response_distribution(
+            q, q_options, option_letters, q_answers,
+            {attempt_id: p.student_name for attempt_id, p in participant_by_attempt.items()},
+            upper, lower,
+        )
+
         items.append(
             DetailedItemResult(
                 id=q.id,
@@ -480,6 +573,8 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                 ungraded_students=ungraded_students,
                 unanswered_students=unanswered_students,
                 distractor_distribution=distractor_stats,
+                key_parts=key_parts,
+                response_distribution=response_distribution,
             )
         )
 
@@ -510,7 +605,7 @@ def build_detailed_item_analysis(request: DetailedItemAnalysisRequest) -> Detail
                     if (ans.essay_answer is not None and ans.essay_answer != "")
                     else ans.selected_option_id
                 )
-                disp_ans = _format_student_answer(q.type or "mcq", raw_val, opt_letters, opt_texts)
+                disp_ans = _format_student_answer(q.type or "mcq", raw_val, opt_letters, opt_texts, q_options)
 
                 if ans.is_correct is True:
                     tot_c += 1

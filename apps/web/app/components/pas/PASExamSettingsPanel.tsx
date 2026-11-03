@@ -13,6 +13,7 @@ import {
     bankOverride,
     choiceHint,
     COMPLEX_SCORING_CHOICES,
+    MATCHING_SCORING_CHOICES,
     describePASExamSettings,
     mergeableExamGroups,
     ORDER_CHOICES,
@@ -76,7 +77,7 @@ function SettingHint({ text, choice }: { text?: ReactNode; choice: { label: stri
     </>;
 }
 
-/** Enam baris pengaturan, sama untuk bawaan folder dan pengaturan khusus bank soal. */
+/** Pengaturan yang sama untuk bawaan folder dan pengaturan khusus bank soal. */
 export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
     idPrefix: string; value: PASExamSettings; onChange: (next: PASExamSettings) => void; disabled?: boolean;
 }) {
@@ -95,6 +96,13 @@ export function PASExamSettingsFields({ idPrefix, value, onChange, disabled }: {
             <InlineSelect id={`${idPrefix}-complex`} value={value.complex_scoring} disabled={disabled} minWidth="220px"
                 onChange={next => onChange({ ...value, complex_scoring: next as PASComplexScoringRule })}
                 options={COMPLEX_SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
+        </SettingsRow>
+        <SettingsRow htmlFor={`${idPrefix}-matching`} title="Skor Menjodohkan"
+            description={<SettingHint text="Berlaku khusus untuk soal Menjodohkan. Aturan ini tidak dapat diubah lagi setelah ada siswa yang mengerjakan."
+                choice={choiceHint(MATCHING_SCORING_CHOICES, value.matching_scoring)} />}>
+            <InlineSelect id={`${idPrefix}-matching`} value={value.matching_scoring} disabled={disabled} minWidth="220px"
+                onChange={next => onChange({ ...value, matching_scoring: next as PASComplexScoringRule })}
+                options={MATCHING_SCORING_CHOICES.map(({ value: v, label }) => ({ value: v, label }))} />
         </SettingsRow>
         <SettingsRow htmlFor={`${idPrefix}-results`} title="Hasil untuk siswa"
             description={<SettingHint text="Menentukan apa yang dapat dilihat siswa setelah ujian."
@@ -196,7 +204,7 @@ export function PASExamSettingsPanel({ period, onSaved, onReload }: {
             title: result.updated ? `Tersimpan dan diterapkan ke ${result.updated} ujian.` : 'Tersimpan. Ujian yang dibangkitkan berikutnya memakai pengaturan ini.',
             lines: [
                 ...(result.security_locked.length ? [`Urutan dan keamanan tidak diubah pada ujian yang sudah dikerjakan: ${result.security_locked.join('; ')}.`] : []),
-                ...(result.scoring_rule_locked?.length ? [`Aturan skor Benar-Salah/Kategorisasi tidak diubah pada ujian yang sudah dikerjakan: ${result.scoring_rule_locked.join('; ')}.`] : []),
+                ...(result.scoring_rule_locked?.length ? [`Aturan skor Benar-Salah/Kategorisasi atau Menjodohkan tidak diubah pada ujian yang sudah dikerjakan: ${result.scoring_rule_locked.join('; ')}.`] : []),
                 ...(result.results_locked.length ? [`Hasil dan penilaian belum diubah karena koreksi kunci masih berjalan: ${result.results_locked.join('; ')}.`] : []),
             ],
         });
