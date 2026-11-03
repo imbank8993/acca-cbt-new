@@ -19,6 +19,7 @@ import { assignedPasExamStudents, isPasMonitoringExam } from '../common/pas-moni
 import { isSemesterAssessmentExam, semesterAssessmentSourceLabel } from '../common/exam-types';
 import { resolveExamBankIds } from '../common/exam-question-sources';
 import { assertNoActiveAttempts } from '../common/exam-active-attempts';
+import { COMPLEX_SCORING_RULE_KEY, examComplexScoringRule } from '../common/complex-scoring';
 import { ALLOWED_EXTENSIONS } from '../storage/storage.service';
 import type { CreateExamDto, UpdateExamDto } from './dto/proctor.dto';
 
@@ -287,6 +288,16 @@ export class ExamAdminService {
 
             if (existing.metadata?.key_correction && existing.metadata.key_correction.state !== 'ready') {
                 throw new ConflictException('Selesaikan penilaian ulang koreksi kunci sebelum mengubah atau membuka nilai ujian.');
+            }
+
+            // Aturan skor dibaca ulang setiap penilaian; mengubahnya setelah ada pengerjaan
+            // akan menggeser nilai yang sudah ada (sama seperti pengaturan folder ASAS/AM).
+            if (dto.complexScoringRule && dto.complexScoringRule !== examComplexScoringRule(existing.metadata)) {
+                const { data: attempts, error: attemptError } = await db.from('cbt_exam_attempts').select('id').eq('exam_id', examId).limit(1);
+                if (attemptError) throw new BadRequestException('Status pengerjaan ujian belum dapat diperiksa.');
+                if ((attempts || []).length) {
+                    throw new ConflictException('Aturan skor Benar-Salah & Kategorisasi tidak dapat diubah karena sudah ada siswa yang mengerjakan ujian ini.');
+                }
             }
 
             // `examType` kosong berarti PERTAHANKAN tipe lama. Nilai bawaan 'pas'
@@ -892,6 +903,8 @@ export class ExamAdminService {
             student_score_type: studentScoreType({ scoring_type: dto.scoringType || 'classical',
                 metadata: { student_score_type: dto.studentScoreType ?? existing.student_score_type } }),
             show_answer_keys: dto.showAnswerKeys ?? existing.show_answer_keys ?? false,
+            // Ujian lama tanpa bidang ini = aturan juknis (lihat `examComplexScoringRule`).
+            [COMPLEX_SCORING_RULE_KEY]: dto.complexScoringRule ?? examComplexScoringRule(existing),
             is_safe_mode: dto.isSafeMode ?? existing.is_safe_mode ?? true,
             screenshot_enabled: dto.screenshotEnabled ?? existing.screenshot_enabled ?? false,
             // `null` adalah pilihan eksplisit "tanpa batas". Ujian lama yang

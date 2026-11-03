@@ -561,6 +561,8 @@ export interface ExamInput {
     showResults?: boolean;
     studentScoreType?: 'classical' | 'irt_1pl' | 'irt_2pl' | 'irt_3pl';
     showAnswerKeys?: boolean;
+    /** Skor Benar-Salah & Kategorisasi; terkunci setelah ada siswa yang mengerjakan. */
+    complexScoringRule?: 'official' | 'proportional';
     isSafeMode?: boolean;
     screenshotEnabled?: boolean;
     maxViolations?: number | null;

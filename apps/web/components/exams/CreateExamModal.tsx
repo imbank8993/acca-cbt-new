@@ -17,6 +17,7 @@ import {
 import { Modal, ModalBody, ModalFooter, ModalField } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { InlineSelect } from '@/components/ui/InlineSelect';
+import { COMPLEX_SCORING_CHOICES, type PASComplexScoringRule } from '@/lib/pas/exam-settings';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { DateTimePicker } from '@/components/ui/DateTimePicker';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -74,6 +75,7 @@ interface ExamFormData {
     showResults: boolean;
     studentScoreType: StudentScoreType;
     showAnswerKeys: boolean;
+    complexScoringRule: PASComplexScoringRule;
     isSafeMode: boolean;
     screenshotEnabled: boolean;
     maxViolations: number | null;
@@ -108,6 +110,7 @@ const DEFAULT_FORM_DATA: ExamFormData = {
     showResults: false,
     studentScoreType: 'classical',
     showAnswerKeys: false,
+    complexScoringRule: 'official',
     isSafeMode: true,
     screenshotEnabled: false,
     maxViolations: 3,
@@ -208,6 +211,8 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 showResults: exam.show_results ?? false,
                 studentScoreType: studentScoreType(exam),
                 showAnswerKeys: exam.metadata?.show_answer_keys === true,
+                // Tanpa nilai tersimpan = aturan juknis (sama dengan server).
+                complexScoringRule: exam.metadata?.complex_scoring_rule === 'proportional' ? 'proportional' : 'official',
                 isSafeMode: exam.metadata?.is_safe_mode ?? true,
                 screenshotEnabled: exam.metadata?.screenshot_enabled === true,
                 maxViolations: exam.metadata?.max_violations === null
@@ -524,6 +529,7 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                 showResults: formData.showResults,
                 studentScoreType: formData.studentScoreType,
                 showAnswerKeys: formData.showAnswerKeys,
+                complexScoringRule: formData.complexScoringRule,
                 isSafeMode: formData.isSafeMode,
                 screenshotEnabled: formData.screenshotEnabled,
                 maxViolations: formData.maxViolations,
@@ -696,6 +702,21 @@ export const CreateExamModal: React.FC<CreateExamModalProps> = ({
                             </ModalField>
                         )}
                     </div>
+
+                    {!isPasFolderCreate && (
+                        <ModalField label="Skor Benar-Salah & Kategorisasi"
+                            hint={<>
+                                <strong className="font-semibold text-slate-700">{COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.label}:</strong>{' '}
+                                {COMPLEX_SCORING_CHOICES.find(choice => choice.value === formData.complexScoringRule)?.hint}{' '}
+                                Tidak dapat diubah lagi setelah ada siswa yang mengerjakan.
+                            </>}>
+                            <InlineSelect
+                                options={COMPLEX_SCORING_CHOICES.map(({ value, label }) => ({ value, label }))}
+                                value={formData.complexScoringRule}
+                                onChange={(value) => setFormData((prev) => ({ ...prev, complexScoringRule: value as PASComplexScoringRule }))}
+                            />
+                        </ModalField>
+                    )}
 
                     {isPasFolderCreate ? (
                         <>
